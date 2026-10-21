@@ -2,6 +2,7 @@ package io.putdotio.android.settings
 
 import io.putdotio.android.PutioFailure
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.awaitCancellation
@@ -11,6 +12,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -87,6 +89,24 @@ class AccountSettingsControllerTest {
 
                 assertEquals(1, repository.saveCount)
                 assertEquals(3, repository.loadCount)
+            }
+        }
+
+    @Test
+    fun cancelledParentRejectsChangesWithoutPublishingSavingState() =
+        runBlocking<Unit> {
+            val parent = Job()
+            val controller = AccountSettingsController(RecordingRepository(), CoroutineScope(coroutineContext + parent))
+            try {
+                controller.awaitState { it.content is AccountSettingsContent.Ready }
+                val beforeCancellation = controller.state.value
+                parent.cancel()
+                val change = AccountSettingsChange(AccountSettingsKey.History, enabled = false)
+                assertFalse(controller.dispatch(AccountSettingsEvent.ChangeRequested(change)))
+                assertEquals(beforeCancellation, controller.state.value)
+            } finally {
+                controller.close()
+                withTimeout(TEST_TIMEOUT_MILLIS) { parent.cancelAndJoin() }
             }
         }
 
