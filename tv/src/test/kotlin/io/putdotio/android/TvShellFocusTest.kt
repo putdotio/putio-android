@@ -246,7 +246,10 @@ class TvShellFocusTest {
                 .performKeyInput { pressKey(Key.DirectionLeft) }
             compose.onNode(hasText("Files") and hasClickAction()).assertIsFocused()
 
-            files = filesBrowserState(stack = listOf(FilesFolderState(FilesFolder.Root, content)), nextRequestValue = 11L)
+            files = filesBrowserState(
+                stack = listOf(FilesFolderState(FilesFolder.Root, content)),
+                nextRequestValue = 11L,
+            )
             compose.waitForIdle()
             compose.onNode(hasText("Files") and hasClickAction())
                 .assertIsFocused()

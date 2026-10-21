@@ -341,9 +341,7 @@ class MobileTransfersScreenTest {
         ) {
             compose.onNodeWithContentDescription("Transfer actions").assertIsEnabled()
             openActionsMenu()
-            compose.onNodeWithText("Refresh").assertIsNotEnabled()
-            compose.onNodeWithContentDescription("Retry transfer", substring = true).assertIsNotEnabled()
-            compose.onNodeWithContentDescription("Open transfer-", substring = true).assertIsNotEnabled()
+            assertRefreshRetryAndOpenDisabled()
             compose.onNodeWithContentDescription("Cancel transfer transfer-1").assertIsNotEnabled()
             compose.onNodeWithText("Add transfer").assertIsNotEnabled()
             compose.onNodeWithText("Clean completed").assertIsNotEnabled()
@@ -354,9 +352,7 @@ class MobileTransfersScreenTest {
             ),
         ) {
             openActionsMenu()
-            compose.onNodeWithText("Refresh").assertIsNotEnabled()
-            compose.onNodeWithContentDescription("Retry transfer", substring = true).assertIsNotEnabled()
-            compose.onNodeWithContentDescription("Open transfer-", substring = true).assertIsNotEnabled()
+            assertRefreshRetryAndOpenDisabled()
             compose.onNodeWithText("Add transfer").assertIsNotEnabled()
             compose.onNodeWithText("Clean completed").assertIsNotEnabled()
         }
@@ -367,9 +363,7 @@ class MobileTransfersScreenTest {
             ),
         ) {
             openActionsMenu()
-            compose.onNodeWithText("Refresh").assertIsNotEnabled()
-            compose.onNodeWithContentDescription("Retry transfer", substring = true).assertIsNotEnabled()
-            compose.onNodeWithContentDescription("Open transfer-", substring = true).assertIsNotEnabled()
+            assertRefreshRetryAndOpenDisabled()
         }
         given(
             state(
@@ -384,6 +378,12 @@ class MobileTransfersScreenTest {
             compose.onNodeWithText("Add transfer").assertIsEnabled()
             compose.onNodeWithText("Clean completed").assertIsEnabled()
         }
+    }
+
+    private fun assertRefreshRetryAndOpenDisabled() {
+        compose.onNodeWithText("Refresh").assertIsNotEnabled()
+        compose.onNodeWithContentDescription("Retry transfer", substring = true).assertIsNotEnabled()
+        compose.onNodeWithContentDescription("Open transfer-", substring = true).assertIsNotEnabled()
     }
 
     @Test

@@ -118,8 +118,6 @@ class MobileShareIntentsTest {
         }
     }
 
-    }
-
     @Test
     fun unicodeLimitCountsUtf8BytesAtTheShareBoundary() {
         val text = "https://example.invalid/" + "東".repeat(MOBILE_TRANSFER_INPUT_LIMIT / 2)

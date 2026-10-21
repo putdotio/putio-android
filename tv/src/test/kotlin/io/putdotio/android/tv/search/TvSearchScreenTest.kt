@@ -276,7 +276,7 @@ class TvSearchScreenTest {
         // The controller reporting the previous text back, while the user is on the chips,
         // must not undo the edit.
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithContentDescription("Search again for Tears Of Steel").assertIsFocused()
+        compose.onNodeWithContentDescription("Search again for sintel").assertIsFocused()
         state = searchState(SearchContent.Idle, recent = state.recentTerms, query = "Tears Of Steel")
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assert(hasText("Tears Of Steel!"))
         assertEquals(listOf("recent:Tears Of Steel", "query:Tears Of Steel!"), log)
