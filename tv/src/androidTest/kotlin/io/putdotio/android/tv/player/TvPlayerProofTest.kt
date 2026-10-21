@@ -130,7 +130,6 @@ class TvPlayerProofTest {
         }
         compose.onNodeWithTag(TV_PLAYER_TAG).assertIsFocused()
         screenshot("02-playing-controls")
-        // Controls hide three seconds into playback.
         elapse(TV_PLAYER_CONTROLS_HIDE_DELAY_MILLIS + 1_500L)
         compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertDoesNotExist()
         screenshot("03-playing-clean")
@@ -375,8 +374,8 @@ class TvPlayerProofTest {
     /**
      * Needs a fixture with two audio renditions and a subtitle rendition (see the harness guide).
      * The account's settings select subtitles automatically; the pickers then change audio,
-     * turn subtitles off (they stay off after a seek, #45) and set the speed, and Back closes an
-     * open picker before the controls (#9).
+     * turn subtitles off (they stay off after a seek) and set the speed, and Back closes an open
+     * picker before the controls.
      */
     @Test
     fun languageSubtitlesAndSpeedPickersJoinTheBackStack() {
@@ -425,7 +424,7 @@ class TvPlayerProofTest {
         screenshot("35-subtitles-off")
         pause()
 
-        // Down to the seek bar, scrub and commit: subtitles stay off (#45).
+        // Down to the seek bar, scrub and commit: subtitles stay off.
         press(KeyEvent.KEYCODE_DPAD_DOWN)
         press(KeyEvent.KEYCODE_DPAD_RIGHT)
         press(KeyEvent.KEYCODE_DPAD_CENTER)
@@ -485,8 +484,8 @@ class TvPlayerProofTest {
     }
 
     /**
-     * #237: the account's default subtitle (the master's `DEFAULT=YES` rendition, German here)
-     * starts on even though the system's captions ask for English.
+     * The account's default subtitle (the master's `DEFAULT=YES` rendition, German here) starts
+     * on even though the system's captions ask for English.
      */
     @Test
     fun automaticSubtitlesStartOnTheAccountsDefaultOverTheCaptionLanguage() {
@@ -517,7 +516,7 @@ class TvPlayerProofTest {
         }
     }
 
-    /** #237: `hide_subtitles` leaves no Subtitles button and no subtitle on, whatever the stream has. */
+    /** `hide_subtitles` leaves no Subtitles button and no subtitle on, whatever the stream has. */
     @Test
     fun hideSubtitlesLeavesNoSubtitlesButton() {
         val factory = mountFilesWithPlayer(SubtitleStartupPolicy(showSubtitles = false, autoSelectSubtitles = true))
@@ -551,9 +550,8 @@ class TvPlayerProofTest {
 
     /**
      * The conversion interstitial on a fake conversion source, started once on opening without a
-     * press, then the remote's play/pause key
-     * and the system's media controls through the published session, then a failed resolution
-     * that Try again recovers from.
+     * press, then the remote's play/pause key and the system's media controls through the
+     * published session, then a failed resolution that Try again recovers from.
      */
     @Test
     fun conversionThenSessionControlsAndARecoverableError() {

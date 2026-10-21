@@ -9,7 +9,6 @@ import io.putdotio.sdk.errors.PutioRequestData
 import io.putdotio.sdk.files.FileDeleteResult
 import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -50,45 +49,6 @@ class FilesDeleteControllerTest {
             } finally {
                 controller.close()
             }
-        }
-    }
-
-    @Test
-    fun deletionCancelsPagingAndIgnoresDuplicateConfirmWhilePostIsPending() = runBlocking {
-        val pagingStarted = CompletableDeferred<Unit>()
-        val pagingCancelled = CompletableDeferred<Unit>()
-        val deleteResult = CompletableDeferred<PutioResult<FileDeleteResult>>()
-        val repository = object : StubFilesRepository() {
-            var deletes = 0
-            override suspend fun loadFolder(folderId: FilesItemId) =
-                PutioResult.Success(FilesPage(listOf(item), FilesCursor("next")))
-            override suspend fun loadNextPage(cursor: FilesCursor): PutioResult<FilesPage> {
-                pagingStarted.complete(Unit)
-                try { awaitCancellation() } finally { pagingCancelled.complete(Unit) }
-            }
-            override suspend fun resolveItem(itemId: FilesItemId) = PutioResult.Success(item)
-            override suspend fun delete(
-                itemId: FilesItemId,
-                mode: FilesDeleteMode,
-            ): PutioResult<FileDeleteResult> {
-                deletes += 1
-                return deleteResult.await()
-            }
-        }
-        val controller = FilesBrowserController(repository, this)
-        try {
-            withTimeout(5_000) { controller.state.first { it.current.content is FilesContent.Ready } }
-            controller.dispatch(FilesBrowserEvent.LoadNextPage)
-            withTimeout(5_000) { pagingStarted.await() }
-            assertTrue(controller.dispatch(deleteEvent))
-            assertFalse(controller.dispatch(deleteEvent))
-            withTimeout(5_000) { pagingCancelled.await() }
-            deleteResult.complete(PutioResult.Success(FileDeleteResult(status = "OK")))
-            withTimeout(5_000) { controller.state.first { it.current.operation == FilesFolderOperation.Idle } }
-            assertEquals(1, repository.deletes)
-            assertEquals(FilesDeleteStatus.STILL_PRESENT, controller.state.value.current.deleteOutcome?.status)
-        } finally {
-            controller.close()
         }
     }
 

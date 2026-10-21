@@ -10,12 +10,10 @@ import org.junit.Test
 
 class FilesRenameReducerTest {
     @Test
-    fun failedRenameReloadCannotBeReplacedByRefresh() =
-        assertFailedRenameReloadRejects(FilesBrowserEvent.Refresh)
-
-    @Test
-    fun failedRenameReloadCannotBeReplacedBySort() =
-        assertFailedRenameReloadRejects(FilesBrowserEvent.SelectSort(FilesSort.SIZE_ASCENDING))
+    fun failedRenameReloadCannotBeReplacedByRefreshOrSort() {
+        listOf(FilesBrowserEvent.Refresh, FilesBrowserEvent.SelectSort(FilesSort.SIZE_ASCENDING))
+            .forEach { assertFailedRenameReloadRejects(it) }
+    }
 
     private fun assertFailedRenameReloadRejects(event: FilesBrowserEvent) {
         val original = item(7L, "old.mkv", PutioFileType.VIDEO)

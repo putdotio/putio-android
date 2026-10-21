@@ -317,109 +317,117 @@ class MobileTransfersScreenTest {
     }
 
     @Test
-    fun mutationDisablesRefreshAndEveryRowAction() {
-        val rows =
-            listOf(
-                transfer(1L, AppTransferStatus.Downloading),
-                transfer(2L, AppTransferStatus.Failed),
-                transfer(3L, AppTransferStatus.Completed, fileId = 13L),
-            )
-        setScreen(
-            state(TransfersContent.Ready(rows, TransfersPaging.Complete)).copyForTest(
-                mutation =
-                    TransferMutation.Running(
-                        TransferAction.Cancel(rows.first().id),
-                        TransfersRequestId(9L),
-                    ),
-            ),
-            onEvent = {},
+    fun busyStatesDisableTheRowAndToolbarActionsTheyBlock() {
+        val active = listOf(
+            transfer(1L, AppTransferStatus.Downloading),
+            transfer(2L, AppTransferStatus.Failed),
+            transfer(3L, AppTransferStatus.Completed, fileId = 13L),
         )
-
-        openActionsMenu()
-        compose.onNodeWithText("Refresh").assertIsNotEnabled()
-        compose.onNodeWithContentDescription("Retry transfer", substring = true).assertIsNotEnabled()
-        compose.onNodeWithContentDescription("Open transfer-", substring = true).assertIsNotEnabled()
-        compose.onNodeWithText("Add transfer").assertIsNotEnabled()
-        compose.onNodeWithText("Clean completed").assertIsNotEnabled()
-    }
-
-    @Test
-    fun pollingKeepsRowActionsEnabledWithoutExposingForegroundRefresh() {
-        val rows =
-            listOf(
-                transfer(1L, AppTransferStatus.Failed),
-                transfer(2L, AppTransferStatus.Completed, fileId = 12L),
-            )
-        setScreen(
-            state(
-                TransfersContent.Ready(rows, TransfersPaging.Complete),
-                refresh = TransfersRefresh.Polling(TransfersRequestId(9L)),
-            ),
-            onEvent = {},
+        val settled = listOf(
+            transfer(1L, AppTransferStatus.Failed),
+            transfer(2L, AppTransferStatus.Completed, fileId = 12L),
         )
-
-        openActionsMenu()
-        compose.onNodeWithText("Refresh").assertIsNotEnabled()
-        compose.onNodeWithContentDescription("Retry transfer", substring = true).assertIsEnabled()
-        compose.onNodeWithContentDescription("Open transfer-", substring = true).assertIsEnabled()
-        compose.onNodeWithText("Add transfer").assertIsEnabled()
-        compose.onNodeWithText("Clean completed").assertIsEnabled()
-    }
-
-    @Test
-    fun pollingDisablesAvailableAndFailedPagingControls() {
-        val row = transfer(1L, AppTransferStatus.Seeding, fileId = 12L)
-        var current by mutableStateOf(
-            state(
-                TransfersContent.Ready(
-                    listOf(row),
-                    TransfersPaging.Available(TransferCursor("next")),
-                ),
-                refresh = TransfersRefresh.Polling(TransfersRequestId(9L)),
-            ),
-        )
+        var current by mutableStateOf(state(TransfersContent.Empty))
         setMutableScreen({ current }, onEvent = {})
-
-        compose.onNodeWithContentDescription("Open transfer-", substring = true).assertIsEnabled()
-        compose.onNodeWithText("Load more").assertIsNotEnabled()
-
-        compose.runOnIdle {
-            current =
-                current.copyForTest(
-                    content =
-                        TransfersContent.Ready(
-                            listOf(row),
-                            TransfersPaging.Failed(
-                                TransferCursor("next"),
-                                PutioFailure.Unexpected(IllegalStateException("paging")),
-                            ),
-                        ),
-                )
+        fun given(next: TransfersState, assertions: () -> Unit) {
+            compose.runOnIdle { current = next }
+            assertions()
         }
 
-        compose.onNodeWithContentDescription("Open transfer-", substring = true).assertIsEnabled()
-        compose.onNodeWithText("Try again").assertIsNotEnabled()
+        given(
+            state(TransfersContent.Ready(active, TransfersPaging.Complete)).copyForTest(
+                mutation = TransferMutation.Running(TransferAction.Cancel(active.first().id), TransfersRequestId(9L)),
+            ),
+        ) {
+            compose.onNodeWithContentDescription("Transfer actions").assertIsEnabled()
+            openActionsMenu()
+            compose.onNodeWithText("Refresh").assertIsNotEnabled()
+            compose.onNodeWithContentDescription("Retry transfer", substring = true).assertIsNotEnabled()
+            compose.onNodeWithContentDescription("Open transfer-", substring = true).assertIsNotEnabled()
+            compose.onNodeWithContentDescription("Cancel transfer transfer-1").assertIsNotEnabled()
+            compose.onNodeWithText("Add transfer").assertIsNotEnabled()
+            compose.onNodeWithText("Clean completed").assertIsNotEnabled()
+        }
+        given(
+            state(TransfersContent.Ready(settled, TransfersPaging.Complete)).copyForTest(
+                navigation = TransferNavigation.Resolving(TransferFileId(12L), TransfersRequestId(9L)),
+            ),
+        ) {
+            openActionsMenu()
+            compose.onNodeWithText("Refresh").assertIsNotEnabled()
+            compose.onNodeWithContentDescription("Retry transfer", substring = true).assertIsNotEnabled()
+            compose.onNodeWithContentDescription("Open transfer-", substring = true).assertIsNotEnabled()
+            compose.onNodeWithText("Add transfer").assertIsNotEnabled()
+            compose.onNodeWithText("Clean completed").assertIsNotEnabled()
+        }
+        given(
+            state(
+                TransfersContent.Ready(settled, TransfersPaging.Complete),
+                refresh = TransfersRefresh.Refreshing(TransfersRequestId(9L)),
+            ),
+        ) {
+            openActionsMenu()
+            compose.onNodeWithText("Refresh").assertIsNotEnabled()
+            compose.onNodeWithContentDescription("Retry transfer", substring = true).assertIsNotEnabled()
+            compose.onNodeWithContentDescription("Open transfer-", substring = true).assertIsNotEnabled()
+        }
+        given(
+            state(
+                TransfersContent.Ready(settled, TransfersPaging.Complete),
+                refresh = TransfersRefresh.Polling(TransfersRequestId(9L)),
+            ),
+        ) {
+            openActionsMenu()
+            compose.onNodeWithText("Refresh").assertIsNotEnabled()
+            compose.onNodeWithContentDescription("Retry transfer", substring = true).assertIsEnabled()
+            compose.onNodeWithContentDescription("Open transfer-", substring = true).assertIsEnabled()
+            compose.onNodeWithText("Add transfer").assertIsEnabled()
+            compose.onNodeWithText("Clean completed").assertIsEnabled()
+        }
     }
 
     @Test
-    fun foregroundRefreshDisablesRowActions() {
-        val rows =
-            listOf(
-                transfer(1L, AppTransferStatus.Failed),
-                transfer(2L, AppTransferStatus.Completed, fileId = 12L),
-            )
-        setScreen(
-            state(
-                TransfersContent.Ready(rows, TransfersPaging.Complete),
-                refresh = TransfersRefresh.Refreshing(TransfersRequestId(9L)),
-            ),
-            onEvent = {},
+    fun pollingAndARunningAddDisableRecoveryAndPagingControls() {
+        val seeding = listOf(transfer(1L, AppTransferStatus.Seeding, fileId = 12L))
+        val downloading = listOf(transfer(1L, AppTransferStatus.Downloading))
+        val more = TransfersPaging.Available(TransferCursor("next"))
+        val pagingFailed = TransfersPaging.Failed(
+            TransferCursor("next"),
+            PutioFailure.Unexpected(IllegalStateException("paging")),
         )
+        val polling = TransfersRefresh.Polling(TransfersRequestId(9L))
+        var current by mutableStateOf(state(TransfersContent.Empty))
+        setMutableScreen({ current }, onEvent = {})
+        fun given(next: TransfersState, assertions: () -> Unit) {
+            compose.runOnIdle { current = next }
+            assertions()
+        }
 
-        openActionsMenu()
-        compose.onNodeWithText("Refresh").assertIsNotEnabled()
-        compose.onNodeWithContentDescription("Retry transfer", substring = true).assertIsNotEnabled()
-        compose.onNodeWithContentDescription("Open transfer-", substring = true).assertIsNotEnabled()
+        given(state(TransfersContent.Ready(seeding, more), refresh = polling)) {
+            compose.onNodeWithContentDescription("Open transfer-", substring = true).assertIsEnabled()
+            compose.onNodeWithText("Load more").assertIsNotEnabled()
+        }
+        given(state(TransfersContent.Ready(seeding, pagingFailed), refresh = polling)) {
+            compose.onNodeWithContentDescription("Open transfer-", substring = true).assertIsEnabled()
+            compose.onNodeWithText("Try again").assertIsNotEnabled()
+        }
+        given(state(TransfersContent.Failed(PutioFailure.Unexpected(IllegalStateException("load")))).withRunningAdd()) {
+            compose.onNodeWithText("Try again").assertIsNotEnabled()
+        }
+        given(state(TransfersContent.Ready(downloading, more)).withRunningAdd()) {
+            compose.onNodeWithText("Load more").assertIsNotEnabled()
+        }
+        given(state(TransfersContent.Ready(downloading, pagingFailed)).withRunningAdd()) {
+            compose.onNodeWithText("Try again").assertIsNotEnabled()
+        }
+        given(
+            state(
+                TransfersContent.Ready(downloading, TransfersPaging.Complete),
+                refresh = TransfersRefresh.Failed(PutioFailure.Unexpected(IllegalStateException("refresh"))),
+            ).withRunningAdd(),
+        ) {
+            compose.onNodeWithText("Try again").assertIsNotEnabled()
+        }
     }
 
     @Test
@@ -445,79 +453,6 @@ class MobileTransfersScreenTest {
         }
 
         compose.onNodeWithText("transfer-20").assertIsDisplayed()
-    }
-
-    @Test
-    fun fileResolutionDisablesRefreshAndEveryRowAction() {
-        val rows =
-            listOf(
-                transfer(1L, AppTransferStatus.Failed),
-                transfer(2L, AppTransferStatus.Completed, fileId = 12L),
-            )
-        setScreen(
-            state(TransfersContent.Ready(rows, TransfersPaging.Complete)).copyForTest(
-                navigation =
-                    TransferNavigation.Resolving(
-                        TransferFileId(12L),
-                        TransfersRequestId(9L),
-                    ),
-            ),
-            onEvent = {},
-        )
-
-        openActionsMenu()
-        compose.onNodeWithText("Refresh").assertIsNotEnabled()
-        compose.onNodeWithContentDescription("Retry transfer", substring = true).assertIsNotEnabled()
-        compose.onNodeWithContentDescription("Open transfer-", substring = true).assertIsNotEnabled()
-        compose.onNodeWithText("Add transfer").assertIsNotEnabled()
-        compose.onNodeWithText("Clean completed").assertIsNotEnabled()
-    }
-
-    @Test
-    fun mutationDisablesLoadRecoveryAndPagingActions() {
-        var current by mutableStateOf(
-            state(TransfersContent.Failed(PutioFailure.Unexpected(IllegalStateException("load")))).withRunningAdd(),
-        )
-        setMutableScreen({ current }, onEvent = {})
-
-        compose.onNodeWithText("Try again").assertIsNotEnabled()
-
-        compose.runOnIdle {
-            current =
-                state(
-                    TransfersContent.Ready(
-                        listOf(transfer(1L, AppTransferStatus.Downloading)),
-                        TransfersPaging.Available(TransferCursor("next")),
-                    ),
-                ).withRunningAdd()
-        }
-        compose.onNodeWithText("Load more").assertIsNotEnabled()
-
-        compose.runOnIdle {
-            current =
-                state(
-                    TransfersContent.Ready(
-                        listOf(transfer(1L, AppTransferStatus.Downloading)),
-                        TransfersPaging.Failed(
-                            TransferCursor("next"),
-                            PutioFailure.Unexpected(IllegalStateException("paging")),
-                        ),
-                    ),
-                ).withRunningAdd()
-        }
-        compose.onNodeWithText("Try again").assertIsNotEnabled()
-
-        compose.runOnIdle {
-            current =
-                state(
-                    TransfersContent.Ready(
-                        listOf(transfer(1L, AppTransferStatus.Downloading)),
-                        TransfersPaging.Complete,
-                    ),
-                    refresh = TransfersRefresh.Failed(PutioFailure.Unexpected(IllegalStateException("refresh"))),
-                ).withRunningAdd()
-        }
-        compose.onNodeWithText("Try again").assertIsNotEnabled()
     }
 
     private fun openActionsMenu() {
@@ -569,21 +504,6 @@ class MobileTransfersAddSheetTest {
     }
 
     @Test
-    fun sharedTextPrefillsAnEditableSheetAndOnlyConfirmationSubmits() {
-        val draft = MobileTransferDraft()
-        draft.receive(parseMobileSharedTransfer("A title\nhttps://example.invalid/first"))
-        val events = mutableListOf<TransfersEvent>()
-        compose.setContent {
-            PutioTheme { MobileTransfersScreen(state(TransfersContent.Empty), events::add, draft = draft) }
-        }
-        assertAddInput("https://example.invalid/first")
-        compose.runOnIdle { assertEquals(emptyList<TransfersEvent>(), events) }
-        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).performTextReplacement("magnet:?xt=urn:btih:12345")
-        compose.onNodeWithText("Add").performClick()
-        compose.runOnIdle { assertEquals(listOf(TransfersEvent.Add("magnet:?xt=urn:btih:12345")), events) }
-    }
-
-    @Test
     fun multipleSharedLinksBecomeOneLinePerLinkAndReplacementRequiresAChoice() {
         val draft = MobileTransferDraft()
         val normalized = "https://example.invalid/first\nhttps://example.invalid/second"
@@ -600,9 +520,13 @@ class MobileTransfersAddSheetTest {
         compose.runOnIdle { draft.receive(parseMobileSharedTransfer("https://example.invalid/replacement")) }
         compose.onNodeWithText("Use shared link").performClick()
         assertAddInput("https://example.invalid/replacement")
+        compose.runOnIdle { assertEquals(emptyList<TransfersEvent>(), events) }
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).performTextReplacement("magnet:?xt=urn:btih:12345")
+        compose.onNodeWithText("Add").performClick()
+        compose.runOnIdle { assertEquals(listOf(TransfersEvent.Add("magnet:?xt=urn:btih:12345")), events) }
         compose.onNodeWithText("Cancel").performClick()
         compose.onAllNodesWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertCountEquals(0)
-        compose.runOnIdle { assertEquals(emptyList<TransfersEvent>(), events) }
+        compose.runOnIdle { assertEquals(listOf(TransfersEvent.Add("magnet:?xt=urn:btih:12345")), events) }
     }
 
     @Test

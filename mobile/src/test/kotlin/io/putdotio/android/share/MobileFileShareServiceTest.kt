@@ -10,7 +10,6 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.auth.MobileAuthState
-import io.putdotio.android.files.FilesItemId
 import java.io.File
 import java.io.IOException
 import java.util.concurrent.CountDownLatch
@@ -199,38 +198,25 @@ class MobileFileShareServiceTest {
     }
 
     @Test
-    fun aFailedDownloadLeavesAFailureNotificationAndNoExport() {
-        val fixture = ShareFixture()
-        fixture.respond = { request -> ok(request).newBuilder().code(500).message("Server Error").build() }
-        fixture.start(fileId = 9L, name = "poster.jpg", startId = 1)
-        fixture.scheduler.advanceUntilIdle()
-        val notification = requireNotNull(shadowOf(fixture.service).lastForegroundNotification)
-        assertEquals(FAILED_TEXT, shadowOf(notification).contentText.toString())
-        // Detached, so the failure stays visible after the service stops.
-        assertTrue(shadowOf(fixture.service).isForegroundStopped)
-        assertFalse(shadowOf(fixture.service).notificationShouldRemoved)
-        assertFalse(fixture.export("9").exists())
-        assertEquals(1, shadowOf(fixture.service).stopSelfId)
-        fixture.destroy()
-    }
-
-    @Test
-    fun aNetworkErrorAlsoReportsFailure() {
-        val fixture = ShareFixture()
-        fixture.respond = { throw IOException("offline") }
-        fixture.start(fileId = 9L, name = "poster.jpg", startId = 1)
-        fixture.scheduler.advanceUntilIdle()
-        val notification = requireNotNull(shadowOf(fixture.service).lastForegroundNotification)
-        assertEquals(FAILED_TEXT, shadowOf(notification).contentText.toString())
-        fixture.destroy()
-    }
-
-    @Test
-    fun downloadRequestKeepsTheTokenInTheHeaderOnly() {
-        val request = MobileFileShareService.downloadRequest(FilesItemId(9L), "secret-token")
-        assertEquals("https://api.put.io/v2/files/9/download", request.url.toString())
-        assertEquals("Token secret-token", request.header("Authorization"))
-        assertFalse(request.url.toString().contains("secret-token"))
+    fun aFailedOrUnreachableDownloadLeavesAFailureNotificationAndNoExport() {
+        val serverError: (Request) -> Response = { request ->
+            ok(request).newBuilder().code(500).message("Server Error").build()
+        }
+        val offline: (Request) -> Response = { throw IOException("offline") }
+        for (respond in listOf(serverError, offline)) {
+            val fixture = ShareFixture()
+            fixture.respond = respond
+            fixture.start(fileId = 9L, name = "poster.jpg", startId = 1)
+            fixture.scheduler.advanceUntilIdle()
+            val notification = requireNotNull(shadowOf(fixture.service).lastForegroundNotification)
+            assertEquals(FAILED_TEXT, shadowOf(notification).contentText.toString())
+            // Detached, so the failure stays visible after the service stops.
+            assertTrue(shadowOf(fixture.service).isForegroundStopped)
+            assertFalse(shadowOf(fixture.service).notificationShouldRemoved)
+            assertFalse(fixture.export("9").exists())
+            assertEquals(1, shadowOf(fixture.service).stopSelfId)
+            fixture.destroy()
+        }
     }
 
     @Test

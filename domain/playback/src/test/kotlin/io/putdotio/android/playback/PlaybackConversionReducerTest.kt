@@ -136,6 +136,19 @@ class PlaybackConversionReducerTest {
                 PlaybackEvent.ResolveSucceeded(PlaybackRequestId(1L), PlaybackResolution.Conversion(state)),
             )
             assertFalse("$state starts no conversion", reopened.effect is PlaybackEffect.StartConversion)
+            if (state == PlaybackConversionState.Completed) return@forEach
+
+            val reread = PlaybackReducer.reduce(
+                PlaybackReducer.reduce(reopened.state, PlaybackEvent.RefreshConversion).state,
+                PlaybackEvent.ResolveSucceeded(
+                    PlaybackRequestId(2L),
+                    PlaybackResolution.Conversion(PlaybackConversionState.NotAvailable),
+                ),
+            )
+            assertNull("$state then not available starts nothing", reread.effect)
+            val final = reread.state.content as PlaybackContent.Conversion
+            assertFalse("$state then not available", final.starting)
+            assertNull("$state then not available", final.action)
         }
         assertEquals(
             PlaybackConversionAction.ConvertAgain,
@@ -147,34 +160,17 @@ class PlaybackConversionReducerTest {
                 conversion(PlaybackConversionState.Unknown("PAUSED", null)).content as PlaybackContent.Conversion
                 ).action,
         )
-    }
-
-    @Test
-    fun aLaterReadOfNotAvailableNeverStartsAConversion() {
-        // Opened while queued, then a poll reads not available.
-        val queued = conversion(PlaybackConversionState.Queued)
-        val polled = PlaybackReducer.reduce(
-            PlaybackReducer.reduce(queued, PlaybackEvent.RefreshConversion).state,
-            PlaybackEvent.ResolveSucceeded(
-                PlaybackRequestId(2L),
-                PlaybackResolution.Conversion(PlaybackConversionState.NotAvailable),
-            ),
-        )
-        assertNull("A poll starts nothing", polled.effect)
-        val final = polled.state.content as PlaybackContent.Conversion
-        assertFalse(final.starting)
-        assertNull(final.action)
-
-        // Opened with an unknown status, then Check again reads not available.
-        val unknown = conversion(PlaybackConversionState.Unknown("PAUSED", null))
-        val checked = PlaybackReducer.reduce(
-            PlaybackReducer.reduce(unknown, PlaybackEvent.RefreshConversion).state,
-            PlaybackEvent.ResolveSucceeded(
-                PlaybackRequestId(2L),
-                PlaybackResolution.Conversion(PlaybackConversionState.NotAvailable),
-            ),
-        )
-        assertNull("Check again starts nothing", checked.effect)
+        mapOf(
+            PlaybackConversionState.Queued to true,
+            PlaybackConversionState.Converting(35.0) to true,
+            PlaybackConversionState.Converting(null) to true,
+            PlaybackConversionState.Completed to false,
+            PlaybackConversionState.Failed to false,
+            PlaybackConversionState.NotAvailable to false,
+            PlaybackConversionState.Unknown("PAUSED", null) to false,
+        ).forEach { (state, polls) ->
+            assertEquals("$state polls on its own", polls, state.pollsAutomatically)
+        }
     }
 
     @Test
@@ -205,16 +201,6 @@ class PlaybackConversionReducerTest {
         )
         assertNull("One start per opening", reread.effect)
         assertFalse((reread.state.content as PlaybackContent.Conversion).starting)
-    }
-
-    @Test
-    fun onlyQueuedAndRunningConversionsPollOnTheirOwn() {
-        assertTrue(PlaybackConversionState.Queued.pollsAutomatically)
-        assertTrue(PlaybackConversionState.Converting(null).pollsAutomatically)
-        assertFalse(PlaybackConversionState.Completed.pollsAutomatically)
-        assertFalse(PlaybackConversionState.Failed.pollsAutomatically)
-        assertFalse(PlaybackConversionState.NotAvailable.pollsAutomatically)
-        assertFalse(PlaybackConversionState.Unknown("PAUSED", null).pollsAutomatically)
     }
 
     private fun conversion(state: PlaybackConversionState): PlaybackState =

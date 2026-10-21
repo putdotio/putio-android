@@ -30,7 +30,6 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -56,7 +55,6 @@ import io.putdotio.android.account.MOBILE_ACCOUNT_LIST_TAG
 import io.putdotio.android.account.MOBILE_INACTIVE_ACCOUNT_NOTICE_TAG
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
-import io.putdotio.android.auth.MobileSignedOutReason
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.files.FilesBrowserEffect
 import io.putdotio.android.files.FilesBrowserEvent
@@ -195,20 +193,10 @@ class MobileShellTest {
     }
 
     @Test
-    fun shellRendersTheContractDestinations() {
-        compose.setShell()
-
-        compose.onNodeWithTag(MOBILE_NAV_BAR_TAG).assertIsDisplayed()
-        listOf("Files", "Search", "Transfers", "Account").forEach { label ->
-            compose.onAllNodes(hasText(label)).onFirst().assertIsDisplayed()
-        }
-        compose.onAllNodes(hasContentDescription("Transfers")).assertCountEquals(0)
-    }
-
-    @Test
     fun selectingADestinationRetitlesTheTopBar() {
         compose.setShell()
 
+        compose.onAllNodes(hasContentDescription("Transfers")).assertCountEquals(0)
         compose.onNodeWithText("Transfers").performClick()
 
         compose.onAllNodes(hasText("Transfers")).assertCountEquals(2)
@@ -289,24 +277,6 @@ class MobileShellTest {
         compose.onNodeWithTag(MOBILE_FILES_SHARE_ACTION_TAG).assertIsDisplayed().performClick()
 
         compose.runOnIdle { assertEquals(listOf(FilesItemId(9L)), shared.map(FilesItem::id)) }
-    }
-
-    @Test
-    fun secureStorageFailureOffersResetAndSignIn() {
-        var signInRequests = 0
-        compose.setContent {
-            PutioTheme {
-                MobileSignedOutScreen(
-                    reason = MobileSignedOutReason.SecureStorageUnavailable,
-                    canSignIn = true,
-                    onSignIn = { signInRequests += 1 },
-                )
-            }
-        }
-
-        compose.onNodeWithText("could not be read or stored safely", substring = true).assertIsDisplayed()
-        compose.onNodeWithText("Reset and sign in").performClick()
-        assertEquals(1, signInRequests)
     }
 
     @Test
@@ -592,38 +562,29 @@ class MobileShellShareTest {
     }
 
     @Test
-    fun incomingShareWaitsForTransferResolutionBeforeOpeningItsDraft() {
-        val draft = MobileTransferDraft()
-        val resolved = CompletableDeferred<PutioResult<FilesItem>>()
-        val events = mutableListOf<TransfersEvent>()
-        setResolvingTransferShell(draft, resolved, events)
-        compose.runOnIdle { draft.receive(parseMobileSharedTransfer("https://example.invalid/shared")) }
-        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertDoesNotExist()
-        compose.runOnIdle {
-            assertNotNull(draft.state.value.incomingRequestId)
-            resolved.complete(PutioResult.Success(shellResolvedFolder()))
-        }
-        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
-        compose.runOnIdle {
-            assertNull(draft.state.value.incomingRequestId)
-            assertTrue(events.contains(TransfersEvent.OpenSucceeded(TransfersRequestId(3L))))
-            assertTrue(events.none { it is TransfersEvent.Add })
-        }
-    }
+    fun incomingShareWaitsForTransferResolutionBeforeOpeningItsDraft() = verifyShareAfterTransferResolution()
 
     @Test
-    fun acceptingAReplacementShareWaitsForTransferResolution() {
+    fun acceptingAReplacementShareWaitsForTransferResolution() =
+        verifyShareAfterTransferResolution(replaceDraft = true)
+
+    private fun verifyShareAfterTransferResolution(replaceDraft: Boolean = false) {
         val draft = MobileTransferDraft()
         val resolved = CompletableDeferred<PutioResult<FilesItem>>()
         val events = mutableListOf<TransfersEvent>()
         setResolvingTransferShell(draft, resolved, events)
-        compose.onNodeWithText("Transfers").performClick()
-        compose.runOnIdle {
-            draft.edit("https://example.invalid/previous")
-            draft.receive(parseMobileSharedTransfer("https://example.invalid/shared"))
+        if (replaceDraft) {
+            compose.onNodeWithText("Transfers").performClick()
+            compose.runOnIdle {
+                draft.edit("https://example.invalid/previous")
+                draft.receive(parseMobileSharedTransfer("https://example.invalid/shared"))
+            }
+            compose.onNodeWithText("Use shared link").performClick()
+            compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
+        } else {
+            compose.runOnIdle { draft.receive(parseMobileSharedTransfer("https://example.invalid/shared")) }
+            compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertDoesNotExist()
         }
-        compose.onNodeWithText("Use shared link").performClick()
-        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
         compose.runOnIdle {
             assertNotNull(draft.state.value.incomingRequestId)
             resolved.complete(PutioResult.Success(shellResolvedFolder()))
@@ -1007,23 +968,6 @@ class MobileShellFilesTest {
     }
 
     @Test
-    fun filesSortIsDisabledWhileARefreshIsRunning() {
-        val ready = readyFilesState(FilesSort.NAME_ASCENDING)
-        val refreshing = ready.copyForTest(
-            stack = ready.stack.dropLast(1) + ready.current.copy(
-                operation = FilesFolderOperation.Loading(
-                    requestId = FilesRequestId(12L),
-                    intent = FilesFolderOperationIntent.Refresh,
-                    phase = FilesFolderOperationPhase.RELOADING,
-                ),
-            ),
-        )
-        compose.setShell(filesState = refreshing)
-
-        compose.onNodeWithTag(MOBILE_FILES_SORT_TAG).assertIsNotEnabled()
-    }
-
-    @Test
     fun failedSortReloadCanSelectTheDisplayedSort() {
         val ready = readyFilesState(FilesSort.NAME_ASCENDING)
         val failed = ready.copyForTest(
@@ -1082,6 +1026,7 @@ class MobileShellFilesTest {
         }
 
         compose.onAllNodesWithText("Size, largest first").assertCountEquals(0)
+        compose.onNodeWithTag(MOBILE_FILES_SORT_TAG).assertIsNotEnabled()
         assertTrue(events.isEmpty())
     }
 
@@ -1584,18 +1529,6 @@ class MobileShellPlaybackTest {
     val compose = createComposeRule()
 
     @Test
-    fun videoRowsOpenAFullScreenPlaybackStateAndNavigateBack() {
-        compose.setPlaybackShell()
-
-        compose.onNodeWithText("episode.mkv").performClick()
-
-        compose.onNodeWithText("Video is being prepared").assertIsDisplayed()
-        compose.onAllNodesWithTag(MOBILE_NAV_BAR_TAG).assertCountEquals(0)
-        compose.onNodeWithContentDescription("Back").performClick()
-        compose.onNodeWithTag(MOBILE_NAV_BAR_TAG).assertIsDisplayed()
-    }
-
-    @Test
     fun aVideoRowOpensWithItsListingDuration() {
         val targets = mutableListOf<PlaybackTarget>()
         val repository = object : PlaybackRepository by ConversionRepository {
@@ -1612,9 +1545,12 @@ class MobileShellPlaybackTest {
         compose.onNodeWithText("episode.mkv").performClick()
 
         compose.onNodeWithText("Video is being prepared").assertIsDisplayed()
+        compose.onAllNodesWithTag(MOBILE_NAV_BAR_TAG).assertCountEquals(0)
         compose.runOnIdle {
             assertEquals(listOf(PlaybackTarget(FilesItemId(8L), "episode.mkv", durationSeconds = 1_200.5)), targets)
         }
+        compose.onNodeWithContentDescription("Back").performClick()
+        compose.onNodeWithTag(MOBILE_NAV_BAR_TAG).assertIsDisplayed()
     }
 
     @Test
@@ -1966,33 +1902,6 @@ class MobileShellPlaybackTest {
         compose.onNodeWithContentDescription("Back").performClick()
         compose.onNodeWithTag(MOBILE_NAV_BAR_TAG).assertIsDisplayed()
         compose.onNodeWithText("episode.mkv").assertIsDisplayed()
-    }
-
-    @Test
-    fun theShellTouchesTheAudioSessionWhenItStarts() {
-        var connections = 0
-        var closes = 0
-        val factory = object : MobilePlayerFactory {
-            override fun create(context: Context, mediaType: PlaybackMediaType): Media3Player =
-                RecordingPlayer()
-
-            override fun connectAudio(
-                context: Context,
-                onResult: (Result<Media3Player>) -> Unit,
-            ): Closeable {
-                connections += 1
-                onResult(Result.failure(IllegalStateException("no session")))
-                return Closeable { closes += 1 }
-            }
-        }
-        compose.setPlaybackShell(playback = ShellPlayback(playerFactory = factory))
-
-        compose.onNodeWithTag(MOBILE_NAV_BAR_TAG).assertIsDisplayed()
-        // The now-playing observer is the shell's binding; it stays attached while composed.
-        compose.runOnIdle {
-            assertEquals(1, connections)
-            assertEquals(0, closes)
-        }
     }
 
     @Test

@@ -18,6 +18,7 @@ class SdkHistoryRepositoryTest {
     @Test
     fun listsThroughSdkPagesByBeforeAndMapsFileTransferAndOtherEvents() = runBlocking {
         var query: HistoryListQuery? = null
+        var clears = 0
         val repository = SdkHistoryRepository(
             listEvents = {
                 query = it
@@ -31,7 +32,7 @@ class SdkHistoryRepositoryTest {
                     hasMore = true,
                 )
             },
-            clearEvents = {},
+            clearEvents = { clears += 1 },
         )
 
         val result = repository.load(HistoryEventId(4L)) as PutioResult.Success
@@ -55,6 +56,9 @@ class SdkHistoryRepositoryTest {
             HistoryEventKind.Notice(HistoryNoticeType.RssFilterPaused, "Shows"),
             result.value.items[3].kind,
         )
+        assertEquals(0, clears)
+        assertEquals(PutioResult.Success(Unit), repository.clear())
+        assertEquals(1, clears)
     }
 
     @Test
@@ -158,15 +162,6 @@ class SdkHistoryRepositoryTest {
             override suspend fun clear() = PutioResult.Success(Unit)
         }
         assertSame(failure, failing.keeping { true }.load(null))
-    }
-
-    @Test
-    fun clearUsesSdkBoundary() = runBlocking {
-        var clears = 0
-        val repository = SdkHistoryRepository({ response(emptyList(), false) }, { clears += 1 })
-
-        assertEquals(PutioResult.Success(Unit), repository.clear())
-        assertEquals(1, clears)
     }
 
     @Test

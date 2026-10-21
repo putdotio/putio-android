@@ -120,10 +120,6 @@ class DesignAssetLockTest(unittest.TestCase):
         with contextlib.redirect_stdout(io.StringIO()):
             design_assets.check_outputs(design_assets.load_lock())
 
-    def test_valid_lock_passes_offline_check(self) -> None:
-        self.write_lock()
-        self.check()
-
     def test_duplicate_key_is_rejected(self) -> None:
         self.write_lock()
         content = self.lock_path.read_text(encoding="utf-8")
@@ -148,34 +144,26 @@ class DesignAssetLockTest(unittest.TestCase):
         with self.assertRaisesRegex(SystemExit, "each launcher density exactly once"):
             self.check()
 
-    def test_drifted_tokens_are_rejected(self) -> None:
+    def test_drifted_outputs_are_rejected(self) -> None:
         self.write_lock()
-        (self.repo_root / design_assets.TOKENS_PATH).write_bytes(b"{}\n")
-        with self.assertRaisesRegex(SystemExit, "drifted design/tokens.dtcg.json"):
-            self.check()
-
-    def test_drifted_nightly_icon_is_rejected(self) -> None:
-        self.write_lock()
-        self.icon_path("xhdpi").write_bytes(b"edited")
-        with self.assertRaisesRegex(SystemExit, "drifted mobile/src/nightly/res/drawable-xhdpi/putio_icon.png"):
-            self.check()
+        for path in (
+            self.repo_root / design_assets.TOKENS_PATH,
+            self.icon_path("xhdpi"),
+            self.icon_path("xxhdpi", "tv/src/nightly/res"),
+            self.wordmark_path,
+        ):
+            relative = path.relative_to(self.repo_root).as_posix()
+            with self.subTest(path=relative):
+                original = path.read_bytes()
+                path.write_bytes(b"edited")
+                with self.assertRaisesRegex(SystemExit, f"drifted {relative}"):
+                    self.check()
+                path.write_bytes(original)
 
     def test_missing_nightly_icon_is_rejected(self) -> None:
         self.write_lock()
         self.icon_path("mdpi").unlink()
         with self.assertRaisesRegex(SystemExit, "missing mobile/src/nightly/res/drawable-mdpi/putio_icon.png"):
-            self.check()
-
-    def test_drifted_tv_nightly_icon_is_rejected(self) -> None:
-        self.write_lock()
-        self.icon_path("xxhdpi", "tv/src/nightly/res").write_bytes(b"edited")
-        with self.assertRaisesRegex(SystemExit, "drifted tv/src/nightly/res/drawable-xxhdpi/putio_icon.png"):
-            self.check()
-
-    def test_drifted_wordmark_is_rejected(self) -> None:
-        self.write_lock()
-        self.wordmark_path.write_bytes(b"edited")
-        with self.assertRaisesRegex(SystemExit, "drifted mobile/src/main/res/drawable/putio_wordmark.xml"):
             self.check()
 
     def test_wordmark_keeps_fills_and_viewbox_offset(self) -> None:
@@ -206,6 +194,7 @@ class DesignAssetLockTest(unittest.TestCase):
         archive = self.lock_archive(tokens=b"tampered")
         rendered = self.rendered_icons()
         rendered[Path("mobile/src/nightly/res/drawable-hdpi/putio_icon.png")] = b"resampled"
+        paths = self.replace_outputs(b"previous")
 
         with self.fetch(archive), patch.object(design_assets, "render_nightly_icon", return_value=rendered):
             with self.assertRaises(SystemExit) as raised:
@@ -215,7 +204,20 @@ class DesignAssetLockTest(unittest.TestCase):
         self.assertIn(f"dist/tokens.dtcg.json is {hashlib.sha256(b'tampered').hexdigest()}", message)
         self.assertIn("drawable-hdpi/putio_icon.png is", message)
         self.assertNotIn("app-icon-nightly-stars.png is", message)
-        self.assertEqual((self.repo_root / design_assets.TOKENS_PATH).read_bytes(), self.tokens)
+        self.assertEqual([path.read_bytes() for path in paths], [b"previous"] * len(paths))
+
+        archive = self.lock_archive(icon_source=b"tampered art")
+        with self.fetch(archive), patch.object(
+            design_assets, "render_nightly_icon", return_value=self.rendered_icons()
+        ):
+            with self.assertRaises(SystemExit) as raised:
+                design_assets.sync(design_assets.load_lock())
+
+        self.assertIn(
+            f"app-icon-nightly-stars.png is {hashlib.sha256(b'tampered art').hexdigest()}",
+            str(raised.exception),
+        )
+        self.assertEqual([path.read_bytes() for path in paths], [b"previous"] * len(paths))
 
     def lock_archive(self, tokens: bytes | None = None, icon_source: bytes | None = None) -> bytes:
         archive = tarball({
@@ -242,22 +244,6 @@ class DesignAssetLockTest(unittest.TestCase):
         for path in paths:
             path.write_bytes(data)
         return paths
-
-    def test_sync_rejects_unlocked_nightly_source_without_writing(self) -> None:
-        archive = self.lock_archive(icon_source=b"tampered art")
-        paths = self.replace_outputs(b"previous")
-
-        with self.fetch(archive), patch.object(
-            design_assets, "render_nightly_icon", return_value=self.rendered_icons()
-        ):
-            with self.assertRaises(SystemExit) as raised:
-                design_assets.sync(design_assets.load_lock())
-
-        self.assertIn(
-            f"app-icon-nightly-stars.png is {hashlib.sha256(b'tampered art').hexdigest()}",
-            str(raised.exception),
-        )
-        self.assertEqual([path.read_bytes() for path in paths], [b"previous"] * len(paths))
 
     def test_sync_writes_every_locked_output(self) -> None:
         archive = self.lock_archive()

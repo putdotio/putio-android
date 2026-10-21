@@ -5,9 +5,15 @@ import org.junit.Test
 
 class DesignTokenCodegenTest {
     @Test
-    fun brandYellowMatchesCanonicalHex() {
-        // The token graph documents hsl(44.7, 97.9%, 63.1%) as canonical #FDCE45.
-        assertEquals(0xFFFDCE45L, DesignTokenCodegen.hslToArgb("hsl(44.7, 97.9%, 63.1%)"))
+    fun hslMatchesCanonicalHex() {
+        listOf(
+            // The token graph documents hsl(44.7, 97.9%, 63.1%) as canonical #FDCE45.
+            "hsl(44.7, 97.9%, 63.1%)" to 0xFFFDCE45L,
+            "hsl(0, 0%, 8.5%)" to 0xFF161616L,
+            "hsl(0, 0%, 93.0%)" to 0xFFEDEDEDL,
+            "hsl(0, 0%, 100%)" to 0xFFFFFFFFL,
+            "hsl(0, 0%, 0%)" to 0xFF000000L,
+        ).forEach { (hsl, argb) -> assertEquals(hsl, argb, DesignTokenCodegen.hslToArgb(hsl)) }
     }
 
     @Test
@@ -21,14 +27,6 @@ class DesignTokenCodegenTest {
     fun hslaCarriesAlpha() {
         assertEquals(0x66000000L, DesignTokenCodegen.hslToArgb("hsla(0, 0%, 0%, 0.4)"))
         assertEquals(0xFFFFFFFFL, DesignTokenCodegen.hslToArgb("hsla(0, 0%, 100%, 1)"))
-    }
-
-    @Test
-    fun achromaticGrays() {
-        assertEquals(0xFF161616L, DesignTokenCodegen.hslToArgb("hsl(0, 0%, 8.5%)"))
-        assertEquals(0xFFEDEDEDL, DesignTokenCodegen.hslToArgb("hsl(0, 0%, 93.0%)"))
-        assertEquals(0xFFFFFFFFL, DesignTokenCodegen.hslToArgb("hsl(0, 0%, 100%)"))
-        assertEquals(0xFF000000L, DesignTokenCodegen.hslToArgb("hsl(0, 0%, 0%)"))
     }
 
     @Test

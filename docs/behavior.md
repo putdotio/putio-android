@@ -16,7 +16,7 @@ returns to the same screen. A failed clear during logout or session expiry
 lands there too, so no storage state blocks sign-in.
 
 Tests: `KeystoreAuthTokenStoreTest`, `MobileAuthStorageRecoveryTest`,
-`MobileAuthControllerTest`, `MobileAuthControllerSessionTest`, `MobileShellTest`.
+`MobileAuthControllerTest`, `MobileAuthControllerSessionTest`, `MobileWelcomeScreenTest`.
 
 ## Sign-out revocation
 
@@ -219,8 +219,7 @@ offer Make a copy, because tv-native and tv-vite don't.
 
 Tests: `SdkFilesRepositoryTest`, `MobileFilesScreenTest`,
 `TvFilesRowActionsTest`, `FilesCopyTest`, `MobileFilesCopyTest`,
-`MobilePublicLinksTest`, `MobileSharedItemsProofTest` (opt-in synthetic device
-proof; see [Harness](./harness.md#shared-with-me-items-proof)).
+`MobilePublicLinksTest`.
 
 ## Move and copy target folder
 
@@ -281,10 +280,7 @@ loading to Retry.
 Tests: `FilesDeleteReducerTest`, `SdkFilesDeleteRepositoryTest`,
 `MobileFilesDeleteTest`, `MobileFilesListTest`,
 `MobileSearchHistoryScreenTest`, `MobileFilesMoveTest`, `TvFilesScreenTest`,
-`TvFilesPagingTest`, `TvFilesRowActionsTest`,
-`FilesDeleteRecoveryUiProofTest` (opt-in synthetic device proof),
-`MobileFilesTrashPagingProofTest` (opt-in device proof; see
-[Harness](./harness.md#files-trash-and-paging-proof)).
+`TvFilesPagingTest`, `TvFilesRowActionsTest`.
 
 ## Trash
 
@@ -1325,8 +1321,7 @@ SDK's redacted `PutioApiException.errorMessage`.
 
 Tests: `ApiRejectionReasonTest`, `ApiReasonAcrossSurfacesTest`,
 `MobileFilesScreenTest`, `MobileFilesMoveTest`, `MobileTrashScreenTest`,
-`TvPlaybackStatesTest`, `MobileRefusedRequestProofTest` (opt-in device proof;
-see [Harness](./harness.md#refused-request-proof)).
+`TvPlaybackStatesTest`.
 
 ## Transfer failures and retry
 

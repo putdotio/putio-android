@@ -381,7 +381,7 @@ private class AuthenticatedRenameRun(
         var failure: Throwable? = null
         try {
             requireProof(process.waitFor(timeout, TimeUnit.MILLISECONDS), "$stage timed out")
-            // Overflow cleanup includes the existing two-second owned-process reap.
+            // Overflow cleanup includes the two-second owned-process reap.
             val commandDeadline = if (cleanup) cleanupDeadline else deadline
             val readerWait = minOf(3_000L, TimeUnit.NANOSECONDS.toMillis(commandDeadline - System.nanoTime()))
             if (readerWait > 0) reader.join(readerWait)

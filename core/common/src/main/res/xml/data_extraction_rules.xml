@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Android 12+ counterpart of allowBackup="false": the app will hold auth
+<!-- Android 12+ counterpart of allowBackup="false": the app holds auth
      tokens, so nothing is cloud-backed-up or device-transferred. -->
 <data-extraction-rules>
     <cloud-backup>

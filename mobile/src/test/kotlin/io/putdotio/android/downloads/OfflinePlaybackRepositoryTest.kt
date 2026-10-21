@@ -8,7 +8,6 @@ import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
 import io.putdotio.android.playback.PlaybackResolution
 import io.putdotio.android.playback.PlaybackTarget
-import io.putdotio.sdk.files.PlaybackConversionState
 import io.putdotio.sdk.files.PlaybackSourceKind
 import io.putdotio.sdk.files.PlaybackSubtitles
 import io.putdotio.sdk.files.PutioCredentialUrl
@@ -32,10 +31,8 @@ class OfflinePlaybackRepositoryTest {
             )
         }
 
-        override suspend fun startConversion(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> {
-            delegateCalls += target
-            return PlaybackRepositoryResult.Success(PlaybackResolution.Conversion(PlaybackConversionState.Queued))
-        }
+        override suspend fun startConversion(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> =
+            error("No conversion expected")
 
         override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult = PlaybackNextResult.Ended
     }
@@ -120,16 +117,6 @@ class OfflinePlaybackRepositoryTest {
         assertTrue(repository.resolve(target) is PlaybackRepositoryResult.Failure)
         assertTrue(repository.resolve(target.copy(fileId = FilesItemId(8L))) is PlaybackRepositoryResult.Failure)
         assertEquals(2, delegateCalls.size)
-    }
-
-    @Test
-    fun theViewersConvertStartsThroughTheDelegate() = runBlocking {
-        val repository = OfflinePlaybackRepository(downloadsOf(), delegate, PutioCredentialUrl::of)
-        assertEquals(
-            PlaybackRepositoryResult.Success(PlaybackResolution.Conversion(PlaybackConversionState.Queued)),
-            repository.startConversion(target),
-        )
-        assertEquals(listOf(target), delegateCalls)
     }
 
     private fun completed() = DownloadEntry(

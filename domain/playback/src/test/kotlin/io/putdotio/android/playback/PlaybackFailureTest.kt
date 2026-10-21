@@ -100,6 +100,23 @@ class PlaybackFailureTest {
         )
     }
 
+    @Test
+    fun aNonNetworkDataSourceFailureUsesGenericRecovery() {
+        val dataSourceFailure =
+            HttpDataSource.HttpDataSourceException(
+                IOException("cleartext rejected"),
+                mediaDataSpec(),
+                PlaybackException.ERROR_CODE_FAILED_RUNTIME_CHECK,
+                HttpDataSource.HttpDataSourceException.TYPE_OPEN,
+            )
+        val failure =
+            PlaybackException("player failed", dataSourceFailure, PlaybackException.ERROR_CODE_FAILED_RUNTIME_CHECK)
+                .toPlaybackFailure()
+
+        assertTrue(failure.putioFailure is PutioFailure.Unexpected)
+        assertTrue(failure.retryable)
+    }
+
     private fun invalidResponse(status: Int) =
         HttpDataSource.InvalidResponseCodeException(
             status, "HTTP $status", IOException("rejected"), emptyMap(), mediaDataSpec(), ByteArray(0),

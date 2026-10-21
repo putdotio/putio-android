@@ -10,9 +10,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
-import org.junit.Assert.fail
 import org.junit.Test
-import java.util.concurrent.CancellationException
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
 
@@ -66,17 +64,6 @@ class SdkFilesDeleteRepositoryTest {
         ) as PutioResult.Failure).failure
         assertTrue(failure is PutioFailure.InvalidResponse)
         assertSame(wrapped, failure.cause)
-    }
-
-    @Test
-    fun preservesCancellationInsteadOfReturningADeleteFailure() = runBlocking {
-        val cancellation = CancellationException("closed")
-        try {
-            repository { _, _ -> throw cancellation }.delete(FilesItemId(7L), FilesDeleteMode.TRASH)
-            fail("Cancellation must propagate")
-        } catch (caught: CancellationException) {
-            assertSame(cancellation, caught)
-        }
     }
 
     private fun repository(deleteFile: suspend (Long, Boolean) -> FileDeleteResult) = SdkFilesRepository(

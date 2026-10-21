@@ -53,6 +53,7 @@ class TransfersReducerTest {
             (request.action as TransferAction.Add).request,
         )
         assertFalse(TransfersReducer.reduce(adding.state, TransfersEvent.Cancel(TransferId(2L))).consumed)
+        assertFalse(TransfersReducer.reduce(adding.state, TransfersEvent.Add("https://example.com/second")).consumed)
 
         val stale =
             TransfersReducer.reduce(
@@ -543,21 +544,6 @@ class TransfersReducerTest {
     }
 
     @Test
-    fun openIsRejectedWhileAMutationIsRunning() {
-        val loaded =
-            TransfersReducer.start().complete(
-                TransfersPage(listOf(item(1L, AppTransferStatus.Completed, TransferFileId(10L))), null),
-            )
-        val mutating = TransfersReducer.reduce(loaded, TransfersEvent.CleanCompleted).state
-
-        val open = TransfersReducer.reduce(mutating, TransfersEvent.Open(TransferId(1L)))
-
-        assertFalse(open.consumed)
-        assertEquals(mutating, open.state)
-        assertNull(open.effect)
-    }
-
-    @Test
     fun openResolutionBlocksMutationsUntilTheMatchingCompletion() {
         val loaded =
             TransfersReducer.start().complete(
@@ -598,7 +584,7 @@ class TransfersReducerTest {
     }
 
     @Test
-    fun openIsRejectedWhileAReadIsInFlight() {
+    fun openIsRejectedWhileBusy() {
         val loaded =
             TransfersReducer.start().complete(
                 TransfersPage(
@@ -608,11 +594,12 @@ class TransfersReducerTest {
             )
         val refreshing = TransfersReducer.reduce(loaded, TransfersEvent.Refresh).state
         val paging = TransfersReducer.reduce(loaded, TransfersEvent.LoadNextPage).state
+        val mutating = TransfersReducer.reduce(loaded, TransfersEvent.CleanCompleted).state
 
-        listOf(refreshing, paging).forEach { reading ->
-            val open = TransfersReducer.reduce(reading, TransfersEvent.Open(TransferId(1L)))
+        listOf(refreshing, paging, mutating).forEach { busy ->
+            val open = TransfersReducer.reduce(busy, TransfersEvent.Open(TransferId(1L)))
             assertFalse(open.consumed)
-            assertEquals(reading, open.state)
+            assertEquals(busy, open.state)
             assertNull(open.effect)
         }
     }

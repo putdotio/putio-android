@@ -52,12 +52,6 @@ import org.robolectric.annotation.GraphicsMode
 import io.putdotio.android.search.searchState
 import io.putdotio.android.history.historyState
 
-/**
- * Local (JVM) proof of the two TV screens: the device-code screen shows the
- * code and put.io/link, and the signed-in shell lists the four drawer
- * destinations with focus starting in the pane. The on-device counterpart is
- * LaunchSmokeTest plus the harness recording.
- */
 @OptIn(ExperimentalTestApi::class)
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -69,21 +63,21 @@ class TvShellTest {
 
     @Test
     fun linkScreenShowsCodeAndLinkUrlWithNewCodeFocused() {
+        var sessionExpired by mutableStateOf(false)
         compose.setTvContent {
-            TvLinkScreen(phase = TvLinkPhase.AwaitingLink("GIQTKN"), sessionExpired = false, onRequestNewCode = {})
+            TvLinkScreen(
+                phase = TvLinkPhase.AwaitingLink("GIQTKN"),
+                sessionExpired = sessionExpired,
+                onRequestNewCode = {},
+            )
         }
 
         compose.onNodeWithContentDescription("Activation code GIQTKN").assertIsDisplayed()
         compose.onNodeWithText("put.io/link").assertIsDisplayed()
         compose.onNodeWithText("Get new code").assertIsFocused()
-    }
+        compose.onNodeWithText("Your session expired. Sign in again to continue.").assertDoesNotExist()
 
-    @Test
-    fun anExpiredSessionIsExplainedWhileTheNewCodeIsLive() {
-        compose.setTvContent {
-            TvLinkScreen(phase = TvLinkPhase.AwaitingLink("GIQTKN"), sessionExpired = true, onRequestNewCode = {})
-        }
-
+        compose.runOnIdle { sessionExpired = true }
         compose.onNodeWithText("Your session expired. Sign in again to continue.").assertIsDisplayed()
         compose.onNodeWithContentDescription("Activation code GIQTKN").assertIsDisplayed()
     }

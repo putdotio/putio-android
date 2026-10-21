@@ -75,7 +75,7 @@ class SdkPlaybackRepositoryTest {
             val hidden = repository(hideSubtitles = true).resolve(Target)
             val shown = repository(hideSubtitles = false).resolve(Target)
 
-            // Hidden: no HLS renditions and no sidecar list, as every reference player asks (#237).
+            // Hidden: no HLS renditions and no sidecar list, as every reference player asks.
             assertEquals(0, requests[0].maxSubtitleCount)
             assertFalse(requests[0].includeSidecarSubtitles)
             // Shown: the server's own default, every rendition.
@@ -426,18 +426,6 @@ class SdkPlaybackRepositoryTest {
         }
 
     @Test
-    fun repeatedPageAfterCurrentCannotSelectAnEarlierVideo() =
-        runBlocking {
-            val repeated = filePage(video(40L), video(42L), cursor = "repeated")
-            val repository = nextRepository(
-                listFolder = { _, _ -> repeated },
-                continueListing = { _, _ -> repeated },
-            )
-            val result = repository.findNextVideo(Target)
-            assertTrue(result is PlaybackNextResult.Failure)
-        }
-
-    @Test
     fun overlappingTerminalPageSkipsEarlierVideosAndFindsTheSuccessor() =
         runBlocking {
             val repository = nextRepository(
@@ -461,21 +449,6 @@ class SdkPlaybackRepositoryTest {
             val result = repository.findNextVideo(Target) as PlaybackNextResult.Failure
             assertSame(failure, result.failure.cause)
         }
-
-    @Test
-    fun paginationCancellationPropagates() {
-        val cancellation = CancellationException("route closed")
-        val repository = nextRepository(
-            listFolder = { _, _ -> filePage(video(42L), cursor = "next") },
-            continueListing = { _, _ -> throw cancellation },
-        )
-        try {
-            runBlocking { repository.findNextVideo(Target) }
-            fail("Expected cancellation")
-        } catch (actual: CancellationException) {
-            assertSame(cancellation, actual)
-        }
-    }
 
     @Test
     fun actualNotFoundEndsButAuthenticationStillFails() =

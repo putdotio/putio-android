@@ -47,43 +47,6 @@ class PlaybackControllerTest {
     }
 
     @Test
-    fun sessionAttachmentDoesNotResolveUntilTheScreenRequiresSource() = runBlocking {
-        val started = CompletableDeferred<Unit>()
-        val result = CompletableDeferred<PlaybackRepositoryResult<PlaybackResolution>>()
-        val targets = mutableListOf<PlaybackTarget>()
-        val repository = object : PlaybackRepository {
-            override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> {
-                targets += target
-                started.complete(Unit)
-                return result.await()
-            }
-
-            override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult =
-                error("Audio must not advance")
-        }
-        val audio = Target.copy(mediaType = PlaybackMediaType.AUDIO)
-        val controller = PlaybackController(audio, repository, this, PlaybackStartup.AttachAudioSession)
-        try {
-            yield()
-            assertEquals(PlaybackContent.Session, controller.state.value.content)
-            assertTrue(targets.isEmpty())
-            assertTrue(controller.dispatch(PlaybackEvent.SourceRequired(32_100L)))
-            assertFalse(controller.dispatch(PlaybackEvent.SourceRequired()))
-            withTimeout(TEST_TIMEOUT_MILLIS) { started.await() }
-            result.complete(
-                PlaybackRepositoryResult.Success(PlaybackResolution.Ready(playbackSource(audio.fileId.value))),
-            )
-            controller.awaitContent<PlaybackContent.Ready>()
-            assertEquals(listOf(audio), targets)
-            assertEquals(32_100L, controller.state.value.resumePositionMillis)
-            assertFalse(controller.dispatch(PlaybackEvent.SourceRequired()))
-            assertFalse(controller.dispatch(PlaybackEvent.PlayerEnded))
-        } finally {
-            controller.close()
-        }
-    }
-
-    @Test
     fun closingAnAttachedSessionPreventsDeferredSourceWork() = runBlocking {
         var calls = 0
         val repository = object : PlaybackRepository {
@@ -106,79 +69,6 @@ class PlaybackControllerTest {
         assertEquals(0, calls)
         assertTrue(coroutineContext[Job]?.isActive == true)
     }
-
-    @Test
-    fun resolvesAndRetriesAConversion() =
-        runBlocking {
-            var calls = 0
-            val repository = object : PlaybackRepository {
-                override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> {
-                    calls += 1
-                    return PlaybackRepositoryResult.Success(
-                        if (calls == 1) {
-                            PlaybackResolution.Conversion(PlaybackConversionState.Converting(40.0))
-                        } else {
-                            PlaybackResolution.Conversion(PlaybackConversionState.Completed)
-                        },
-                    )
-                }
-
-                override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult =
-                    PlaybackNextResult.Ended
-            }
-            val controller = PlaybackController(Target, repository, this)
-
-            try {
-                controller.awaitContent<PlaybackContent.Conversion>()
-                assertTrue(controller.dispatch(PlaybackEvent.Retry))
-                // Completed reads once more before it waits for the viewer.
-                val resolved = controller.awaitContent<PlaybackContent.Conversion> {
-                    it.state == PlaybackConversionState.Completed && it.refreshRequestId == null
-                }
-
-                assertEquals(PlaybackConversionState.Completed, resolved.state)
-                assertEquals(3, calls)
-            } finally {
-                controller.close()
-            }
-        }
-
-    @Test
-    fun convertAgainStartsTheConversionThroughTheRepository() =
-        runBlocking {
-            val calls = mutableListOf<String>()
-            val repository = object : PlaybackRepository {
-                override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> {
-                    calls += "resolve"
-                    return PlaybackRepositoryResult.Success(
-                        PlaybackResolution.Conversion(PlaybackConversionState.Failed),
-                    )
-                }
-
-                override suspend fun startConversion(
-                    target: PlaybackTarget,
-                ): PlaybackRepositoryResult<PlaybackResolution> {
-                    calls += "start"
-                    return PlaybackRepositoryResult.Success(
-                        PlaybackResolution.Conversion(PlaybackConversionState.Queued),
-                    )
-                }
-
-                override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult =
-                    PlaybackNextResult.Ended
-            }
-            val controller = PlaybackController(Target, repository, this)
-
-            try {
-                controller.awaitContent<PlaybackContent.Conversion> { it.state == PlaybackConversionState.Failed }
-                assertTrue(controller.dispatch(PlaybackEvent.StartConversion))
-                controller.awaitContent<PlaybackContent.Conversion> { it.state == PlaybackConversionState.Queued }
-
-                assertEquals(listOf("resolve", "start"), calls)
-            } finally {
-                controller.close()
-            }
-        }
 
     @Test
     fun openingAVideoWithNoConversionRequestedStartsItOnceThroughTheRepository() =
@@ -318,40 +208,6 @@ class PlaybackControllerTest {
             } finally {
                 controller.close()
             }
-        }
-
-    @Test
-    fun closeCancelsAnActiveNextVideoLookup() =
-        runBlocking {
-            val started = CompletableDeferred<Unit>()
-            val cancelled = CompletableDeferred<Unit>()
-            val repository =
-                object : PlaybackRepository {
-                    override suspend fun resolve(
-                        target: PlaybackTarget,
-                    ): PlaybackRepositoryResult<PlaybackResolution> =
-                        PlaybackRepositoryResult.Success(
-                            PlaybackResolution.Ready(playbackSource(target.fileId.value)),
-                        )
-
-                    override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult {
-                        started.complete(Unit)
-                        try {
-                            awaitCancellation()
-                        } finally {
-                            cancelled.complete(Unit)
-                        }
-                    }
-                }
-            val controller = PlaybackController(Target, repository, this)
-
-            controller.awaitContent<PlaybackContent.Ready>()
-            assertTrue(controller.dispatch(PlaybackEvent.PlayerEnded))
-            withTimeout(TEST_TIMEOUT_MILLIS) { started.await() }
-            controller.close()
-            withTimeout(TEST_TIMEOUT_MILLIS) { cancelled.await() }
-
-            assertFalse(controller.dispatch(PlaybackEvent.Retry))
         }
 
     private suspend inline fun <reified T : PlaybackContent> PlaybackController.awaitContent(

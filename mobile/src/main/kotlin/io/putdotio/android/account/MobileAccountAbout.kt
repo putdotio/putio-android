@@ -59,7 +59,7 @@ internal fun mobileAppDiagnostics(
         player = playerLabel(playbackPreference),
     )
 
-// Media3 is the only player today; the stream method is the one playback actually uses,
+// Media3 is the only player; the stream method is the one playback actually uses,
 // which falls back to HLS while config is loading and ignores unconfirmed saves.
 private fun playerLabel(playbackPreference: PlaybackPreference): String =
     when (playbackPreference) {

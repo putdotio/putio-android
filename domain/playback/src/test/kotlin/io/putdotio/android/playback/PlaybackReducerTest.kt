@@ -79,25 +79,6 @@ class PlaybackReducerTest {
     }
 
     @Test
-    fun startAndRetryIssueDistinctRequests() {
-        val start = PlaybackReducer.start(Target)
-        val firstRequest = (start.state.content as PlaybackContent.Loading).requestId
-
-        val conversion = PlaybackReducer.reduce(
-            start.state,
-            PlaybackEvent.ResolveSucceeded(
-                firstRequest,
-                PlaybackResolution.Conversion(PlaybackConversionState.Converting(20.0)),
-            ),
-        )
-        val retry = PlaybackReducer.reduce(conversion.state, PlaybackEvent.Retry)
-
-        assertTrue(conversion.state.content is PlaybackContent.Conversion)
-        assertEquals(PlaybackRequestId(2L), (retry.state.content as PlaybackContent.Loading).requestId)
-        assertEquals(PlaybackRequestId(2L), retry.effect?.requestId)
-    }
-
-    @Test
     fun aConversionRefreshKeepsTheInterstitialAndOnlyItsOwnResultLands() {
         val queued = PlaybackReducer.reduce(
             PlaybackReducer.start(Target).state,
@@ -132,6 +113,9 @@ class PlaybackReducerTest {
         )
         assertEquals(PlaybackContent.Conversion(PlaybackConversionState.Converting(40.0)), converting.state.content)
         assertNull(converting.effect)
+        val retried = PlaybackReducer.reduce(converting.state, PlaybackEvent.Retry)
+        assertEquals(PlaybackContent.Loading(PlaybackRequestId(3L)), retried.state.content)
+        assertEquals(PlaybackEffect.Resolve(Target, PlaybackRequestId(3L)), retried.effect)
         val ready = PlaybackReducer.reduce(
             PlaybackReducer.reduce(converting.state, PlaybackEvent.RefreshConversion).state,
             PlaybackEvent.ResolveSucceeded(PlaybackRequestId(3L), PlaybackResolution.Ready(playbackSource())),
@@ -179,27 +163,6 @@ class PlaybackReducerTest {
         assertTrue(retry.state.content is PlaybackContent.Unsupported)
         assertFalse(retry.consumed)
         assertNull(retry.effect)
-    }
-
-    @Test
-    fun mediaRequestFailureLeavesReadyStateAndCanRetryResolution() {
-        val start = PlaybackReducer.start(Target)
-        val ready =
-            PlaybackReducer.reduce(
-                start.state,
-                PlaybackEvent.ResolveSucceeded(
-                    PlaybackRequestId(1L),
-                    PlaybackResolution.Ready(playbackSource()),
-                ),
-            )
-        val failure = PlaybackFailure.MediaCredentialUnavailable(IllegalStateException("expired"))
-        val failed = PlaybackReducer.reduce(ready.state, PlaybackEvent.PlayerFailed(failure, 54_321L))
-        val retry = PlaybackReducer.reduce(failed.state, PlaybackEvent.Retry)
-
-        assertEquals(failure, (failed.state.content as PlaybackContent.Failed).failure)
-        assertEquals(54_321L, failed.state.resumePositionMillis)
-        assertEquals(PlaybackRequestId(2L), (retry.state.content as PlaybackContent.Loading).requestId)
-        assertEquals(PlaybackRequestId(2L), retry.effect?.requestId)
     }
 
     @Test
@@ -418,22 +381,6 @@ class PlaybackReducerTest {
     }
 
     @Test
-    fun autoplayStartsAFinishedNextVideoOverWithoutAPrompt() {
-        val finding = PlaybackReducer.reduce(readyState().copy(resumePositionMillis = 0L), PlaybackEvent.PlayerEnded)
-        val next = Target.copy(fileId = FilesItemId(43L), name = "next.mkv", durationSeconds = 15.0)
-        val loading = PlaybackReducer.reduce(finding.state, PlaybackEvent.NextFound(PlaybackRequestId(2L), next))
-        val resolved = PlaybackReducer.reduce(
-            loading.state,
-            PlaybackEvent.ResolveSucceeded(
-                PlaybackRequestId(3L),
-                PlaybackResolution.Ready(playbackSource().copy(fileId = 43L), useStartFrom = true),
-            ),
-        )
-        assertTrue(resolved.state.content is PlaybackContent.Ready)
-        assertEquals(0L, resolved.state.resumePositionMillis)
-    }
-
-    @Test
     fun savedVideoPositionRequiresAChoice() {
         val start = PlaybackReducer.start(Target)
         val pending = PlaybackReducer.reduce(
@@ -498,6 +445,10 @@ class PlaybackReducerTest {
         val failure = PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IllegalStateException("offline")))
         val failed = PlaybackReducer.reduce(readyState(), PlaybackEvent.PlayerFailed(failure, 4_321L))
         val retry = PlaybackReducer.reduce(failed.state, PlaybackEvent.Retry)
+        assertEquals(PlaybackContent.Failed(failure), failed.state.content)
+        assertEquals(4_321L, failed.state.resumePositionMillis)
+        assertEquals(PlaybackContent.Loading(PlaybackRequestId(2L)), retry.state.content)
+        assertEquals(PlaybackEffect.Resolve(Target, PlaybackRequestId(2L)), retry.effect)
         val recovered = PlaybackReducer.reduce(
             retry.state,
             PlaybackEvent.ResolveSucceeded(

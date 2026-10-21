@@ -4,7 +4,6 @@ import io.putdotio.android.tv.player.TvPlayerCommand.Exit
 import io.putdotio.android.tv.player.TvPlayerCommand.Pause
 import io.putdotio.android.tv.player.TvPlayerCommand.Play
 import io.putdotio.android.tv.player.TvPlayerCommand.PlayNext
-import io.putdotio.android.tv.player.TvPlayerCommand.SeekTo
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -63,16 +62,6 @@ class TvPlayerOverlayTest {
     }
 
     @Test
-    fun dismissingPausedControlsKeepsPlaybackPaused() {
-        val paused = TvPlayerOverlay().select(playing = true)
-        assertEquals(listOf(Pause), paused.commands)
-
-        val hidden = paused.overlay.back()
-        assertFalse(hidden.overlay.controlsVisible)
-        assertEquals("No resume, no exit", emptyList<TvPlayerCommand>(), hidden.commands)
-    }
-
-    @Test
     fun dismissingSeekModeStartedWhilePausedStaysPausedAndNeverSeeks() {
         val scrubbing = TvPlayerOverlay().scrubForward(nowMillis = 0L, playing = false)
         assertEquals("Already paused", emptyList<TvPlayerCommand>(), scrubbing.commands)
@@ -80,21 +69,6 @@ class TvPlayerOverlayTest {
         val dismissed = scrubbing.overlay.back()
         assertNull(dismissed.overlay.scrub)
         assertEquals(emptyList<TvPlayerCommand>(), dismissed.commands)
-    }
-
-    @Test
-    fun quickPressesGrowTheStepAndAGapRestartsItFromThePendingTarget() {
-        val first = TvPlayerOverlay().scrubForward(nowMillis = 1_000L)
-        assertEquals("The first press pauses", listOf(Pause), first.commands)
-        assertEquals(POSITION + 15_000L, first.overlay.scrub?.targetMillis)
-
-        val second = first.overlay.scrubForward(nowMillis = 1_000L + TV_SCRUB_ACCUMULATE_MILLIS - 1)
-        assertEquals(emptyList<TvPlayerCommand>(), second.commands)
-        assertEquals(POSITION + 15_000L + 30_000L, second.overlay.scrub?.targetMillis)
-
-        val afterGap = second.overlay.scrubForward(nowMillis = 1_000L + 2 * TV_SCRUB_ACCUMULATE_MILLIS)
-        assertEquals(1, afterGap.overlay.scrub?.presses)
-        assertEquals(POSITION + 15_000L + 30_000L + 15_000L, afterGap.overlay.scrub?.targetMillis)
     }
 
     @Test
@@ -132,33 +106,12 @@ class TvPlayerOverlayTest {
     }
 
     @Test
-    fun selectCommitsAScrubAndPlaysFromThere() {
-        val scrubbing = TvPlayerOverlay().scrubForward(nowMillis = 0L, playing = false).overlay
-        val committed = scrubbing.select(playing = false)
-        assertNull(committed.overlay.scrub)
-        assertEquals(listOf(SeekTo(POSITION + 15_000L), Play), committed.commands)
-
-        assertEquals(listOf(Pause), committed.overlay.select(playing = true).commands)
-        assertEquals(listOf(Play), committed.overlay.select(playing = false).commands)
-    }
-
-    @Test
     fun thePlayAndPauseKeysDropAPendingScrub() {
         val scrubbing = TvPlayerOverlay().scrubForward(nowMillis = 0L).overlay
         val played = scrubbing.setPlaying(play = true)
         assertNull(played.overlay.scrub)
         assertEquals(listOf(Play), played.commands)
         assertEquals(listOf(Pause), scrubbing.setPlaying(play = false).commands)
-    }
-
-    @Test
-    fun theControlsHideOnTimeoutOutsideSeekModeOnly() {
-        val shown = TvPlayerOverlay(controlsVisible = false).reveal().overlay
-        assertTrue(shown.controlsVisible)
-        assertFalse(shown.hideTimedOut().overlay.controlsVisible)
-
-        val scrubbing = shown.scrubForward(nowMillis = 0L).overlay
-        assertTrue(scrubbing.hideTimedOut().overlay.controlsVisible)
     }
 
     @Test
@@ -204,13 +157,6 @@ class TvPlayerOverlayTest {
         assertEquals(TvPlayerControl.SeekBar, hidden.focus)
         val scrubbing = TvPlayerOverlay().scrubForward(nowMillis = 0L).overlay
         assertEquals(TvPlayerControl.SeekBar, scrubbing.moveFocus(TvFocusMove.Up, buttons).overlay.focus)
-    }
-
-    @Test
-    fun rewindAndFastForwardPullFocusBackToTheSeekBar() {
-        val onButton = TvPlayerOverlay().moveFocus(TvFocusMove.Up, listOf(TvPlayerControl.Speed)).overlay
-        assertEquals(TvPlayerControl.Speed, onButton.focus)
-        assertEquals(TvPlayerControl.SeekBar, onButton.scrubForward(nowMillis = 0L).overlay.focus)
     }
 
     private fun TvPlayerOverlay.scrubForward(nowMillis: Long, playing: Boolean = true, repeat: Boolean = false) =

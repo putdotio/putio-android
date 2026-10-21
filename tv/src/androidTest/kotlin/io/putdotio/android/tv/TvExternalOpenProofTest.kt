@@ -247,7 +247,6 @@ class TvExternalOpenProofTest {
         compose.waitUntil(5_000) { isFocused("Open $FOLDER") }
     }
 
-    /** [onExit] stands in for the system leaving the app; it is registered before the shell. */
     private fun mount(onExit: (() -> Unit)? = null): TvSession {
         val session = compose.mountTvProofSession(dependencies(), onExit)
         compose.waitUntil(5_000) { hasContentDescription("Open Movies") }

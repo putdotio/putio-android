@@ -125,8 +125,8 @@ Every opt-in lane below runs the same way. It never uses
    arguments it lists.
 
    ```bash
-   adb -s emulator-5554 shell am instrument -w -r -e class io.putdotio.android.MobileRefusedRequestProofTest \
-     -e putio.refused.enabled true -e putio.refused.runId "$(uuidgen | tr A-Z a-z)" \
+   adb -s emulator-5554 shell am instrument -w -r -e class io.putdotio.android.MobileTransferRetryProofTest \
+     -e putio.transfers.enabled true -e putio.transfers.runId "$(uuidgen | tr A-Z a-z)" \
      io.put.putio.mobile.debug.test/androidx.test.runner.AndroidJUnitRunner
    ```
 
@@ -232,16 +232,15 @@ TalkBack speech. Arguments: `putio.accessibility.enabled` and
 Use normal-size captures as primary UI evidence and label large-text ones as
 accessibility checks.
 
-- `MobileAccessibilityProofTest` mounts controlled auth, Files, Search,
-  Transfers, Trash and Settings with no API calls. Require `OK (3 tests)`.
-- `MobileShellAccessibilityProofTest` adds the real navigation shell, app bars
-  and Transfers toolbar. Run each selector in portrait and landscape with
-  `putio.accessibility.orientation`, one `OK (1 test)` each:
-  `fullShellNavigationAndTransfersKeepActionsReachable` and
-  `fullShellWithPrivateAudioKeepsNavigationAndTransfersReachable`, which also
-  needs `putio.accessibility.audio` (a 180 s local audio fixture) and checks
-  the now-playing bar with a private muted player. Inspect the whole shell and
-  keyboard state; visible test nodes alone do not prove a usable layout.
+- `MobileAccessibilityProofTest` mounts controlled auth, Files, Trash and
+  Settings with no API calls. Require `OK (2 tests)`.
+- `MobileShellAccessibilityProofTest#fullShellWithPrivateAudioKeepsNavigationAndTransfersReachable`
+  adds the real navigation shell, app bars, Transfers toolbar and the
+  now-playing bar with a private muted player. It needs
+  `putio.accessibility.audio` (a 180 s local audio fixture). Run it in
+  portrait and landscape with `putio.accessibility.orientation`, one
+  `OK (1 test)` each. Inspect the whole shell and keyboard state; visible test
+  nodes alone do not prove a usable layout.
 - `MobileKeyboardNavigationProofTest#keyboardKeepsNavigationAndTheFocusedSearchEditor`
   runs at `font_scale` `1.0`, in portrait and landscape with the orientation
   argument, and checks navigation, focus and the query survive the keyboard
@@ -379,25 +378,7 @@ Arguments: `putio.delete.enabled`, `.runId` and `.fixture` (base64 JSON with
 `actionName`, `expectedTrashEnabled`, `cancelItemId`, `cancelName`). Use two
 empty folders in one owned container, named so descending order puts the
 cancel item first; IDs are positive and distinct, and the parser rejects
-duplicate or unknown keys.
-
-With `putio.delete.ui.enabled` and the same run ID, `FilesDeleteRecoveryUiProofTest`
-captures controlled error UI without API calls:
-`uncertainDeleteKeepsItemAndOffersStatusCheck` and
-`folderTooLargeForTrashOffersConfirmedPermanentDelete` (`synthetic-trash-limit*.png`).
-`FilesDeleteNavigationUiProofTest#rejectedSearchAndTransferNavigationPreserveRecovery`
-mounts the shell with controlled reducers: rejected Search and Transfers opens
-keep the tab and Delete recovery, and a fresh transfer open succeeds after
-Check status (`synthetic-navigation.png`). Screenshots: `delete-proof-<UUID>/`.
-
-### Files trash and paging proof
-
-Behaviour: [Files delete and paging](./behavior.md#files-delete-and-paging).
-`MobileFilesTrashPagingProofTest` runs the Files screen and controller over an
-in-memory repository of 120 rows in 50-row pages with Trash on; synthetic.
-Arguments: `putio.files.enabled`, `.runId`. Screenshots in
-`files-proof-<UUID>/` show Move to trash without confirmation (snackbar with
-View Trash, no Undo) and later pages arriving by scrolling, with no Load more.
+duplicate or unknown keys. Screenshots: `delete-proof-<UUID>/`.
 
 ### Authenticated Move device test
 
@@ -418,11 +399,9 @@ collision name. Seven distinct positive IDs and six distinct names, with
 non-ASCII action-folder and file names. Track the action folder separately
 once it moves to root.
 
-With `putio.move.ui.enabled` and the same run ID,
-`FilesMoveRecoveryUiProofTest#uncertainMoveRetainsSourceAndRetriesOnlyReads`
-covers recovery and picker paging and errors, and
+With `putio.move.ui.enabled` and the same run ID, the synthetic
 `FilesMoveNavigationUiProofTest#rootMoveConsumesBackOnFilesAndAccountUntilRecoveryCompletes`
-the activity Back dispatcher while a root Move is pending. Both are synthetic.
+covers the activity Back dispatcher while a root Move is pending.
 Screenshots: `move-proof-<UUID>/`.
 
 The debug-only Compose test host handles asset-path configuration changes:
@@ -465,10 +444,10 @@ and clean up as above; never delete a parent that may still receive a queued
 restoration.
 
 With `putio.trash.restore.ui.enabled` and the same UUID, the synthetic
-`TrashRestoreUiProofTest#queuedRestoreRetainsRecoveryAndRetriesOnlyReads` and
 `TrashRestoreUiProofTest#ambiguousRestoreAndAuthenticationFailureNeverRepeatMutation`
-mount the shell on controlled repositories. Screenshots:
-`trash-restore-proof-<UUID>/`; keep them apart from the live recording.
+mounts the shell on controlled repositories. It captures only when Back loses
+Trash, into `trash-restore-proof-<UUID>/`; keep that apart from the live
+recording.
 
 ### Live audio attachment without source resolution
 
@@ -608,14 +587,10 @@ adb shell am start -a android.intent.action.VIEW \
   -p io.put.putio.mobile.debug
 ```
 
-`MobileTransferIntakeProofTest` sends the same intent to `MainActivity` and
-drives the Transfers screen and controller over `SdkTransfersRepository` with
-faked SDK calls and a fake "Sample folder"; synthetic. Arguments:
-`putio.transfers.enabled`, `.runId`. It covers the unsubmitted draft, the Save
-to picker, an add carrying `save_parent_id`, a refused link kept by add-multi,
-and a torrent upload sending `torrent=true` and the folder. Screenshots:
-`transfer-intake-proof-<UUID>/`. `MainActivityShareTest` covers the `.torrent`
-content-URI read on the JVM.
+`MainActivityShareTest` covers that intent and the `.torrent` content-URI
+read on the JVM; `MobileTransfersScreenTest` and `SdkTransfersRepositoryTest`
+cover the Save to picker, `save_parent_id`, refused links from add-multi and the
+torrent upload.
 
 ### Mobile share-out and deep links proof
 
@@ -749,17 +724,6 @@ over a controlled session; synthetic. Arguments: `putio.homescreen.enabled`,
 `am force-stop` cancels the app's pending intents, the widget's included, so
 its taps do nothing until its next update.
 
-### Shared-with-me items proof
-
-Behaviour: [Shared-with-me items](./behavior.md#shared-with-me-items).
-`MobileSharedItemsProofTest` mounts the Files route and controller on a faked
-root with the shared root, a friend folder, a shared folder, a shared video, an
-owned video and an owned destination; synthetic. Arguments:
-`putio.shared.enabled`, `.runId`. Screenshots in `shared-proof-<UUID>/` show no
-actions on the shared root or friend folder, Download, Share file and Make a
-copy only on a shared file, the copy picker and progress, and owned-file
-actions without Make a copy.
-
 ### Move and copy target folder proof
 
 Behaviour: [Move and copy target folder](./behavior.md#move-and-copy-target-folder).
@@ -789,26 +753,9 @@ Behaviour: [Transfer failures and retry](./behavior.md#transfer-failures-and-ret
 `SdkTransfersRepository` with faked SDK calls: a failed transfer with an
 `error_message`, one without, one downloading; Retry succeeds for the first and
 gets a 403 for the second. Synthetic. Arguments: `putio.transfers.enabled`,
-`.runId`. Screenshots in `transfers-proof-<UUID>/`: failure reasons, the
-"Retrying transfer" snackbar, and the rejected retry's snackbar with no dialog.
-
-### Refused request proof
-
-Behaviour: [Refused requests](./behavior.md#refused-requests).
-`MobileRefusedRequestProofTest` mounts Files on a failure built from put.io's
-error body in-process; controlled-state. Arguments: `putio.refused.enabled`,
 `.runId` (the example in [Device lanes](#device-lanes)). Screenshots in
-`refused-proof-<UUID>/`: put.io's 400 reason, and a 503 keeping the app's copy.
-
-### Copy proof
-
-Behaviour: [History events](./behavior.md#history-events),
-[Storage quota](./behavior.md#storage-quota), [Trash](./behavior.md#trash).
-`MobileCopyProofTest` mounts mobile History, Account and Trash on controlled
-state (`putio.copy.enabled`, `.runId`; screenshots in `copy-proof-<UUID>/`).
-`TvCopyProofTest` mounts the TV session and shell on fake repositories whose
-History mixes every event kind (`putio.tv.copy.enabled`, `.runId`; screenshots
-in `tv-copy-proof-<UUID>/`). Both are controlled-state.
+`transfers-proof-<UUID>/`: failure reasons, the "Retrying transfer" snackbar,
+and the rejected retry's snackbar with no dialog.
 
 ## TV lanes
 
@@ -917,6 +864,14 @@ A device can clamp `wm size` overrides below Android's three-times limit, and
 `putio-tv` does not apply 3840x2160, so the JVM test covers 4K at xxxhdpi.
 Elsewhere, check that `wm size` reports the requested `Override size` before
 calling a run 4K.
+
+### TV copy proof
+
+Behaviour: [History events](./behavior.md#history-events),
+[Storage quota](./behavior.md#storage-quota), [Trash](./behavior.md#trash).
+`TvCopyProofTest` mounts the TV session and shell on fake repositories whose
+History mixes every event kind; controlled-state. Arguments:
+`putio.tv.copy.enabled`, `.runId`. Screenshots: `tv-copy-proof-<UUID>/`.
 
 ### TV manual checks
 

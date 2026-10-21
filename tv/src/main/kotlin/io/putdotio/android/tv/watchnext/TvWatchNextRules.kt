@@ -33,9 +33,9 @@ internal sealed interface TvWatchNextChange {
 }
 
 /**
- * What a saved position means for the row. A video is in progress above 0 % and below 95 %
- * (#38's completed line); a position within 10 s of the end also counts as finished, since
- * opening it then starts over (see `PlaybackReducer`). Unwatched and finished videos leave.
+ * What a saved position means for the row. A video is in progress above 0 % and below 95 %;
+ * a position within 10 s of the end also counts as finished, since opening it then starts
+ * over (see `PlaybackReducer`). Unwatched and finished videos leave.
  */
 internal fun watchNextChange(media: TvWatchNextMedia, positionSeconds: Double): TvWatchNextChange {
     val duration = media.durationSeconds?.takeIf { it.isFinite() && it > 0.0 }

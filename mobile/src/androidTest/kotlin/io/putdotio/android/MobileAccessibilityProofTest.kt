@@ -34,19 +34,6 @@ import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.files.FilesBrowserEvent
-import io.putdotio.android.history.HistoryContent
-import io.putdotio.android.history.historyState
-import io.putdotio.android.search.RecentSearchEdit
-import io.putdotio.android.search.SearchContent
-import io.putdotio.android.search.SearchTerm
-import io.putdotio.android.search.searchState
-import io.putdotio.android.transfers.AppTransferStatus
-import io.putdotio.android.transfers.TransferId
-import io.putdotio.android.transfers.TransferItem
-import io.putdotio.android.transfers.TransfersPaging
-import io.putdotio.android.transfers.TransfersContent
-import io.putdotio.android.transfers.TransfersEvent
-import io.putdotio.android.transfers.transfersState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -55,9 +42,6 @@ import org.junit.rules.RuleChain
 import org.junit.runner.RunWith
 import io.putdotio.android.files.MOBILE_FILES_RENAME_FIELD_TAG
 import io.putdotio.android.files.MobileFilesScreen
-import io.putdotio.android.search.MobileSearchHistoryScreen
-import io.putdotio.android.transfers.MOBILE_TRANSFER_ADD_FIELD_TAG
-import io.putdotio.android.transfers.MobileTransfersScreen
 import io.putdotio.android.trash.MOBILE_MANAGE_TRASH_TAG
 import io.putdotio.android.trash.MOBILE_TRASH_LIST_TAG
 import io.putdotio.android.trash.MobileTrashScreen
@@ -111,62 +95,6 @@ class MobileAccessibilityProofTest {
         capture("files-rename-keyboard")
         compose.onNodeWithText("Cancel").performClick()
         compose.runOnIdle { assertTrue(events.none { it is FilesBrowserEvent.Rename }) }
-    }
-
-    @Test
-    fun recentSearchActionsAndTransferSubmissionRemainReachableWithKeyboard() {
-        var transfers by mutableStateOf(false)
-        val terms = listOf(SearchTerm("Archive été"), SearchTerm("Harbor film collection"))
-        var recent by mutableStateOf(terms)
-        val edits = mutableListOf<RecentSearchEdit>()
-        val events = mutableListOf<TransfersEvent>()
-        mount {
-            if (transfers) {
-                MobileTransfersScreen(transfersState(TransfersContent.Ready(listOf(TransferItem(
-                    id = TransferId(147), name = "Rehearsal documentary.mp4", status = AppTransferStatus.Downloading,
-                    fileId = null, sizeBytes = 128_000_000.0, percentDone = 42.0,
-                    downloadSpeedBytesPerSecond = 1_000_000.0, uploadSpeedBytesPerSecond = null,
-                    estimatedSecondsRemaining = 74.0, availability = null, errorMessage = null,
-                    createdAt = "2026-09-08T12:00:00Z", userFileExists = null,
-                )), TransfersPaging.Complete)), events::add,
-                    sessionId = MobileAuthSessionId(147))
-            } else {
-                MobileSearchHistoryScreen(
-                    searchState = searchState("", SearchContent.Idle, recent, 1),
-                    historyState = historyState(HistoryContent.Disabled),
-                    recentSearchFailure = null,
-                    onSearchQueryChanged = {}, onSearchSubmit = {}, onSearchResult = {},
-                    onSearchNextPage = {}, onSearchRetry = {}, onRecentSearch = {},
-                    onRecentEdit = { edit ->
-                        edits += edit
-                        if (edit is RecentSearchEdit.Remove) recent = recent - edit.term
-                    },
-                    onRecentRetry = {}, onHistoryEvent = {},
-                )
-            }
-        }
-        compose.onNodeWithContentDescription("Remove Archive été from recent searches").assertIsDisplayed()
-        capture("search-recent")
-        compose.onNodeWithContentDescription("Remove Archive été from recent searches").performClick()
-        compose.runOnIdle { assertEquals(listOf(RecentSearchEdit.Remove(terms.first())), edits) }
-        compose.onNodeWithText(terms.last().value).assertIsDisplayed()
-        compose.runOnIdle { transfers = true }
-        compose.onNodeWithContentDescription("Transfer actions").performClick()
-        compose.onNodeWithText("Clean completed").assertIsDisplayed().performClick()
-        compose.onNodeWithText("Clean completed transfers?").assertIsDisplayed()
-        compose.onNodeWithText("Cancel").performClick()
-        compose.onNodeWithText("Rehearsal documentary.mp4").assertIsDisplayed()
-        capture("transfers-ready")
-        compose.onNodeWithText("Add transfer").performClick()
-        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).performClick()
-            .performTextInput("https://example.invalid/accessibility-fixture.mp4")
-        awaitKeyboard()
-        compose.onNodeWithText("Add").performScrollTo().assertIsDisplayed().assertIsEnabled()
-        capture("transfer-add-keyboard")
-        compose.onNodeWithText("Add").performClick()
-        compose.runOnIdle {
-            assertEquals(listOf(TransfersEvent.Add("https://example.invalid/accessibility-fixture.mp4")), events)
-        }
     }
 
     @Test

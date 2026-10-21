@@ -39,27 +39,6 @@ class SdkFilesRepositoryTest {
     }
 
     @Test
-    fun renamePreservesTypedRejectionAndCancellation() = runBlocking {
-        for (status in listOf(401, 403)) {
-            val error = apiFailure(status)
-            val result = repositoryThrowing(error).rename(FilesItemId(42L), "new.mkv") as PutioResult.Failure
-            if (status == 401) {
-                assertTrue(result.failure is PutioFailure.AuthenticationRequired)
-            } else {
-                assertTrue(result.failure is PutioFailure.AccessDenied)
-            }
-            assertSame(error, result.failure.cause)
-        }
-        val cancellation = CancellationException("cancelled rename")
-        try {
-            repositoryThrowing(cancellation).rename(FilesItemId(42L), "new.mkv")
-            fail("Cancellation must propagate")
-        } catch (caught: CancellationException) {
-            assertSame(cancellation, caught)
-        }
-    }
-
-    @Test
     fun listsRootThroughSdkAndMapsRawFileData() =
         runBlocking {
             var requestedFolder: Long? = null
@@ -127,7 +106,10 @@ class SdkFilesRepositoryTest {
     @Test
     fun classifiesApiAndTransportFailures() =
         runBlocking {
-            val unauthorized = repositoryThrowing(apiFailure(statusCode = 401)).loadFolder(FilesFolder.Root.id)
+            val unauthorizedError = apiFailure(statusCode = 401)
+            val unauthorized = repositoryThrowing(unauthorizedError).loadFolder(FilesFolder.Root.id)
+            val forbiddenError = apiFailure(statusCode = 403)
+            val forbidden = repositoryThrowing(forbiddenError).rename(FilesItemId(42L), "new.mkv")
             val unavailable = repositoryThrowing(apiFailure(statusCode = 503)).loadFolder(FilesFolder.Root.id)
             val transport =
                 PutioTransportException(
@@ -140,6 +122,9 @@ class SdkFilesRepositoryTest {
                     .persistSort(FilesFolder.Root.id, FilesSort.NAME_ASCENDING)
 
             assertTrue((unauthorized as PutioResult.Failure).failure is PutioFailure.AuthenticationRequired)
+            assertSame(unauthorizedError, unauthorized.failure.cause)
+            assertTrue((forbidden as PutioResult.Failure).failure is PutioFailure.AccessDenied)
+            assertSame(forbiddenError, forbidden.failure.cause)
             assertEquals(
                 503,
                 ((unavailable as PutioResult.Failure).failure as PutioFailure.ServerUnavailable).statusCode,

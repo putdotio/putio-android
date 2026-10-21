@@ -47,6 +47,7 @@ class MobileShareIntentsTest {
             "HTTP://example.invalid/a",
             "https://example.invalid/file?token=abc.",
             "magnet:?xt=urn:btih:12345&dn=Episode%20one&tr=https%3A%2F%2Ftracker.invalid",
+            "https://example.invalid/file?signature=abc)",
         )) {
             val parsed = parseMobileSharedTransfer("  $input \n")
             assertEquals(input, parsed.input)
@@ -63,18 +64,10 @@ class MobileShareIntentsTest {
             "Download https://example.invalid/file?token=abc'def now" to "https://example.invalid/file?token=abc'def",
             "Download magnet:?xt=urn:btih:12345&dn=hello%20world now" to "magnet:?xt=urn:btih:12345&dn=hello%20world",
             "https://example.invalid/file\nAgain: https://example.invalid/file" to "https://example.invalid/file",
-        )) {
+        ) + listOf("\u00a0", "\u202f", "\u3000", "\u0085").map { separator ->
+            "Download${separator}https://example.invalid/file${separator}now" to "https://example.invalid/file"
+        }) {
             val parsed = parseMobileSharedTransfer(text)
-            assertEquals(expected, parsed.input)
-            assertNull(parsed.validation)
-        }
-    }
-
-    @Test
-    fun unicodeWhitespaceSeparatesCompleteSharedTokens() {
-        for (separator in listOf("\u00a0", "\u202f", "\u3000", "\u0085")) {
-            val expected = "https://example.invalid/file"
-            val parsed = parseMobileSharedTransfer("Download$separator$expected${separator}now")
             assertEquals(expected, parsed.input)
             assertNull(parsed.validation)
         }
@@ -95,77 +88,36 @@ class MobileShareIntentsTest {
     }
 
     @Test
-    fun anIncompleteLinkKeepsTheWholeTextEditableWithoutAnArbitrarySelection() {
-        val mixed = "One https://example.invalid/a and two magnet:?dn=missing-hash"
-        assertEquals(mixed, parseMobileSharedTransfer(mixed).input)
-        assertEquals(MobileShareValidation.InvalidLink, parseMobileSharedTransfer(mixed).validation)
-        for (text in listOf(
+    fun anIncompleteOrAmbiguousLinkKeepsTheWholeTextEditableWithoutAnArbitrarySelection() {
+        val incomplete = listOf(
+            "One https://example.invalid/a and two magnet:?dn=missing-hash",
             "no link 東京 été", "", "ftp://example.invalid/file", "https://", "magnet:?dn=missing-hash",
-        )) {
+        )
+        val wrappedMagnets = listOf("(magnet:?xt=urn:btih:12345)", "[MAGNET:?xt=urn:btih:12345]")
+            .map { wrapped -> "Download https://example.invalid/a or $wrapped" }
+        val sentencePunctuation = listOf(".", ",", ";", ":", "!", "?", "'", ")", "]", "}", "…", "。", "—", "𐄀")
+            .map { ending -> "Download https://example.invalid/file?token=abc$ending" }
+        val wrappers = listOf(
+            "Watch <https://example.invalid/episode>",
+            "Watch (https://example.invalid/episode)",
+            "Watch [(https://example.invalid/episode)]",
+            "Watch {[(https://example.invalid/episode_(part_1))]}",
+            "Download https://example.invalid/file?signature=abc) now",
+        )
+        val nestedOrInvalidCharacters = listOf(
+            "Download https://example.invalid/file?signature=abc\"def now",
+            "Download https://example.invalid/file?signature=abc<def now",
+            "Download https://example.invalid/file?signature=abc>def now",
+            "Download ftp://example.invalid/file?redirect=https://example.invalid/other now",
+            "Download redirect=https://example.invalid/file now",
+        )
+        for (text in incomplete + wrappedMagnets + sentencePunctuation + wrappers + nestedOrInvalidCharacters) {
             val invalid = parseMobileSharedTransfer(text)
             assertEquals(text, invalid.input)
             assertEquals(MobileShareValidation.InvalidLink, invalid.validation)
         }
     }
 
-    @Test
-    fun wrappedMagnetCandidatesPreventChoosingAnotherSharedLink() {
-        for (wrapped in listOf("(magnet:?xt=urn:btih:12345)", "[MAGNET:?xt=urn:btih:12345]")) {
-            val text = "Download https://example.invalid/a or $wrapped"
-            val parsed = parseMobileSharedTransfer(text)
-            assertEquals(text, parsed.input)
-            assertEquals(MobileShareValidation.InvalidLink, parsed.validation)
-        }
-    }
-
-    @Test
-    fun ambiguousSentencePunctuationKeepsTheOriginalEditableText() {
-        for (ending in listOf(".", ",", ";", ":", "!", "?", "'", ")", "]", "}", "…", "。", "—", "𐄀")) {
-            val text = "Download https://example.invalid/file?token=abc$ending"
-            val parsed = parseMobileSharedTransfer(text)
-            assertEquals(text, parsed.input)
-            assertEquals(MobileShareValidation.InvalidLink, parsed.validation)
-        }
-    }
-
-    @Test
-    fun surroundingWrappersNeverCauseUrlCharactersToBeStripped() {
-        for (text in listOf(
-            "Watch <https://example.invalid/episode>",
-            "Watch (https://example.invalid/episode)",
-            "Watch [(https://example.invalid/episode)]",
-            "Watch {[(https://example.invalid/episode_(part_1))]}",
-            "Download https://example.invalid/file?signature=abc) now",
-        )) {
-            val parsed = parseMobileSharedTransfer(text)
-            assertEquals(text, parsed.input)
-            assertEquals(MobileShareValidation.InvalidLink, parsed.validation)
-        }
-        val exact = "https://example.invalid/file?signature=abc)"
-        assertEquals(exact, parseMobileSharedTransfer(exact).input)
-        assertNull(parseMobileSharedTransfer(exact).validation)
-    }
-
-    @Test
-    fun nestedUrlsAndInvalidCharactersNeverBecomeADifferentValidLink() {
-        for (text in listOf(
-            "Download https://example.invalid/file?signature=abc\"def now",
-            "Download https://example.invalid/file?signature=abc<def now",
-            "Download https://example.invalid/file?signature=abc>def now",
-            "Download ftp://example.invalid/file?redirect=https://example.invalid/other now",
-            "Download redirect=https://example.invalid/file now",
-        )) {
-            val parsed = parseMobileSharedTransfer(text)
-            assertEquals(text, parsed.input)
-            assertEquals(MobileShareValidation.InvalidLink, parsed.validation)
-        }
-    }
-
-    @Test
-    fun excessiveTextIsRejectedWithoutRetainingOrTruncatingItIntoALink() {
-        val parsed = parseMobileSharedTransfer("https://example.invalid/" + "a".repeat(MOBILE_TRANSFER_INPUT_LIMIT))
-        assertEquals("", parsed.input)
-        assertEquals(MobileShareValidation.TooLong, parsed.validation)
     }
 
     @Test

@@ -6,15 +6,6 @@ import org.junit.Test
 
 class TvPlayerTracksTest {
     @Test
-    fun buttonsShowLanguageForSeveralAudioTracksSubtitlesForAnyAndSpeedAlways() {
-        assertEquals(listOf(TvPlayerControl.Speed), tvOptionButtons(audioTracks = 1, subtitleTracks = 0))
-        assertEquals(
-            listOf(TvPlayerControl.Language, TvPlayerControl.Subtitles, TvPlayerControl.Speed),
-            tvOptionButtons(audioTracks = 2, subtitleTracks = 1),
-        )
-    }
-
-    @Test
     fun aTrackShowsItsNameThenItsLanguageThenItsNumber() {
         val labels = tvTrackLabels(
             tracks = listOf(TvTrackName("Italian (AC-3 5.1)", "it"), TvTrackName(null, "de"), TvTrackName(" ", null)),

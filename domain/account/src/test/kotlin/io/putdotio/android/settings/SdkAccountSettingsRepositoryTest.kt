@@ -103,29 +103,25 @@ class SdkAccountSettingsRepositoryTest {
                 ),
                 refreshEvent,
             )
-        }
 
-    @Test
-    fun failedRefreshAfterAcceptedSaveDoesNotReportTheWriteAsFailed() =
-        runBlocking<Unit> {
-            var saveCount = 0
             val refreshFailure = IllegalStateException("reload failed")
-            val repository =
+            val failingRefresh =
                 SdkAccountSettingsRepository(
-                    getSettings = { throw refreshFailure },
-                    saveSettings = { saveCount += 1 },
+                    getSettings = {
+                        operations += "read"
+                        throw refreshFailure
+                    },
+                    saveSettings = { operations += "save" },
                 )
-            val requestId = AccountSettingsRequestId(8L)
-            val change = AccountSettingsChange(AccountSettingsKey.Trash, enabled = true)
-
-            val saveEvent = repository.execute(AccountSettingsEffect.Save(requestId, change))
-            val refreshEvent = repository.execute(AccountSettingsEffect.Refresh(requestId))
-
-            assertEquals(AccountSettingsEvent.SaveSucceeded(requestId), saveEvent)
+            assertEquals(
+                AccountSettingsEvent.SaveSucceeded(requestId),
+                failingRefresh.execute(AccountSettingsEffect.Save(requestId, change)),
+            )
+            val failedRefresh = failingRefresh.execute(AccountSettingsEffect.Refresh(requestId))
             val refreshError =
-                (refreshEvent as AccountSettingsEvent.RefreshFailed).failure.putioFailure as PutioFailure.Unexpected
+                (failedRefresh as AccountSettingsEvent.RefreshFailed).failure.putioFailure as PutioFailure.Unexpected
             assertSame(refreshFailure, refreshError.cause)
-            assertEquals(1, saveCount)
+            assertEquals(listOf("save", "read", "save", "read"), operations)
         }
 
     @Test
@@ -264,7 +260,6 @@ class SdkAccountSettingsRepositoryTest {
             val result = repository.save(AccountSettingsChange.Sort(FilesSort.WATCH_STATUS_ASCENDING))
                 as AccountSettingsRepositoryResult.Failure
 
-            // Falls through to the status mapping: a 403 on a non-route write is the generic denial.
             assertFalse(result.failure is AccountSettingsFailure.RouteUnavailable)
             assertTrue(result.failure.putioFailure is PutioFailure.AccessDenied)
             assertSame(operationError, result.failure.cause)

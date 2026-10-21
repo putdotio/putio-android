@@ -186,17 +186,6 @@ class MobileTransferDraftTest {
     }
 
     @Test
-    fun aTorrentReadOffTheMainThreadArrivesLikeAShare() = runTest {
-        val draft = MobileTransferDraft(StandardTestDispatcher(testScheduler))
-        draft.receiveLater { MobileSharedTransfer(torrent = TORRENT) }
-        assertNull(draft.state.value.torrent)
-        advanceUntilIdle()
-        shadowOf(Looper.getMainLooper()).idle()
-        assertSame(TORRENT, draft.state.value.torrent)
-        assertTrue(draft.state.value.open)
-    }
-
-    @Test
     fun aNewerIntakeOrAnotherAccountSupersedesAPendingTorrentRead() = runTest {
         val draft = MobileTransferDraft(StandardTestDispatcher(testScheduler))
         draft.reconcileSession(MobileAuthSessionId(1))
@@ -229,8 +218,10 @@ class MobileTransferDraftTest {
         draft.reconcileSession(null)
         draft.receiveLater { MobileSharedTransfer(torrent = TORRENT) }
         draft.reconcileSession(MobileAuthSessionId(1))
+        assertNull(draft.state.value.torrent)
         settle()
         assertSame(TORRENT, draft.state.value.torrent)
+        assertTrue(draft.state.value.open)
     }
 
     @Test

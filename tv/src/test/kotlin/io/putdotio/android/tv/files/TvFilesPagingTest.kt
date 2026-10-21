@@ -99,10 +99,11 @@ class TvFilesPagingTest {
 
     @Test
     fun aMiddlePageArrivingKeepsFocusOnLoadMore() {
+        val events = mutableListOf<FilesBrowserEvent>()
         var state by mutableStateOf(
             ready(item(1, "a.txt", PutioFileType.TEXT), paging = FilesPaging.Available(FilesCursor("c1"))),
         )
-        compose.showFiles(state = { state })
+        compose.showFiles(state = { state }, onEvent = { events += it; true })
         compose.onNodeWithContentDescription("a.txt").performKeyInput { pressKey(Key.DirectionDown) }
         compose.onNodeWithText("Load more").assertIsFocused()
 
@@ -111,22 +112,6 @@ class TvFilesPagingTest {
             item(2, "b.txt", PutioFileType.TEXT),
             paging = FilesPaging.Available(FilesCursor("c2")),
         )
-        compose.onNodeWithText("Load more").assertIsFocused()
-    }
-
-    @Test
-    fun aPagedFolderOffersLoadMoreAfterTheLastRow() {
-        val events = mutableListOf<FilesBrowserEvent>()
-        compose.showFiles(
-            state = {
-                ready(
-                    item(1, "a.txt", PutioFileType.TEXT),
-                    paging = FilesPaging.Available(FilesCursor("c")),
-                )
-            },
-            onEvent = { events += it; true },
-        )
-        compose.onNodeWithContentDescription("a.txt").performKeyInput { pressKey(Key.DirectionDown) }
         compose.onNodeWithText("Load more").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.LoadNextPage), events)
     }

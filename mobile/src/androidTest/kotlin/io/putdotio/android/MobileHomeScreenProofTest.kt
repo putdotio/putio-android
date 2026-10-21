@@ -301,7 +301,6 @@ class MobileHomeScreenProofTest {
         return all
     }
 
-    /** A real touch, as a person taps. */
     private fun tap(node: AccessibilityNodeInfo) {
         val bounds = Rect().also(node::getBoundsInScreen)
         instrumentation.uiAutomation.executeShellCommand("input tap ${bounds.centerX()} ${bounds.centerY()}")

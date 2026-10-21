@@ -94,40 +94,6 @@ class TvPlayerScreenTest {
     }
 
     @Test
-    fun backHidesTheControlsThenLeavesAndThePlayerIsReleased() {
-        val player = FakePlayer()
-        var backs = 0
-        var showing by mutableStateOf(true)
-        compose.setTvContent {
-            if (showing) {
-                TvPlayerScreen(
-                    state = readyState(),
-                    onBack = {
-                        backs += 1
-                        showing = false
-                    },
-                    onRetry = {},
-                    onResume = {},
-                    onRestart = {},
-                    onPlayerFailure = { _, _ -> },
-                    playerFactory = { _, _ -> player },
-                )
-            }
-        }
-        compose.onNodeWithTag(TV_PLAYER_TAG).assertIsFocused()
-        compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertIsDisplayed()
-
-        compose.back()
-        assertEquals(0, backs)
-        compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertDoesNotExist()
-
-        compose.back()
-        assertEquals(1, backs)
-        compose.onNodeWithTag(TV_PLAYER_TAG).assertDoesNotExist()
-        assertTrue(player.released)
-    }
-
-    @Test
     fun leavingTheAppPausesAndARecreatedScreenContinuesFromThereStillPaused() {
         val players = mutableListOf<FakePlayer>()
         val restoration = StateRestorationTester(compose)

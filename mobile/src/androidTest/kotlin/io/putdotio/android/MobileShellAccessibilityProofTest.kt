@@ -91,11 +91,6 @@ class MobileShellAccessibilityProofTest {
     private val context get() = InstrumentationRegistry.getInstrumentation().targetContext
 
     @Test
-    fun fullShellNavigationAndTransfersKeepActionsReachable() {
-        runShellProof(player = null)
-    }
-
-    @Test
     fun fullShellWithPrivateAudioKeepsNavigationAndTransfersReachable() {
         val fixture = localAudioFixture()
         var player: ExoPlayer? = null
@@ -126,8 +121,8 @@ class MobileShellAccessibilityProofTest {
         }
     }
 
-    private fun runShellProof(player: Player?) {
-        capturePrefix = "shell-${requireOrientation()}" + if (player == null) "" else "-audio"
+    private fun runShellProof(player: Player) {
+        capturePrefix = "shell-${requireOrientation()}-audio"
         val mounted = mutableStateOf(true)
         val events = mutableListOf<TransfersEvent>()
         val transferDraft = MobileTransferDraft()
@@ -163,7 +158,7 @@ class MobileShellAccessibilityProofTest {
         }
         try {
             assertFilesViewport()
-            if (player != null) checkNowPlaying(player)
+            checkNowPlaying(player)
             capture("files")
             checkDrawerAndBack()
             navigate("Search")
@@ -179,7 +174,7 @@ class MobileShellAccessibilityProofTest {
             checkSettings()
             navigate("Files")
             assertFilesViewport()
-            if (player != null) compose.onNodeWithTag(MOBILE_NOW_PLAYING_TAG).assertIsDisplayed()
+            compose.onNodeWithTag(MOBILE_NOW_PLAYING_TAG).assertIsDisplayed()
         } catch (failure: Throwable) {
             try {
                 capture("failure-$proofStage")

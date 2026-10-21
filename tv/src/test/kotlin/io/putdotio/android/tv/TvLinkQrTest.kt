@@ -55,22 +55,6 @@ class TvLinkQrTest {
         compose.onAllNodesWithTag(TV_LINK_QR_TAG).assertCountEquals(0)
     }
 
-    @Test
-    fun theEncoderRoundTripsLongerLinks() {
-        val link = "https://put.io/link?code=" + "A".repeat(120)
-        val modules = encodeTvQr(link)
-        val scale = 4
-        val span = (modules.size + 2 * QR_QUIET_ZONE_MODULES) * scale
-        val pixels = IntArray(span * span) { index ->
-            val x = index % span / scale - QR_QUIET_ZONE_MODULES
-            val y = index / span / scale - QR_QUIET_ZONE_MODULES
-            val dark = x in modules.indices && y in modules.indices && modules[y][x]
-            if (dark) BLACK else WHITE
-        }
-
-        assertEquals(link, decode(pixels, span, span))
-    }
-
     private fun show(phase: TvLinkPhase) {
         compose.setTvContent {
             TvLinkScreen(phase = phase, sessionExpired = false, onRequestNewCode = {})

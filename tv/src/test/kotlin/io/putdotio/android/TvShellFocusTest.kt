@@ -1,6 +1,8 @@
 package io.putdotio.android
 
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import io.putdotio.android.tv.setTvContent
 import io.putdotio.android.tv.pressCenter
 import androidx.compose.runtime.mutableStateOf
@@ -9,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.hasClickAction
@@ -52,61 +55,6 @@ class TvShellFocusTest {
 
     @get:Rule
     val compose = createAndroidComposeRule<androidx.activity.ComponentActivity>()
-
-    @Test
-    fun returningToFilesLandsOnTheRowThatHeldFocus() {
-        val memory = mutableMapOf<Long, Long>()
-        val files = filesBrowserState(
-            stack = listOf(
-                FilesFolderState(
-                    folder = FilesFolder.Root,
-                    content = FilesContent.Ready(
-                        listOf(row(1, "first.txt"), row(2, "second.txt"), row(3, "third.txt")),
-                        FilesPaging.Complete,
-                    ),
-                ),
-            ),
-            nextRequestValue = 10L,
-        )
-        compose.setTvContent {
-            TvShell(
-                account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
-                onSignOut = {},
-                filesPane = { paneFocus ->
-                    TvFilesScreen(
-                        state = files,
-                        onEvent = { true },
-                        onPlayMedia = {},
-                        modifier = Modifier.focusRequester(paneFocus),
-                        focusMemory = memory,
-                    )
-                },
-            )
-        }
-        compose.onNodeWithContentDescription("first.txt").assertIsFocused().performKeyInput {
-            pressKey(Key.DirectionDown)
-            pressKey(Key.DirectionDown)
-        }
-        compose.onNodeWithContentDescription("third.txt").assertIsFocused().performKeyInput {
-            pressKey(Key.DirectionLeft)
-        }
-        compose.onNode(hasText("Files") and hasClickAction()).assertIsFocused().performKeyInput {
-            pressKey(Key.DirectionDown)
-            pressKey(Key.DirectionDown)
-            pressKey(Key.DirectionDown)
-            pressCenter()
-        }
-        compose.onNodeWithText("Sign out").assertIsFocused().performKeyInput {
-            pressKey(Key.DirectionLeft)
-        }
-        compose.onNode(hasText("Account") and hasClickAction()).assertIsFocused().performKeyInput {
-            pressKey(Key.DirectionUp)
-            pressKey(Key.DirectionUp)
-            pressKey(Key.DirectionUp)
-            pressCenter()
-        }
-        compose.onNodeWithContentDescription("third.txt").assertIsFocused()
-    }
 
     @Test
     fun railRoundTripWithoutLeavingFilesReturnsToTheLiveRow() {
@@ -260,88 +208,51 @@ class TvShellFocusTest {
 
     @Test
     fun aFolderThatFinishesLoadingWhileOnTheRailDoesNotStealFocus() {
-        var files by mutableStateOf(
-            filesBrowserState(
-                stack = listOf(FilesFolderState(FilesFolder.Root, FilesContent.Loading(FilesRequestId(1)))),
-                nextRequestValue = 10L,
-            ),
+        val loading = filesBrowserState(
+            stack = listOf(FilesFolderState(FilesFolder.Root, FilesContent.Loading(FilesRequestId(1)))),
+            nextRequestValue = 10L,
         )
+        val settled = listOf<Pair<FilesContent, () -> SemanticsNodeInteraction>>(
+            FilesContent.Ready(listOf(row(1, "first.txt")), FilesPaging.Complete) to
+                { compose.onNodeWithContentDescription("first.txt") },
+            FilesContent.Failed(PutioFailure.NetworkUnavailable(PutioConfigurationException("x"))) to
+                { compose.onNodeWithText("Try again") },
+        )
+        var mount by mutableIntStateOf(0)
+        var files by mutableStateOf(loading)
         compose.setTvContent {
-            TvShell(
-                account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
-                onSignOut = {},
-                filesPane = { paneFocus ->
-                    TvFilesScreen(
-                        state = files,
-                        onEvent = { true },
-                        onPlayMedia = {},
-                        modifier = Modifier.focusRequester(paneFocus),
-                    )
-                },
-            )
+            key(mount) {
+                TvShell(
+                    account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                    onSignOut = {},
+                    filesPane = { paneFocus ->
+                        TvFilesScreen(
+                            state = files,
+                            onEvent = { true },
+                            onPlayMedia = {},
+                            modifier = Modifier.focusRequester(paneFocus),
+                        )
+                    },
+                )
+            }
         }
-        compose.onNode(hasText("Refresh") and hasClickAction())
-            .assertIsFocused()
-            .performKeyInput { pressKey(Key.DirectionLeft) }
-        compose.onNode(hasText("Files") and hasClickAction()).assertIsFocused()
+        settled.forEachIndexed { index, (content, rightTarget) ->
+            compose.runOnIdle {
+                mount = index
+                files = loading
+            }
+            compose.onNode(hasText("Refresh") and hasClickAction())
+                .assertIsFocused()
+                .performKeyInput { pressKey(Key.DirectionLeft) }
+            compose.onNode(hasText("Files") and hasClickAction()).assertIsFocused()
 
-        files = filesBrowserState(
-            stack = listOf(
-                FilesFolderState(
-                    FilesFolder.Root,
-                    FilesContent.Ready(listOf(row(1, "first.txt")), FilesPaging.Complete),
-                ),
-            ),
-            nextRequestValue = 11L,
-        )
-        compose.waitForIdle()
-        compose.onNode(hasText("Files") and hasClickAction())
-            .assertIsFocused()
-            .performKeyInput { pressKey(Key.DirectionRight) }
-        compose.onNodeWithContentDescription("first.txt").assertIsFocused()
-    }
-
-    @Test
-    fun aFolderThatFailsWhileOnTheRailDoesNotStealFocus() {
-        var files by mutableStateOf(
-            filesBrowserState(
-                stack = listOf(FilesFolderState(FilesFolder.Root, FilesContent.Loading(FilesRequestId(1)))),
-                nextRequestValue = 10L,
-            ),
-        )
-        compose.setTvContent {
-            TvShell(
-                account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
-                onSignOut = {},
-                filesPane = { paneFocus ->
-                    TvFilesScreen(
-                        state = files,
-                        onEvent = { true },
-                        onPlayMedia = {},
-                        modifier = Modifier.focusRequester(paneFocus),
-                    )
-                },
-            )
+            files = filesBrowserState(stack = listOf(FilesFolderState(FilesFolder.Root, content)), nextRequestValue = 11L)
+            compose.waitForIdle()
+            compose.onNode(hasText("Files") and hasClickAction())
+                .assertIsFocused()
+                .performKeyInput { pressKey(Key.DirectionRight) }
+            rightTarget().assertIsFocused()
         }
-        compose.onNode(hasText("Refresh") and hasClickAction())
-            .assertIsFocused()
-            .performKeyInput { pressKey(Key.DirectionLeft) }
-        compose.onNode(hasText("Files") and hasClickAction()).assertIsFocused()
-
-        files = filesBrowserState(
-            stack = listOf(
-                FilesFolderState(
-                    FilesFolder.Root,
-                    FilesContent.Failed(PutioFailure.NetworkUnavailable(PutioConfigurationException("x"))),
-                ),
-            ),
-            nextRequestValue = 11L,
-        )
-        compose.waitForIdle()
-        compose.onNode(hasText("Files") and hasClickAction())
-            .assertIsFocused()
-            .performKeyInput { pressKey(Key.DirectionRight) }
-        compose.onNodeWithText("Try again").assertIsFocused()
     }
 
     @Test

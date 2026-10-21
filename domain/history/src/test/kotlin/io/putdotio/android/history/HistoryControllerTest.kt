@@ -13,23 +13,14 @@ import io.putdotio.android.PutioResult
 
 class HistoryControllerTest {
     @Test
-    fun disabledControllerNeverCallsRepository() = runBlocking {
+    fun enablingDisabledControllerLoadsAndDisablingDropsLoadedHistory() = runBlocking {
         var calls = 0
         val controller = HistoryController(repository { calls += 1 }, historyEnabled = false, parentScope = this)
         try {
             assertEquals(HistoryContent.Disabled, controller.state.value.content)
             assertEquals(0, calls)
             assertFalse(controller.dispatch(HistoryEvent.LoadNextPage))
-        } finally {
-            controller.close()
-        }
-    }
 
-    @Test
-    fun enablingDisabledControllerLoadsAndDisablingDropsLoadedHistory() = runBlocking {
-        var calls = 0
-        val controller = HistoryController(repository { calls += 1 }, historyEnabled = false, parentScope = this)
-        try {
             assertTrue(controller.dispatch(HistoryEvent.SetEnabled(true)))
             controller.awaitState { it.content == HistoryContent.Empty }
             assertEquals(1, calls)

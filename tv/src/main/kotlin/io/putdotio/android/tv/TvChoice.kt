@@ -30,7 +30,6 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.RadioButton
 import androidx.tv.material3.Text
 
-/** One selectable row of a [TvChoiceDialog]. */
 internal data class TvChoice<T>(
     val value: T,
     val label: String,
@@ -70,7 +69,7 @@ internal fun <T> TvChoiceDialog(
                 .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(28.dp))
                 .padding(24.dp),
         ) {
-            // Outside the scrolling rows, so bringing a choice into view never scrolls it away (#224).
+            // Outside the scrolling rows, so bringing a choice into view never scrolls it away.
             Text(
                 text = title,
                 style = MaterialTheme.typography.headlineSmall,

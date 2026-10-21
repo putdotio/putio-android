@@ -174,7 +174,6 @@ class TvSearchHistoryProofTest {
         )
     }
 
-    /** Clears the field, types [term] and runs the keyboard's Search action. */
     private fun submit(term: String, from: Int? = null) {
         from?.let(::press)
         field().assertIsFocused().performTextClearance()

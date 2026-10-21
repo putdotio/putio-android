@@ -586,7 +586,8 @@ private fun TvTrashRow(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    // A handled configuration change keeps the Context but can change the formatting locale.
+    // MainActivity handles no configuration changes, so a locale change recreates it; the
+    // configuration key matters only if the activity ever handles one itself.
     val configuration = LocalConfiguration.current
     val (size, deleted, expires) = remember(context, configuration, item) {
         Triple(

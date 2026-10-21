@@ -90,7 +90,7 @@ class TvPlayerOptionsTest {
         compose.onNodeWithContentDescription(LANGUAGE).assertDoesNotExist()
         compose.onNodeWithContentDescription(SUBTITLES).assertDoesNotExist()
 
-        compose.runOnIdle { player.replaceTracks(audio = twoAudio(period = 2), text = twoText(period = 2)) }
+        compose.runOnIdle { player.replaceTracks(audio = twoAudio(period = 2), text = oneText()) }
         settle()
         compose.onNodeWithContentDescription(LANGUAGE).assertIsDisplayed()
         compose.onNodeWithContentDescription(SUBTITLES).assertIsDisplayed()
@@ -147,7 +147,7 @@ class TvPlayerOptionsTest {
         compose.runOnIdle { assertEquals(1.5f, player.playbackParameters.speed) }
         compose.onNodeWithContentDescription(SPEED).assertIsSelected().assert(stateIs("1.5×"))
 
-        // Back with a picker open dismisses only the picker (#9): playback, speed and focus stay.
+        // Back with a picker open dismisses only the picker: playback, speed and focus stay.
         key(Key.DirectionCenter)
         compose.onNodeWithText("Playback speed").assertIsDisplayed()
         settle()
@@ -198,7 +198,6 @@ class TvPlayerOptionsTest {
         compose.runOnIdle { assertEquals(1, player.selectedAudioIndex()) }
     }
 
-    /** #45: subtitles that were turned off kept showing on the shipped Android TV app. */
     @Test
     fun subtitlesOffStaysOffAndDrawsNothingAcrossSeeksAndTrackChanges() {
         val player = TrackPlayer()
@@ -290,7 +289,7 @@ class TvPlayerOptionsTest {
         // Without a default the device's caption language decides.
         compose.runOnIdle { assertEquals(1, player.selectedTextIndex()) }
 
-        // The next tracks mark the account's first subtitle language as the default (#237).
+        // The next tracks mark the account's first subtitle language as the default.
         val serverDefault = TrackGroup(
             "text-default",
             textFormat("t-en", "en", "English", C.SELECTION_FLAG_DEFAULT),
@@ -325,7 +324,7 @@ class TvPlayerOptionsTest {
 
         policy = SubtitleStartupPolicy(showSubtitles = false, autoSelectSubtitles = true)
         settle()
-        // hide_subtitles outranks the pick and takes its picker with it (#237).
+        // hide_subtitles outranks the pick and takes its picker with it.
         compose.onNode(hasText("German") and hasClickAction()).assertDoesNotExist()
         compose.onNodeWithContentDescription(SUBTITLES).assertDoesNotExist()
         compose.runOnIdle {
@@ -529,6 +528,8 @@ private fun textFormat(id: String, language: String, label: String?, selectionFl
         .build()
 
 private fun oneAudio() = TrackGroup(audioFormat("a-it", "it"))
+
+private fun oneText() = TrackGroup("text-one", textFormat("t-en", "en", "English SDH"))
 
 /** Each [period] gets distinct track groups carrying the same formats, as a new HLS period does. */
 private fun twoAudio(period: Int = 1) =

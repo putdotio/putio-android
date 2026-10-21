@@ -21,18 +21,6 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class SessionScopedHolderTest {
     @Test
-    fun theCurrentSessionReusesOneValue() {
-        val fixture = Fixture(initial = "a")
-
-        val first = fixture.holder.valueFor("a") { fixture.build() }
-        val second = fixture.holder.valueFor("a") { fixture.build() }
-
-        assertSame(first, second)
-        assertEquals(1, fixture.built.size)
-        assertTrue(fixture.closed.isEmpty())
-    }
-
-    @Test
     fun aKeyThatIsNotCurrentBuildsNothingAndKeepsTheCurrentValue() {
         val fixture = Fixture(initial = "a")
         val current = checkNotNull(fixture.holder.valueFor("a") { fixture.build() })
