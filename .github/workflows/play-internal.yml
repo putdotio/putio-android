@@ -141,8 +141,8 @@ jobs:
           TV_CODE: ${{ needs.upload.outputs.tv_version_code }}
         run: |
           tag="v$VERSION+$MOBILE_CODE"
-          ref="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" 2>/dev/null || true)"
-          if [ -n "$ref" ]; then
+          # gh prints a 404's body to stdout, so only its exit status says whether the tag exists.
+          if ref="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" 2>/dev/null)"; then
             existing="$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$(jq -r .object.sha <<< "$ref")")"
             if [ "$(jq -r .object.type <<< "$ref")" != tag ] || [ "$(jq -r .object.sha <<< "$existing")" != "$SHA" ]; then
               echo "$tag already exists for another commit" >&2
