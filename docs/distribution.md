@@ -4,10 +4,10 @@ Both apps ship to Google Play from GitHub Actions, by manual dispatch from
 `main`. A merge deploys nothing, and no workflow commits a version bump:
 version names come from the dispatch, version codes from Google Play.
 
-| Workflow                                                       | What it does                                                                                                                     |
-| -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| [Google Play Internal](../.github/workflows/play-internal.yml) | Builds and signs both bundles, uploads them to the internal track as one release, and tags the commit                            |
-| [Google Play Release](../.github/workflows/play-release.yml)   | Promotes the internal release to production, or changes the staged rollout of one already there; optionally replaces the listing |
+| Workflow                                                       | What it does                                                                                                                          |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| [Google Play Internal](../.github/workflows/play-internal.yml) | Has Claude write release notes, builds and signs both bundles, uploads them to the internal track as one release, and tags the commit |
+| [Google Play Release](../.github/workflows/play-release.yml)   | Promotes the internal release to production, or changes the staged rollout of one already there; optionally replaces the listing      |
 
 ```mermaid
 flowchart LR
@@ -111,6 +111,29 @@ App, with a token for this repository and `contents: write` alone, minted from
 the Environment's `PUTIO_CI_APP_CLIENT_ID` variable and
 `PUTIO_CI_APP_PRIVATE_KEY`.
 
+## Release notes
+
+No release notes are committed. Internal's `notes` job runs the shared
+[beta-notes](https://github.com/putdotio/.github#actionsbeta-notes) action:
+Claude reads the pull requests and code changed since the base tag and writes
+bullets that fit Google Play's 500 characters. The base is the latest
+`v*` tag below the shipped commit whose version name differs from the
+dispatch's, so every build of 3.0.1 describes all changes since the last
+3.0.0 upload. With no such tag, no user-facing commits, or any Claude failure,
+the notes are "Bug fixes and improvements." The dry run writes notes too and
+shows them in its summary.
+
+The upload job writes the notes to
+`mobile/src/main/play/release-notes/en-US/internal.txt`, an ignored path,
+just before Gradle Play Publisher uploads. Release copies the internal
+release's notes to production unchanged.
+
+| Since the base tag                       | Notes                               |
+| ---------------------------------------- | ----------------------------------- |
+| `feat`, `fix` or `perf` commits          | Claude's bullets, one `- ` per line |
+| Only tooling, docs or dependency commits | Bug fixes and improvements.         |
+| No base tag, or Claude fails             | Bug fixes and improvements.         |
+
 ## Google Play as code
 
 [Gradle Play Publisher](https://github.com/Triple-T/gradle-play-publisher),
@@ -123,7 +146,6 @@ release and drop the other app's. Gradle Play Publisher owns these files under
 
 | Path                                  | Reaches Google Play                                                          |
 | ------------------------------------- | ---------------------------------------------------------------------------- |
-| `release-notes/en-US/internal.txt`    | With every internal upload, and again when Release promotes it               |
 | `listings/en-US/*.txt` and `graphics` | Only through Google Play Release with `publish_listing`, which replaces them |
 
 The listing mirrors the one the legacy app published. The upload stages only

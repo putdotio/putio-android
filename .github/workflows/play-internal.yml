@@ -71,10 +71,46 @@ jobs:
             echo "version_code=$VERSION_CODE"
           } >> "$GITHUB_OUTPUT"
 
+  # Google Play shows these notes on the internal release, and Release carries
+  # them to production. They cover everything since the last tag of an earlier
+  # version name; with none, or any Claude failure, they are the fallback.
+  notes:
+    name: Write release notes
+    needs: [ref, inputs]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: read
+      id-token: write
+    outputs:
+      notes: ${{ steps.notes.outputs.notes }}
+    steps:
+      # Full history and tags, so the base tag resolves.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.ref.outputs.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Find the previous version's last tag
+        id: base
+        env:
+          VERSION_NAME: ${{ needs.inputs.outputs.version_name }}
+        run: |
+          base="$(git describe --tags --abbrev=0 --match 'v[0-9]*' --exclude "v${VERSION_NAME}+*" HEAD^ 2>/dev/null)" || base=""
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+      - name: Write release notes
+        id: notes
+        uses: putdotio/.github/.github/actions/beta-notes@32b9f2f9ac2b6b17b2be6b111ec495e079384b4c # v2.3.1
+        with:
+          app: put.io for Android
+          base: ${{ steps.base.outputs.base }}
+          max-length: 500
+
   upload:
     name: Upload to the internal track
     if: ${{ !inputs.dry_run }}
-    needs: [ref, inputs]
+    needs: [ref, inputs, notes]
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     environment: release
@@ -100,6 +136,17 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
+      # Gradle Play Publisher sends this file as the internal release's notes.
+      - name: Write the release notes file
+        env:
+          NOTES: ${{ needs.notes.outputs.notes }}
+        run: |
+          if [ -z "$NOTES" ]; then
+            echo "Write release notes gave no notes" >&2
+            exit 1
+          fi
+          mkdir -p mobile/src/main/play/release-notes/en-US
+          printf '%s\n' "$NOTES" > mobile/src/main/play/release-notes/en-US/internal.txt
       - name: Build, sign and upload
         id: upload
         env:
