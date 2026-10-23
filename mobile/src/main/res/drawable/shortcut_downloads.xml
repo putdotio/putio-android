@@ -4,7 +4,7 @@
     <background android:drawable="@color/putio_yellow_solid" />
     <foreground>
         <inset
-            android:drawable="@drawable/ic_ph_arrow_circle_down"
+            android:drawable="@drawable/ic_ph_download_simple"
             android:inset="32%" />
     </foreground>
 </adaptive-icon>

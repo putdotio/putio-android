@@ -3510,6 +3510,92 @@
         }
       }
     },
+    "focus": {
+      "$description": "Focus for web TV (tv.put.io, Tizen, webOS) and Roku: a fill, never a lift. Roku reads the row pair only. No scale, shadow, halo, or white invert; label and icon stay context.tv.text.primary. Each pair is the resting value and its focused step. Native tvOS and Android TV keep their platform focus engines and do not read this group.",
+      "borderWidth": {
+        "$type": "dimension",
+        "$value": "3px",
+        "$description": "Control edge at rest and in focus. The width never changes with focus, so focus never shifts layout. 3px because a 1px edge vanishes at three metres and Roku snaps every FHD position to a 3px grid.",
+        "$extensions": {
+          "putio": {
+            "cssName": "tv-focus-border-width",
+            "mode": "tv"
+          }
+        }
+      },
+      "row": {
+        "$description": "List rows, modal options, and track-menu rows on web TV and Roku. Rows carry no border, so focus is the fill alone; Roku draws it as a tinted FocusBackground nine-patch.",
+        "background": {
+          "$type": "color",
+          "$value": "{surface.dark.listItemBg}",
+          "$description": "Resting row: transparent.",
+          "$extensions": {
+            "putio": {
+              "cssName": "tv-focus-row-bg",
+              "mode": "tv"
+            }
+          }
+        },
+        "backgroundFocused": {
+          "$type": "color",
+          "$value": "{color.neutral.dark.componentBgActive}",
+          "$description": "Focused row fill.",
+          "$extensions": {
+            "putio": {
+              "cssName": "tv-focus-row-bg-focused",
+              "mode": "tv"
+            }
+          }
+        }
+      },
+      "control": {
+        "$description": "Web TV buttons, the search field, and other chrome that carry a border at rest. Focus steps both the fill and the border. On-screen keyboard keys and Roku dialog buttons, whose focus follows their primary, secondary, or danger variant, sit outside this group.",
+        "background": {
+          "$type": "color",
+          "$value": "{color.neutral.dark.componentBg}",
+          "$description": "Resting control fill.",
+          "$extensions": {
+            "putio": {
+              "cssName": "tv-focus-control-bg",
+              "mode": "tv"
+            }
+          }
+        },
+        "backgroundFocused": {
+          "$type": "color",
+          "$value": "{color.neutral.dark.componentBgActive}",
+          "$description": "Focused control fill, the same fill a focused row takes.",
+          "$extensions": {
+            "putio": {
+              "cssName": "tv-focus-control-bg-focused",
+              "mode": "tv"
+            }
+          }
+        },
+        "border": {
+          "$type": "color",
+          "$value": "{color.neutral.dark.border}",
+          "$description": "Resting control edge, drawn at tv.focus.borderWidth.",
+          "$extensions": {
+            "putio": {
+              "cssName": "tv-focus-control-border",
+              "mode": "tv"
+            }
+          }
+        },
+        "borderFocused": {
+          "$type": "color",
+          "$value": "{color.neutral.dark.borderHover}",
+          "$description": "Focused control edge, drawn at tv.focus.borderWidth.",
+          "$extensions": {
+            "putio": {
+              "cssName": "tv-focus-control-border-focused",
+              "mode": "tv"
+            }
+          }
+        }
+      }
+    },
     "z": {
       "$description": "zIndices. NOT the web --z-* order: on TV, overlay sits ABOVE toast. Emit the two scales separately and never fold TV into the web stack order.",
       "modal": {
@@ -4663,7 +4749,7 @@
       "mono": {
         "$type": "fontFamily",
         "$value": "\"Berkeley Mono\", monospace",
-        "$description": "The single mono face: numerics, timestamps, file sizes, ETAs, counts, code, logs, magnet URIs, identifiers, and filenames. Web and mobile only — TV has no mono face.",
+        "$description": "The single mono face: numerics, timestamps, file sizes, ETAs, counts, code, logs, magnet URIs, identifiers, and filenames. Web and mobile only. TV product UI has no mono face; a TV debug overlay may use the platform's system monospace.",
         "$extensions": {
           "putio": {
             "cssName": "font-mono",

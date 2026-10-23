@@ -168,7 +168,7 @@ internal class MobileDownloadNotifications(
                 .setContentIntent(openRow)
                 .addAction(primary)
                 .addAction(
-                    R.drawable.ic_ph_arrow_circle_down,
+                    R.drawable.ic_ph_download_simple,
                     context.getString(R.string.mobile_downloads_notification_open),
                     openRow,
                 )

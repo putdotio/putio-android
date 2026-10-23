@@ -949,7 +949,7 @@ private fun MobileFilesDownloadIndicator(status: DownloadStatus) {
     ) {
         Icon(
             painter = painterResource(
-                if (status is DownloadStatus.Completed) R.drawable.ic_ph_check else R.drawable.ic_ph_arrow_circle_down,
+                if (status is DownloadStatus.Completed) R.drawable.ic_ph_check else R.drawable.ic_ph_download_simple,
             ),
             contentDescription = null,
             modifier = Modifier.size(FILES_BADGE_ICON_SIZE),
