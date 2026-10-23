@@ -72,8 +72,8 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
   # Google Play shows these notes on the internal release, and Release carries
-  # them to production. They cover everything since the last tag of an earlier
-  # version name; with none, or any Claude failure, they are the fallback.
+  # them to production, so they cover everything since the last tag of an
+  # earlier version name.
   notes:
     name: Write release notes
     needs: [ref, inputs]
@@ -141,10 +141,6 @@ jobs:
         env:
           NOTES: ${{ needs.notes.outputs.notes }}
         run: |
-          if [ -z "$NOTES" ]; then
-            echo "Write release notes gave no notes" >&2
-            exit 1
-          fi
           mkdir -p mobile/src/main/play/release-notes/en-US
           printf '%s\n' "$NOTES" > mobile/src/main/play/release-notes/en-US/internal.txt
       - name: Build, sign and upload

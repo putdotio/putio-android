@@ -113,26 +113,17 @@ the Environment's `PUTIO_CI_APP_CLIENT_ID` variable and
 
 ## Release notes
 
-No release notes are committed. Internal's `notes` job runs the shared
-[beta-notes](https://github.com/putdotio/.github#actionsbeta-notes) action:
-Claude reads the pull requests and code changed since the base tag and writes
-bullets that fit Google Play's 500 characters. The base is the latest
-`v*` tag below the shipped commit whose version name differs from the
-dispatch's, so every build of 3.0.1 describes all changes since the last
-3.0.0 upload. With no such tag, no user-facing commits, or any Claude failure,
-the notes are "Bug fixes and improvements." The dry run writes notes too and
-shows them in its summary.
+No release notes are committed. Internal's `notes` job runs
+[beta-notes](https://github.com/putdotio/.github#actionsbeta-notes) on the
+changes since the latest `v*` tag of an earlier version name, so every build of
+3.0.1 describes everything since the last 3.0.0 upload, capped at Google
+Play's 500 characters. The dry run writes notes too and shows them in its
+summary.
 
-The upload job writes the notes to
-`mobile/src/main/play/release-notes/en-US/internal.txt`, an ignored path,
-just before Gradle Play Publisher uploads. Release copies the internal
-release's notes to production unchanged.
-
-| Since the base tag                       | Notes                               |
-| ---------------------------------------- | ----------------------------------- |
-| `feat`, `fix` or `perf` commits          | Claude's bullets, one `- ` per line |
-| Only tooling, docs or dependency commits | Bug fixes and improvements.         |
-| No base tag, or Claude fails             | Bug fixes and improvements.         |
+The upload job writes the notes to the ignored
+`mobile/src/main/play/release-notes/en-US/internal.txt` just before Gradle
+Play Publisher uploads. Release copies the internal release's notes to
+production unchanged.
 
 ## Google Play as code
 
