@@ -345,7 +345,8 @@ names its parent folder. Recent searches show while the query is empty
 - Headline: the filename on one line. A name that doesn't fit is cut in the
   middle, keeping its start and the last few characters before and including
   the extension ("Blue.Lights.S04E01…ORGANiC.mkv"). Every list that shows a
-  filename or a transfer name cuts it this way.
+  filename or a transfer name cuts it this way, and so do the player's title
+  and the mini player.
 - Meta: size in mono, `·`, date. Then, only when true: a grey outline eye when
   the video or audio was played (one glyph, started or finished alike), a
   yellow arrow-circle-down when the file is on this device.
@@ -363,7 +364,8 @@ the exception: long-press starts selection with that row selected
 A `ModalBottomSheet` titled with the file's icon, full name and meta; the name
 wraps, uncut, and can be selected. The three
 common actions are action tiles (Play or Resume, Download, Share); the rest are
-56dp icon rows: Select, Mark as watched, Rename, Move, Exclusive link. The
+56dp icon rows: Open in VLC (videos), Select, Mark as watched, Rename, Move,
+Exclusive link. The
 delete action comes last, in red, after a divider: Move to trash, or Delete
 permanently when the account turns Trash off
 ([Files delete and paging](docs/behavior.md#files-delete-and-paging)). The
@@ -528,14 +530,14 @@ rows:
 
 - Downloading: running, queued and paused downloads, with speed or the waiting
   reason in the meta and a 36dp progress ring in the trailing slot: yellow with
-  a stop square while running, grey with a play triangle while paused, dashed
-  while queued. Tapping the ring stops or starts the download.
+  pause bars while running, grey with a play triangle while paused, dashed
+  while queued. Tapping the ring pauses or resumes the download.
 - Needs attention: failed and missing downloads, with Retry or Download again.
 - On this device: the normal file row.
 
-Long-press starts selection. Its floating toolbar holds only Start (paused or
-failed), Cancel (running) and Remove (on this device), each shown when every
-selected row allows it.
+Long-press starts selection. Its floating toolbar holds Pause, Resume and
+Remove; each shows when at least one selected row allows it and acts on those
+rows. Remove cancels unfinished downloads and deletes local copies.
 
 Actions here act on the local copy only: Remove from this device, with a
 confirm. They never trash or delete the file on put.io
