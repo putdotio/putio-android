@@ -3,6 +3,7 @@ package io.putdotio.android.design
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -39,6 +40,8 @@ class PutioTypographyTest {
         assertEquals("\"tnum\"", meta.fontFeatureSettings)
         assertEquals(13.sp, meta.fontSize)
         assertEquals(12.sp, monoNumbers(TextStyle(fontSize = 11.sp)).fontSize)
+        assertEquals(12.sp, monoNumbers(TextStyle(fontSize = 0.5.em), inheritedSize = 16.sp).fontSize)
+        assertEquals(14.sp, monoNumbers(TextStyle(fontSize = 1.em), inheritedSize = 14.sp).fontSize)
     }
 
     private fun assertStyle(style: TextStyle, size: Int, lineHeight: Int, weight: Int) {

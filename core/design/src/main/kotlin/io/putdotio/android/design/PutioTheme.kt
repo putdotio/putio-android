@@ -8,7 +8,7 @@ import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.unit.TextUnitType
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
 
 /**
@@ -65,13 +65,22 @@ private val MINIMUM_NUMBER_SIZE = 12.sp
  */
 @Composable
 @ReadOnlyComposable
-public fun TextStyle.putioMono(): TextStyle = monoNumbers(LocalTextStyle.current.merge(this))
+public fun TextStyle.putioMono(): TextStyle {
+    val inherited = LocalTextStyle.current
+    return monoNumbers(inherited.merge(this), inherited.fontSize)
+}
 
-internal fun monoNumbers(style: TextStyle): TextStyle {
-    val belowFloor = style.fontSize.type == TextUnitType.Sp && style.fontSize < MINIMUM_NUMBER_SIZE
+/** [style] in mono, with an `em` size resolved against [inheritedSize] before the 12sp floor applies. */
+internal fun monoNumbers(style: TextStyle, inheritedSize: TextUnit = TextUnit.Unspecified): TextStyle {
+    val size = if (style.fontSize.isEm && inheritedSize.isSp) {
+        (inheritedSize.value * style.fontSize.value).sp
+    } else {
+        style.fontSize
+    }
+    val belowFloor = size.isSp && size < MINIMUM_NUMBER_SIZE
     return style.copy(
         fontFamily = PutioTypeScale.mono.fontFamily,
         fontFeatureSettings = PutioTypeScale.mono.fontFeatureSettings,
-        fontSize = if (belowFloor) MINIMUM_NUMBER_SIZE else style.fontSize,
+        fontSize = if (belowFloor) MINIMUM_NUMBER_SIZE else size,
     )
 }
