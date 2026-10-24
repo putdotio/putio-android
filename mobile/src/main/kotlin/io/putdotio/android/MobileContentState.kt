@@ -9,17 +9,17 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import io.putdotio.android.design.PutioEmptyGlyph
+import io.putdotio.android.design.PutioEmptyState
 
 @Composable
 internal fun MobileLoadingState(
@@ -46,11 +46,13 @@ internal fun MobileEmptyState(
     title: String,
     message: String,
     modifier: Modifier = Modifier,
+    glyph: PutioEmptyGlyph? = null,
 ) {
     MobileMessageState(
         title = title,
         message = message,
         modifier = modifier,
+        glyph = glyph,
     )
 }
 
@@ -98,6 +100,7 @@ private fun MobileMessageState(
     title: String,
     message: String,
     modifier: Modifier = Modifier,
+    glyph: PutioEmptyGlyph? = null,
     action: @Composable (() -> Unit)? = null,
 ) {
     BoxWithConstraints(
@@ -111,19 +114,9 @@ private fun MobileMessageState(
         Column(
             modifier = Modifier.fillMaxSize().then(scrolling),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
+            verticalArrangement = Arrangement.Center,
         ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.semantics { heading() },
-            )
-            Text(
-                text = message,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            action?.invoke()
+            PutioEmptyState(glyph = glyph, headline = title, message = message, action = action)
         }
     }
 }

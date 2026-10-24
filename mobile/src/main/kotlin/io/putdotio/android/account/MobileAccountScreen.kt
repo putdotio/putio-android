@@ -32,7 +32,6 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -63,6 +62,8 @@ import io.putdotio.android.R
 import io.putdotio.android.apiReason
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
+import io.putdotio.android.design.PutioDestructiveButton
+import io.putdotio.android.design.PutioSwitch
 import io.putdotio.android.design.R as DesignR
 import io.putdotio.android.downloads.description
 import io.putdotio.android.files.labelResource
@@ -222,7 +223,7 @@ internal fun MobileAccountScreen(
                 )
             },
             confirmButton = {
-                TextButton(
+                PutioDestructiveButton(
                     onClick = {
                         confirmTrashDisable = false
                         onSettingsEvent(
@@ -729,7 +730,7 @@ private fun MobileAppConfigSwitchRow(
                     if (saving) {
                         CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                     }
-                    Switch(checked = checked, onCheckedChange = null, enabled = enabled)
+                    PutioSwitch(checked = checked, enabled = enabled)
                 }
             },
             modifier = Modifier
@@ -904,7 +905,7 @@ internal fun MobileAccountSettingRow(
                     if (saving) {
                         CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                     }
-                    Switch(checked = checked, onCheckedChange = null, enabled = enabled)
+                    PutioSwitch(checked = checked, enabled = enabled)
                 }
             },
             modifier = Modifier

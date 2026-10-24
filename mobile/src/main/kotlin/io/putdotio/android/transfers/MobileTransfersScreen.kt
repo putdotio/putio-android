@@ -31,7 +31,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -83,6 +82,9 @@ import io.putdotio.android.MobileLoadingState
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.auth.MobileAuthSessionId
+import io.putdotio.android.design.PutioDesignTokens
+import io.putdotio.android.design.PutioDestructiveButton
+import io.putdotio.android.design.PutioEmptyGlyph
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesRepository
 import io.putdotio.android.files.mobileMessage
@@ -271,6 +273,7 @@ private fun MobileTransfersContent(
             MobileEmptyState(
                 title = stringResource(R.string.mobile_transfers_empty_title),
                 message = stringResource(R.string.mobile_transfers_empty_message),
+                glyph = PutioEmptyGlyph.NoTransfers,
             )
         is TransfersContent.Failed ->
             MobileErrorState(
@@ -294,7 +297,6 @@ private fun MobileTransfersContent(
                         onEvent = onEvent,
                         onConfirmation = onConfirmation,
                     )
-                    HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
                 }
                 if (content.paging != TransfersPaging.Complete) {
                     item(key = "transfers-paging") {
@@ -364,7 +366,7 @@ private fun MobileTransferDetails(item: TransferItem, context: Context) {
         if (error != null) {
             Text(
                 text = error,
-                color = MaterialTheme.colorScheme.error,
+                color = PutioDesignTokens.redTextSecondary,
                 style = MaterialTheme.typography.bodySmall,
             )
         }
@@ -503,7 +505,7 @@ private fun MobileTransfersRefreshFailure(
             Text(
                 text = stringResource(R.string.mobile_transfers_refresh_error),
                 modifier = Modifier.weight(1f),
-                color = MaterialTheme.colorScheme.error,
+                color = PutioDesignTokens.redTextSecondary,
             )
             TextButton(
                 onClick = { onEvent(TransfersEvent.Refresh) },
@@ -660,7 +662,11 @@ private fun MobileAddTransferSheet(
                 val message = validation?.messageResource()?.let { stringResource(it) }
                     ?: failure?.failure?.mobileMessage()
                 if (message != null) {
-                    Text(message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        message,
+                        color = PutioDesignTokens.redTextSecondary,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                 }
             } else OutlinedTextField(
                 value = input,
@@ -743,7 +749,7 @@ private fun MobileTransferConfirmation(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = { Text(message) },
-        confirmButton = { TextButton(onClick = onConfirm) { Text(action) } },
+        confirmButton = { PutioDestructiveButton(onClick = onConfirm) { Text(action) } },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.mobile_action_cancel)) }
         },

@@ -122,6 +122,8 @@ components:
     textColor: "{colors.background}"
     rounded: "{rounded.full}"
     height: 40px
+  destructive-text:
+    textColor: "{colors.red-text-secondary}"
   fab-extended:
     backgroundColor: "{colors.primary-container}"
     textColor: "{colors.on-primary-container}"
@@ -178,6 +180,16 @@ components:
     backgroundColor: "{colors.surface}"
     width: 44px
     height: 26px
+  switch-off-handle:
+    backgroundColor: "{colors.solid}"
+    rounded: "{rounded.full}"
+    width: 12px
+    height: 12px
+  switch-on-handle:
+    backgroundColor: "{colors.surface}"
+    rounded: "{rounded.full}"
+    width: 18px
+    height: 18px
   progress:
     backgroundColor: "{colors.primary}"
     rounded: "{rounded.progress}"
@@ -215,8 +227,9 @@ The app generates one `darkColorScheme(...)` at build time from the vendored
 `dist/tokens.dtcg.json` ([design/README.md](design/README.md)). The block below
 is generated from the same graph and the same role map;
 `./gradlew updateDesignMdColors` rewrites it, and `verify` fails when it is
-stale. Colours with no M3 role come from the generated `@color/putio_*`
-tokens, never from hand-written values.
+stale. Colours with no M3 role come from the generated tokens
+(`PutioDesignTokens` in Compose, `@color/putio_*` in XML), never from
+hand-written values.
 
 ```yaml
 colors:
@@ -242,7 +255,10 @@ colors:
   outline: "#3E3E3E" # --border
   outline-variant: "#343434" # --line
   error: "#E5484D" # --red-solid
+  on-error: "#161616" # --app-bg
+  red-text-secondary: "#FF8E8A" # --red-text-secondary
   green-solid: "#30A46C" # --green-solid
+  solid: "#707070" # --solid
 ```
 
 Neutrals do the work. Yellow marks content and the one primary action of a
@@ -269,7 +285,8 @@ percentages and version numbers, with tabular figures. Dates read as words
 ("Oct 13") and stay in GT America; words that sit in a value slot ("Always
 on", "Phone") stay in GT America too. Numbers never go below 12sp. Filenames stay in GT
 America, where mono would fit fewer characters on the line. Both fonts need an
-app-embedding licence check before they ship; until then the app keeps Roboto.
+app-embedding licence check before they ship; until then the app keeps Roboto
+and the system monospace.
 
 | Token         | Use                                        |
 | ------------- | ------------------------------------------ |
@@ -709,23 +726,17 @@ opens put.io OAuth in the browser.
   sits under Account.
 - Search is a tab with an outlined text field; Files has no search bar.
 - Add transfer is a filled button in a fixed row above the list, not a FAB.
-- Transfers is one list with dividers and progress bars, not sectioned cards
-  that fill with progress.
+- Transfers is one list with progress bars, not sectioned cards that fill with
+  progress.
 - The item actions sheet has rows only, no action tiles.
 - Sort is a flat dropdown of twelve combined options, not three labelled
   groups, and its button doesn't name the current sort.
 - Sign out is an outlined button that signs out at once, with no confirm.
-- Green has no generated `@color/putio_*` token yet.
-- `--red-text-secondary` has no generated token yet, so destructive text still
-  uses `error` (`red-solid`), below 4.5:1 on the surface tiers.
-- Destructive confirms are text buttons, not filled ones: red for Files and
-  Trash deletion, primary yellow for removing a download, cancelling or
-  cleaning transfers, and turning Trash off.
-- File lists draw dividers between rows, and names wrap instead of being cut
-  in the middle on one line.
+- File names wrap instead of being cut in the middle on one line.
 - Downloads shows a bar under each running row, not a progress ring.
 - Rename does not preselect the name up to the extension.
-- Empty states are text only, with no glyph.
+- Empty states keep 3.0.0's words and offer no action. Offline has no state of
+  its own, so `(x_x)` never shows.
 - Folder and player Back use plain `BackHandler`, with no predictive preview.
 - Search has no type chips; results are one flat list.
 - Add transfer checks the whole field at once: one bad link rejects it with a
@@ -738,10 +749,9 @@ opens put.io OAuth in the browser.
 - Moving to Trash offers View Trash in its snackbar, not Undo.
 - Played files show a progress bar and "N% watched" when the duration is known,
   and a plain "Watched" label otherwise.
-- Switches are stock M3 52x32dp in yellow.
 - Settings are two-line rows under yellow subheads.
-- Type is Roboto. Only the player's timestamps use a monospace face, the system
-  one.
+- Only the player's timestamps set numbers in mono; sizes, speeds and counts
+  elsewhere use the UI face.
 - Navigation crossfades; no shared-axis or container transforms.
 - The mini player (`MobileNowPlayingBar`) and Downloads selection exist in other
   forms; Files has no selection mode, and there is no offline banner or tablet

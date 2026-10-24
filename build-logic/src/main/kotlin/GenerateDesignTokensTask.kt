@@ -10,13 +10,21 @@ import org.gradle.api.tasks.PathSensitive
 import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
 
-/** Writes PutioDesignTokens.kt and the XML color resources from the vendored DTCG token graph. */
+/**
+ * Writes PutioDesignTokens.kt and the XML color resources from the vendored DTCG token graph,
+ * and PutioScales.kt from DESIGN.md's front matter.
+ */
 @CacheableTask
 abstract class GenerateDesignTokensTask : DefaultTask() {
 
     @get:InputFile
     @get:PathSensitive(PathSensitivity.NONE)
     abstract val tokensFile: RegularFileProperty
+
+    /** The root DESIGN.md, whose front matter owns the type and corner scales. */
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val designMd: RegularFileProperty
 
     /** Version of @putdotio/design the vendored JSON came from; recorded in the generated header. */
     @get:Input
@@ -36,6 +44,8 @@ abstract class GenerateDesignTokensTask : DefaultTask() {
         val target = outputDir.get().asFile.resolve("io/putdotio/android/design/PutioDesignTokens.kt")
         target.parentFile.mkdirs()
         target.writeText(code)
+        val scales = DesignTokenCodegen.generateScales(designMd.get().asFile.readText())
+        target.resolveSibling("PutioScales.kt").writeText(scales)
         val colors = resOutputDir.get().asFile.resolve("values/putio_design_colors.xml")
         colors.parentFile.mkdirs()
         colors.writeText(DesignTokenCodegen.generateColorResources(source, designVersion.get()))

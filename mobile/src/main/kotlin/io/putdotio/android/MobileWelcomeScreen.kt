@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import io.putdotio.android.auth.MobileSignedOutReason
+import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.R as DesignR
 
 internal enum class MobileWelcomeNoticeTone { Info, Error }
@@ -237,7 +238,7 @@ private fun WelcomeNotice(
 
         MobileWelcomeNoticeTone.Error -> {
             icon = R.drawable.ic_ph_warning_circle
-            MaterialTheme.colorScheme.error
+            PutioDesignTokens.redTextSecondary
         }
     }
     Surface(

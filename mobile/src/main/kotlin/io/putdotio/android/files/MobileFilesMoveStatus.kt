@@ -15,6 +15,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
+import io.putdotio.android.design.PutioDesignTokens
 
 internal const val MOBILE_FILES_MOVE_OUTCOME_TAG = "mobile-files-move-outcome"
 
@@ -39,7 +40,7 @@ internal fun MobileFilesMoveStatus(outcome: FilesMoveOutcome) {
             )
             if (outcome.status != FilesMoveStatus.MOVED) {
                 outcome.failure?.let {
-                    Text(it.moveFailureMessage(), color = MaterialTheme.colorScheme.error,
+                    Text(it.moveFailureMessage(), color = PutioDesignTokens.redTextSecondary,
                         style = MaterialTheme.typography.bodyMedium)
                 }
             }

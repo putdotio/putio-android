@@ -18,7 +18,6 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
@@ -56,6 +55,8 @@ import io.putdotio.android.MobileErrorState
 import io.putdotio.android.MobileLoadingState
 import io.putdotio.android.R
 import io.putdotio.android.PutioFailure
+import io.putdotio.android.design.PutioDestructiveButton
+import io.putdotio.android.design.PutioEmptyGlyph
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.MobileFilesRow
 import io.putdotio.android.files.mobileMessage
@@ -318,7 +319,6 @@ private fun MobileRecentSearches(
                     }
                 },
             )
-            HorizontalDivider()
         }
     }
 }
@@ -336,6 +336,7 @@ private fun MobileSearchEmpty(
         MobileEmptyState(
             title = stringResource(R.string.mobile_search_no_results_title),
             message = stringResource(R.string.mobile_search_no_results_message, term.value),
+            glyph = PutioEmptyGlyph.NoResults,
         )
         MobileSearchPaging(
             paging = paging,
@@ -369,7 +370,6 @@ private fun MobileSearchResults(
                     item.name,
                 ),
             )
-            HorizontalDivider(modifier = Modifier.padding(start = 72.dp))
         }
         if (paging != SearchPaging.Complete) {
             item(key = "search-paging") {
@@ -510,7 +510,6 @@ private fun MobileHistoryList(
                         onEvent(HistoryEvent.OpenFile(fileId))
                     },
                 )
-                HorizontalDivider()
             }
         }
         if (content.paging != HistoryPaging.Complete) {
@@ -564,7 +563,7 @@ private fun MobileHistoryDialog(
                 title = { Text(stringResource(R.string.mobile_history_clear_title)) },
                 text = { Text(stringResource(R.string.mobile_history_clear_message)) },
                 confirmButton = {
-                    TextButton(onClick = { onEvent(HistoryEvent.ConfirmClear) }) {
+                    PutioDestructiveButton(onClick = { onEvent(HistoryEvent.ConfirmClear) }) {
                         Text(stringResource(R.string.mobile_history_clear_confirm))
                     }
                 },

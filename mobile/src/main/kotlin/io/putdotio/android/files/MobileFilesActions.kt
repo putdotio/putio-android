@@ -44,6 +44,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
+import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.downloads.DownloadStatus
 import io.putdotio.android.downloads.description
 
@@ -390,7 +391,7 @@ private fun MobileFilesDeleteAction(
                         R.string.mobile_files_delete
                     },
                 ),
-                color = MaterialTheme.colorScheme.error,
+                color = PutioDesignTokens.redTextSecondary,
             )
         },
         supportingContent = if (confirmedTrashEnabled == null) {

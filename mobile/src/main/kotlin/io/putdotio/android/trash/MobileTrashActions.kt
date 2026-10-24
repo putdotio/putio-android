@@ -31,6 +31,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
+import io.putdotio.android.design.PutioDesignTokens
+import io.putdotio.android.design.PutioDestructiveButton
 import io.putdotio.android.files.mobileMessage
 
 internal const val MOBILE_TRASH_ITEM_SHEET_TAG = "mobile-trash-item-sheet"
@@ -75,7 +77,7 @@ internal fun MobileTrashItemSheet(
             HorizontalDivider()
             ListItem(
                 headlineContent = {
-                    Text(stringResource(R.string.mobile_trash_delete), color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.mobile_trash_delete), color = PutioDesignTokens.redTextSecondary)
                 },
                 modifier = Modifier
                     .testTag(MOBILE_TRASH_ITEM_DELETE_TAG)
@@ -101,7 +103,7 @@ internal fun MobileTrashBulkActions(state: TrashState, onEvent: (TrashEvent) -> 
             onClick = { onEvent(TrashEvent.SelectEmpty) },
             enabled = state.canActOnAll,
             modifier = Modifier.testTag(MOBILE_TRASH_EMPTY_TAG),
-        ) { Text(stringResource(R.string.mobile_trash_empty_action), color = MaterialTheme.colorScheme.error) }
+        ) { Text(stringResource(R.string.mobile_trash_empty_action), color = PutioDesignTokens.redTextSecondary) }
     }
 }
 
@@ -123,15 +125,14 @@ internal fun MobileTrashActionConfirmation(action: TrashAction, state: TrashStat
             )
         },
         confirmButton = {
-            TextButton(
-                onClick = { confirmationId?.let { onEvent(TrashEvent.ConfirmAction(it)) } },
-                enabled = confirmationId != null && state.authenticationFailure == null && !state.hasPendingMutation,
-                modifier = Modifier.testTag(MOBILE_TRASH_ACTION_CONFIRM_TAG),
-            ) {
-                Text(
-                    stringResource(action.confirmResource()),
-                    color = if (destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                )
+            val onConfirm: () -> Unit = { confirmationId?.let { onEvent(TrashEvent.ConfirmAction(it)) } }
+            val enabled = confirmationId != null && state.authenticationFailure == null && !state.hasPendingMutation
+            val modifier = Modifier.testTag(MOBILE_TRASH_ACTION_CONFIRM_TAG)
+            val label = stringResource(action.confirmResource())
+            if (destructive) {
+                PutioDestructiveButton(onClick = onConfirm, enabled = enabled, modifier = modifier) { Text(label) }
+            } else {
+                TextButton(onClick = onConfirm, enabled = enabled, modifier = modifier) { Text(label) }
             }
         },
         dismissButton = {
