@@ -249,7 +249,7 @@ class SearchControllerTest {
             val controller = controller(repository, store)
 
             controller.use {
-                assertTrue(controller.setScope(SearchScope(FilesItemId(42L), "Blue Lights")))
+                controller.scope = SearchScope(FilesItemId(42L), "Blue Lights")
                 controller.updateQuery("S04")
                 assertTrue(controller.submit())
                 controller.awaitContent<SearchContent.Ready>()
@@ -259,7 +259,7 @@ class SearchControllerTest {
                 assertEquals(SearchTerm("S04"), (controller.state.value.content as SearchContent.Ready).term)
 
                 // Leaving the folder's scope starts over, so results never mix scopes.
-                assertTrue(controller.setScope(null))
+                controller.scope = null
                 assertEquals("", controller.state.value.query)
                 assertTrue(controller.state.value.content is SearchContent.Idle)
                 controller.updateQuery("S04")

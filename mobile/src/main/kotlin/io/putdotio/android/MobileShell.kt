@@ -78,7 +78,8 @@ import io.putdotio.android.files.MobileContinueWatching
 import io.putdotio.android.files.MobileFilesBarActions
 import io.putdotio.android.files.MobileFilesSearchBar
 import io.putdotio.android.files.MobileFolderTopBar
-import io.putdotio.android.files.MobileNewFolderDialog
+import io.putdotio.android.files.MobileNewFolderHost
+import io.putdotio.android.files.rememberNewFolderRequest
 import io.putdotio.android.files.mobileMessage
 import io.putdotio.android.files.pendingDelete
 import io.putdotio.android.files.pendingMove
@@ -207,18 +208,21 @@ internal fun MobileShell(
     var searchForward by remember { mutableStateOf(true) }
     val currentSearchActions by rememberUpdatedState(searchHistoryActions)
     // A folder's search stays inside it; the root's pill, Ctrl+F and links search everything.
-    val openScopedSearch = { scope: SearchScope? ->
-        currentSearchActions.onScopeChanged(scope)
+    val showSearch = {
         navController.navigateTo(MobileDestination.Files)
         // Tab restoration can bring back playback above Files; Search opens on Files itself.
         navController.popBackStack(MobileDestination.Files.route, inclusive = false)
         searchForward = true
         searchOpen = true
     }
+    val openScopedSearch = { scope: SearchScope? ->
+        currentSearchActions.onScopeChanged(scope)
+        showSearch()
+    }
     val openSearch = { openScopedSearch(null) }
     // The folder New folder was asked for; the dialog shows while that folder is on screen.
-    var newFolderFor by rememberSaveable(sessionId) { mutableStateOf<Long?>(null) }
-    val requestNewFolder = folderCreator?.let { { newFolderFor = filesState.current.folder.id.value } }
+    val newFolder = rememberNewFolderRequest(sessionId)
+    val requestNewFolder = newFolder.action(folderCreator) { filesState.current.folder.id }
     val leaveSearch = { forward: Boolean ->
         searchForward = forward
         searchOpen = false
@@ -296,8 +300,9 @@ internal fun MobileShell(
         closeSearch = if (searchOpen) ({ leaveSearch(false) }) else null,
         onFilesEvent = onFilesEvent,
         returnTo = { origin ->
+            // Back to the search a result came from, scope and query as they were.
             navController.returnTo(origin) {
-                openSearch()
+                showSearch()
                 searchForward = false
             }
         },
@@ -412,22 +417,14 @@ internal fun MobileShell(
             }
         }
     }
-    val newFolderParent = filesState.current.folder.takeIf {
-        it.id.value == newFolderFor && !isPlayback && selectedDestination == MobileDestination.Files && !searchOpen
-    }
-    if (newFolderParent != null && folderCreator != null) {
-        MobileNewFolderDialog(
-            parentId = newFolderParent.id,
-            parentName = newFolderParent.name ?: stringResource(MobileDestination.Files.labelRes),
-            creator = folderCreator,
-            onCreated = {
-                newFolderFor = null
-                onFilesEvent(FilesBrowserEvent.Refresh)
-            },
-            onDismiss = { newFolderFor = null },
-            onAuthenticationRequired = onFilesAuthenticationRequired,
-        )
-    }
+    MobileNewFolderHost(
+        request = newFolder,
+        folder = filesState.current.folder,
+        onScreen = !isPlayback && selectedDestination == MobileDestination.Files && !searchOpen,
+        creator = folderCreator,
+        onCreated = { onFilesEvent(FilesBrowserEvent.Refresh) },
+        onAuthenticationRequired = onFilesAuthenticationRequired,
+    )
     if (!isPlayback) {
         MobileNavigationAlerts(
             navigationFailure = rejectedNavigation ?: navigationFailure,

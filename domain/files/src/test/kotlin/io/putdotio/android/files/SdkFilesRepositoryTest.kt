@@ -283,7 +283,7 @@ class SdkFilesRepositoryTest {
     fun createsFolderWithTrimmedNameAndRefusesBlankWithoutARequest() =
         runBlocking {
             val created = mutableListOf<Pair<String, Long>>()
-            val repository = repository(
+            val repository = folderCreatingRepository(
                 createFolder = { name, parentId ->
                     created += name to parentId
                     sdkFile(31L, name, PutioFileType.FOLDER)
@@ -307,7 +307,6 @@ class SdkFilesRepositoryTest {
         setSort: suspend (Long, String) -> Unit = { _, _ -> error("Unexpected sort") },
         getFile: suspend (Long) -> PutioFile = { error("Unexpected file resolution") },
         rename: suspend (Long, String) -> Unit = { _, _ -> error("Unexpected rename") },
-        createFolder: suspend (String, Long) -> PutioFile = { _, _ -> error("Unexpected folder creation") },
     ) = SdkFilesRepository(
         listFolder = listFolder,
         continueListing = continueListing,
@@ -315,6 +314,18 @@ class SdkFilesRepositoryTest {
         getFile = getFile,
         mutations = SdkFilesMutations(
             rename = rename,
+            delete = { _, _ -> error("Unexpected delete") },
+            move = { _, _ -> error("Unexpected move") },
+        ),
+    )
+
+    private fun folderCreatingRepository(createFolder: suspend (String, Long) -> PutioFile) = SdkFilesRepository(
+        listFolder = { _, _ -> error("Unexpected folder load") },
+        continueListing = { _, _ -> error("Unexpected continuation") },
+        setSort = { _, _ -> error("Unexpected sort") },
+        getFile = { error("Unexpected file resolution") },
+        mutations = SdkFilesMutations(
+            rename = { _, _ -> error("Unexpected rename") },
             delete = { _, _ -> error("Unexpected delete") },
             move = { _, _ -> error("Unexpected move") },
             createFolder = createFolder,

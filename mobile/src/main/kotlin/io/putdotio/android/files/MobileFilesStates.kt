@@ -65,6 +65,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import io.putdotio.android.MobileMiddleCutText
 import io.putdotio.android.R
 import io.putdotio.android.design.FileTypeIcon
@@ -403,7 +404,7 @@ private fun RetryWhenOnline(onRetry: () -> Unit) {
         val callback = object : ConnectivityManager.NetworkCallback() {
             override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
                 if (capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) {
-                    context.mainExecutor.execute { retry() }
+                    ContextCompat.getMainExecutor(context).execute { retry() }
                 }
             }
         }
@@ -468,6 +469,7 @@ private const val SKELETON_PULSE_MILLIS = 1_400
 private const val SKELETON_DIM = 0.45f
 
 /** CSS ease-out, the board's pulse curve. */
+@Suppress("MagicNumber") // The control points are the CSS curve's definition.
 private val SkeletonEasing = CubicBezierEasing(0f, 0f, 0.58f, 1f)
 
 /** Rows pulse out of step: every third row runs 450ms ahead, every other even row 200ms. */
@@ -487,6 +489,7 @@ private const val SECONDS_PER_MINUTE = 60L
 private const val SECONDS_PER_HOUR = 3_600L
 
 /** Headline and meta widths of the eight skeleton rows, as fractions of the text column. */
+@Suppress("MagicNumber") // The board's widths, row by row.
 private val SKELETON_ROWS = listOf(
     0.52f to 0.30f,
     0.70f to 0.36f,

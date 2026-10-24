@@ -14,6 +14,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,6 +40,54 @@ import kotlinx.coroutines.launch
 
 internal const val MOBILE_NEW_FOLDER_FIELD_TAG = "mobile-new-folder-field"
 internal const val MOBILE_NEW_FOLDER_CREATE_TAG = "mobile-new-folder-create"
+
+/** The folder New folder was asked for; it survives rotation and belongs to one session. */
+@Stable
+internal class MobileNewFolderRequest(private val folderId: MutableState<Long?>) {
+    fun ask(folder: FilesItemId) {
+        folderId.value = folder.value
+    }
+
+    /** New folder's action for the bars and the empty state; none without a way to create one. */
+    fun action(creator: FilesFolderCreator?, current: () -> FilesItemId): (() -> Unit)? =
+        creator?.let { { ask(current()) } }
+
+    fun clear() {
+        folderId.value = null
+    }
+
+    fun isFor(folder: FilesItemId): Boolean = folderId.value == folder.value
+}
+
+@Composable
+internal fun rememberNewFolderRequest(session: Any): MobileNewFolderRequest {
+    val folderId = rememberSaveable(session) { mutableStateOf<Long?>(null) }
+    return remember(folderId) { MobileNewFolderRequest(folderId) }
+}
+
+/** Shows the dialog while the folder it was asked for is the one on screen. */
+@Composable
+internal fun MobileNewFolderHost(
+    request: MobileNewFolderRequest,
+    folder: FilesFolder,
+    onScreen: Boolean,
+    creator: FilesFolderCreator?,
+    onCreated: () -> Unit,
+    onAuthenticationRequired: suspend () -> Unit,
+) {
+    if (creator == null || !onScreen || !request.isFor(folder.id)) return
+    MobileNewFolderDialog(
+        parentId = folder.id,
+        parentName = folder.name ?: stringResource(R.string.mobile_destination_files),
+        creator = creator,
+        onCreated = {
+            request.clear()
+            onCreated()
+        },
+        onDismiss = request::clear,
+        onAuthenticationRequired = onAuthenticationRequired,
+    )
+}
 
 /**
  * New folder: one outlined field under the parent's name, then Cancel and a filled Create. put.io

@@ -359,7 +359,7 @@ private fun SignedInMobileSession(
                 onRecentEdit = { searchHistorySession.search.editRecentSearches(it) },
                 onRecentRetry = searchHistorySession::retryRecentSearches,
                 onHistoryEvent = { searchHistorySession.history.dispatch(it) },
-                onScopeChanged = { searchHistorySession.search.setScope(it) },
+                onScopeChanged = { searchHistorySession.search.scope = it },
             ),
         onTransfersEvent = transfersController::dispatch,
         resolveTransferFile = { fileId -> filesRepository.resolveItem(FilesItemId(fileId.value)) },

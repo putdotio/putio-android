@@ -91,27 +91,30 @@ public class SearchController internal constructor(
     }
 
     /**
-     * Searches inside [scope] from now on, or the whole account when null. A new scope starts over
-     * from an empty query, so results never mix scopes.
+     * The folder searches stay inside, or null for the whole account. A new scope starts over
+     * from an empty query, so results never mix scopes; a closed controller ignores it.
      */
-    public fun setScope(scope: SearchScope?): Boolean {
-        val previousJob: Job?
-        synchronized(lock) {
-            if (closed) return false
-            if (mutableState.value.scope == scope) return true
-            previousJob = activeJob
-            activeJob = null
-            mutableState.value =
-                mutableState.value.copy(
-                    query = "",
-                    content = SearchContent.Idle,
-                    consumedCursors = emptySet(),
-                    scope = scope,
-                )
+    public var scope: SearchScope?
+        get() = state.value.scope
+        set(value) {
+            val previousJob = synchronized(lock) {
+                if (closed || mutableState.value.scope == value) {
+                    null
+                } else {
+                    val running = activeJob
+                    activeJob = null
+                    mutableState.value =
+                        mutableState.value.copy(
+                            query = "",
+                            content = SearchContent.Idle,
+                            consumedCursors = emptySet(),
+                            scope = value,
+                        )
+                    running
+                }
+            }
+            previousJob?.cancel()
         }
-        previousJob?.cancel()
-        return true
-    }
 
     public fun submit(): Boolean {
         val term: SearchTerm
