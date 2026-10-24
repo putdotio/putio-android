@@ -4,7 +4,7 @@
     android:description="@string/mobile_widget_transfers_description"
     android:initialLayout="@layout/widget_transfers"
     android:minWidth="250dp"
-    android:minHeight="180dp"
+    android:minHeight="250dp"
     android:minResizeWidth="180dp"
     android:minResizeHeight="110dp"
     android:previewLayout="@layout/widget_transfers_preview"

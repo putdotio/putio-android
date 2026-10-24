@@ -194,6 +194,7 @@ class MobileTransfersScreenTest {
         val clipboard = ApplicationProvider.getApplicationContext<Context>()
             .getSystemService(ClipboardManager::class.java)
         assertEquals(link, clipboard.primaryClip?.getItemAt(0)?.text?.toString())
+        assertTrue(clipboard.primaryClip?.description?.extras?.getBoolean("android.content.extra.IS_SENSITIVE") == true)
     }
 
     @Test

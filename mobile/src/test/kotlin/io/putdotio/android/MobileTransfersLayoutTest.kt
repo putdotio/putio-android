@@ -25,6 +25,7 @@ import io.putdotio.android.transfers.MOBILE_TRANSFERS_ADD_FAB_TAG
 import io.putdotio.android.transfers.MOBILE_TRANSFERS_LIST_TAG
 import io.putdotio.android.transfers.MOBILE_TRANSFER_ADD_CONFIRM_TAG
 import io.putdotio.android.transfers.MOBILE_TRANSFER_ADD_FIELD_TAG
+import io.putdotio.android.transfers.MobileTransfersOverflow
 import io.putdotio.android.transfers.MobileTransfersScreen
 import io.putdotio.android.transfers.TransferId
 import io.putdotio.android.transfers.TransfersContent
@@ -62,6 +63,27 @@ class MobileTransfersLayoutTest {
         assertTrue("Content keeps the whole viewport", list.height >= viewport.height * 0.95f)
         val fab = compose.onNodeWithTag(MOBILE_TRANSFERS_ADD_FAB_TAG).fetchSemanticsNode().boundsInRoot
         assertTrue("The FAB stays inside the viewport", fab.right <= viewport.right && fab.bottom <= viewport.bottom)
+    }
+
+    @Test
+    fun largeFontOverflowKeepsItsActionsWhole() {
+        compose.setContent {
+            PutioTheme {
+                MobileTransfersOverflow(
+                    transfersState(
+                        TransfersContent.Ready(
+                            listOf(transferRow(1L, AppTransferStatus.Completed)),
+                            TransfersPaging.Complete,
+                        ),
+                    ),
+                    onEvent = {},
+                    sessionId = null,
+                )
+            }
+        }
+        compose.onNodeWithContentDescription("More options").performClick()
+        assertUnclippedText("Refresh", 2f)
+        assertUnclippedText("Clear completed", 2f)
     }
 
     @Test

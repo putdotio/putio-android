@@ -1,8 +1,6 @@
 package io.putdotio.android.transfers
 
 import android.content.ClipData
-import android.content.ClipDescription
-import android.os.Build
 import android.os.PersistableBundle
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
@@ -125,7 +123,9 @@ internal fun MobileTransfersScreen(
             }
         }
         if (showFab) {
-            val expanded by remember { derivedStateOf { listState.firstVisibleItemIndex == 0 } }
+            val expanded by remember {
+                derivedStateOf { listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0 }
+            }
             MobileAddTransferFab(
                 expanded = expanded,
                 onClick = draft::open,
@@ -234,13 +234,16 @@ private fun rememberSourceCopy(snackbarHostState: SnackbarHostState): (TransferS
     }
 }
 
-/** A source can carry a tracker passkey or a signed URL, so the clipboard keeps it out of previews. */
+/**
+ * A source can carry a tracker passkey or a signed URL, so the clipboard keeps it out of previews.
+ * Android documents the literal key for releases before `ClipDescription.EXTRA_IS_SENSITIVE` existed.
+ */
 private fun sensitiveClip(label: String, link: String): ClipData =
     ClipData.newPlainText(label, link).apply {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            description.extras = PersistableBundle().apply { putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true) }
-        }
+        description.extras = PersistableBundle().apply { putBoolean(CLIP_IS_SENSITIVE, true) }
     }
+
+private const val CLIP_IS_SENSITIVE = "android.content.extra.IS_SENSITIVE"
 
 /** Material clears the label's semantics so a collapsed FAB keeps one name; the FAB carries it instead. */
 @Composable

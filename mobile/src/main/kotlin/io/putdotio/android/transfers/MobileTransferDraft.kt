@@ -136,15 +136,18 @@ class MobileTransferDraft private constructor(
 
     /**
      * put.io refused [rejectedLinks]; they stay in the draft for the user to fix or drop, after the
-     * lines that never went because they didn't parse. Links parked behind an uploaded torrent stay for
-     * the next time the sheet opens.
+     * lines that never went because they didn't parse or were parked behind an uploaded torrent.
      */
     internal fun submissionSucceeded(rejectedLinks: List<String> = emptyList()) {
         val current = mutableState.value
         val pending = replacement
         draftGeneration++
-        val parked = current.input.takeIf { current.torrent != null && it.isNotBlank() }.orEmpty()
-        val unsent = if (current.torrent == null) checkMobileTransferLines(current.input).badText else emptyList()
+        // Behind an uploaded torrent every typed line is unsent; otherwise only the lines that didn't parse.
+        val unsent = if (current.torrent == null) {
+            checkMobileTransferLines(current.input).badText
+        } else {
+            current.input.lines().map(String::trim).filter(String::isNotEmpty)
+        }
         when {
             rejectedLinks.isNotEmpty() || unsent.isNotEmpty() -> mutableState.value = MobileTransferDraftState(
                 input = (rejectedLinks + unsent).joinToString("\n"),
@@ -155,8 +158,7 @@ class MobileTransferDraft private constructor(
                 pendingReplacement = pending != null,
             )
             // A chosen folder lasts for the session, like web's "custom folder in this session".
-            pending == null ->
-                mutableState.value = MobileTransferDraftState(input = parked, destination = current.destination)
+            pending == null -> mutableState.value = MobileTransferDraftState(destination = current.destination)
             else -> present(pending, current.incomingRequestId)
         }
     }

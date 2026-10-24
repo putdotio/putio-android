@@ -271,7 +271,7 @@ class MobileTransferDraftTest {
     }
 
     @Test
-    fun linksParkedBehindAnUploadedTorrentStayForNextTime() = runTest {
+    fun linksParkedBehindAnUploadedTorrentStayInTheDraft() = runTest {
         val draft = MobileTransferDraft(StandardTestDispatcher(testScheduler))
         draft.open()
         draft.edit(FIRST)
@@ -279,8 +279,13 @@ class MobileTransferDraftTest {
         settle()
         assertEquals(TransfersEvent.AddTorrent(TORRENT), draft.validate())
         draft.setSubmitting(true)
+        draft.receive(parseMobileSharedTransfer(SECOND))
         draft.submissionSucceeded()
-        assertEquals(MobileTransferDraftState(input = FIRST), draft.state.value)
+        val state = draft.state.value
+        assertEquals(FIRST, state.input)
+        assertNull(state.torrent)
+        assertTrue(state.open)
+        assertTrue("A share that arrived meanwhile still asks", state.pendingReplacement)
     }
 
     @Test
