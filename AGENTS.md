@@ -128,16 +128,16 @@ its findings.
 Code changes pass `./gradlew verify` and the debug assembles, plus the row
 that matches. Report skipped or unavailable proof.
 
-| Change                              | Proof                                                                                                                                                     |
-| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Docs only                           | `./gradlew markdownCheck`; check web links and commands. Pull-request CI checks relative links, skips builds                                              |
-| Domain or core logic                | `./gradlew :domain:<name>:testDebugUnitTest` or `:core:<name>:testDebugUnitTest`; tests live in the owning module                                         |
-| App view models or services         | `./gradlew :mobile:testProductionDebugUnitTest` or `:tv:testProductionDebugUnitTest`                                                                      |
-| UI, navigation, playback, or launch | The affected flow on the emulator: `./scripts/prove.sh <mobile\|tv>` or its lane in [Harness](docs/harness.md)                                            |
-| Google Play delivery                | `./gradlew testPlayScripts`, then `node scripts/play.ts build-check --version-name 3.0.0` or the dry run in [Distribution](docs/distribution.md#dry-runs) |
-| Live API behavior                   | The lane's `devs-auto` steps in [Harness](docs/harness.md#live-api-proof-putio-cli)                                                                       |
-| Design tokens or icons              | The sync in [design/README.md](design/README.md), then `./gradlew verify`                                                                                 |
-| Visible change                      | Reviewed captures from `.evidence/`, attached with `gh pr comment <n> --attach <file>`                                                                    |
+| Change                              | Proof                                                                                                                                                               |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Docs only                           | `./gradlew markdownCheck`; check web links and commands. Pull-request CI checks relative links, skips builds                                                        |
+| Domain or core logic                | `./gradlew :domain:<name>:testDebugUnitTest` or `:core:<name>:testDebugUnitTest`; tests live in the owning module                                                   |
+| App view models or services         | `./gradlew :mobile:testProductionDebugUnitTest` or `:tv:testProductionDebugUnitTest`                                                                                |
+| UI, navigation, playback, or launch | The affected flow on the emulator: `./scripts/prove.sh <mobile\|tv>` or its lane in [Harness](docs/harness.md)                                                      |
+| Google Play delivery                | `./gradlew -PputioVersionName=3.0.1 :mobile:bundleProductionRelease :tv:bundleProductionRelease`, then the dry run in [Distribution](docs/distribution.md#dry-runs) |
+| Live API behavior                   | The lane's `devs-auto` steps in [Harness](docs/harness.md#live-api-proof-putio-cli)                                                                                 |
+| Design tokens or icons              | The sync in [design/README.md](design/README.md), then `./gradlew verify`                                                                                           |
+| Visible change                      | Reviewed captures from `.evidence/`, attached with `gh pr comment <n> --attach <file>`                                                                              |
 
 A changed product rule updates its [Behaviour](docs/behavior.md) section and
 names the tests that pin it; a new device lane gets a section in
