@@ -49,12 +49,15 @@ class MobileTransferDraft private constructor(
     private var lastSuccessfulAdd: TransfersRequestId? = null
     private var lastMutation: TransferMutation = TransferMutation.Idle
     private var pendingRead: Job? = null
+    /** Moves on whenever the draft is replaced or finished, so a slow picked read can't land in the next one. */
+    private var draftGeneration = 0L
     private val readLock = Mutex()
 
     internal fun reconcileSession(sessionId: MobileAuthSessionId?) {
         if (boundSessionId != null && boundSessionId != sessionId) {
             pendingRead?.cancel()
             replacement = null
+            draftGeneration++
             mutableState.value = MobileTransferDraftState()
             observedTransfers = false
             lastSuccessfulAdd = null
@@ -100,9 +103,13 @@ class MobileTransferDraft private constructor(
         read: () -> MobileSharedTransfer,
     ) {
         pendingRead?.cancel()
+        val generation = draftGeneration
         pendingRead = viewModelScope.launch {
             val shared = readLock.withLock { runInterruptible(ioDispatcher) { read() } }
-            if (picked) attachTorrent(shared) else deliver(shared)
+            when {
+                !picked -> deliver(shared)
+                generation == draftGeneration -> attachTorrent(shared)
+            }
         }.apply {
             // Also when a newer intake cancels this read before it began.
             invokeOnCompletion { onDone() }
@@ -129,11 +136,14 @@ class MobileTransferDraft private constructor(
 
     /**
      * put.io refused [rejectedLinks]; they stay in the draft for the user to fix or drop, after the
-     * lines that never went because they didn't parse.
+     * lines that never went because they didn't parse. Links parked behind an uploaded torrent stay for
+     * the next time the sheet opens.
      */
     internal fun submissionSucceeded(rejectedLinks: List<String> = emptyList()) {
         val current = mutableState.value
         val pending = replacement
+        draftGeneration++
+        val parked = current.input.takeIf { current.torrent != null && it.isNotBlank() }.orEmpty()
         val unsent = if (current.torrent == null) checkMobileTransferLines(current.input).badText else emptyList()
         when {
             rejectedLinks.isNotEmpty() || unsent.isNotEmpty() -> mutableState.value = MobileTransferDraftState(
@@ -145,7 +155,8 @@ class MobileTransferDraft private constructor(
                 pendingReplacement = pending != null,
             )
             // A chosen folder lasts for the session, like web's "custom folder in this session".
-            pending == null -> mutableState.value = MobileTransferDraftState(destination = current.destination)
+            pending == null ->
+                mutableState.value = MobileTransferDraftState(input = parked, destination = current.destination)
             else -> present(pending, current.incomingRequestId)
         }
     }
@@ -162,6 +173,7 @@ class MobileTransferDraft private constructor(
 
     private fun present(shared: MobileSharedTransfer, requestId: Long?) {
         replacement = null
+        draftGeneration++
         mutableState.value = MobileTransferDraftState(
             input = shared.input,
             torrent = shared.torrent,

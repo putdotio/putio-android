@@ -166,6 +166,7 @@ internal fun MobileTransfersScreen(
                 onRemove = { onEvent(TransfersEvent.Remove(actionsItem.id)) },
             ),
             onDismiss = { actionsFor = null },
+            onAuthenticationRequired = onFilesAuthenticationRequired,
         )
     }
     stopping?.let { item ->
@@ -259,8 +260,9 @@ private fun MobileAddTransferFab(expanded: Boolean, onClick: () -> Unit, modifie
 }
 
 /**
- * The Transfers tab's overflow in the tab-title row: Refresh, and Clear completed, which confirms.
- * It shows once transfers are listed.
+ * The Transfers tab's overflow in the tab-title row: Refresh once the list has loaded, empty included,
+ * so keyboard and TalkBack users need no pull; and Clear completed, which confirms, while transfers are
+ * listed.
  */
 @Composable
 internal fun MobileTransfersOverflow(
@@ -268,7 +270,8 @@ internal fun MobileTransfersOverflow(
     onEvent: (TransfersEvent) -> Unit,
     sessionId: MobileAuthSessionId?,
 ) {
-    if (state.content !is TransfersContent.Ready) return
+    val listed = state.content is TransfersContent.Ready
+    if (!listed && state.content !is TransfersContent.Empty) return
     val enabled = state.enabledInteractions()
     var expanded by remember(sessionId) { mutableStateOf(false) }
     var confirming by remember(sessionId) { mutableStateOf(false) }
@@ -288,14 +291,16 @@ internal fun MobileTransfersOverflow(
                     onEvent(TransfersEvent.Refresh)
                 },
             )
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.mobile_transfers_clean)) },
-                enabled = enabled.controls,
-                onClick = {
-                    expanded = false
-                    confirming = true
-                },
-            )
+            if (listed) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.mobile_transfers_clean)) },
+                    enabled = enabled.controls,
+                    onClick = {
+                        expanded = false
+                        confirming = true
+                    },
+                )
+            }
         }
     }
     if (confirming) {

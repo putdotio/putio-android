@@ -207,7 +207,14 @@ class TransfersControllerTest {
     }
 
     @Test
-    fun openingAFileCancelsBackgroundPolling(): Unit = runBlocking {
+    fun openingAFileCancelsBackgroundPolling() =
+        assertOpeningCancelsPolling(TransfersEvent.Open(TransferId(1L)), TransferFileId(11L))
+
+    @Test
+    fun openingTheSaveFolderCancelsBackgroundPolling() =
+        assertOpeningCancelsPolling(TransfersEvent.OpenFolder(TransferId(1L)), TransferFileId(42L))
+
+    private fun assertOpeningCancelsPolling(open: TransfersEvent, resolving: TransferFileId): Unit = runBlocking {
         val refreshStarted = CompletableDeferred<Unit>()
         val refreshCancelled = CompletableDeferred<Unit>()
         val repository =
@@ -215,7 +222,7 @@ class TransfersControllerTest {
                 load = {
                     PutioResult.Success(
                         TransfersPage(
-                            listOf(item(1L, AppTransferStatus.Seeding, TransferFileId(11L))),
+                            listOf(item(1L, AppTransferStatus.Seeding, TransferFileId(11L)).copy(saveParentId = 42L)),
                             null,
                         ),
                     )
@@ -236,12 +243,12 @@ class TransfersControllerTest {
             withTimeout(TIMEOUT) { refreshStarted.await() }
             controller.awaitState { it.refresh is TransfersRefresh.Polling }
 
-            assertTrue(controller.dispatch(TransfersEvent.Open(TransferId(1L))))
+            assertTrue(controller.dispatch(open))
             withTimeout(TIMEOUT) { refreshCancelled.await() }
 
             assertEquals(TransfersRefresh.Idle, controller.state.value.refresh)
             assertEquals(
-                TransferNavigation.Resolving(TransferFileId(11L), TransfersRequestId(3L)),
+                TransferNavigation.Resolving(resolving, TransfersRequestId(3L)),
                 controller.state.value.navigation,
             )
         } finally {

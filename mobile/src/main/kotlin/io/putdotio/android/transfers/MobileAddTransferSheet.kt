@@ -232,7 +232,7 @@ private fun MobileAddTransferSheet(
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.padding(bottom = 12.dp),
             )
-            val reason = input.reason(lines) ?: failure?.failure?.mobileMessage()
+            val reason = input.reason(lines, failure?.failure?.mobileMessage())
             if (input.torrent != null) {
                 MobileTransferTorrentRow(input.torrent, enabled = !adding, onRemove = actions.onRemoveTorrent)
             } else {
@@ -346,7 +346,6 @@ private fun MobileAddTransferReason(reason: String) {
 @Composable
 private fun MobileAddTransferChips(enabled: Boolean, value: String, actions: MobileAddTransferActions) {
     val clipboard = LocalClipboard.current
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val pickTorrent = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let(actions.onPickTorrent)
@@ -356,8 +355,10 @@ private fun MobileAddTransferChips(enabled: Boolean, value: String, actions: Mob
         AssistChip(
             onClick = {
                 scope.launch {
-                    val pasted = clipboard.getClipEntry()?.clipData?.takeIf { it.itemCount > 0 }
-                        ?.getItemAt(0)?.coerceToText(context)?.toString()?.trim()
+                    // Text and link items only: coerceToText would read a content URI on the main thread.
+                    val item = clipboard.getClipEntry()?.clipData?.takeIf { it.itemCount > 0 }?.getItemAt(0)
+                    val link = item?.uri?.takeIf { it.scheme in PASTE_SCHEMES }?.toString()
+                    val pasted = (item?.text?.toString() ?: link)?.trim()
                     if (!pasted.isNullOrEmpty()) {
                         actions.onInputChanged(if (value.isBlank()) pasted else value.trimEnd() + "\n" + pasted)
                     }
@@ -434,12 +435,16 @@ private fun MobileAddTransferButtons(
     }
 }
 
-/** Why the field can't go as it is: the draft's own problem first, then the lines that won't parse. */
+/**
+ * What the sheet says under the field: the draft's own problem first, then why put.io refused the last
+ * Add, then the lines that won't parse.
+ */
 @Composable
-private fun MobileTransferDraftState.reason(lines: MobileTransferLines): String? {
+private fun MobileTransferDraftState.reason(lines: MobileTransferLines, failure: String?): String? {
     val own = validation?.takeUnless { it == MobileShareValidation.InvalidLink && lines.badLines.isNotEmpty() }
     return when {
         own != null -> stringResource(own.messageResource())
+        failure != null -> failure
         torrent != null || lines.badLines.isEmpty() -> null
         else -> pluralStringResource(
             R.plurals.mobile_transfers_bad_lines,
@@ -452,3 +457,4 @@ private fun MobileTransferDraftState.reason(lines: MobileTransferLines): String?
 private val TORRENT_PICKER_TYPES = arrayOf(TORRENT_MEDIA_TYPE, "application/octet-stream")
 private const val COUNT_SLOT = "\u0001"
 private val FIELD_RADIUS = 12.dp
+private val PASTE_SCHEMES = setOf("http", "https", "magnet")

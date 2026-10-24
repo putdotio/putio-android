@@ -471,13 +471,6 @@
     },
     {
       "resDir": "mobile/src/main/res",
-      "resource": "ic_ph_arrow_up",
-      "asset": "assets/regular/arrow-up.svg",
-      "sourceSha256": "361aa9f9c52a759bf598faf6ed38ccd426f949f541d662c65b5b5d868fa76980",
-      "outputSha256": "4e4d66e1a51cf0d6559a0b7984d85fae21432a1c714a1315c62e871a0c40e03c"
-    },
-    {
-      "resDir": "mobile/src/main/res",
       "resource": "ic_ph_clock_counter_clockwise_fill",
       "asset": "assets/fill/clock-counter-clockwise-fill.svg",
       "sourceSha256": "618d6c238df479c26b40aab3271602a801797338d5521a28a1b254a86edf5398",

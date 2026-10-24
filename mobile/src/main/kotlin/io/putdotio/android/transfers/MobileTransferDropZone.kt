@@ -36,6 +36,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.draganddrop.DragAndDropEvent
 import androidx.compose.ui.draganddrop.DragAndDropTarget
 import androidx.compose.ui.draganddrop.toAndroidDragEvent
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -137,12 +139,18 @@ internal fun MobileTransferDropOverlay(over: Boolean) {
     val accent = MaterialTheme.colorScheme.primary
     val surface = MaterialTheme.colorScheme.surface
     val shape = RoundedCornerShape(PutioRadius.extraLarge)
+    // Clear of the tab title and the navigation where the window has room; short windows keep the words.
+    val windowHeight = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp() }
+    val roomy = windowHeight >= ROOMY_WINDOW_HEIGHT
     Box(
         modifier = Modifier
             .fillMaxSize()
             .windowInsetsPadding(WindowInsets.safeDrawing)
             .padding(horizontal = 16.dp)
-            .padding(top = DROP_TOP_CLEARANCE, bottom = DROP_BOTTOM_CLEARANCE)
+            .padding(
+                top = if (roomy) DROP_TOP_CLEARANCE else 16.dp,
+                bottom = if (roomy) DROP_BOTTOM_CLEARANCE else 16.dp,
+            )
             .background(accent.copy(alpha = if (over) OVER_TINT else AVAILABLE_TINT).compositeOver(surface), shape)
             .drawBehind {
                 val stroke = 2.dp.toPx()
@@ -193,5 +201,6 @@ private const val AVAILABLE_TINT = 0.08f
 private const val OVER_TINT = 0.16f
 private val DASH = listOf(8.dp, 6.dp)
 private val DROP_TOP_CLEARANCE = 132.dp
+private val ROOMY_WINDOW_HEIGHT = 560.dp
 private val DROP_BOTTOM_CLEARANCE = 100.dp
 private val DROP_TITLE_SIZE = 20.sp

@@ -1276,7 +1276,7 @@ start), `UserScopedCacheKeysTest` (token-free, user-scoped cache keys),
 
 ## Transfers widget
 
-Mobile offers a resizable four-by-two Transfers home-screen widget. Signed in,
+Mobile offers a resizable four-by-three Transfers home-screen widget. Signed in,
 it lists up to three transfers still running (anything but completed or
 failed, seeding included) from the first page of the account's transfers,
 newest first. Each row shows the status in the Transfers screen's words, a
@@ -1372,8 +1372,9 @@ Tests: `ApiRejectionReasonTest`, `ApiReasonAcrossSurfacesTest`,
 
 Mobile only; TV has no Transfers screen. A failed card shows "Failed" and
 put.io's `error_message` as the API sends it, trimmed; one without a message
-shows "This transfer needs attention." Retry, on the card or in Transfer
-actions, runs at once without a confirmation.
+shows "This transfer needs attention." A running card shows a message put.io
+sends with it ("Tracker did not respond.") after its size. Retry, on the card
+or in Transfer actions, runs at once without a confirmation.
 The result arrives as a snackbar, "Retrying transfer" or "Couldn’t retry
 transfer." with the reason, once per request, replacing any visible snackbar;
 a 403 reads as nothing to retry. A failed retry leaves no blocking error
@@ -1402,8 +1403,9 @@ tapping any other card, or long-pressing any card, opens Transfer actions:
   confirm: it asks put.io to clean that one transfer, and the card leaves only
   when put.io reports it deleted. The file stays in put.io.
 
-The tab's overflow holds Refresh and **Clear completed**, which confirms and
-then refreshes. Transfers posts no notifications.
+The tab's overflow holds Refresh once the list has loaded, empty included, and
+**Clear completed**, which confirms and then refreshes, while transfers are
+listed. Transfers posts no notifications.
 
 Tests: `TransfersReducerTest`, `TransfersControllerTest`,
 `SdkTransfersRepositoryTest`, `MobileTransfersScreenTest`,

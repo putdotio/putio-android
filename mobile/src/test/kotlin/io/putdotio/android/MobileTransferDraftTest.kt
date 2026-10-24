@@ -260,6 +260,27 @@ class MobileTransferDraftTest {
         draft.receiveLater(picked = true) { MobileSharedTransfer(torrent = TORRENT) }
         settle()
         assertNull(draft.state.value.torrent)
+
+        // A slow read that outlives its draft does not land in the next one.
+        draft.open()
+        draft.receiveLater(picked = true) { MobileSharedTransfer(torrent = TORRENT) }
+        draft.submissionSucceeded()
+        draft.open()
+        settle()
+        assertNull(draft.state.value.torrent)
+    }
+
+    @Test
+    fun linksParkedBehindAnUploadedTorrentStayForNextTime() = runTest {
+        val draft = MobileTransferDraft(StandardTestDispatcher(testScheduler))
+        draft.open()
+        draft.edit(FIRST)
+        draft.receiveLater(picked = true) { MobileSharedTransfer(torrent = TORRENT) }
+        settle()
+        assertEquals(TransfersEvent.AddTorrent(TORRENT), draft.validate())
+        draft.setSubmitting(true)
+        draft.submissionSucceeded()
+        assertEquals(MobileTransferDraftState(input = FIRST), draft.state.value)
     }
 
     @Test

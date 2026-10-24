@@ -53,7 +53,8 @@ public class TransfersController internal constructor(
                 mutableState.value = next.state
                 val hidDuringRead =
                     event is TransfersEvent.VisibilityChanged && !event.visible && current.refresh.isRunning
-                val openedDuringPoll = event is TransfersEvent.Open && current.refresh is TransfersRefresh.Polling
+                val opening = event is TransfersEvent.Open || event is TransfersEvent.OpenFolder
+                val openedDuringPoll = opening && current.refresh is TransfersRefresh.Polling
                 val cancelledRead = readJob.takeIf { next.consumed && (hidDuringRead || openedDuringPoll) }
                 next to cancelledRead
             }

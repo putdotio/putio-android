@@ -12,12 +12,15 @@
     android:paddingStart="16dp"
     android:paddingTop="10dp"
     android:paddingEnd="16dp"
-    android:paddingBottom="12dp">
+    android:paddingBottom="12dp"
+    android:clipToPadding="false">
 
-    <!-- The refresh button is its own 48dp tap target; its glyph lines up with the content edge. -->
+    <!-- The refresh button is its own 48dp tap target. The header reaches into the end padding, inside
+         the widget's bounds, so the glyph lines up with the content edge and the whole target stays tappable. -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="48dp"
+        android:layout_marginEnd="-14dp"
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
@@ -44,7 +47,6 @@
             android:id="@+id/widget_transfers_refresh"
             android:layout_width="48dp"
             android:layout_height="48dp"
-            android:layout_marginEnd="-14dp"
             android:contentDescription="@string/mobile_widget_refresh"
             android:padding="14dp"
             android:src="@drawable/ic_ph_arrows_clockwise"

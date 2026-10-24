@@ -199,8 +199,8 @@ public object TransfersReducer {
             is TransfersEvent.Add, is TransfersEvent.AddTorrent -> state.add(event)
             is TransfersEvent.Cancel -> state.cancel(event.id)
             is TransfersEvent.RetryTransfer -> state.retryTransfer(event.id)
-            TransfersEvent.CleanCompleted -> state.cleanCompleted()
-            is TransfersEvent.Remove -> state.remove(event.id)
+            TransfersEvent.CleanCompleted, is TransfersEvent.Remove ->
+                state.clean((event as? TransfersEvent.Remove)?.id)
             TransfersEvent.DismissMutationFailure -> state.dismissMutationFailure()
             is TransfersEvent.DismissRetryOutcome -> state.dismissRetryOutcome(event.requestId)
             is TransfersEvent.Open,

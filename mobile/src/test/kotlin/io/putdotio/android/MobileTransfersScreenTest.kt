@@ -12,6 +12,8 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.isEnabled
+import androidx.compose.ui.test.isNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithText
@@ -125,11 +127,13 @@ class MobileTransfersScreenTest {
         val rows = listOf(
             transferRow(1L, AppTransferStatus.Failed).copy(errorMessage = "Downloading text/html is not allowed."),
             transferRow(2L, AppTransferStatus.Failed),
+            transferRow(3L, AppTransferStatus.Waiting).copy(errorMessage = "Tracker did not respond."),
         )
         setScreen(transfersTestState(TransfersContent.Ready(rows, TransfersPaging.Complete)), events::add)
 
         compose.onNodeWithText("Failed · Downloading text/html is not allowed.").assertIsDisplayed()
         compose.onNodeWithText("Failed · This transfer needs attention.").assertIsDisplayed()
+        compose.onNodeWithText(" · Tracker did not respond.", substring = true).assertIsDisplayed()
         compose.onNodeWithContentDescription("Retry transfer transfer-2").performClick()
         assertEquals(listOf<TransfersEvent>(TransfersEvent.RetryTransfer(TransferId(2L))), events)
         compose.onAllNodesWithText("Retry transfer?").assertCountEquals(0)
@@ -285,11 +289,18 @@ class MobileTransfersScreenTest {
     @Test
     fun theOverflowRefreshesAndClearsCompletedAfterAConfirmOnceTransfersAreListed() {
         val events = mutableListOf<TransfersEvent>()
-        var current by mutableStateOf(transfersTestState(TransfersContent.Empty))
+        var current by mutableStateOf(transfersTestState(TransfersContent.InitialLoading(TransfersRequestId(1L))))
         compose.setContent {
             PutioTheme { MobileTransfersOverflow(current, events::add, MobileAuthSessionId(1L)) }
         }
         compose.onNodeWithTag(MOBILE_TRANSFERS_OVERFLOW_TAG).assertDoesNotExist()
+
+        compose.runOnIdle { current = transfersTestState(TransfersContent.Empty) }
+        compose.onNodeWithContentDescription("More options").performClick()
+        compose.onNodeWithText("Refresh").assertIsEnabled()
+        compose.onAllNodesWithText("Clear completed").assertCountEquals(0)
+        compose.onNodeWithText("Refresh").performClick()
+        compose.runOnIdle { events.clear() }
 
         compose.runOnIdle {
             current = transfersTestState(
@@ -306,14 +317,20 @@ class MobileTransfersScreenTest {
         compose.onNodeWithText("Clear").performClick()
         assertEquals(TransfersEvent.CleanCompleted, events.last())
 
-        compose.runOnIdle {
-            current = current.copyForTest(
-                mutation = TransferMutation.Running(TransferAction.Clean, TransfersRequestId(9L)),
-            )
-        }
+        // The menu stays open while the state moves through what blocks each action.
+        val listed = current
+        val busy = TransfersRequestId(9L)
         compose.onNodeWithContentDescription("More options").performClick()
-        compose.onNodeWithText("Refresh").assertIsNotEnabled()
-        compose.onNodeWithText("Clear completed").assertIsNotEnabled()
+        fun given(next: TransfersState, refresh: Boolean, clear: Boolean) {
+            compose.runOnIdle { current = next }
+            compose.onNodeWithText("Refresh").assert(if (refresh) isEnabled() else isNotEnabled())
+            compose.onNodeWithText("Clear completed").assert(if (clear) isEnabled() else isNotEnabled())
+        }
+        given(listed.copyForTest(mutation = TransferMutation.Running(TransferAction.Clean, busy)), false, false)
+        given(listed.copyForTest(navigation = TransferNavigation.Resolving(TransferFileId(1L), busy)), false, false)
+        given(listed.copyForTest(refresh = TransfersRefresh.Refreshing(busy)), refresh = false, clear = true)
+        given(listed.copyForTest(refresh = TransfersRefresh.Polling(busy)), refresh = false, clear = true)
+        given(listed, refresh = true, clear = true)
     }
 
     @Test

@@ -35,7 +35,7 @@ internal data class TransfersWidgetRow(
         "TransfersWidgetRow(<redacted>, status=$status, percent=$percent, seeding=$seeding)"
 }
 
-/** The widget has room for this many rows at its default four-by-two size. */
+/** The widget has room for this many rows at its default four-by-three size. */
 internal const val TRANSFERS_WIDGET_ROWS = 3
 
 /** Transfers still running, newest first as put.io lists them; finished and failed ones are left to the app. */

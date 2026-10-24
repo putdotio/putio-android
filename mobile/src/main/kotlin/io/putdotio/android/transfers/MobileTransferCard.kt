@@ -242,6 +242,8 @@ internal fun TransferItem.cardMeta(context: Context, nowMillis: Long): List<Mobi
             finishedAgo(nowMillis)?.takeIf { status == AppTransferStatus.Completed }?.let {
                 listOf(MobileTransferPart(it))
             },
+            // put.io can warn about a transfer that is still running ("Tracker did not respond.").
+            errorMessage?.let { listOf(MobileTransferPart(it)) },
         )
     }
     return buildList {

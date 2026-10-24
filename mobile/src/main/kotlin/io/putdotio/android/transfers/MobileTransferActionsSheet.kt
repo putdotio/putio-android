@@ -35,7 +35,9 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
@@ -69,6 +71,7 @@ internal fun MobileTransferActionsSheet(
     folders: FilesRepository?,
     actions: MobileTransferActions,
     onDismiss: () -> Unit,
+    onAuthenticationRequired: suspend () -> Unit = {},
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -82,7 +85,7 @@ internal fun MobileTransferActionsSheet(
                 .testTag(MOBILE_TRANSFER_ACTIONS_TAG),
         ) {
             MobileTransferActionsHeader(item)
-            MobileTransferFacts(item, folders)
+            MobileTransferFacts(item, folders, onAuthenticationRequired)
             HorizontalDivider(
                 modifier = Modifier.padding(top = 12.dp, bottom = 4.dp),
                 color = MaterialTheme.colorScheme.outlineVariant,
@@ -150,7 +153,7 @@ private fun MobileTransferActionRows(
 
 @Composable
 private fun MobileTransferActionsHeader(item: TransferItem) {
-    val context = LocalContext.current
+    val status = stringResource(item.statusLabelRes())
     Column(
         modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 8.dp, bottom = 12.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -163,7 +166,7 @@ private fun MobileTransferActionsHeader(item: TransferItem) {
             )
         }
         val state = buildList {
-            add(MobileTransferPart(context.getString(item.statusLabelRes())))
+            add(MobileTransferPart(status))
             item.percentText()?.takeIf { item.section != MobileTransferSection.NeedsAttention }?.let {
                 add(MobileTransferPart(META_SEPARATOR))
                 add(MobileTransferPart(it, mono = true))
@@ -194,7 +197,11 @@ private fun MobileTransferActionsHeader(item: TransferItem) {
 }
 
 @Composable
-private fun MobileTransferFacts(item: TransferItem, folders: FilesRepository?) {
+private fun MobileTransferFacts(
+    item: TransferItem,
+    folders: FilesRepository?,
+    onAuthenticationRequired: suspend () -> Unit,
+) {
     val context = LocalContext.current
     item.sizeParts(context).takeIf { it.isNotEmpty() }?.let {
         MobileTransferFact(R.string.mobile_transfer_fact_size, it)
@@ -211,11 +218,12 @@ private fun MobileTransferFacts(item: TransferItem, folders: FilesRepository?) {
     val rootName = stringResource(R.string.mobile_destination_files)
     val folderName by produceState<String?>(null, item.saveParentId, folders) {
         val id = item.saveParentId
-        value = when {
-            id == null -> null
-            id == 0L -> rootName
-            else -> (folders?.resolveItem(FilesItemId(id)) as? PutioResult.Success)?.value?.name
+        val resolved = if (id == null || id == 0L) null else folders?.resolveItem(FilesItemId(id))
+        // A folder that can't be read only hides the row; a rejected session signs out as anywhere else.
+        if ((resolved as? PutioResult.Failure)?.failure is PutioFailure.AuthenticationRequired) {
+            onAuthenticationRequired()
         }
+        value = if (id == 0L) rootName else (resolved as? PutioResult.Success)?.value?.name
     }
     folderName?.let { MobileTransferFact(R.string.mobile_transfer_fact_saves_to, listOf(MobileTransferPart(it))) }
 }
@@ -234,12 +242,14 @@ private fun MobileTransferFact(label: Int, value: List<MobileTransferPart>) {
             stringResource(label),
             style = style,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f),
         )
+        // Weighted after the label, so a long folder name wraps instead of pushing the label out.
         Text(
             value.annotated(style.putioMono().toSpanStyle()),
             style = style,
             color = MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.End,
+            modifier = Modifier.weight(1f),
         )
     }
 }
