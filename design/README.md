@@ -31,10 +31,11 @@ writes files only when every output matches the lock. Icon downscaling uses
 To take a new design release, update the version, tarball URL and `integrity`
 (`npm view @putdotio/design@<version> dist.integrity`) in the lock, run the
 sync, and replace each digest it reports as unlocked. Then run
-`./gradlew verify`, which regenerates and re-pins the scheme.
+`./gradlew updateDesignMdColors` to regenerate the contract's `colors` block,
+and `./gradlew verify`, which regenerates and re-pins the scheme.
 
 The M3-role → token map is the binding contract in
-[Design](../docs/design.md#binding);
+[Design](../DESIGN.md#colors), which shows it as a generated `colors` block;
 it lives as data in
 [`DesignTokenCodegen.kt`](../build-logic/src/main/kotlin/DesignTokenCodegen.kt).
 Generated code is `public` only where the apps read it: `PutioDesignTokens`, the

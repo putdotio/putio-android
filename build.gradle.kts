@@ -8,6 +8,7 @@ plugins {
     alias(libs.plugins.kotlin.compose) apply false
     alias(libs.plugins.play.publisher) apply false
     alias(libs.plugins.sentry.android) apply false
+    id("putio.build-logic")
 }
 
 // Script checks are deterministic in the repository files they read and the host
@@ -91,17 +92,45 @@ val testTalkBackInput = tasks.register<Exec>("testTalkBackInput") {
     commandLine("python3", "-B", "scripts/test_talkback_input.py")
 }
 
-// package.json pins oxfmt so Renovate can bump it; needs Node on PATH.
-val oxfmtVersion =
+// package.json pins the Node tools so Renovate can bump them; they need Node on PATH.
+fun pinnedNodeTool(name: String) =
     providers.fileContents(layout.projectDirectory.file("package.json")).asText.map { text ->
         val devDependencies = (JsonSlurper().parseText(text) as? Map<*, *>)?.get("devDependencies") as? Map<*, *>
-        devDependencies?.get("oxfmt") as? String ?: error("package.json must pin oxfmt in devDependencies")
+        devDependencies?.get(name) as? String ?: error("package.json must pin $name in devDependencies")
     }
+
+val designMdFile = layout.projectDirectory.file("DESIGN.md")
+val designTokens = layout.projectDirectory.file("design/tokens.dtcg.json")
+
+val checkDesignMdColors = tasks.register<CheckDesignMdColorsTask>("checkDesignMdColors") {
+    group = "verification"
+    description = "Verify DESIGN.md's colors block matches the token graph"
+    tokensFile.set(designTokens)
+    designMd.set(designMdFile)
+    stamp.set(layout.buildDirectory.file("verification/checkDesignMdColors.stamp"))
+}
+
+tasks.register("updateDesignMdColors") {
+    description = "Regenerate DESIGN.md's colors block from the token graph"
+    val markdown = designMdFile.asFile
+    val tokens = designTokens.asFile
+    doLast { markdown.writeText(DesignTokenCodegen.withDesignMdColors(markdown.readText(), tokens.readText())) }
+}
+
+val nodeVersion = providers.exec { commandLine("node", "--version") }.standardOutput.asText
+
+val lintDesignMd = tasks.register<Exec>("lintDesignMd") {
+    description = "Lint DESIGN.md against the design.md format"
+    cacheableCheck("DESIGN.md", "package.json", ".node-version")
+    inputs.property("node", nodeVersion)
+    commandLine("bash", "scripts/lint-design-md.sh", pinnedNodeTool("@google/design.md").get())
+}
 
 val markdownCheck = tasks.register<Exec>("markdownCheck") {
     group = "verification"
-    description = "Check Markdown formatting with oxfmt"
-    commandLine("npx", "--yes", "oxfmt@${oxfmtVersion.get()}", "--check", "**/*.md")
+    description = "Check Markdown formatting with oxfmt, and the DESIGN.md contract"
+    dependsOn(checkDesignMdColors, lintDesignMd)
+    commandLine("npx", "--yes", "oxfmt@${pinnedNodeTool("oxfmt").get()}", "--check", "**/*.md")
 }
 
 tasks.register("verify") {

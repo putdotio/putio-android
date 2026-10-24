@@ -7,8 +7,8 @@ import kotlinx.serialization.json.jsonPrimitive
 /**
  * Generates the put.io Compose color schemes and TV safe-area ratios from the
  * vendored DTCG token graph (`design/tokens.dtcg.json`, from @putdotio/design).
- * The M3-role map below is the tier-2 binding contract from putio-design
- * `platforms/android/DESIGN.md`; the app never hand-writes a design value.
+ * The M3-role map below is the tier-2 binding contract; the root DESIGN.md
+ * carries it as a generated `colors` block. The app never hand-writes a design value.
  */
 object DesignTokenCodegen {
 
@@ -105,6 +105,9 @@ object DesignTokenCodegen {
         "error" to "redSolid",
     )
 
+    /** Token cssNames DESIGN.md lists after the M3 roles: put.io colors with no M3 role. */
+    val DESIGN_MD_EXTRA_COLORS: List<String> = listOf("green-solid")
+
     /** A unitless `tv` token that platform adapters multiply by one viewport axis. */
     data class ViewportRatioBinding(val property: String, val cssName: String, val basis: String)
 
@@ -146,6 +149,44 @@ object DesignTokenCodegen {
             }
             appendLine("</resources>")
         }
+    }
+
+    /** DESIGN.md's `colors` YAML: each M3 role kebab-cased, then [DESIGN_MD_EXTRA_COLORS], each naming its token. */
+    fun generateDesignMdColors(dtcgJson: String): String {
+        val tokens = parse(dtcgJson)
+        val cssNames = TOKEN_BINDINGS.toMap()
+        return buildString {
+            appendLine("colors:")
+            for ((role, spec) in M3_ROLES) {
+                val (property, alpha) = spec.split(":").let { it[0] to it.getOrNull(1) }
+                val cssName = cssNames.getValue(property)
+                var argb = resolve(tokens, cssName)
+                if (alpha != null) argb = (Math.round(alpha.toDouble() * 255.0) shl 24) or (argb and 0xFFFFFFL)
+                val note = if (alpha == null) "--$cssName" else "--$cssName at ${Math.round(alpha.toDouble() * 100)}%"
+                appendLine("  ${role.kebab()}: \"${yamlHex(argb)}\" # $note")
+            }
+            for (cssName in DESIGN_MD_EXTRA_COLORS) {
+                appendLine("  $cssName: \"${yamlHex(resolve(tokens, cssName))}\" # --$cssName")
+            }
+        }
+    }
+
+    /** [designMd] with its one ```yaml block that starts with `colors:` replaced by [generateDesignMdColors]. */
+    fun withDesignMdColors(designMd: String, dtcgJson: String): String {
+        val block = Regex("""(?m)^```yaml\n(colors:\n(?:(?!```).*\n)*)```$""")
+        val matches = block.findAll(designMd).toList()
+        check(matches.size == 1) { "DESIGN.md needs exactly one ```yaml block starting with `colors:`, found ${matches.size}" }
+        val range = matches.single().groups[1]!!.range
+        return designMd.replaceRange(range, generateDesignMdColors(dtcgJson))
+    }
+
+    private fun String.kebab(): String = replace(Regex("([a-z])([A-Z])"), "$1-$2").lowercase()
+
+    /** `#RRGGBB`, or `#RRGGBBAA` when translucent: the CSS order DESIGN.md uses, not Android's ARGB. */
+    private fun yamlHex(argb: Long): String {
+        val rgb = "%06X".format(argb and 0xFFFFFFL)
+        val alpha = (argb ushr 24) and 0xFFL
+        return if (alpha == 0xFFL) "#$rgb" else "#$rgb${"%02X".format(alpha)}"
     }
 
     private fun parse(dtcgJson: String): Map<String, RawToken> {

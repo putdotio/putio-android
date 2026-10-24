@@ -100,5 +100,34 @@ class DesignTokenCodegenTest {
         assertTrue(!xml.contains("putio_red_solid"))
     }
 
+    @Test
+    fun designMdColorsCarryRolesAndAlphaInCssOrder() {
+        val yaml = DesignTokenCodegen.generateDesignMdColors(fullGraph())
+        assertTrue(yaml.startsWith("colors:\n"))
+        assertTrue(yaml.contains("  primary: \"#FDCE45\" # --yellow-solid\n"))
+        assertTrue(yaml.contains("  surface: \"#161616\" # --app-bg\n"))
+        // 26% of 255 rounds to 0x42, written last as CSS #RRGGBBAA expects.
+        assertTrue(yaml.contains("  secondary-container: \"#FDCE4542\" # --yellow-solid at 26%\n"))
+        assertEquals(
+            DesignTokenCodegen.M3_ROLES.size + DesignTokenCodegen.DESIGN_MD_EXTRA_COLORS.size,
+            yaml.lines().count { it.startsWith("  ") },
+        )
+    }
+
+    @Test
+    fun designMdColorsReplaceOnlyTheirBlock() {
+        val doc = "# T\n\n```yaml\ncolors:\n  primary: \"#000000\"\n```\n\n```yaml\nother: 1\n```\n"
+        val updated = DesignTokenCodegen.withDesignMdColors(doc, fullGraph())
+        assertTrue(updated.startsWith("# T\n\n```yaml\ncolors:\n  primary: \"#FDCE45\""))
+        assertTrue(updated.endsWith("```\n\n```yaml\nother: 1\n```\n"))
+        assertEquals(updated, DesignTokenCodegen.withDesignMdColors(updated, fullGraph()))
+    }
+
+    @Test
+    fun designMdWithoutAColorsBlockFailsLoudly() {
+        val error = runCatching { DesignTokenCodegen.withDesignMdColors("# T\n", fullGraph()) }.exceptionOrNull()
+        assertTrue(error is IllegalStateException)
+    }
+
     private fun fullGraph() = File("../design/tokens.dtcg.json").readText()
 }
