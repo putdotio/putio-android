@@ -284,9 +284,7 @@ GT America for UI; Berkeley Mono for sizes, times, speeds, counts,
 percentages and version numbers, with tabular figures. Dates read as words
 ("Oct 13") and stay in GT America; words that sit in a value slot ("Always
 on", "Phone") stay in GT America too. Numbers never go below 12sp. Filenames stay in GT
-America, where mono would fit fewer characters on the line. Both fonts need an
-app-embedding licence check before they ship; until then the app keeps Roboto
-and the system monospace.
+America, where mono would fit fewer characters on the line.
 
 | Token         | Use                                        |
 | ------------- | ------------------------------------------ |

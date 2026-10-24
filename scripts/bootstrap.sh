@@ -8,8 +8,8 @@
 #   - Network access for several GB of SDK packages on first run
 #
 # Installs: platform/build-tools for the compileSdk, emulator, the API 37
-# Google Play phone image, the API 36 Android TV image, and both reusable
-# AVDs. Writes local.properties.
+# Google Play phone image, the API 36 Android TV image, both reusable AVDs,
+# and the licensed brand fonts. Writes local.properties.
 # Idempotent: safe to re-run; already-installed packages are skipped.
 #
 #   scripts/bootstrap.sh [--google-tv]
@@ -130,6 +130,9 @@ SDK_KOTLIN_PATH="$(sed -n 's/^putioSdkKotlinPath=//p' "${REPO_ROOT}/local.proper
 if [[ -n "${SDK_KOTLIN_PATH}" && ! -d "${SDK_KOTLIN_PATH}" ]]; then
   die "putioSdkKotlinPath in local.properties points at a missing checkout (${SDK_KOTLIN_PATH}); fix the path or remove the key to use the Maven Central SDK, then re-run bootstrap"
 fi
+
+log "fetching licensed brand fonts"
+"${REPO_ROOT}/scripts/sync-brand-fonts.sh" || die "brand font sync failed; builds fall back to the system face until it succeeds"
 
 provision_avds "${AVD_PROFILES[@]}" || exit 1
 

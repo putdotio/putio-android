@@ -121,6 +121,12 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
                     launcherCategories.add("android.intent.category.LAUNCHER")
                 }
                 tasks.named("check") { dependsOn(launcherManifest) }
+
+                // Only bundles reach Google Play; release APKs, as in verify, may use the system face.
+                if (variant.buildType == "release") {
+                    val bundle = "bundle${variant.name.replaceFirstChar(Char::titlecase)}"
+                    tasks.matching { it.name == bundle }.configureEach { dependsOn(":core:design:requireBrandFonts") }
+                }
             }
         }
     }

@@ -134,12 +134,12 @@ class DesignTokenCodegenTest {
 
     @Test
     fun scalesCarryDesignMdTypeAndCorners() {
-        val code = DesignTokenCodegen.generateScales(File("../DESIGN.md").readText())
+        val code = DesignTokenCodegen.generateScales(File("../DESIGN.md").readText(), brandFonts(), installed = emptySet())
         assertTrue(
             code.contains(
                 """
                 |    public val headlineLg: TextStyle = TextStyle(
-                |        fontFamily = FontFamily.Default,
+                |        fontFamily = PutioFontFamily.gtAmerica,
                 |        fontWeight = FontWeight(500),
                 |        fontSize = 28.sp,
                 |        lineHeight = 36.sp,
@@ -148,24 +148,85 @@ class DesignTokenCodegenTest {
                 """.trimMargin(),
             ),
         )
-        assertTrue(code.contains("        fontFamily = FontFamily.Monospace,\n"))
+        assertTrue(code.contains("        fontFamily = PutioFontFamily.berkeleyMono,\n"))
         assertTrue(code.contains("        fontFeatureSettings = \"\\\"tnum\\\"\",\n"))
         assertTrue(code.contains("    public val largeIncreased: Dp = 20.dp\n"))
         assertTrue(code.contains("    public val full: Dp = 9999.dp\n"))
     }
 
     @Test
+    fun installedFamiliesEmbedTheirLockedFacesAndOthersUseTheSystemFace() {
+        val lock = brandFonts()
+        val gtAmerica = lock.faces.filter { it.family == "GT America" }.map { it.file }.toSet()
+        val code = DesignTokenCodegen.generateScales(File("../DESIGN.md").readText(), lock, gtAmerica)
+        assertTrue(
+            code.contains(
+                """
+                |    val gtAmerica: FontFamily = FontFamily(
+                |        Font(R.font.gt_america_standard_regular, FontWeight(400)),
+                |        Font(R.font.gt_america_standard_medium, FontWeight(500)),
+                |    )
+                """.trimMargin(),
+            ),
+        )
+        assertTrue(code.contains("    val berkeleyMono: FontFamily = FontFamily.Monospace\n"))
+        // A family embeds only whole: one missing face sends it all to the system face.
+        val partial = DesignTokenCodegen.generateScales(
+            File("../DESIGN.md").readText(),
+            lock,
+            setOf("gt_america_standard_regular.ttf", "berkeley_mono_variable.ttf"),
+        )
+        assertTrue(partial.contains("    val gtAmerica: FontFamily = FontFamily.Default\n"))
+        assertTrue(
+            partial.contains(
+                """
+                |    val berkeleyMono: FontFamily = FontFamily(
+                |        Font(
+                |            R.font.berkeley_mono_variable,
+                |            FontWeight(400),
+                |            variationSettings = FontVariation.Settings(FontVariation.weight(400)),
+                |        ),
+                |    )
+                """.trimMargin(),
+            ),
+        )
+    }
+
+    @Test
+    fun theLockHoldsExactlyTheFacesDesignMdSets() {
+        val doc = "---\ntypography:\n  body:\n    fontFamily: GT America\n    fontSize: 16px\n" +
+            "    fontWeight: 400\n    lineHeight: 22px\nrounded:\n  small: 8px\n---\n"
+        val regular = BrandFonts.Face("gt_america_regular.ttf", "GT America", "0".repeat(64), weight = 400)
+        val bold = BrandFonts.Face("gt_america_bold.ttf", "GT America", "0".repeat(64), weight = 700)
+        val variable = BrandFonts.Face("gt_america_variable.ttf", "GT America", "0".repeat(64), weightRange = 100..900)
+        assertTrue(DesignTokenCodegen.generateScales(doc, BrandFonts.Lock("fonts", listOf(regular)), emptySet()).isNotEmpty())
+        assertTrue(DesignTokenCodegen.generateScales(doc, BrandFonts.Lock("fonts", listOf(variable)), emptySet()).isNotEmpty())
+        listOf(
+            listOf(regular, bold) to "gt_america_bold.ttf",
+            listOf(bold) to "weight 400",
+        ).forEach { (faces, expected) ->
+            val error = runCatching { DesignTokenCodegen.generateScales(doc, BrandFonts.Lock("fonts", faces), emptySet()) }
+                .exceptionOrNull()
+            assertTrue(expected, error is IllegalStateException && error.message!!.contains(expected))
+        }
+    }
+
+    @Test
     fun scalesRejectWhatTheyCannotModel() {
         val base = "---\ntypography:\n  body:\n    fontFamily: GT America\n    fontSize: 16px\n" +
             "    fontWeight: 400\n    lineHeight: 22px\nrounded:\n  small: 8px\n---\n"
-        assertTrue(DesignTokenCodegen.generateScales(base).contains("public val small: Dp = 8.dp"))
+        val lock = BrandFonts.Lock(
+            "fonts",
+            listOf(BrandFonts.Face("gt_america_regular.ttf", "GT America", "0".repeat(64), weight = 400)),
+        )
+        assertTrue(DesignTokenCodegen.generateScales(base, lock, emptySet()).contains("public val small: Dp = 8.dp"))
         listOf(
             base.replace("GT America", "Comic Sans") to "Comic Sans",
             base.replace("16px", "1rem") to "fontSize",
             base.replace("    lineHeight: 22px\n", "    lineHeight: 22px\n    case: upper\n") to "case",
             base.replace("rounded:\n  small: 8px\n", "") to "rounded",
         ).forEach { (doc, expected) ->
-            val error = runCatching { DesignTokenCodegen.generateScales(doc) }.exceptionOrNull()
+            val error = runCatching { DesignTokenCodegen.generateScales(doc, lock, emptySet()) }.exceptionOrNull()
             assertTrue(expected, error is IllegalStateException && error.message!!.contains(expected))
         }
     }
@@ -182,4 +243,6 @@ class DesignTokenCodegenTest {
     }
 
     private fun fullGraph() = File("../design/tokens.dtcg.json").readText()
+
+    private fun brandFonts() = BrandFonts.parseLock(File("../design/brand-fonts.lock.json").readText())
 }

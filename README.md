@@ -14,6 +14,7 @@ phones, tablets, Android TV, and Fire TV from one codebase.
 Mobile, on the emulator harness against the live API:
 
 - OAuth sign-in through an Auth Tab, with the session in Android secure storage
+- put.io's type: GT America for text, Berkeley Mono for the player's times
 - Files: browse, paginate, sort per folder, rename, move, trash, delete, copy
   items shared with you, and watched progress on media rows
 - Trash: browse, restore one or all, delete permanently, empty
@@ -109,7 +110,7 @@ frames, device facts and failure codes ([Diagnostics](docs/behavior.md#diagnosti
 Requires JDK 21, Node 24, `python3`, and, on macOS, Homebrew.
 
 ```bash
-./scripts/bootstrap.sh   # once per machine: Android SDK, AVDs, local.properties
+./scripts/bootstrap.sh   # once per machine: Android SDK, AVDs, brand fonts, local.properties
 ./gradlew verify
 ./gradlew :mobile:assembleProductionDebug :tv:assembleProductionDebug
 ./scripts/prove.sh mobile && ./scripts/prove.sh tv   # emulator launch proof with evidence
@@ -125,7 +126,8 @@ The [Agent guide](./AGENTS.md#build-and-verify) covers what the gate runs and
   proof
 - [Distribution](./docs/distribution.md): Google Play delivery for both apps
 - [Design](./DESIGN.md): the Android design contract
-- [Design system binding](./design/README.md): tokens and icon generation
+- [Design system binding](./design/README.md): tokens, brand fonts and icon
+  generation
 - [Agent guide](./AGENTS.md): module layout, hazards, proof map and CI
 
 ## Security

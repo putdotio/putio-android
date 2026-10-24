@@ -119,6 +119,12 @@ jobs:
         with:
           validate-wrappers: true
 
+      # Release builds embed the public licensed fonts as Google Play bundles do. `verify`
+      # stays without them, like a fresh clone, and it is the job that uploads debug APKs.
+      - name: Fetch brand fonts
+        working-directory: putio-android
+        run: ./scripts/sync-brand-fonts.sh
+
       - name: Assemble release builds
         working-directory: putio-android
         run: >-

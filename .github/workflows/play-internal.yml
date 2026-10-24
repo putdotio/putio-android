@@ -112,6 +112,9 @@ jobs:
         with:
           validate-wrappers: true
           cache-disabled: true
+      # Release bundles fail without every locked font.
+      - name: Fetch brand fonts
+        run: ./scripts/sync-brand-fonts.sh
       - name: Write the release notes file
         env:
           NOTES: ${{ needs.notes.outputs.notes }}

@@ -15,7 +15,24 @@ dependencies {
     implementation(libs.putio.sdk.kotlin)
 }
 
+// Licensed fonts, fetched by scripts/sync-brand-fonts.sh into the lock's ignored directory.
+val brandFontLock = rootProject.layout.projectDirectory.file("design/brand-fonts.lock.json")
+val brandFontFiles = rootProject.fileTree(
+    BrandFonts.parseLock(providers.fileContents(brandFontLock).asText.get()).directory,
+) { include("*.ttf", "*.otf") }
+
+// Release bundles depend on this through putio.android.application.
+tasks.register<RequireBrandFontsTask>("requireBrandFonts") {
+    group = "verification"
+    description = "Require every locked brand font, as release bundles embed them"
+    brandFontsLock.set(brandFontLock)
+    brandFonts.from(brandFontFiles)
+    stamp.set(layout.buildDirectory.file("verification/requireBrandFonts.stamp"))
+}
+
 val generateDesignTokens = tasks.register<GenerateDesignTokensTask>("generateDesignTokens") {
+    brandFontsLock.set(brandFontLock)
+    brandFonts.from(brandFontFiles)
     tokensFile.set(rootProject.layout.projectDirectory.file("design/tokens.dtcg.json"))
     designMd.set(rootProject.layout.projectDirectory.file("DESIGN.md"))
     designVersion.set(

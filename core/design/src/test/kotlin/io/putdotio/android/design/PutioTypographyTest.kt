@@ -1,7 +1,6 @@
 package io.putdotio.android.design
 
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
@@ -23,20 +22,19 @@ class PutioTypographyTest {
 
     @Test
     fun noSlotSetsTextBelowTwelveSp() {
-        val type = putioTypography
-        listOf(
-            type.displayLarge, type.displayMedium, type.displaySmall,
-            type.headlineLarge, type.headlineMedium, type.headlineSmall,
-            type.titleLarge, type.titleMedium, type.titleSmall,
-            type.bodyLarge, type.bodyMedium, type.bodySmall,
-            type.labelLarge, type.labelMedium, type.labelSmall,
-        ).forEach { assertTrue("${it.fontSize}", it.fontSize >= 12.sp) }
+        slots().forEach { assertTrue("${it.fontSize}", it.fontSize >= 12.sp) }
+    }
+
+    @Test
+    fun everySlotSetsGtAmericaForUi() {
+        slots().forEach { assertEquals(PutioFontFamily.gtAmerica, it.fontFamily) }
     }
 
     @Test
     fun monoKeepsItsSizeWithTabularFiguresAndAFloor() {
-        val meta = monoNumbers(TextStyle(fontSize = 13.sp, lineHeight = 18.sp))
-        assertEquals(FontFamily.Monospace, meta.fontFamily)
+        val meta = monoNumbers(TextStyle(fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight(500)))
+        assertEquals(PutioFontFamily.berkeleyMono, meta.fontFamily)
+        assertEquals(FontWeight(400), meta.fontWeight) // DESIGN.md's mono weight, the one face it embeds
         assertEquals("\"tnum\"", meta.fontFeatureSettings)
         assertEquals(13.sp, meta.fontSize)
         assertEquals(12.sp, monoNumbers(TextStyle(fontSize = 11.sp)).fontSize)
@@ -44,8 +42,17 @@ class PutioTypographyTest {
         assertEquals(14.sp, monoNumbers(TextStyle(fontSize = 1.em), inheritedSize = 14.sp).fontSize)
     }
 
+    private fun slots(): List<TextStyle> = with(putioTypography) {
+        listOf(
+            displayLarge, displayMedium, displaySmall,
+            headlineLarge, headlineMedium, headlineSmall,
+            titleLarge, titleMedium, titleSmall,
+            bodyLarge, bodyMedium, bodySmall,
+            labelLarge, labelMedium, labelSmall,
+        )
+    }
+
     private fun assertStyle(style: TextStyle, size: Int, lineHeight: Int, weight: Int) {
-        assertEquals(FontFamily.Default, style.fontFamily)
         assertEquals(size.sp, style.fontSize)
         assertEquals(lineHeight.sp, style.lineHeight)
         assertEquals(FontWeight(weight), style.fontWeight)
