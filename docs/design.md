@@ -31,8 +31,9 @@ put.io colour, type and icons; draw a custom one only where this file says so.
 
 The app generates one `darkColorScheme(...)` at build time from the vendored
 `dist/tokens.dtcg.json` ([design/README.md](../design/README.md)) and applies it
-as the only colour input. No dynamic colour. Material owns pressed, disabled,
-selected and focused states: 8% and 12% `onSurface` layers.
+as the scheme. No dynamic colour. Material owns pressed, disabled, selected and
+focused states per component. Colours with no M3 role, such as green, come from
+the generated `@color/putio_*` tokens, never from hand-written values.
 
 | M3 role                   | put.io token              |
 | ------------------------- | ------------------------- |
@@ -149,8 +150,10 @@ the exception: long-press starts selection with that row selected
 
 A `ModalBottomSheet` titled with the file's icon, name and meta. The three
 common actions are 72dp tiles (Play or Resume, Download, Share); the rest are
-56dp icon rows: Select, Mark as watched, Rename, Move, Exclusive link. Move to
-trash comes last, in red, after a divider.
+56dp icon rows: Select, Mark as watched, Rename, Move, Exclusive link. The
+delete action comes last, in red, after a divider: Move to trash, or Delete
+permanently when the account turns Trash off
+([Files delete and paging](behavior.md#files-delete-and-paging)).
 
 **Select** starts selection mode: the top bar turns `surfaceContainerHigh` with
 close, "_n_ selected", select all and overflow. Checkboxes replace the file
@@ -163,7 +166,8 @@ bar holds Move, Download, Watched and Trash.
   to the extension, so typing keeps `.mkv`.
 - **Destructive confirm:** the title names the count and the action ("Move 3
   items to trash?"); the body names the consequence ("You can restore them from
-  Trash for 14 days."); the confirm is a red filled button.
+  Trash for 14 days."); the confirm is a red filled button. Permanent deletion
+  always confirms; the target also confirms moves to Trash.
 - **Choices** (sort, proxy, video playback): a dialog of radio rows.
 - **Move:** a full-screen picker: close, "Move _n_ items", breadcrumb chips,
   folder rows with chevrons, and a bottom bar with New folder (text) and a
@@ -318,7 +322,12 @@ with **Try again** or **Reset and sign in**.
 - Four tabs: Files, Search (with History inside), Transfers, Account. Downloads
   sits under Account.
 - Search is a tab with an outlined text field; Files has no search bar.
-- Add transfer is a filled button inside the list body, not a FAB.
+- Add transfer is a filled button in a fixed row above the list, not a FAB.
+- Transfers is one list with dividers and progress bars, not sectioned cards
+  that fill with progress.
+- The item actions sheet has rows only, no action tiles; moving to Trash does
+  not confirm.
+- Green has no generated `@color/putio_*` token yet.
 - Watched files show a progress bar and "N% watched".
 - Switches are stock M3 52x32dp in yellow.
 - Settings are two-line rows under yellow subheads.
