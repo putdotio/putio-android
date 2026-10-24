@@ -8,6 +8,7 @@ import io.putdotio.android.downloads.MOBILE_DOWNLOADS_ROUTE
 import io.putdotio.android.sharing.MOBILE_PUBLIC_LINKS_ROUTE
 import io.putdotio.android.trash.MOBILE_TRASH_ROUTE
 
+/** The five tabs, in the order DESIGN.md's Layout fixes. Each keeps its own back stack. */
 internal enum class MobileDestination(
     val route: String,
     @StringRes val labelRes: Int,
@@ -20,17 +21,23 @@ internal enum class MobileDestination(
         icon = R.drawable.ic_ph_folder,
         selectedIcon = DesignR.drawable.ic_ph_folder_fill,
     ),
-    Search(
-        route = "search",
-        labelRes = R.string.mobile_destination_search,
-        icon = R.drawable.ic_ph_magnifying_glass,
-        selectedIcon = R.drawable.ic_ph_magnifying_glass_fill,
+    History(
+        route = "history",
+        labelRes = R.string.mobile_destination_history,
+        icon = R.drawable.ic_ph_clock_counter_clockwise,
+        selectedIcon = R.drawable.ic_ph_clock_counter_clockwise_fill,
     ),
     Transfers(
         route = "transfers",
         labelRes = R.string.mobile_destination_transfers,
-        icon = R.drawable.ic_ph_arrow_circle_down,
-        selectedIcon = R.drawable.ic_ph_arrow_circle_down_fill,
+        icon = R.drawable.ic_ph_cloud_arrow_down,
+        selectedIcon = R.drawable.ic_ph_cloud_arrow_down_fill,
+    ),
+    Downloads(
+        route = MOBILE_DOWNLOADS_ROUTE,
+        labelRes = R.string.mobile_destination_downloads,
+        icon = R.drawable.ic_ph_download_simple,
+        selectedIcon = R.drawable.ic_ph_download_simple_fill,
     ),
     Account(
         route = "account",
@@ -43,15 +50,16 @@ internal enum class MobileDestination(
     companion object {
         private val ACCOUNT_SUBPAGES = setOf(
             MOBILE_TRASH_ROUTE,
-            MOBILE_DOWNLOADS_ROUTE,
             MOBILE_PUBLIC_LINKS_ROUTE,
             MOBILE_PRIVACY_CONTROLS_ROUTE,
         )
 
         val start: MobileDestination = Files
 
-        fun fromRoute(route: String?): MobileDestination =
-            if (route in ACCOUNT_SUBPAGES) Account
-            else entries.firstOrNull { it.route == route } ?: start
+        /** The tab a route belongs to; null for playback, which plays over whichever tab opened it. */
+        fun ofRoute(route: String?): MobileDestination? =
+            if (route in ACCOUNT_SUBPAGES) Account else entries.firstOrNull { it.route == route }
+
+        fun fromRoute(route: String?): MobileDestination = ofRoute(route) ?: start
     }
 }

@@ -134,7 +134,7 @@ internal fun MobileTransferDropOverlay(over: Boolean) {
             modifier = Modifier.padding(24.dp),
         ) {
             Icon(
-                painter = painterResource(R.drawable.ic_ph_arrow_circle_down_fill),
+                painter = painterResource(R.drawable.ic_ph_cloud_arrow_down_fill),
                 contentDescription = null,
                 tint = accent,
                 modifier = Modifier.size(48.dp),

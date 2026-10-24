@@ -14,6 +14,7 @@ import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
@@ -50,7 +51,6 @@ import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
 import io.putdotio.android.playback.PlaybackResolution
 import io.putdotio.android.playback.PlaybackTarget
-import io.putdotio.android.search.MOBILE_SEARCH_FIELD_TAG
 import io.putdotio.android.settings.readyAccountSettingsState
 import io.putdotio.android.settings.readyAndroidAppConfigState
 import io.putdotio.android.transfers.MOBILE_TRANSFER_ADD_FIELD_TAG
@@ -116,11 +116,11 @@ class MobileLargeTextNavigationTest : NavigationShellFixture(2f) {
     }
 
     @Test
-    fun backWhileTheDrawerOpensKeepsTheSelectedSearchDestination() {
+    fun backWhileTheDrawerOpensKeepsTheSelectedHistoryDestination() {
         mount()
         compose.onNodeWithTag(MOBILE_NAV_MENU_TAG).performClick()
-        selectDrawerDestination("Search")
-        compose.onNodeWithTag(MOBILE_SEARCH_FIELD_TAG).assertIsDisplayed()
+        selectDrawerDestination("History")
+        compose.onNodeWithTag(MOBILE_TAB_TITLE_TAG).assertTextEquals("History")
         compose.mainClock.autoAdvance = false
         compose.onNodeWithTag(MOBILE_NAV_MENU_TAG).performClick()
         compose.mainClock.advanceTimeBy(32L)
@@ -130,7 +130,7 @@ class MobileLargeTextNavigationTest : NavigationShellFixture(2f) {
         compose.mainClock.autoAdvance = true
         compose.waitForIdle()
         compose.onNodeWithTag(MOBILE_NAV_DRAWER_TAG).assertIsNotDisplayed()
-        compose.onNodeWithTag(MOBILE_SEARCH_FIELD_TAG).assertIsDisplayed()
+        compose.onNodeWithTag(MOBILE_TAB_TITLE_TAG).assertTextEquals("History")
     }
 
     @Test
@@ -162,7 +162,7 @@ class MobileLargeTextNavigationTest : NavigationShellFixture(2f) {
 
     private fun assertDrawerLabels() {
         compose.onNodeWithTag(MOBILE_NAV_MENU_TAG).performClick()
-        listOf("Files", "Search", "Transfers", "Account").forEach { label ->
+        listOf("Files", "History", "Transfers", "Downloads", "Account").forEach { label ->
             val layouts = mutableListOf<TextLayoutResult>()
             drawerDestination(label).performScrollTo().assertIsDisplayed()
                 .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
@@ -231,7 +231,7 @@ class MobileOrdinaryNavigationTest : NavigationShellFixture(1f) {
     }
 
     private fun assertNavigationLabels(tag: String) {
-        listOf("Files", "Search", "Transfers", "Account").forEach { label ->
+        listOf("Files", "History", "Transfers", "Downloads", "Account").forEach { label ->
             val layouts = mutableListOf<TextLayoutResult>()
             compose.onNode(hasText(label) and hasAnyAncestor(hasTestTag(tag))).assertIsDisplayed()
                 .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }

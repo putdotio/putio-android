@@ -29,7 +29,8 @@ import io.putdotio.android.history.HistoryItem
 import io.putdotio.android.history.HistoryNoticeType
 import io.putdotio.android.history.HistoryPaging
 import io.putdotio.android.history.historyState
-import io.putdotio.android.search.MobileSearchHistoryScreen
+import io.putdotio.android.search.MobileHistoryScreen
+import io.putdotio.android.search.MobileSearchScreen
 import io.putdotio.android.search.RecentSearchEdit
 import io.putdotio.android.search.SearchContent
 import io.putdotio.android.search.SearchTerm
@@ -49,7 +50,7 @@ import org.robolectric.annotation.GraphicsMode
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [35], qualifiers = "en-rUS-w360dp-h640dp-port")
-class MobileSearchHistoryLayoutTest {
+class MobileSearchScreensLayoutTest {
     private val compose = createComposeRule()
     @get:Rule val rules: RuleChain = RuleChain.outerRule(object : ExternalResource() {
         override fun before() { RuntimeEnvironment.setFontScale(2f) }
@@ -88,7 +89,6 @@ class MobileSearchHistoryLayoutTest {
             history = HistoryEventKind.Transfer(null, HistoryFileId(7), HISTORY_NAME),
             actions = MobileSearchHistoryActions(onHistoryEvent = events::add),
         )
-        compose.onNodeWithText("History").performClick()
         val name = compose.onNodeWithText(HISTORY_NAME, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
         val metadata = compose.onNodeWithText("Completed transfer", substring = true, useUnmergedTree = true)
             .fetchSemanticsNode().boundsInRoot
@@ -108,7 +108,6 @@ class MobileSearchHistoryLayoutTest {
     @Test
     fun nonNavigableHistoryRetainsMetadataWithoutInventingAnOpenAction() {
         setScreen(history = HistoryEventKind.Notice(HistoryNoticeType.Upload, HISTORY_NAME))
-        compose.onNodeWithText("History").performClick()
         compose.onNodeWithText(HISTORY_NAME).assertIsDisplayed().assertHasNoClickAction()
         compose.onAllNodesWithText("Open file").assertCountEquals(0)
     }
@@ -154,15 +153,17 @@ class MobileSearchHistoryLayoutTest {
         compose.setContent {
             PutioTheme {
                 Box(Modifier.fillMaxSize().testTag(VIEWPORT)) {
-                    MobileSearchHistoryScreen(
-                        searchState = searchState("", SearchContent.Idle, listOf(SearchTerm(TERM)), 1),
-                        historyState = historyState,
-                        recentSearchFailure = recentFailure,
-                        onSearchQueryChanged = {}, onSearchSubmit = {}, onSearchResult = actions.onResult,
-                        onSearchNextPage = {}, onSearchRetry = {}, onRecentSearch = actions.onRecentSearch,
-                        onRecentEdit = actions.onRecentEdit, onRecentRetry = actions.onRecentRetry,
-                        onHistoryEvent = actions.onHistoryEvent,
-                    )
+                    if (history != null) {
+                        MobileHistoryScreen(historyState = historyState, onHistoryEvent = actions.onHistoryEvent)
+                    } else {
+                        MobileSearchScreen(
+                            searchState = searchState("", SearchContent.Idle, listOf(SearchTerm(TERM)), 1),
+                            recentSearchFailure = recentFailure,
+                            onSearchQueryChanged = {}, onSearchSubmit = {}, onSearchResult = actions.onResult,
+                            onSearchNextPage = {}, onSearchRetry = {}, onRecentSearch = actions.onRecentSearch,
+                            onRecentEdit = actions.onRecentEdit, onRecentRetry = actions.onRecentRetry,
+                        )
+                    }
                 }
             }
         }

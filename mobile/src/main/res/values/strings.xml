@@ -62,8 +62,9 @@
     <string name="mobile_navigation_menu">Menu</string>
     <string name="mobile_navigation_close">Close navigation</string>
     <string name="mobile_destination_files">Files</string>
-    <string name="mobile_destination_search">Search</string>
+    <string name="mobile_destination_history">History</string>
     <string name="mobile_destination_transfers">Transfers</string>
+    <string name="mobile_destination_downloads">Downloads</string>
     <string name="mobile_destination_account">Account</string>
     <string name="mobile_state_loading">Loading</string>
     <string name="mobile_state_empty_title">Nothing here yet</string>
@@ -250,8 +251,7 @@
     <string name="mobile_auth_cancel">Cancel</string>
     <string name="mobile_auth_unavailable_title">Couldn’t check your session</string>
     <string name="mobile_auth_unavailable_message">Your sign-in is still saved. Check your connection and try again.</string>
-    <string name="mobile_search_tab">Search</string>
-    <string name="mobile_history_tab">History</string>
+    <string name="mobile_search_title">Search</string>
     <string name="mobile_search_label">Search files</string>
     <string name="mobile_search_placeholder">Name or keyword</string>
     <string name="mobile_search_loading">Searching</string>
@@ -359,12 +359,12 @@
     <string name="mobile_transfer_download_direction">Download</string>
     <string name="mobile_transfer_upload_direction">Upload</string>
     <string name="mobile_transfer_speed">%1$s/s</string>
+    <string name="mobile_transfers_summary_active">%1$s active</string>
+    <string name="mobile_transfers_summary_failed">%1$s failed</string>
     <string name="mobile_transfer_eta">%1$s remaining</string>
     <string name="mobile_transfer_availability">%1$s available</string>
-    <string name="mobile_downloads_manage">Downloads</string>
-    <string name="mobile_downloads_manage_description">Files saved to this device for offline playback</string>
-    <string name="mobile_downloads_title">Downloads</string>
     <string name="mobile_downloads_storage">%1$s on this device</string>
+    <string name="mobile_downloads_free">%1$s free</string>
     <string name="mobile_downloads_hint">Downloads stay in the app and play without a connection.</string>
     <string name="mobile_downloads_empty_title">Nothing downloaded yet</string>
     <string name="mobile_downloads_empty_message">Open a video or audio file’s actions and choose Download to this device.</string>

@@ -87,6 +87,7 @@ import io.putdotio.android.MobileShortcutScope
 import io.putdotio.android.MobileUnhandledKeyEffect
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
+import io.putdotio.android.playbackContainer
 import io.putdotio.android.apiReason
 import io.putdotio.android.design.FileTypeIcon
 import io.putdotio.android.design.PutioDesignTokens
@@ -877,6 +878,8 @@ internal fun MobileFilesRow(
             )
         },
         modifier = modifier
+            // A playable row is the player's starting bounds.
+            .playbackContainer(item.id.value, playable = item.isPlayable)
             .fillMaxWidth()
             .onFocusChanged { focused = it.isFocused }
             .focusOutline(focused, outline)

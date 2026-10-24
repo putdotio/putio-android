@@ -60,6 +60,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleStartEffect
 import io.putdotio.android.MobileEmptyState
 import io.putdotio.android.R
+import io.putdotio.android.playbackContainer
 import io.putdotio.android.design.FileTypeIcon
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioDestructiveButton
@@ -68,7 +69,7 @@ import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPlaybackProgress
 import kotlin.math.roundToInt
 
-internal const val MOBILE_DOWNLOADS_ROUTE = "account/downloads"
+internal const val MOBILE_DOWNLOADS_ROUTE = "downloads"
 internal const val MOBILE_DOWNLOADS_LIST_TAG = "mobile-downloads-list"
 internal const val MOBILE_DOWNLOADS_ITEM_SHEET_TAG = "mobile-downloads-item-sheet"
 internal const val MOBILE_DOWNLOADS_REMOVE_CONFIRM_TAG = "mobile-downloads-remove-confirm"
@@ -124,7 +125,7 @@ internal fun MobileDownloadsScreen(
     LazyColumn(modifier.fillMaxSize().testTag(MOBILE_DOWNLOADS_LIST_TAG)) {
         if (!inSelection) {
             item(key = "summary") {
-                DownloadsSummary(state, canSelect = selectable.isNotEmpty()) { selecting = true }
+                DownloadsSummary(canSelect = selectable.isNotEmpty()) { selecting = true }
             }
         } else {
             stickyHeader(key = "selection") {
@@ -259,21 +260,16 @@ private fun LazyListScope.section(
     }
 }
 
+/** Storage sits in the tab title's summary; this line explains the tab and offers selection. */
 @Composable
-private fun DownloadsSummary(state: DownloadsState, canSelect: Boolean, onSelect: () -> Unit) {
-    val context = LocalContext.current
+private fun DownloadsSummary(canSelect: Boolean, onSelect: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.Top) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(stringResource(
-                R.string.mobile_downloads_storage,
-                Formatter.formatShortFileSize(context, state.storageBytes),
-            ))
-            Text(
-                stringResource(R.string.mobile_downloads_hint),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+        Text(
+            stringResource(R.string.mobile_downloads_hint),
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         if (canSelect) {
             TextButton(onClick = onSelect, modifier = Modifier.testTag(MOBILE_DOWNLOADS_SELECT_TAG)) {
                 Text(stringResource(R.string.mobile_downloads_select))
@@ -366,7 +362,9 @@ private fun MobileDownloadRow(
         } else {
             null
         },
-        modifier = Modifier.fillMaxWidth().downloadRowInteraction(
+        // A completed copy plays from its row, so the row is the player's starting bounds.
+        modifier = Modifier.playbackContainer(entry.fileId.value, playable = entry.isCompleted)
+            .fillMaxWidth().downloadRowInteraction(
             selected = selected,
             onOpen = onOpen,
             onSelect = onSelect,

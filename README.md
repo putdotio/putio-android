@@ -15,6 +15,9 @@ Mobile, on the emulator harness against the live API:
 
 - OAuth sign-in through an Auth Tab, with the session in Android secure storage
 - put.io's type: GT America for text, Berkeley Mono for the player's times
+- Five tabs (Files, History, Transfers, Downloads, Account) on a navigation bar,
+  a rail from 600 dp, or a drawer at large font sizes; each tab keeps its own
+  back stack, Back previews every pop, and Search opens over Files
 - Files: browse, paginate, sort per folder, rename, move, trash, delete, copy
   items shared with you, and watched progress on media rows
 - Trash: browse, restore one or all, delete permanently, empty
@@ -39,7 +42,7 @@ Mobile, on the emulator harness against the live API:
   strictly-necessary storage disclosure and the privacy policy links
 - About section with copyable app, Android, device, and player info
 - Downloads: video saves the HLS rendition it streams (without subtitles for
-  accounts that hide them), audio the original. Downloads under Account shows
+  accounts that hide them), audio the original. The Downloads tab shows
   the queue with each row's place, a 1–4 concurrency limit, paused, failed and
   missing rows with retry, storage used, and multi-select delete of local
   copies. Finished and failed downloads notify with Play or Try again, acting

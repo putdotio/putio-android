@@ -92,7 +92,6 @@ import io.putdotio.android.settings.apiReason
 import io.putdotio.android.settings.putioFailure
 
 internal const val MOBILE_ACCOUNT_LIST_TAG = "mobile-account-list"
-internal const val MOBILE_MANAGE_DOWNLOADS_TAG = "mobile-manage-downloads"
 internal const val MOBILE_MANAGE_PUBLIC_LINKS_TAG = "mobile-manage-public-links"
 internal const val MOBILE_ACCOUNT_AVATAR_FALLBACK_TAG = "mobile-account-avatar-fallback"
 internal const val MOBILE_ACCOUNT_STORAGE_PROGRESS_TAG = "mobile-account-storage-progress"
@@ -110,7 +109,6 @@ internal fun MobileAccountScreen(
     onSignOut: () -> Unit,
     modifier: Modifier = Modifier,
     onManageTrash: () -> Unit = {},
-    onManageDownloads: (() -> Unit)? = null,
     onManagePublicLinks: (() -> Unit)? = null,
     onPrivacyControls: () -> Unit = {},
     loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>> = {
@@ -140,7 +138,7 @@ internal fun MobileAccountScreen(
         item(key = ACCOUNT_IDENTITY_DIVIDER_KEY) {
             HorizontalDivider()
         }
-        manageItems(onManageDownloads, onManagePublicLinks, onManageTrash)
+        manageItems(onManagePublicLinks, onManageTrash)
         when (val content = settingsState.content) {
             is AccountSettingsContent.Loading ->
                 item(key = SETTINGS_LOADING_KEY) {

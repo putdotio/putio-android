@@ -23,18 +23,12 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -76,10 +70,10 @@ internal const val MOBILE_SEARCH_FIELD_TAG = "mobile-search-field"
 internal const val MOBILE_SEARCH_RESULTS_TAG = "mobile-search-results"
 internal const val MOBILE_HISTORY_LIST_TAG = "mobile-history-list"
 
+/** Search, which opens over Files from its top bar, Ctrl+F or a link. */
 @Composable
-internal fun MobileSearchHistoryScreen(
+internal fun MobileSearchScreen(
     searchState: SearchState,
-    historyState: HistoryState,
     recentSearchFailure: PutioFailure?,
     onSearchQueryChanged: (String) -> Unit,
     onSearchSubmit: () -> Unit,
@@ -89,51 +83,35 @@ internal fun MobileSearchHistoryScreen(
     onRecentSearch: (SearchTerm) -> Unit,
     onRecentEdit: (RecentSearchEdit) -> Unit,
     onRecentRetry: () -> Unit,
-    onHistoryEvent: (HistoryEvent) -> Unit,
     modifier: Modifier = Modifier,
     focusSearch: Boolean = false,
     onSearchFocused: () -> Unit = {},
 ) {
-    var selectedTab by rememberSaveable { mutableIntStateOf(SEARCH_TAB) }
-    // Ctrl+F lands on the Search tab even when History was open.
-    LaunchedEffect(focusSearch) { if (focusSearch) selectedTab = SEARCH_TAB }
-    Column(modifier = modifier.fillMaxSize()) {
-        PrimaryTabRow(selectedTabIndex = selectedTab) {
-            Tab(
-                selected = selectedTab == SEARCH_TAB,
-                onClick = { selectedTab = SEARCH_TAB },
-                text = { Text(stringResource(R.string.mobile_search_tab)) },
-            )
-            Tab(
-                selected = selectedTab == HISTORY_TAB,
-                onClick = { selectedTab = HISTORY_TAB },
-                text = { Text(stringResource(R.string.mobile_history_tab)) },
-            )
-        }
-        if (selectedTab == SEARCH_TAB) {
-            MobileSearchContent(
-                state = searchState,
-                onQueryChanged = onSearchQueryChanged,
-                onSubmit = onSearchSubmit,
-                onResult = onSearchResult,
-                onNextPage = onSearchNextPage,
-                onRetry = onSearchRetry,
-                onRecentSearch = onRecentSearch,
-                onRecentEdit = onRecentEdit,
-                recentSearchFailure = recentSearchFailure,
-                onRecentRetry = onRecentRetry,
-                modifier = Modifier.weight(1f),
-                focusField = focusSearch,
-                onFieldFocused = onSearchFocused,
-            )
-        } else {
-            MobileHistoryContent(
-                state = historyState,
-                onEvent = onHistoryEvent,
-                modifier = Modifier.weight(1f),
-            )
-        }
-    }
+    MobileSearchContent(
+        state = searchState,
+        onQueryChanged = onSearchQueryChanged,
+        onSubmit = onSearchSubmit,
+        onResult = onSearchResult,
+        onNextPage = onSearchNextPage,
+        onRetry = onSearchRetry,
+        onRecentSearch = onRecentSearch,
+        onRecentEdit = onRecentEdit,
+        recentSearchFailure = recentSearchFailure,
+        onRecentRetry = onRecentRetry,
+        modifier = modifier.fillMaxSize(),
+        focusField = focusSearch,
+        onFieldFocused = onSearchFocused,
+    )
+}
+
+/** The History tab. */
+@Composable
+internal fun MobileHistoryScreen(
+    historyState: HistoryState,
+    onHistoryEvent: (HistoryEvent) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    MobileHistoryContent(state = historyState, onEvent = onHistoryEvent, modifier = modifier.fillMaxSize())
 }
 
 @Composable
@@ -643,5 +621,3 @@ private fun HistoryEventKind.navigableFileId(): HistoryFileId? =
         is HistoryEventKind.Notice, is HistoryEventKind.Other -> null
     }
 
-private const val SEARCH_TAB = 0
-private const val HISTORY_TAB = 1

@@ -93,16 +93,16 @@ class MobileMultiWindowTest {
         restoration.setContent { Shell(width) }
 
         compose.onNodeWithTag(MOBILE_NAV_BAR_TAG).assertExists()
-        compose.onNode(hasText("Search") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))).performClick()
+        compose.onNode(hasText("History") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))).performClick()
 
         compose.runOnIdle { width = 900.dp }
-        compose.onNode(hasText("Search") and hasAnyAncestor(hasTestTag(MOBILE_NAV_RAIL_TAG))).assertIsSelected()
+        compose.onNode(hasText("History") and hasAnyAncestor(hasTestTag(MOBILE_NAV_RAIL_TAG))).assertIsSelected()
 
         restoration.emulateSavedInstanceStateRestore()
-        compose.onNode(hasText("Search") and hasAnyAncestor(hasTestTag(MOBILE_NAV_RAIL_TAG))).assertIsSelected()
+        compose.onNode(hasText("History") and hasAnyAncestor(hasTestTag(MOBILE_NAV_RAIL_TAG))).assertIsSelected()
 
         compose.runOnIdle { width = 360.dp }
-        compose.onNode(hasText("Search") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))).assertIsSelected()
+        compose.onNode(hasText("History") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))).assertIsSelected()
     }
 
     @androidx.compose.runtime.Composable

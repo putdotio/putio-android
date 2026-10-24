@@ -16,6 +16,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDrawerState
@@ -55,16 +56,18 @@ internal fun mobileNavigationLayout(width: Dp, height: Dp): MobileNavigationLayo
     }
     val widest = with(density) { labels.maxOf { it.width }.toDp() }
     val tallest = with(density) { labels.maxOf { it.height }.toDp() }
-    // Reserve the stock components' icon, label spacing and horizontal padding.
+    // Reserve the stock components' icon, label spacing and padding. A bar item grows to an equal
+    // share of the bar and its label may fill it; a label on the 96dp rail takes its width less the
+    // item padding.
     return if (width >= 600.dp) {
         val railHeight = (24.dp + 12.dp + tallest + 24.dp) * MobileDestination.entries.size + 16.dp
-        if (widest <= 64.dp && availableHeight >= railHeight) {
+        if (widest <= 80.dp && availableHeight >= railHeight) {
             MobileNavigationLayout.Rail
         } else {
             MobileNavigationLayout.Modal
         }
     } else {
-        val labelWidth = availableWidth / MobileDestination.entries.size - 24.dp
+        val labelWidth = availableWidth / MobileDestination.entries.size
         val minimumViewport = 64.dp + (24.dp + tallest + 32.dp) * 3
         if (widest <= labelWidth && availableHeight >= minimumViewport) {
             MobileNavigationLayout.Bar
@@ -114,6 +117,12 @@ internal fun MobileNavigationContainer(
                                 )
                             },
                             label = { Text(stringResource(destination.labelRes)) },
+                            // Yellow marks only the selected glyph, as in the bar and the rail.
+                            colors = NavigationDrawerItemDefaults.colors(
+                                selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                                unselectedTextColor = MaterialTheme.colorScheme.onSurface,
+                                unselectedIconColor = MaterialTheme.colorScheme.onSurface,
+                            ),
                         )
                     }
                 }

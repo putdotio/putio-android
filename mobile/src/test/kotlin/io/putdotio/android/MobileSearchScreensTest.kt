@@ -43,12 +43,13 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import io.putdotio.android.search.MOBILE_HISTORY_LIST_TAG
 import io.putdotio.android.search.MOBILE_SEARCH_RESULTS_TAG
-import io.putdotio.android.search.MobileSearchHistoryScreen
+import io.putdotio.android.search.MobileHistoryScreen
+import io.putdotio.android.search.MobileSearchScreen
 
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [35], qualifiers = "en-rUS")
-class MobileSearchHistoryScreenTest {
+class MobileSearchScreensTest {
     @get:Rule
     val compose = createComposeRule()
 
@@ -124,12 +125,11 @@ class MobileSearchHistoryScreenTest {
                 HistoryEventKind.File(HistoryFileId(it), "Sample $it"),
             )
         }
-        setScreen(
+        setHistoryScreen(
             history = historyState(HistoryContent.Ready(items, HistoryPaging.Available(HistoryEventId(60L)))),
             actions = MobileSearchHistoryActions(onHistoryEvent = events::add),
         )
 
-        compose.onNodeWithText("History").performClick()
         compose.runOnIdle { assertEquals(emptyList<HistoryEvent>(), events) }
         compose.onNodeWithTag(MOBILE_HISTORY_LIST_TAG).performScrollToIndex(45)
         compose.runOnIdle { assertEquals(listOf<HistoryEvent>(HistoryEvent.LoadNextPage), events) }
@@ -153,9 +153,8 @@ class MobileSearchHistoryScreenTest {
                     ),
                 clearing = HistoryClearing.AwaitingConfirmation,
             )
-        setScreen(history = history, actions = MobileSearchHistoryActions(onHistoryEvent = events::add))
+        setHistoryScreen(history = history, actions = MobileSearchHistoryActions(onHistoryEvent = events::add))
 
-        compose.onNodeWithText("History").performClick()
         compose.onNodeWithText("movie.mkv").assertIsDisplayed()
         compose.onNodeWithText("Clear history?").assertIsDisplayed()
         compose.onNodeWithText("Clear").performClick()
@@ -187,9 +186,8 @@ class MobileSearchHistoryScreenTest {
                             HistoryPaging.Complete,
                         ),
                 )
-            setScreen(history = history)
+            setHistoryScreen(history = history)
 
-            compose.onNodeWithText("History").performClick()
             compose.onAllNodesWithText("2026-09-09").assertCountEquals(1)
             compose.onAllNodesWithText("2026-09-09T", substring = true).assertCountEquals(0)
             compose.onNodeWithText("3:25", substring = true).assertIsDisplayed()
@@ -215,9 +213,8 @@ class MobileSearchHistoryScreenTest {
             val items = kinds.mapIndexed { index, kind ->
                 HistoryItem(HistoryEventId(index + 1L), "2026-09-09T15:25:32", kind)
             }
-            setScreen(history = historyState(HistoryContent.Ready(items, HistoryPaging.Complete)))
+            setHistoryScreen(history = historyState(HistoryContent.Ready(items, HistoryPaging.Complete)))
 
-            compose.onNodeWithText("History").performClick()
             // iOS details these rows with their time alone; only shared files and transfers name a kind.
             compose.onAllNodesWithText(" · ", substring = true).assertCountEquals(0)
             listOf(
@@ -245,9 +242,8 @@ class MobileSearchHistoryScreenTest {
             HistoryEventKind.File(id = null, name = null),
             HistoryEventKind.Transfer(transferId = null, fileId = null, name = null),
         ).mapIndexed { index, kind -> HistoryItem(HistoryEventId(index + 1L), "2026-09-09T15:25:32", kind) }
-        setScreen(history = historyState(HistoryContent.Ready(items, HistoryPaging.Complete)))
+        setHistoryScreen(history = historyState(HistoryContent.Ready(items, HistoryPaging.Complete)))
 
-        compose.onNodeWithText("History").performClick()
         compose.onAllNodesWithText("No title").assertCountEquals(2)
         compose.onNodeWithText("Shared file · ", substring = true).assertIsDisplayed()
         compose.onNodeWithText("Completed transfer · ", substring = true).assertIsDisplayed()
@@ -255,22 +251,30 @@ class MobileSearchHistoryScreenTest {
 
     @Test
     fun disabledHistoryPointsAtTheAccountToggle() {
-        setScreen(history = historyState(HistoryContent.Disabled))
+        setHistoryScreen(history = historyState(HistoryContent.Disabled))
 
-        compose.onNodeWithText("History").performClick()
         compose.onNodeWithText("Turn on “Keep account history” in Account to see activity here.").assertIsDisplayed()
     }
 
-    private fun setScreen(
-        search: SearchState = searchState(SearchContent.Idle),
-        history: HistoryState = historyState(HistoryContent.Disabled),
+    private fun setHistoryScreen(
+        history: HistoryState,
         actions: MobileSearchHistoryActions = MobileSearchHistoryActions(),
     ) {
         compose.setContent {
             PutioTheme {
-                MobileSearchHistoryScreen(
+                MobileHistoryScreen(historyState = history, onHistoryEvent = actions.onHistoryEvent)
+            }
+        }
+    }
+
+    private fun setScreen(
+        search: SearchState = searchState(SearchContent.Idle),
+        actions: MobileSearchHistoryActions = MobileSearchHistoryActions(),
+    ) {
+        compose.setContent {
+            PutioTheme {
+                MobileSearchScreen(
                     searchState = search,
-                    historyState = history,
                     recentSearchFailure = null,
                     onSearchQueryChanged = {},
                     onSearchSubmit = {},
@@ -280,7 +284,6 @@ class MobileSearchHistoryScreenTest {
                     onRecentSearch = actions.onRecentSearch,
                     onRecentEdit = actions.onRecentEdit,
                     onRecentRetry = actions.onRecentRetry,
-                    onHistoryEvent = actions.onHistoryEvent,
                 )
             }
         }

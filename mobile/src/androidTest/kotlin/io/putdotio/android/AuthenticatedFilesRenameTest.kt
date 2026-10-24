@@ -112,8 +112,7 @@ class AuthenticatedFilesRenameTest {
     }
 
     private fun openContainer(fixture: RenameProofFixture) {
-        val searchLabel = compose.activity.getString(R.string.mobile_destination_search)
-        compose.onNodeWithText(searchLabel).performClick()
+        compose.onNodeWithTag(MOBILE_FILES_SEARCH_TAG).performClick()
         waitFor(hasTestTag(MOBILE_SEARCH_FIELD_TAG))
         compose.onNodeWithTag(MOBILE_SEARCH_FIELD_TAG)
             .performTextReplacement(fixture.containerName)

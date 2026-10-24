@@ -161,9 +161,10 @@ class MobileShellAccessibilityProofTest {
             checkNowPlaying(player)
             capture("files")
             checkDrawerAndBack()
-            navigate("Search")
+            compose.onNodeWithTag(MOBILE_FILES_SEARCH_TAG).performClick()
             compose.onNodeWithTag(MOBILE_SEARCH_FIELD_TAG).assertIsDisplayed()
             capture("search")
+            backOwner.onBackPressedDispatcher.let { dispatcher -> compose.runOnIdle { dispatcher.onBackPressed() } }
             navigate("Transfers")
             checkTransfers(events)
             navigate("Files")
@@ -192,7 +193,7 @@ class MobileShellAccessibilityProofTest {
         proofStage = "drawer-back"
         compose.onNodeWithTag(MOBILE_NAV_MENU_TAG).performClick()
         capture("drawer")
-        listOf("Files", "Search", "Transfers", "Account").forEach { label ->
+        listOf("Files", "History", "Transfers", "Downloads", "Account").forEach { label ->
             val layouts = mutableListOf<TextLayoutResult>()
             drawerDestination(label).performScrollTo().assertIsDisplayed()
                 .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }

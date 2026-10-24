@@ -301,8 +301,9 @@ America, where mono would fit fewer characters on the line.
 ## Layout
 
 Five destinations: **Files, History, Transfers, Downloads, Account**, in that
-order. `NavigationSuiteScaffold` with an explicit layout type: a navigation bar
-below 600dp width and a navigation rail from 600dp, following the window
+order. `NavigationSuiteScaffold`'s layout and suite with an explicit layout type:
+a navigation bar below 600dp width and the collapsed wide navigation rail from
+600dp, following the window
 ([Multi-window](docs/behavior.md#multi-window)). When five destinations don't
 fit, in short windows or at large font scales, a scrollable drawer takes over,
 as today. The selected item uses the stock indicator with a filled Phosphor
@@ -515,14 +516,19 @@ Don't translate iOS:
 
 ## Motion
 
-Material motion through `MaterialTheme.motionScheme` springs:
+Material motion through the standard motion scheme's springs. Material 3 1.4
+keeps `MotionScheme` internal, so the app repeats its spring values until the
+scheme is public.
 
-- Between tabs: fade through.
-- Folder push and pop: shared axis X.
+- Between tabs: fade through, in Material's two timed phases: the old tab
+  fades out in 90ms, then the new one fades and scales in over 210ms.
+- Within a tab (folder push and pop, Search over Files, Account's subpages):
+  shared axis X.
 - File row to player: container transform.
 - Sheets, dialogs and menus: Material's own enter and exit.
-- Predictive back previews every pop. Reduced motion turns transitions into
-  fades.
+- Predictive back previews every pop: a route shows the screen beneath it, and
+  a folder or Search shrinks toward the gesture's edge. Reduced motion turns
+  transitions into fades.
 
 ## Transfers
 
@@ -720,9 +726,8 @@ opens put.io OAuth in the browser.
 
 3.0.0 still differs from this contract:
 
-- Four tabs: Files, Search (with History inside), Transfers, Account. Downloads
-  sits under Account.
-- Search is a tab with an outlined text field; Files has no search bar.
+- Search opens over Files from a top-bar button, with an outlined text field;
+  Files has no search bar.
 - Add transfer is a filled button in a fixed row above the list, not a FAB.
 - Transfers is one list with progress bars, not sectioned cards that fill with
   progress.
@@ -735,7 +740,6 @@ opens put.io OAuth in the browser.
 - Rename does not preselect the name up to the extension.
 - Empty states keep 3.0.0's words and offer no action. Offline has no state of
   its own, so `(x_x)` never shows.
-- Folder and player Back use plain `BackHandler`, with no predictive preview.
 - Search has no type chips; results are one flat list.
 - Add transfer checks the whole field at once: one bad link rejects it with a
   single message, and the button always reads Add.
@@ -748,9 +752,8 @@ opens put.io OAuth in the browser.
 - Played files show a progress bar and "N% watched" when the duration is known,
   and a plain "Watched" label otherwise.
 - Settings are two-line rows under yellow subheads.
-- Only the player's timestamps set numbers in mono; sizes, speeds and counts
-  elsewhere use the UI face.
-- Navigation crossfades; no shared-axis or container transforms.
+- Only the player's timestamps and the tab-title summaries set numbers in
+  mono; sizes, speeds and counts elsewhere use the UI face.
 - The mini player (`MobileNowPlayingBar`) and Downloads selection exist in other
   forms; Files has no selection mode, and there is no offline banner or tablet
   list-detail.

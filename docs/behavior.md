@@ -279,7 +279,7 @@ loading to Retry.
 
 Tests: `FilesDeleteReducerTest`, `SdkFilesDeleteRepositoryTest`,
 `MobileFilesDeleteTest`, `MobileFilesListTest`,
-`MobileSearchHistoryScreenTest`, `MobileFilesMoveTest`, `TvFilesScreenTest`,
+`MobileSearchScreensTest`, `MobileFilesMoveTest`, `TvFilesScreenTest`,
 `TvFilesPagingTest`, `TvFilesRowActionsTest`.
 
 ## Trash
@@ -779,6 +779,45 @@ Tests: `MobileDocumentsProviderTest`, `OfflineOriginalsTest`,
 (opt-in synthetic device proof; see
 [Harness](./harness.md#documents-provider-proof)).
 
+## Navigation
+
+Mobile only; TV keeps its drawer ([TV Back](#tv-back)). Five tabs, in order:
+Files, History, Transfers, Downloads, Account. A window narrower than 600 dp
+gets a navigation bar and a wider one the rail, from the window's size
+([Multi-window](#multi-window)). When a label would not fit its share of the
+bar or the rail, at a large font scale or in a short window, the tabs move into
+a scrollable modal drawer that a Menu button in the top bar opens.
+
+Each tab keeps its own back stack: leaving Account on Trash and coming back
+returns to Trash. Back pops within the tab, then returns to Files, then leaves
+the app; nothing takes Back at the Files root. Files keeps its folders and
+Search in its own state rather than in the back stack, so they survive a tab
+switch too. Search opens over Files from the top bar's search button, Ctrl+F or
+a link, and stays open until Back, the top bar's back or a Files link closes
+it; it keeps its results and scroll while a folder it opened is on screen. Back
+closes Search before it leaves a folder.
+
+History, Transfers, Downloads and Account open on a tab title. Transfers' summary
+counts, over the transfers loaded so far, the active ones (preparing,
+downloading or completing; queued ones wait) and the failed ones, and adds the
+active ones' download speed; Downloads' gives the space finished downloads use and what the app's
+storage volume has free. Numbers in a summary set in mono, and a part with
+nothing to say is left out.
+
+Motion follows [Design](../DESIGN.md#motion): tabs fade through, a push within
+a tab moves along the shared axis, and the player grows out of the row that
+opened it. Every Back gesture previews its pop: a route shows the screen
+beneath, and a folder or Search shrinks toward the gesture's edge. A Back from
+a key or button acts at once. With animations off in the system settings, each
+transition is a plain fade with no movement or preview, and the system's zero
+animation scale makes that fade instant.
+
+Tests: `MobileTabNavigationTest` (tab order, per-tab back stacks, Back to Files
+then out, Search over Files, cancelled and committed Back gestures), `MobileMotionTest`, `MobileTabSummaryTest`,
+`MobileLargeTextNavigationTest` and `MobileOrdinaryNavigationTest` (in
+`MobileAdaptiveNavigationTest.kt`), `MobileShellTest`, `MobileShellLinkActionsTest`
+(Search and Files links).
+
 ## Keyboard and shortcuts
 
 Mobile only; TV keeps its D-pad rules. With a hardware keyboard, Tab and the
@@ -796,8 +835,8 @@ Backspace and the arrows, and a focused button keeps Enter and Space:
 - Backspace or Escape goes up a folder or back, through the same Back as the
   system gesture. With nothing left to close they do nothing, rather than
   leave the app.
-- Ctrl+F opens Search with the cursor in its field, from any screen but the
-  player.
+- Ctrl+F opens Search over Files with the cursor in its field, from any screen
+  but the player.
 - F5 or Ctrl+R refreshes Files as pull-to-refresh does; neither runs while a
   sheet is open or an operation is under way.
 - Delete acts on the focused row as its sheet's delete row would: Move to
@@ -965,14 +1004,13 @@ TV focuses the first row. A failed page shows the rows read so far with Retry.
 
 That folder sits on top of the viewer's Files location instead of replacing it;
 the kept location reloads when Back returns to it, since changes made above can
-reach its listing. Back from it returns to Search (mobile shows History there
-too), History on TV, or Transfers, whose file opens the same way without
+reach its listing. Back from it returns to Search, History, or Transfers, whose file opens the same way without
 playing, with TV focus back on the chosen row; after a product link it returns
 to the Files location. A later outside open replaces the earlier one rather than
 stacking, and Files refuses it while a move or deletion settles.
 
 Tests: `PutioTimestampTest`, `MobileSearchHistoryViewModelTest`,
-`MobileSearchHistoryScreenTest`, `MobileFilesScreenTest`, `TvSessionViewModelTest`,
+`MobileSearchScreensTest`, `MobileFilesScreenTest`, `TvSessionViewModelTest`,
 `FilesBrowserReducerTest`, `FilesRevealReducerTest`, `FilesBrowserControllerTest`,
 `MobileShellTest` (`MobileShellExternalOpenTest`), `TvPickReturnFocusTest`.
 
@@ -988,7 +1026,7 @@ page with neither reads on to the next, so dropped events neither end the list
 nor leave it empty while older events wait.
 With history off, both surfaces name the Keep account history switch in Account.
 
-Tests: `SdkHistoryRepositoryTest`, `MobileSearchHistoryScreenTest`,
+Tests: `SdkHistoryRepositoryTest`, `MobileSearchScreensTest`,
 `TvSessionViewModelTest`, `TvHistoryScreenTest`.
 
 ## Storage quota

@@ -5,9 +5,9 @@ import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
@@ -17,14 +17,18 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationRail
-import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBarDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.WideNavigationRailDefaults
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuite
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteDefaults
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteItem
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldLayout
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -32,12 +36,14 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -53,7 +59,6 @@ import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.downloads.DownloadsController
 import io.putdotio.android.downloads.DownloadsEvent
 import io.putdotio.android.downloads.DownloadsState
-import io.putdotio.android.downloads.MOBILE_DOWNLOADS_ROUTE
 import io.putdotio.android.downloads.toFilesItem
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserState
@@ -115,6 +120,8 @@ import kotlinx.coroutines.flow.first
 internal const val MOBILE_NAV_BAR_TAG = "mobile-navigation-bar"
 
 internal const val MOBILE_NAV_RAIL_TAG = "mobile-navigation-rail"
+
+internal const val MOBILE_FILES_SEARCH_TAG = "mobile-files-search"
 
 @Composable
 internal fun MobileShell(
@@ -178,9 +185,21 @@ internal fun MobileShell(
     }
     val isPlayback = backStackEntry?.destination?.route == MOBILE_PLAYBACK_ROUTE
     val isTrash = backStackEntry?.destination?.route == MOBILE_TRASH_ROUTE
-    val isDownloads = backStackEntry?.destination?.route == MOBILE_DOWNLOADS_ROUTE
-    val isPublicLinks = backStackEntry?.destination?.route == MOBILE_PUBLIC_LINKS_ROUTE
-    val isPrivacyControls = backStackEntry?.destination?.route == MOBILE_PRIVACY_CONTROLS_ROUTE
+    // Search opens over Files and stays open across tab switches, like a folder does.
+    var searchOpen by rememberSaveable(sessionId) { mutableStateOf(false) }
+    // Which way Search last moved: forward when opened or left for a result, back on a Back.
+    var searchForward by remember { mutableStateOf(true) }
+    val openSearch = {
+        navController.navigateTo(MobileDestination.Files)
+        // Tab restoration can bring back playback above Files; Search opens on Files itself.
+        navController.popBackStack(MobileDestination.Files.route, inclusive = false)
+        searchForward = true
+        searchOpen = true
+    }
+    val leaveSearch = { forward: Boolean ->
+        searchForward = forward
+        searchOpen = false
+    }
     val publicLinks = publicLinksController?.let { controller ->
         val state = controller.state.collectAsStateWithLifecycle().value
         remember(controller, state) { MobilePublicLinks(state, controller::dispatch) }
@@ -199,6 +218,8 @@ internal fun MobileShell(
             openFile = onOpenFile,
             openDownload = { fileId, play -> navController.openDownload(downloadsController, fileId, play) },
             addTransfer = transferDraft::open,
+            openSearch = openSearch,
+            closeSearch = { leaveSearch(true) },
         ),
     )
     IncomingTransferNavigationEffect(
@@ -211,14 +232,12 @@ internal fun MobileShell(
     DefaultSortInvalidationEffect(sessionId, accountSettingsState, onFilesEvent)
     StaleFilesReloadEffect(selectedDestination, isTrash, filesState, onFilesEvent)
 
-    BackHandler(enabled = isPlayback) {
-        navController.popBackStack()
-    }
+    // The NavHost owns Back between routes, the player's included, with its predictive preview.
     var searchFocusPending by remember { mutableStateOf(false) }
     MobileShellKeyboardEffect(
         searchEnabled = !isPlayback,
         onSearch = {
-            navController.navigateTo(MobileDestination.Search)
+            openSearch()
             searchFocusPending = true
         },
     )
@@ -232,6 +251,7 @@ internal fun MobileShell(
         navController = navController,
         playbackFileId = playbackFileId,
         onFilesEvent = onFilesEvent,
+        onFilesOpened = { leaveSearch(true) },
         onNavigationRejected = { rejectedNavigation = FilesFailure.NavigationBlocked },
     )
     TransferFileNavigationEffect(
@@ -239,22 +259,33 @@ internal fun MobileShell(
         transfersSessionId = transfersSessionId,
         navController = navController,
         onFilesEvent = onFilesEvent,
+        onFilesOpened = { leaveSearch(true) },
         onTransfersEvent = onTransfersEvent,
         resolveTransferFile = resolveTransferFile,
         onTransferAuthenticationRequired = onTransferAuthenticationRequired,
     )
 
-    val filesOwnsBack = filesOwnsBack(filesState, selectedDestination)
-    // Back from a folder opened from Search, History or Transfers returns to that screen.
-    val onFilesBack = {
-        val origin = filesState.current.openedFrom
-        if (onFilesEvent(FilesBrowserEvent.NavigateBack)) origin?.returnDestination()?.let(navController::navigateTo)
-    }
-    BackHandler(enabled = !isPlayback && filesOwnsBack, onBack = onFilesBack)
-    SubpageBackHandler(
-        enabled = !isPlayback,
-        onSubpage = isTrash || isDownloads || isPublicLinks || isPrivacyControls,
-        protectTrashRecovery = trashState?.hasPendingMutation == true && !filesOwnsBack,
+    val filesBack = filesBack(
+        filesState = filesState,
+        onFiles = selectedDestination == MobileDestination.Files,
+        closeSearch = if (searchOpen) ({ leaveSearch(false) }) else null,
+        onFilesEvent = onFilesEvent,
+        returnTo = { origin ->
+            navController.returnTo(origin) {
+                openSearch()
+                searchForward = false
+            }
+        },
+    )
+    val onFilesBack = filesBack.onBack
+    val filesBackPreview = rememberMobileBackPreview()
+    MobilePredictiveBackHandler(
+        enabled = !isPlayback && filesBack.ownsBack,
+        preview = filesBackPreview.takeIf { filesBack.previewable },
+        onBack = onFilesBack,
+    )
+    TrashRecoveryBackHandler(
+        enabled = !isPlayback && trashState?.hasPendingMutation == true && !filesBack.ownsBack,
         navController = navController,
     )
 
@@ -276,14 +307,24 @@ internal fun MobileShell(
                     MobileChrome(
                         visible = !isPlayback,
                         layout = navigationLayout,
-                        openNavigation = openNavigation,
                         navController = navController,
                         selectedDestination = selectedDestination,
-                        filesState = filesState,
                         playbackPlayerFactory = playbackPlayerFactory,
-                        onFilesEvent = onFilesEvent,
-                        onFilesBack = onFilesBack,
                         inactiveNotice = account.inactiveNotice,
+                        topBar = {
+                            MobileTopBar(
+                                destination = selectedDestination,
+                                route = backStackEntry?.destination?.route,
+                                searchOpen = searchOpen,
+                                onOpenSearch = openSearch,
+                                onSubpageBack = { navController.popBackStack() },
+                                filesState = filesState,
+                                onFilesBack = onFilesBack,
+                                onFilesEvent = onFilesEvent,
+                                openNavigation = openNavigation,
+                                summary = tabSummary(selectedDestination, transfersState, downloadsState),
+                            )
+                        },
                     ) { contentModifier ->
                         MobileNavHost(
                             transferDraft = transferDraft,
@@ -316,6 +357,9 @@ internal fun MobileShell(
                             onSignOut = onSignOut,
                             modifier = contentModifier,
                             publicLinks = publicLinks,
+                            searchOpen = searchOpen,
+                            searchForward = searchForward,
+                            filesBackPreview = filesBackPreview,
                             focusSearch = searchFocusPending,
                             onSearchFocused = { searchFocusPending = false },
                             fileDragOut = fileDragOut,
@@ -389,6 +433,8 @@ private class DeepLinkTargets(
     val openFile: suspend (FilesItemId) -> Unit,
     val openDownload: (FilesItemId, play: Boolean) -> Unit,
     val addTransfer: () -> Unit,
+    val openSearch: () -> Unit,
+    val closeSearch: () -> Unit,
 )
 
 @Composable
@@ -414,9 +460,13 @@ private fun DeepLinkNavigationEffect(
 
 private suspend fun NavHostController.openDeepLink(link: MobileDeepLink, targets: DeepLinkTargets) {
     when (link) {
-        MobileDeepLink.Files -> navigateTo(MobileDestination.Files)
+        MobileDeepLink.Files -> {
+            navigateTo(MobileDestination.Files)
+            targets.closeSearch()
+        }
         is MobileDeepLink.File -> {
             navigateTo(MobileDestination.Files)
+            targets.closeSearch()
             targets.openFile(link.id)
         }
         MobileDeepLink.Transfers -> navigateTo(MobileDestination.Transfers)
@@ -426,11 +476,17 @@ private suspend fun NavHostController.openDeepLink(link: MobileDeepLink, targets
             popBackStack(MobileDestination.Transfers.route, inclusive = false)
             targets.addTransfer()
         }
-        MobileDeepLink.Search, MobileDeepLink.History -> navigateTo(MobileDestination.Search)
+        MobileDeepLink.Search -> targets.openSearch()
+        MobileDeepLink.History -> {
+            navigateTo(MobileDestination.History)
+            // Tab restoration can bring back playback above History; the link shows History itself.
+            popBackStack(MobileDestination.History.route, inclusive = false)
+        }
         MobileDeepLink.Trash -> navigateToTrash()
         is MobileDeepLink.Downloads -> {
-            navigateTo(MobileDestination.Account)
-            navigate(MOBILE_DOWNLOADS_ROUTE) { launchSingleTop = true }
+            navigateTo(MobileDestination.Downloads)
+            // Tab restoration can bring back playback above Downloads; the row belongs to Downloads.
+            popBackStack(MobileDestination.Downloads.route, inclusive = false)
             link.fileId?.let { targets.openDownload(it, link.play) }
         }
     }
@@ -536,6 +592,7 @@ private fun ContentNavigationEffect(
     navController: NavHostController,
     playbackFileId: Long?,
     onFilesEvent: (FilesBrowserEvent) -> Boolean,
+    onFilesOpened: () -> Unit,
     onNavigationRejected: () -> Unit,
 ) {
     val currentOnFilesEvent by rememberUpdatedState(onFilesEvent)
@@ -554,7 +611,10 @@ private fun ContentNavigationEffect(
                 }
             } else if (currentOnFilesEvent(FilesBrowserEvent.OpenExternalItem(item, origin))) {
                 // A delayed history result may update Files without displacing a newer transfer draft.
-                if (!editingTransfer) navController.navigateTo(MobileDestination.Files)
+                if (!editingTransfer) {
+                    navController.navigateTo(MobileDestination.Files)
+                    onFilesOpened()
+                }
             } else {
                 onNavigationRejected()
             }
@@ -568,6 +628,7 @@ private fun TransferFileNavigationEffect(
     transfersSessionId: MobileAuthSessionId?,
     navController: NavHostController,
     onFilesEvent: (FilesBrowserEvent) -> Boolean,
+    onFilesOpened: () -> Unit,
     onTransfersEvent: (TransfersEvent) -> Unit,
     resolveTransferFile: suspend (TransferFileId) -> PutioResult<FilesItem>,
     onTransferAuthenticationRequired: suspend () -> Unit,
@@ -583,6 +644,7 @@ private fun TransferFileNavigationEffect(
                 val open = FilesBrowserEvent.OpenExternalItem(resolved.value, FilesOpenOrigin.TRANSFERS)
                 if (onFilesEvent(open)) {
                     navController.navigateTo(MobileDestination.Files)
+                    onFilesOpened()
                     onTransfersEvent(TransfersEvent.OpenSucceeded(resolvingTransfer.requestId))
                 } else {
                     onTransfersEvent(TransfersEvent.OpenFailed(
@@ -600,27 +662,54 @@ private fun TransferFileNavigationEffect(
     }
 }
 
-private fun filesOwnsBack(
-    filesState: FilesBrowserState,
-    selectedDestination: MobileDestination,
-): Boolean = filesState.stack.any { it.operation.pendingMove != null } ||
-    selectedDestination == MobileDestination.Files && filesState.canNavigateBack
+/** Who takes Back on Files, whether the gesture may preview it, and what it does. */
+private class FilesBack(val ownsBack: Boolean, val previewable: Boolean, val onBack: () -> Unit)
 
-/** Back leaves an Account subpage; elsewhere it returns to Trash while a Trash change is pending. */
-@Composable
-private fun SubpageBackHandler(
-    enabled: Boolean,
-    onSubpage: Boolean,
-    protectTrashRecovery: Boolean,
-    navController: NavHostController,
-) {
-    BackHandler(enabled = enabled && (onSubpage || protectTrashRecovery)) {
-        if (onSubpage) {
-            navController.popBackStack()
+/**
+ * Back closes Search, then leaves a folder; a folder opened from Search, History or Transfers
+ * returns there. While a move settles anywhere, Files takes Back and refuses it, so there is
+ * nothing to preview.
+ */
+private fun filesBack(
+    filesState: FilesBrowserState,
+    onFiles: Boolean,
+    closeSearch: (() -> Unit)?,
+    onFilesEvent: (FilesBrowserEvent) -> Boolean,
+    returnTo: (FilesOpenOrigin) -> Unit,
+): FilesBack {
+    val moveSettling = filesState.stack.any { it.operation.pendingMove != null }
+    // Closing Search leaves the folder alone, so it stays allowed while a move settles; Search would
+    // otherwise hide the folder's Check status.
+    val searchOwnsBack = closeSearch != null && onFiles
+    val ownsBack = searchOwnsBack || moveSettling || onFiles && filesState.canNavigateBack
+    // The reducer refuses to leave a folder while a move or its deletion settles: no preview then.
+    val refused = !searchOwnsBack && (moveSettling || filesState.current.operation.pendingDelete != null)
+    return FilesBack(ownsBack, previewable = ownsBack && !refused) {
+        if (searchOwnsBack) {
+            closeSearch?.invoke()
         } else {
-            navController.navigateToTrash()
+            val origin = filesState.current.openedFrom
+            if (onFilesEvent(FilesBrowserEvent.NavigateBack)) origin?.let(returnTo)
         }
     }
+}
+
+private fun NavHostController.returnTo(origin: FilesOpenOrigin, openSearch: () -> Unit) {
+    when (origin) {
+        FilesOpenOrigin.SEARCH -> openSearch()
+        FilesOpenOrigin.HISTORY -> navigateTo(MobileDestination.History)
+        FilesOpenOrigin.TRANSFERS -> navigateTo(MobileDestination.Transfers)
+        FilesOpenOrigin.LINK -> Unit
+    }
+}
+
+/**
+ * While a Trash change is pending, a Back that no route or folder takes returns to Trash. The
+ * NavHost registers after this handler, so a route it can pop still pops first.
+ */
+@Composable
+private fun TrashRecoveryBackHandler(enabled: Boolean, navController: NavHostController) {
+    BackHandler(enabled = enabled) { navController.navigateToTrash() }
 }
 
 @Composable
@@ -681,49 +770,64 @@ private fun MobileNavigationAlerts(
     }
 }
 
-/** Top bar, navigation bar or rail, and now-playing bar around one content slot; hiding them never moves it. */
+/**
+ * The navigation suite, top bar and now-playing bar around one content slot; hiding them never
+ * moves it. Below 600dp the suite is a navigation bar, from 600dp a rail, and in the drawer layout
+ * none, since the modal drawer outside this slot takes its place.
+ */
 @Composable
 private fun MobileChrome(
     visible: Boolean,
     layout: MobileNavigationLayout,
-    openNavigation: (() -> Unit)?,
     navController: NavHostController,
     selectedDestination: MobileDestination,
-    filesState: FilesBrowserState,
     playbackPlayerFactory: MobilePlayerFactory,
-    onFilesEvent: (FilesBrowserEvent) -> Boolean,
-    onFilesBack: () -> Unit,
     inactiveNotice: InactiveAccountNotice?,
+    topBar: @Composable () -> Unit,
     content: @Composable (Modifier) -> Unit,
 ) {
-    Row(modifier = Modifier.fillMaxSize()) {
-        if (visible && layout == MobileNavigationLayout.Rail) {
-            NavigationRail(modifier = Modifier.testTag(MOBILE_NAV_RAIL_TAG)) {
-                MobileDestination.entries.forEach { destination ->
-                    NavigationRailItem(
-                        selected = destination == selectedDestination,
-                        onClick = { navController.navigateTo(destination) },
-                        icon = { MobileDestinationIcon(destination, destination == selectedDestination) },
-                        label = { Text(stringResource(destination.labelRes)) },
-                    )
+    val suiteType = when {
+        !visible -> NavigationSuiteType.None
+        layout == MobileNavigationLayout.Bar -> NavigationSuiteType.NavigationBar
+        layout == MobileNavigationLayout.Rail -> NavigationSuiteType.WideNavigationRailCollapsed
+        else -> NavigationSuiteType.None
+    }
+    NavigationSuiteScaffoldLayout(
+        navigationSuite = {
+            if (suiteType != NavigationSuiteType.None) {
+                val container = MaterialTheme.colorScheme.surfaceContainerLow
+                NavigationSuite(
+                    navigationSuiteType = suiteType,
+                    modifier = Modifier.testTag(
+                        if (suiteType == NavigationSuiteType.NavigationBar) MOBILE_NAV_BAR_TAG else MOBILE_NAV_RAIL_TAG,
+                    ),
+                    colors = NavigationSuiteDefaults.colors(
+                        wideNavigationRailColors = WideNavigationRailDefaults.colors(containerColor = container),
+                        navigationBarContainerColor = container,
+                    ),
+                ) {
+                    MobileDestination.entries.forEach { destination ->
+                        val selected = destination == selectedDestination
+                        NavigationSuiteItem(
+                            selected = selected,
+                            onClick = { navController.navigateTo(destination) },
+                            icon = { MobileDestinationIcon(destination, selected) },
+                            label = { Text(stringResource(destination.labelRes)) },
+                            navigationSuiteType = suiteType,
+                        )
+                    }
                 }
             }
-        }
+        },
+        navigationSuiteType = suiteType,
+    ) {
         Scaffold(
-            modifier = Modifier.weight(1f),
+            // The suite pads itself for the system bars it sits against; the slot must not again.
+            modifier = Modifier.consumeWindowInsets(navigationSuiteInsets(suiteType)),
             topBar = {
                 if (visible) {
-                    val route = navController.currentBackStackEntryAsState().value?.destination?.route
                     Column {
-                        MobileTopBar(
-                            openNavigation = openNavigation,
-                            destination = selectedDestination,
-                            subpageTitle = accountSubpageTitle(route),
-                            onSubpageBack = { navController.popBackStack() },
-                            filesState = filesState,
-                            onFilesBack = onFilesBack,
-                            onFilesEvent = onFilesEvent,
-                        )
+                        topBar()
                         // Every signed-in screen, like web's app layout; the top bar owns the status bar inset.
                         inactiveNotice?.let { notice ->
                             MobileInactiveAccountNotice(
@@ -738,28 +842,15 @@ private fun MobileChrome(
             },
             bottomBar = {
                 if (visible) {
-                    val showBar = layout == MobileNavigationLayout.Bar
-                    Column {
-                        // NavigationBar pads its own content; the bar above it needs the side insets only.
-                        MobileNowPlayingSlot(
-                            navController,
-                            playbackPlayerFactory,
-                            modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(
-                                if (showBar) WindowInsetsSides.Horizontal
-                                else WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom,
-                            )),
-                        )
-                        if (showBar) NavigationBar(modifier = Modifier.testTag(MOBILE_NAV_BAR_TAG)) {
-                            MobileDestination.entries.forEach { destination ->
-                                NavigationBarItem(
-                                    selected = destination == selectedDestination,
-                                    onClick = { navController.navigateTo(destination) },
-                                    icon = { MobileDestinationIcon(destination, destination == selectedDestination) },
-                                    label = { Text(stringResource(destination.labelRes)) },
-                                )
-                            }
-                        }
-                    }
+                    // The bar pads its own content; above it the now-playing bar needs only the side insets.
+                    MobileNowPlayingSlot(
+                        navController,
+                        playbackPlayerFactory,
+                        modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(
+                            if (suiteType == NavigationSuiteType.NavigationBar) WindowInsetsSides.Horizontal
+                            else WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom,
+                        )),
+                    )
                 }
             },
         ) { padding ->
@@ -769,56 +860,103 @@ private fun MobileChrome(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun navigationSuiteInsets(type: NavigationSuiteType): WindowInsets =
+    when (type) {
+        NavigationSuiteType.NavigationBar -> NavigationBarDefaults.windowInsets.only(WindowInsetsSides.Bottom)
+        NavigationSuiteType.WideNavigationRailCollapsed ->
+            WideNavigationRailDefaults.windowInsets.only(WindowInsetsSides.Start)
+        else -> WindowInsets(0)
+    }
+
+/**
+ * Files has a small top app bar: back, the folder name, Search and Sort. Search over Files has
+ * back and its title. The other tabs open on a [MobileTabTitle]; their subpages keep a small bar
+ * with back.
+ */
 @Composable
 private fun MobileTopBar(
     destination: MobileDestination,
-    @StringRes subpageTitle: Int?,
+    route: String?,
+    searchOpen: Boolean,
+    onOpenSearch: () -> Unit,
     onSubpageBack: () -> Unit,
     filesState: FilesBrowserState,
     onFilesBack: () -> Unit,
     onFilesEvent: (FilesBrowserEvent) -> Boolean,
-    openNavigation: (() -> Unit)? = null,
+    openNavigation: (() -> Unit)?,
+    summary: AnnotatedString?,
 ) {
-    val filesFolderName = filesState.current.folder.name?.takeIf(String::isNotBlank)
+    val subpageTitle = accountSubpageTitle(route)
+    when {
+        subpageTitle != null -> MobileSmallTopBar(
+            title = stringResource(subpageTitle),
+            onBack = onSubpageBack,
+            openNavigation = openNavigation,
+        )
+        destination != MobileDestination.Files -> MobileTabTitle(
+            title = stringResource(destination.labelRes),
+            summary = summary,
+            hasActions = openNavigation != null,
+        ) {
+            openNavigation?.let { MobileNavigationMenuButton(it) }
+        }
+        searchOpen -> MobileSmallTopBar(
+            title = stringResource(R.string.mobile_search_title),
+            onBack = onFilesBack,
+            openNavigation = openNavigation,
+        )
+        else -> MobileFilesTopBar(filesState, onFilesBack, onFilesEvent, onOpenSearch, openNavigation)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MobileSmallTopBar(title: String, onBack: () -> Unit, openNavigation: (() -> Unit)?) {
+    TopAppBar(
+        title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        navigationIcon = { MobileBackButton(onClick = onBack) },
+        actions = { openNavigation?.let { MobileNavigationMenuButton(it) } },
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MobileFilesTopBar(
+    filesState: FilesBrowserState,
+    onFilesBack: () -> Unit,
+    onFilesEvent: (FilesBrowserEvent) -> Boolean,
+    onOpenSearch: () -> Unit,
+    openNavigation: (() -> Unit)?,
+) {
+    val folderName = filesState.current.folder.name?.takeIf(String::isNotBlank)
     TopAppBar(
         title = {
             Text(
-                if (subpageTitle != null) {
-                    stringResource(subpageTitle)
-                } else if (destination == MobileDestination.Files && filesFolderName != null) {
-                    filesFolderName
-                } else {
-                    stringResource(destination.labelRes)
-                },
+                folderName ?: stringResource(MobileDestination.Files.labelRes),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
         },
         navigationIcon = {
-            if (subpageTitle != null) {
-                IconButton(onClick = onSubpageBack) {
-                    Icon(painterResource(R.drawable.ic_ph_arrow_left),
-                        contentDescription = stringResource(R.string.mobile_action_back))
-                }
-            } else if (destination == MobileDestination.Files && filesState.canNavigateBack) {
-                IconButton(onClick = onFilesBack, enabled = filesState.current.operation.pendingDelete == null &&
-                    filesState.stack.none { it.operation.pendingMove != null }) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_ph_arrow_left),
-                        contentDescription = stringResource(R.string.mobile_action_back),
-                    )
-                }
+            if (filesState.canNavigateBack) {
+                MobileBackButton(
+                    onClick = onFilesBack,
+                    enabled = filesState.current.operation.pendingDelete == null &&
+                        filesState.stack.none { it.operation.pendingMove != null },
+                )
             }
         },
         actions = {
-            if (openNavigation != null) {
-                MobileNavigationMenuButton(openNavigation)
+            openNavigation?.let { MobileNavigationMenuButton(it) }
+            IconButton(onClick = onOpenSearch, modifier = Modifier.testTag(MOBILE_FILES_SEARCH_TAG)) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_ph_magnifying_glass),
+                    contentDescription = stringResource(R.string.mobile_search_label),
+                )
             }
-            if (
-                destination == MobileDestination.Files &&
-                (filesState.current.content is FilesContent.Empty || filesState.current.content is FilesContent.Ready)
-            ) {
+            val content = filesState.current.content
+            if (content is FilesContent.Empty || content is FilesContent.Ready) {
                 MobileFilesSortMenu(
                     folder = filesState.current,
                     onSelect = { onFilesEvent(FilesBrowserEvent.SelectSort(it)) },
@@ -828,11 +966,36 @@ private fun MobileTopBar(
     )
 }
 
+@Composable
+private fun MobileBackButton(onClick: () -> Unit, enabled: Boolean = true) {
+    IconButton(onClick = onClick, enabled = enabled) {
+        Icon(
+            painter = painterResource(R.drawable.ic_ph_arrow_left),
+            contentDescription = stringResource(R.string.mobile_action_back),
+        )
+    }
+}
+
+/** The one-line summary under a tab title, with its numbers in mono. */
+@Composable
+private fun tabSummary(
+    destination: MobileDestination,
+    transfersState: TransfersState,
+    downloadsState: DownloadsState,
+): AnnotatedString? {
+    val context = LocalContext.current
+    val mono = summaryMonoStyle()
+    return when (destination) {
+        MobileDestination.Transfers -> summaryOf(transfersSummaryParts(context, transfersState), mono)
+        MobileDestination.Downloads -> downloadsSummary(downloadsState, mono)
+        MobileDestination.Files, MobileDestination.History, MobileDestination.Account -> null
+    }
+}
+
 @StringRes
 private fun accountSubpageTitle(route: String?): Int? =
     when (route) {
         MOBILE_TRASH_ROUTE -> R.string.mobile_trash_title
-        MOBILE_DOWNLOADS_ROUTE -> R.string.mobile_downloads_title
         MOBILE_PUBLIC_LINKS_ROUTE -> R.string.mobile_public_links_manage
         MOBILE_PRIVACY_CONTROLS_ROUTE -> R.string.mobile_settings_privacy_controls
         else -> null
@@ -883,13 +1046,6 @@ internal data class MobileSearchHistoryActions(
     val onRecentRetry: () -> Unit = {},
     val onHistoryEvent: (HistoryEvent) -> Unit = {},
 )
-
-private fun FilesOpenOrigin.returnDestination(): MobileDestination? =
-    when (this) {
-        FilesOpenOrigin.SEARCH, FilesOpenOrigin.HISTORY -> MobileDestination.Search
-        FilesOpenOrigin.TRANSFERS -> MobileDestination.Transfers
-        FilesOpenOrigin.LINK -> null
-    }
 
 private fun emptySearchHistoryState(): MobileSearchHistoryState =
     MobileSearchHistoryState(

@@ -14,6 +14,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.res.stringResource
 import io.putdotio.android.R
 import io.putdotio.android.AuthoritativeSessionFailureEffect
+import io.putdotio.android.MobileAxisContent
 import io.putdotio.android.authoritativeSessionFailure
 import io.putdotio.android.downloads.DownloadsState
 import io.putdotio.android.playback.dispatch
@@ -36,6 +37,53 @@ internal fun MobileFilesRoute(
     moveTargetStore: FilesMoveTargetStore? = null,
     publicLinks: MobilePublicLinks? = null,
     fileDragOut: MobileFileDragOut? = null,
+) {
+    // Opening a folder pushes along the shared axis and Back pops; the leaving folder keeps its own state.
+    val folderKey = { browser: FilesBrowserState -> browser.stack.size to browser.current.folder.id.value }
+    val currentKey = folderKey(state)
+    MobileAxisContent(
+        state = state,
+        contentKey = folderKey,
+        forward = { initial, target -> target.stack.size >= initial.stack.size },
+    ) { shown ->
+        // The reducer applies most events to the current folder, so the leaving one sends only an
+        // announced deletion, which the reducer matches anywhere in the stack, and starts nothing.
+        val leaving = folderKey(shown) != currentKey
+        MobileFilesFolder(
+            state = shown,
+            repository = repository,
+            onEvent = { event ->
+                (!leaving || event is FilesBrowserEvent.DeleteOutcomeAnnounced) && onEvent(event)
+            },
+            onPlayMedia = { item -> if (!leaving) onPlayMedia(item) },
+            confirmedTrashEnabled = confirmedTrashEnabled,
+            onAuthenticationRequired = onAuthenticationRequired,
+            downloads = downloads,
+            onDownloadItem = onDownloadItem?.let { download -> { item -> if (!leaving) download(item) } },
+            onShareItem = onShareItem?.let { share -> { item -> if (!leaving) share(item) } },
+            onViewTrash = onViewTrash?.let { view -> { if (!leaving) view() } },
+            moveTargetStore = moveTargetStore,
+            publicLinks = publicLinks,
+            fileDragOut = fileDragOut,
+        )
+    }
+}
+
+@Composable
+private fun MobileFilesFolder(
+    state: FilesBrowserState,
+    repository: FilesRepository?,
+    onEvent: (FilesBrowserEvent) -> Boolean,
+    onPlayMedia: (FilesItem) -> Unit,
+    confirmedTrashEnabled: Boolean?,
+    onAuthenticationRequired: suspend () -> Unit,
+    downloads: DownloadsState,
+    onDownloadItem: ((FilesItem) -> Unit)?,
+    onShareItem: ((FilesItem) -> Unit)?,
+    onViewTrash: (() -> Unit)?,
+    moveTargetStore: FilesMoveTargetStore?,
+    publicLinks: MobilePublicLinks?,
+    fileDragOut: MobileFileDragOut?,
 ) {
     key(repository, state.current.folder.id.value) {
         var movingItemId by rememberSaveable { mutableStateOf<Long?>(null) }
