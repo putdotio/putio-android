@@ -559,9 +559,11 @@ video dimmed behind:
   to 3×.
 
 A video that needs **MP4 conversion** keeps the player's frame with the video
-dimmed: "Converting to MP4", one line saying it keeps going if you leave, a
-progress bar with a mono percentage, and a tonal Check again
-([MP4 conversion](docs/behavior.md#mp4-conversion)).
+dimmed: "Converting to MP4", one line saying it keeps going if you leave, and a
+progress bar with a mono percentage. The one tonal action follows the state
+([MP4 conversion](docs/behavior.md#mp4-conversion)): Check again while it
+waits for the viewer, Convert again after a failure, and only Back for a video
+that can't be converted.
 
 Audio keeps playing while you browse: a mini player card above the nav bar
 (glyph, filename, mono time, pause, close, a 2dp progress line). Tapping it
