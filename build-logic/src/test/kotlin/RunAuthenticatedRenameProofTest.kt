@@ -15,12 +15,12 @@ class RunAuthenticatedRenameProofTest {
     @Test
     fun fixtureDecoderPreservesValuesAndRejectsDecodedDuplicateKeys() {
         val valid = """{"id":12,"name":" été 東京 "}"""
-        assertEquals(Json.parseToJsonElement(valid), Json.decodeFromString(RenameFixtureDecoder, valid))
+        assertEquals(Json.parseToJsonElement(valid), decodeRenameFixture(valid))
         for (duplicate in listOf(
             """{"id":12,"id":13}""",
             """{"name":"été","na\u006de":"été"}""",
         )) {
-            assertThrows(GradleException::class.java) { Json.decodeFromString(RenameFixtureDecoder, duplicate) }
+            assertThrows(GradleException::class.java) { decodeRenameFixture(duplicate) }
         }
     }
 

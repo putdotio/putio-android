@@ -7,7 +7,7 @@ dependencies {
     compileOnly(libs.android.gradle.plugin)
     compileOnly(libs.detekt.gradle.plugin)
     compileOnly(libs.sentry.gradle.plugin)
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.12.0")
     testImplementation("junit:junit:4.13.2")
     testImplementation(gradleTestKit())
 }
