@@ -93,11 +93,11 @@ licence check before they ship; until then the app keeps Roboto.
 
 Five destinations: **Files, History, Transfers, Downloads, Account**, in that
 order. `NavigationSuiteScaffold` with an explicit layout type: a navigation bar
-below 600dp width and a navigation rail from 600dp, whatever the height or
-posture. The scaffold's default policy also picks a bar for compact height, so
-pass the type rather than relying on it. The selected item is a 56x32dp pill in
-`secondaryContainer` with a filled Phosphor glyph; unselected items use the
-regular glyph.
+below 600dp width and a navigation rail from 600dp, following the window
+([Multi-window](behavior.md#multi-window)). When five destinations don't fit,
+in short windows or at large font scales, a scrollable drawer takes over, as
+today. The selected item uses the stock indicator in `secondaryContainer` with
+a filled Phosphor glyph; unselected items use the regular glyph.
 
 From 840dp, Files is list-detail: the folder list on the left (520dp), the
 selected file's detail on the right with its preview, primary actions and
@@ -153,7 +153,10 @@ common actions are 72dp tiles (Play or Resume, Download, Share); the rest are
 56dp icon rows: Select, Mark as watched, Rename, Move, Exclusive link. The
 delete action comes last, in red, after a divider: Move to trash, or Delete
 permanently when the account turns Trash off
-([Files delete and paging](behavior.md#files-delete-and-paging)).
+([Files delete and paging](behavior.md#files-delete-and-paging)). The sheet
+shows only what the item allows: Play and Download follow the file type, and
+shared items drop owner actions and Exclusive link for Make a copy
+([Shared-with-me items](behavior.md#shared-with-me-items)).
 
 **Select** starts selection mode: the top bar turns `surfaceContainerHigh` with
 close, "_n_ selected", select all and overflow. Checkboxes replace the file
@@ -192,8 +195,17 @@ destination with Change, then Cancel and Add.
 
 ## Downloads
 
-A tab title with space used and free. Sections: Downloading (thin progress bar,
-speed, cancel) and On this device (the normal file row).
+A tab title with space used and free. Sections, each shown only when it has
+rows:
+
+- Downloading: running, queued and paused downloads, with a thin progress bar,
+  speed or the waiting reason, and cancel.
+- Needs attention: failed and missing downloads, with Retry or Download again.
+- On this device: the normal file row.
+
+Actions here act on the local copy only: Remove from this device, with a
+confirm. They never trash or delete the file on put.io
+([Downloads and offline playback](behavior.md#downloads-and-offline-playback)).
 
 ## History
 
@@ -248,12 +260,12 @@ sleep timer and Up next chips.
 The [put.io empty-state voice](https://github.com/putdotio/putio-design/blob/main/system/preview/12-empty-state.html):
 a mono glyph, a one-line headline, one sentence, at most one action. No artwork.
 
-| State        | Glyph        | Headline              | Action       |
-| ------------ | ------------ | --------------------- | ------------ |
-| Empty folder | `[ ]`        | Empty folder.         | none         |
-| No results   | `¯\_(ツ)_/¯` | Nothing matches.      | none         |
-| No transfers | `( ⌐■_■)`    | Nothing in the queue. | Add transfer |
-| Offline      | `(x_x)`      | Can't reach put.io.   | Try now      |
+| State        | Glyph        | Headline              | Action                            |
+| ------------ | ------------ | --------------------- | --------------------------------- |
+| Empty folder | `[ ]`        | Empty folder.         | none                              |
+| No results   | `¯\_(ツ)_/¯` | Nothing matches.      | none                              |
+| No transfers | `( ⌐■_■)`    | Nothing in the queue. | Add transfer, in place of the FAB |
+| Offline      | `(x_x)`      | Can't reach put.io.   | Try now                           |
 
 Offline keeps what works: a banner above the list ("Offline. Showing what's on
 this device.") and the on-device files stay usable.
@@ -287,15 +299,15 @@ Material motion through `MaterialTheme.motionScheme` springs:
 
 ## Do not translate iOS
 
-| iOS has                 | Android uses                             |
-| ----------------------- | ---------------------------------------- |
-| Inset-grouped list      | Segmented list groups under small labels |
-| Action sheet            | `ModalBottomSheet` for item actions      |
-| Long-press context menu | Long-press opens the actions sheet       |
-| Toolbar plus            | Extended FAB                             |
-| Text back-label         | System back gesture and a top-bar arrow  |
-| `UISwitch`              | The compact neutral switch above         |
-| Stepper                 | Slider, presets or a menu                |
+| iOS has                 | Android uses                                           |
+| ----------------------- | ------------------------------------------------------ |
+| Inset-grouped list      | Segmented list groups under small labels               |
+| Action sheet            | `ModalBottomSheet` for item actions                    |
+| Long-press context menu | Long-press opens the actions sheet (Downloads selects) |
+| Toolbar plus            | Extended FAB                                           |
+| Text back-label         | System back gesture and a top-bar arrow                |
+| `UISwitch`              | The compact neutral switch above                       |
+| Stepper                 | Slider, presets or a menu                              |
 
 ## Don't
 
@@ -328,6 +340,10 @@ with **Try again** or **Reset and sign in**.
 - The item actions sheet has rows only, no action tiles; moving to Trash does
   not confirm.
 - Green has no generated `@color/putio_*` token yet.
+- File lists draw dividers between rows.
+- Rename does not preselect the name up to the extension.
+- Empty states are text only, with no glyph.
+- Folder and player Back use plain `BackHandler`, with no predictive preview.
 - Watched files show a progress bar and "N% watched".
 - Switches are stock M3 52x32dp in yellow.
 - Settings are two-line rows under yellow subheads.
