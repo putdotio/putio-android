@@ -98,6 +98,7 @@ components:
   file-row:
     textColor: "{colors.on-surface}"
     typography: "{typography.body-lg}"
+    height: 64px
   settings-row:
     backgroundColor: "{colors.surface-container}"
     textColor: "{colors.on-surface}"
@@ -259,7 +260,7 @@ screen or dialog:
 
 GT America for UI; Berkeley Mono for sizes, dates, times, speeds, counts,
 percentages and version numbers, with tabular figures. Filenames stay in GT
-America: they wrap to two lines and mono would cost a third. Both fonts need an
+America, where mono would fit fewer characters on the line. Both fonts need an
 app-embedding licence check before they ship; until then the app keeps Roboto.
 
 | Token         | Use                                        |
@@ -337,12 +338,14 @@ names its parent folder. Recent searches show while the query is empty
 
 ### File rows
 
-`ListItem` with two slots, headline and meta, and no dividers. A row is 64 to
-88dp tall, growing with a wrapped name to three text lines, with a 40dp leading
-slot and 16dp start padding:
+`ListItem` with two slots, headline and meta, and no dividers. A row is a fixed
+64dp, with a 40dp leading slot and 16dp start padding:
 
 - Leading: a 26dp yellow Phosphor fill glyph for the file type.
-- Headline: the filename exactly as stored, wrapping to two lines.
+- Headline: the filename on one line. A name that doesn't fit is cut in the
+  middle, keeping its start and the last few characters before and including
+  the extension ("Blue.Lights.S04E01…ORGANiC.mkv"). Every list that shows a
+  filename or a transfer name cuts it this way.
 - Meta: size in mono, `·`, date. Then, only when true: a grey outline eye when
   the video or audio was played (one glyph, started or finished alike), a
   yellow arrow-circle-down when the file is on this device.
@@ -357,7 +360,8 @@ the exception: long-press starts selection with that row selected
 
 ### Item actions
 
-A `ModalBottomSheet` titled with the file's icon, name and meta. The three
+A `ModalBottomSheet` titled with the file's icon, full name and meta; the name
+wraps, uncut, and can be selected. The three
 common actions are action tiles (Play or Resume, Download, Share); the rest are
 56dp icon rows: Select, Mark as watched, Rename, Move, Exclusive link. The
 delete action comes last, in red, after a divider: Move to trash, or Delete
@@ -365,10 +369,10 @@ permanently when the account turns Trash off
 ([Files delete and paging](docs/behavior.md#files-delete-and-paging)). The
 sheet shows only what the item allows: Play and Download follow the file type.
 
-Shared items keep the tiles, add **Make a copy** to the rows, drop the owner
-actions ([Shared-with-me items](docs/behavior.md#shared-with-me-items)), and
-end with one line: "Shared items can't be renamed, moved or linked. Make a copy
-to own one." Their meta names the sharer.
+Shared items keep the tiles, add **Make a copy** to the rows, and drop the
+owner actions without explaining why
+([Shared-with-me items](docs/behavior.md#shared-with-me-items)). Their meta
+names the sharer.
 
 ### Selection
 
@@ -397,8 +401,12 @@ and order. The button's label names the current sort.
   Trash for 14 days."); the confirm is a red filled button. Permanent deletion
   always confirms; the target also confirms moves to Trash.
 - **Sign out:** "Sign out of put.io?", then "Downloads stay on this device and
-  come back when you sign in again.", then Cancel and a red Sign out.
-- **Choices** (proxy, video playback): a dialog of radio rows.
+  come back when you sign in again.", then Cancel and a red Sign out. When the
+  device holds downloads, a checkbox, off by default, reads "Remove downloads
+  from this device" with their size in mono.
+- **Choices** (proxy, video playback, default sort, subtitle language): a
+  dialog of radio rows, each with a one-line description, then Cancel and a
+  filled Save.
 - **Move:** a full-screen picker: close, "Move _n_ items", breadcrumb chips,
   folder rows with chevrons, and a bottom bar with New folder (text) and a
   filled confirm that names the target ("Move to Series").
@@ -415,7 +423,8 @@ buttons. A filled **Create link** ends the sheet
 ### Notices and snackbars
 
 - **Inactive account:** a notice card under the top bar of every signed-in
-  screen, never a dialog, with nothing to tap. A medium first line states the
+  screen, never a dialog, with nothing to tap. A red warning glyph leads; the
+  card and its text stay neutral. A medium first line states the
   account's state, either deactivated or a family plan no longer active; a
   deactivated account adds the deletion countdown with the days in mono
   ([Inactive account](docs/behavior.md#inactive-account)).
@@ -443,6 +452,11 @@ a mono glyph, a one-line headline, one sentence, at most one action. No artwork.
 
 Offline keeps what works: a banner above the list ("Offline. Showing what's on
 this device.") and the on-device files stay usable.
+
+Loading draws skeleton rows in the file row's slots, pulsing on
+`surface-container-high`; no spinner sits in the list. Pull to refresh uses
+Material's indicator in yellow, and paging adds one small spinner row at the
+end.
 
 ## Do's and Don'ts
 
@@ -485,9 +499,16 @@ Completed. Each transfer is a transfer card:
   yellow at 13% while downloading, green at 12% while seeding.
 - A state dot (yellow downloading, grey queued, red failed, green seeding or
   done), then mono meta: "847 MB of 3.42 GB · 34 peers".
-- Trailing: ETA and speed in mono while running; Retry on failures; Open on
-  completed ones.
-- Failed cards take a 9% red tint and a 1dp red outline.
+- Trailing: ETA and speed in mono while running; a retry icon button on
+  failures; a chevron on completed ones, which open on tap.
+- Failed cards stay neutral: only the red dot marks them, and the reason reads
+  in `on-surface-variant`.
+
+Tapping a running or failed card, or long-pressing any card, opens **Transfer
+actions**: a sheet with the full name, the state and a progress bar, then mono
+facts (size, speed, time left, peers, destination), Open folder, and Stop
+transfer in red last. Failed transfers add Retry; completed ones offer Open
+file and Remove from list.
 
 **Add transfer** is a yellow extended FAB, 16dp from the edge above the nav
 bar, that collapses to its icon on scroll.
@@ -505,10 +526,16 @@ bar; the footer gives the mono update time and how many more are running
 A tab title with space used and free. Sections, each shown only when it has
 rows:
 
-- Downloading: running, queued and paused downloads, with a thin progress bar,
-  speed or the waiting reason, and cancel.
+- Downloading: running, queued and paused downloads, with speed or the waiting
+  reason in the meta and a 36dp progress ring in the trailing slot: yellow with
+  a stop square while running, grey with a play triangle while paused, dashed
+  while queued. Tapping the ring stops or starts the download.
 - Needs attention: failed and missing downloads, with Retry or Download again.
 - On this device: the normal file row.
+
+Long-press starts selection. Its floating toolbar holds only Start (paused or
+failed), Cancel (running) and Remove (on this device), each shown when every
+selected row allows it.
 
 Actions here act on the local copy only: Remove from this device, with a
 confirm. They never trash or delete the file on put.io
@@ -575,12 +602,19 @@ sleep timer and Up next chips.
 
 ## Welcome
 
-The signed-out screen is shared with iOS and drawn in
-[`mobile-s00-welcome`](https://github.com/putdotio/putio-design/blob/main/system/preview/mobile-s00-welcome.html):
-the retro wordmark centred in the top bar, `┌( ಠ‿ಠ)┘` over **Welcome!**, one
-lede line, and one full-width 56dp **Sign in** button that opens put.io OAuth
-in the browser. Session expired reads **Welcome back!**; failures show a notice
-with **Try again** or **Reset and sign in**.
+The signed-out screen is shared with iOS. The retro wordmark sits centred in
+the top bar. Below it, kaomoji take turns, each over a mono yellow caption:
+"Paste a magnet.", "put.io fetches it.", "Stream it anywhere.", "Or keep it
+offline.", with page dots under them. Reduced motion holds the first. Then
+**Welcome!**, one lede line, and one full-width 56dp **Sign in** button that
+opens put.io OAuth in the browser.
+
+- Session expired: **Welcome back!** and "Your session expired. Sign in again to
+  continue."
+- While the browser finishes: one still kaomoji, **Almost there**, and "Finish
+  signing in in your browser, then come back here."
+- Failure: a still `(・_・;)`, a notice with the reason, a filled **Try again**
+  and a text **Reset and sign in**.
 
 ## Shipped drift
 
@@ -594,10 +628,13 @@ with **Try again** or **Reset and sign in**.
   that fill with progress.
 - The item actions sheet has rows only, no action tiles; moving to Trash does
   not confirm.
-- Sort is a dialog of twelve combined options, not a grouped menu.
+- Sort is a flat dropdown of twelve combined options, not three labelled
+  groups, and its button doesn't name the current sort.
 - Sign out is an outlined button that signs out at once, with no confirm.
 - Green has no generated `@color/putio_*` token yet.
-- File lists draw dividers between rows.
+- File lists draw dividers between rows, and names wrap instead of being cut
+  in the middle on one line.
+- Downloads shows a bar under each running row, not a progress ring.
 - Rename does not preselect the name up to the extension.
 - Empty states are text only, with no glyph.
 - Folder and player Back use plain `BackHandler`, with no predictive preview.
