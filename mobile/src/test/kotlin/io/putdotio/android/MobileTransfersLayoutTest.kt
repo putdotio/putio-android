@@ -93,7 +93,10 @@ class MobileTransfersLayoutTest {
             .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(nameLayouts) }
         val nameLayout = nameLayouts.single()
         assertTrue("Metadata uses the row width", nameLayout.layoutInput.constraints.maxWidth > list.width * 0.8f)
-        assertFalse("The name is not cut", nameLayout.hasVisualOverflow)
+        for (line in 0 until nameLayout.lineCount) {
+            assertFalse("The name is not cut", nameLayout.isLineEllipsized(line))
+            assertTrue("The name fits its slot", nameLayout.getLineRight(line) <= nameLayout.size.width + 1f)
+        }
         assertTrue("Name renders inside the list", name.left >= list.left && name.right <= list.right)
         assertTrue("Open follows metadata", open.top >= status.bottom)
         assertTrue("Cancel follows metadata", cancel.top >= status.bottom)
