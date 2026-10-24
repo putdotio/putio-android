@@ -613,7 +613,10 @@ video dimmed behind:
   **Size and timing**: text size S to XL and a timing offset in 0.1 s steps
   with the value in mono, plus Reset. Font and colours follow Android's caption
   settings.
-- Speed: the value large in mono and the presets 0.5× to 3×. No free slider.
+- Speed: the value large in mono between 56dp − and + buttons that step
+  through the presets 0.5×, 0.75×, 1×, 1.25×, 1.5×, 2×, 2.5× and 3×; a
+  stepped track over the eight stops with the current one in yellow; then
+  chips for 1×, 1.25×, 1.5× and 2×. Every control snaps to a preset.
 
 A video that needs **MP4 conversion** keeps the player's frame with the video
 dimmed: "Converting to MP4", one line saying it keeps going if you leave, and a
