@@ -696,8 +696,10 @@ opens put.io OAuth in the browser.
 - Sign out is an outlined button that signs out at once, with no confirm.
 - Green has no generated `@color/putio_*` token yet.
 - `--red-text-secondary` has no generated token yet, so destructive text still
-  uses `error` (`red-solid`), below 4.5:1 on the surface tiers. Destructive
-  confirms are red text buttons, not filled ones.
+  uses `error` (`red-solid`), below 4.5:1 on the surface tiers.
+- Destructive confirms are text buttons, not filled ones: red for Files and
+  Trash deletion, primary yellow for removing a download, cancelling or
+  cleaning transfers, and turning Trash off.
 - File lists draw dividers between rows, and names wrap instead of being cut
   in the middle on one line.
 - Downloads shows a bar under each running row, not a progress ring.
