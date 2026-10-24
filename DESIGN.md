@@ -328,11 +328,14 @@ round to 2dp.
 ### App bars
 
 - **Files root:** an M3 search app bar: a pill reading "Search your files",
-  with sort and overflow icon buttons inside it. Nothing permanent sits between
-  it and the list, except the [inactive-account notice](#notices-and-snackbars).
+  with sort and overflow icon buttons inside it. Under it, a **Continue
+  watching** row of started videos (name, a yellow progress line, the time left
+  in mono) when there are any, then the list. Nothing else sits between the bar
+  and the list, except the [inactive-account notice](#notices-and-snackbars).
 - **Folders:** a small top app bar: back, the folder name, search in this
-  folder, sort, overflow. A section line under it gives the item count and the
-  total size in mono.
+  folder, sort, overflow (with New folder). Searching here filters the folder's
+  loaded items by name on the device; the API has no folder-scoped search. A
+  section line under it gives the item count and the total size in mono.
 - **History, Transfers, Downloads, Account:** a tab title with an optional
   one-line summary below it (for example "2 active · 2 failed · 56.2 MB/s"),
   and an overflow at the top right when the tab has actions for it.
@@ -340,9 +343,11 @@ round to 2dp.
 ### Search
 
 Tapping the search pill opens `ExpandedFullScreenSearchBar`: back arrow, query,
-clear. Type chips (All, Folders, Videos, Audio, Subtitles) sit under the field.
-Results group into Folders and Files, each with a mono count; a file's meta
-names its parent folder. Recent searches show while the query is empty
+clear. Type chips (All, Folders, Videos, Audio, Subtitles) sit under the field;
+they map to the API's type filter, and Subtitles filters by extension on the
+device. Results group into Folders and Files, each with a mono count; a file's
+meta names its parent folder once its name is known (results carry only its
+id). Recent searches show while the query is empty
 ([Recent searches](docs/behavior.md#recent-searches)).
 
 ### File rows
@@ -410,7 +415,7 @@ and order. The button's label names the current sort.
 - **Destructive confirm:** the title names the count and the action ("Delete 2
   items permanently?"); the body names the consequence; the confirm is a red
   filled button. Permanent deletion always confirms. Move to trash never does:
-  it happens at once, and a snackbar says "Moved to Trash" with **View Trash**.
+  it happens at once, and a snackbar says "Moved to Trash" with **Undo**.
 - **Sign out:** "Sign out of put.io?", then "Downloads stay on this device and
   come back when you sign in again.", then Cancel and a red Sign out. When the
   device holds downloads, a checkbox, off by default, reads "Remove downloads
@@ -425,10 +430,10 @@ and order. The button's label names the current sort.
 ### Exclusive link sheet
 
 A sheet titled **Exclusive access**. One body line names the file and the
-limits: a link stops working after its lifetime, or sooner at its IP or data
-limit, with the numbers in mono. Each live link is a row: the short URL in
-mono, "Expires in" with a mono remainder, then copy, share and revoke icon
-buttons. A filled **Create link** ends the sheet
+limits in prose: a link stops working after 72 hours, or sooner at its IP or
+data limit (the API returns no limit numbers). Each live link is a row: the full
+link in mono, cut in the middle, "Expires in" with a mono remainder, then copy,
+share and revoke icon buttons; revoke confirms. A filled **Create link** ends the sheet
 ([Public links](docs/behavior.md#public-links)).
 
 ### Notices and snackbars
@@ -456,7 +461,7 @@ a mono glyph, a one-line headline, one sentence, at most one action. No artwork.
 
 | State        | Glyph        | Headline              | Action                            |
 | ------------ | ------------ | --------------------- | --------------------------------- |
-| Empty folder | `[ ]`        | Empty folder.         | none                              |
+| Empty folder | `[ ]`        | Empty folder.         | New folder                        |
 | No results   | `¯\_(ツ)_/¯` | Nothing matches.      | none                              |
 | No transfers | `( ⌐■_■)`    | Nothing in the queue. | Add transfer, in place of the FAB |
 | Offline      | `(x_x)`      | Can't reach put.io.   | Try now                           |
@@ -471,9 +476,9 @@ end.
 
 ## Do's and Don'ts
 
-- Do keep the space between the Files app bar and its list empty. Expanded
-  search's type chips, the inactive-account notice, the offline banner and
-  the background copy line are the exceptions.
+- Do keep the space between the Files app bar and its list empty. The
+  Continue watching row, expanded search's type chips, the inactive-account
+  notice, the offline banner and the background copy line are the exceptions.
 - Do use one yellow action per screen or dialog.
 - Do show progress in transfer cards and Downloads, never in file rows.
 - Do generate every colour from the token graph.
@@ -521,8 +526,9 @@ Tapping a running or failed card, or long-pressing any card, opens **Transfer
 actions**: a sheet with the full name, the state and a progress bar, then facts
 (size, speed, time left and peers in mono; the destination folder in GT
 America), Open folder, and Copy source link when put.io returns the transfer's
-source. Running transfers end with Stop transfer in red; failed ones offer Retry; completed
-ones offer Open file.
+source. Running transfers end with Stop transfer in red; failed ones offer
+Retry; completed ones offer Open file and Remove from list, which doesn't
+confirm. The tab's overflow holds Clear completed.
 
 **Add transfer** is a yellow extended FAB, 16dp from the edge above the nav
 bar, that collapses to its icon on scroll.
@@ -594,15 +600,18 @@ over a top and bottom scrim:
 - Centre: a 72dp translucent dark circle for play and pause, flanked by 56dp
   circles for 10 seconds back and forward.
 - Bottom: elapsed and remaining in mono, a yellow scrubber, then Audio,
-  Subtitles and Speed chips, and Next episode on the right.
+  Subtitles and Speed chips, and Next episode on the right when the account's
+  next-episode setting is on.
 
 Audio, Subtitles and Speed open a 340dp side sheet from the right with the
 video dimmed behind:
 
 - Audio: tracks by language, then channels and codec.
-- Subtitles: Off, then tracks in the file, then subtitles put.io found.
-- Speed: the value large in mono and the presets 0.75× to 2×. No free
-  slider.
+- Subtitles: Off, then tracks in the file, then subtitles put.io found, then
+  **Size and timing**: text size S to XL and a timing offset in 0.1 s steps
+  with the value in mono, plus Reset. Font and colours follow Android's caption
+  settings.
+- Speed: the value large in mono and the presets 0.5× to 3×. No free slider.
 
 A video that needs **MP4 conversion** keeps the player's frame with the video
 dimmed: "Converting to MP4", one line saying it keeps going if you leave, and a
@@ -615,7 +624,8 @@ Audio keeps playing while you browse: a mini player card above the nav bar
 (glyph, filename, mono time, pause, close, a 2dp progress line). Tapping it
 opens Now Playing: a large type glyph, the filename, a scrubber with mono
 times, a 88dp neutral pause between skip and ±15/30-second buttons, then speed,
-sleep timer and Up next chips.
+sleep timer and Up next chips. Up next is the next file in the folder; the API
+has no queue.
 
 ## Welcome
 
@@ -643,8 +653,13 @@ opens put.io OAuth in the browser.
   “name” to Folder…", with a small yellow spinner. It survives folder changes
   and can be dismissed; a failure swaps the spinner for a red dot and the
   reason.
-- **New folder:** a dialog from the Move picker with one outlined field, the
-  parent named above it, and a filled **Create**.
+- **New folder:** a dialog from the Move picker, a folder's overflow or the
+  empty-folder state, with one outlined field, the parent named above it, and a
+  filled **Create**.
+- **Viewers:** images, PDF and text open in-app on a black frame, with the name,
+  Share, Download and the overflow over a top scrim; swiping moves between
+  files of the same kind, with the position in mono. Other types open with
+  another app.
 - **Share progress:** while a file downloads to be shared, a dialog with the
   name, a bar, mono progress and **Cancel**.
 - **Resume:** "Resume from 18:42?" over the dimmed player, with **Start over**
@@ -724,8 +739,10 @@ opens put.io OAuth in the browser.
 - The mini player (`MobileNowPlayingBar`) and Downloads selection exist in other
   forms; Files has no selection mode, and there is no offline banner or tablet
   list-detail.
-- Player options open as bottom sheets. There is no cast button, sleep timer
-  or Up next.
+- Player options open as bottom sheets, and speed presets run 0.75× to 2×.
+  There is no cast button, sleep timer, Up next or subtitle size and timing.
+- Files has no Continue watching row, and images, PDF and text don't open
+  in-app.
 - The production launcher icon is a placeholder; nightly uses its generated
   stars icon.
 - The player has no picture-in-picture or Next episode button; picture-in-
