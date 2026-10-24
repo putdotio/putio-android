@@ -131,7 +131,8 @@ names its parent folder. Recent searches show while the query is empty
 
 ## File rows
 
-`ListItem`, two lines, no dividers:
+`ListItem` with two slots, headline and meta, and no dividers. A wrapped name
+makes three text lines:
 
 - Leading: a 26dp yellow Phosphor fill glyph for the file type.
 - Headline: the filename exactly as stored, wrapping to two lines.
@@ -344,6 +345,9 @@ with **Try again** or **Reset and sign in**.
 - Rename does not preselect the name up to the extension.
 - Empty states are text only, with no glyph.
 - Folder and player Back use plain `BackHandler`, with no predictive preview.
+- Search has no type chips; results are one flat list.
+- The actions sheet has no Play or Resume and no Mark as watched.
+- The Move picker cannot create a folder.
 - Watched files show a progress bar and "N% watched".
 - Switches are stock M3 52x32dp in yellow.
 - Settings are two-line rows under yellow subheads.
