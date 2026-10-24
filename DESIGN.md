@@ -752,8 +752,8 @@ opens put.io OAuth in the browser.
 - Played files show a progress bar and "N% watched" when the duration is known,
   and a plain "Watched" label otherwise.
 - Settings are two-line rows under yellow subheads.
-- Only the player's timestamps set numbers in mono; sizes, speeds and counts
-  elsewhere use the UI face.
+- Only the player's timestamps and the tab-title summaries set numbers in
+  mono; sizes, speeds and counts elsewhere use the UI face.
 - The mini player (`MobileNowPlayingBar`) and Downloads selection exist in other
   forms; Files has no selection mode, and there is no offline banner or tablet
   list-detail.
