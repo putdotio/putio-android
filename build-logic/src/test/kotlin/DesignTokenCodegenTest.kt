@@ -177,7 +177,19 @@ class DesignTokenCodegenTest {
             setOf("gt_america_standard_regular.ttf", "berkeley_mono_variable.ttf"),
         )
         assertTrue(partial.contains("    val gtAmerica: FontFamily = FontFamily.Default\n"))
-        assertTrue(partial.contains("        Font(R.font.berkeley_mono_variable, FontWeight(400)),\n"))
+        assertTrue(
+            partial.contains(
+                """
+                |    val berkeleyMono: FontFamily = FontFamily(
+                |        Font(
+                |            R.font.berkeley_mono_variable,
+                |            FontWeight(400),
+                |            variationSettings = FontVariation.Settings(FontVariation.weight(400)),
+                |        ),
+                |    )
+                """.trimMargin(),
+            ),
+        )
     }
 
     @Test

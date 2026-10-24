@@ -69,9 +69,9 @@ import androidx.compose.ui.unit.dp
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.compose.indicators.ProgressIndicator
-import androidx.media3.ui.compose.material3.indicator.DurationText
-import androidx.media3.ui.compose.material3.indicator.PositionText
+import androidx.media3.common.util.Util
 import androidx.media3.ui.compose.state.rememberPlayPauseButtonState
+import androidx.media3.ui.compose.state.rememberProgressStateWithTickInterval
 import io.putdotio.android.R
 import io.putdotio.android.design.putioMono
 import io.putdotio.android.design.R as DesignR
@@ -366,9 +366,9 @@ private fun MobileVideoTimeline(player: Player, onScrub: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            PositionText(player)
+            MobileTimeText(player, PlayerTime.Position)
             Box(Modifier.weight(1f)) { MobileProgressSlider(player, onScrub) }
-            DurationText(player)
+            MobileTimeText(player, PlayerTime.Duration)
         }
     }
 }
@@ -382,11 +382,28 @@ private fun MobilePlayerTimeline(player: Player, onScrub: () -> Unit) {
             MaterialTheme.typography.labelMedium.putioMono().copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
         ) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                PositionText(player)
-                DurationText(player)
+                MobileTimeText(player, PlayerTime.Position)
+                MobileTimeText(player, PlayerTime.Duration)
             }
         }
     }
+}
+
+private enum class PlayerTime { Position, Duration }
+
+/**
+ * Elapsed or total time in the inherited style. Media3's PositionText and DurationText pass a
+ * fresh style to Text, which drops the provided mono face.
+ */
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+@Composable
+private fun MobileTimeText(player: Player, time: PlayerTime) {
+    val progress = rememberProgressStateWithTickInterval(player, tickIntervalMs = 1_000)
+    val milliseconds = when (time) {
+        PlayerTime.Position -> progress.currentPositionMs
+        PlayerTime.Duration -> progress.durationMs
+    }
+    Text(Util.getStringForTime(milliseconds))
 }
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])

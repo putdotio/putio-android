@@ -6,8 +6,11 @@ from __future__ import annotations
 import argparse
 import hashlib
 import hmac
+import http.client
 import json
+import os
 import re
+import tempfile
 import time
 import urllib.error
 import urllib.request
@@ -96,7 +99,7 @@ def fetch(url: str) -> bytes:
         except urllib.error.HTTPError as error:
             if error.code < 500 or attempt == ATTEMPTS:
                 fail(f"{url} returned {error.code}")
-        except OSError as error:
+        except (OSError, http.client.HTTPException) as error:
             if attempt == ATTEMPTS:
                 fail(f"{url} failed: {error}")
         time.sleep(2**attempt)
@@ -113,9 +116,15 @@ def sync(lock: Lock, root: Path, download: Callable[[str], bytes] = fetch) -> No
         data = download(font.url)
         if not hmac.compare_digest(sha256(data), font.sha256):
             fail(f"{font.url} is {sha256(data)}, locked {font.sha256}; {font.name} not written")
-        temporary = destination.with_name(f".{font.name}.download")
-        temporary.write_bytes(data)
-        temporary.replace(destination)
+        # An exclusive temporary file, so overlapping syncs never share or follow one.
+        descriptor, temporary = tempfile.mkstemp(dir=directory, prefix=f".{font.name}.", suffix=".download")
+        try:
+            with os.fdopen(descriptor, "wb") as handle:
+                handle.write(data)
+            os.replace(temporary, destination)
+        except BaseException:
+            Path(temporary).unlink(missing_ok=True)
+            raise
         print(f"downloaded {font.name}")
     print(f"{len(lock.fonts)} brand fonts installed and verified in {lock.directory}")
 

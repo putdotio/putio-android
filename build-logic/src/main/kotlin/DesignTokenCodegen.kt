@@ -257,8 +257,10 @@ object DesignTokenCodegen {
             appendLine("package io.putdotio.android.design")
             appendLine()
             appendLine("import androidx.compose.ui.text.TextStyle")
-            if (families.any { it.embedded }) appendLine("import androidx.compose.ui.text.font.Font")
+            val embedded = families.filter { it.embedded }.flatMap { it.faces }.map { (_, face) -> face }
+            if (embedded.isNotEmpty()) appendLine("import androidx.compose.ui.text.font.Font")
             appendLine("import androidx.compose.ui.text.font.FontFamily")
+            if (embedded.any { it.weightRange != null }) appendLine("import androidx.compose.ui.text.font.FontVariation")
             appendLine("import androidx.compose.ui.text.font.FontWeight")
             appendLine("import androidx.compose.ui.unit.Dp")
             appendLine("import androidx.compose.ui.unit.dp")
@@ -267,8 +269,7 @@ object DesignTokenCodegen {
             appendLine()
             appendLine("/**")
             appendLine(" * DESIGN.md's font families. A family this build lacks the licensed files for falls back to")
-            appendLine(" * the system face; scripts/sync-brand-fonts.sh fetches them. A variable face takes its weight")
-            appendLine(" * axis from the requested weight.")
+            appendLine(" * the system face; scripts/sync-brand-fonts.sh fetches them.")
             appendLine(" */")
             appendLine("internal object PutioFontFamily {")
             for (family in families) {
@@ -276,7 +277,17 @@ object DesignTokenCodegen {
                     appendLine("    /** ${family.name}: the licensed faces. */")
                     appendLine("    val ${family.property}: FontFamily = FontFamily(")
                     for ((weight, face) in family.faces) {
-                        appendLine("        Font(R.font.${face.file.substringBeforeLast('.')}, FontWeight($weight)),")
+                        val resource = "R.font.${face.file.substringBeforeLast('.')}"
+                        if (face.weightRange == null) {
+                            appendLine("        Font($resource, FontWeight($weight)),")
+                        } else {
+                            // The weight only labels the face for matching; the axis must be set too.
+                            appendLine("        Font(")
+                            appendLine("            $resource,")
+                            appendLine("            FontWeight($weight),")
+                            appendLine("            variationSettings = FontVariation.Settings(FontVariation.weight($weight)),")
+                            appendLine("        ),")
+                        }
                     }
                     appendLine("    )")
                 } else {

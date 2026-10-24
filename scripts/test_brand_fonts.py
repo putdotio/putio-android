@@ -51,9 +51,13 @@ class LockTest(unittest.TestCase):
 
 class SyncTest(unittest.TestCase):
     def setUp(self) -> None:
-        self.root = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.root = Path(directory.name)
         self.requests: list[str] = []
-        self.enterContext(contextlib.redirect_stdout(io.StringIO()))
+        quiet = contextlib.redirect_stdout(io.StringIO())
+        quiet.__enter__()
+        self.addCleanup(quiet.__exit__, None, None, None)
 
     def serve(self, data: bytes):
         def download(url: str) -> bytes:

@@ -12,6 +12,13 @@ dependencies {
     testImplementation(gradleTestKit())
 }
 
+// The codegen tests read the repository's design contract, token graph and font lock.
+tasks.test {
+    inputs.files("../DESIGN.md", "../design/tokens.dtcg.json", "../design/brand-fonts.lock.json")
+        .withPropertyName("designSources")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+}
+
 gradlePlugin {
     plugins {
         register("androidApplication") {
