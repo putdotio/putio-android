@@ -366,6 +366,31 @@ class TransfersControllerTest {
     }
 
     @Test
+    fun removeCleansOnlyThatTransfer(): Unit = runBlocking {
+        var cleanedIds: List<TransferId>? = null
+        val completed = item(1L, AppTransferStatus.Completed)
+        val other = item(2L, AppTransferStatus.Completed)
+        val base = repository { PutioResult.Success(TransfersPage(listOf(completed, other), null)) }
+        val repository = object : TransfersRepository by base {
+            override suspend fun clean(ids: List<TransferId>): PutioResult<Set<TransferId>> {
+                cleanedIds = ids
+                return PutioResult.Success(ids.toSet())
+            }
+        }
+        val controller = TransfersController(repository, this)
+        try {
+            controller.awaitState { it.content is TransfersContent.Ready }
+            assertTrue(controller.dispatch(TransfersEvent.Remove(completed.id)))
+            val removed = controller.awaitState { it.mutation == TransferMutation.Idle && cleanedIds != null }
+
+            assertEquals(listOf(completed.id), cleanedIds)
+            assertEquals(listOf(other.id), (removed.content as TransfersContent.Ready).items.map(TransferItem::id))
+        } finally {
+            controller.close()
+        }
+    }
+
+    @Test
     fun secondMutationCanStartImmediatelyAfterFirstPublishesIdle(): Unit = runBlocking {
         var adds = 0
         val base = repository { PutioResult.Success(TransfersPage(emptyList(), null)) }

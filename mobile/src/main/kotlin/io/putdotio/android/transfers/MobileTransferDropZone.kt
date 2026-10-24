@@ -4,14 +4,17 @@ import android.app.Activity
 import android.view.DragEvent
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.draganddrop.dragAndDropTarget
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -23,6 +26,13 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.draganddrop.DragAndDropEvent
 import androidx.compose.ui.draganddrop.DragAndDropTarget
 import androidx.compose.ui.draganddrop.toAndroidDragEvent
@@ -34,7 +44,10 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import io.putdotio.android.R
+import io.putdotio.android.design.PutioRadius
+import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.share.MobileFileDrag
 
 internal const val MOBILE_TRANSFER_DROP_TARGET_TAG = "mobile-transfer-drop-target"
@@ -115,33 +128,54 @@ internal fun MobileTransferDraft.receiveDrop(activity: Activity, event: DragEven
     return true
 }
 
+/**
+ * One dashed yellow area over the signed-in screen, clear of the system bars and the navigation:
+ * "Drop to add a transfer". It fills more while the drag is over it.
+ */
 @Composable
 internal fun MobileTransferDropOverlay(over: Boolean) {
     val accent = MaterialTheme.colorScheme.primary
+    val surface = MaterialTheme.colorScheme.surface
+    val shape = RoundedCornerShape(PutioRadius.extraLarge)
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.scrim.copy(alpha = if (over) OVER_SCRIM else AVAILABLE_SCRIM))
-            .padding(16.dp)
-            .border(if (over) 4.dp else 2.dp, accent, MaterialTheme.shapes.large)
+            .windowInsetsPadding(WindowInsets.safeDrawing)
+            .padding(horizontal = 16.dp)
+            .padding(top = DROP_TOP_CLEARANCE, bottom = DROP_BOTTOM_CLEARANCE)
+            .background(accent.copy(alpha = if (over) OVER_TINT else AVAILABLE_TINT).compositeOver(surface), shape)
+            .drawBehind {
+                val stroke = 2.dp.toPx()
+                val radius = PutioRadius.extraLarge.toPx() - stroke / 2
+                drawRoundRect(
+                    color = accent,
+                    topLeft = Offset(stroke / 2, stroke / 2),
+                    size = Size(size.width - stroke, size.height - stroke),
+                    cornerRadius = CornerRadius(radius, radius),
+                    style = Stroke(
+                        width = stroke,
+                        pathEffect = PathEffect.dashPathEffect(DASH.map { it.toPx() }.toFloatArray()),
+                    ),
+                )
+            }
             .testTag(MOBILE_TRANSFER_DROP_TARGET_TAG)
             .semantics { liveRegion = LiveRegionMode.Polite },
         contentAlignment = Alignment.Center,
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.padding(horizontal = 40.dp),
         ) {
             Icon(
-                painter = painterResource(R.drawable.ic_ph_cloud_arrow_down_fill),
+                painter = painterResource(R.drawable.ic_ph_magnet),
                 contentDescription = null,
                 tint = accent,
                 modifier = Modifier.size(48.dp),
             )
             Text(
                 text = stringResource(R.string.mobile_transfers_drop_title),
-                style = MaterialTheme.typography.titleLarge,
+                style = PutioTypeScale.titleLg.copy(fontSize = DROP_TITLE_SIZE),
                 color = MaterialTheme.colorScheme.onSurface,
                 textAlign = TextAlign.Center,
             )
@@ -155,5 +189,9 @@ internal fun MobileTransferDropOverlay(over: Boolean) {
     }
 }
 
-private const val AVAILABLE_SCRIM = 0.55f
-private const val OVER_SCRIM = 0.75f
+private const val AVAILABLE_TINT = 0.08f
+private const val OVER_TINT = 0.16f
+private val DASH = listOf(8.dp, 6.dp)
+private val DROP_TOP_CLEARANCE = 132.dp
+private val DROP_BOTTOM_CLEARANCE = 100.dp
+private val DROP_TITLE_SIZE = 20.sp

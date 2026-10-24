@@ -80,7 +80,7 @@ class MobileLargeTextNavigationTest : NavigationShellFixture(2f) {
         assertModalContentSpace()
         assertDrawerLabels()
         selectDrawerDestination("Transfers")
-        compose.onNodeWithText("Add transfer").assertIsDisplayed()
+        compose.onNode(AddTransferAction).assertIsDisplayed()
         compose.onNodeWithTag(MOBILE_NAV_MENU_TAG).performClick()
         drawerDestination("Transfers").assertIsSelected()
         selectDrawerDestination("Files")
@@ -189,7 +189,7 @@ class MobileOrdinaryNavigationTest : NavigationShellFixture(1f) {
         compose.onNodeWithTag(MOBILE_NAV_BAR_TAG).assertIsDisplayed()
         assertNavigationLabels(MOBILE_NAV_BAR_TAG)
         compose.onNode(hasText("Transfers") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))).performClick()
-        compose.onNodeWithText("Add transfer").assertIsDisplayed()
+        compose.onNode(AddTransferAction).assertIsDisplayed()
     }
 
     @Test
@@ -215,7 +215,7 @@ class MobileOrdinaryNavigationTest : NavigationShellFixture(1f) {
     private fun assertKeyboardKeepsTransferDraft(navigationTag: String) {
         mount()
         compose.onNode(hasText("Transfers") and hasAnyAncestor(hasTestTag(navigationTag))).performClick()
-        compose.onNodeWithText("Add transfer").performClick()
+        compose.onNode(AddTransferAction).performClick()
         val draft = "https://example.invalid/unfinished-draft.torrent"
         val editor = compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG)
         editor.performClick().performTextInput(draft)

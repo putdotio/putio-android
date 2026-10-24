@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Android 12's default widget corner radius; from Android 12 the launcher's own value replaces it. -->
-    <dimen name="mobile_widget_radius">16dp</dimen>
+    <!-- DESIGN.md's widget corner before Android 12; from Android 12 the launcher's own value replaces it. -->
+    <dimen name="mobile_widget_radius">28dp</dimen>
 </resources>

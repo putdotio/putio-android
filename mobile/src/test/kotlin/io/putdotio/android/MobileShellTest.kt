@@ -113,6 +113,7 @@ import io.putdotio.android.settings.readyAccountSettingsState
 import io.putdotio.android.settings.readyAndroidAppConfigState
 import io.putdotio.android.transfers.AppTransferStatus
 import io.putdotio.android.transfers.MOBILE_TRANSFER_ADD_FIELD_TAG
+import io.putdotio.android.transfers.mobileTransferCardTag
 import io.putdotio.android.transfers.MobileTransferDraft
 import io.putdotio.android.transfers.TransferAction
 import io.putdotio.android.transfers.TransferFileId
@@ -500,13 +501,13 @@ class MobileShellTest {
                 onOpenFile = { id -> opened += id; resolveGate.await() },
             ),
         )
-        compose.onNodeWithText("Add transfer").assertDoesNotExist()
+        compose.onNode(AddTransferAction).assertDoesNotExist()
         compose.runOnIdle { requests.receive(MobileDeepLink.Transfers) }
-        compose.onNodeWithText("Add transfer").assertIsDisplayed()
+        compose.onNode(AddTransferAction).assertIsDisplayed()
         compose.runOnIdle { assertNull(requests.pending.value) }
 
         compose.runOnIdle { requests.receive(MobileDeepLink.File(FilesItemId(7L))) }
-        compose.onNodeWithText("Add transfer").assertDoesNotExist()
+        compose.onNode(AddTransferAction).assertDoesNotExist()
         compose.runOnIdle {
             assertEquals(listOf(FilesItemId(7L)), opened)
             assertEquals(MobileDeepLink.File(FilesItemId(7L)), requests.pending.value)
@@ -612,7 +613,7 @@ class MobileShellShareTest {
         compose.onNodeWithText("Cancel").performClick()
         compose.runOnIdle { resolved.complete(PutioResult.Success(shellResolvedFolder())) }
         compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertDoesNotExist()
-        compose.onNodeWithText("Add transfer").assertDoesNotExist()
+        compose.onNode(AddTransferAction).assertDoesNotExist()
         compose.runOnIdle {
             assertNull(draft.state.value.incomingRequestId)
             assertEquals("https://example.invalid/shared", draft.state.value.input)
@@ -726,7 +727,7 @@ class MobileShellShareTest {
         compose.onNodeWithText("Cancel").performClick()
         compose.runOnIdle { results.trySend(FilesExternalOpen(shellResolvedFolder(), FilesOpenOrigin.HISTORY)) }
         compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertDoesNotExist()
-        compose.onNodeWithText("Add transfer").assertDoesNotExist()
+        compose.onNode(AddTransferAction).assertDoesNotExist()
     }
 
     @Test
@@ -847,9 +848,9 @@ class MobileShellShareTest {
             }
         }
         compose.onNodeWithText("Transfers").performClick()
-        compose.onNodeWithText("Add transfer").assertIsDisplayed()
+        compose.onNode(AddTransferAction).assertIsDisplayed()
         compose.runOnIdle { pending.value = true }
-        compose.onNodeWithText("Add transfer").assertDoesNotExist()
+        compose.onNode(AddTransferAction).assertDoesNotExist()
         compose.runOnIdle {
             assertFalse(pending.value)
             draft.receive(parseMobileSharedTransfer("https://example.invalid/shared"))
@@ -1270,7 +1271,7 @@ class MobileShellTransfersTest {
         val events = mutableListOf<TransfersEvent>()
         setReconcilingShell(filesState, transfersState, events)
         compose.onNodeWithText("Transfers").performClick()
-        compose.onNodeWithContentDescription("Open Completed transfer").assertIsEnabled().performClick()
+        compose.onNodeWithTag(mobileTransferCardTag(TransferId(7L))).assertIsEnabled().performClick()
         compose.runOnIdle {
             assertTrue("Expected OpenFailed; events=$events", events.any { it is TransfersEvent.OpenFailed })
         }
@@ -1286,9 +1287,9 @@ class MobileShellTransfersTest {
         compose.onNodeWithText("OK").performClick()
         compose.onNode(hasText("Transfers") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))).assertIsSelected()
         compose.onNode(hasText("Files") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))).assertIsNotSelected()
-        compose.onNodeWithContentDescription("Open Completed transfer").assertIsEnabled()
+        compose.onNodeWithTag(mobileTransferCardTag(TransferId(7L))).assertIsEnabled()
         compose.runOnIdle { files = videoFilesState() }
-        compose.onNodeWithContentDescription("Open Completed transfer").performClick()
+        compose.onNodeWithTag(mobileTransferCardTag(TransferId(7L))).performClick()
         compose.runOnIdle {
             assertTrue("Expected OpenSucceeded; events=$events", events.any { it is TransfersEvent.OpenSucceeded })
         }

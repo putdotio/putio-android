@@ -728,9 +728,6 @@ opens put.io OAuth in the browser.
 
 - Search opens over Files from a top-bar button, with an outlined text field;
   Files has no search bar.
-- Add transfer is a filled button in a fixed row above the list, not a FAB.
-- Transfers is one list with progress bars, not sectioned cards that fill with
-  progress.
 - The item actions sheet has rows only, no action tiles.
 - Sort is a flat dropdown of twelve combined options, not three labelled
   groups, and its button doesn't name the current sort.
@@ -738,13 +735,9 @@ opens put.io OAuth in the browser.
 - File names wrap instead of being cut in the middle on one line.
 - Downloads shows a bar under each running row, not a progress ring.
 - Rename does not preselect the name up to the extension.
-- Empty states keep 3.0.0's words and offer no action. Offline has no state of
-  its own, so `(x_x)` never shows.
+- Empty states other than Transfers' keep 3.0.0's words and offer no action.
+  Offline has no state of its own, so `(x_x)` never shows.
 - Search has no type chips; results are one flat list.
-- Add transfer checks the whole field at once: one bad link rejects it with a
-  single message, and the button always reads Add.
-- Transfer rows offer only Open, Retry and Cancel; there is no Transfer
-  actions sheet, and the app has no transfer source to copy.
 - The actions sheet has no Play or Resume and no Mark as watched.
 - The app can't create a folder: not from the Move picker, a folder's overflow
   or the empty-folder state.
@@ -752,8 +745,10 @@ opens put.io OAuth in the browser.
 - Played files show a progress bar and "N% watched" when the duration is known,
   and a plain "Watched" label otherwise.
 - Settings are two-line rows under yellow subheads.
-- Only the player's timestamps and the tab-title summaries set numbers in
-  mono; sizes, speeds and counts elsewhere use the UI face.
+- Only the player's timestamps, the tab-title summaries and Transfers set
+  numbers in mono; sizes, speeds and counts elsewhere use the UI face.
+- Transfer cards and Transfer actions show no peer count: the Kotlin SDK's
+  `Transfer` has no peers field.
 - The mini player (`MobileNowPlayingBar`) and Downloads selection exist in other
   forms; Files has no selection mode, and there is no offline banner or tablet
   list-detail.

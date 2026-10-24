@@ -40,6 +40,15 @@ internal fun TransfersState.cleanCompleted(): TransfersTransition =
         mutate(TransferAction.Clean)
     }
 
+internal fun TransfersState.remove(id: TransferId): TransfersTransition {
+    val item = content.items().firstOrNull { it.id == id }
+    return if (item?.canRemove != true) {
+        TransfersTransition(this, consumed = false)
+    } else {
+        mutate(TransferAction.Remove(id))
+    }
+}
+
 internal fun TransfersState.mutate(action: TransferAction): TransfersTransition {
     if (
         mutation is TransferMutation.Running ||
@@ -125,6 +134,8 @@ private fun applyMutationSuccess(
             items.filterNot {
                 it.status == AppTransferStatus.Completed || it.id in event.affectedIds
             }
+        // put.io reports what it deleted; a transfer it kept stays listed.
+        is TransferAction.Remove -> items.filterNot { it.id == action.id && it.id in event.affectedIds }
     }
 
 private fun TransfersState.withoutActiveRead(): TransfersState {

@@ -281,6 +281,7 @@ private suspend fun TransfersRepository.execute(action: TransferAction): PutioRe
         is TransferAction.Cancel -> cancel(action.id).mapSuccess { MutationResult.Affected(setOf(action.id)) }
         is TransferAction.Retry -> retry(action.id).mapSuccess(MutationResult::Item)
         TransferAction.Clean -> clean(emptyList()).mapSuccess(MutationResult::Affected)
+        is TransferAction.Remove -> clean(listOf(action.id)).mapSuccess(MutationResult::Affected)
     }
 
 private fun <T, R> PutioResult<T>.mapSuccess(mapper: (T) -> R): PutioResult<R> =

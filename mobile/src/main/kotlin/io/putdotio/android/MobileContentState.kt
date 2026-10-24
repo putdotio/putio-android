@@ -47,12 +47,14 @@ internal fun MobileEmptyState(
     message: String,
     modifier: Modifier = Modifier,
     glyph: PutioEmptyGlyph? = null,
+    action: @Composable (() -> Unit)? = null,
 ) {
     MobileMessageState(
         title = title,
         message = message,
         modifier = modifier,
         glyph = glyph,
+        action = action,
     )
 }
 

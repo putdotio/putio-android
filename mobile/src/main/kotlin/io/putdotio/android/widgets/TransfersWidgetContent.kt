@@ -1,6 +1,7 @@
 package io.putdotio.android.widgets
 
 import androidx.annotation.StringRes
+import io.putdotio.android.transfers.AppTransferStatus
 import io.putdotio.android.transfers.TransferItem
 import io.putdotio.android.transfers.statusLabelRes
 import kotlin.math.roundToInt
@@ -27,8 +28,11 @@ internal data class TransfersWidgetRow(
     @StringRes val status: Int,
     /** Whole percent when put.io reports one; the bar is indeterminate otherwise. */
     val percent: Int?,
+    /** A seeding transfer's bar is green. */
+    val seeding: Boolean = false,
 ) {
-    override fun toString(): String = "TransfersWidgetRow(<redacted>, status=$status, percent=$percent)"
+    override fun toString(): String =
+        "TransfersWidgetRow(<redacted>, status=$status, percent=$percent, seeding=$seeding)"
 }
 
 /** The widget has room for this many rows at its default four-by-two size. */
@@ -43,6 +47,7 @@ internal fun List<TransferItem>.toTransfersWidgetContent(nowMillis: Long): Trans
                 name = item.name,
                 status = item.statusLabelRes(),
                 percent = item.percentDone?.takeIf { it.isFinite() }?.roundToInt()?.coerceIn(0, PERCENT),
+                seeding = item.status == AppTransferStatus.Seeding,
             )
         },
         more = (active.size - TRANSFERS_WIDGET_ROWS).coerceAtLeast(0),

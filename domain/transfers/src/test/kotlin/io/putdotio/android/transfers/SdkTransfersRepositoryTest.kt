@@ -110,7 +110,7 @@ class SdkTransfersRepositoryTest {
     }
 
     @Test
-    fun projectionDropsSensitiveSdkFieldsAndMapsKnownAndUnknownStatuses() = runBlocking {
+    fun projectionRedactsTheSourceDropsOtherSensitiveSdkFieldsAndMapsStatuses() = runBlocking {
         val secret = "magnet:?xt=urn:secret"
         val transfers =
             listOf(
@@ -129,8 +129,36 @@ class SdkTransfersRepositoryTest {
         assertEquals(AppTransferStatus.Failed, items[2].status)
         assertEquals(AppTransferStatus.Unknown("FUTURE_STATUS"), items[3].status)
         assertFalse(items[0].toString().contains(secret))
+        assertEquals(secret, items[0].source?.value)
         val fieldNames = TransferItem::class.java.declaredFields.map { it.name }.toSet()
-        assertFalse(fieldNames.any { it in setOf("source", "callbackUrl", "links", "raw") })
+        assertFalse(fieldNames.any { it in setOf("callbackUrl", "links", "raw") })
+    }
+
+    @Test
+    fun projectionKeepsOnlyLinkSourcesAndTheFactsTheActionsSheetShows() = runBlocking {
+        val transfers =
+            listOf(
+                sdkTransfer(1L, source = " https://example.invalid/file.iso ").copy(
+                    saveParentId = 42L,
+                    downloaded = 512.0,
+                    currentRatio = 1.47,
+                    finishedAt = "2026-10-24T09:00:00",
+                ),
+                sdkTransfer(2L, source = "secret-source"),
+                sdkTransfer(3L, source = ""),
+            )
+        val reads = ReadOperations().apply { list = { response(transfers, null) } }
+
+        val items = (repository(reads = reads).load() as PutioResult.Success).value.items
+
+        assertEquals("https://example.invalid/file.iso", items[0].source?.value)
+        assertEquals(42L, items[0].saveParentId)
+        assertEquals(512.0, requireNotNull(items[0].downloadedBytes), 0.0)
+        assertEquals(1.47, requireNotNull(items[0].currentRatio), 0.0)
+        assertEquals("2026-10-24T09:00:00", items[0].finishedAt)
+        assertNull(items[1].source)
+        assertNull(items[2].source)
+        assertEquals(0L, items[2].saveParentId)
     }
 
     @Test

@@ -87,10 +87,10 @@ class MobileTransferRetryProofTest {
             }
 
             compose.waitUntil(TIMEOUT) {
-                compose.onAllNodesWithText(SERVER_REASON).fetchSemanticsNodes().isNotEmpty()
+                compose.onAllNodesWithText(SERVER_REASON, substring = true).fetchSemanticsNodes().isNotEmpty()
             }
-            compose.onNodeWithText(SERVER_REASON).assertIsDisplayed()
-            compose.onNodeWithText("This transfer needs attention.").assertIsDisplayed()
+            compose.onNodeWithText("Failed · $SERVER_REASON").assertIsDisplayed()
+            compose.onNodeWithText("Failed · This transfer needs attention.").assertIsDisplayed()
             screenshot("01-failure-reasons")
 
             compose.onNodeWithContentDescription("Retry transfer $ACCEPTED_NAME").performClick()
@@ -98,7 +98,7 @@ class MobileTransferRetryProofTest {
                 compose.onAllNodesWithText("Retrying transfer").fetchSemanticsNodes().isNotEmpty()
             }
             compose.onAllNodesWithText("Retry transfer?").assertCountEquals(0)
-            compose.onAllNodesWithText(SERVER_REASON).assertCountEquals(0)
+            compose.onAllNodesWithText(SERVER_REASON, substring = true).assertCountEquals(0)
             screenshot("02-retry-accepted")
 
             compose.onNodeWithContentDescription("Retry transfer $REJECTED_NAME").performClick()

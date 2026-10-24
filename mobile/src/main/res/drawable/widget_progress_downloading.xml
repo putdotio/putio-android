@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The widget's downloading bar: Material's horizontal bar dims its track, so the widget draws its own. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@android:id/background">
+        <shape>
+            <corners android:radius="2dp" />
+            <solid android:color="@color/putio_component_bg_active" />
+        </shape>
+    </item>
+    <item android:id="@android:id/progress">
+        <scale android:scaleWidth="100%">
+            <shape>
+                <corners android:radius="2dp" />
+                <solid android:color="@color/putio_yellow_solid" />
+            </shape>
+        </scale>
+    </item>
+</layer-list>

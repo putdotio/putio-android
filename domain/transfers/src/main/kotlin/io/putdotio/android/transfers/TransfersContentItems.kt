@@ -37,5 +37,7 @@ internal fun TransfersState.updatedFirstPageIds(
             } else {
                 firstPageIds
             }
-        TransferAction.Clean -> firstPageIds.intersect(items.mapTo(mutableSetOf(), TransferItem::id))
+        TransferAction.Clean,
+        is TransferAction.Remove,
+        -> firstPageIds.intersect(items.mapTo(mutableSetOf(), TransferItem::id))
     }

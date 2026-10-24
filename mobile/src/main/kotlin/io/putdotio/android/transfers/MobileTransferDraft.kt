@@ -91,12 +91,18 @@ class MobileTransferDraft private constructor(
      * Reads a shared `.torrent` off the main thread; the result arrives like any other share. A newer
      * intake or a session change cancels the read so none lands out of order. A provider may ignore the
      * interrupt, so the lock is held until the read actually returns: at most one runs at a time.
-     * [onDone] runs once the read has finished, failed or been cancelled.
+     * [onDone] runs once the read has finished, failed or been cancelled. A torrent the user [picked]
+     * from the open sheet goes straight into it instead ([attachTorrent]).
      */
-    internal fun receiveLater(onDone: () -> Unit = {}, read: () -> MobileSharedTransfer) {
+    internal fun receiveLater(
+        onDone: () -> Unit = {},
+        picked: Boolean = false,
+        read: () -> MobileSharedTransfer,
+    ) {
         pendingRead?.cancel()
         pendingRead = viewModelScope.launch {
-            deliver(readLock.withLock { runInterruptible(ioDispatcher) { read() } })
+            val shared = readLock.withLock { runInterruptible(ioDispatcher) { read() } }
+            if (picked) attachTorrent(shared) else deliver(shared)
         }.apply {
             // Also when a newer intake cancels this read before it began.
             invokeOnCompletion { onDone() }
@@ -121,16 +127,20 @@ class MobileTransferDraft private constructor(
         }
     }
 
-    /** put.io refused [rejectedLinks]; they stay in the draft for the user to fix or drop. */
+    /**
+     * put.io refused [rejectedLinks]; they stay in the draft for the user to fix or drop, after the
+     * lines that never went because they didn't parse.
+     */
     internal fun submissionSucceeded(rejectedLinks: List<String> = emptyList()) {
         val current = mutableState.value
         val pending = replacement
+        val unsent = if (current.torrent == null) checkMobileTransferLines(current.input).badText else emptyList()
         when {
-            rejectedLinks.isNotEmpty() -> mutableState.value = MobileTransferDraftState(
-                input = rejectedLinks.joinToString("\n"),
+            rejectedLinks.isNotEmpty() || unsent.isNotEmpty() -> mutableState.value = MobileTransferDraftState(
+                input = (rejectedLinks + unsent).joinToString("\n"),
                 destination = current.destination,
                 open = true,
-                validation = MobileShareValidation.NotAdded,
+                validation = MobileShareValidation.NotAdded.takeIf { rejectedLinks.isNotEmpty() },
                 incomingRequestId = current.incomingRequestId,
                 pendingReplacement = pending != null,
             )

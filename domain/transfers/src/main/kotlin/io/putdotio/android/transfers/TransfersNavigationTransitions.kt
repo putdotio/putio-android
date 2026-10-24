@@ -35,6 +35,29 @@ internal fun TransfersState.open(id: TransferId): TransfersTransition {
     }
 }
 
+/** Resolves the folder a transfer saves into; the shell opens it in Files like a transfer's file. */
+internal fun TransfersState.openFolder(id: TransferId): TransfersTransition {
+    val readInFlight = refresh is TransfersRefresh.Refreshing || content.isPaging
+    val folderId = content.items().firstOrNull { it.id == id }?.saveParentId
+    if (
+        mutation is TransferMutation.Running ||
+        navigation is TransferNavigation.Resolving ||
+        readInFlight ||
+        folderId == null
+    ) {
+        return TransfersTransition(this, consumed = false)
+    }
+    val base = if (refresh is TransfersRefresh.Polling) copy(refresh = TransfersRefresh.Idle) else this
+    val requestId = TransfersRequestId(nextRequestValue)
+    return TransfersTransition(
+        base.copy(
+            navigation = TransferNavigation.Resolving(TransferFileId(folderId), requestId),
+            notice = null,
+            nextRequestValue = nextRequestValue + 1,
+        ),
+    )
+}
+
 internal fun TransfersState.openSucceeded(requestId: TransfersRequestId): TransfersTransition {
     val resolving = navigation as? TransferNavigation.Resolving
     return if (resolving?.requestId == requestId) {

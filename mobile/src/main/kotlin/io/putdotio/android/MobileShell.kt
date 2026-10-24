@@ -5,6 +5,7 @@ import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.consumeWindowInsets
@@ -101,6 +102,7 @@ import io.putdotio.android.share.MobileFileDragOut
 import io.putdotio.android.sharing.PublicLinksController
 import io.putdotio.android.transfers.MobileTransferDraft
 import io.putdotio.android.transfers.MobileTransferDropZone
+import io.putdotio.android.transfers.MobileTransfersOverflow
 import io.putdotio.android.transfers.TransferFileId
 import io.putdotio.android.transfers.TransferMutation
 import io.putdotio.android.transfers.TransferNavigation
@@ -323,6 +325,12 @@ internal fun MobileShell(
                                 onFilesEvent = onFilesEvent,
                                 openNavigation = openNavigation,
                                 summary = tabSummary(selectedDestination, transfersState, downloadsState),
+                                tabActions = tabActions(
+                                    selectedDestination,
+                                    transfersState,
+                                    transfersSessionId,
+                                    onTransfersEvent,
+                                ),
                             )
                         },
                     ) { contentModifier ->
@@ -886,6 +894,7 @@ private fun MobileTopBar(
     onFilesEvent: (FilesBrowserEvent) -> Boolean,
     openNavigation: (() -> Unit)?,
     summary: AnnotatedString?,
+    tabActions: (@Composable RowScope.() -> Unit)? = null,
 ) {
     val subpageTitle = accountSubpageTitle(route)
     when {
@@ -897,9 +906,10 @@ private fun MobileTopBar(
         destination != MobileDestination.Files -> MobileTabTitle(
             title = stringResource(destination.labelRes),
             summary = summary,
-            hasActions = openNavigation != null,
+            hasActions = openNavigation != null || tabActions != null,
         ) {
             openNavigation?.let { MobileNavigationMenuButton(it) }
+            tabActions?.invoke(this)
         }
         searchOpen -> MobileSmallTopBar(
             title = stringResource(R.string.mobile_search_title),
@@ -991,6 +1001,21 @@ private fun tabSummary(
         MobileDestination.Files, MobileDestination.History, MobileDestination.Account -> null
     }
 }
+
+/** A tab's own actions in its title row; Transfers keeps Refresh and Clear completed there. */
+private fun tabActions(
+    destination: MobileDestination,
+    transfersState: TransfersState,
+    transfersSessionId: MobileAuthSessionId?,
+    onTransfersEvent: (TransfersEvent) -> Unit,
+): (@Composable RowScope.() -> Unit)? =
+    when (destination) {
+        MobileDestination.Transfers -> {
+            { MobileTransfersOverflow(transfersState, onTransfersEvent, transfersSessionId) }
+        }
+        MobileDestination.Files, MobileDestination.History, MobileDestination.Downloads, MobileDestination.Account ->
+            null
+    }
 
 @StringRes
 private fun accountSubpageTitle(route: String?): Int? =

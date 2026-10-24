@@ -21,7 +21,10 @@ Mobile, on the emulator harness against the live API:
 - Files: browse, paginate, sort per folder, rename, move, trash, delete, copy
   items shared with you, and watched progress on media rows
 - Trash: browse, restore one or all, delete permanently, empty
-- Transfers and search
+- Transfers in Active, Needs attention and Completed sections, each card
+  filling with its progress; Transfer actions open the save folder, copy the
+  source link, stop, retry, open the file or remove it from the list
+- Search
 - Video playback with subtitles, 10-second touch seek, autoplay next, and
   configurable HLS or MP4
 - Separate audio and video player layouts with a compact timeline and native
@@ -48,9 +51,10 @@ Mobile, on the emulator harness against the live API:
   copies. Finished and failed downloads notify with Play or Try again, acting
   only for the account that downloaded them. Downloads play offline and resume
   where this device left off; offline positions reach put.io once it answers
-- Transfer intake: tapped magnet links, opened or shared `.torrent` files, shared
-  text and several pasted links open the Add transfer sheet, which saves to the
-  default download folder or one picked with the move picker
+- Transfer intake: tapped magnet links, opened, shared or picked `.torrent`
+  files, shared text and several pasted links open the Add transfer sheet,
+  which checks each line, adds the good ones, and saves to the default
+  download folder or one picked with the move picker
 - Share out: Share file exports the original through a scoped content URI; the
   chooser never sees a token. Product deep links open Files, a folder,
   Transfers, Search, History, Trash and Downloads

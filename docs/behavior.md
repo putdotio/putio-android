@@ -605,7 +605,13 @@ file.
 
 The sheet takes several links separated by spaces or new lines; each must be a
 complete HTTP(S) URL or magnet link, duplicates collapse, and at most 100 go in
-one Add (put.io's multi-add limit). One link uses `/transfers/add`, so put.io's
+one Add (put.io's multi-add limit). Each line is checked on its own: a line with
+anything on it that isn't a link stays in the field, dimmed, with a one-line
+reason naming its number, and Add counts and sends only the good links
+("Add 2"). Lines that never went stay in the sheet after Add. Paste appends
+the clipboard's text on a new line; **.torrent file** opens the system file
+picker, and the picked file follows the `.torrent` rules below, taking the
+field's place without asking (the typed links come back when it is removed). One link uses `/transfers/add`, so put.io's
 rejection is the failure shown; several use `/transfers/add-multi`, and links
 put.io refuses reopen the sheet with "put.io couldn’t add these links" while the
 rest start. Shared text with complete, unambiguous links prefills them one per
@@ -631,9 +637,10 @@ memory. Rotation retains them; process death discards them. Saved state
 contains only consumed request metadata, and received share extras, data URIs
 and ClipData are removed from the retained Activity intent.
 
-Tests: `MobileShareIntentsTest`, `MobileTransferDraftTest`,
-`MainActivityShareTest`, `MobileTransfersAddSheetTest`, `TransfersReducerTest`,
-`SdkTransfersRepositoryTest`, `FilesMoveDestinationControllerTest`.
+Tests: `MobileShareIntentsTest`, `MobileTransferDraftTest` (line checks and
+what stays after Add), `MainActivityShareTest`, `MobileTransfersAddSheetTest`,
+`TransfersReducerTest`, `SdkTransfersRepositoryTest`,
+`FilesMoveDestinationControllerTest`.
 
 ## Share-out
 
@@ -1274,7 +1281,7 @@ it lists up to three transfers still running (anything but completed or
 failed, seeding included) from the first page of the account's transfers,
 newest first. Each row shows the status in the Transfers screen's words, a
 percentage when put.io reports one and a progress bar, indeterminate without
-one; a footer says when the rows were read and how many more are running. With
+one and green while seeding; a footer says when the rows were read and how many more are running. With
 none it reads No active transfers. A tap opens Transfers through
 `putio://transfers`, and a refresh button reads again. Signed out it reads Sign
 in to put.io to see your transfers, with no refresh button, and a tap opens
@@ -1363,9 +1370,10 @@ Tests: `ApiRejectionReasonTest`, `ApiReasonAcrossSurfacesTest`,
 
 ## Transfer failures and retry
 
-Mobile only; TV has no Transfers screen. A transfer row shows put.io's
-`error_message` as the API sends it, trimmed; a failed row without one shows
-"This transfer needs attention." Retry runs at once without a confirmation.
+Mobile only; TV has no Transfers screen. A failed card shows "Failed" and
+put.io's `error_message` as the API sends it, trimmed; one without a message
+shows "This transfer needs attention." Retry, on the card or in Transfer
+actions, runs at once without a confirmation.
 The result arrives as a snackbar, "Retrying transfer" or "Couldn’t retry
 transfer." with the reason, once per request, replacing any visible snackbar;
 a 403 reads as nothing to retry. A failed retry leaves no blocking error
@@ -1375,6 +1383,31 @@ Tests: `SdkTransfersRepositoryTest`, `TransfersReducerTest`,
 `MobileTransfersScreenTest`, `TransfersSessionFailureTest`,
 `MobileTransferRetryProofTest` (opt-in device proof; see
 [Harness](./harness.md#transfer-retry-proof)).
+
+## Transfer actions
+
+Mobile only. Transfers groups its cards into Active, Needs attention (failed)
+and Completed (seeding and finished), each in put.io's order. A finished or
+seeding card opens its file on tap, through the same resolution as before;
+tapping any other card, or long-pressing any card, opens Transfer actions:
+
+- **Open folder** resolves the transfer's `save_parent_id` and opens that
+  folder in Files; 0 opens the root.
+- **Copy source link** shows only when put.io returns a `source` that is an
+  HTTP(S) or magnet link. The clip is marked sensitive, since a source can
+  carry a tracker passkey or a signed URL, and the app never prints or logs it.
+- **Stop transfer**, for anything put.io can still cancel, confirms first.
+- **Retry**, for a failed transfer, as on its card.
+- **Open file** and **Remove from list**, for a finished one. Remove doesn't
+  confirm: it asks put.io to clean that one transfer, and the card leaves only
+  when put.io reports it deleted. The file stays in put.io.
+
+The tab's overflow holds Refresh and **Clear completed**, which confirms and
+then refreshes. Transfers posts no notifications.
+
+Tests: `TransfersReducerTest`, `TransfersControllerTest`,
+`SdkTransfersRepositoryTest`, `MobileTransfersScreenTest`,
+`MobileTransfersLayoutTest`.
 
 ## Transfers polling
 

@@ -141,6 +141,45 @@ class TransfersReducerTest {
     }
 
     @Test
+    fun removeTakesOnlyACompletedTransferOffTheListAndOnlyWhenPutioDeletedIt() {
+        val rows = listOf(item(1L), item(2L, AppTransferStatus.Failed), item(3L, AppTransferStatus.Completed))
+        val loaded = TransfersReducer.start().complete(TransfersPage(rows, null))
+        assertFalse(TransfersReducer.reduce(loaded, TransfersEvent.Remove(TransferId(1L))).consumed)
+        assertFalse(TransfersReducer.reduce(loaded, TransfersEvent.Remove(TransferId(2L))).consumed)
+
+        val remove = TransfersReducer.reduce(loaded, TransfersEvent.Remove(TransferId(3L)))
+        val mutate = remove.effect as TransfersEffect.Mutate
+        assertEquals(TransferAction.Remove(TransferId(3L)), mutate.action)
+        val kept = TransfersReducer.reduce(remove.state, TransfersEvent.MutationSucceeded(mutate.requestId))
+        assertEquals(listOf(1L, 2L, 3L), (kept.state.content as TransfersContent.Ready).items.map { it.id.value })
+
+        val removed = TransfersReducer.reduce(
+            remove.state,
+            TransfersEvent.MutationSucceeded(mutate.requestId, affectedIds = setOf(TransferId(3L))),
+        )
+        assertEquals(listOf(1L, 2L), (removed.state.content as TransfersContent.Ready).items.map { it.id.value })
+        assertEquals(TransferMutation.Idle, removed.state.mutation)
+    }
+
+    @Test
+    fun openFolderResolvesTheSaveFolderAndNeedsOne() {
+        val rows = listOf(item(1L).copy(saveParentId = 0L), item(2L).copy(saveParentId = 42L), item(3L))
+        val loaded = TransfersReducer.start().complete(TransfersPage(rows, null))
+
+        assertEquals(
+            TransferNavigation.Resolving(TransferFileId(0L), TransfersRequestId(2L)),
+            TransfersReducer.reduce(loaded, TransfersEvent.OpenFolder(TransferId(1L))).state.navigation,
+        )
+        val opening = TransfersReducer.reduce(loaded, TransfersEvent.OpenFolder(TransferId(2L)))
+        assertEquals(
+            TransferNavigation.Resolving(TransferFileId(42L), TransfersRequestId(2L)),
+            opening.state.navigation,
+        )
+        assertFalse(TransfersReducer.reduce(opening.state, TransfersEvent.OpenFolder(TransferId(1L))).consumed)
+        assertFalse(TransfersReducer.reduce(loaded, TransfersEvent.OpenFolder(TransferId(3L))).consumed)
+    }
+
+    @Test
     fun retryReplacesFirstPageOwnershipWhenTheServerReturnsANewTransfer() {
         val loaded =
             TransfersReducer.start().complete(
