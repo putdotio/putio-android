@@ -453,6 +453,7 @@ private suspend fun NavHostController.openDeepLink(link: MobileDeepLink, targets
         }
         is MobileDeepLink.File -> {
             navigateTo(MobileDestination.Files)
+            targets.closeSearch()
             targets.openFile(link.id)
         }
         MobileDeepLink.Transfers -> navigateTo(MobileDestination.Transfers)

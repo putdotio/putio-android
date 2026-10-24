@@ -139,6 +139,9 @@ internal fun MobileNavHost(
                 exitTransition = { motion.exit(motion.between(initialState, targetState, pop = false)) },
                 popEnterTransition = { motion.enter(motion.between(initialState, targetState, pop = true)) },
                 popExitTransition = { motion.exit(motion.between(initialState, targetState, pop = true)) },
+                // A Back gesture seeks the same pop, so it previews what Back will do.
+                predictivePopEnterTransition = { motion.enter(motion.between(initialState, targetState, pop = true)) },
+                predictivePopExitTransition = { motion.exit(motion.between(initialState, targetState, pop = true)) },
             ) {
                 composable(MobileDestination.Files.route) {
                     val askForDownloadNotifications = rememberFirstDownloadNotificationPrompt()

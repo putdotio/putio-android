@@ -42,12 +42,15 @@ internal fun MobileFilesRoute(
     val folderKey = { browser: FilesBrowserState -> browser.stack.size to browser.current.folder.id.value }
     val currentKey = folderKey(state)
     MobileAxisContent(state = state, contentKey = folderKey, depth = { it.stack.size }) { shown ->
-        // The reducer applies events to the current folder, so the leaving one must not send any.
+        // The reducer applies most events to the current folder, so the leaving one sends only an
+        // announced deletion, which the reducer matches anywhere in the stack.
         val leaving = folderKey(shown) != currentKey
         MobileFilesFolder(
             state = shown,
             repository = repository,
-            onEvent = { event -> !leaving && onEvent(event) },
+            onEvent = { event ->
+                (!leaving || event is FilesBrowserEvent.DeleteOutcomeAnnounced) && onEvent(event)
+            },
             onPlayMedia = onPlayMedia,
             confirmedTrashEnabled = confirmedTrashEnabled,
             onAuthenticationRequired = onAuthenticationRequired,
