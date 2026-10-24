@@ -407,10 +407,10 @@ and order. The button's label names the current sort.
 
 - **Rename:** an `AlertDialog` with one outlined field. The name is selected up
   to the extension, so typing keeps `.mkv`.
-- **Destructive confirm:** the title names the count and the action ("Move 3
-  items to trash?"); the body names the consequence ("You can restore them from
-  Trash for 14 days."); the confirm is a red filled button. Permanent deletion
-  always confirms; the target also confirms moves to Trash.
+- **Destructive confirm:** the title names the count and the action ("Delete 2
+  items permanently?"); the body names the consequence; the confirm is a red
+  filled button. Permanent deletion always confirms. Move to trash never does:
+  it happens at once, and a snackbar says "Moved to Trash" with **View Trash**.
 - **Sign out:** "Sign out of put.io?", then "Downloads stay on this device and
   come back when you sign in again.", then Cancel and a red Sign out. When the
   device holds downloads, a checkbox, off by default, reads "Remove downloads
@@ -520,14 +520,16 @@ Completed. Each transfer is a transfer card:
 Tapping a running or failed card, or long-pressing any card, opens **Transfer
 actions**: a sheet with the full name, the state and a progress bar, then facts
 (size, speed, time left and peers in mono; the destination folder in GT
-America), and Open folder. Running
-transfers end with Stop transfer in red; failed ones offer Retry; completed
+America), Open folder, and Copy source link when put.io returns the transfer's
+source. Running transfers end with Stop transfer in red; failed ones offer Retry; completed
 ones offer Open file.
 
 **Add transfer** is a yellow extended FAB, 16dp from the edge above the nav
 bar, that collapses to its icon on scroll.
 It opens a sheet: one field for links and magnets, Paste and .torrent chips,
-the destination with Change, then Cancel and Add.
+the destination with Change, then Cancel and Add. Each line is checked on its
+own: a line that doesn't parse stays in the field with a one-line reason, and
+Add counts the lines that will go ("Add 1").
 
 **Widget:** the home-screen widget is a `background` card titled Transfers
 with a yellow glyph and a refresh button. Up to three running transfers follow,
@@ -599,8 +601,8 @@ video dimmed behind:
 
 - Audio: tracks by language, then channels and codec.
 - Subtitles: Off, then tracks in the file, then subtitles put.io found.
-- Speed: the value large in mono, presets 0.75 to 2, and a slider from 0.25×
-  to 3×.
+- Speed: the value large in mono and the presets 0.75× to 2×. No free
+  slider.
 
 A video that needs **MP4 conversion** keeps the player's frame with the video
 dimmed: "Converting to MP4", one line saying it keeps going if you leave, and a
@@ -689,8 +691,7 @@ opens put.io OAuth in the browser.
 - Add transfer is a filled button in a fixed row above the list, not a FAB.
 - Transfers is one list with dividers and progress bars, not sectioned cards
   that fill with progress.
-- The item actions sheet has rows only, no action tiles; moving to Trash does
-  not confirm.
+- The item actions sheet has rows only, no action tiles.
 - Sort is a flat dropdown of twelve combined options, not three labelled
   groups, and its button doesn't name the current sort.
 - Sign out is an outlined button that signs out at once, with no confirm.
@@ -707,6 +708,10 @@ opens put.io OAuth in the browser.
 - Empty states are text only, with no glyph.
 - Folder and player Back use plain `BackHandler`, with no predictive preview.
 - Search has no type chips; results are one flat list.
+- Add transfer checks the whole field at once: one bad link rejects it with a
+  single message, and the button always reads Add.
+- Transfer rows offer only Open, Retry and Cancel; there is no Transfer
+  actions sheet, and the app has no transfer source to copy.
 - The actions sheet has no Play or Resume and no Mark as watched.
 - The Move picker cannot create a folder.
 - Played files show a progress bar and "N% watched" when the duration is known,
@@ -719,8 +724,8 @@ opens put.io OAuth in the browser.
 - The mini player (`MobileNowPlayingBar`) and Downloads selection exist in other
   forms; Files has no selection mode, and there is no offline banner or tablet
   list-detail.
-- Player options open as bottom sheets; speed has presets from 0.75× to 2× and
-  no slider. There is no cast button, sleep timer or Up next.
+- Player options open as bottom sheets. There is no cast button, sleep timer
+  or Up next.
 - The production launcher icon is a placeholder; nightly uses its generated
   stars icon.
 - The player has no picture-in-picture or Next episode button; picture-in-
