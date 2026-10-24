@@ -61,7 +61,9 @@ private val MINIMUM_NUMBER_SIZE = 12.sp
 
 /**
  * This style, over the inherited text style, with numbers set in the mono face and tabular
- * figures. Mono takes the size of the text it sits in, raised to 12sp when that is smaller.
+ * figures. Mono takes the size of the text it sits in, raised to 12sp when that is smaller. The
+ * floor needs an `sp` size to compare: [PutioTheme] gives every slot one, and an `em` size here
+ * resolves against the inherited one.
  */
 @Composable
 @ReadOnlyComposable
