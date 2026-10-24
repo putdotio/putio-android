@@ -7,6 +7,7 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 import javax.xml.parsers.DocumentBuilderFactory
 import kotlinx.serialization.DeserializationStrategy
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.encoding.CompositeDecoder
@@ -95,7 +96,7 @@ private class AuthenticatedRenameRun(
         try {
             val raw = fixtureFile.inputStream().use { it.readNBytes(24_577) }
             requireProof(raw.size <= 24_576, "Fixture exceeds proof input limit")
-            val fixture = Json.decodeFromString(RenameFixtureDecoder, raw.decodeToString(throwOnInvalidSequence = true))
+            val fixture = decodeRenameFixture(raw.decodeToString(throwOnInvalidSequence = true))
             validateRenameFixture(fixture)
             val sdk = command("SDK resolution", listOf(
                 "bash", "-c", "source \"\$1\"; resolve_sdk_root", "--", File(root, "scripts/lib.sh").path,
@@ -512,6 +513,13 @@ internal fun validateRenameCliContract(contract: JsonObject) {
             (it as? JsonObject)?.get("required") == JsonPrimitive(true)
         }, "$name has an unsupported required argument")
     }
+}
+
+// kotlinx.serialization 1.12 wraps exceptions a decoder throws; surface the proof's own failure.
+internal fun decodeRenameFixture(raw: String): JsonObject = try {
+    Json.decodeFromString(RenameFixtureDecoder, raw)
+} catch (e: SerializationException) {
+    throw e.cause as? GradleException ?: GradleException("Invalid fixture JSON", e)
 }
 
 // JsonObject parsing collapses duplicate keys. Decode fixture entries before
