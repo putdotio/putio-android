@@ -25,6 +25,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -41,6 +42,7 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleStartEffect
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.NavBackStackEntry
 import androidx.navigationevent.NavigationEvent
 import androidx.navigationevent.NavigationEventHandler
@@ -139,9 +141,10 @@ internal fun rememberMobileMotion(): MobileMotion {
     val density = LocalDensity.current
     val direction = LocalLayoutDirection.current
     val offset = remember(density) { with(density) { SHARED_AXIS_OFFSET.roundToPx() } }
-    // "Remove animations" sets the animator scale to 0, which is Android's reduced motion. Read on
-    // every composition, so a change made in Settings applies to the next navigation.
-    val reducedMotion = !ValueAnimator.areAnimatorsEnabled()
+    // "Remove animations" sets the animator scale to 0, which is Android's reduced motion. It is
+    // read again whenever the screen's lifecycle moves, as it does on return from Settings.
+    val lifecycleState by LocalLifecycleOwner.current.lifecycle.currentStateFlow.collectAsState()
+    val reducedMotion = remember(lifecycleState) { !ValueAnimator.areAnimatorsEnabled() }
     return remember(offset, direction, reducedMotion) {
         MobileMotion(axisOffsetPx = if (direction == LayoutDirection.Rtl) -offset else offset, reducedMotion)
     }

@@ -1593,15 +1593,23 @@ class MobileShellPlaybackTest {
                 }
             }
         }
-        val history = hasText("History") and hasAnyAncestor(hasTestTag(navigationTag))
-        compose.onNode(history).performClick()
-        compose.onNode(history).assertIsSelected()
+        val account = hasText("Account") and hasAnyAncestor(hasTestTag(navigationTag))
+        compose.onNode(account).performClick()
+        compose.onNode(account).assertIsSelected()
+        // The scroll position is the destination's own saved state: a list that lost it would
+        // show its identity row at the top again.
+        val identity = hasText(Account.username) and hasAnyAncestor(hasTestTag(MOBILE_ACCOUNT_LIST_TAG))
+        compose.onNode(identity).assertExists()
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Sign out"))
+        compose.onNode(identity).assertDoesNotExist()
 
         compose.runOnIdle { pending.value = true }
         compose.onAllNodesWithTag(navigationTag).assertCountEquals(0)
         compose.onNodeWithContentDescription("Back").performClick()
         compose.onNodeWithTag(navigationTag).assertExists()
-        compose.onNode(history).assertIsSelected()
+        compose.onNode(account).assertIsSelected()
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).assertExists()
+        compose.onNode(identity).assertDoesNotExist()
     }
 
     @Test
