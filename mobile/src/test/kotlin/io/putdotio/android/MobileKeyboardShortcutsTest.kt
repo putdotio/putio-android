@@ -171,7 +171,7 @@ class MobileKeyboardShortcutsTest {
         compose.onNodeWithTag(MOBILE_SEARCH_FIELD_TAG).assertIsFocused()
         compose.activity.pressHardwareKey(KeyEvent.KEYCODE_DEL)
         compose.onNodeWithTag(MOBILE_SEARCH_FIELD_TAG).assertIsFocused()
-        compose.onNode(hasText("Search") and hasAnyAncestor(hasTestTag(MOBILE_NAV_RAIL_TAG))).assertIsSelected()
+        compose.onNode(hasText("Files") and hasAnyAncestor(hasTestTag(MOBILE_NAV_RAIL_TAG))).assertIsSelected()
     }
 
     @Test

@@ -13,25 +13,11 @@ import androidx.compose.ui.semantics.Role
 import io.putdotio.android.R
 import io.putdotio.android.trash.MOBILE_MANAGE_TRASH_TAG
 
-/** Account's subpages: Downloads where this device keeps them, public links, and Trash. */
+/** Account's subpages: public links and Trash. */
 internal fun LazyListScope.manageItems(
-    onManageDownloads: (() -> Unit)?,
     onManagePublicLinks: (() -> Unit)?,
     onManageTrash: () -> Unit,
 ) {
-    if (onManageDownloads != null) {
-        item(key = "manage-downloads") {
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.mobile_downloads_manage)) },
-                supportingContent = { Text(stringResource(R.string.mobile_downloads_manage_description)) },
-                leadingContent = {
-                    Icon(painterResource(R.drawable.ic_ph_download_simple), contentDescription = null)
-                },
-                modifier = Modifier.clickable(onClick = onManageDownloads, role = Role.Button)
-                    .testTag(MOBILE_MANAGE_DOWNLOADS_TAG),
-            )
-        }
-    }
     if (onManagePublicLinks != null) {
         item(key = "manage-public-links") {
             ListItem(

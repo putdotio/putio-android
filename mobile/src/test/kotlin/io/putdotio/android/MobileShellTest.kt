@@ -20,6 +20,7 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
@@ -34,6 +35,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.Dp
@@ -351,7 +353,9 @@ class MobileShellTest {
             }
         }
 
-        compose.onNodeWithText("Account").performClick()
+        // Five destinations scroll in the compact drawer.
+        compose.onNode(hasText("Account") and hasAnyAncestor(hasTestTag(MOBILE_NAV_DRAWER_TAG)))
+            .performScrollTo().performClick()
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Show subtitles"))
         compose.onNodeWithText("Show subtitles").assertIsDisplayed().performClick()
 
@@ -440,7 +444,7 @@ class MobileShellTest {
                 )
             }
         }
-        compose.onNodeWithText("Search").performClick()
+        compose.onNodeWithTag(MOBILE_FILES_SEARCH_TAG).performClick()
         compose.onNodeWithTag(MOBILE_SEARCH_FIELD_TAG).assertIsDisplayed()
         val open = FilesExternalOpen(resolved, FilesOpenOrigin.SEARCH)
         compose.runOnIdle { assertTrue(deliveries.trySend(open).isSuccess) }
@@ -448,8 +452,7 @@ class MobileShellTest {
         compose.onNodeWithText("This item cannot be opened right now. Check Files, then try again.").assertIsDisplayed()
         compose.onNodeWithText("OK").performClick()
         compose.onNodeWithTag(MOBILE_SEARCH_FIELD_TAG).assertIsDisplayed()
-        compose.onNode(hasText("Search") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))).assertIsSelected()
-        compose.onNode(hasText("Files") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))).assertIsNotSelected()
+        compose.onNode(hasText("Files") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))).assertIsSelected()
         compose.runOnIdle {
             assertEquals(listOf(FilesBrowserEvent.OpenExternalItem(resolved, FilesOpenOrigin.SEARCH)),
                 events.filterIsInstance<FilesBrowserEvent.OpenExternalItem>())
@@ -1476,7 +1479,9 @@ class MobileShellExternalOpenTest {
         compose.onNodeWithText("notes.pdf").assertIsSelected()
         compose.onNode(hasText("cover.jpg") and isSelected()).assertDoesNotExist()
         compose.onNodeWithContentDescription("Back").performClick()
-        assertSearchShown()
+        // History is a tab of its own, so Back returns there rather than to Search.
+        compose.onNode(hasText("History") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))).assertIsSelected()
+        compose.onNodeWithTag(MOBILE_TAB_TITLE_TAG).assertTextEquals("History")
     }
 
     private fun showSearch() {
@@ -1503,7 +1508,7 @@ class MobileShellExternalOpenTest {
                 )
             }
         }
-        compose.onNode(hasText("Search") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))).performClick()
+        compose.onNodeWithTag(MOBILE_FILES_SEARCH_TAG).performClick()
         assertSearchShown()
     }
 
@@ -1514,7 +1519,7 @@ class MobileShellExternalOpenTest {
 
     private fun assertSearchShown() {
         compose.onNodeWithTag(MOBILE_SEARCH_FIELD_TAG).assertIsDisplayed()
-        compose.onNode(hasText("Search") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))).assertIsSelected()
+        compose.onNode(hasText("Files") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))).assertIsSelected()
     }
 
     private fun externalItem(id: Long, name: String, type: PutioFileType) =
@@ -1588,15 +1593,15 @@ class MobileShellPlaybackTest {
                 }
             }
         }
-        compose.onNode(hasText("Search") and hasAnyAncestor(hasTestTag(navigationTag))).performClick()
-        compose.onNodeWithText("History").performClick()
-        compose.onNodeWithText("History").assertIsSelected()
+        val history = hasText("History") and hasAnyAncestor(hasTestTag(navigationTag))
+        compose.onNode(history).performClick()
+        compose.onNode(history).assertIsSelected()
 
         compose.runOnIdle { pending.value = true }
         compose.onAllNodesWithTag(navigationTag).assertCountEquals(0)
         compose.onNodeWithContentDescription("Back").performClick()
         compose.onNodeWithTag(navigationTag).assertExists()
-        compose.onNodeWithText("History").assertIsSelected()
+        compose.onNode(history).assertIsSelected()
     }
 
     @Test

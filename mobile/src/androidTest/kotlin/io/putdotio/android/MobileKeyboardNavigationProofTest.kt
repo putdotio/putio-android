@@ -103,7 +103,7 @@ class MobileKeyboardNavigationProofTest {
         try {
             compose.onNodeWithTag(navigationTag).assertIsDisplayed()
             capture("normal-$orientation-files")
-            compose.onNode(hasText("Search") and hasAnyAncestor(hasTestTag(navigationTag))).performClick()
+            compose.onNodeWithTag(MOBILE_FILES_SEARCH_TAG).performClick()
             capture("normal-$orientation-search")
             val editor = compose.onNodeWithTag(MOBILE_SEARCH_FIELD_TAG)
             editor.performClick().performTextInput("Rehearsal")

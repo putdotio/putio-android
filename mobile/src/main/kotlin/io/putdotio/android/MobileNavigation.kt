@@ -1,7 +1,12 @@
 package io.putdotio.android
 
 import android.net.Uri
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -26,7 +31,6 @@ import io.putdotio.android.downloads.DownloadRequest
 import io.putdotio.android.downloads.DownloadsController
 import io.putdotio.android.downloads.DownloadsEvent
 import io.putdotio.android.downloads.DownloadsState
-import io.putdotio.android.downloads.MOBILE_DOWNLOADS_ROUTE
 import io.putdotio.android.downloads.MobileDownloadsScreen
 import io.putdotio.android.downloads.rememberFirstDownloadNotificationPrompt
 import io.putdotio.android.files.FilesBrowserEvent
@@ -54,7 +58,8 @@ import io.putdotio.android.playback.playerFailureTelemetry
 import io.putdotio.android.playback.putioFailure
 import io.putdotio.android.playback.rememberPictureInPictureMode
 import io.putdotio.android.playback.subtitleStartupPolicy
-import io.putdotio.android.search.MobileSearchHistoryScreen
+import io.putdotio.android.search.MobileHistoryScreen
+import io.putdotio.android.search.MobileSearchScreen
 import io.putdotio.android.settings.AccountSettingsEvent
 import io.putdotio.android.settings.AccountSettingsRepositoryResult
 import io.putdotio.android.settings.AccountSettingsState
@@ -111,6 +116,8 @@ internal fun MobileNavHost(
     modifier: Modifier = Modifier,
     deviceClass: AppDiagnostics.DeviceClass = AppDiagnostics.DeviceClass.Phone,
     publicLinks: MobilePublicLinks? = null,
+    searchOpen: Boolean = false,
+    filesBackPreview: MobileBackPreview = rememberMobileBackPreview(),
     focusSearch: Boolean = false,
     onSearchFocused: () -> Unit = {},
     fileDragOut: MobileFileDragOut? = null,
@@ -120,157 +127,199 @@ internal fun MobileNavHost(
     val currentOnTransfersEvent by rememberUpdatedState(onTransfersEvent)
     val appContext = LocalContext.current.applicationContext
     val moveTargetStore = remember(appContext, account.userId) { MobileMoveTargetStore(appContext, account.userId) }
-    NavHost(
-        navController = navController,
-        startDestination = MobileDestination.start.route,
-        modifier = modifier,
-    ) {
-        composable(MobileDestination.Files.route) {
-            val askForDownloadNotifications = rememberFirstDownloadNotificationPrompt()
-            MobileFilesRoute(
-                state = filesState,
-                repository = filesRepository,
-                onEvent = onFilesEvent,
-                onPlayMedia = navController::navigateToPlayback,
-                onAuthenticationRequired = onFilesAuthenticationRequired,
-                confirmedTrashEnabled = accountSettingsState.confirmedTrashEnabled(),
-                downloads = downloadsState,
-                onDownloadItem = downloadsController?.let { controller ->
-                    { item ->
-                        val request = item.toDownloadRequest(accountSettingsState.confirmedShowSubtitles())
-                        if (controller.dispatch(DownloadsEvent.Start(request))) askForDownloadNotifications()
+    val motion = rememberMobileMotion()
+    SharedTransitionLayout(modifier = modifier) {
+        CompositionLocalProvider(LocalMobileSharedTransition provides this) {
+            NavHost(
+                navController = navController,
+                startDestination = MobileDestination.start.route,
+                modifier = Modifier.fillMaxSize(),
+                enterTransition = { motion.enter(motion.between(initialState, targetState, pop = false)) },
+                exitTransition = { motion.exit(motion.between(initialState, targetState, pop = false)) },
+                popEnterTransition = { motion.enter(motion.between(initialState, targetState, pop = true)) },
+                popExitTransition = { motion.exit(motion.between(initialState, targetState, pop = true)) },
+            ) {
+                composable(MobileDestination.Files.route) {
+                    val askForDownloadNotifications = rememberFirstDownloadNotificationPrompt()
+                    val showSubtitles = accountSettingsState.confirmedShowSubtitles()
+                    MobileFilesTab(
+                        routeAnimation = this,
+                        searchOpen = searchOpen,
+                        backPreview = filesBackPreview,
+                        search = {
+                            MobileSearchScreen(
+                                searchState = searchHistoryState.search,
+                                recentSearchFailure = searchHistoryState.recentSearchFailure,
+                                onSearchQueryChanged = searchHistoryActions.onQueryChanged,
+                                onSearchSubmit = searchHistoryActions.onSubmit,
+                                onSearchResult = searchHistoryActions.onResult,
+                                onSearchNextPage = searchHistoryActions.onNextPage,
+                                onSearchRetry = searchHistoryActions.onRetry,
+                                onRecentSearch = searchHistoryActions.onRecentSearch,
+                                onRecentEdit = searchHistoryActions.onRecentEdit,
+                                onRecentRetry = searchHistoryActions.onRecentRetry,
+                                focusSearch = focusSearch,
+                                onSearchFocused = onSearchFocused,
+                            )
+                        },
+                    ) {
+                        MobileFilesRoute(
+                            state = filesState,
+                            repository = filesRepository,
+                            onEvent = onFilesEvent,
+                            onPlayMedia = navController::navigateToPlayback,
+                            onAuthenticationRequired = onFilesAuthenticationRequired,
+                            confirmedTrashEnabled = accountSettingsState.confirmedTrashEnabled(),
+                            downloads = downloadsState,
+                            onDownloadItem = downloadsController?.let { controller ->
+                                { item ->
+                                    val start = DownloadsEvent.Start(item.toDownloadRequest(showSubtitles))
+                                    if (controller.dispatch(start)) askForDownloadNotifications()
+                                }
+                            },
+                            onShareItem = onShareItem,
+                            onViewTrash = trashController?.let { { navController.navigateToTrash() } },
+                            moveTargetStore = moveTargetStore,
+                            publicLinks = publicLinks,
+                            fileDragOut = fileDragOut,
+                        )
                     }
-                },
-                onShareItem = onShareItem,
-                onViewTrash = trashController?.let { { navController.navigateToTrash() } },
-                moveTargetStore = moveTargetStore,
-                publicLinks = publicLinks,
-                fileDragOut = fileDragOut,
-            )
-        }
-        composable(MobileDestination.Search.route) {
-            MobileSearchHistoryScreen(
-                searchState = searchHistoryState.search,
-                historyState = searchHistoryState.history,
-                recentSearchFailure = searchHistoryState.recentSearchFailure,
-                onSearchQueryChanged = searchHistoryActions.onQueryChanged,
-                onSearchSubmit = searchHistoryActions.onSubmit,
-                onSearchResult = searchHistoryActions.onResult,
-                onSearchNextPage = searchHistoryActions.onNextPage,
-                onSearchRetry = searchHistoryActions.onRetry,
-                onRecentSearch = searchHistoryActions.onRecentSearch,
-                onRecentEdit = searchHistoryActions.onRecentEdit,
-                onRecentRetry = searchHistoryActions.onRecentRetry,
-                onHistoryEvent = searchHistoryActions.onHistoryEvent,
-                focusSearch = focusSearch,
-                onSearchFocused = onSearchFocused,
-            )
-        }
-        composable(MobileDestination.Transfers.route) {
-            val eventHandler = currentOnTransfersEvent
-            TransfersVisibilityEffect(currentTransfersSessionId, eventHandler)
-            MobileTransfersScreen(
-                draft = transferDraft,
-                state = currentTransfersState,
-                onEvent = eventHandler,
-                sessionId = currentTransfersSessionId,
-                filesRepository = filesRepository,
-                onFilesAuthenticationRequired = onFilesAuthenticationRequired,
-            )
-        }
-        composable(MobileDestination.Account.route) {
-            MobileAccountScreen(
-                account = account,
-                sessionId = sessionId,
-                settingsState = accountSettingsState,
-                appConfigState = appConfigState,
-                onSettingsEvent = onAccountSettingsEvent,
-                onAppConfigEvent = onAppConfigEvent,
-                loadTunnelRoutes = loadTunnelRoutes,
-                deviceClass = deviceClass,
-                onSignOut = onSignOut,
-                onManageTrash = { navController.navigate(MOBILE_TRASH_ROUTE) { launchSingleTop = true } },
-                onManageDownloads = downloadsController?.let {
-                    { navController.navigate(MOBILE_DOWNLOADS_ROUTE) { launchSingleTop = true } }
-                },
-                onManagePublicLinks = publicLinks?.let {
-                    { navController.navigate(MOBILE_PUBLIC_LINKS_ROUTE) { launchSingleTop = true } }
-                },
-                onPrivacyControls = {
-                    navController.navigate(MOBILE_PRIVACY_CONTROLS_ROUTE) { launchSingleTop = true }
-                },
-            )
-        }
-        composable(MOBILE_PRIVACY_CONTROLS_ROUTE) {
-            MobilePrivacyControlsScreen(
-                settingsState = accountSettingsState,
-                onSettingsEvent = onAccountSettingsEvent,
-            )
-        }
-        composable(MOBILE_PUBLIC_LINKS_ROUTE) {
-            publicLinks?.let { MobilePublicLinksScreen(it) }
-        }
-        composable(MOBILE_DOWNLOADS_ROUTE) {
-            downloadsController?.let { controller ->
-                MobileDownloadsScreen(
-                    state = downloadsState,
-                    onEvent = controller::dispatch,
-                    onPlay = navController::navigateToPlayback,
-                    onShare = onShareItem,
-                )
+                }
+                composable(MobileDestination.History.route) {
+                    MobileHistoryScreen(
+                        historyState = searchHistoryState.history,
+                        onHistoryEvent = searchHistoryActions.onHistoryEvent,
+                    )
+                }
+                composable(MobileDestination.Transfers.route) {
+                    val eventHandler = currentOnTransfersEvent
+                    TransfersVisibilityEffect(currentTransfersSessionId, eventHandler)
+                    MobileTransfersScreen(
+                        draft = transferDraft,
+                        state = currentTransfersState,
+                        onEvent = eventHandler,
+                        sessionId = currentTransfersSessionId,
+                        filesRepository = filesRepository,
+                        onFilesAuthenticationRequired = onFilesAuthenticationRequired,
+                    )
+                }
+                composable(MobileDestination.Downloads.route) {
+                    downloadsController?.let { controller ->
+                        MobileDownloadsScreen(
+                            state = downloadsState,
+                            onEvent = controller::dispatch,
+                            onPlay = navController::navigateToPlayback,
+                            onShare = onShareItem,
+                        )
+                    }
+                }
+                composable(MobileDestination.Account.route) {
+                    MobileAccountScreen(
+                        account = account,
+                        sessionId = sessionId,
+                        settingsState = accountSettingsState,
+                        appConfigState = appConfigState,
+                        onSettingsEvent = onAccountSettingsEvent,
+                        onAppConfigEvent = onAppConfigEvent,
+                        loadTunnelRoutes = loadTunnelRoutes,
+                        deviceClass = deviceClass,
+                        onSignOut = onSignOut,
+                        onManageTrash = { navController.navigate(MOBILE_TRASH_ROUTE) { launchSingleTop = true } },
+                        onManagePublicLinks = publicLinks?.let {
+                            { navController.navigate(MOBILE_PUBLIC_LINKS_ROUTE) { launchSingleTop = true } }
+                        },
+                        onPrivacyControls = {
+                            navController.navigate(MOBILE_PRIVACY_CONTROLS_ROUTE) { launchSingleTop = true }
+                        },
+                    )
+                }
+                composable(MOBILE_PRIVACY_CONTROLS_ROUTE) {
+                    MobilePrivacyControlsScreen(
+                        settingsState = accountSettingsState,
+                        onSettingsEvent = onAccountSettingsEvent,
+                    )
+                }
+                composable(MOBILE_PUBLIC_LINKS_ROUTE) {
+                    publicLinks?.let { MobilePublicLinksScreen(it) }
+                }
+                composable(MOBILE_TRASH_ROUTE) {
+                    trashController?.let { controller ->
+                        val state by controller.state.collectAsStateWithLifecycle()
+                        LaunchedEffect(controller) { controller.dispatch(TrashEvent.Open) }
+                        MobileTrashScreen(state, controller::dispatch)
+                    }
+                }
+                composable(
+                    route = MOBILE_PLAYBACK_ROUTE,
+                    arguments =
+                        listOf(
+                            navArgument("fileId") { type = NavType.LongType },
+                            navArgument("name") {
+                                type = NavType.StringType
+                                defaultValue = ""
+                            },
+                            navArgument("media") {
+                                type = NavType.StringType
+                                defaultValue = PlaybackMediaType.VIDEO.name
+                            },
+                            navArgument("duration") {
+                                type = NavType.StringType
+                                nullable = true
+                                defaultValue = null
+                            },
+                        ),
+                ) { backStackEntry ->
+                    val fileId = requireNotNull(backStackEntry.arguments?.getLong("fileId"))
+                    val name = backStackEntry.arguments?.getString("name").orEmpty()
+                    val media = backStackEntry.arguments?.getString("media")
+                    val mediaType =
+                        PlaybackMediaType.entries.firstOrNull { it.name == media } ?: PlaybackMediaType.VIDEO
+                    val subtitleStartupPolicy = accountSettingsState.subtitleStartupPolicy()
+                    // The listing's duration spares resolution a lookup for the near-end rule.
+                    val durationSeconds = backStackEntry.arguments?.getString("duration")?.toDoubleOrNull()
+                        ?.takeIf { it.isFinite() && it > 0.0 }
+                    val target = PlaybackTarget(FilesItemId(fileId), name, mediaType, durationSeconds)
+                    val playbackViewModel: MobilePlaybackViewModel =
+                        viewModel(
+                            viewModelStoreOwner = backStackEntry,
+                            factory = mobilePlaybackViewModelFactory(target, playbackRepository),
+                        )
+                    // The player grows out of the row it was opened from: a container transform.
+                    Box(Modifier.fillMaxSize().playbackContainer(fileId, route = this)) {
+                        MobilePlaybackRoute(
+                            controller = playbackViewModel.controller,
+                            subtitleStartupPolicy = subtitleStartupPolicy,
+                            autoplayNextVideo = appConfigState.confirmedAutoplayNextVideo(),
+                            onAuthenticationRequired = onPlaybackAuthenticationRequired,
+                            onBack = navController::popBackStack,
+                            playerFactory = playbackPlayerFactory,
+                        )
+                    }
+                }
             }
         }
-        composable(MOBILE_TRASH_ROUTE) {
-            trashController?.let { controller ->
-                val state by controller.state.collectAsStateWithLifecycle()
-                LaunchedEffect(controller) { controller.dispatch(TrashEvent.Open) }
-                MobileTrashScreen(state, controller::dispatch)
-            }
-        }
-        composable(
-            route = MOBILE_PLAYBACK_ROUTE,
-            arguments =
-                listOf(
-                    navArgument("fileId") { type = NavType.LongType },
-                    navArgument("name") {
-                        type = NavType.StringType
-                        defaultValue = ""
-                    },
-                    navArgument("media") {
-                        type = NavType.StringType
-                        defaultValue = PlaybackMediaType.VIDEO.name
-                    },
-                    navArgument("duration") {
-                        type = NavType.StringType
-                        nullable = true
-                        defaultValue = null
-                    },
-                ),
-        ) { backStackEntry ->
-            val fileId = requireNotNull(backStackEntry.arguments?.getLong("fileId"))
-            val name = backStackEntry.arguments?.getString("name").orEmpty()
-            val mediaType =
-                PlaybackMediaType.entries.firstOrNull { it.name == backStackEntry.arguments?.getString("media") }
-                    ?: PlaybackMediaType.VIDEO
-            val subtitleStartupPolicy = accountSettingsState.subtitleStartupPolicy()
-            // The listing's duration spares resolution a lookup for the near-end rule.
-            val durationSeconds = backStackEntry.arguments?.getString("duration")?.toDoubleOrNull()
-                ?.takeIf { it.isFinite() && it > 0.0 }
-            val target = PlaybackTarget(FilesItemId(fileId), name, mediaType, durationSeconds)
-            val playbackViewModel: MobilePlaybackViewModel =
-                viewModel(
-                    viewModelStoreOwner = backStackEntry,
-                    factory = mobilePlaybackViewModelFactory(target, playbackRepository),
-                )
-            MobilePlaybackRoute(
-                controller = playbackViewModel.controller,
-                subtitleStartupPolicy = subtitleStartupPolicy,
-                autoplayNextVideo = appConfigState.confirmedAutoplayNextVideo(),
-                onAuthenticationRequired = onPlaybackAuthenticationRequired,
-                onBack = navController::popBackStack,
-                playerFactory = playbackPlayerFactory,
-            )
-        }
+    }
+}
+
+/**
+ * Files and the Search that opens over it. Search pushes along the shared axis, folders do the
+ * same inside [MobileFilesRoute], and Back previews either pop on [backPreview].
+ */
+@Composable
+private fun MobileFilesTab(
+    routeAnimation: AnimatedVisibilityScope,
+    searchOpen: Boolean,
+    backPreview: MobileBackPreview,
+    search: @Composable () -> Unit,
+    files: @Composable () -> Unit,
+) {
+    MobileRouteAnimation(routeAnimation) {
+        MobileAxisContent(
+            state = searchOpen,
+            contentKey = { it },
+            depth = { if (it) 1 else 0 },
+            modifier = Modifier.fillMaxSize().mobileBackPreview(backPreview),
+        ) { showSearch -> if (showSearch) search() else files() }
     }
 }
 

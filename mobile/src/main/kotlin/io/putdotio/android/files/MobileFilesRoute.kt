@@ -14,6 +14,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.res.stringResource
 import io.putdotio.android.R
 import io.putdotio.android.AuthoritativeSessionFailureEffect
+import io.putdotio.android.MobileAxisContent
 import io.putdotio.android.authoritativeSessionFailure
 import io.putdotio.android.downloads.DownloadsState
 import io.putdotio.android.playback.dispatch
@@ -36,6 +37,46 @@ internal fun MobileFilesRoute(
     moveTargetStore: FilesMoveTargetStore? = null,
     publicLinks: MobilePublicLinks? = null,
     fileDragOut: MobileFileDragOut? = null,
+) {
+    // Opening a folder pushes along the shared axis and Back pops; the leaving folder keeps its own state.
+    MobileAxisContent(
+        state = state,
+        contentKey = { it.stack.size to it.current.folder.id.value },
+        depth = { it.stack.size },
+    ) { shown ->
+        MobileFilesFolder(
+            state = shown,
+            repository = repository,
+            onEvent = onEvent,
+            onPlayMedia = onPlayMedia,
+            confirmedTrashEnabled = confirmedTrashEnabled,
+            onAuthenticationRequired = onAuthenticationRequired,
+            downloads = downloads,
+            onDownloadItem = onDownloadItem,
+            onShareItem = onShareItem,
+            onViewTrash = onViewTrash,
+            moveTargetStore = moveTargetStore,
+            publicLinks = publicLinks,
+            fileDragOut = fileDragOut,
+        )
+    }
+}
+
+@Composable
+private fun MobileFilesFolder(
+    state: FilesBrowserState,
+    repository: FilesRepository?,
+    onEvent: (FilesBrowserEvent) -> Boolean,
+    onPlayMedia: (FilesItem) -> Unit,
+    confirmedTrashEnabled: Boolean?,
+    onAuthenticationRequired: suspend () -> Unit,
+    downloads: DownloadsState,
+    onDownloadItem: ((FilesItem) -> Unit)?,
+    onShareItem: ((FilesItem) -> Unit)?,
+    onViewTrash: (() -> Unit)?,
+    moveTargetStore: FilesMoveTargetStore?,
+    publicLinks: MobilePublicLinks?,
+    fileDragOut: MobileFileDragOut?,
 ) {
     key(repository, state.current.folder.id.value) {
         var movingItemId by rememberSaveable { mutableStateOf<Long?>(null) }
