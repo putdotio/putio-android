@@ -12,7 +12,7 @@ on:
         required: true
         type: string
       dry_run:
-        description: Upload both bundles to a Google Play edit, then discard it instead of committing
+        description: Upload both bundles to a Google Play edit and validate it, without committing
         required: false
         type: boolean
         default: false

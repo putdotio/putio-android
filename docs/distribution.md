@@ -46,8 +46,8 @@ installs without dependency caches in secret-bearing jobs.
 ## Dry runs
 
 Internal with `dry_run` runs everything with the real secrets but passes
-`--no-commit`: Google Play checks both bundles, their signing key and version
-codes inside an edit, which is then discarded, and nothing is tagged. A local
+`--no-commit`: Google Play validates both bundles, their signing key and
+version codes inside an edit that is never committed, and nothing is tagged. A local
 release build without the secrets stays unsigned:
 
 ```bash
@@ -86,7 +86,8 @@ Codes up to 94 are taken by the legacy app and the first Compose upload.
 
 Release promotes everything on the internal track, with all its version codes,
 to production. A staged rollout leaves the rest of production on the release
-it had; 100% replaces it.
+it had; 100% replaces it. `from_track=production` only moves a staged rollout:
+Gradle Play Publisher would restage a completed release instead of refusing.
 
 ## Signing
 

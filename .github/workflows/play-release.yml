@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       from_track:
-        description: internal promotes that track's release to production; production changes the staged production rollout
+        description: internal promotes that track's release to production; production changes a staged production rollout, never a completed release
         required: true
         type: choice
         options: [internal, production]
