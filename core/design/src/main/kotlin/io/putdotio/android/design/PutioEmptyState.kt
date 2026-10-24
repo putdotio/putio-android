@@ -15,18 +15,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
-/** The mono glyphs of DESIGN.md's Empty and error states table. */
-public enum class PutioEmptyGlyph(internal val text: String) {
-    EmptyFolder("[ ]"),
-    NoResults("¯\\_(ツ)_/¯"),
-    NoTransfers("( ⌐■_■)"),
-    Offline("(x_x)"),
-}
-
-private val GlyphGap = 20.dp
-private val HeadlineGap = 8.dp
-private val ActionGap = 24.dp
-private val MessageWidth = 300.dp
+private val GLYPH_GAP = 20.dp
+private val HEADLINE_GAP = 8.dp
+private val ACTION_GAP = 24.dp
+private val MESSAGE_WIDTH = 300.dp
 
 /**
  * The put.io empty-state voice: a mono glyph, a one-line headline, one sentence and at most one
@@ -54,7 +46,7 @@ public fun PutioEmptyState(
                 softWrap = false,
                 modifier = Modifier.clearAndSetSemantics {},
             )
-            Spacer(Modifier.height(GlyphGap))
+            Spacer(Modifier.height(GLYPH_GAP))
         }
         Text(
             text = headline,
@@ -62,16 +54,16 @@ public fun PutioEmptyState(
             textAlign = TextAlign.Center,
             modifier = Modifier.semantics { heading() },
         )
-        Spacer(Modifier.height(HeadlineGap))
+        Spacer(Modifier.height(HEADLINE_GAP))
         Text(
             text = message,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
-            modifier = Modifier.widthIn(max = MessageWidth),
+            modifier = Modifier.widthIn(max = MESSAGE_WIDTH),
         )
         if (action != null) {
-            Spacer(Modifier.height(ActionGap))
+            Spacer(Modifier.height(ACTION_GAP))
             action()
         }
     }

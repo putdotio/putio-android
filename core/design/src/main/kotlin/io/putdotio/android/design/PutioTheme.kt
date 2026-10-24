@@ -53,14 +53,17 @@ internal val putioShapes: Shapes = Shapes().copy(
 )
 
 /** Numbers never go below 12sp (DESIGN.md Typography). */
-private val MinimumNumberSize = 12.sp
+private val MINIMUM_NUMBER_SIZE = 12.sp
 
 /**
  * This style with numbers set in the mono face and tabular figures. Mono takes the size of the
  * text it sits in, raised to 12sp when that is smaller.
  */
-public fun TextStyle.putioMono(): TextStyle = copy(
-    fontFamily = PutioTypeScale.mono.fontFamily,
-    fontFeatureSettings = PutioTypeScale.mono.fontFeatureSettings,
-    fontSize = if (fontSize.type == TextUnitType.Sp && fontSize < MinimumNumberSize) MinimumNumberSize else fontSize,
-)
+public fun TextStyle.putioMono(): TextStyle {
+    val belowFloor = fontSize.type == TextUnitType.Sp && fontSize < MINIMUM_NUMBER_SIZE
+    return copy(
+        fontFamily = PutioTypeScale.mono.fontFamily,
+        fontFeatureSettings = PutioTypeScale.mono.fontFeatureSettings,
+        fontSize = if (belowFloor) MINIMUM_NUMBER_SIZE else fontSize,
+    )
+}

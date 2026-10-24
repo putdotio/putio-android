@@ -16,14 +16,14 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.unit.dp
 
-private val TrackWidth = 44.dp
-private val TrackHeight = 26.dp
-private val OutlineWidth = 2.dp
-private val OffHandle = 12.dp
-private val OnHandle = 18.dp
+private val TRACK_WIDTH = 44.dp
+private val TRACK_HEIGHT = 26.dp
+private val OUTLINE_WIDTH = 2.dp
+private val OFF_HANDLE = 12.dp
+private val ON_HANDLE = 18.dp
 
 /** Material's disabled-content opacity. */
-private const val DisabledAlpha = 0.38f
+private const val DISABLED_ALPHA = 0.38f
 
 /**
  * DESIGN.md's compact neutral switch, a deliberate step off stock M3. Off: a `surface` track in a
@@ -45,10 +45,10 @@ public fun PutioSwitch(
     val surface = MaterialTheme.colorScheme.surface
     Spacer(
         modifier
-            .size(TrackWidth, TrackHeight)
-            .alpha(if (enabled) 1f else DisabledAlpha)
+            .size(TRACK_WIDTH, TRACK_HEIGHT)
+            .alpha(if (enabled) 1f else DISABLED_ALPHA)
             .drawBehind {
-                val outline = OutlineWidth.toPx()
+                val outline = OUTLINE_WIDTH.toPx()
                 val radius = CornerRadius(size.height / 2f)
                 drawRoundRect(color = lerp(surface, onTrack, progress), cornerRadius = radius)
                 drawRoundRect(
@@ -63,7 +63,7 @@ public fun PutioSwitch(
                 val onCenter = size.width - size.height / 2f
                 drawCircle(
                     color = lerp(solid, surface, progress),
-                    radius = lerp(OffHandle.toPx(), OnHandle.toPx(), progress) / 2f,
+                    radius = lerp(OFF_HANDLE.toPx(), ON_HANDLE.toPx(), progress) / 2f,
                     center = Offset(lerp(offCenter, onCenter, progress), size.height / 2f),
                 )
             },
