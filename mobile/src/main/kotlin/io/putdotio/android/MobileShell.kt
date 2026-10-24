@@ -477,7 +477,11 @@ private suspend fun NavHostController.openDeepLink(link: MobileDeepLink, targets
             targets.addTransfer()
         }
         MobileDeepLink.Search -> targets.openSearch()
-        MobileDeepLink.History -> navigateTo(MobileDestination.History)
+        MobileDeepLink.History -> {
+            navigateTo(MobileDestination.History)
+            // Tab restoration can bring back playback above History; the link shows History itself.
+            popBackStack(MobileDestination.History.route, inclusive = false)
+        }
         MobileDeepLink.Trash -> navigateToTrash()
         is MobileDeepLink.Downloads -> {
             navigateTo(MobileDestination.Downloads)
