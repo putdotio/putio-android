@@ -187,11 +187,18 @@ internal fun MobileShell(
     val isTrash = backStackEntry?.destination?.route == MOBILE_TRASH_ROUTE
     // Search opens over Files and stays open across tab switches, like a folder does.
     var searchOpen by rememberSaveable(sessionId) { mutableStateOf(false) }
+    // Which way Search last moved: forward when opened or left for a result, back on a Back.
+    var searchForward by remember { mutableStateOf(true) }
     val openSearch = {
         navController.navigateTo(MobileDestination.Files)
         // Tab restoration can bring back playback above Files; Search opens on Files itself.
         navController.popBackStack(MobileDestination.Files.route, inclusive = false)
+        searchForward = true
         searchOpen = true
+    }
+    val leaveSearch = { forward: Boolean ->
+        searchForward = forward
+        searchOpen = false
     }
     val publicLinks = publicLinksController?.let { controller ->
         val state = controller.state.collectAsStateWithLifecycle().value
@@ -212,7 +219,7 @@ internal fun MobileShell(
             openDownload = { fileId, play -> navController.openDownload(downloadsController, fileId, play) },
             addTransfer = transferDraft::open,
             openSearch = openSearch,
-            closeSearch = { searchOpen = false },
+            closeSearch = { leaveSearch(true) },
         ),
     )
     IncomingTransferNavigationEffect(
@@ -244,7 +251,7 @@ internal fun MobileShell(
         navController = navController,
         playbackFileId = playbackFileId,
         onFilesEvent = onFilesEvent,
-        onFilesOpened = { searchOpen = false },
+        onFilesOpened = { leaveSearch(true) },
         onNavigationRejected = { rejectedNavigation = FilesFailure.NavigationBlocked },
     )
     TransferFileNavigationEffect(
@@ -252,7 +259,7 @@ internal fun MobileShell(
         transfersSessionId = transfersSessionId,
         navController = navController,
         onFilesEvent = onFilesEvent,
-        onFilesOpened = { searchOpen = false },
+        onFilesOpened = { leaveSearch(true) },
         onTransfersEvent = onTransfersEvent,
         resolveTransferFile = resolveTransferFile,
         onTransferAuthenticationRequired = onTransferAuthenticationRequired,
@@ -261,9 +268,14 @@ internal fun MobileShell(
     val filesBack = filesBack(
         filesState = filesState,
         onFiles = selectedDestination == MobileDestination.Files,
-        closeSearch = if (searchOpen) ({ searchOpen = false }) else null,
+        closeSearch = if (searchOpen) ({ leaveSearch(false) }) else null,
         onFilesEvent = onFilesEvent,
-        returnTo = { origin -> navController.returnTo(origin, openSearch) },
+        returnTo = { origin ->
+            navController.returnTo(origin) {
+                openSearch()
+                searchForward = false
+            }
+        },
     )
     val onFilesBack = filesBack.onBack
     val filesBackPreview = rememberMobileBackPreview()
@@ -346,6 +358,7 @@ internal fun MobileShell(
                             modifier = contentModifier,
                             publicLinks = publicLinks,
                             searchOpen = searchOpen,
+                            searchForward = searchForward,
                             filesBackPreview = filesBackPreview,
                             focusSearch = searchFocusPending,
                             onSearchFocused = { searchFocusPending = false },

@@ -41,9 +41,13 @@ internal fun MobileFilesRoute(
     // Opening a folder pushes along the shared axis and Back pops; the leaving folder keeps its own state.
     val folderKey = { browser: FilesBrowserState -> browser.stack.size to browser.current.folder.id.value }
     val currentKey = folderKey(state)
-    MobileAxisContent(state = state, contentKey = folderKey, depth = { it.stack.size }) { shown ->
+    MobileAxisContent(
+        state = state,
+        contentKey = folderKey,
+        forward = { initial, target -> target.stack.size >= initial.stack.size },
+    ) { shown ->
         // The reducer applies most events to the current folder, so the leaving one sends only an
-        // announced deletion, which the reducer matches anywhere in the stack.
+        // announced deletion, which the reducer matches anywhere in the stack, and starts nothing.
         val leaving = folderKey(shown) != currentKey
         MobileFilesFolder(
             state = shown,
@@ -51,13 +55,13 @@ internal fun MobileFilesRoute(
             onEvent = { event ->
                 (!leaving || event is FilesBrowserEvent.DeleteOutcomeAnnounced) && onEvent(event)
             },
-            onPlayMedia = onPlayMedia,
+            onPlayMedia = { item -> if (!leaving) onPlayMedia(item) },
             confirmedTrashEnabled = confirmedTrashEnabled,
             onAuthenticationRequired = onAuthenticationRequired,
             downloads = downloads,
-            onDownloadItem = onDownloadItem,
-            onShareItem = onShareItem,
-            onViewTrash = onViewTrash,
+            onDownloadItem = onDownloadItem?.let { download -> { item -> if (!leaving) download(item) } },
+            onShareItem = onShareItem?.let { share -> { item -> if (!leaving) share(item) } },
+            onViewTrash = onViewTrash?.let { view -> { if (!leaving) view() } },
             moveTargetStore = moveTargetStore,
             publicLinks = publicLinks,
             fileDragOut = fileDragOut,

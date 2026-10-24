@@ -118,6 +118,7 @@ internal fun MobileNavHost(
     deviceClass: AppDiagnostics.DeviceClass = AppDiagnostics.DeviceClass.Phone,
     publicLinks: MobilePublicLinks? = null,
     searchOpen: Boolean = false,
+    searchForward: Boolean = true,
     filesBackPreview: MobileBackPreview = rememberMobileBackPreview(),
     focusSearch: Boolean = false,
     onSearchFocused: () -> Unit = {},
@@ -149,6 +150,7 @@ internal fun MobileNavHost(
                     MobileFilesTab(
                         routeAnimation = this,
                         searchOpen = searchOpen,
+                        searchForward = searchForward,
                         backPreview = filesBackPreview,
                         search = {
                             MobileSearchScreen(
@@ -306,13 +308,15 @@ internal fun MobileNavHost(
 }
 
 /**
- * Files and the Search that opens over it. Search pushes along the shared axis, folders do the
- * same inside [MobileFilesRoute], and Back previews either pop on [backPreview].
+ * Files and the Search that opens over it. Search moves along the shared axis in [searchForward]'s
+ * direction: forward when it opens or a result opens, back on Back. Folders move the same way
+ * inside [MobileFilesRoute], and Back previews either pop on [backPreview].
  */
 @Composable
 private fun MobileFilesTab(
     routeAnimation: AnimatedVisibilityScope,
     searchOpen: Boolean,
+    searchForward: Boolean,
     backPreview: MobileBackPreview,
     search: @Composable () -> Unit,
     files: @Composable () -> Unit,
@@ -323,7 +327,7 @@ private fun MobileFilesTab(
         MobileAxisContent(
             state = searchOpen,
             contentKey = { it },
-            depth = { if (it) 1 else 0 },
+            forward = { _, _ -> searchForward },
             modifier = Modifier.fillMaxSize().mobileBackPreview(backPreview),
         ) { showSearch ->
             saved.SaveableStateProvider(showSearch) { if (showSearch) search() else files() }

@@ -148,14 +148,14 @@ internal fun rememberMobileMotion(): MobileMotion {
 }
 
 /**
- * Within-tab navigation the NavHost does not own, such as folders: [depth] orders the states, so a
- * deeper one pushes in and a shallower one pops back.
+ * Within-tab navigation the NavHost does not own, such as folders: [forward] tells a push, which
+ * slides in from the end, from a pop, which slides back.
  */
 @Composable
 internal fun <S> MobileAxisContent(
     state: S,
     contentKey: (S) -> Any?,
-    depth: (S) -> Int,
+    forward: (initial: S, target: S) -> Boolean,
     modifier: Modifier = Modifier,
     content: @Composable (S) -> Unit,
 ) {
@@ -164,7 +164,7 @@ internal fun <S> MobileAxisContent(
         targetState = state,
         modifier = modifier,
         contentKey = contentKey,
-        transitionSpec = { motion.axis(forward = depth(targetState) >= depth(initialState)) },
+        transitionSpec = { motion.axis(forward = forward(initialState, targetState)) },
         label = "mobile-axis",
     ) { shown -> content(shown) }
 }
