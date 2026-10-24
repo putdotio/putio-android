@@ -5,8 +5,9 @@ phones and tablets (`mobile`) and Android TV / Fire TV (`tv`) from one
 codebase. It is not on Google Play yet; [#14](https://github.com/putdotio/putio-android/issues/14)
 tracks the rollout. The [README](README.md) lists what works,
 [Behaviour](docs/behavior.md) the product rules and the tests that pin them,
-[Harness](docs/harness.md) the emulator lanes, evidence, and live proof, and
-[Distribution](docs/distribution.md) the Google Play lanes.
+[Harness](docs/harness.md) the emulator lanes, evidence, and live proof,
+[Distribution](docs/distribution.md) the Google Play lanes, and
+[Design](docs/design.md) the Android design contract.
 
 ## Where code lives
 
@@ -41,7 +42,9 @@ tracks the rollout. The [README](README.md) lists what works,
   API boundary. Close an SDK gap there instead of adding app-local HTTP.
 - Design values come from the locked `@putdotio/design` release and generated
   Phosphor drawables; [design/README.md](design/README.md) owns both pipelines.
-  Never hand-write design values or edit generated output.
+  Never hand-write design values or edit generated output. A UI change follows
+  [Design](docs/design.md); when it changes the design, update that file in the
+  same pull request.
 - Each app has `production` and `nightly` channel flavors. Nightly differs
   only in its id and version-name suffixes, label, and stars launcher icon, so
   its unit-test variants are disabled.

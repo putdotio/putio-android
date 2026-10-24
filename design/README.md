@@ -34,7 +34,7 @@ sync, and replace each digest it reports as unlocked. Then run
 `./gradlew verify`, which regenerates and re-pins the scheme.
 
 The M3-role → token map is the binding contract in
-[`platforms/android/DESIGN.md`](https://github.com/putdotio/putio-design/blob/main/platforms/android/DESIGN.md);
+[Design](../docs/design.md#binding);
 it lives as data in
 [`DesignTokenCodegen.kt`](../build-logic/src/main/kotlin/DesignTokenCodegen.kt).
 Generated code is `public` only where the apps read it: `PutioDesignTokens`, the
