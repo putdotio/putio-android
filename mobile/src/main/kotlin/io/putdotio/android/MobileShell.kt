@@ -678,10 +678,12 @@ private fun filesBack(
     returnTo: (FilesOpenOrigin) -> Unit,
 ): FilesBack {
     val moveSettling = filesState.stack.any { it.operation.pendingMove != null }
-    val searchOwnsBack = closeSearch != null && !moveSettling && onFiles
+    // Closing Search leaves the folder alone, so it stays allowed while a move settles; Search would
+    // otherwise hide the folder's Check status.
+    val searchOwnsBack = closeSearch != null && onFiles
     val ownsBack = searchOwnsBack || moveSettling || onFiles && filesState.canNavigateBack
-    // The reducer refuses to leave a folder while its deletion settles, so that pop has no preview.
-    val refused = moveSettling || !searchOwnsBack && filesState.current.operation.pendingDelete != null
+    // The reducer refuses to leave a folder while a move or its deletion settles: no preview then.
+    val refused = !searchOwnsBack && (moveSettling || filesState.current.operation.pendingDelete != null)
     return FilesBack(ownsBack, previewable = ownsBack && !refused) {
         if (searchOwnsBack) {
             closeSearch?.invoke()
