@@ -25,7 +25,7 @@ internal fun LazyListScope.manageItems(
                 headlineContent = { Text(stringResource(R.string.mobile_downloads_manage)) },
                 supportingContent = { Text(stringResource(R.string.mobile_downloads_manage_description)) },
                 leadingContent = {
-                    Icon(painterResource(R.drawable.ic_ph_arrow_circle_down), contentDescription = null)
+                    Icon(painterResource(R.drawable.ic_ph_download_simple), contentDescription = null)
                 },
                 modifier = Modifier.clickable(onClick = onManageDownloads, role = Role.Button)
                     .testTag(MOBILE_MANAGE_DOWNLOADS_TAG),

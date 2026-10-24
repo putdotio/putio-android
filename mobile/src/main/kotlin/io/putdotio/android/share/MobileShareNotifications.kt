@@ -45,7 +45,7 @@ internal class MobileShareNotifications(private val context: Context) {
             ),
         )
         return NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_ph_arrow_circle_down)
+            .setSmallIcon(R.drawable.ic_ph_download_simple)
             .setContentTitle(context.getString(R.string.mobile_files_share))
             .setContentText(text)
             .setContentIntent(

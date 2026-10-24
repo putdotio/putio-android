@@ -72,7 +72,8 @@ val checkDesignAssets = tasks.register<Exec>("checkDesignAssets") {
     description = "Verify locked @putdotio/design assets without network access"
     cacheableCheck(
         fileTree("design"),
-        "mobile/src/main/res/drawable/putio_wordmark.xml",
+        "core/design/src/main/res/drawable/putio_wordmark.xml",
+        fileTree("core/design/src/main/res") { include("drawable-*/putio_icon.png") },
         fileTree("mobile/src/nightly/res"),
         fileTree("tv/src/nightly/res"),
     )

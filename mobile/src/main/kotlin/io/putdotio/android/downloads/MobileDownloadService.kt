@@ -41,7 +41,7 @@ class MobileDownloadService : DownloadService(
         val active = downloads.filter { it.stopReason == Download.STOP_REASON_NONE }
         return DownloadNotificationHelper(this, CHANNEL_ID).buildProgressNotification(
             this,
-            R.drawable.ic_ph_arrow_circle_down,
+            R.drawable.ic_ph_download_simple,
             PendingIntent.getActivity(
                 this,
                 0,
