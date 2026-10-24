@@ -297,8 +297,14 @@ private fun MobileRefreshableFilesContent(
                         onNewFolder = onNewFolder,
                     )
                     is FilesContent.Ready ->
-                        // The depth tells a folder opened from Search apart from the same folder under it.
-                        key(state.stack.size, state.current.folder.id.value, state.current.viewportGeneration) {
+                        // The depth tells a folder opened from Search apart from the same folder under it. A
+                        // header set that grew or shrank restarts the list from the row-relative viewport.
+                        key(
+                            state.stack.size,
+                            state.current.folder.id.value,
+                            state.current.viewportGeneration,
+                            headers.itemCount,
+                        ) {
                             MobileFilesList(
                                 content = content,
                                 headers = headers,

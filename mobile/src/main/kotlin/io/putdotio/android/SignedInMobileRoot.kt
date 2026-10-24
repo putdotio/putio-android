@@ -254,14 +254,7 @@ private fun SignedInMobileSession(
     val reportingPlayerFactory = remember(runtime, sessionId, accountSettingsController, playbackPlayerFactory) {
         runtime.playbackReporting.factoryFor(sessionId, accountSettingsController.state, playbackPlayerFactory)
     }
-    LaunchedEffect(runtime, filesController, continueWatching) {
-        runtime.playbackReporting.savedPositions.collect { saved ->
-            val fileId = FilesItemId(saved.fileId)
-            filesController.dispatch(FilesBrowserEvent.PlaybackPositionReported(fileId, saved.seconds))
-            continueWatching?.positionSaved(fileId, saved.seconds)
-        }
-    }
-    LaunchedEffect(continueWatching, filesRepository) { continueWatching?.reconcile(filesRepository::resolveItem) }
+    SavedPositionEffects(runtime, filesController, filesRepository, continueWatching, authController)
     val trashState by trashController.state.collectAsStateWithLifecycle()
     val filesState by filesController.state.collectAsStateWithLifecycle()
     val accountSettingsState by accountSettingsController.state.collectAsStateWithLifecycle()
@@ -372,6 +365,32 @@ private fun SignedInMobileSession(
             rootScope.launch { authController.logout() }
         },
     )
+}
+
+/**
+ * Positions put.io accepted update the cached Files rows and Continue watching, whose entries are
+ * read again once per session. A 401 from that read is as authoritative as one from Files.
+ */
+@Composable
+private fun SavedPositionEffects(
+    runtime: MobileOAuthRuntime,
+    filesController: FilesBrowserController,
+    filesRepository: SdkFilesRepository,
+    continueWatching: MobileContinueWatching?,
+    authController: MobileAuthController,
+) {
+    LaunchedEffect(runtime, filesController, continueWatching) {
+        runtime.playbackReporting.savedPositions.collect { saved ->
+            val fileId = FilesItemId(saved.fileId)
+            filesController.dispatch(FilesBrowserEvent.PlaybackPositionReported(fileId, saved.seconds))
+            continueWatching?.positionSaved(fileId, saved.seconds)
+        }
+    }
+    LaunchedEffect(continueWatching, filesRepository) {
+        if (continueWatching?.reconcile(filesRepository::resolveItem) != null) {
+            authController.rejectAuthoritativeSession()
+        }
+    }
 }
 
 /** Offline playback falls back to the resume setting this device last confirmed. */

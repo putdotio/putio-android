@@ -78,6 +78,7 @@ import io.putdotio.android.downloads.DownloadsState
 import io.putdotio.android.rememberMobileMotion
 import io.putdotio.sdk.files.PutioFileType
 import java.time.Instant
+import java.util.concurrent.atomic.AtomicBoolean
 
 internal const val MOBILE_FILES_CONTINUE_WATCHING_TAG = "mobile-files-continue-watching"
 internal const val MOBILE_FILES_SUMMARY_TAG = "mobile-files-summary"
@@ -401,9 +402,24 @@ private fun RetryWhenOnline(onRetry: () -> Unit) {
     val retry by rememberUpdatedState(onRetry)
     DisposableEffect(context) {
         val connectivity = context.getSystemService(ConnectivityManager::class.java)
+        // Registration reports the current network at once. Only a network that was missing or
+        // unvalidated and then validates counts, so a put.io outage on a working network does not
+        // retry in a loop.
+        val waiting = AtomicBoolean(
+            connectivity?.activeNetwork
+                ?.let(connectivity::getNetworkCapabilities)
+                ?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) != true,
+        )
         val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onLost(network: Network) {
+                waiting.set(true)
+            }
+
             override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
-                if (capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) {
+                val validated = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+                if (!validated) {
+                    waiting.set(true)
+                } else if (waiting.compareAndSet(true, false)) {
                     ContextCompat.getMainExecutor(context).execute { retry() }
                 }
             }
@@ -448,7 +464,7 @@ internal fun MobileNewFolderButton(onClick: () -> Unit) {
 
 /** Finished downloads as Files rows, newest first, for the offline state. */
 internal fun DownloadsState.onDeviceItems(): List<FilesItem> =
-    onDevice.sortedByDescending { it.createdAt }.map { entry ->
+    onDevice.filter { isAvailableOffline(it.fileId) }.sortedByDescending { it.createdAt }.map { entry ->
         FilesItem(
             id = entry.fileId,
             parentId = null,

@@ -48,9 +48,12 @@ internal class MobileNewFolderRequest(private val folderId: MutableState<Long?>)
         folderId.value = folder.value
     }
 
-    /** New folder's action for the bars and the empty state; none without a way to create one. */
-    fun action(creator: FilesFolderCreator?, current: () -> FilesItemId): (() -> Unit)? =
-        creator?.let { { ask(current()) } }
+    /**
+     * New folder's action for the bars and the empty state; none without a way to create one or in
+     * a shared folder, which takes no new items.
+     */
+    fun action(creator: FilesFolderCreator?, folder: FilesFolderState): (() -> Unit)? =
+        if (creator == null || folder.summary?.acceptsNewItems == false) null else { { ask(folder.folder.id) } }
 
     fun clear() {
         folderId.value = null
@@ -72,7 +75,7 @@ internal fun MobileNewFolderHost(
     folder: FilesFolder,
     onScreen: Boolean,
     creator: FilesFolderCreator?,
-    onCreated: () -> Unit,
+    onCreated: (FilesItem) -> Unit,
     onAuthenticationRequired: suspend () -> Unit,
 ) {
     if (creator == null || !onScreen || !request.isFor(folder.id)) return
@@ -80,9 +83,9 @@ internal fun MobileNewFolderHost(
         parentId = folder.id,
         parentName = folder.name ?: stringResource(R.string.mobile_destination_files),
         creator = creator,
-        onCreated = {
+        onCreated = { folder ->
             request.clear()
-            onCreated()
+            onCreated(folder)
         },
         onDismiss = request::clear,
         onAuthenticationRequired = onAuthenticationRequired,

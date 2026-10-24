@@ -59,16 +59,21 @@ internal fun middleCut(name: String, fits: (String) -> Boolean): String {
     val extension = name.substringAfterLast('.', "")
         .takeIf { name.lastIndexOf('.') > 0 && it.isNotEmpty() && it.length <= MAX_EXTENSION }
     val stem = if (extension == null) name else name.dropLast(extension.length + 1)
-    val tail = stem.takeLast(MIDDLE_CUT_TAIL) + extension?.let { ".$it" }.orEmpty()
+    // Cuts fall between code points, so an emoji is kept or dropped whole.
+    var tailStart = (stem.length - MIDDLE_CUT_TAIL).coerceAtLeast(0)
+    if (tailStart > 0 && stem[tailStart].isLowSurrogate()) tailStart--
+    val tail = stem.substring(tailStart) + extension?.let { ".$it" }.orEmpty()
     val head = name.dropLast(tail.length)
+    fun start(length: Int): String =
+        head.take(if (length > 0 && head[length - 1].isHighSurrogate()) length - 1 else length).trimEnd()
     // Binary search the longest start that still fits beside the ellipsis and the kept end.
     var low = 0
     var high = head.length
     while (low < high) {
         val mid = (low + high + 1) / 2
-        if (fits(head.take(mid).trimEnd() + ELLIPSIS + tail)) low = mid else high = mid - 1
+        if (fits(start(mid) + ELLIPSIS + tail)) low = mid else high = mid - 1
     }
-    return head.take(low).trimEnd() + ELLIPSIS + tail
+    return start(low) + ELLIPSIS + tail
 }
 
 internal const val MIDDLE_CUT_TAIL = 7

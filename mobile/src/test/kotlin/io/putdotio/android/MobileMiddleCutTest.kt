@@ -21,5 +21,10 @@ class MobileMiddleCutTest {
     fun aNameThatFitsOrHasNoExtensionStaysReadable() {
         assertEquals("Sintel.2010.1080p.mkv", middleCut("Sintel.2010.1080p.mkv") { it.length <= 30 })
         assertEquals("Items shared…friends", middleCut("Items shared with you, from friends") { it.length <= 20 })
+        // An emoji on either cut is kept or dropped whole, never split into half a surrogate pair.
+        assertEquals(
+            "ab…😀abcdef.mkv",
+            middleCut("ab😀xyz😀abcdef.mkv") { it.length <= 16 },
+        )
     }
 }

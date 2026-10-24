@@ -300,9 +300,10 @@ the bare term. Leaving that scope, or entering another, clears the query. The
 root's search pill searches the whole account.
 
 New folder, in the bar's overflow and the empty-folder state, creates the
-folder with the trimmed name through the SDK's `createFolder` and refreshes
-the folder it was made in. put.io's refusal (a duplicate, a slash) shows under
-the field, and the dialog stays open.
+folder with the trimmed name through the SDK's `createFolder`, then marks the
+folder it was made in stale, so it reloads once no other operation holds it.
+put.io's refusal (a duplicate, a slash) shows under the field, and the dialog
+stays open. Shared folders, which take no new items, don't offer it.
 
 **Continue watching.** put.io keeps a position per file but has no list of
 started videos, so the root's row lists videos played on this device. A video

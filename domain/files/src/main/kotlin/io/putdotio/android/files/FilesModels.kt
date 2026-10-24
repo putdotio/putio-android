@@ -78,14 +78,22 @@ public data class FilesPage(
     val total: Int? = null,
 )
 
-/** A folder's item count and total size, as put.io reports them for its first page. */
+/** What put.io reports about a folder with its first page: its item count, total size and ownership. */
 public data class FilesFolderSummary(
     val itemCount: Int,
     val sizeBytes: Long?,
+    /** False for shared folders, which take no new items from the viewer. */
+    val acceptsNewItems: Boolean = true,
 )
 
 internal fun FilesPage.summary(): FilesFolderSummary? =
-    total?.takeIf { it >= 0 }?.let { FilesFolderSummary(it, parent?.sizeBytes?.takeIf { size -> size >= 0L }) }
+    total?.takeIf { it >= 0 }?.let { count ->
+        FilesFolderSummary(
+            itemCount = count,
+            sizeBytes = parent?.sizeBytes?.takeIf { it >= 0L },
+            acceptsNewItems = parent?.acceptsOwnerActions ?: true,
+        )
+    }
 
 /** Where an item opened from outside the Files browser came from; Back from its folder returns there. */
 public enum class FilesOpenOrigin {

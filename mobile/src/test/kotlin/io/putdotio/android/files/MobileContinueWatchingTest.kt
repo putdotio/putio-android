@@ -85,6 +85,33 @@ class MobileContinueWatchingTest {
     }
 
     @Test
+    fun reconcileLeavesANewerSaveAloneAndReturnsARejectedSession() = runBlocking {
+        row.opened(Tears, "Tears.of.Steel.mkv", 600.0)
+        row.positionSaved(Tears, 60.0)
+        // The player saves a newer position while the read is out; the read brings back the old one.
+        val stale = row.reconcile { id ->
+            row.positionSaved(id, 120.0)
+            PutioResult.Success(video(Tears, "Tears.of.Steel.mkv", startFrom = 0.0))
+        }
+        assertEquals(null, stale)
+        assertEquals(120.0, row.entries.value.single().positionSeconds, 0.0)
+
+        val rejected = MobileContinueWatching(MemoryStore(row.entries.value))
+            .reconcile { PutioResult.Failure(PutioFailure.AuthenticationRequired(apiException(401))) }
+        assertTrue(rejected is PutioFailure.AuthenticationRequired)
+    }
+
+    @Test
+    fun aClosedRowWritesNothing() {
+        row.opened(Tears, "Tears.of.Steel.mkv", 600.0)
+        row.close()
+        row.positionSaved(Tears, 60.0)
+
+        assertTrue(row.entries.value.isEmpty())
+        assertTrue(store.saved.isEmpty())
+    }
+
+    @Test
     fun startsFromWhatTheStoreKept() {
         val kept = ContinueWatchingEntry(Tears, "Tears.of.Steel.mkv", 60.0, 600.0, watchedAt = 5L)
         val restored = MobileContinueWatching(MemoryStore(listOf(kept)))
@@ -115,18 +142,17 @@ class MobileContinueWatchingTest {
         playback = FilesPlaybackProgress(startFrom, null),
     )
 
-    private fun notFound(): PutioFailure = PutioFailure.ApiRejected(
-        statusCode = 404,
-        errorType = "NotFound",
-        cause = PutioApiException(
-            request = PutioRequestData("GET", "https://api.put.io/v2/files/3"),
-            resolvedStatusCode = 404,
-            httpStatusCode = 404,
-            resolvedErrorType = "NotFound",
-            envelope = PutioApiErrorEnvelope(statusCode = 404, errorType = "NotFound"),
-            responseBody = "{}",
-            message = "Not found",
-        ),
+    private fun notFound(): PutioFailure =
+        PutioFailure.ApiRejected(statusCode = 404, errorType = "NotFound", cause = apiException(404))
+
+    private fun apiException(status: Int) = PutioApiException(
+        request = PutioRequestData("GET", "https://api.put.io/v2/files/3"),
+        resolvedStatusCode = status,
+        httpStatusCode = status,
+        resolvedErrorType = null,
+        envelope = PutioApiErrorEnvelope(statusCode = status, errorType = null),
+        responseBody = "{}",
+        message = "Rejected",
     )
 
     private companion object {

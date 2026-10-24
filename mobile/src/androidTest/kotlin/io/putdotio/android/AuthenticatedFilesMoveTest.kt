@@ -7,13 +7,14 @@ import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
-import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.test.performTouchInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.putdotio.android.auth.MobileAuthState
@@ -170,9 +171,14 @@ class AuthenticatedFilesMoveTest {
     }
 
     private fun sortSource(f: MoveProofFixture, runtime: MobileOAuthRuntime) {
+        // The order words follow the field, so Name goes first; the current sort may be another field.
         compose.onNodeWithTag(MOBILE_FILES_SORT_TAG).performClick()
-        compose.onNodeWithText(compose.activity.getString(R.string.mobile_files_sort_z_to_a))
-            .performClick()
+        compose.onNodeWithText(compose.activity.getString(R.string.mobile_files_sort_field_name)).performClick()
+        compose.waitUntil(TIMEOUT) {
+            SemanticsProperties.Disabled !in compose.onNodeWithTag(MOBILE_FILES_SORT_TAG).fetchSemanticsNode().config
+        }
+        compose.onNodeWithTag(MOBILE_FILES_SORT_TAG).performClick()
+        compose.onNodeWithText(compose.activity.getString(R.string.mobile_files_sort_z_to_a)).performClick()
         val label = compose.activity.getString(R.string.mobile_files_sort_name_descending)
         compose.waitUntil(TIMEOUT) {
             compose.onNodeWithTag(MOBILE_FILES_SORT_TAG).fetchSemanticsNode()
@@ -186,8 +192,8 @@ class AuthenticatedFilesMoveTest {
 
     private fun cancelMove(f: MoveProofFixture, runtime: MobileOAuthRuntime) {
         val before = compose.onNode(row(f.folderName)).fetchSemanticsNode().boundsInRoot
-        compose.onNodeWithContentDescription(compose.activity.getString(R.string.mobile_files_actions, f.folderName))
-            .performClick()
+        // Folders have no overflow button; a long-press opens the same sheet.
+        compose.onNode(row(f.folderName)).performTouchInput { longClick() }
         openPicker()
         pickFolder(f.containerId)
         pickFolder(f.destinationId)
@@ -217,8 +223,7 @@ class AuthenticatedFilesMoveTest {
 
     private fun submit(name: String, destinationPath: List<Long>) {
         row(name)
-        compose.onNodeWithContentDescription(compose.activity.getString(R.string.mobile_files_actions, name))
-            .performClick()
+        compose.onNode(row(name)).performTouchInput { longClick() }
         openPicker()
         destinationPath.forEach(::pickFolder)
         compose.onNodeWithTag(MOBILE_FILES_MOVE_HERE_TAG).performClick()

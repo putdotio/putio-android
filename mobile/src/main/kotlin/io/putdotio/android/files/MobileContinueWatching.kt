@@ -73,6 +73,7 @@ internal class MobileContinueWatching(
     private val media = mutableMapOf<FilesItemId, Media>()
     private val mutableEntries = MutableStateFlow(store.read())
     private var reconciled = false
+    private var closed = false
 
     val entries: StateFlow<List<ContinueWatchingEntry>> = mutableEntries.asStateFlow()
 
@@ -103,26 +104,40 @@ internal class MobileContinueWatching(
     /**
      * Reads each entry's file again, once per session: a file put.io no longer has leaves, and a
      * position saved on another device moves the entry or, when finished, removes it. Other
-     * failures keep the entry; a rejected session stops the pass.
+     * failures keep the entry. A 401 stops the pass and is returned for the session to reject.
      */
-    suspend fun reconcile(resolve: suspend (FilesItemId) -> PutioResult<FilesItem>) {
-        if (reconciled) return
-        for (entry in mutableEntries.value) {
-            when (val result = resolve(entry.fileId)) {
-                is PutioResult.Success -> refresh(entry.fileId, result.value)
-                is PutioResult.Failure -> when {
-                    result.failure is PutioFailure.AuthenticationRequired -> break
-                    result.failure.isNotFound -> update(mutableEntries.value.filterNot { it.fileId == entry.fileId })
+    suspend fun reconcile(
+        resolve: suspend (FilesItemId) -> PutioResult<FilesItem>,
+    ): PutioFailure.AuthenticationRequired? {
+        var rejected: PutioFailure.AuthenticationRequired? = null
+        if (!reconciled && !closed) {
+            for (read in mutableEntries.value) {
+                val result = resolve(read.fileId)
+                val failure = (result as? PutioResult.Failure)?.failure
+                rejected = failure as? PutioFailure.AuthenticationRequired
+                if (rejected != null) break
+                // A position saved while the read was out is newer than what it brought back.
+                val unchanged = !closed && mutableEntries.value.any { it == read }
+                if (unchanged && result is PutioResult.Success) {
+                    refresh(read, result.value)
+                } else if (unchanged && failure?.isNotFound == true) {
+                    update(mutableEntries.value.filterNot { it == read })
                 }
             }
+            // Set only once the pass ends, so a pass cancelled with its screen runs again.
+            reconciled = true
         }
-        // Set only once the pass ends, so a pass cancelled with its screen runs again.
-        reconciled = true
+        return rejected
     }
 
-    private fun refresh(fileId: FilesItemId, item: FilesItem) {
+    /** The session ended; nothing it still has in flight writes the row again. */
+    fun close() {
+        closed = true
+    }
+
+    private fun refresh(entry: ContinueWatchingEntry, item: FilesItem) {
         val current = mutableEntries.value
-        val entry = current.firstOrNull { it.fileId == fileId } ?: return
+        val fileId = entry.fileId
         val duration = item.playback?.durationSeconds ?: entry.durationSeconds
         val position = item.playback?.startFromSeconds ?: 0.0
         update(
@@ -142,7 +157,7 @@ internal class MobileContinueWatching(
 
     private fun update(next: List<ContinueWatchingEntry>) {
         val kept = next.sortedByDescending { it.watchedAt }.take(MAX_ENTRIES)
-        if (kept == mutableEntries.value) return
+        if (closed || kept == mutableEntries.value) return
         mutableEntries.value = kept
         store.write(kept)
     }

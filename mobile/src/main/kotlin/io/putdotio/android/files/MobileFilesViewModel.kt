@@ -27,7 +27,7 @@ internal class MobileFilesViewModel(
         authState = authState,
         keyOf = MobileAuthState::sessionKey,
         scope = viewModelScope,
-        close = {},
+        close = MobileContinueWatching::close,
     )
 
     fun controllerFor(

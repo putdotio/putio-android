@@ -67,7 +67,7 @@ class MobileFilesBarsTest {
     }
 
     @Test
-    fun newFolderFromTheOverflowCreatesInTheCurrentFolderAndRefreshesIt() {
+    fun newFolderFromTheOverflowCreatesInTheCurrentFolderAndMarksItStale() {
         val created = mutableListOf<Pair<FilesItemId, String>>()
         val events = mutableListOf<FilesBrowserEvent>()
         val creator = object : FilesFolderCreator {
@@ -84,7 +84,7 @@ class MobileFilesBarsTest {
         compose.onNodeWithTag(MOBILE_NEW_FOLDER_FIELD_TAG).performTextInput("Shorts")
         compose.onNodeWithTag(MOBILE_NEW_FOLDER_CREATE_TAG).performClick()
 
-        compose.waitUntil(TIMEOUT) { FilesBrowserEvent.Refresh in events }
+        compose.waitUntil(TIMEOUT) { events.any { it is FilesBrowserEvent.InvalidateRestoredItem } }
         assertEquals(listOf(FilesItemId(7L) to "Shorts"), created)
         compose.onNodeWithTag(MOBILE_NEW_FOLDER_FIELD_TAG).assertDoesNotExist()
     }

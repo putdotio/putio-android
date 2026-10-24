@@ -222,7 +222,7 @@ internal fun MobileShell(
     val openSearch = { openScopedSearch(null) }
     // The folder New folder was asked for; the dialog shows while that folder is on screen.
     val newFolder = rememberNewFolderRequest(sessionId)
-    val requestNewFolder = newFolder.action(folderCreator) { filesState.current.folder.id }
+    val requestNewFolder = newFolder.action(folderCreator, filesState.current)
     val leaveSearch = { forward: Boolean ->
         searchForward = forward
         searchOpen = false
@@ -422,7 +422,8 @@ internal fun MobileShell(
         folder = filesState.current.folder,
         onScreen = !isPlayback && selectedDestination == MobileDestination.Files && !searchOpen,
         creator = folderCreator,
-        onCreated = { onFilesEvent(FilesBrowserEvent.Refresh) },
+        // Marks the parent stale; it reloads once no other operation holds it.
+        onCreated = { onFilesEvent(FilesBrowserEvent.InvalidateRestoredItem(it)) },
         onAuthenticationRequired = onFilesAuthenticationRequired,
     )
     if (!isPlayback) {
