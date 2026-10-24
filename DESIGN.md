@@ -496,7 +496,7 @@ Don't translate iOS:
 | Toolbar plus            | Extended FAB                                           |
 | Text back-label         | System back gesture and a top-bar arrow                |
 | `UISwitch`              | The compact neutral switch above                       |
-| Stepper                 | Slider, presets or a menu                              |
+| Stepper                 | Slider, presets or a menu; speed steps through presets |
 
 ## Motion
 
