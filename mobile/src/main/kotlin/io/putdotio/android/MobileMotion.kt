@@ -293,7 +293,9 @@ internal fun Modifier.playbackContainer(
 ): Modifier = if (!playable) this else this.composed {
     val shared = LocalMobileSharedTransition.current
     val scope = route ?: LocalMobileRouteAnimation.current
-    if (shared == null || scope == null) {
+    // Reduced motion keeps the route's fade and drops the moving bounds.
+    val reducedMotion = rememberMobileMotion().reducedMotion
+    if (shared == null || scope == null || reducedMotion) {
         Modifier
     } else {
         with(shared) {

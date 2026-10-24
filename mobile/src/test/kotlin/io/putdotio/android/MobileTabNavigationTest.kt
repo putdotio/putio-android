@@ -95,6 +95,20 @@ class MobileTabNavigationTest : NavigationShellFixture(1f) {
     fun aCancelledBackGestureKeepsTheFolderAndACommittedOneLeavesIt() {
         val events = mutableListOf<FilesBrowserEvent>()
         mount(nested = true, onFilesEvent = { events += it; true })
+        // The opened folder is still loading; its message stands for the folder's content.
+        val list = compose.onNodeWithText("Loading")
+        val resting = list.fetchSemanticsNode().boundsInRoot.width
+        val dispatcher = backOwner.onBackPressedDispatcher
+        compose.runOnIdle {
+            dispatcher.dispatchOnBackStarted(BackEventCompat(0f, 0f, 0f, BackEventCompat.EDGE_LEFT))
+            dispatcher.dispatchOnBackProgressed(BackEventCompat(40f, 0f, 0.5f, BackEventCompat.EDGE_LEFT))
+        }
+        compose.waitForIdle()
+        // Mid-gesture the folder shrinks toward the edge it is dragged from.
+        assertTrue(list.fetchSemanticsNode().boundsInRoot.width < resting * 0.97f)
+        compose.runOnIdle { dispatcher.dispatchOnBackCancelled() }
+        compose.waitForIdle()
+        assertEquals(resting, list.fetchSemanticsNode().boundsInRoot.width, 0.5f)
         gesture(commit = false)
         compose.runOnIdle { assertTrue(events.none { it == FilesBrowserEvent.NavigateBack }) }
         gesture(commit = true)
