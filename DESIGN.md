@@ -708,6 +708,10 @@ opens put.io OAuth in the browser.
 - Empty states are text only, with no glyph.
 - Folder and player Back use plain `BackHandler`, with no predictive preview.
 - Search has no type chips; results are one flat list.
+- Add transfer checks the whole field at once: one bad link rejects it with a
+  single message, and the button always reads Add.
+- Transfer rows offer only Open, Retry and Cancel; there is no Transfer
+  actions sheet, and the app has no transfer source to copy.
 - The actions sheet has no Play or Resume and no Mark as watched.
 - The Move picker cannot create a folder.
 - Played files show a progress bar and "N% watched" when the duration is known,
