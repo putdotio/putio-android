@@ -5,11 +5,14 @@ from __future__ import annotations
 
 import contextlib
 import hashlib
+import http.server
 import io
 import json
 import sys
 import tempfile
+import threading
 import unittest
+import unittest.mock
 from pathlib import Path
 
 sys.dont_write_bytecode = True
@@ -85,6 +88,65 @@ class SyncTest(unittest.TestCase):
             brand_fonts.sync(brand_fonts.parse_lock(lock_json()), self.root, self.serve(b"other"))
         self.assertIn("not written", str(raised.exception))
         self.assertEqual([], list((self.root / "fonts").iterdir()))
+
+
+class FetchTest(unittest.TestCase):
+    """The real opener against a local server: redirects fail, and only server errors retry, boundedly."""
+
+    def setUp(self) -> None:
+        self.requests: list[str] = []
+        self.responses: list[tuple[int, dict[str, str], bytes]] = []
+        test = self
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self) -> None:  # noqa: N802
+                test.requests.append(self.path)
+                status, headers, body = test.responses[min(len(test.requests), len(test.responses)) - 1]
+                self.send_response(status)
+                for name, value in headers.items():
+                    self.send_header(name, value)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *args: object) -> None:
+                pass
+
+        server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        self.base = f"http://127.0.0.1:{server.server_address[1]}"
+        sleep = unittest.mock.patch.object(brand_fonts.time, "sleep")
+        sleep.start()
+        self.addCleanup(sleep.stop)
+
+    def test_fetch_returns_the_body(self) -> None:
+        self.responses = [(200, {}, FONT)]
+        self.assertEqual(FONT, brand_fonts.fetch(f"{self.base}/fonts/a.ttf"))
+
+    def test_fetch_refuses_redirects(self) -> None:
+        self.responses = [(302, {"Location": "/elsewhere.ttf"}, b""), (200, {}, FONT)]
+        with self.assertRaises(SystemExit) as raised:
+            brand_fonts.fetch(f"{self.base}/fonts/a.ttf")
+        self.assertIn("returned 302", str(raised.exception))
+        self.assertEqual(["/fonts/a.ttf"], self.requests)
+
+    def test_fetch_does_not_retry_client_errors(self) -> None:
+        self.responses = [(404, {}, b"")]
+        with self.assertRaises(SystemExit):
+            brand_fonts.fetch(f"{self.base}/fonts/a.ttf")
+        self.assertEqual(1, len(self.requests))
+
+    def test_fetch_retries_server_errors_a_bounded_number_of_times(self) -> None:
+        self.responses = [(503, {}, b"")]
+        with self.assertRaises(SystemExit) as raised:
+            brand_fonts.fetch(f"{self.base}/fonts/a.ttf")
+        self.assertIn("returned 503", str(raised.exception))
+        self.assertEqual(brand_fonts.ATTEMPTS, len(self.requests))
+        self.responses = [(503, {}, b""), (200, {}, FONT)]
+        self.requests.clear()
+        self.assertEqual(FONT, brand_fonts.fetch(f"{self.base}/fonts/a.ttf"))
 
 
 if __name__ == "__main__":
