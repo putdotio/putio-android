@@ -334,9 +334,10 @@ round to 2dp.
   and the list, except the [inactive-account notice](#notices-and-snackbars),
   the offline banner and the background copy line.
 - **Folders:** a small top app bar: back, the folder name, search in this
-  folder, sort, overflow (with New folder). Searching here filters the folder's
-  loaded items by name on the device; the API has no folder-scoped search. A
-  section line under it gives the item count and the total size in mono.
+  folder, sort, overflow (with New folder). Searching here sends the query with
+  put.io's `in:<folderId>` scope, so it covers the whole folder, not only loaded
+  pages. A section line under it gives the item count and the total size in
+  mono.
 - **History, Transfers, Downloads, Account:** a tab title with an optional
   one-line summary below it (for example "2 active · 2 failed · 56.2 MB/s"),
   and an overflow at the top right when the tab has actions for it.
