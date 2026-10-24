@@ -60,6 +60,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleStartEffect
 import io.putdotio.android.MobileEmptyState
 import io.putdotio.android.R
+import io.putdotio.android.playbackContainer
 import io.putdotio.android.design.FileTypeIcon
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioDestructiveButton
@@ -361,7 +362,9 @@ private fun MobileDownloadRow(
         } else {
             null
         },
-        modifier = Modifier.fillMaxWidth().downloadRowInteraction(
+        // A completed copy plays from its row, so the row is the player's starting bounds.
+        modifier = Modifier.playbackContainer(entry.fileId.value, playable = entry.isCompleted)
+            .fillMaxWidth().downloadRowInteraction(
             selected = selected,
             onOpen = onOpen,
             onSelect = onSelect,

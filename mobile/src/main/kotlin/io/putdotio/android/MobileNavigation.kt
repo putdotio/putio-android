@@ -210,13 +210,15 @@ internal fun MobileNavHost(
                     )
                 }
                 composable(MobileDestination.Downloads.route) {
-                    downloadsController?.let { controller ->
-                        MobileDownloadsScreen(
-                            state = downloadsState,
-                            onEvent = controller::dispatch,
-                            onPlay = navController::navigateToPlayback,
-                            onShare = onShareItem,
-                        )
+                    MobileRouteAnimation(this) {
+                        downloadsController?.let { controller ->
+                            MobileDownloadsScreen(
+                                state = downloadsState,
+                                onEvent = controller::dispatch,
+                                onPlay = navController::navigateToPlayback,
+                                onShare = onShareItem,
+                            )
+                        }
                     }
                 }
                 composable(MobileDestination.Account.route) {
