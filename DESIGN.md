@@ -247,19 +247,25 @@ colors:
 Neutrals do the work. Yellow marks content and the one primary action of a
 screen or dialog:
 
-- Content yellow: file-type icons, progress, the on-device marker, state dots,
-  the selected nav item, selection checkboxes. These can share a row.
+- Content yellow: file-type icons, progress (transfers, downloads, and the
+  video and audio scrubbers), the on-device marker, state dots, the selected
+  nav item, selection checkboxes and radios. These can share a row.
 - Action yellow: the extended FAB, a dialog's confirm, a filled primary button.
   One per screen or dialog.
 - Neutral: switches, the player's transport buttons, status icons such as the
   played eye, every other button.
-- Red: destructive actions and failures only. Green: seeding and completed
+- Red: destructive actions and failures only, plus the storage bar when
+  storage is full. Red text, red icons and the destructive button's fill use
+  the light `--red-text-secondary`, with dark text on the button: `red-solid`
+  text reaches only 4.0:1 on the surface tiers. Green: seeding and completed
   transfer dots, and the seeding card's progress fill.
 
 ## Typography
 
-GT America for UI; Berkeley Mono for sizes, dates, times, speeds, counts,
-percentages and version numbers, with tabular figures. Filenames stay in GT
+GT America for UI; Berkeley Mono for sizes, times, speeds, counts,
+percentages and version numbers, with tabular figures. Dates read as words
+("Oct 13") and stay in GT America; words that sit in a value slot ("Always
+on", "Phone") stay in GT America too. Numbers never go below 12sp. Filenames stay in GT
 America, where mono would fit fewer characters on the line. Both fonts need an
 app-embedding licence check before they ship; until then the app keeps Roboto.
 
@@ -311,7 +317,8 @@ Corners follow the M3 shape scale: 28dp for sheets (with a 32x4dp handle),
 dialogs and the widget;
 20dp for action tiles; 16dp for cards, menus, notices, the FAB and settings
 groups; 8dp for snackbars; 4dp for the inner corners of segmented groups.
-Search, buttons, chips and the nav indicator are full pills. Progress bars
+Search, buttons and the nav indicator are full pills; chips keep M3's 8dp
+corners, and a selected filter chip shows its leading check. Progress bars
 round to 2dp.
 
 ## Components
@@ -326,7 +333,7 @@ round to 2dp.
   total size in mono.
 - **History, Transfers, Downloads, Account:** a tab title with an optional
   one-line summary below it (for example "2 active · 2 failed · 56.2 MB/s"),
-  and the overflow at the top right.
+  and an overflow at the top right when the tab has actions for it.
 
 ### Search
 
@@ -463,7 +470,8 @@ end.
 ## Do's and Don'ts
 
 - Do keep the space between the Files app bar and its list empty. Expanded
-  search's type chips and the inactive-account notice are the exceptions.
+  search's type chips, the inactive-account notice, the offline banner and
+  the background copy line are the exceptions.
 - Do use one yellow action per screen or dialog.
 - Do show progress in transfer cards and Downloads, never in file rows.
 - Do generate every colour from the token graph.
@@ -498,7 +506,8 @@ A tab title with a live summary, then sections: Active, Needs attention,
 Completed. Each transfer is a transfer card:
 
 - The card background fills left to right with progress, as on the web:
-  yellow at 13% while downloading, green at 12% while seeding.
+  yellow at 9% while downloading, green at 12% while seeding. At 9% the
+  `on-surface-variant` meta keeps 4.5:1.
 - A state dot (yellow downloading, grey queued, red failed, green seeding or
   done), then mono meta: "847 MB of 3.42 GB · 34 peers".
 - Trailing: ETA and speed in mono while running; a retry icon button on
@@ -508,9 +517,9 @@ Completed. Each transfer is a transfer card:
 
 Tapping a running or failed card, or long-pressing any card, opens **Transfer
 actions**: a sheet with the full name, the state and a progress bar, then mono
-facts (size, speed, time left, peers, destination), Open folder, and Stop
-transfer in red last. Failed transfers add Retry; completed ones offer Open
-file and Remove from list.
+facts (size, speed, time left, peers, destination), and Open folder. Running
+transfers end with Stop transfer in red; failed ones offer Retry; completed
+ones offer Open file.
 
 **Add transfer** is a yellow extended FAB, 16dp from the edge above the nav
 bar, that collapses to its icon on scroll.
@@ -531,9 +540,10 @@ rows:
 - Downloading: running, queued and paused downloads, with speed or the waiting
   reason in the meta and a 36dp progress ring in the trailing slot: yellow with
   pause bars while running, grey with a play triangle while paused, dashed
-  while queued. Tapping the ring pauses or resumes the download.
+  with a stop square while queued. Tapping the ring pauses or resumes the
+  download, or cancels a queued one.
 - Needs attention: failed and missing downloads, with Retry or Download again.
-- On this device: the normal file row.
+- On this device: the normal file row, without the on-device marker.
 
 Long-press starts selection. Its floating toolbar holds Pause, Resume and
 Remove; each shows when at least one selected row allows it and acts on those
@@ -613,10 +623,54 @@ opens put.io OAuth in the browser.
 
 - Session expired: **Welcome back!** and "Your session expired. Sign in again to
   continue."
-- While the browser finishes: one still kaomoji, **Almost there**, and "Finish
-  signing in in your browser, then come back here."
-- Failure: a still `(・_・;)`, a notice with the reason, a filled **Try again**
-  and a text **Reset and sign in**.
+- While the browser finishes: one still kaomoji, **Almost there**, "Finish
+  signing in in your browser, then come back here.", and a text **Cancel**.
+- Failure: a still `(・_・;)`, a notice with the reason, and a filled **Try
+  again**. When the saved session can't be read, the action is **Reset and
+  sign in** instead.
+
+## Other screens
+
+- **Recent searches:** while the query is empty, a list of past queries with a
+  clock glyph and a remove button, and **Clear** on the section line
+  ([Recent searches](docs/behavior.md#recent-searches)).
+- **Background copy:** Make a copy shows one line under the bar, "Copying
+  “name” to Folder…", with a small yellow spinner. It survives folder changes
+  and can be dismissed; a failure swaps the spinner for a red dot and the
+  reason.
+- **New folder:** a dialog from the Move picker with one outlined field, the
+  parent named above it, and a filled **Create**.
+- **Share progress:** while a file downloads to be shared, a dialog with the
+  name, a bar, mono progress and **Cancel**.
+- **Resume:** "Resume from 18:42?" over the dimmed player, with **Start over**
+  and a filled **Resume**.
+- **Player error:** the empty-state voice over the dimmed player, with
+  **Download** as the action.
+- **Drop zone:** dragging a link, magnet or .torrent over Transfers shows one
+  dashed yellow area: "Drop to add a transfer".
+- **Trash:** days left in each row's meta, **Restore** on the row (it confirms,
+  like every Trash action), **Empty trash** in the overflow.
+- **App info:** version, channel, device, API level and player as value rows,
+  then the privacy note and a tonal **Copy for support**.
+- **Storage full:** the storage bar turns red, and one line says new transfers
+  wait and what frees space.
+- **Notifications:** downloads only, with the yellow put.io mark: a running
+  count with progress and **Cancel**, and **Download finished** with **Play**.
+- **Launcher icon and shortcuts:** the putio-design app icons (production,
+  nightly, dev); long-press offers Add transfer, Search files and Downloads.
+
+## Accessibility
+
+- Every target is at least 48dp, including chips, breadcrumbs, menu rows and
+  the widget's refresh.
+- Colour never carries a state alone: each state dot has a word next to it,
+  including "Downloading".
+- Icon-only buttons, rings, chips and switches carry a name that says what
+  they change ("Audio: English", "Pause download"). A settings row toggles as
+  one node.
+- A cut filename keeps its full name as the row's content description.
+- When the system turns animations off, the Welcome sequence, the loading
+  pulse and spinners hold still.
 
 ## Shipped drift
 
@@ -634,6 +688,8 @@ opens put.io OAuth in the browser.
   groups, and its button doesn't name the current sort.
 - Sign out is an outlined button that signs out at once, with no confirm.
 - Green has no generated `@color/putio_*` token yet.
+- `--red-text-secondary` has no generated token yet, so destructive text still
+  uses `error` (`red-solid`), below 4.5:1 on the surface tiers.
 - File lists draw dividers between rows, and names wrap instead of being cut
   in the middle on one line.
 - Downloads shows a bar under each running row, not a progress ring.
