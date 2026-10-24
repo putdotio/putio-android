@@ -9,6 +9,9 @@ local.properties
 
 .evidence/
 
+# Licensed brand fonts, fetched by scripts/sync-brand-fonts.sh; never commit them.
+core/design/brand-fonts/
+
 # JVM crash dumps
 hs_err_pid*.log
 replay_pid*.log

@@ -54,6 +54,10 @@ release build without the secrets stays unsigned:
 ./gradlew -PputioVersionName=3.0.1 :mobile:bundleProductionRelease :tv:bundleProductionRelease
 ```
 
+Every release bundle embeds the licensed brand fonts and fails without all of
+them ([design/README.md](../design/README.md#brand-fonts)); the workflow
+fetches them before it builds.
+
 ## One listing, two apps
 
 Mobile and TV both ship as `io.put.putio`, the Android TV listing

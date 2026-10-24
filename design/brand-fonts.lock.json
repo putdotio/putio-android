@@ -1,0 +1,24 @@
+{
+  "baseUrl": "https://static.put.io",
+  "directory": "core/design/brand-fonts",
+  "files": {
+    "gt_america_standard_regular.ttf": {
+      "path": "fonts/gt-america/desktop/ttf/gt-america-standard-regular.ttf",
+      "sha256": "81641b7a71a1b8996e1e4df423cd00754f61c02ba498dabdf36884824721b530",
+      "family": "GT America",
+      "weight": 400
+    },
+    "gt_america_standard_medium.ttf": {
+      "path": "fonts/gt-america/desktop/ttf/gt-america-standard-medium.ttf",
+      "sha256": "868ee72e89e5c36682072ae3ec531d9bae9515871a640208b2d6b1eb24946dce",
+      "family": "GT America",
+      "weight": 500
+    },
+    "berkeley_mono_variable.ttf": {
+      "path": "fonts/berkeley-mono/variable/ttf/berkeley-mono-variable.ttf",
+      "sha256": "d4c4b5e787dcdc45596a250a1269cf96949ef385d1da9fd7269e132a7bfba126",
+      "family": "Berkeley Mono",
+      "weightRange": [100, 900]
+    }
+  }
+}

@@ -11,15 +11,15 @@ tracks the rollout. The [README](README.md) lists what works,
 
 ## Where code lives
 
-| Module           | Owns                                                                                                                                                                                                                                                                          |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `core/common`    | The put.io failure and result kernel (`PutioFailure`, `PutioResult`, `putioRequest`, API rejection reasons), Files ids, cursors and sort order, the download-token account read, timestamps, avatar URLs, account storage keys, `SessionScopedHolder`                         |
-| `core/design`    | `PutioTheme`, generated design tokens and type and corner scales, the compact switch, destructive button and empty state, the production launcher icon and wordmark, file-type and shared Phosphor drawables, `BasePutioActivity`, the inactive-account notice's words        |
-| `core/telemetry` | Sentry behind the account's `diagnostics_enabled`: the consent gate, the event allowlist, `TelemetryFailure` and `PutioDiagnostics`, the apps' only way to report ([Diagnostics](docs/behavior.md#diagnostics))                                                               |
-| `domain/<name>`  | One domain's models, SDK repository, reducer and controller, shared by both surfaces: `account` (account settings, app config, inactive-account notice), `auth`, `files`, `history`, `playback`, `search`, `sharing` (public links; mobile only so far), `transfers`, `trash` |
-| `mobile`         | Phone and tablet app: touch UI, shell, navigation, offline downloads, the system file picker's documents provider, launcher shortcuts, the home-screen widget, services and session wiring, and the Google Play listing and publisher both apps share                         |
-| `tv`             | Android TV app: D-pad UI, shell and session wiring                                                                                                                                                                                                                            |
-| `build-logic`    | Convention plugins (`putio.android.application`, `putio.android.library`), design-token codegen, launcher-manifest check, proof tasks                                                                                                                                         |
+| Module           | Owns                                                                                                                                                                                                                                                                                  |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `core/common`    | The put.io failure and result kernel (`PutioFailure`, `PutioResult`, `putioRequest`, API rejection reasons), Files ids, cursors and sort order, the download-token account read, timestamps, avatar URLs, account storage keys, `SessionScopedHolder`                                 |
+| `core/design`    | `PutioTheme`, generated design tokens, font families and type and corner scales, the compact switch, destructive button and empty state, the production launcher icon and wordmark, file-type and shared Phosphor drawables, `BasePutioActivity`, the inactive-account notice's words |
+| `core/telemetry` | Sentry behind the account's `diagnostics_enabled`: the consent gate, the event allowlist, `TelemetryFailure` and `PutioDiagnostics`, the apps' only way to report ([Diagnostics](docs/behavior.md#diagnostics))                                                                       |
+| `domain/<name>`  | One domain's models, SDK repository, reducer and controller, shared by both surfaces: `account` (account settings, app config, inactive-account notice), `auth`, `files`, `history`, `playback`, `search`, `sharing` (public links; mobile only so far), `transfers`, `trash`         |
+| `mobile`         | Phone and tablet app: touch UI, shell, navigation, offline downloads, the system file picker's documents provider, launcher shortcuts, the home-screen widget, services and session wiring, and the Google Play listing and publisher both apps share                                 |
+| `tv`             | Android TV app: D-pad UI, shell and session wiring                                                                                                                                                                                                                                    |
+| `build-logic`    | Convention plugins (`putio.android.application`, `putio.android.library`), design-token codegen, launcher-manifest check, proof tasks                                                                                                                                                 |
 
 - Dependencies point from the apps to `domain` to `core`; `history`, `search`
   and `trash` also build on `files` for `FilesItem`. A domain failure with
@@ -72,6 +72,9 @@ tracks the rollout. The [README](README.md) lists what works,
 - **Authenticated installs.** `connectedAndroidTest` and `scripts/prove.sh`
   uninstall the tested app and its session; don't run them between
   authenticated proof steps.
+- **Licensed fonts.** GT America and Berkeley Mono land in ignored
+  `core/design/brand-fonts/`. Never commit them or attach them anywhere; only
+  the apps embed them.
 - **Evidence.** Captures land in ignored `.evidence/`. Never commit them or
   upload a quarantined `*.corrupt`, `*.black.*`, or `*.mp4.idle` file, and look
   at each capture before attaching it.
@@ -87,11 +90,12 @@ The machine provides JDK 21 (pinned in `.java-version`), Node 24 (pinned in
 ```
 
 It installs the Android SDK packages and FFmpeg, creates the `putio-phone`
-(API 37) and `putio-tv` (API 36) AVDs, and writes `sdk.dir` to the ignored
-`local.properties`; the first run downloads several GB. `.worktreeinclude`
-copies `local.properties` into Codex and Claude worktrees. Bootstrap, build,
-CI, and launch proof need no credentials; only live and authenticated lanes use
-the `devs-auto` profile.
+(API 37) and `putio-tv` (API 36) AVDs, fetches the licensed brand fonts
+([design/README.md](design/README.md#brand-fonts)), and writes `sdk.dir` to the
+ignored `local.properties`; the first run downloads several GB.
+`.worktreeinclude` copies `local.properties` and the fonts into Codex and
+Claude worktrees. Bootstrap, build, CI, and launch proof need no credentials;
+only live and authenticated lanes use the `devs-auto` profile.
 
 ## Kotlin SDK
 

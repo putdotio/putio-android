@@ -30,11 +30,11 @@ public fun PutioTheme(content: @Composable () -> Unit) {
  * DESIGN.md's type scale on the Material slots stock components read: the top app bar reads
  * titleLarge, dialog titles headlineSmall, list headlines bodyLarge, dialog, sheet and snackbar
  * bodies bodyMedium, and nav labels labelMedium. Slots the contract does not name keep Material's
- * values, except labelSmall, which rises to label-sm so no public slot sets text below 12sp.
- * Material 3 1.4 keeps its emphasized slots internal, and no stock component reads
- * labelSmallEmphasized.
+ * sizes in GT America, the UI face, except labelSmall, which rises to label-sm so no public slot
+ * sets text below 12sp. Material 3 1.4 keeps its emphasized slots internal, and no stock component
+ * reads labelSmallEmphasized.
  */
-internal val putioTypography: Typography = Typography().run {
+internal val putioTypography: Typography = Typography().inUiFace().run {
     copy(
         headlineMedium = headlineMedium.merge(PutioTypeScale.headlineLg),
         headlineSmall = headlineSmall.merge(PutioTypeScale.titleLg),
@@ -45,6 +45,27 @@ internal val putioTypography: Typography = Typography().run {
         bodySmall = bodySmall.merge(PutioTypeScale.meta),
         labelMedium = labelMedium.merge(PutioTypeScale.labelSm),
         labelSmall = labelSmall.merge(PutioTypeScale.labelSm),
+    )
+}
+
+private fun Typography.inUiFace(): Typography {
+    fun TextStyle.ui() = copy(fontFamily = PutioFontFamily.gtAmerica)
+    return copy(
+        displayLarge = displayLarge.ui(),
+        displayMedium = displayMedium.ui(),
+        displaySmall = displaySmall.ui(),
+        headlineLarge = headlineLarge.ui(),
+        headlineMedium = headlineMedium.ui(),
+        headlineSmall = headlineSmall.ui(),
+        titleLarge = titleLarge.ui(),
+        titleMedium = titleMedium.ui(),
+        titleSmall = titleSmall.ui(),
+        bodyLarge = bodyLarge.ui(),
+        bodyMedium = bodyMedium.ui(),
+        bodySmall = bodySmall.ui(),
+        labelLarge = labelLarge.ui(),
+        labelMedium = labelMedium.ui(),
+        labelSmall = labelSmall.ui(),
     )
 }
 
