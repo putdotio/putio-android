@@ -259,7 +259,7 @@ screen or dialog:
   storage is full. Red text and red icons use the light
   `--red-text-secondary`: `red-solid` text reaches only 4.0:1 on the surface
   tiers. The destructive button keeps the `error` fill with dark
-  `background` text, which reaches 4.9:1; white text on it reaches 3.9:1. Green: seeding and completed
+  `background` text, which reaches 4.6:1; white text on it reaches 3.9:1. Green: seeding and completed
   transfer dots, and the seeding card's progress fill.
 
 ## Typography
@@ -658,8 +658,9 @@ opens put.io OAuth in the browser.
 - **Storage full:** the storage bar turns red, and one line says new transfers
   wait and what frees space.
 - **Notifications:** transfers post none. Downloads use the yellow put.io
-  mark: a running count with progress and **Cancel**, and **Download
-  finished** with **Play**. Playback keeps its media notification and
+  mark: a running count with progress and **Cancel**, **Download finished**
+  with **Play**, and **Download failed** with the reason, **Try again** and
+  **Open in Downloads**. Playback keeps its media notification and
   share-out its progress, failure and ready notifications
   ([Share-out](docs/behavior.md#share-out)).
 - **Launcher icon and shortcuts:** the putio-design app icons (production,
@@ -695,8 +696,8 @@ opens put.io OAuth in the browser.
 - Sign out is an outlined button that signs out at once, with no confirm.
 - Green has no generated `@color/putio_*` token yet.
 - `--red-text-secondary` has no generated token yet, so destructive text still
-  uses `error` (`red-solid`), below 4.5:1 on the surface tiers, and the
-  destructive button's text is white.
+  uses `error` (`red-solid`), below 4.5:1 on the surface tiers. Destructive
+  confirms are red text buttons, not filled ones.
 - File lists draw dividers between rows, and names wrap instead of being cut
   in the middle on one line.
 - Downloads shows a bar under each running row, not a progress ring.
