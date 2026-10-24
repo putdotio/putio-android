@@ -17,6 +17,7 @@ dependencies {
 
 val generateDesignTokens = tasks.register<GenerateDesignTokensTask>("generateDesignTokens") {
     tokensFile.set(rootProject.layout.projectDirectory.file("design/tokens.dtcg.json"))
+    designMd.set(rootProject.layout.projectDirectory.file("DESIGN.md"))
     designVersion.set(
         providers.fileContents(rootProject.layout.projectDirectory.file("design/putio-design.lock.json"))
             .asText

@@ -21,6 +21,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
+import io.putdotio.android.design.PutioDesignTokens
 
 internal const val MOBILE_FILES_COPY_STATUS_TAG = "mobile-files-copy-status"
 internal const val MOBILE_FILES_COPY_DISMISS_TAG = "mobile-files-copy-dismiss"
@@ -50,7 +51,7 @@ internal fun MobileFilesCopyStatus(outcome: FilesCopyOutcome, onDismiss: () -> U
         Column(modifier = Modifier.weight(1f).semantics { liveRegion = LiveRegionMode.Polite }) {
             Text(stringResource(message, outcome.itemName, destination), style = MaterialTheme.typography.bodyMedium)
             reason?.let {
-                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
+                Text(it, color = PutioDesignTokens.redTextSecondary, style = MaterialTheme.typography.bodyMedium)
             }
         }
         if (!outcome.isRunning) {

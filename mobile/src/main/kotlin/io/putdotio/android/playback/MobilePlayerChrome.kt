@@ -61,7 +61,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.DpSize
@@ -74,6 +73,7 @@ import androidx.media3.ui.compose.material3.indicator.DurationText
 import androidx.media3.ui.compose.material3.indicator.PositionText
 import androidx.media3.ui.compose.state.rememberPlayPauseButtonState
 import io.putdotio.android.R
+import io.putdotio.android.design.putioMono
 import io.putdotio.android.design.R as DesignR
 import io.putdotio.android.downloads.description
 
@@ -359,10 +359,7 @@ private fun MobileTransport(
 @Composable
 private fun MobileVideoTimeline(player: Player, onScrub: () -> Unit) {
     ProvideTextStyle(
-        MaterialTheme.typography.labelMedium.copy(
-            fontFamily = FontFamily.Monospace,
-            color = MaterialTheme.colorScheme.onSurface,
-        ),
+        MaterialTheme.typography.labelMedium.putioMono().copy(color = MaterialTheme.colorScheme.onSurface),
     ) {
         Row(
             Modifier.fillMaxWidth(),
@@ -382,10 +379,7 @@ private fun MobilePlayerTimeline(player: Player, onScrub: () -> Unit) {
     Column {
         MobileProgressSlider(player, onScrub)
         ProvideTextStyle(
-            MaterialTheme.typography.labelMedium.copy(
-                fontFamily = FontFamily.Monospace,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            ),
+            MaterialTheme.typography.labelMedium.putioMono().copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
         ) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 PositionText(player)

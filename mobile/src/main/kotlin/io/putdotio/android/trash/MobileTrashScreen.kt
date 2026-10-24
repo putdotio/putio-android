@@ -16,7 +16,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -145,7 +144,6 @@ private fun LazyListScope.loadedTrashItems(
             item, enabled = state.canRestore(item.id) || state.canDelete(item.id),
             onActions = { onActions(item) },
         )
-        HorizontalDivider(Modifier.padding(start = 72.dp))
     }
     item(key = "paging") {
         val pageFailure = content.pageFailure

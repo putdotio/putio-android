@@ -96,6 +96,9 @@ class DesignTokenCodegenTest {
         assertTrue(xml.contains("<color name=\"putio_yellow_solid\">#FFFDCE45</color>"))
         // Dark mode wins here too.
         assertTrue(xml.contains("<color name=\"putio_app_bg\">#FF161616</color>"))
+        // hsl(2, 100%, 77%) and hsl(151, 55%, 41.5%): the light red and green DESIGN.md names.
+        assertTrue(xml.contains("<color name=\"putio_red_text_secondary\">#FFFF8E8A</color>"))
+        assertTrue(xml.contains("<color name=\"putio_green_solid\">#FF30A46C</color>"))
         assertEquals(DesignTokenCodegen.RESOURCE_TOKENS.size, Regex("<color ").findAll(xml).count())
         assertTrue(!xml.contains("putio_red_solid"))
     }
@@ -127,6 +130,55 @@ class DesignTokenCodegenTest {
     fun designMdWithoutAColorsBlockFailsLoudly() {
         val error = runCatching { DesignTokenCodegen.withDesignMdColors("# T\n", fullGraph()) }.exceptionOrNull()
         assertTrue(error is IllegalStateException)
+    }
+
+    @Test
+    fun scalesCarryDesignMdTypeAndCorners() {
+        val code = DesignTokenCodegen.generateScales(File("../DESIGN.md").readText())
+        assertTrue(
+            code.contains(
+                """
+                |    public val headlineLg: TextStyle = TextStyle(
+                |        fontFamily = FontFamily.Default,
+                |        fontWeight = FontWeight(500),
+                |        fontSize = 28.sp,
+                |        lineHeight = 36.sp,
+                |        letterSpacing = 0.sp,
+                |    )
+                """.trimMargin(),
+            ),
+        )
+        assertTrue(code.contains("        fontFamily = FontFamily.Monospace,\n"))
+        assertTrue(code.contains("        fontFeatureSettings = \"\\\"tnum\\\"\",\n"))
+        assertTrue(code.contains("    public val largeIncreased: Dp = 20.dp\n"))
+        assertTrue(code.contains("    public val full: Dp = 9999.dp\n"))
+    }
+
+    @Test
+    fun scalesRejectWhatTheyCannotModel() {
+        val base = "---\ntypography:\n  body:\n    fontFamily: GT America\n    fontSize: 16px\n" +
+            "    fontWeight: 400\n    lineHeight: 22px\nrounded:\n  small: 8px\n---\n"
+        assertTrue(DesignTokenCodegen.generateScales(base).contains("public val small: Dp = 8.dp"))
+        listOf(
+            base.replace("GT America", "Comic Sans") to "Comic Sans",
+            base.replace("16px", "1rem") to "fontSize",
+            base.replace("    lineHeight: 22px\n", "    lineHeight: 22px\n    case: upper\n") to "case",
+            base.replace("rounded:\n  small: 8px\n", "") to "rounded",
+        ).forEach { (doc, expected) ->
+            val error = runCatching { DesignTokenCodegen.generateScales(doc) }.exceptionOrNull()
+            assertTrue(expected, error is IllegalStateException && error.message!!.contains(expected))
+        }
+    }
+
+    @Test
+    fun frontMatterReadsNestedMapsAndQuotedScalars() {
+        val front = DesignTokenCodegen.frontMatter(
+            "---\nname: \"put.io\"\na:\n  b:\n    c: '\"tnum\"'\n  d: 2px\ne: 1\n---\n# Body\nf: 3\n",
+        )
+        assertEquals(
+            mapOf("name" to "put.io", "a" to mapOf("b" to mapOf("c" to "\"tnum\""), "d" to "2px"), "e" to "1"),
+            front,
+        )
     }
 
     private fun fullGraph() = File("../design/tokens.dtcg.json").readText()

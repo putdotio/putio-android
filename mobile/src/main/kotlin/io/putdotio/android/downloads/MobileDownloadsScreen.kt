@@ -61,6 +61,8 @@ import androidx.lifecycle.compose.LifecycleStartEffect
 import io.putdotio.android.MobileEmptyState
 import io.putdotio.android.R
 import io.putdotio.android.design.FileTypeIcon
+import io.putdotio.android.design.PutioDesignTokens
+import io.putdotio.android.design.PutioDestructiveButton
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPlaybackProgress
@@ -254,7 +256,6 @@ private fun LazyListScope.section(
             onActions = { rows.onOpenSheet(entry) },
             onSelect = if (removing) null else { { rows.onToggle(entry) } },
         )
-        HorizontalDivider(Modifier.padding(start = 72.dp))
     }
 }
 
@@ -312,7 +313,7 @@ private fun SelectionBar(
             ) {
                 Text(
                     stringResource(R.string.mobile_downloads_remove_confirm),
-                    color = if (count > 0) MaterialTheme.colorScheme.error else Color.Unspecified,
+                    color = if (count > 0) PutioDesignTokens.redTextSecondary else Color.Unspecified,
                 )
             }
         }
@@ -413,7 +414,7 @@ private fun DownloadRowStatus(status: DownloadStatus, queuePosition: Int?, remov
             },
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            color = if (failed && !removing) MaterialTheme.colorScheme.error else Color.Unspecified,
+            color = if (failed && !removing) PutioDesignTokens.redTextSecondary else Color.Unspecified,
         )
         if (status is DownloadStatus.Downloading && !removing) {
             val percent = status.percent
@@ -453,7 +454,7 @@ private fun MobileDownloadItemSheet(
                 Text(
                     entry.status.description(LocalContext.current),
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.error,
+                    color = PutioDesignTokens.redTextSecondary,
                     modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 8.dp),
                 )
             }
@@ -496,7 +497,7 @@ private fun MobileDownloadItemSheet(
             HorizontalDivider()
             ListItem(
                 headlineContent = {
-                    Text(stringResource(R.string.mobile_downloads_remove), color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.mobile_downloads_remove), color = PutioDesignTokens.redTextSecondary)
                 },
                 modifier = Modifier
                     .clickable(enabled = !removing, role = Role.Button) {
@@ -566,7 +567,10 @@ private fun RemovalDialog(removal: DownloadRemoval, onConfirm: () -> Unit, onCan
             }
         },
         confirmButton = {
-            TextButton(onClick = onConfirm, modifier = Modifier.testTag(MOBILE_DOWNLOADS_REMOVE_CONFIRM_TAG)) {
+            PutioDestructiveButton(
+                onClick = onConfirm,
+                modifier = Modifier.testTag(MOBILE_DOWNLOADS_REMOVE_CONFIRM_TAG),
+            ) {
                 Text(stringResource(R.string.mobile_downloads_remove_confirm))
             }
         },

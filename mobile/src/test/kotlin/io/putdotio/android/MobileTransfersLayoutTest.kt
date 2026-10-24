@@ -87,7 +87,17 @@ class MobileTransfersLayoutTest {
         val cancel = compose.onNodeWithContentDescription("Cancel transfer $TRANSFER_NAME")
             .fetchSemanticsNode().boundsInRoot
         val list = compose.onNodeWithTag(MOBILE_TRANSFERS_LIST_TAG).fetchSemanticsNode().boundsInRoot
-        assertTrue("Metadata uses the row width", name.width > list.width * 0.8f)
+        // The width the name may take, not the width its glyphs happen to use.
+        val nameLayouts = mutableListOf<TextLayoutResult>()
+        compose.onNodeWithText(TRANSFER_NAME, useUnmergedTree = true)
+            .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(nameLayouts) }
+        val nameLayout = nameLayouts.single()
+        assertTrue("Metadata uses the row width", nameLayout.layoutInput.constraints.maxWidth > list.width * 0.8f)
+        for (line in 0 until nameLayout.lineCount) {
+            assertFalse("The name is not cut", nameLayout.isLineEllipsized(line))
+            assertTrue("The name fits its slot", nameLayout.getLineRight(line) <= nameLayout.size.width + 1f)
+        }
+        assertTrue("Name renders inside the list", name.left >= list.left && name.right <= list.right)
         assertTrue("Open follows metadata", open.top >= status.bottom)
         assertTrue("Cancel follows metadata", cancel.top >= status.bottom)
         assertFalse("Action targets must not overlap", open.overlaps(cancel))

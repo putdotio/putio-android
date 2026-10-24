@@ -46,6 +46,14 @@ tokens in `APP_TOKENS`, the overscan ratios and the TV scheme. Every other token
 and the mobile scheme, which `PutioTheme` applies, stay `internal`; an app that
 needs another raw token adds it to `APP_TOKENS`.
 
+The type and corner scales are Android's own, so they come from the root
+`DESIGN.md` front matter instead of the token graph. The same task writes its
+`typography` block as `PutioTypeScale` and its `rounded` block as
+`PutioRadius`, with Roboto and the system monospace standing in for GT America
+and Berkeley Mono. `PutioTheme` maps the scale onto the Material slots stock
+components read, and `putioMono()` sets numbers in mono. Change a value in
+`DESIGN.md`; the build regenerates it.
+
 # Icons
 
 `phosphor-icons.lock.json` pins `@phosphor-icons/core` by version, npm tarball

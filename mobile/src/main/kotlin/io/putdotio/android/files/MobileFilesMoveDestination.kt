@@ -20,7 +20,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -40,6 +39,7 @@ import io.putdotio.android.MobileLoadingState
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.design.FileTypeIcon
+import io.putdotio.android.design.PutioSwitch
 import io.putdotio.sdk.files.PutioFileType
 
 internal const val MOBILE_FILES_MOVE_PICKER_TAG = "mobile-files-move-picker"
@@ -100,7 +100,7 @@ internal fun MobileFilesMoveDestination(
                     ) {
                         Text(stringResource(R.string.mobile_files_move_remember_target),
                             style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-                        Switch(checked = checked, onCheckedChange = null)
+                        PutioSwitch(checked = checked)
                     }
                 }
                 Button(onClick = onConfirm, enabled = canSubmit && state.canMoveHere,

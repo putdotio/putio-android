@@ -20,6 +20,9 @@ class PutioColorSchemeTest {
         assertEquals(Color(0xFF3E3E3E), PutioDesignTokens.border)
         assertEquals(Color(0xFF343434), PutioDesignTokens.line)
         assertEquals(Color(0xFFE5484D), PutioDesignTokens.redSolid)
+        assertEquals(Color(0xFFFF8E8A), PutioDesignTokens.redTextSecondary)
+        assertEquals(Color(0xFF30A46C), PutioDesignTokens.greenSolid)
+        assertEquals(Color(0xFF707070), PutioDesignTokens.solid)
     }
 
     @Test
@@ -40,6 +43,7 @@ class PutioColorSchemeTest {
         assertEquals(PutioDesignTokens.border, scheme.outline)
         assertEquals(PutioDesignTokens.line, scheme.outlineVariant)
         assertEquals(PutioDesignTokens.redSolid, scheme.error)
+        assertEquals(PutioDesignTokens.appBg, scheme.onError)
         // Derived: the stock FAB reads primaryContainer and the nav bar
         // indicator reads secondaryContainer; without these they fall back
         // to M3 baseline purple.

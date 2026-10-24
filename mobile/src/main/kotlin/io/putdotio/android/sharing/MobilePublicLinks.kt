@@ -23,7 +23,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -55,6 +54,8 @@ import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.apiReason
 import io.putdotio.android.design.FileTypeIcon
+import io.putdotio.android.design.PutioDesignTokens
+import io.putdotio.android.design.PutioDestructiveButton
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.mobileMessageResource
 import kotlinx.coroutines.launch
@@ -143,7 +144,6 @@ internal fun MobilePublicLinkSheet(
                         )
                     }
                     links.forEach { link ->
-                        HorizontalDivider()
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(expiryText(link), style = MaterialTheme.typography.bodyMedium)
                             PublicLinkButtons(link, state, actions)
@@ -197,7 +197,6 @@ internal fun MobilePublicLinksScreen(
                     }
                 }
                 items(content.links, key = { it.id.value }) { link ->
-                    HorizontalDivider()
                     ListItem(
                         headlineContent = { Text(link.fileName, maxLines = 2, overflow = TextOverflow.Ellipsis) },
                         supportingContent = {
@@ -247,7 +246,7 @@ private fun PublicLinksInlineFailure(failure: PutioFailure, onRetry: () -> Unit)
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
             text = failure.publicLinksMessage(),
-            color = MaterialTheme.colorScheme.error,
+            color = PutioDesignTokens.redTextSecondary,
             modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
         )
         TextButton(onClick = onRetry) { Text(stringResource(R.string.mobile_action_retry)) }
@@ -279,7 +278,7 @@ private fun PublicLinkButtons(link: PublicLink, state: PublicLinksState, actions
                 stringResource(
                     if (revoking) R.string.mobile_public_links_revoking else R.string.mobile_public_links_revoke,
                 ),
-                color = if (state.canRevoke) MaterialTheme.colorScheme.error
+                color = if (state.canRevoke) PutioDesignTokens.redTextSecondary
                     else MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
@@ -331,7 +330,7 @@ private fun PublicLinkRevokeDialog(
         title = { Text(stringResource(R.string.mobile_public_links_revoke_title)) },
         text = { Text(stringResource(R.string.mobile_public_links_revoke_message, link.fileName)) },
         confirmButton = {
-            TextButton(
+            PutioDestructiveButton(
                 onClick = {
                     actions.dismissRevoke()
                     onEvent(PublicLinksEvent.Revoke(link.id))
@@ -339,7 +338,7 @@ private fun PublicLinkRevokeDialog(
                 enabled = state.canRevoke,
                 modifier = Modifier.testTag(MOBILE_PUBLIC_LINK_REVOKE_CONFIRM_TAG),
             ) {
-                Text(stringResource(R.string.mobile_public_links_revoke), color = MaterialTheme.colorScheme.error)
+                Text(stringResource(R.string.mobile_public_links_revoke))
             }
         },
         dismissButton = {
@@ -357,7 +356,7 @@ private fun PublicLinksOutcomeLine(outcome: PublicLinksOutcome, onDismiss: () ->
     ) {
         Text(
             text = outcome.message(),
-            color = if (failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+            color = if (failed) PutioDesignTokens.redTextSecondary else MaterialTheme.colorScheme.onSurface,
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.weight(1f).semantics { liveRegion = LiveRegionMode.Polite },
         )

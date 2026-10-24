@@ -22,6 +22,8 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.R
+import io.putdotio.android.design.PutioDesignTokens
+import io.putdotio.android.design.PutioDestructiveButton
 
 @Composable
 internal fun MobileFilesDeleteConfirmation(
@@ -40,11 +42,8 @@ internal fun MobileFilesDeleteConfirmation(
             )
         },
         confirmButton = {
-            TextButton(onClick = onConfirm, enabled = enabled) {
-                Text(
-                    stringResource(R.string.mobile_files_confirm_action),
-                    color = MaterialTheme.colorScheme.error,
-                )
+            PutioDestructiveButton(onClick = onConfirm, enabled = enabled) {
+                Text(stringResource(R.string.mobile_files_confirm_action))
             }
         },
         dismissButton = {
@@ -75,7 +74,10 @@ internal fun MobileFilesTrashLimitStatus(
         )
         if (listed != null) {
             TextButton(onClick = { confirming = true }) {
-                Text(stringResource(R.string.mobile_files_trash_limit_delete), color = MaterialTheme.colorScheme.error)
+                Text(
+                    stringResource(R.string.mobile_files_trash_limit_delete),
+                    color = PutioDesignTokens.redTextSecondary,
+                )
             }
         }
     }
@@ -94,11 +96,11 @@ internal fun MobileFilesTrashLimitStatus(
                 }
             },
             confirmButton = {
-                TextButton(onClick = {
+                PutioDestructiveButton(onClick = {
                     confirming = false
                     onEvent(delete)
                 }) {
-                    Text(stringResource(R.string.mobile_files_delete), color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.mobile_files_delete))
                 }
             },
             dismissButton = {

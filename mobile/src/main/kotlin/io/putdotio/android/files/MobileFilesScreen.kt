@@ -23,7 +23,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -90,6 +89,8 @@ import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.apiReason
 import io.putdotio.android.design.FileTypeIcon
+import io.putdotio.android.design.PutioDesignTokens
+import io.putdotio.android.design.PutioEmptyGlyph
 import io.putdotio.android.downloads.DownloadPauseReason
 import io.putdotio.android.downloads.DownloadStatus
 import io.putdotio.android.downloads.DownloadsState
@@ -452,6 +453,7 @@ private fun MobileEmptyFilesContent(
                 MobileEmptyState(
                     title = stringResource(R.string.mobile_state_empty_title),
                     message = stringResource(R.string.mobile_state_empty_message),
+                    glyph = PutioEmptyGlyph.EmptyFolder,
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(min = viewportHeight),
@@ -510,7 +512,7 @@ private fun MobileFilesOperationStatus(
                 Text(
                     text = message,
                     modifier = Modifier.weight(1f),
-                    color = MaterialTheme.colorScheme.error,
+                    color = PutioDesignTokens.redTextSecondary,
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 TextButton(
@@ -599,7 +601,7 @@ private fun MobileFilesDeleteStatus(outcome: FilesDeleteOutcome) {
                 outcome.failure?.let {
                     Text(
                         it.mobileMessage(),
-                        color = MaterialTheme.colorScheme.error,
+                        color = PutioDesignTokens.redTextSecondary,
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
@@ -705,7 +707,6 @@ private fun MobileFilesList(
                     },
                 )
             }
-            HorizontalDivider(modifier = Modifier.padding(start = FILES_DIVIDER_INSET))
         }
         if (content.paging != FilesPaging.Complete) {
             item(key = FILES_PAGING_ITEM_KEY) {
@@ -954,7 +955,7 @@ private fun MobileFilesDownloadIndicator(status: DownloadStatus) {
             contentDescription = null,
             modifier = Modifier.size(FILES_BADGE_ICON_SIZE),
             tint = if (status is DownloadStatus.Failed || status == DownloadStatus.Missing) {
-                MaterialTheme.colorScheme.error
+                PutioDesignTokens.redTextSecondary
             } else {
                 MaterialTheme.colorScheme.primary
             },
@@ -1115,7 +1116,6 @@ internal fun FilesFailure.mobileMessageResource(): Int =
     }
 
 private const val FILES_PAGING_ITEM_KEY = "files-paging"
-private val FILES_DIVIDER_INSET = 72.dp
 private val FILES_ICON_CONTAINER_SIZE = 40.dp
 private val FILES_ICON_SIZE = 24.dp
 private val FILES_PROGRESS_SPACING = 6.dp
