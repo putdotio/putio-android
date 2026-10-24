@@ -101,7 +101,9 @@ a filled Phosphor glyph; unselected items use the regular glyph.
 
 From 840dp, Files is list-detail: the folder list on the left (520dp), the
 selected file's detail on the right with its preview, primary actions and
-facts (size, added, length, subtitles, folder).
+facts (size, added, length, subtitles, folder). Here a tap on a file selects it
+into the detail pane; Play in the pane starts playback. Folders open in the
+list.
 
 Each tab keeps its own back stack. Back pops within the tab, then returns to
 Files, then leaves the app. Predictive back is on for every route; never
@@ -186,7 +188,8 @@ Completed. Each transfer is a 16dp-radius card:
 
 - The card background fills left to right with progress, as on the web:
   yellow at 13% while downloading, green at 12% while seeding.
-- A state dot (yellow, grey queued, red failed, green done), then mono meta:
+- A state dot (yellow downloading, grey queued, red failed, green seeding or
+  done), then mono meta:
   "847 MB of 3.42 GB · 34 peers".
 - Trailing: ETA and speed in mono while running; Retry on failures; Open on
   completed ones.
@@ -350,7 +353,8 @@ with **Try again** or **Reset and sign in**.
 - Search has no type chips; results are one flat list.
 - The actions sheet has no Play or Resume and no Mark as watched.
 - The Move picker cannot create a folder.
-- Watched files show a progress bar and "N% watched".
+- Played files show a progress bar and "N% watched" when the duration is known,
+  and a plain "Watched" label otherwise.
 - Switches are stock M3 52x32dp in yellow.
 - Settings are two-line rows under yellow subheads.
 - Type is Roboto. Only the player's timestamps use a monospace face, the system
