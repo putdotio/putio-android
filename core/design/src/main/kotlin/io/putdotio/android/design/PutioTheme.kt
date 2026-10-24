@@ -81,8 +81,8 @@ internal val putioShapes: Shapes = Shapes().copy(
 private val MINIMUM_NUMBER_SIZE = 12.sp
 
 /**
- * This style, over the inherited text style, with numbers set in the mono face and tabular
- * figures. Mono takes the size of the text it sits in, raised to 12sp when that is smaller. The
+ * This style, over the inherited text style, with numbers set in the mono face, at its weight, with
+ * tabular figures. Mono takes the size of the text it sits in, raised to 12sp when that is smaller. The
  * floor needs an `sp` size to compare: [PutioTheme] gives every slot one, and an `em` size here
  * resolves against the inherited one.
  */
@@ -103,6 +103,7 @@ internal fun monoNumbers(style: TextStyle, inheritedSize: TextUnit = TextUnit.Un
     val belowFloor = size.isSp && size < MINIMUM_NUMBER_SIZE
     return style.copy(
         fontFamily = PutioTypeScale.mono.fontFamily,
+        fontWeight = PutioTypeScale.mono.fontWeight,
         fontFeatureSettings = PutioTypeScale.mono.fontFeatureSettings,
         fontSize = if (belowFloor) MINIMUM_NUMBER_SIZE else size,
     )

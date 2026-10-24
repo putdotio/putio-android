@@ -32,8 +32,9 @@ class PutioTypographyTest {
 
     @Test
     fun monoKeepsItsSizeWithTabularFiguresAndAFloor() {
-        val meta = monoNumbers(TextStyle(fontSize = 13.sp, lineHeight = 18.sp))
+        val meta = monoNumbers(TextStyle(fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight(500)))
         assertEquals(PutioFontFamily.berkeleyMono, meta.fontFamily)
+        assertEquals(FontWeight(400), meta.fontWeight) // DESIGN.md's mono weight, the one face it embeds
         assertEquals("\"tnum\"", meta.fontFeatureSettings)
         assertEquals(13.sp, meta.fontSize)
         assertEquals(12.sp, monoNumbers(TextStyle(fontSize = 11.sp)).fontSize)
