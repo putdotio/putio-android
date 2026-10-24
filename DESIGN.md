@@ -306,7 +306,8 @@ scrim. Menus and snackbars keep Material's own shadow; nothing else draws one.
 
 ## Shapes
 
-Corners follow the M3 shape scale: 28dp for sheets, dialogs and the widget;
+Corners follow the M3 shape scale: 28dp for sheets (with a 32x4dp handle),
+dialogs and the widget;
 20dp for action tiles; 16dp for cards, menus, notices, the FAB and settings
 groups; 8dp for snackbars; 4dp for the inner corners of segmented groups.
 Search, buttons, chips and the nav indicator are full pills. Progress bars
@@ -488,7 +489,8 @@ Completed. Each transfer is a transfer card:
   completed ones.
 - Failed cards take a 9% red tint and a 1dp red outline.
 
-**Add transfer** is a yellow extended FAB that collapses to its icon on scroll.
+**Add transfer** is a yellow extended FAB, 16dp from the edge above the nav
+bar, that collapses to its icon on scroll.
 It opens a sheet: one field for links and magnets, Paste and .torrent chips,
 the destination with Change, then Cancel and Add.
 
