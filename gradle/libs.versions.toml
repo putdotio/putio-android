@@ -1,6 +1,6 @@
 [versions]
 agp = "9.4.1"
-kotlin = "2.4.20"
+kotlin = "2.4.21"
 activityCompose = "1.13.0"
 browser = "1.10.0"
 coil = "3.6.3"
@@ -13,7 +13,7 @@ media3 = "1.11.1"
 okhttp = "5.5.0"
 playPublisher = "4.1.1"
 putioSdkKotlin = "2.0.0"
-sentry = "8.60.0"
+sentry = "8.61.0"
 sentryGradlePlugin = "6.24.0"
 tvMaterial = "1.1.0"
 zxing = "3.5.4"
@@ -72,7 +72,7 @@ robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectr
 # the robolectric release above expects, and a mismatch fails offline tests by name.
 robolectric-android-all = { module = "org.robolectric:android-all-instrumented", version = "15-robolectric-13954326-i7" }
 # minSdk's runtime, for the few tests that pin behaviour below API 28 with @Config(sdk = [26]); same instrumentation.
-robolectric-android-all-api26 = { module = "org.robolectric:android-all-instrumented", version = "8.0.0_r4-robolectric-r1-i7" }
+robolectric-android-all-api26 = { module = "org.robolectric:android-all-instrumented", version = "8.1.0-robolectric-4611349-i7" }
 android-gradle-plugin = { module = "com.android.tools.build:gradle", version.ref = "agp" }
 detekt-gradle-plugin = { module = "io.gitlab.arturbosch.detekt:detekt-gradle-plugin", version.ref = "detekt" }
 sentry-gradle-plugin = { module = "io.sentry:sentry-android-gradle-plugin", version.ref = "sentryGradlePlugin" }
