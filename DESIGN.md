@@ -761,14 +761,18 @@ opens put.io OAuth in the browser.
   `Transfer` has no peers field.
 - The mini player (`MobileNowPlayingBar`) exists in another form; Files has no
   selection mode, and there is no offline banner or tablet list-detail.
-- Player options open as bottom sheets, and speed presets run 0.75× to 2×.
-  There is no cast button, sleep timer, Up next or subtitle size and timing.
+- The player has no cast button, and Now Playing has no sleep timer or Up
+  next.
 - Files has no Continue watching row, and images, PDF and text don't open
   in-app.
 - The production launcher icon is a placeholder; nightly uses its generated
   stars icon.
+<<<<<<< HEAD
 - The player has no picture-in-picture or Next episode button; picture-in-
   picture starts when you leave playback.
+=======
+- History has no event glyphs and keeps Clear history above the list.
+>>>>>>> 42937ab (feat(mobile): redesign the video player)
 
 ## Android TV
 

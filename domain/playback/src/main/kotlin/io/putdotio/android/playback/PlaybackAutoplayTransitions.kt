@@ -17,6 +17,18 @@ internal fun PlaybackState.playerEnded(): PlaybackTransition {
     )
 }
 
+/** Next episode plays a playing video's next one at once, even one this opening already played. */
+internal fun PlaybackState.nextChosen(event: PlaybackEvent.NextChosen): PlaybackTransition =
+    if (content !is PlaybackContent.Ready ||
+        target.mediaType != PlaybackMediaType.VIDEO ||
+        event.target.mediaType != PlaybackMediaType.VIDEO ||
+        event.target.fileId == target.fileId
+    ) {
+        PlaybackTransition(this, consumed = false)
+    } else {
+        resolveNext(event.target)
+    }
+
 internal fun PlaybackState.nextFound(event: PlaybackEvent.NextFound): PlaybackTransition =
     when {
         !isFindingNext(event.requestId) -> PlaybackTransition(this, consumed = false)

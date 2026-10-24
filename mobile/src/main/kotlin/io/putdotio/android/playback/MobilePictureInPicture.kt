@@ -13,7 +13,6 @@ import android.os.Build
 import android.util.Rational
 import androidx.activity.compose.LocalActivity
 import androidx.annotation.DrawableRes
-import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -40,6 +39,8 @@ import kotlin.math.roundToInt
 
 internal const val ACTION_PICTURE_IN_PICTURE_PLAY = "io.putdotio.android.action.PICTURE_IN_PICTURE_PLAY"
 internal const val ACTION_PICTURE_IN_PICTURE_PAUSE = "io.putdotio.android.action.PICTURE_IN_PICTURE_PAUSE"
+internal const val ACTION_PICTURE_IN_PICTURE_SEEK_BACK = "io.putdotio.android.action.PICTURE_IN_PICTURE_SEEK_BACK"
+internal const val ACTION_PICTURE_IN_PICTURE_SEEK_FORWARD = "io.putdotio.android.action.PICTURE_IN_PICTURE_SEEK_FORWARD"
 
 @Composable
 internal fun rememberPictureInPictureMode(): State<Boolean> {
@@ -61,8 +62,10 @@ internal fun Lifecycle.State.withPictureInPicture(pictureInPicture: Boolean): Li
 /**
  * Offers the video to picture-in-picture while it is [playing]: Android 12 and later enter on
  * their own when the viewer leaves, earlier versions on the leave hint. The window takes the
- * video's shape, and its one action asks [onPlayingRequested] to pause or play the screen's own
- * player. A host Activity whose manifest does not declare the window gets none.
+ * video's shape, and its actions ask [onSeekRequested] to go 10 seconds back or forward and
+ * [onPlayingRequested] to pause or play the screen's own player. Returns what the top bar's button
+ * calls to enter the window now, or null when the host Activity does not declare the window or
+ * the device has none.
  */
 @Composable
 internal fun MobilePictureInPictureEffect(
@@ -70,17 +73,19 @@ internal fun MobilePictureInPictureEffect(
     videoSize: VideoSize,
     videoFrame: Rect?,
     onPlayingRequested: (Boolean) -> Unit,
-) {
-    val host = LocalActivity.current ?: return
+    onSeekRequested: (SeekDirection) -> Unit = {},
+): (() -> Unit)? {
+    val host = LocalActivity.current ?: return null
     // The platform throws for an Activity that does not declare the window.
     val declared = remember(host) { host.declaresPictureInPicture() }
     val activity = host as? PictureInPictureProvider
-    if (!declared || activity == null) return
+    if (!declared || activity == null) return null
     val context = LocalContext.current
     val actions = remember(context) { PictureInPictureActions(context) }
     val params = remember(playing, videoSize, videoFrame, actions) {
-        pictureInPictureParams(playing, videoSize, videoFrame, if (playing) actions.pause else actions.play)
+        pictureInPictureParams(playing, videoSize, videoFrame, actions.forState(playing))
     }
+    val currentOnSeekRequested by rememberUpdatedState(onSeekRequested)
     val currentParams by rememberUpdatedState(params)
     val currentOnPlayingRequested by rememberUpdatedState(onPlayingRequested)
     LaunchedEffect(activity, params) {
@@ -104,15 +109,31 @@ internal fun MobilePictureInPictureEffect(
                 when (intent.action) {
                     ACTION_PICTURE_IN_PICTURE_PLAY -> currentOnPlayingRequested(true)
                     ACTION_PICTURE_IN_PICTURE_PAUSE -> currentOnPlayingRequested(false)
+                    ACTION_PICTURE_IN_PICTURE_SEEK_BACK -> currentOnSeekRequested(SeekDirection.Backward)
+                    ACTION_PICTURE_IN_PICTURE_SEEK_FORWARD -> currentOnSeekRequested(SeekDirection.Forward)
                 }
             }
         }
         val filter = IntentFilter().apply {
             addAction(ACTION_PICTURE_IN_PICTURE_PLAY)
             addAction(ACTION_PICTURE_IN_PICTURE_PAUSE)
+            addAction(ACTION_PICTURE_IN_PICTURE_SEEK_BACK)
+            addAction(ACTION_PICTURE_IN_PICTURE_SEEK_FORWARD)
         }
         ContextCompat.registerReceiver(context, receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
         onDispose { context.unregisterReceiver(receiver) }
+    }
+    val supported = remember(context) {
+        context.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
+    }
+    if (!supported) return null
+    return {
+        // Asked for, the window opens even for a paused video, which then shows Play.
+        pictureInPictureCall {
+            activity.enterPictureInPictureMode(
+                pictureInPictureParams(true, videoSize, videoFrame, actions.forState(playing)),
+            )
+        }
     }
 }
 
@@ -186,12 +207,12 @@ internal fun pictureInPictureParams(
     armed: Boolean,
     videoSize: VideoSize,
     videoFrame: Rect?,
-    action: RemoteAction,
+    actions: List<RemoteAction>,
 ): PictureInPictureParamsCompat {
     val aspectRatio = pictureInPictureAspectRatio(videoSize)
     return PictureInPictureParamsCompat.Builder()
         .setEnabled(armed)
-        .setActions(listOf(action))
+        .setActions(actions)
         .setSeamlessResizeEnabled(true)
         .apply {
             aspectRatio?.let(::setAspectRatio)
@@ -226,28 +247,43 @@ internal fun Rect.fittedVideoBounds(aspectRatio: Rational): android.graphics.Rec
     )
 }
 
+/** The window's actions, in the player's order: 10 seconds back, play or pause, 10 seconds forward. */
 private class PictureInPictureActions(context: Context) {
-    val play = remoteAction(
+    private val seconds = (MOBILE_SEEK_INTERVAL_MILLIS / 1_000L).toInt()
+    private val back = remoteAction(
+        context,
+        ACTION_PICTURE_IN_PICTURE_SEEK_BACK,
+        R.drawable.ic_ph_arrow_counter_clockwise,
+        context.resources.getQuantityString(R.plurals.mobile_playback_seek_back, seconds, seconds),
+    )
+    private val play = remoteAction(
         context,
         ACTION_PICTURE_IN_PICTURE_PLAY,
         DesignR.drawable.ic_ph_play_fill,
-        R.string.mobile_now_playing_play,
+        context.getString(R.string.mobile_now_playing_play),
     )
-    val pause = remoteAction(
+    private val pause = remoteAction(
         context,
         ACTION_PICTURE_IN_PICTURE_PAUSE,
         DesignR.drawable.ic_ph_pause_fill,
-        R.string.mobile_now_playing_pause,
+        context.getString(R.string.mobile_now_playing_pause),
     )
+    private val forward = remoteAction(
+        context,
+        ACTION_PICTURE_IN_PICTURE_SEEK_FORWARD,
+        R.drawable.ic_ph_arrow_clockwise,
+        context.resources.getQuantityString(R.plurals.mobile_playback_seek_forward, seconds, seconds),
+    )
+
+    fun forState(playing: Boolean): List<RemoteAction> = listOf(back, if (playing) pause else play, forward)
 }
 
 private fun remoteAction(
     context: Context,
     action: String,
     @DrawableRes icon: Int,
-    @StringRes label: Int,
+    title: String,
 ): RemoteAction {
-    val title = context.getString(label)
     val intent = PendingIntent.getBroadcast(
         context,
         0,

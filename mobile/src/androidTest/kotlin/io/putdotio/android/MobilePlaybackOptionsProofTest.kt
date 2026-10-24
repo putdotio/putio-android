@@ -17,6 +17,7 @@ import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.click
@@ -56,6 +57,8 @@ import io.putdotio.android.playback.AudioTrackIdentity
 import io.putdotio.android.playback.playbackAudioTracks
 import io.putdotio.android.playback.DefaultMobilePlayerFactory
 import io.putdotio.android.playback.MOBILE_PLAYER_GESTURE_TAG
+import io.putdotio.android.playback.MOBILE_PLAYER_SIDE_SHEET_TAG
+import io.putdotio.android.playback.languageName
 import io.putdotio.android.playback.MobilePlayerFactory
 import io.putdotio.android.playback.MobilePlayerScreen
 
@@ -175,10 +178,14 @@ class MobilePlaybackOptionsProofTest {
         showControls()
         screenshot("$label-player")
         selectSpeedWithKeyboard(factory)
+        closeVideoSheet()
         openSpeedOptions()
         compose.onNodeWithText("1.5×").performTouchInput { click() }
+        closeVideoSheet()
         val track = compose.runOnIdle { factory.current().currentTracks.playbackAudioTracks()[1] }
-        val title = track.label ?: context.getString(R.string.mobile_playback_audio_track_number, 2)
+        // The video's side sheet names a track by its language in its own words.
+        val title = languageName(track.identity.language).takeIf { proofMediaType == PlaybackMediaType.VIDEO }
+            ?: track.label ?: context.getString(R.string.mobile_playback_audio_track_number, 2)
         openAudioOptions()
         compose.onNodeWithText(title).performScrollTo().performTouchInput { click() }
         awaitSelection(factory, track.identity)
@@ -212,8 +219,8 @@ class MobilePlaybackOptionsProofTest {
     private fun showOptions() {
         showControls()
         if (proofMediaType == PlaybackMediaType.VIDEO) {
-            tapThroughAndroid(compose.onNodeWithText("Audio"))
-            compose.onNodeWithText("Audio track").assertIsDisplayed()
+            tapThroughAndroid(compose.onNodeWithContentDescription("Audio: ", substring = true))
+            compose.onNodeWithTag(MOBILE_PLAYER_SIDE_SHEET_TAG).assertIsDisplayed()
         } else {
             tapThroughAndroid(compose.onNodeWithContentDescription("Playback options"))
             compose.onNodeWithText("Playback speed").assertIsDisplayed()
@@ -225,7 +232,7 @@ class MobilePlaybackOptionsProofTest {
     private fun openSpeedOptions() {
         if (proofMediaType == PlaybackMediaType.VIDEO) {
             showControls()
-            tapThroughAndroid(compose.onNodeWithText("Speed (", substring = true))
+            tapThroughAndroid(compose.onNodeWithContentDescription("Playback speed ", substring = true))
         } else {
             showOptions()
             compose.onNodeWithText("Playback speed").performTouchInput { click() }
@@ -236,6 +243,15 @@ class MobilePlaybackOptionsProofTest {
         showOptions()
         if (proofMediaType == PlaybackMediaType.AUDIO) {
             compose.onNodeWithText("Audio track").performTouchInput { click() }
+        }
+    }
+
+    /** A video's side sheet stays open for speed choices, and the chips return once it closes. */
+    private fun closeVideoSheet() {
+        if (proofMediaType != PlaybackMediaType.VIDEO) return
+        tapThroughAndroid(compose.onNodeWithContentDescription("Close"))
+        compose.waitUntil(5_000) {
+            compose.onAllNodesWithTag(MOBILE_PLAYER_SIDE_SHEET_TAG).fetchSemanticsNodes().isEmpty()
         }
     }
 
@@ -252,7 +268,7 @@ class MobilePlaybackOptionsProofTest {
 
     private fun showControls() {
         val trigger = if (proofMediaType == PlaybackMediaType.VIDEO) {
-            hasText("Audio")
+            hasContentDescription("Audio: ", substring = true)
         } else {
             hasContentDescription("Playback options")
         }

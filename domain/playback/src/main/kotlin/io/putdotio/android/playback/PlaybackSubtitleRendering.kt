@@ -2,6 +2,7 @@ package io.putdotio.android.playback
 
 import android.content.Context
 import android.view.View.MeasureSpec
+import android.view.accessibility.CaptioningManager
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -29,6 +30,7 @@ public fun SubtitleCueOverlay(
     cues: List<Cue>,
     videoAspectRatio: Float?,
     modifier: Modifier = Modifier,
+    textScale: Float = 1f,
 ) {
     if (cues.isEmpty()) return
     // Replacement players can deliver retained cues before their video dimensions.
@@ -49,6 +51,7 @@ public fun SubtitleCueOverlay(
             drawIntoCanvas { canvas ->
                 renderer.draw(
                     cues = cues,
+                    textScale = textScale,
                     width = size.width.roundToInt(),
                     height = size.height.roundToInt(),
                     canvas = canvas.nativeCanvas,
@@ -67,16 +70,28 @@ internal class SubtitleCueRenderer(
             setUserDefaultStyle()
             setUserDefaultTextSize()
         }
+    private val captionScale =
+        (context.getSystemService(Context.CAPTIONING_SERVICE) as? CaptioningManager)
+            ?.takeIf { it.isEnabled }
+            ?.fontScale
+            ?: 1f
     private var renderedCues: List<Cue> = emptyList()
+    private var renderedScale = 1f
     private var renderedWidth = 0
     private var renderedHeight = 0
 
+    /** [textScale] multiplies Android's caption size, as the user's caption settings set it. */
     fun draw(
         cues: List<Cue>,
         width: Int,
         height: Int,
         canvas: android.graphics.Canvas,
+        textScale: Float = 1f,
     ) {
+        if (renderedScale != textScale) {
+            renderedScale = textScale
+            subtitleView.setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * captionScale * textScale)
+        }
         val safeWidth = width.coerceAtLeast(1)
         val safeHeight = height.coerceAtLeast(1)
         if (renderedCues != cues) {

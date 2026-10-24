@@ -373,16 +373,38 @@ orientation and system bars. Controls auto-hide during playback; a tap reveals
 them, and an edge swipe still reaches system navigation. TalkBack and keyboard
 navigation keep the controls visible.
 
-The overlay has a back arrow and the raw file name, screen-centred play/pause
-and ten-second seek buttons, and a compact timeline with inline timestamps.
-Audio, Speed and Captions share a centred row of 20dp icons and labels; choice
-sheets are Material 3, and controls have at least 48dp touch targets. Captions
-are always offered unless the account hides subtitles (`hide_subtitles`):
-Media3's supported tracks make the list, including embedded tracks absent from
-the API's subtitle metadata. Speed, audio and caption choices survive player
-recreation.
+The top bar has back, the file name cut in the middle, and picture-in-picture
+where the device has it. A 72dp play/pause sits between 56dp ten-second seek
+buttons. Under the elapsed and remaining times and the scrubber, chips name the
+current audio track, subtitle and speed; each opens a 340dp side sheet from the
+right, which the player draws in its own window so the system bars stay hidden.
+Back or a tap on the dimmed video closes it. Controls keep 48dp touch targets.
 
-Tests: `MobileVideoWindowTest`, `MobilePlayerScreenTest`, device proof
+- Audio lists the supported tracks by language in its own words, with channels,
+  codec and commentary; the check marks the picked or playing track.
+- Subtitles lists Off, then the tracks in the file, then the ones put.io found
+  (in the folder, then OpenSubtitles), by the subtitle list's `source`. A track
+  the API does not list, such as one embedded in the stream, counts as in the
+  file. Subtitles are offered unless the account hides them (`hide_subtitles`).
+- Size and timing scales Android's caption size by S, M, L or XL, kept on the
+  device for every video, and shifts this video's subtitles in 0.1 s steps up
+  to 10 s either way. The text renderer reads its cues at the shifted position,
+  so subtitles show sooner from the buffered samples. While a sheet is open the
+  subtitles stay centred in the uncovered video, at full size.
+- Speed steps through 0.5×, 0.75×, 1×, 1.25×, 1.5×, 2×, 2.5× and 3× with −
+  and +, a stepped track and quick choices; every control snaps to a preset.
+
+With the account's `next_episode` on, a playing video asks put.io's next-file
+for the next video in its folder once, and a Next episode chip plays it at once,
+even one this opening already played. Speed, audio, subtitle choices and the
+timing survive player recreation.
+
+A video that needs another player shows "Can’t play this here." with Download,
+which queues it for this device. Failures a retry can fix offer Try again.
+
+Tests: `MobileVideoWindowTest`, `MobilePlayerScreenTest`,
+`MobilePlaybackOptionsTest`, `MobileSubtitleControlsTest`,
+`PlaybackSubtitleTimingTest`, `PlaybackReducerTest` (Next episode), device proof
 `MobileFullscreenVideoProofTest`
 ([Harness](./harness.md#immersive-landscape-video-proof)).
 
@@ -390,7 +412,8 @@ Tests: `MobileVideoWindowTest`, `MobilePlayerScreenTest`, device proof
 
 Mobile video moves into a picture-in-picture window when the viewer leaves the
 app while it plays: Android 12 and later enter on their own, Android 8 to 11 on
-the leave hint. The window is offered only while the video holds the screen on
+the leave hint. The top bar's picture-in-picture button enters the window at
+once, paused video included, on devices that have the window. The window is offered only while the video holds the screen on
 (playing, not ended, idle or suppressed), so never for paused, finished or
 failed video, the resume prompt, the conversion interstitial or audio, which
 keeps playing through its background service. The window takes the video's
@@ -400,10 +423,11 @@ device that refuses the shape or the window, and an Activity whose manifest does
 not declare `supportsPictureInPicture`, give the video no window instead of
 failing.
 
-The window shows only the video and its subtitles: the controls, the back button
-and seek feedback leave composition, which also closes an open settings sheet.
-Its menu carries one action, Pause or Play, which drives the screen's own player
-through Media3's play and pause handling. Entering or leaving the window never
+The window shows only the video, its subtitles and a thin yellow line of how far
+it has played: the controls, the back button and seek feedback leave
+composition, which also closes an open side sheet. Its menu carries 10 seconds
+back, Pause or Play, and 10 seconds forward; they drive the screen's own player
+through Media3's play and pause handling and the screen's own seek. Entering or leaving the window never
 recreates the Activity or its player ([Multi-window](#multi-window)). Expanding
 returns a landscape video straight to landscape: the phone's landscape lock
 ignores picture-in-picture's own multi-window mode.

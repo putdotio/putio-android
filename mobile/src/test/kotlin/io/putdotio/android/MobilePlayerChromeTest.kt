@@ -46,10 +46,15 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
-import io.putdotio.android.playback.MobilePlaybackOptions
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.ui.res.painterResource
+import io.putdotio.android.playback.MobilePlayerChip
 import io.putdotio.android.playback.MobilePlayerChrome
 import io.putdotio.android.playback.MobileProgressSlider
-import io.putdotio.android.playback.MobileSubtitleControls
+import io.putdotio.android.playback.MobileSpeedChip
+import io.putdotio.android.playback.MobileSubtitlesChip
+import io.putdotio.android.playback.rememberPlayerOptionsSnapshot
 
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -96,11 +101,16 @@ class MobilePlayerChromeTest {
                             onSeek = {},
                             onScrub = {},
                             settings = {
-                                MobilePlaybackOptions(player, {}, {}, {}, {}, directControls = true)
-                                MobileSubtitleControls(
-                                    player, player.trackSelectionParameters, {}, {}, {}, {}, showLabel = true,
-                                )
+                                val options = rememberPlayerOptionsSnapshot(player)
+                                MobileSubtitlesChip(options, {})
+                                MobileSpeedChip(options, {})
                             },
+                            topActions = {
+                                IconButton(onClick = {}) {
+                                    Icon(painterResource(R.drawable.ic_ph_picture_in_picture), "Picture in picture")
+                                }
+                            },
+                            trailingChip = { MobilePlayerChip("Next episode", null, {}) },
                         )
                     }
                 }
@@ -112,9 +122,10 @@ class MobilePlayerChromeTest {
             compose.onNodeWithContentDescription("Play"),
             compose.onNodeWithContentDescription("Forward 10 seconds"),
             compose.onNodeWithTag(TIMELINE_TAG),
-            compose.onNodeWithText("Audio"),
-            compose.onNodeWithText("Speed (1×)"),
-            compose.onNodeWithText("Captions"),
+            compose.onNodeWithContentDescription("Picture in picture"),
+            compose.onNodeWithContentDescription("Subtitles: Off"),
+            compose.onNodeWithContentDescription("Playback speed 1×"),
+            compose.onNodeWithText("Next episode"),
         )
         assertNoneOverlap(controls.map { it.getUnclippedBoundsInRoot() })
         controls.forEach { control ->

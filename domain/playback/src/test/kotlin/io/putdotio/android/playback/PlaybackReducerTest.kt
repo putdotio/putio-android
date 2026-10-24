@@ -202,6 +202,35 @@ class PlaybackReducerTest {
     }
 
     @Test
+    fun nextEpisodeResolvesTheChosenVideoAtOnceEvenOneAlreadyPlayed() {
+        val next = PlaybackTarget(FilesItemId(43L), "next.mkv")
+        val resolving = PlaybackReducer.reduce(readyState(), PlaybackEvent.NextChosen(next))
+
+        assertEquals(next, resolving.state.target)
+        assertEquals(PlaybackContent.Loading(PlaybackRequestId(2L)), resolving.state.content)
+        assertEquals(PlaybackEffect.Resolve(next, PlaybackRequestId(2L)), resolving.effect)
+        assertNull(resolving.state.resumePositionMillis)
+
+        val nextReady = PlaybackReducer.reduce(
+            resolving.state,
+            PlaybackEvent.ResolveSucceeded(PlaybackRequestId(2L), PlaybackResolution.Ready(playbackSource())),
+        ).state
+        val back = PlaybackReducer.reduce(nextReady, PlaybackEvent.NextChosen(Target))
+        assertEquals(Target, back.state.target)
+        assertEquals(PlaybackEffect.Resolve(Target, PlaybackRequestId(3L)), back.effect)
+    }
+
+    @Test
+    fun nextEpisodeIsIgnoredUnlessAVideoIsPlaying() {
+        val next = PlaybackTarget(FilesItemId(43L), "next.mkv")
+        val loading = PlaybackReducer.start(Target).state
+        assertFalse(PlaybackReducer.reduce(loading, PlaybackEvent.NextChosen(next)).consumed)
+        assertFalse(PlaybackReducer.reduce(readyState(), PlaybackEvent.NextChosen(Target)).consumed)
+        val audio = PlaybackTarget(FilesItemId(44L), "song.mp3", PlaybackMediaType.AUDIO)
+        assertFalse(PlaybackReducer.reduce(readyState(), PlaybackEvent.NextChosen(audio)).consumed)
+    }
+
+    @Test
     fun failedResolutionAfterAutoplayRetriesTheAdvancedTarget() {
         val finding = PlaybackReducer.reduce(readyState(), PlaybackEvent.PlayerEnded)
         val next = PlaybackTarget(FilesItemId(43L), "next.mkv")

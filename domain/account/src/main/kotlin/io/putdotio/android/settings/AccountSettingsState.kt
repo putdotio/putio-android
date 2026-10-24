@@ -24,6 +24,8 @@ public data class AccountSettingsPreferences(
     // default, product analytics is opt-in.
     val diagnosticsEnabled: Boolean = true,
     val productAnalyticsEnabled: Boolean = false,
+    // Account-wide `next_episode`: the video player offers the folder's next video.
+    val nextEpisode: Boolean = false,
 )
 
 /** Server route identifier. `default` is the direct Amsterdam route and what a null setting means. */

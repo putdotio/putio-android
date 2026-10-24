@@ -12,10 +12,10 @@ import androidx.media3.ui.compose.SURFACE_TYPE_TEXTURE_VIEW
 
 private const val EMULATOR_CODEC_WORKAROUND_API = 37
 
-/** The renderers every ExoPlayer in the app starts from, on either surface. */
+/** The renderers every ExoPlayer in the app starts from, on either surface; text takes a timing offset. */
 @UnstableApi
 public fun playbackRenderersFactory(context: Context): DefaultRenderersFactory {
-    val renderersFactory = DefaultRenderersFactory(context)
+    val renderersFactory: DefaultRenderersFactory = SubtitleTimingRenderersFactory(context)
     if (requiresEmulatorCodecWorkaround(Build.VERSION.SDK_INT, Build.HARDWARE)) {
         // API 37's goldfish AVC codec can fail its memfd queue before decoding a frame.
         renderersFactory

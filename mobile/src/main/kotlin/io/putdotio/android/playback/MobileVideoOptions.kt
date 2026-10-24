@@ -1,0 +1,466 @@
+package io.putdotio.android.playback
+
+import androidx.annotation.DrawableRes
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.media3.common.C
+import androidx.media3.common.Format
+import androidx.media3.common.MimeTypes
+import androidx.media3.common.Player as Media3Player
+import androidx.media3.common.util.UnstableApi
+import io.putdotio.android.R
+import io.putdotio.android.design.PutioTypeScale
+import io.putdotio.android.design.putioMono
+import java.util.Locale
+
+/** The preset speeds; every speed control snaps to one. */
+internal val MOBILE_PLAYBACK_SPEEDS = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f, 2.5f, 3f)
+
+/** The speed sheet's quick choices. */
+private val QUICK_SPEEDS = listOf(1f, 1.25f, 1.5f, 2f)
+
+/** A speed as the app writes it: "1", "1.25", "0.5". */
+internal fun formatPlaybackSpeed(speed: Float): String = speed.toString().removeSuffix(".0")
+
+/** The preset one step slower or faster than [speed], or null at either end. */
+internal fun adjacentPlaybackSpeed(speed: Float, faster: Boolean): Float? =
+    if (faster) {
+        MOBILE_PLAYBACK_SPEEDS.firstOrNull { it > speed }
+    } else {
+        MOBILE_PLAYBACK_SPEEDS.lastOrNull { it < speed }
+    }
+
+/** What the video's chips and side sheets read from the player, kept current by one listener. */
+@Stable
+internal class PlayerOptionsSnapshot(player: Media3Player) {
+    var speed by mutableStateOf(player.playbackParameters.speed)
+    var audioTracks by mutableStateOf(player.currentTracks.playbackAudioTracks())
+    var subtitleTracks by mutableStateOf(player.currentTracks.playbackSubtitleTracks())
+    var parameters by mutableStateOf(player.trackSelectionParameters)
+    var commands by mutableStateOf(player.availableCommands)
+
+    fun update(player: Media3Player) {
+        speed = player.playbackParameters.speed
+        audioTracks = player.currentTracks.playbackAudioTracks()
+        subtitleTracks = player.currentTracks.playbackSubtitleTracks()
+        parameters = player.trackSelectionParameters
+        commands = player.availableCommands
+    }
+
+    val canChangeSpeed: Boolean get() = commands.contains(Media3Player.COMMAND_SET_SPEED_AND_PITCH)
+    val canSelectTracks: Boolean get() = commands.contains(Media3Player.COMMAND_SET_TRACK_SELECTION_PARAMETERS)
+
+    /** The track the viewer picked, else the one playing. */
+    val currentAudio: PlaybackAudioTrack?
+        get() = audioTracks.singleOrNull { track ->
+            parameters.overrides[track.group]?.trackIndices?.contains(track.trackIndex) == true
+        } ?: audioTracks.firstOrNull { it.selected }
+}
+
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+@Composable
+internal fun rememberPlayerOptionsSnapshot(player: Media3Player): PlayerOptionsSnapshot {
+    val snapshot = remember(player) { PlayerOptionsSnapshot(player) }
+    DisposableEffect(player) {
+        val listener = object : Media3Player.Listener {
+            override fun onEvents(player: Media3Player, events: Media3Player.Events) = snapshot.update(player)
+        }
+        player.addListener(listener)
+        onDispose { player.removeListener(listener) }
+    }
+    return snapshot
+}
+
+/** An outlined chip on the video, at least 48dp tall to touch, named for what it changes. */
+@Composable
+internal fun MobilePlayerChip(
+    label: String,
+    description: String?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    @DrawableRes leadingIcon: Int? = null,
+    @DrawableRes trailingIcon: Int? = null,
+    mono: Boolean = false,
+    enabled: Boolean = true,
+) {
+    val content = MaterialTheme.colorScheme.onSurface
+    AssistChip(
+        onClick = onClick,
+        enabled = enabled,
+        label = {
+            Text(
+                label,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                style = if (mono) MaterialTheme.typography.labelLarge.putioMono() else MaterialTheme.typography.labelLarge,
+            )
+        },
+        leadingIcon = leadingIcon?.let { { Icon(painterResource(it), null, Modifier.size(CHIP_ICON_SIZE)) } },
+        trailingIcon = trailingIcon?.let { { Icon(painterResource(it), null, Modifier.size(CHIP_ICON_SIZE)) } },
+        colors = AssistChipDefaults.assistChipColors(
+            labelColor = content,
+            leadingIconContentColor = content,
+            trailingIconContentColor = content,
+        ),
+        border = BorderStroke(1.dp, content.copy(alpha = CHIP_BORDER_ALPHA)),
+        modifier = modifier.semantics { if (description != null) contentDescription = description },
+    )
+}
+
+private val CHIP_ICON_SIZE = 16.dp
+private const val CHIP_BORDER_ALPHA = 0.3f
+
+@Composable
+internal fun MobileAudioChip(snapshot: PlayerOptionsSnapshot, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    if (snapshot.audioTracks.isEmpty()) return
+    val labels = audioTrackLabels(snapshot.audioTracks)
+    val current = snapshot.currentAudio?.let { labels[snapshot.audioTracks.indexOf(it)] }
+        ?: stringResource(R.string.mobile_playback_audio_control)
+    MobilePlayerChip(
+        label = current,
+        description = stringResource(R.string.mobile_playback_audio_chip, current),
+        onClick = onClick,
+        leadingIcon = R.drawable.ic_ph_speaker_high,
+        modifier = modifier,
+    )
+}
+
+@Composable
+internal fun MobileSpeedChip(snapshot: PlayerOptionsSnapshot, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val value = stringResource(R.string.mobile_playback_speed_value, formatPlaybackSpeed(snapshot.speed))
+    MobilePlayerChip(
+        label = value,
+        description = stringResource(R.string.mobile_playback_speed_chip, value),
+        onClick = onClick,
+        leadingIcon = R.drawable.ic_ph_gauge,
+        mono = true,
+        modifier = modifier,
+    )
+}
+
+/** Audio: the tracks by language, each with its channels and codec. */
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+@Composable
+internal fun MobileAudioSheetContent(
+    player: Media3Player,
+    snapshot: PlayerOptionsSnapshot,
+    onAudioSelectionChanged: (AudioSelection) -> Unit,
+    onDone: () -> Unit,
+) {
+    val tracks = snapshot.audioTracks
+    val labels = audioTrackLabels(tracks)
+    val current = snapshot.currentAudio
+    Column(Modifier.selectableGroup()) {
+        tracks.forEachIndexed { index, track ->
+            val details = audioTrackDetails(track)
+            MobileSideSheetOption(
+                label = labels[index],
+                selected = track == current,
+                enabled = snapshot.canSelectTracks,
+                supporting = details?.let { { Text(it) } },
+                onClick = {
+                    onAudioSelectionChanged(AudioSelection.Track(track.identity))
+                    player.trackSelectionParameters = snapshot.parameters.withAudioTrack(track)
+                    onDone()
+                },
+            )
+        }
+    }
+}
+
+/**
+ * A track's language in its own words ("Türkçe"), else its label, else its number. Repeated names
+ * stay as they are: the details line tells them apart, and only identical rows get numbers.
+ */
+@Composable
+internal fun audioTrackLabels(tracks: List<PlaybackAudioTrack>): List<String> {
+    val names = tracks.mapIndexed { index, track ->
+        languageName(track.identity.language) ?: track.label
+            ?: stringResource(R.string.mobile_playback_audio_track_number, index + 1)
+    }
+    val details = tracks.map { audioTrackDetails(it) }
+    val rows = names.zip(details)
+    return names.mapIndexed { index, name ->
+        if (rows.count { it == rows[index] } > 1) {
+            stringResource(R.string.mobile_playback_audio_track_disambiguated, name, index + 1)
+        } else {
+            name
+        }
+    }
+}
+
+/** "5.1 · AC3 · Commentary": what the format says about channels, codec and role. */
+@Composable
+private fun audioTrackDetails(track: PlaybackAudioTrack): String? {
+    val identity = track.identity
+    val parts = listOfNotNull(
+        when (identity.channelCount) {
+            Format.NO_VALUE, 0 -> null
+            1 -> stringResource(R.string.mobile_playback_audio_mono)
+            2 -> stringResource(R.string.mobile_playback_audio_stereo)
+            SURROUND_5_1 -> "5.1"
+            SURROUND_7_1 -> "7.1"
+            else -> stringResource(R.string.mobile_playback_audio_channels, identity.channelCount)
+        },
+        audioCodecName(identity.sampleMimeType),
+        stringResource(R.string.mobile_playback_audio_commentary)
+            .takeIf { identity.roleFlags and C.ROLE_FLAG_COMMENTARY != 0 },
+    )
+    return parts.takeIf { it.isNotEmpty() }?.joinToString(DETAIL_SEPARATOR)
+}
+
+internal fun audioCodecName(mimeType: String?): String? =
+    when (mimeType) {
+        MimeTypes.AUDIO_AC3 -> "AC3"
+        MimeTypes.AUDIO_E_AC3, MimeTypes.AUDIO_E_AC3_JOC -> "E-AC3"
+        MimeTypes.AUDIO_AC4 -> "AC4"
+        MimeTypes.AUDIO_AAC -> "AAC"
+        MimeTypes.AUDIO_MPEG, MimeTypes.AUDIO_MPEG_L2 -> "MP3"
+        MimeTypes.AUDIO_OPUS -> "Opus"
+        MimeTypes.AUDIO_VORBIS -> "Vorbis"
+        MimeTypes.AUDIO_FLAC -> "FLAC"
+        MimeTypes.AUDIO_ALAC -> "ALAC"
+        MimeTypes.AUDIO_DTS, MimeTypes.AUDIO_DTS_EXPRESS -> "DTS"
+        MimeTypes.AUDIO_DTS_HD -> "DTS-HD"
+        MimeTypes.AUDIO_TRUEHD -> "TrueHD"
+        MimeTypes.AUDIO_RAW -> "PCM"
+        else -> null
+    }
+
+/** A language tag in its own language, capitalised as that language does; null when unknown. */
+internal fun languageName(tag: String?): String? {
+    if (tag.isNullOrBlank() || tag == C.LANGUAGE_UNDETERMINED) return null
+    val locale = Locale.forLanguageTag(tag)
+    val name = locale.getDisplayLanguage(locale)
+    if (name.isBlank() || name.equals(locale.language, ignoreCase = true)) return null
+    return name.replaceFirstChar { it.titlecase(locale) }
+}
+
+internal const val DETAIL_SEPARATOR = " · "
+private const val SURROUND_5_1 = 6
+private const val SURROUND_7_1 = 8
+
+/**
+ * Speed: the value large between − and +, which step through the presets; a stepped track over
+ * the presets; then quick choices. Every control snaps to a preset.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun MobileSpeedSheetContent(player: Media3Player, snapshot: PlayerOptionsSnapshot) {
+    val speed = snapshot.speed
+    val enabled = snapshot.canChangeSpeed
+    val slower = adjacentPlaybackSpeed(speed, faster = false)
+    val faster = adjacentPlaybackSpeed(speed, faster = true)
+    val value = stringResource(R.string.mobile_playback_speed_value, formatPlaybackSpeed(speed))
+    Row(
+        Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        SpeedStepButton(
+            icon = R.drawable.ic_ph_minus,
+            description = stringResource(
+                R.string.mobile_playback_speed_slower,
+                stringResource(R.string.mobile_playback_speed_value, formatPlaybackSpeed(slower ?: speed)),
+            ),
+            enabled = enabled && slower != null,
+            onClick = { slower?.let(player::setPlaybackSpeed) },
+        )
+        Text(
+            buildAnnotatedString {
+                append(formatPlaybackSpeed(speed))
+                withStyle(SpanStyle(fontSize = SPEED_UNIT_SIZE, color = MaterialTheme.colorScheme.onSurfaceVariant)) {
+                    append("×")
+                }
+            },
+            style = PutioTypeScale.mono.copy(fontSize = SPEED_VALUE_SIZE, lineHeight = SPEED_VALUE_LINE),
+            modifier = Modifier.semantics {
+                contentDescription = value
+                liveRegion = LiveRegionMode.Polite
+            },
+        )
+        SpeedStepButton(
+            icon = R.drawable.ic_ph_plus,
+            description = stringResource(
+                R.string.mobile_playback_speed_faster,
+                stringResource(R.string.mobile_playback_speed_value, formatPlaybackSpeed(faster ?: speed)),
+            ),
+            enabled = enabled && faster != null,
+            onClick = { faster?.let(player::setPlaybackSpeed) },
+        )
+    }
+    SpeedTrack(speed, enabled, value, onSpeed = player::setPlaybackSpeed)
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        val rangeStyle = MaterialTheme.typography.bodySmall.putioMono()
+            .copy(fontSize = PutioTypeScale.labelSm.fontSize, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(stringResource(R.string.mobile_playback_speed_value, formatPlaybackSpeed(MOBILE_PLAYBACK_SPEEDS.first())), style = rangeStyle)
+        Text(stringResource(R.string.mobile_playback_speed_value, formatPlaybackSpeed(MOBILE_PLAYBACK_SPEEDS.last())), style = rangeStyle)
+    }
+    Row(
+        Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 20.dp).selectableGroup(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        QUICK_SPEEDS.forEach { choice ->
+            QuickSpeed(
+                label = stringResource(R.string.mobile_playback_speed_value, formatPlaybackSpeed(choice)),
+                selected = speed == choice,
+                enabled = enabled,
+                onClick = { player.setPlaybackSpeed(choice) },
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun SpeedStepButton(@DrawableRes icon: Int, description: String, enabled: Boolean, onClick: () -> Unit) {
+    FilledIconButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.size(56.dp),
+        colors = IconButtonDefaults.filledIconButtonColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+        ),
+    ) {
+        Icon(painterResource(icon), contentDescription = description)
+    }
+}
+
+/** The eight presets as stops: passed ones and the track up to the current stop in yellow. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SpeedTrack(speed: Float, enabled: Boolean, value: String, onSpeed: (Float) -> Unit) {
+    val index = MOBILE_PLAYBACK_SPEEDS.indexOf(speed).takeIf { it >= 0 }
+        ?: MOBILE_PLAYBACK_SPEEDS.indexOfLast { it <= speed }.coerceAtLeast(0)
+    val last = MOBILE_PLAYBACK_SPEEDS.lastIndex
+    val active = MaterialTheme.colorScheme.primary
+    val inactive = MaterialTheme.colorScheme.surfaceContainerHighest
+    val stop = MaterialTheme.colorScheme.outline
+    val label = stringResource(R.string.mobile_playback_speed)
+    Slider(
+        value = index.toFloat(),
+        onValueChange = { onSpeed(MOBILE_PLAYBACK_SPEEDS[it.toInt().coerceIn(0, last)]) },
+        valueRange = 0f..last.toFloat(),
+        steps = last - 1,
+        enabled = enabled,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = SPEED_TRACK_INSET).semantics {
+            contentDescription = label
+            stateDescription = value
+        },
+        thumb = { Box(Modifier.size(SPEED_THUMB).background(active, CircleShape)) },
+        track = {
+            Canvas(Modifier.fillMaxWidth().height(SPEED_THUMB)) {
+                val radius = SPEED_THUMB.toPx() / 2
+                val trackHeight = SPEED_TRACK_HEIGHT.toPx()
+                val start = radius
+                val width = size.width - radius * 2
+                val y = size.height / 2
+                val corner = CornerRadius(trackHeight / 2)
+                drawRoundRect(inactive, Offset(start, y - trackHeight / 2), Size(width, trackHeight), corner)
+                val reached = width * index / last
+                drawRoundRect(active, Offset(start, y - trackHeight / 2), Size(reached, trackHeight), corner)
+                for (stopIndex in 0..last) {
+                    val x = start + width * stopIndex / last
+                    drawCircle(if (stopIndex < index) active else stop, SPEED_STOP.toPx() / 2, Offset(x, y))
+                }
+            }
+        },
+    )
+}
+
+@Composable
+private fun QuickSpeed(label: String, selected: Boolean, enabled: Boolean, onClick: () -> Unit, modifier: Modifier) {
+    val selection = modifier.height(40.dp).semantics {
+        this.selected = selected
+        role = Role.RadioButton
+    }
+    val padding = PaddingValues(horizontal = 4.dp)
+    val text: @Composable () -> Unit = {
+        Text(label, style = PutioTypeScale.mono, maxLines = 1)
+    }
+    if (selected) {
+        FilledTonalButton(
+            onClick = onClick,
+            enabled = enabled,
+            modifier = selection,
+            contentPadding = padding,
+            colors = ButtonDefaults.filledTonalButtonColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                contentColor = MaterialTheme.colorScheme.onSurface,
+            ),
+        ) { text() }
+    } else {
+        OutlinedButton(
+            onClick = onClick,
+            enabled = enabled,
+            modifier = selection,
+            contentPadding = padding,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface),
+        ) { text() }
+    }
+}
+
+private val SPEED_VALUE_SIZE = 48.sp
+private val SPEED_VALUE_LINE = 56.sp
+private val SPEED_UNIT_SIZE = 24.sp
+private val SPEED_THUMB = 16.dp
+private val SPEED_STOP = 8.dp
+private val SPEED_TRACK_HEIGHT = 4.dp
+private val SPEED_TRACK_INSET = 24.dp

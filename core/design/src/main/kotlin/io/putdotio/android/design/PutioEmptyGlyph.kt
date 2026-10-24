@@ -6,4 +6,7 @@ public enum class PutioEmptyGlyph(internal val text: String) {
     NoResults("¯\\_(ツ)_/¯"),
     NoTransfers("( ⌐■_■)"),
     Offline("(x_x)"),
+
+    /** The player's error state, which shares the offline face. */
+    CantPlay("(x_x)"),
 }

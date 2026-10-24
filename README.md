@@ -30,17 +30,19 @@ Mobile, on the emulator harness against the live API:
   confirms first
 - Video playback with subtitles, 10-second touch seek, autoplay next, and
   configurable HLS or MP4
-- Separate audio and video player layouts with a compact timeline and native
-  settings sheets
+- A video player with Audio, Subtitles and Speed chips that open side sheets,
+  Next episode when the account's next-episode setting is on, and subtitle size
+  (S to XL) and timing in 0.1 s steps; audio keeps its own layout
 - Audio playback in the background with system media controls and a now-playing bar
-- Picture-in-picture: leaving the app mid-video keeps it playing in a window
-  with Pause and Play; Expand returns to the full-screen player, and closing
-  it stops the video where it was
+- Picture-in-picture from the player's top bar or by leaving the app mid-video:
+  the window keeps playing with 10-second back, Pause or Play and 10-second
+  forward; Expand returns to the full-screen player, and closing it stops the
+  video where it was
 - Resume or start over from a saved position, with throttled position updates
   while video or background audio plays
-- Playback speed from 0.75× to 2× and audio-track selection when several
-  supported tracks exist; choices survive player recreation, and an unavailable
-  track falls back to automatic selection
+- Playback speed from 0.5× to 3× in eight presets and audio-track selection;
+  choices survive player recreation, and an unavailable track falls back to
+  automatic selection
 - Account settings: subtitles, history, Trash, resume playback, proxy route,
   and default sort order, each saved to the account and shared across devices
 - A Privacy controls page under Account for diagnostics (on by default) and
