@@ -923,7 +923,7 @@ PUTIO_CLI_PROFILE=devs-auto putio sdk call --operation trash.list --execute --ou
   then results and Load more; Left returns to the drawer. Long-press on a chip
   removes it. Recent terms are the shared `searchHistory` config, so remove
   proof terms. `adb shell input text 'tears'` then `input keyevent
-KEYCODE_ENTER` types without the IME for headless proof.
+  KEYCODE_ENTER` types without the IME for headless proof.
 - **History**: lists only shared files and completed transfers, as tv-native
   does, grouped under Today, Yesterday, Last week, Last month and Earlier, each
   with its kind and relative time, or its date past a week. Focus enters on the

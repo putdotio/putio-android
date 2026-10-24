@@ -2,6 +2,6 @@
   "private": true,
   "devDependencies": {
     "@google/design.md": "0.4.0",
-    "oxfmt": "0.71.0"
+    "oxfmt": "0.74.0"
   }
 }
