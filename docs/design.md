@@ -71,7 +71,7 @@ screen or dialog:
 - Neutral: switches, the player's transport buttons, status icons such as the
   played eye, every other button.
 - Red: destructive actions and failures only. Green: seeding and completed
-  transfer dots.
+  transfer dots, and the seeding card's progress fill.
 
 ## Type
 
@@ -162,7 +162,9 @@ shared items drop owner actions and Exclusive link for Make a copy
 **Select** starts selection mode: the top bar turns `surfaceContainerHigh` with
 close, "_n_ selected", select all and overflow. Checkboxes replace the file
 icons and selected rows take a 9% yellow tint. A floating toolbar above the nav
-bar holds Move, Download, Watched and Trash.
+bar holds Move, Download, Watched and the delete action. Each action shows only
+when every selected item allows it, under the same rules as the sheet; delete
+reads Delete permanently, and confirms, when the account turns Trash off.
 
 ## Dialogs and pickers
 
@@ -359,7 +361,11 @@ with **Try again** or **Reset and sign in**.
   list-detail.
 - Player options open as bottom sheets; speed has presets from 0.75× to 2× and
   no slider. There is no cast button, sleep timer or Up next.
-- The launcher icon is a placeholder.
+- The production launcher icon is a placeholder; nightly uses its generated
+  stars icon.
+- The player has no picture-in-picture or Next episode button; picture-in-
+  picture starts when you leave playback.
+- History has no event glyphs and keeps Clear history above the list.
 
 ## Android TV
 
