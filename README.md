@@ -124,7 +124,7 @@ The [Agent guide](./AGENTS.md#build-and-verify) covers what the gate runs and
 - [Harness](./docs/harness.md): emulators, evidence, device lanes and live API
   proof
 - [Distribution](./docs/distribution.md): Google Play delivery for both apps
-- [Design](./docs/design.md): the Android design contract
+- [Design](./DESIGN.md): the Android design contract
 - [Design system binding](./design/README.md): tokens and icon generation
 - [Agent guide](./AGENTS.md): module layout, hazards, proof map and CI
 
