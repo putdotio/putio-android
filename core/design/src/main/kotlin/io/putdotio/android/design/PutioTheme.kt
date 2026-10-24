@@ -1,10 +1,12 @@
 package io.putdotio.android.design
 
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.TextUnitType
 import androidx.compose.ui.unit.sp
@@ -28,7 +30,9 @@ public fun PutioTheme(content: @Composable () -> Unit) {
  * DESIGN.md's type scale on the Material slots stock components read: the top app bar reads
  * titleLarge, dialog titles headlineSmall, list headlines bodyLarge, dialog, sheet and snackbar
  * bodies bodyMedium, and nav labels labelMedium. Slots the contract does not name keep Material's
- * values, except labelSmall, which rises to label-sm so no slot sets text below 12sp.
+ * values, except labelSmall, which rises to label-sm so no public slot sets text below 12sp.
+ * Material 3 1.4 keeps its emphasized slots internal, and no stock component reads
+ * labelSmallEmphasized.
  */
 internal val putioTypography: Typography = Typography().run {
     copy(
@@ -56,14 +60,18 @@ internal val putioShapes: Shapes = Shapes().copy(
 private val MINIMUM_NUMBER_SIZE = 12.sp
 
 /**
- * This style with numbers set in the mono face and tabular figures. Mono takes the size of the
- * text it sits in, raised to 12sp when that is smaller.
+ * This style, over the inherited text style, with numbers set in the mono face and tabular
+ * figures. Mono takes the size of the text it sits in, raised to 12sp when that is smaller.
  */
-public fun TextStyle.putioMono(): TextStyle {
-    val belowFloor = fontSize.type == TextUnitType.Sp && fontSize < MINIMUM_NUMBER_SIZE
-    return copy(
+@Composable
+@ReadOnlyComposable
+public fun TextStyle.putioMono(): TextStyle = monoNumbers(LocalTextStyle.current.merge(this))
+
+internal fun monoNumbers(style: TextStyle): TextStyle {
+    val belowFloor = style.fontSize.type == TextUnitType.Sp && style.fontSize < MINIMUM_NUMBER_SIZE
+    return style.copy(
         fontFamily = PutioTypeScale.mono.fontFamily,
         fontFeatureSettings = PutioTypeScale.mono.fontFeatureSettings,
-        fontSize = if (belowFloor) MINIMUM_NUMBER_SIZE else fontSize,
+        fontSize = if (belowFloor) MINIMUM_NUMBER_SIZE else style.fontSize,
     )
 }

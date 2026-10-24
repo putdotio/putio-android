@@ -34,11 +34,11 @@ class PutioTypographyTest {
 
     @Test
     fun monoKeepsItsSizeWithTabularFiguresAndAFloor() {
-        val meta = TextStyle(fontSize = 13.sp, lineHeight = 18.sp).putioMono()
+        val meta = monoNumbers(TextStyle(fontSize = 13.sp, lineHeight = 18.sp))
         assertEquals(FontFamily.Monospace, meta.fontFamily)
         assertEquals("\"tnum\"", meta.fontFeatureSettings)
         assertEquals(13.sp, meta.fontSize)
-        assertEquals(12.sp, TextStyle(fontSize = 11.sp).putioMono().fontSize)
+        assertEquals(12.sp, monoNumbers(TextStyle(fontSize = 11.sp)).fontSize)
     }
 
     private fun assertStyle(style: TextStyle, size: Int, lineHeight: Int, weight: Int) {
