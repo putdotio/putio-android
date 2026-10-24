@@ -809,7 +809,8 @@ a tab moves along the shared axis, and the player grows out of the row that
 opened it. Every Back gesture previews its pop: a route shows the screen
 beneath, and a folder or Search shrinks toward the gesture's edge. A Back from
 a key or button acts at once. With animations off in the system settings, each
-transition is a fade.
+transition is a plain fade with no movement or preview, and the system's zero
+animation scale makes that fade instant.
 
 Tests: `MobileTabNavigationTest` (tab order, per-tab back stacks, Back to Files
 then out, Search over Files, cancelled and committed Back gestures), `MobileMotionTest`, `MobileTabSummaryTest`,
