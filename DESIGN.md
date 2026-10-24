@@ -520,7 +520,8 @@ Material motion through the standard motion scheme's springs. Material 3 1.4
 keeps `MotionScheme` internal, so the app repeats its spring values until the
 scheme is public.
 
-- Between tabs: fade through.
+- Between tabs: fade through, in Material's two timed phases: the old tab
+  fades out in 90ms, then the new one fades and scales in over 210ms.
 - Within a tab (folder push and pop, Search over Files, Account's subpages):
   shared axis X.
 - File row to player: container transform.

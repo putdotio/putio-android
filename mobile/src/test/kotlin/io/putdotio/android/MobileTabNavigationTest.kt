@@ -1,5 +1,6 @@
 package io.putdotio.android
 
+import androidx.activity.BackEventCompat
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasAnyAncestor
@@ -14,6 +15,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.account.MOBILE_ACCOUNT_LIST_TAG
+import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.MOBILE_FILES_LIST_TAG
 import io.putdotio.android.search.MOBILE_SEARCH_FIELD_TAG
 import io.putdotio.android.sharing.MOBILE_PUBLIC_LINKS_ROUTE
@@ -87,6 +89,38 @@ class MobileTabNavigationTest : NavigationShellFixture(1f) {
         back()
         compose.onNodeWithTag(MOBILE_SEARCH_FIELD_TAG).assertDoesNotExist()
         compose.onNodeWithText("Shows").assertExists()
+    }
+
+    @Test
+    fun aCancelledBackGestureKeepsTheFolderAndACommittedOneLeavesIt() {
+        val events = mutableListOf<FilesBrowserEvent>()
+        mount(nested = true, onFilesEvent = { events += it; true })
+        gesture(commit = false)
+        compose.runOnIdle { assertTrue(events.none { it == FilesBrowserEvent.NavigateBack }) }
+        gesture(commit = true)
+        compose.runOnIdle { assertEquals(1, events.count { it == FilesBrowserEvent.NavigateBack }) }
+    }
+
+    @Test
+    fun aCancelledBackGestureKeepsTheSubpageAndACommittedOnePopsIt() {
+        mount()
+        tab("Account").performClick()
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_MANAGE_TRASH_TAG))
+        compose.onNodeWithTag(MOBILE_MANAGE_TRASH_TAG).performClick()
+        gesture(commit = false)
+        compose.onNodeWithTag(MOBILE_TAB_TITLE_TAG).assertDoesNotExist()
+        gesture(commit = true)
+        compose.onNodeWithTag(MOBILE_TAB_TITLE_TAG).assertTextEquals("Account")
+    }
+
+    private fun gesture(commit: Boolean) {
+        val dispatcher = backOwner.onBackPressedDispatcher
+        compose.runOnIdle {
+            dispatcher.dispatchOnBackStarted(BackEventCompat(0f, 0f, 0f, BackEventCompat.EDGE_LEFT))
+            dispatcher.dispatchOnBackProgressed(BackEventCompat(40f, 0f, 0.5f, BackEventCompat.EDGE_LEFT))
+            if (commit) dispatcher.onBackPressed() else dispatcher.dispatchOnBackCancelled()
+        }
+        compose.waitForIdle()
     }
 
     private fun tab(label: String) = compose.onNode(hasText(label) and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG)))

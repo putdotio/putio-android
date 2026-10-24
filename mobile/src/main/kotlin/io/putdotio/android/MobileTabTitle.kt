@@ -175,7 +175,8 @@ internal fun downloadsSummaryParts(context: Context, storageBytes: Long, freeByt
 internal fun downloadsSummary(state: DownloadsState, mono: SpanStyle): AnnotatedString? {
     val context = LocalContext.current
     // Downloads live in the app's files directory, so its volume's free space is what they can use.
-    val freeBytes by produceState<Long?>(null, state.storageBytes, state.entries.size) {
+    // Every downloads update, progress included, can change what is free, so each one samples again.
+    val freeBytes by produceState<Long?>(null, state) {
         value = withContext(Dispatchers.IO) {
             runCatching { StatFs(context.filesDir.path).availableBytes }.getOrNull()
         }

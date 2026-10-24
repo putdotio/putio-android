@@ -812,7 +812,7 @@ a key or button acts at once. With animations off in the system settings, each
 transition is a fade.
 
 Tests: `MobileTabNavigationTest` (tab order, per-tab back stacks, Back to Files
-then out, Search over Files), `MobileMotionTest`, `MobileTabSummaryTest`,
+then out, Search over Files, cancelled and committed Back gestures), `MobileMotionTest`, `MobileTabSummaryTest`,
 `MobileLargeTextNavigationTest` and `MobileOrdinaryNavigationTest` (in
 `MobileAdaptiveNavigationTest.kt`), `MobileShellTest`, `MobileShellLinkActionsTest`
 (Search and Files links).

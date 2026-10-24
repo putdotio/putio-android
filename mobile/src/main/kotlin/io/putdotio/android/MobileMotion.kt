@@ -8,7 +8,10 @@ import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.FiniteAnimationSpec
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
@@ -66,6 +69,13 @@ internal object MobileMotionSprings {
     fun <T> fastEffects(): FiniteAnimationSpec<T> = spring(EFFECTS_DAMPING, FAST_EFFECTS_STIFFNESS)
 }
 
+/**
+ * Fade through runs in two phases, which springs cannot delay: Material's 300 ms, the outgoing tab
+ * fading out in the first 90 ms and the incoming one fading and scaling in after it.
+ */
+private fun <T> fadeThroughIn(): FiniteAnimationSpec<T> =
+    tween(FADE_THROUGH_IN_MS, delayMillis = FADE_THROUGH_OUT_MS, easing = LinearOutSlowInEasing)
+
 /** How one screen replaces another (DESIGN.md Motion). */
 internal enum class MobileTransition { FadeThrough, Push, Pop, Container, Fade }
 
@@ -91,8 +101,7 @@ internal data class MobileMotion(val axisOffsetPx: Int, val reducedMotion: Boole
     fun enter(transition: MobileTransition): EnterTransition =
         when (transition) {
             MobileTransition.FadeThrough ->
-                fadeIn(MobileMotionSprings.defaultEffects()) +
-                    scaleIn(MobileMotionSprings.defaultSpatial(), initialScale = FADE_THROUGH_SCALE)
+                fadeIn(fadeThroughIn()) + scaleIn(fadeThroughIn(), initialScale = FADE_THROUGH_SCALE)
             MobileTransition.Push ->
                 slideInHorizontally(MobileMotionSprings.defaultSpatial()) { axisOffsetPx } +
                     fadeIn(MobileMotionSprings.defaultEffects())
@@ -104,7 +113,7 @@ internal data class MobileMotion(val axisOffsetPx: Int, val reducedMotion: Boole
 
     fun exit(transition: MobileTransition): ExitTransition =
         when (transition) {
-            MobileTransition.FadeThrough -> fadeOut(MobileMotionSprings.fastEffects())
+            MobileTransition.FadeThrough -> fadeOut(tween(FADE_THROUGH_OUT_MS, easing = FastOutLinearInEasing))
             MobileTransition.Push ->
                 slideOutHorizontally(MobileMotionSprings.defaultSpatial()) { -axisOffsetPx } +
                     fadeOut(MobileMotionSprings.fastEffects())
@@ -302,6 +311,8 @@ internal fun Modifier.playbackContainer(
 private data class PlaybackContainerKey(val fileId: Long)
 
 private const val FADE_THROUGH_SCALE = 0.92f
+private const val FADE_THROUGH_OUT_MS = 90
+private const val FADE_THROUGH_IN_MS = 210
 private val SHARED_AXIS_OFFSET = 30.dp
 private const val BACK_PREVIEW_SCALE = 0.9f
 private const val BACK_PREVIEW_SHIFT_DIVISOR = 20f
