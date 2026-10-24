@@ -65,8 +65,8 @@ serves each device the highest code it can install. Phones and tablets lack
 install either, since mobile requires no touchscreen, so TV takes the higher
 code.
 
-Compose builds go to the internal track only: the legacy app's release
-promotes from the beta track and refuses one with more than one release.
+Compose builds go to the internal track, which is theirs alone: the legacy
+app uploads straight to production as a draft and stages its rollout there.
 
 ## Versions
 
