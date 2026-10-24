@@ -331,7 +331,8 @@ round to 2dp.
   with sort and overflow icon buttons inside it. Under it, a **Continue
   watching** row of started videos (name, a yellow progress line, the time left
   in mono) when there are any, then the list. Nothing else sits between the bar
-  and the list, except the [inactive-account notice](#notices-and-snackbars).
+  and the list, except the [inactive-account notice](#notices-and-snackbars),
+  the offline banner and the background copy line.
 - **Folders:** a small top app bar: back, the folder name, search in this
   folder, sort, overflow (with New folder). Searching here filters the folder's
   loaded items by name on the device; the API has no folder-scoped search. A
@@ -658,8 +659,8 @@ opens put.io OAuth in the browser.
   filled **Create**.
 - **Viewers:** images, PDF and text open in-app on a black frame, with the name,
   Share, Download and the overflow over a top scrim; swiping moves between
-  files of the same kind, with the position in mono. Other types open with
-  another app.
+  files of the same kind, with the position in mono. Types that neither the
+  players nor the viewers handle open with another app.
 - **Share progress:** while a file downloads to be shared, a dialog with the
   name, a bar, mono progress and **Cancel**.
 - **Resume:** "Resume from 18:42?" over the dimmed player, with **Start over**
@@ -728,7 +729,9 @@ opens put.io OAuth in the browser.
 - Transfer rows offer only Open, Retry and Cancel; there is no Transfer
   actions sheet, and the app has no transfer source to copy.
 - The actions sheet has no Play or Resume and no Mark as watched.
-- The Move picker cannot create a folder.
+- The app can't create a folder: not from the Move picker, a folder's overflow
+  or the empty-folder state.
+- Moving to Trash offers View Trash in its snackbar, not Undo.
 - Played files show a progress bar and "N% watched" when the duration is known,
   and a plain "Watched" label otherwise.
 - Switches are stock M3 52x32dp in yellow.
