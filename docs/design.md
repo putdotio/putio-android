@@ -41,7 +41,7 @@ selected and focused states: 8% and 12% `onSurface` layers.
 | `primaryContainer`        | `--yellow-solid`          |
 | `onPrimaryContainer`      | `--primary-foreground`    |
 | `secondary`               | `--text`                  |
-| `secondaryContainer`      | `--yellow-solid` at 22%   |
+| `secondaryContainer`      | `--yellow-solid` at 26%   |
 | `onSecondaryContainer`    | `--yellow-solid`          |
 | `background`, `surface`   | `--app-bg`                |
 | `onBackground`            | `--text`                  |
@@ -60,11 +60,13 @@ selected and focused states: 8% and 12% `onSurface` layers.
 
 ## Colour
 
-Neutrals do the work. Yellow marks one thing per group:
+Neutrals do the work. Yellow marks content and the one primary action of a
+screen or dialog:
 
-- Yellow: file-type icons, the primary action of a screen (the extended FAB,
-  a dialog's confirm), progress, the on-device marker, the selected nav item,
-  selection checkboxes.
+- Content yellow: file-type icons, progress, the on-device marker, state dots,
+  the selected nav item, selection checkboxes. These can share a row.
+- Action yellow: the extended FAB, a dialog's confirm, a filled primary button.
+  One per screen or dialog.
 - Neutral: switches, the player's transport buttons, status icons such as the
   played eye, every other button.
 - Red: destructive actions and failures only. Green: seeding and completed
@@ -89,8 +91,10 @@ licence check before they ship; until then the app keeps Roboto.
 ## Navigation
 
 Five destinations: **Files, History, Transfers, Downloads, Account**, in that
-order. `NavigationSuiteScaffold` shows a navigation bar below 600dp width and a
-navigation rail from 600dp. The selected item is a 56x32dp pill in
+order. `NavigationSuiteScaffold` with an explicit layout type: a navigation bar
+below 600dp width and a navigation rail from 600dp, whatever the height or
+posture. The scaffold's default policy also picks a bar for compact height, so
+pass the type rather than relying on it. The selected item is a 56x32dp pill in
 `secondaryContainer` with a filled Phosphor glyph; unselected items use the
 regular glyph.
 
@@ -137,7 +141,9 @@ names its parent folder. Recent searches show while the query is empty
 - No progress bars or percentages in file rows.
 
 Tap opens the item ([Timestamps and History opens](behavior.md#timestamps-and-history-opens)).
-Long-press opens the same actions sheet as the overflow button.
+Long-press opens the same actions sheet as the overflow button. Downloads is
+the exception: long-press starts selection with that row selected
+([Downloads and offline playback](behavior.md#downloads-and-offline-playback)).
 
 ## Item actions
 
@@ -207,8 +213,11 @@ deliberate step off stock M3.
 
 ## Player
 
-Video plays full screen in landscape. Controls fade in on tap over a top and
-bottom scrim:
+Video plays immersive full screen; orientation follows
+[Mobile video player](behavior.md#mobile-video-player): a landscape video turns
+a phone to landscape, a portrait video keeps the window's orientation, and
+tablets and multi-window use the window they have. Controls fade in on tap over
+a top and bottom scrim:
 
 - Top: back, the filename, cast, picture-in-picture.
 - Centre: a 72dp translucent dark circle for play and pause, flanked by 56dp
@@ -286,8 +295,9 @@ Material motion through `MaterialTheme.motionScheme` springs:
 
 ## Don't
 
-- Put permanent controls (chips, buttons) between the app bar and a list.
-- Use yellow for a second thing in the same group.
+- Put permanent controls (chips, buttons) between the Files app bar and its
+  list. Expanded search's type chips are the exception.
+- Use yellow for a second action on the same screen or dialog.
 - Show percentages or progress bars in file rows.
 - Use web recipes (`components.css` `.switch`, `.modal`, `.sheet`).
 - Hand-write colours; generate them from the token graph.
@@ -312,9 +322,14 @@ with **Try again** or **Reset and sign in**.
 - Watched files show a progress bar and "N% watched".
 - Switches are stock M3 52x32dp in yellow.
 - Settings are two-line rows under yellow subheads.
-- Type is Roboto; no mono.
+- Type is Roboto. Only the player's timestamps use a monospace face, the system
+  one.
 - Navigation crossfades; no shared-axis or container transforms.
-- No mini player, selection mode, offline banner or tablet list-detail.
+- The mini player (`MobileNowPlayingBar`) and Downloads selection exist in other
+  forms; Files has no selection mode, and there is no offline banner or tablet
+  list-detail.
+- Player options open as bottom sheets; speed has presets from 0.75× to 2× and
+  no slider. There is no cast button, sleep timer or Up next.
 - The launcher icon is a placeholder.
 
 ## Android TV
