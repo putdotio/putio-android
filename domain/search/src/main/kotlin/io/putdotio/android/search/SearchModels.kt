@@ -3,6 +3,7 @@ package io.putdotio.android.search
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.files.FilesItem
+import io.putdotio.android.files.FilesItemId
 import kotlinx.coroutines.flow.StateFlow
 
 @JvmInline
@@ -15,6 +16,23 @@ public value class SearchTerm(
         }
     }
 }
+
+/**
+ * A folder a search stays inside. put.io takes the scope in the query itself, as `in:<folderId>`,
+ * so a scoped search covers the whole folder, not only its loaded pages.
+ */
+public data class SearchScope(
+    val folderId: FilesItemId,
+    val folderName: String?,
+) {
+    init {
+        require(folderId.value > 0L) { "A search scope must be a folder, not root" }
+    }
+}
+
+/** The query put.io receives: the term, then the folder scope when there is one. */
+internal fun SearchTerm.within(scope: SearchScope?): SearchTerm =
+    if (scope == null) this else SearchTerm("$value in:${scope.folderId.value}")
 
 @JvmInline
 public value class SearchRequestId(
@@ -88,6 +106,8 @@ public data class SearchState internal constructor(
     internal val nextRequestValue: Long,
     /** Whether the account keeps recent searches; null until the shared config has loaded. */
     val recentSearchesEnabled: Boolean? = null,
+    /** The folder this search stays inside; null searches the whole account. */
+    val scope: SearchScope? = null,
 )
 
 public object SearchReducer {

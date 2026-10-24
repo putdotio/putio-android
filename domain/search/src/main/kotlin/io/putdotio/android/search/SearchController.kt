@@ -90,6 +90,29 @@ public class SearchController internal constructor(
         return true
     }
 
+    /**
+     * Searches inside [scope] from now on, or the whole account when null. A new scope starts over
+     * from an empty query, so results never mix scopes.
+     */
+    public fun setScope(scope: SearchScope?): Boolean {
+        val previousJob: Job?
+        synchronized(lock) {
+            if (closed) return false
+            if (mutableState.value.scope == scope) return true
+            previousJob = activeJob
+            activeJob = null
+            mutableState.value =
+                mutableState.value.copy(
+                    query = "",
+                    content = SearchContent.Idle,
+                    consumedCursors = emptySet(),
+                    scope = scope,
+                )
+        }
+        previousJob?.cancel()
+        return true
+    }
+
     public fun submit(): Boolean {
         val term: SearchTerm
         val requestId: SearchRequestId
@@ -224,7 +247,9 @@ public class SearchController internal constructor(
                 // A pause while typing is not a search anyone chose; only submit and open record.
                 if (!committed) return@launch
             }
-            val result = safely { repository.search(term) }
+            // Recent searches keep the bare term; only the request carries the scope.
+            val scope = synchronized(lock) { mutableState.value.scope }
+            val result = safely { repository.search(term.within(scope)) }
             applyInitialResult(lock, mutableState, term, requestId, result)
         }
     }

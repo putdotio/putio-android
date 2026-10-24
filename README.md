@@ -19,7 +19,9 @@ Mobile, on the emulator harness against the live API:
   a rail from 600 dp, or a drawer at large font sizes; each tab keeps its own
   back stack, Back previews every pop, and Search opens over Files
 - Files: browse, paginate, sort per folder, rename, move, trash, delete, copy
-  items shared with you, and watched progress on media rows
+  items shared with you, create folders, search inside a folder, a played mark
+  on media rows, Continue watching for videos started on this device, and
+  downloads listed while put.io is unreachable
 - Trash: browse, restore one or all, delete permanently, empty
 - Transfers in Active, Needs attention and Completed sections, each card
   filling with its progress; Transfer actions open the save folder, copy the

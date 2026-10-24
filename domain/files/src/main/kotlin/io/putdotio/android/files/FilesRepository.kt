@@ -47,6 +47,12 @@ public interface FilesCopyRepository {
     public suspend fun checkCopy(copyId: FilesCopyId): PutioResult<FilesCopyProgress>
 }
 
+/** Creates folders; the Files browser offers it from a folder's overflow and its empty state. */
+public interface FilesFolderCreator {
+    /** Creates [name] in [parentId] and returns the new folder. */
+    public suspend fun createFolder(parentId: FilesItemId, name: String): PutioResult<FilesItem>
+}
+
 public interface FilesItemResolver {
     public suspend fun resolveItem(itemId: FilesItemId): PutioResult<FilesItem>
 }
@@ -55,6 +61,7 @@ internal class SdkFilesMutations(
     val rename: suspend (Long, String) -> Unit,
     val delete: suspend (Long, Boolean) -> FileDeleteResult,
     val move: suspend (Long, Long) -> List<FileMoveError>,
+    val createFolder: suspend (String, Long) -> PutioFile = { _, _ -> error("Folder creation is not wired") },
 )
 
 internal class SdkFilesCopies(
@@ -93,7 +100,7 @@ public class SdkFilesRepository internal constructor(
         start = { _, _ -> error("Copies are not wired") },
         info = { error("Copies are not wired") },
     ),
-) : FilesRepository, FilesItemResolver, FilesCopyRepository by copies {
+) : FilesRepository, FilesItemResolver, FilesFolderCreator, FilesCopyRepository by copies {
     public constructor(client: PutioClient) : this(
         listFolder = { folderId, query -> client.files.list(parentId = folderId, query = query) },
         continueListing = { cursor, query -> client.files.continueList(cursor = cursor, query = query) },
@@ -111,6 +118,7 @@ public class SdkFilesRepository internal constructor(
                 client.files.delete(fileIds = listOf(fileId), skipTrash = skipTrash)
             },
             move = { fileId, destinationId -> client.files.move(listOf(fileId), destinationId) },
+            createFolder = { name, parentId -> client.files.createFolder(name = name, parentId = parentId) },
         ),
         copies = SdkFilesCopies(
             start = { fileId, destinationId ->
@@ -124,7 +132,11 @@ public class SdkFilesRepository internal constructor(
         // Child video_metadata carries duration for the watched indicator; continuation
         // cursors inherit the initial listing's field flags server-side.
         putioRequest {
-            listFolder(folderId.value, FilesListQuery(perPage = FILES_PAGE_SIZE, videoMetadata = true)).toFilesPage()
+            // The total feeds the folder's count line; only this first read asks for it.
+            listFolder(
+                folderId.value,
+                FilesListQuery(perPage = FILES_PAGE_SIZE, total = true, videoMetadata = true),
+            ).toFilesPage()
         }
 
     override suspend fun loadNextPage(cursor: FilesCursor): PutioResult<FilesPage> =
@@ -167,6 +179,15 @@ public class SdkFilesRepository internal constructor(
     override suspend fun rename(itemId: FilesItemId, name: String): PutioResult<Unit> =
         putioRequest { mutations.rename(itemId.value, name) }
 
+    override suspend fun createFolder(parentId: FilesItemId, name: String): PutioResult<FilesItem> =
+        putioRequest {
+            val trimmed = name.trim()
+            require(parentId.value >= 0L && trimmed.isNotEmpty()) {
+                "A new folder needs a nonblank name and root or a positive parent ID"
+            }
+            mutations.createFolder(trimmed, parentId.value).toFilesItem()
+        }
+
     override suspend fun delete(itemId: FilesItemId, mode: FilesDeleteMode): PutioResult<FileDeleteResult> =
         putioRequest {
             // A lone zero means every root item at the API boundary.
@@ -181,6 +202,7 @@ private fun FilesListResponse.toFilesPage(): FilesPage =
         nextCursor = cursor?.takeIf(String::isNotBlank)?.let(::FilesCursor),
         sort = FilesSort.fromApiValue(parent?.sortBy),
         parent = parent?.toFilesItem(),
+        total = total,
     )
 
 public fun PutioFile.toFilesItem(): FilesItem =

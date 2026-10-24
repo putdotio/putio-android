@@ -68,11 +68,17 @@ import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesExternalOpen
+import io.putdotio.android.files.FilesFolder
+import io.putdotio.android.files.FilesFolderCreator
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesOpenOrigin
 import io.putdotio.android.files.FilesRepository
-import io.putdotio.android.files.MobileFilesSortMenu
+import io.putdotio.android.files.MobileContinueWatching
+import io.putdotio.android.files.MobileFilesBarActions
+import io.putdotio.android.files.MobileFilesSearchBar
+import io.putdotio.android.files.MobileFolderTopBar
+import io.putdotio.android.files.MobileNewFolderDialog
 import io.putdotio.android.files.mobileMessage
 import io.putdotio.android.files.pendingDelete
 import io.putdotio.android.files.pendingMove
@@ -89,6 +95,7 @@ import io.putdotio.android.playback.rememberNowPlaying
 import io.putdotio.android.search.MobileHistoryOverflow
 import io.putdotio.android.search.RecentSearchEdit
 import io.putdotio.android.search.SearchReducer
+import io.putdotio.android.search.SearchScope
 import io.putdotio.android.search.SearchState
 import io.putdotio.android.search.SearchTerm
 import io.putdotio.android.settings.AccountSettingsEvent
@@ -174,6 +181,8 @@ internal fun MobileShell(
     onSignOut: () -> Unit,
     transferDraft: MobileTransferDraft = remember { MobileTransferDraft() },
     fileDragOut: MobileFileDragOut? = null,
+    folderCreator: FilesFolderCreator? = null,
+    continueWatching: MobileContinueWatching? = null,
 ) {
     val navController = rememberNavController()
     var rejectedNavigation by remember(sessionId) { mutableStateOf<FilesFailure?>(null) }
@@ -196,13 +205,20 @@ internal fun MobileShell(
     var searchOpen by rememberSaveable(sessionId) { mutableStateOf(false) }
     // Which way Search last moved: forward when opened or left for a result, back on a Back.
     var searchForward by remember { mutableStateOf(true) }
-    val openSearch = {
+    val currentSearchActions by rememberUpdatedState(searchHistoryActions)
+    // A folder's search stays inside it; the root's pill, Ctrl+F and links search everything.
+    val openScopedSearch = { scope: SearchScope? ->
+        currentSearchActions.onScopeChanged(scope)
         navController.navigateTo(MobileDestination.Files)
         // Tab restoration can bring back playback above Files; Search opens on Files itself.
         navController.popBackStack(MobileDestination.Files.route, inclusive = false)
         searchForward = true
         searchOpen = true
     }
+    val openSearch = { openScopedSearch(null) }
+    // The folder New folder was asked for; the dialog shows while that folder is on screen.
+    var newFolderFor by rememberSaveable(sessionId) { mutableStateOf<Long?>(null) }
+    val requestNewFolder = folderCreator?.let { { newFolderFor = filesState.current.folder.id.value } }
     val leaveSearch = { forward: Boolean ->
         searchForward = forward
         searchOpen = false
@@ -325,11 +341,13 @@ internal fun MobileShell(
                                 destination = selectedDestination,
                                 route = backStackEntry?.destination?.route,
                                 searchOpen = searchOpen,
-                                onOpenSearch = openSearch,
+                                searchScope = searchHistoryState.search.scope,
+                                onOpenSearch = openScopedSearch,
                                 onSubpageBack = { navController.popBackStack() },
                                 filesState = filesState,
                                 onFilesBack = onFilesBack,
                                 onFilesEvent = onFilesEvent,
+                                onNewFolder = requestNewFolder,
                                 openNavigation = openNavigation,
                                 summary = tabSummary(selectedDestination, transfersState, downloadsState),
                                 tabActions = tabActions(
@@ -386,11 +404,29 @@ internal fun MobileShell(
                             focusSearch = searchFocusPending,
                             onSearchFocused = { searchFocusPending = false },
                             fileDragOut = fileDragOut,
+                            continueWatching = continueWatching,
+                            onNewFolder = requestNewFolder,
                         )
                     }
                 }
             }
         }
+    }
+    val newFolderParent = filesState.current.folder.takeIf {
+        it.id.value == newFolderFor && !isPlayback && selectedDestination == MobileDestination.Files && !searchOpen
+    }
+    if (newFolderParent != null && folderCreator != null) {
+        MobileNewFolderDialog(
+            parentId = newFolderParent.id,
+            parentName = newFolderParent.name ?: stringResource(MobileDestination.Files.labelRes),
+            creator = folderCreator,
+            onCreated = {
+                newFolderFor = null
+                onFilesEvent(FilesBrowserEvent.Refresh)
+            },
+            onDismiss = { newFolderFor = null },
+            onAuthenticationRequired = onFilesAuthenticationRequired,
+        )
     }
     if (!isPlayback) {
         MobileNavigationAlerts(
@@ -893,20 +929,22 @@ private fun navigationSuiteInsets(type: NavigationSuiteType): WindowInsets =
     }
 
 /**
- * Files has a small top app bar: back, the folder name, Search and Sort. Search over Files has
- * back and its title. The other tabs open on a [MobileTabTitle]; their subpages keep a small bar
- * with back.
+ * The Files root has a search app bar and a folder a small top app bar with back, its name,
+ * search in it, sort and overflow. Search over Files has back and its title. The other tabs open
+ * on a [MobileTabTitle]; their subpages keep a small bar with back.
  */
 @Composable
 private fun MobileTopBar(
     destination: MobileDestination,
     route: String?,
     searchOpen: Boolean,
-    onOpenSearch: () -> Unit,
+    searchScope: SearchScope?,
+    onOpenSearch: (SearchScope?) -> Unit,
     onSubpageBack: () -> Unit,
     filesState: FilesBrowserState,
     onFilesBack: () -> Unit,
     onFilesEvent: (FilesBrowserEvent) -> Boolean,
+    onNewFolder: (() -> Unit)?,
     openNavigation: (() -> Unit)?,
     summary: AnnotatedString?,
     tabActions: (@Composable RowScope.() -> Unit)? = null,
@@ -937,11 +975,12 @@ private fun MobileTopBar(
             tabActions?.invoke(this)
         }
         searchOpen -> MobileSmallTopBar(
-            title = stringResource(R.string.mobile_search_title),
+            title = searchScope?.folderName?.let { stringResource(R.string.mobile_files_search_in, it) }
+                ?: stringResource(R.string.mobile_search_title),
             onBack = onFilesBack,
             openNavigation = openNavigation,
         )
-        else -> MobileFilesTopBar(filesState, onFilesBack, onFilesEvent, onOpenSearch, openNavigation)
+        else -> MobileFilesTopBar(filesState, onFilesBack, onFilesEvent, onOpenSearch, onNewFolder, openNavigation)
     }
 }
 
@@ -955,50 +994,42 @@ private fun MobileSmallTopBar(title: String, onBack: () -> Unit, openNavigation:
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * The search app bar at the Files root, a folder's small bar elsewhere. A folder opened from
+ * outside Files sits on top of the root too, so the stack decides, not the folder ID.
+ */
 @Composable
 private fun MobileFilesTopBar(
     filesState: FilesBrowserState,
     onFilesBack: () -> Unit,
     onFilesEvent: (FilesBrowserEvent) -> Boolean,
-    onOpenSearch: () -> Unit,
+    onOpenSearch: (SearchScope?) -> Unit,
+    onNewFolder: (() -> Unit)?,
     openNavigation: (() -> Unit)?,
 ) {
-    val folderName = filesState.current.folder.name?.takeIf(String::isNotBlank)
-    TopAppBar(
-        title = {
-            Text(
-                folderName ?: stringResource(MobileDestination.Files.labelRes),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+    val folder = filesState.current.folder
+    val atRoot = !filesState.canNavigateBack && folder.id == FilesFolder.Root.id
+    val title = folder.name?.takeIf(String::isNotBlank) ?: stringResource(MobileDestination.Files.labelRes)
+    val actions = MobileFilesBarActions(
+        folder = filesState.current,
+        onSelectSort = { onFilesEvent(FilesBrowserEvent.SelectSort(it)) },
+        onOpenSearch = {
+            onOpenSearch(folder.id.takeIf { it != FilesFolder.Root.id }?.let { SearchScope(it, title) })
         },
-        navigationIcon = {
-            if (filesState.canNavigateBack) {
-                MobileBackButton(
-                    onClick = onFilesBack,
-                    enabled = filesState.current.operation.pendingDelete == null &&
-                        filesState.stack.none { it.operation.pendingMove != null },
-                )
-            }
-        },
-        actions = {
-            openNavigation?.let { MobileNavigationMenuButton(it) }
-            IconButton(onClick = onOpenSearch, modifier = Modifier.testTag(MOBILE_FILES_SEARCH_TAG)) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_ph_magnifying_glass),
-                    contentDescription = stringResource(R.string.mobile_search_label),
-                )
-            }
-            val content = filesState.current.content
-            if (content is FilesContent.Empty || content is FilesContent.Ready) {
-                MobileFilesSortMenu(
-                    folder = filesState.current,
-                    onSelect = { onFilesEvent(FilesBrowserEvent.SelectSort(it)) },
-                )
-            }
-        },
+        onNewFolder = onNewFolder,
+        navigation = openNavigation?.let { { MobileNavigationMenuButton(it) } },
     )
+    if (atRoot) {
+        MobileFilesSearchBar(actions)
+    } else {
+        MobileFolderTopBar(
+            title = title,
+            actions = actions,
+            onBack = onFilesBack,
+            backEnabled = filesState.canNavigateBack && filesState.current.operation.pendingDelete == null &&
+                filesState.stack.none { it.operation.pendingMove != null },
+        )
+    }
 }
 
 @Composable
@@ -1114,6 +1145,7 @@ internal data class MobileSearchHistoryActions(
     val onRecentEdit: (RecentSearchEdit) -> Unit = {},
     val onRecentRetry: () -> Unit = {},
     val onHistoryEvent: (HistoryEvent) -> Unit = {},
+    val onScopeChanged: (SearchScope?) -> Unit = {},
 )
 
 private fun emptySearchHistoryState(): MobileSearchHistoryState =

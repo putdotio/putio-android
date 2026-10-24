@@ -26,6 +26,8 @@ import io.putdotio.android.downloads.OfflineResume
 import io.putdotio.android.files.FilesBrowserController
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.files.MobileContinueWatching
+import io.putdotio.android.files.MobileContinueWatchingStore
 import io.putdotio.android.files.MobileFilesViewModel
 import io.putdotio.android.files.SdkFilesRepository
 import io.putdotio.android.files.authoritativeSessionFailure
@@ -166,6 +168,11 @@ internal fun SignedInMobileRoot(
         remember(publicLinksViewModel, publicLinksRepository, account.userId, sessionId) {
             publicLinksViewModel?.controllerFor(account.userId, sessionId, publicLinksRepository)
         }
+    val continueWatching = remember(filesViewModel, downloadsContext, account.userId, sessionId) {
+        filesViewModel.continueWatchingFor(account.userId, sessionId) {
+            MobileContinueWatchingStore(downloadsContext, account.userId)
+        }
+    }
     // Each view model hands out null once its session is no longer current.
     val controllersReady = trashController != null && filesController != null &&
         accountSettingsController != null && appConfigController != null &&
@@ -193,6 +200,7 @@ internal fun SignedInMobileRoot(
         nowPlayingRequests = nowPlayingRequests,
         deepLinkRequests = deepLinkRequests,
         transferDraft = transferDraft,
+        continueWatching = continueWatching,
     )
 }
 
@@ -216,6 +224,7 @@ private fun SignedInMobileSession(
     nowPlayingRequests: NowPlayingRequests,
     deepLinkRequests: MobileDeepLinkRequests,
     transferDraft: MobileTransferDraft,
+    continueWatching: MobileContinueWatching?,
 ) {
     val account = signedIn.account
     val sessionId = signedIn.sessionId
@@ -245,13 +254,14 @@ private fun SignedInMobileSession(
     val reportingPlayerFactory = remember(runtime, sessionId, accountSettingsController, playbackPlayerFactory) {
         runtime.playbackReporting.factoryFor(sessionId, accountSettingsController.state, playbackPlayerFactory)
     }
-    LaunchedEffect(runtime, filesController) {
+    LaunchedEffect(runtime, filesController, continueWatching) {
         runtime.playbackReporting.savedPositions.collect { saved ->
-            filesController.dispatch(
-                FilesBrowserEvent.PlaybackPositionReported(FilesItemId(saved.fileId), saved.seconds),
-            )
+            val fileId = FilesItemId(saved.fileId)
+            filesController.dispatch(FilesBrowserEvent.PlaybackPositionReported(fileId, saved.seconds))
+            continueWatching?.positionSaved(fileId, saved.seconds)
         }
     }
+    LaunchedEffect(continueWatching, filesRepository) { continueWatching?.reconcile(filesRepository::resolveItem) }
     val trashState by trashController.state.collectAsStateWithLifecycle()
     val filesState by filesController.state.collectAsStateWithLifecycle()
     val accountSettingsState by accountSettingsController.state.collectAsStateWithLifecycle()
@@ -317,6 +327,8 @@ private fun SignedInMobileSession(
         },
         downloadsController = downloadsController,
         publicLinksController = publicLinksController,
+        folderCreator = filesRepository,
+        continueWatching = continueWatching,
         sessionId = sessionId,
         onFilesEvent = filesController::dispatch,
         onAccountSettingsEvent = accountSettingsController::dispatch,
@@ -347,6 +359,7 @@ private fun SignedInMobileSession(
                 onRecentEdit = { searchHistorySession.search.editRecentSearches(it) },
                 onRecentRetry = searchHistorySession::retryRecentSearches,
                 onHistoryEvent = { searchHistorySession.history.dispatch(it) },
+                onScopeChanged = { searchHistorySession.search.setScope(it) },
             ),
         onTransfersEvent = transfersController::dispatch,
         resolveTransferFile = { fileId -> filesRepository.resolveItem(FilesItemId(fileId.value)) },

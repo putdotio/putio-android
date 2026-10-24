@@ -15,10 +15,13 @@ import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.putdotio.android.design.PutioTheme
@@ -184,7 +187,9 @@ class MobileMoveTargetProofTest {
     }
 
     private fun openPicker(itemName: String, action: String?) {
-        compose.onNodeWithContentDescription("Actions for $itemName").performClick()
+        // Folders have no overflow button; a long-press opens the same sheet for any row.
+        compose.onNode(hasText(itemName) and SemanticsMatcher.keyIsDefined(SemanticsActions.OnLongClick))
+            .performSemanticsAction(SemanticsActions.OnLongClick)
         if (action == null) {
             compose.onNodeWithTag(MOBILE_FILES_COPY_ACTION_TAG).performClick()
         } else {

@@ -735,38 +735,32 @@ opens put.io OAuth in the browser.
 
 3.0.0 still differs from this contract:
 
-- Search opens over Files from a top-bar button, with an outlined text field;
-  Files has no search bar.
+- Search opens over Files with an outlined text field, not
+  `ExpandedFullScreenSearchBar`.
 - The item actions sheet has rows only, no action tiles.
-- Sort is a flat dropdown of twelve combined options, not three labelled
-  groups, and its button doesn't name the current sort.
 - Sign out is an outlined button that signs out at once, with no confirm.
-- File names outside Downloads and History wrap instead of being cut in the
-  middle on one line.
+- Names outside Files, Transfers, Downloads and History wrap instead of being
+  cut in the middle on one line.
 - Rename does not preselect the name up to the extension.
-- Empty states other than Transfers' keep 3.0.0's words and offer no action.
-  Offline has no state of its own, so `(x_x)` never shows.
+- Empty states outside Files and Transfers keep 3.0.0's words and offer no
+  action.
 - Search has no type chips; results are one flat list.
 - The actions sheet has no Play or Resume and no Mark as watched.
-- The app can't create a folder: not from the Move picker, a folder's overflow
-  or the empty-folder state.
+- The Move picker can't create a folder.
 - Moving to Trash offers View Trash in its snackbar, not Undo.
-- Played files show a progress bar and "N% watched" when the duration is known,
-  and a plain "Watched" label otherwise.
 - Settings are two-line rows under yellow subheads.
-- Only the player's timestamps, the tab-title summaries, Transfers, and
+- Only the player's timestamps, the tab-title summaries, Transfers, Files, and
   Downloads and History rows set numbers in mono; sizes, speeds and counts
   elsewhere use the UI face.
 - Transfer cards and Transfer actions show no peer count: the Kotlin SDK's
   `Transfer` has no peers field.
 - The mini player (`MobileNowPlayingBar`) exists in another form; Files has no
-  selection mode, and there is no offline banner or tablet list-detail.
+  selection mode, and there is no tablet list-detail.
 - The player has no cast button, and its error offers no action: downloads keep
   the HLS rendition, and Open in VLC is not built.
 - Now Playing's options open as a bottom sheet with speeds 0.75× to 2×, and it
   has no sleep timer or Up next.
-- Files has no Continue watching row, and images, PDF and text don't open
-  in-app.
+- Images, PDF and text don't open in-app.
 - The production launcher icon is a placeholder; nightly uses its generated
   stars icon.
 

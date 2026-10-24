@@ -11,7 +11,6 @@ import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -89,7 +88,7 @@ class MobileFilesMoveTest {
         compose.onNodeWithTag(MOBILE_FILES_MOVE_HERE_TAG).assertIsNotEnabled()
         compose.onNodeWithTag(MOBILE_FILES_MOVE_CANCEL_TAG).performClick()
         compose.onNodeWithTag(MOBILE_FILES_MOVE_PICKER_TAG).assertDoesNotExist()
-        compose.onNodeWithContentDescription("Actions for ${source.name}").assertIsDisplayed()
+        compose.filesRow(source.name).assertIsDisplayed()
         compose.runOnIdle {
             assertTrue(events.none { it is FilesBrowserEvent.Move || it is FilesBrowserEvent.OpenFolder })
             assertEquals(listOf(FilesFolder.Root), initial.path)
@@ -387,7 +386,7 @@ class MobileFilesMoveTest {
         }
         compose.onNodeWithTag(MOBILE_FILES_MOVE_HERE_TAG).assertIsNotEnabled()
         compose.onNodeWithTag(MOBILE_FILES_MOVE_CANCEL_TAG).performClick()
-        compose.onNodeWithContentDescription("Actions for ${source.name}").performClick()
+        compose.openRowActions(source.name)
         compose.onNodeWithText("Move").assertDoesNotExist()
     }
 
@@ -497,7 +496,7 @@ class MobileFilesMoveTest {
     }
 
     private fun openMove() {
-        compose.onNodeWithContentDescription("Actions for ${source.name}").performClick()
+        compose.openRowActions(source.name)
         compose.onNodeWithText("Move").performClick()
     }
 

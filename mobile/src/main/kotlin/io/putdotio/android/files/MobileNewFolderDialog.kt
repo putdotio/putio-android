@@ -1,0 +1,133 @@
+package io.putdotio.android.files
+
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.PutioResult
+import io.putdotio.android.R
+import io.putdotio.android.design.PutioDesignTokens
+import kotlinx.coroutines.launch
+
+internal const val MOBILE_NEW_FOLDER_FIELD_TAG = "mobile-new-folder-field"
+internal const val MOBILE_NEW_FOLDER_CREATE_TAG = "mobile-new-folder-create"
+
+/**
+ * New folder: one outlined field under the parent's name, then Cancel and a filled Create. put.io
+ * refuses names it can't take (a slash, a duplicate) and the dialog shows its reason.
+ */
+@Composable
+internal fun MobileNewFolderDialog(
+    parentId: FilesItemId,
+    parentName: String,
+    creator: FilesFolderCreator,
+    onCreated: (FilesItem) -> Unit,
+    onDismiss: () -> Unit,
+    onAuthenticationRequired: suspend () -> Unit,
+) {
+    var name by rememberSaveable { mutableStateOf("") }
+    var creating by remember { mutableStateOf(false) }
+    var failure by remember { mutableStateOf<PutioFailure?>(null) }
+    val scope = rememberCoroutineScope()
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(focus) { focus.requestFocus() }
+    val canCreate = name.isNotBlank() && !creating
+    val create: () -> Unit = create@{
+        if (!canCreate) return@create
+        creating = true
+        failure = null
+        scope.launch {
+            when (val result = creator.createFolder(parentId, name)) {
+                is PutioResult.Success -> onCreated(result.value)
+                is PutioResult.Failure -> {
+                    creating = false
+                    failure = result.failure
+                    if (result.failure is PutioFailure.AuthenticationRequired) onAuthenticationRequired()
+                }
+            }
+        }
+    }
+    val fieldLabel = stringResource(R.string.mobile_files_new_folder_name)
+    AlertDialog(
+        onDismissRequest = { if (!creating) onDismiss() },
+        // Full width less the 24dp margins, as the board sets it, rather than the platform's narrower default.
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        modifier = Modifier.padding(horizontal = 24.dp),
+        title = { Text(stringResource(R.string.mobile_files_new_folder)) },
+        text = {
+            Column {
+                Text(
+                    text = stringResource(R.string.mobile_files_new_folder_in, parentName),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = {
+                        name = it
+                        failure = null
+                    },
+                    enabled = !creating,
+                    singleLine = true,
+                    isError = failure != null,
+                    supportingText = failure?.let { refused ->
+                        { Text(refused.mobileMessage(), color = PutioDesignTokens.redTextSecondary) }
+                    },
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { create() }),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 16.dp)
+                        .focusRequester(focus)
+                        .testTag(MOBILE_NEW_FOLDER_FIELD_TAG)
+                        .semantics { contentDescription = fieldLabel },
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { create() },
+                enabled = canCreate,
+                modifier = Modifier.testTag(MOBILE_NEW_FOLDER_CREATE_TAG),
+            ) {
+                Text(stringResource(R.string.mobile_files_new_folder_create))
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                enabled = !creating,
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurface),
+            ) {
+                Text(stringResource(R.string.mobile_action_cancel))
+            }
+        },
+    )
+}

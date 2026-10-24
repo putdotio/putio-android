@@ -41,6 +41,7 @@ import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesRepository
+import io.putdotio.android.files.MobileContinueWatching
 import io.putdotio.android.files.MobileFilesRoute
 import io.putdotio.android.files.MobileMoveTargetStore
 import io.putdotio.android.playback.MobilePlaybackViewModel
@@ -87,6 +88,8 @@ import io.putdotio.android.trash.MOBILE_TRASH_ROUTE
 import io.putdotio.android.trash.MobileTrashScreen
 import io.putdotio.android.trash.TrashController
 import io.putdotio.android.trash.TrashEvent
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 
 internal const val MOBILE_PLAYBACK_ROUTE = "playback/{fileId}?name={name}&media={media}&duration={duration}"
 
@@ -128,6 +131,8 @@ internal fun MobileNavHost(
     focusSearch: Boolean = false,
     onSearchFocused: () -> Unit = {},
     fileDragOut: MobileFileDragOut? = null,
+    continueWatching: MobileContinueWatching? = null,
+    onNewFolder: (() -> Unit)? = null,
 ) {
     val currentTransfersState by rememberUpdatedState(transfersState)
     val currentTransfersSessionId by rememberUpdatedState(transfersSessionId)
@@ -174,6 +179,7 @@ internal fun MobileNavHost(
                             )
                         },
                     ) {
+                        val startedVideos = continueWatching?.entries?.collectAsStateWithLifecycle()?.value
                         MobileFilesRoute(
                             state = filesState,
                             repository = filesRepository,
@@ -193,6 +199,8 @@ internal fun MobileNavHost(
                             moveTargetStore = moveTargetStore,
                             publicLinks = publicLinks,
                             fileDragOut = fileDragOut,
+                            continueWatching = startedVideos.orEmpty(),
+                            onNewFolder = onNewFolder,
                         )
                     }
                 }
@@ -298,6 +306,7 @@ internal fun MobileNavHost(
                             viewModelStoreOwner = backStackEntry,
                             factory = mobilePlaybackViewModelFactory(target, playbackRepository),
                         )
+                    continueWatching?.let { RecordOpenedVideos(playbackViewModel.controller, it) }
                     // The player grows out of the row it was opened from: a container transform.
                     Box(Modifier.fillMaxSize().playbackContainer(fileId, route = this)) {
                         MobilePlaybackRoute(
@@ -448,6 +457,18 @@ internal fun NavHostController.navigateToPlayback(
     val duration = durationSeconds?.let { "&duration=$it" }.orEmpty()
     navigate("playback/${fileId.value}?name=${Uri.encode(name)}&media=${mediaType.name}$duration") {
         if (replaceCurrentPlayback) popUpTo(MOBILE_PLAYBACK_ROUTE) { inclusive = true }
+    }
+}
+
+/** Each video the player resolves, autoplay's next ones included, can join Continue watching. */
+@Composable
+private fun RecordOpenedVideos(controller: PlaybackController, continueWatching: MobileContinueWatching) {
+    LaunchedEffect(controller, continueWatching) {
+        controller.state.map { it.target }.distinctUntilChanged().collect { target ->
+            if (target.mediaType == PlaybackMediaType.VIDEO) {
+                continueWatching.opened(target.fileId, target.name, target.durationSeconds)
+            }
+        }
     }
 }
 

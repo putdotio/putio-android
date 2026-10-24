@@ -6,6 +6,7 @@ import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -95,8 +96,8 @@ class MobileTabNavigationTest : NavigationShellFixture(1f) {
     fun aCancelledBackGestureKeepsTheFolderAndACommittedOneLeavesIt() {
         val events = mutableListOf<FilesBrowserEvent>()
         mount(nested = true, onFilesEvent = { events += it; true })
-        // The opened folder is still loading; its message stands for the folder's content.
-        val list = compose.onNodeWithText("Loading")
+        // The opened folder is still loading; its skeleton stands for the folder's content.
+        val list = compose.onNodeWithContentDescription("Loading files")
         val resting = list.fetchSemanticsNode().boundsInRoot.width
         val dispatcher = backOwner.onBackPressedDispatcher
         compose.runOnIdle {

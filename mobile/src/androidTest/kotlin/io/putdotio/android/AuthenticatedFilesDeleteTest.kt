@@ -98,7 +98,7 @@ class AuthenticatedFilesDeleteTest {
         requireSession(runtime, session)
         openContainer(fixture)
         compose.onNode(row(MOBILE_FILES_LIST_TAG, fixture.actionName)).performClick()
-        waitFor(hasText("This folder is empty."))
+        waitFor(hasText("Empty folder."))
         deleteProofScreenshot("empty")
         compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
         row(MOBILE_FILES_LIST_TAG, fixture.actionName)
@@ -155,8 +155,9 @@ class AuthenticatedFilesDeleteTest {
 
     private fun sortDescending(fixture: DeleteProofFixture, runtime: MobileOAuthRuntime) {
         compose.onNodeWithTag(MOBILE_FILES_SORT_TAG).performClick()
+        compose.onNodeWithText(compose.activity.getString(R.string.mobile_files_sort_z_to_a))
+            .performClick()
         val label = compose.activity.getString(R.string.mobile_files_sort_name_descending)
-        compose.onNodeWithText(label).performClick()
         compose.waitUntil(TIMEOUT) {
             compose.onNodeWithTag(MOBILE_FILES_SORT_TAG).fetchSemanticsNode()
                 .config[SemanticsProperties.StateDescription] == label

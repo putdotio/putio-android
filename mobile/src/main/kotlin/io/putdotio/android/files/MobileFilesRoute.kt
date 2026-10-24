@@ -37,6 +37,8 @@ internal fun MobileFilesRoute(
     moveTargetStore: FilesMoveTargetStore? = null,
     publicLinks: MobilePublicLinks? = null,
     fileDragOut: MobileFileDragOut? = null,
+    continueWatching: List<ContinueWatchingEntry> = emptyList(),
+    onNewFolder: (() -> Unit)? = null,
 ) {
     // Opening a folder pushes along the shared axis and Back pops; the leaving folder keeps its own state.
     val folderKey = { browser: FilesBrowserState -> browser.stack.size to browser.current.folder.id.value }
@@ -65,6 +67,8 @@ internal fun MobileFilesRoute(
             moveTargetStore = moveTargetStore,
             publicLinks = publicLinks,
             fileDragOut = fileDragOut,
+            continueWatching = continueWatching,
+            onNewFolder = onNewFolder?.takeUnless { leaving },
         )
     }
 }
@@ -84,6 +88,8 @@ private fun MobileFilesFolder(
     moveTargetStore: FilesMoveTargetStore?,
     publicLinks: MobilePublicLinks?,
     fileDragOut: MobileFileDragOut?,
+    continueWatching: List<ContinueWatchingEntry>,
+    onNewFolder: (() -> Unit)?,
 ) {
     key(repository, state.current.folder.id.value) {
         var movingItemId by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -109,6 +115,8 @@ private fun MobileFilesFolder(
             onCopyItem = if (repository == null) null else { item -> copyingItemId = item.id.value },
             onPublicLinkItem = publicLinks?.let { { item -> publicLinkItemId = item.id.value } },
             fileDragOut = fileDragOut,
+            continueWatching = continueWatching,
+            onNewFolder = onNewFolder,
         )
         if (movingItem != null && repository != null) {
             MobileFilesMoveSession(

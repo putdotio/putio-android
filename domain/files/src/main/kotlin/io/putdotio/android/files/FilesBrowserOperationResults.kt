@@ -54,6 +54,7 @@ internal fun FilesFolderState.replaceFirstPage(
     val viewport = if (persistedSort == null) content.viewport() else FilesViewportPosition()
     return copy(
         folder = folder.copy(sort = page.sort ?: persistedSort ?: folder.sort),
+        summary = page.summary() ?: summary,
         content = contentFor(page.items, page.nextCursor.toPaging(emptySet()), viewport),
         operation = FilesFolderOperation.Idle,
         deleteOutcome = deleteOutcome?.afterFolderPage(page),

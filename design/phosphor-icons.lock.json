@@ -650,6 +650,34 @@
       "asset": "assets/regular/minus.svg",
       "sourceSha256": "5a068d1cfd707fde5ddb0ce0623958123b6a5afba98401318983aeb0fdad6382",
       "outputSha256": "0a6043d6ac201d8d352e84ca14cab48305c22bb60c3805d39cd4cfceba5f7114"
+    },
+    {
+      "resDir": "mobile/src/main/res",
+      "resource": "ic_ph_eye",
+      "asset": "assets/regular/eye.svg",
+      "sourceSha256": "91d39f20bf95e0f36c07bd79b83a85fe6ff4ca20e2759c4afee7419ef80403fe",
+      "outputSha256": "7e3b564548d533a736db6fbd95db132dd0f923ed0dbe92081a77ae61de26982c"
+    },
+    {
+      "resDir": "mobile/src/main/res",
+      "resource": "ic_ph_arrow_circle_down_fill",
+      "asset": "assets/fill/arrow-circle-down-fill.svg",
+      "sourceSha256": "55ad201e30ef64bd200bdb261d2f78a64bfac03958fe93994b07606b5dee2927",
+      "outputSha256": "196338e5911488d6fe49f8ff70147fdd4c0d8a2edfa4be2bc5baaecdabdf3b23"
+    },
+    {
+      "resDir": "mobile/src/main/res",
+      "resource": "ic_ph_folder_plus",
+      "asset": "assets/regular/folder-plus.svg",
+      "sourceSha256": "576f2e68f6adf880e3334363b1d3baa2bd07ef41b7ae04a77cbe4eea240e62df",
+      "outputSha256": "fbb198fc8deae69b971b61682d7f7b07117100ce68218351672c101e94c23858"
+    },
+    {
+      "resDir": "mobile/src/main/res",
+      "resource": "ic_ph_wifi_slash",
+      "asset": "assets/regular/wifi-slash.svg",
+      "sourceSha256": "39ed62ae822a3917ac70239bbaa2144152049783451f4687456aae8f044152fc",
+      "outputSha256": "0841a22c73a0ecff2691105de092524d45492ef003529f4f55ba99add1785e46"
     }
   ]
 }

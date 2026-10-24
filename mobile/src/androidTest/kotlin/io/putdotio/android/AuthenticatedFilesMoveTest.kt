@@ -171,8 +171,9 @@ class AuthenticatedFilesMoveTest {
 
     private fun sortSource(f: MoveProofFixture, runtime: MobileOAuthRuntime) {
         compose.onNodeWithTag(MOBILE_FILES_SORT_TAG).performClick()
+        compose.onNodeWithText(compose.activity.getString(R.string.mobile_files_sort_z_to_a))
+            .performClick()
         val label = compose.activity.getString(R.string.mobile_files_sort_name_descending)
-        compose.onNodeWithText(label).performClick()
         compose.waitUntil(TIMEOUT) {
             compose.onNodeWithTag(MOBILE_FILES_SORT_TAG).fetchSemanticsNode()
                 .config[SemanticsProperties.StateDescription] == label
