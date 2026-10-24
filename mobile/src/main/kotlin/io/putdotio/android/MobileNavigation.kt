@@ -11,6 +11,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.LifecycleStartEffect
@@ -313,13 +314,17 @@ private fun MobileFilesTab(
     search: @Composable () -> Unit,
     files: @Composable () -> Unit,
 ) {
+    // Search keeps its scroll position and field while a folder it opened is on screen.
+    val saved = rememberSaveableStateHolder()
     MobileRouteAnimation(routeAnimation) {
         MobileAxisContent(
             state = searchOpen,
             contentKey = { it },
             depth = { if (it) 1 else 0 },
             modifier = Modifier.fillMaxSize().mobileBackPreview(backPreview),
-        ) { showSearch -> if (showSearch) search() else files() }
+        ) { showSearch ->
+            saved.SaveableStateProvider(showSearch) { if (showSearch) search() else files() }
+        }
     }
 }
 

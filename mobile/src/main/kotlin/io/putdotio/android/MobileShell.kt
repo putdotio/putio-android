@@ -189,6 +189,8 @@ internal fun MobileShell(
     var searchOpen by rememberSaveable(sessionId) { mutableStateOf(false) }
     val openSearch = {
         navController.navigateTo(MobileDestination.Files)
+        // Tab restoration can bring back playback above Files; Search opens on Files itself.
+        navController.popBackStack(MobileDestination.Files.route, inclusive = false)
         searchOpen = true
     }
     val publicLinks = publicLinksController?.let { controller ->
@@ -210,6 +212,7 @@ internal fun MobileShell(
             openDownload = { fileId, play -> navController.openDownload(downloadsController, fileId, play) },
             addTransfer = transferDraft::open,
             openSearch = openSearch,
+            closeSearch = { searchOpen = false },
         ),
     )
     IncomingTransferNavigationEffect(
@@ -418,6 +421,7 @@ private class DeepLinkTargets(
     val openDownload: (FilesItemId, play: Boolean) -> Unit,
     val addTransfer: () -> Unit,
     val openSearch: () -> Unit,
+    val closeSearch: () -> Unit,
 )
 
 @Composable
@@ -443,7 +447,10 @@ private fun DeepLinkNavigationEffect(
 
 private suspend fun NavHostController.openDeepLink(link: MobileDeepLink, targets: DeepLinkTargets) {
     when (link) {
-        MobileDeepLink.Files -> navigateTo(MobileDestination.Files)
+        MobileDeepLink.Files -> {
+            navigateTo(MobileDestination.Files)
+            targets.closeSearch()
+        }
         is MobileDeepLink.File -> {
             navigateTo(MobileDestination.Files)
             targets.openFile(link.id)

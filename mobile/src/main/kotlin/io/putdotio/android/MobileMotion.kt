@@ -129,13 +129,12 @@ internal data class MobileMotion(val axisOffsetPx: Int, val reducedMotion: Boole
 internal fun rememberMobileMotion(): MobileMotion {
     val density = LocalDensity.current
     val direction = LocalLayoutDirection.current
-    return remember(density, direction) {
-        val offset = with(density) { SHARED_AXIS_OFFSET.roundToPx() }
-        MobileMotion(
-            axisOffsetPx = if (direction == LayoutDirection.Rtl) -offset else offset,
-            // "Remove animations" sets the animator scale to 0, which is Android's reduced motion.
-            reducedMotion = !ValueAnimator.areAnimatorsEnabled(),
-        )
+    val offset = remember(density) { with(density) { SHARED_AXIS_OFFSET.roundToPx() } }
+    // "Remove animations" sets the animator scale to 0, which is Android's reduced motion. Read on
+    // every composition, so a change made in Settings applies to the next navigation.
+    val reducedMotion = !ValueAnimator.areAnimatorsEnabled()
+    return remember(offset, direction, reducedMotion) {
+        MobileMotion(axisOffsetPx = if (direction == LayoutDirection.Rtl) -offset else offset, reducedMotion)
     }
 }
 
@@ -210,8 +209,10 @@ internal fun MobilePredictiveBackHandler(
         "No NavigationEventDispatcherOwner was provided via LocalNavigationEventDispatcherOwner"
     }.navigationEventDispatcher
     val handler = remember { MobileBackEventHandler() }
+    // Reduced motion keeps the screen still under the gesture; the pop's own fade remains.
+    val reducedMotion = rememberMobileMotion().reducedMotion
     SideEffect {
-        handler.preview = preview
+        handler.preview = preview.takeUnless { reducedMotion }
         handler.onBack = onBack
     }
     LifecycleStartEffect(enabled, handler) {

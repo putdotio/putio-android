@@ -39,15 +39,15 @@ internal fun MobileFilesRoute(
     fileDragOut: MobileFileDragOut? = null,
 ) {
     // Opening a folder pushes along the shared axis and Back pops; the leaving folder keeps its own state.
-    MobileAxisContent(
-        state = state,
-        contentKey = { it.stack.size to it.current.folder.id.value },
-        depth = { it.stack.size },
-    ) { shown ->
+    val folderKey = { browser: FilesBrowserState -> browser.stack.size to browser.current.folder.id.value }
+    val currentKey = folderKey(state)
+    MobileAxisContent(state = state, contentKey = folderKey, depth = { it.stack.size }) { shown ->
+        // The reducer applies events to the current folder, so the leaving one must not send any.
+        val leaving = folderKey(shown) != currentKey
         MobileFilesFolder(
             state = shown,
             repository = repository,
-            onEvent = onEvent,
+            onEvent = { event -> !leaving && onEvent(event) },
             onPlayMedia = onPlayMedia,
             confirmedTrashEnabled = confirmedTrashEnabled,
             onAuthenticationRequired = onAuthenticationRequired,

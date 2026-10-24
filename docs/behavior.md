@@ -793,8 +793,9 @@ returns to Trash. Back pops within the tab, then returns to Files, then leaves
 the app; nothing takes Back at the Files root. Files keeps its folders and
 Search in its own state rather than in the back stack, so they survive a tab
 switch too. Search opens over Files from the top bar's search button, Ctrl+F or
-a link, and stays open until Back or the top bar's back closes it. Back closes
-Search before it leaves a folder.
+a link, and stays open until Back, the top bar's back or a Files link closes
+it; it keeps its results and scroll while a folder it opened is on screen. Back
+closes Search before it leaves a folder.
 
 History, Transfers, Downloads and Account open on a tab title. Transfers' summary
 counts, over the transfers loaded so far, the active ones (preparing,
@@ -813,7 +814,8 @@ transition is a fade.
 Tests: `MobileTabNavigationTest` (tab order, per-tab back stacks, Back to Files
 then out, Search over Files), `MobileMotionTest`, `MobileTabSummaryTest`,
 `MobileLargeTextNavigationTest` and `MobileOrdinaryNavigationTest` (in
-`MobileAdaptiveNavigationTest.kt`), `MobileShellTest`.
+`MobileAdaptiveNavigationTest.kt`), `MobileShellTest`, `MobileShellLinkActionsTest`
+(Search and Files links).
 
 ## Keyboard and shortcuts
 

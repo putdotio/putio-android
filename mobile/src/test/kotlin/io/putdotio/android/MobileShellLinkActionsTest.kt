@@ -22,6 +22,7 @@ import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
 import io.putdotio.android.playback.PlaybackResolution
 import io.putdotio.android.playback.PlaybackTarget
+import io.putdotio.android.search.MOBILE_SEARCH_FIELD_TAG
 import io.putdotio.android.settings.readyAccountSettingsState
 import io.putdotio.android.settings.readyAndroidAppConfigState
 import io.putdotio.android.transfers.MOBILE_TRANSFER_ADD_FIELD_TAG
@@ -103,6 +104,18 @@ class MobileShellLinkActionsTest {
         }
         compose.onNodeWithTag(MOBILE_DOWNLOADS_LIST_TAG).assertDoesNotExist()
         compose.onNodeWithTag(MOBILE_DOWNLOADS_ITEM_SHEET_TAG).assertDoesNotExist()
+    }
+
+    @Test
+    fun theSearchLinkOpensSearchOverFilesAndAFilesLinkClosesIt() {
+        setShell()
+
+        compose.runOnIdle { links.receive(MobileDeepLink.Search) }
+        compose.onNodeWithTag(MOBILE_SEARCH_FIELD_TAG).assertIsDisplayed()
+
+        compose.runOnIdle { links.receive(MobileDeepLink.Files) }
+        compose.onNodeWithTag(MOBILE_SEARCH_FIELD_TAG).assertDoesNotExist()
+        compose.onNodeWithTag(MOBILE_FILES_SEARCH_TAG).assertIsDisplayed()
     }
 
     @Test
