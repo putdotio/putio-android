@@ -117,9 +117,12 @@ tasks.register("updateDesignMdColors") {
     doLast { markdown.writeText(DesignTokenCodegen.withDesignMdColors(markdown.readText(), tokens.readText())) }
 }
 
+val nodeVersion = providers.exec { commandLine("node", "--version") }.standardOutput.asText
+
 val lintDesignMd = tasks.register<Exec>("lintDesignMd") {
     description = "Lint DESIGN.md against the design.md format"
-    cacheableCheck("DESIGN.md", "package.json")
+    cacheableCheck("DESIGN.md", "package.json", ".node-version")
+    inputs.property("node", nodeVersion)
     commandLine("bash", "scripts/lint-design-md.sh", pinnedNodeTool("@google/design.md").get())
 }
 

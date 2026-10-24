@@ -98,8 +98,6 @@ components:
   file-row:
     textColor: "{colors.on-surface}"
     typography: "{typography.body-lg}"
-    height: 64px
-    padding: 16px
   settings-row:
     backgroundColor: "{colors.surface-container}"
     textColor: "{colors.on-surface}"
@@ -338,8 +336,9 @@ names its parent folder. Recent searches show while the query is empty
 
 ### File rows
 
-`ListItem` with two slots, headline and meta, and no dividers. A wrapped name
-makes three text lines:
+`ListItem` with two slots, headline and meta, and no dividers. A row is 64 to
+88dp tall, growing with a wrapped name to three text lines, with a 40dp leading
+slot and 16dp start padding:
 
 - Leading: a 26dp yellow Phosphor fill glyph for the file type.
 - Headline: the filename exactly as stored, wrapping to two lines.
@@ -414,9 +413,10 @@ buttons. A filled **Create link** ends the sheet
 
 ### Notices and snackbars
 
-- **Inactive account:** a notice card under the Files app bar, never a dialog:
-  a medium first line ("Your account has been deactivated.") and the deletion
-  countdown with the days in mono
+- **Inactive account:** a notice card under the top bar of every signed-in
+  screen, never a dialog, with nothing to tap. A medium first line states the
+  account's state, either deactivated or a family plan no longer active; a
+  deactivated account adds the deletion countdown with the days in mono
   ([Inactive account](docs/behavior.md#inactive-account)).
 - **Snackbar:** one short line confirming a finished action ("Link copied"),
   above the nav bar, with at most one text action.
@@ -521,18 +521,20 @@ and the event with its time in mono. Clear history lives in the overflow.
 
 A tab title, then the identity line (40dp avatar, name, email) and a storage
 card ("Storage", used of total in mono, a 4dp bar). Settings follow as
-segmented groups under `label-md` labels. Every row is one line, with a leading
-glyph, the title and a trailing value or switch.
+segmented groups under `label-md` labels, with `hairline` (2dp) gaps between
+rows. Every row is one line, with a leading glyph, the title and a trailing
+value or switch.
 
 Groups, in order: Library (Exclusive links, Trash), Files, Playback, Subtitles,
 Downloads, Privacy, About, then Sign out alone, in red, behind its
 [confirm](#dialogs-and-pickers).
 
-**Privacy controls** opens its own screen: one line saying the controls apply
-to every put.io app on the account and never send filenames, titles, URLs,
-search text or tokens; a group with Diagnostics and Product analytics, each a
-two-line row with its explanation; then More, with the privacy policy and the
-services list ([Privacy controls](docs/behavior.md#privacy-controls)).
+**Privacy controls** opens its own screen, in the order
+[Privacy controls](docs/behavior.md#privacy-controls) fixes: Strictly necessary
+as Always on, with no switch; Diagnostics and Product analytics, each a
+two-line row with its explanation; the footer saying neither sends filenames,
+media titles, URLs, search text or tokens; then the privacy policy and the
+services list.
 
 ## Player
 
