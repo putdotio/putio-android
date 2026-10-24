@@ -7,12 +7,8 @@ on:
         description: Full SHA of the current main commit
         required: true
         type: string
-      version_code:
-        description: A version code in the internal release to promote, or in the production release whose rollout to change
-        required: true
-        type: string
       from_track:
-        description: internal promotes that track's only release to production; production changes its production rollout
+        description: internal promotes that track's release to production; production changes the staged production rollout
         required: true
         type: choice
         options: [internal, production]
@@ -60,14 +56,9 @@ jobs:
     steps:
       - name: Validate inputs
         env:
-          VERSION_CODE: ${{ inputs.version_code }}
           FROM_TRACK: ${{ inputs.from_track }}
           ROLLOUT_PERCENT: ${{ inputs.rollout_percent }}
         run: |
-          if ! [[ "$VERSION_CODE" =~ ^[1-9][0-9]{0,9}$ ]]; then
-            echo "version_code must be a positive integer" >&2
-            exit 1
-          fi
           if [ "$FROM_TRACK" != internal ] && [ "$FROM_TRACK" != production ]; then
             echo "from_track must be internal or production" >&2
             exit 1
@@ -80,46 +71,36 @@ jobs:
         with:
           ref: ${{ needs.ref.outputs.sha }}
           persist-credentials: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: .node-version
-      - name: Promote the internal release
-        id: promote
-        if: ${{ inputs.from_track == 'internal' }}
-        env:
-          ANDROID_PUBLISHER_CREDENTIALS: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
-          VERSION_CODE: ${{ inputs.version_code }}
-          ROLLOUT_PERCENT: ${{ inputs.rollout_percent }}
-        run: node scripts/play.ts promote --version-code "$VERSION_CODE" --percent "$ROLLOUT_PERCENT"
-      - name: Change the production rollout
-        if: ${{ inputs.from_track == 'production' }}
-        env:
-          ANDROID_PUBLISHER_CREDENTIALS: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
-          VERSION_CODE: ${{ inputs.version_code }}
-          ROLLOUT_PERCENT: ${{ inputs.rollout_percent }}
-        run: node scripts/play.ts rollout --version-code "$VERSION_CODE" --percent "$ROLLOUT_PERCENT"
-      # After the release, so a rejected version code changes nothing. Gradle
-      # Play Publisher runs inside the Android project, so only the listing
-      # needs Java and Gradle.
-      - if: ${{ inputs.publish_listing }}
-        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
         with:
           distribution: temurin
           java-version: '21'
-      - if: ${{ inputs.publish_listing }}
-        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
         with:
           validate-wrappers: true
           cache-disabled: true
+      # Promotion copies every version code in the internal release, so both apps move together.
+      - name: Promote or change the rollout
+        env:
+          ANDROID_PUBLISHER_CREDENTIALS: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          FROM_TRACK: ${{ inputs.from_track }}
+          ROLLOUT_PERCENT: ${{ inputs.rollout_percent }}
+        run: |
+          if [ "$ROLLOUT_PERCENT" = 100 ]; then
+            rollout=(--release-status completed)
+          else
+            rollout=(--release-status inProgress --user-fraction "0.$(printf '%02d' "$ROLLOUT_PERCENT")")
+          fi
+          ./gradlew --no-daemon :mobile:promoteProductionReleaseArtifact \
+            --from-track "$FROM_TRACK" --promote-track production "${rollout[@]}"
+      # After the release, so a failed promotion changes nothing else.
       - name: Replace the listing
         if: ${{ inputs.publish_listing }}
         env:
           ANDROID_PUBLISHER_CREDENTIALS: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
-        run: ./gradlew --no-daemon --no-configuration-cache :mobile:publishProductionReleaseListing
+        run: ./gradlew --no-daemon :mobile:publishProductionReleaseListing
       - name: Summarize
         env:
-          VERSION_CODE: ${{ inputs.version_code }}
-          PROMOTED: ${{ steps.promote.outputs.version_codes }}
           FROM_TRACK: ${{ inputs.from_track }}
           ROLLOUT_PERCENT: ${{ inputs.rollout_percent }}
           SHA: ${{ needs.ref.outputs.sha }}
@@ -131,7 +112,6 @@ jobs:
             echo "| | |"
             echo "| --- | --- |"
             echo "| Commit | \`$SHA\` |"
-            echo "| Version codes | ${PROMOTED:-$VERSION_CODE} |"
             echo "| From track | $FROM_TRACK |"
             echo "| Production rollout | $ROLLOUT_PERCENT% |"
             echo "| Listing replaced | $LISTING |"

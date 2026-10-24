@@ -28,8 +28,9 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
             defaultConfig {
                 minSdk = PutioAndroidSdk.MIN
                 targetSdk = PutioAndroidSdk.TARGET
-                versionCode = putioVersionCode()
-                versionName = putioVersionName()
+                val version = putioVersionName()
+                versionCode = putioVersionCode(version)
+                versionName = version
                 testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
             }
 
@@ -149,21 +150,26 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
     }
 
     /**
-     * Both apps share `io.put.putio`, so delivery passes each its own code; the defaults are for
-     * local builds.
+     * Both apps share `io.put.putio`, so one version name gives each its own code:
+     * `major * 1_000_000 + minor * 10_000 + patch * 10`, plus 1 for TV. TVs can install either app
+     * and Google Play serves the highest code, so TV must take the higher one.
      */
-    private fun Project.putioVersionCode(): Int {
-        val value = providers.gradleProperty("putioVersionCode").getOrElse("1").trim()
-        val code = value.toIntOrNull()
-        require(code != null && code in 1..MAX_VERSION_CODE) {
-            "putioVersionCode must be an integer from 1 to $MAX_VERSION_CODE, got '$value'"
+    private fun Project.putioVersionCode(versionName: String): Int {
+        val (major, minor, patch) = versionName.split('.').map(String::toInt)
+        val app = when (path) {
+            ":mobile" -> 0
+            ":tv" -> 1
+            else -> error("No version code slot for $path")
         }
-        return code
+        return major * 1_000_000 + minor * 10_000 + patch * 10 + app
     }
 
     private fun Project.putioVersionName(): String {
         val value = providers.gradleProperty("putioVersionName").getOrElse("3.0.0").trim()
-        require(VERSION_NAME.matches(value)) { "putioVersionName must look like 3.0.0, got '$value'" }
+        require(VERSION_NAME.matches(value) && value.substringBefore('.').toInt() <= MAX_MAJOR) {
+            "putioVersionName must look like 3.0.0, with major up to $MAX_MAJOR, minor up to 99 " +
+                "and patch up to 999, got '$value'"
+        }
         return value
     }
 
@@ -187,9 +193,9 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
     }
 
     private companion object {
-        // Google Play's ceiling.
-        const val MAX_VERSION_CODE = 2_100_000_000
-        val VERSION_NAME = Regex("""\d{1,4}\.\d{1,4}\.\d{1,4}""")
+        // Keeps the highest code under Google Play's 2_100_000_000 ceiling.
+        const val MAX_MAJOR = 2_099
+        val VERSION_NAME = Regex("""[1-9]\d{0,3}\.(0|[1-9]\d?)\.(0|[1-9]\d{0,2})""")
         val SENTRY_DSN = Regex("""https://[A-Za-z0-9]+@[A-Za-z0-9.-]+/[0-9]+""")
     }
 }

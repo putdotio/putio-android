@@ -86,13 +86,25 @@ androidComponents {
     }
 }
 
-// Google Play delivery runs from this module for both apps: scripts/play.ts stages the mobile
-// and TV bundles together for --artifact-dir, so each upload is one release carrying both.
+// Google Play delivery runs from this module for both apps: each upload is one release carrying
+// the mobile and TV production bundles (docs/distribution.md).
+val playBundles = tasks.register<Sync>("syncPlayBundles") {
+    description = "Collect the mobile and TV production bundles for one Google Play release"
+    dependsOn("bundleProductionRelease", ":tv:bundleProductionRelease")
+    from(layout.buildDirectory.dir("outputs/bundle/productionRelease"))
+    from(rootProject.layout.projectDirectory.dir("tv/build/outputs/bundle/productionRelease"))
+    include("*.aab")
+    into(layout.buildDirectory.dir("play-bundles"))
+}
+
 play {
     enabled.set(false)
     defaultToAppBundles.set(true)
     track.set("internal")
+    artifactDir.set(layout.buildDirectory.dir("play-bundles"))
 }
+
+tasks.matching { it.name == "publishProductionReleaseBundle" }.configureEach { dependsOn(playBundles) }
 
 val launchSmokeTest = "io.putdotio.android.LaunchSmokeTest#shellLaunchesStaysResumedAndRenders"
 
