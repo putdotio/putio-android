@@ -58,8 +58,8 @@ selected Android vector drawables:
 ```
 
 The check hashes every locked drawable and rejects stale generated `ic_ph_*`
-files. Regular weight is the default for chrome and file kinds, and fill marks
-folders and selected or active states. Saving to put.io (Transfers) and
+files. Regular weight is the default for chrome, fill marks selected or active
+states, and file-kind glyphs use fill. Saving to put.io (Transfers) and
 downloading to this device keep distinct glyphs: `arrow-circle-down` and
 `download-simple`. Drawables stay black source art, tinted by Compose at the
 point of use.
