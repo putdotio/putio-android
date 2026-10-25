@@ -210,7 +210,9 @@ internal class MobileFilesActionsController(
         var pending = itemIds
         repeat(RESTORE_READBACK_ROUNDS) { round ->
             if (round > 0) delay(RESTORE_READBACK_DELAY_MS)
-            pending = pending.filterNot { sources.trash.resolveItem(it) is PutioResult.Success }
+            pending = pending.filterNot { id ->
+                (sources.trash.resolveItem(id) as? PutioResult.Success)?.value?.id == id
+            }
             if (pending.isEmpty()) return
         }
     }
