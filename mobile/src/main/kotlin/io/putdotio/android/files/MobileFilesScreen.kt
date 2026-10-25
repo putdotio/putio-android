@@ -1,12 +1,6 @@
 package io.putdotio.android.files
 
-import android.content.Context
-import android.text.format.DateUtils
-import android.text.format.Formatter
 import androidx.annotation.StringRes
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -23,11 +17,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
@@ -36,6 +25,8 @@ import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
@@ -52,53 +43,38 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.InputMode
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.liveRegion
-import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.FilesFailure
 import io.putdotio.android.LoadNextPageNearEnd
 import io.putdotio.android.LoadNextPageNow
-import io.putdotio.android.MobileEmptyState
 import io.putdotio.android.MobileErrorState
 import io.putdotio.android.MobileKeyCommand
-import io.putdotio.android.MobileLoadingState
 import io.putdotio.android.MobileShortcutScope
 import io.putdotio.android.MobileUnhandledKeyEffect
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
-import io.putdotio.android.playbackContainer
 import io.putdotio.android.apiReason
-import io.putdotio.android.design.FileTypeIcon
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioEmptyGlyph
-import io.putdotio.android.downloads.DownloadPauseReason
-import io.putdotio.android.downloads.DownloadStatus
 import io.putdotio.android.downloads.DownloadsState
-import io.putdotio.android.parsePutioTimestamp
 import io.putdotio.android.share.MobileFileDragOut
 import io.putdotio.android.share.MobileFileDragShadow
-import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filterNotNull
@@ -107,8 +83,6 @@ internal const val MOBILE_FILES_LIST_TAG = "mobile-files-list"
 internal const val MOBILE_FILES_OPERATION_RETRY_TAG = "mobile-files-operation-retry"
 internal const val MOBILE_FILES_PAGING_ACTION_TAG = "mobile-files-paging-action"
 internal const val MOBILE_FILES_REFRESH_TAG = "mobile-files-refresh"
-internal const val MOBILE_FILES_WATCHED_TAG = "mobile-files-watched"
-internal const val MOBILE_FILES_DOWNLOAD_TAG = "mobile-files-download"
 internal const val MOBILE_FILES_SNACKBAR_TAG = "mobile-files-snackbar"
 
 @Composable
@@ -126,20 +100,50 @@ internal fun MobileFilesScreen(
     onCopyItem: ((FilesItem) -> Unit)? = null,
     onPublicLinkItem: ((FilesItem) -> Unit)? = null,
     fileDragOut: MobileFileDragOut? = null,
+    /** Started videos for the root's Continue watching row; other folders never show it. */
+    continueWatching: List<ContinueWatchingEntry> = emptyList(),
+    /** Opens the New folder dialog; null where this screen can't create one. */
+    onNewFolder: (() -> Unit)? = null,
 ) {
     val current = state.current
-    when (val content = current.content) {
+    val atRoot = current.folder.id == FilesFolder.Root.id
+    // A retry from the offline state keeps the downloads on screen until put.io answers.
+    var offline by remember(state.stack.size, current.folder.id.value) { mutableStateOf(false) }
+    val content = current.content
+    LaunchedEffect(content) {
+        if (content !is FilesContent.Loading) {
+            offline = (content as? FilesContent.Failed)?.failure is PutioFailure.NetworkUnavailable
+        }
+    }
+    when (content) {
         is FilesContent.Loading -> MobileFilesStateWithCopy(state, onEvent, modifier) {
-            MobileLoadingState(message = stringResource(R.string.mobile_state_loading))
+            if (offline) {
+                MobileFilesOffline(
+                    onDevice = if (atRoot) downloads.onDeviceItems() else emptyList(),
+                    onRetry = null,
+                    onPlayMedia = onPlayMedia,
+                )
+            } else {
+                MobileFilesSkeleton()
+            }
         }
 
         is FilesContent.Failed -> MobileFilesStateWithCopy(state, onEvent, modifier) {
-            MobileErrorState(
-                title = stringResource(R.string.mobile_state_error_title),
-                message = content.failure.mobileMessage(),
-                retryLabel = stringResource(R.string.mobile_action_retry),
-                onRetry = { onEvent(FilesBrowserEvent.Retry) },
-            )
+            if (content.failure is PutioFailure.NetworkUnavailable) {
+                MobileFilesOffline(
+                    onDevice = if (atRoot) downloads.onDeviceItems() else emptyList(),
+                    onRetry = { onEvent(FilesBrowserEvent.Retry) },
+                    onPlayMedia = onPlayMedia,
+                    failure = content.failure,
+                )
+            } else {
+                MobileErrorState(
+                    title = stringResource(R.string.mobile_state_error_title),
+                    message = content.failure.mobileMessage(),
+                    retryLabel = stringResource(R.string.mobile_action_retry),
+                    onRetry = { onEvent(FilesBrowserEvent.Retry) },
+                )
+            }
         }
 
         is FilesContent.Empty,
@@ -153,6 +157,11 @@ internal fun MobileFilesScreen(
                 onCopyItem,
                 onPublicLinkItem,
                 fileDragOut,
+                headers = MobileFilesHeaders(
+                    continueWatching = if (atRoot) continueWatching else emptyList(),
+                    summary = if (atRoot) null else current.summary,
+                ),
+                onNewFolder = onNewFolder,
             )
         }
     }
@@ -190,6 +199,8 @@ private fun MobileRefreshableFilesContent(
     onCopyItem: ((FilesItem) -> Unit)?,
     onPublicLinkItem: ((FilesItem) -> Unit)?,
     fileDragOut: MobileFileDragOut?,
+    headers: MobileFilesHeaders,
+    onNewFolder: (() -> Unit)?,
 ) {
     val operation = state.current.operation
     val currentOperation by rememberUpdatedState(operation)
@@ -268,8 +279,18 @@ private fun MobileRefreshableFilesContent(
 
     Box(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
+            val refreshState = rememberPullToRefreshState()
             PullToRefreshBox(
                 isRefreshing = isRefreshing,
+                state = refreshState,
+                indicator = {
+                    PullToRefreshDefaults.Indicator(
+                        state = refreshState,
+                        isRefreshing = isRefreshing,
+                        modifier = Modifier.align(Alignment.TopCenter),
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                },
                 onRefresh = {
                     if (selectedItemId == null && currentOperation.canStartOperation) {
                         onEvent(FilesBrowserEvent.Refresh)
@@ -290,12 +311,21 @@ private fun MobileRefreshableFilesContent(
                         paging = content.paging,
                         pagingEnabled = operation == FilesFolderOperation.Idle,
                         onEvent = onEvent,
+                        onNewFolder = onNewFolder,
                     )
                     is FilesContent.Ready ->
-                        // The depth tells a folder opened from Search apart from the same folder under it.
-                        key(state.stack.size, state.current.folder.id.value, state.current.viewportGeneration) {
+                        // The depth tells a folder opened from Search apart from the same folder under it. A
+                        // header set that grew or shrank restarts the list from the row-relative viewport.
+                        key(
+                            state.stack.size,
+                            state.current.folder.id.value,
+                            state.current.viewportGeneration,
+                            headers.itemCount,
+                        ) {
                             MobileFilesList(
                                 content = content,
+                                headers = headers,
+                                onPlayEntry = { onPlayMedia(it.toFilesItem()) },
                                 revealItemId = state.current.revealItemId,
                                 pagingEnabled = operation == FilesFolderOperation.Idle,
                                 onEvent = onEvent,
@@ -434,6 +464,7 @@ private fun MobileEmptyFilesContent(
     paging: FilesPaging,
     pagingEnabled: Boolean,
     onEvent: (FilesBrowserEvent) -> Unit,
+    onNewFolder: (() -> Unit)?,
 ) {
     LoadNextPageNow(
         nextPage = (paging as? FilesPaging.Available)?.takeIf { pagingEnabled },
@@ -451,13 +482,12 @@ private fun MobileEmptyFilesContent(
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState()),
             ) {
-                MobileEmptyState(
-                    title = stringResource(R.string.mobile_state_empty_title),
-                    message = stringResource(R.string.mobile_state_empty_message),
+                MobileFilesEmptyState(
                     glyph = PutioEmptyGlyph.EmptyFolder,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = viewportHeight),
+                    headline = stringResource(R.string.mobile_files_empty_title),
+                    message = stringResource(R.string.mobile_files_empty_message),
+                    modifier = Modifier.heightIn(min = viewportHeight),
+                    action = onNewFolder?.let { create -> { MobileNewFolderButton(onClick = create) } },
                 )
             }
         }
@@ -614,6 +644,8 @@ private fun MobileFilesDeleteStatus(outcome: FilesDeleteOutcome) {
 @Composable
 private fun MobileFilesList(
     content: FilesContent.Ready,
+    headers: MobileFilesHeaders,
+    onPlayEntry: (ContinueWatchingEntry) -> Unit,
     revealItemId: FilesItemId?,
     pagingEnabled: Boolean,
     onEvent: (FilesBrowserEvent) -> Unit,
@@ -627,10 +659,15 @@ private fun MobileFilesList(
     onDragStarted: () -> Unit,
 ) {
     val viewport = content.viewport
+    // The viewport counts rows; headers sit above them and show again when the list is back at its top.
+    val headerCount = headers.itemCount
+    // A revealed row, the first included, scrolls past the headers to sit at the top.
+    val atTop = viewport == FilesViewportPosition() && revealItemId == null
     val listState = rememberLazyListState(
-        initialFirstVisibleItemIndex = viewport.firstVisibleItemIndex,
+        initialFirstVisibleItemIndex = if (atTop) 0 else viewport.firstVisibleItemIndex + headerCount,
         initialFirstVisibleItemScrollOffset = viewport.firstVisibleItemScrollOffset,
     )
+    val currentHeaderCount by rememberUpdatedState(headerCount)
     val keyboardFocus = rememberFilesKeyboardFocus(content.items, viewport.firstVisibleItemIndex)
     val currentOnEvent by rememberUpdatedState(onEvent)
     val pendingItemId = operation.pendingItemId()
@@ -643,9 +680,10 @@ private fun MobileFilesList(
             if (listState.isScrollInProgress) {
                 null
             } else {
+                val index = listState.firstVisibleItemIndex - currentHeaderCount
                 FilesViewportPosition(
-                    firstVisibleItemIndex = listState.firstVisibleItemIndex,
-                    firstVisibleItemScrollOffset = listState.firstVisibleItemScrollOffset,
+                    firstVisibleItemIndex = index.coerceAtLeast(0),
+                    firstVisibleItemScrollOffset = if (index < 0) 0 else listState.firstVisibleItemScrollOffset,
                 )
             }
         }
@@ -667,6 +705,7 @@ private fun MobileFilesList(
             .fillMaxSize()
             .testTag(MOBILE_FILES_LIST_TAG),
     ) {
+        mobileFilesHeaderItems(headers, onPlayEntry)
         itemsIndexed(
             items = content.items,
             key = { _, item -> item.id.value },
@@ -835,177 +874,6 @@ private fun FilesFolderOperation.pendingItemId(): FilesItemId? {
 }
 
 @Composable
-internal fun MobileFilesRow(
-    item: FilesItem,
-    modifier: Modifier = Modifier,
-    onClick: (() -> Unit)? = null,
-    onClickLabel: String? = null,
-    onActions: (() -> Unit)? = null,
-    actionsEnabled: Boolean = true,
-    downloadStatus: DownloadStatus? = null,
-    /** The file an outside open came for; it has no screen of its own, so its row stands out. */
-    highlighted: Boolean = false,
-) {
-    val metadata = formatFilesItemMetadata(LocalContext.current, item)
-    val actionsLabel = stringResource(R.string.mobile_files_actions, item.name)
-    // Touch never focuses a row; a keyboard-focused one is outlined so it reads at a glance.
-    var focused by remember { mutableStateOf(false) }
-    val outline = MaterialTheme.colorScheme.primary
-    val interaction = if (onActions != null && actionsEnabled) {
-        Modifier.combinedClickable(
-            onClickLabel = onClickLabel,
-            role = Role.Button,
-            onClick = onClick ?: onActions,
-            onLongClickLabel = actionsLabel,
-            onLongClick = onActions,
-        )
-    } else if (onClick != null) {
-        Modifier.clickable(
-            onClickLabel = onClickLabel,
-            role = Role.Button,
-            onClick = onClick,
-        )
-    } else {
-        Modifier
-    }
-
-    ListItem(
-        headlineContent = {
-            Text(
-                text = item.name,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-        },
-        modifier = modifier
-            // A playable row is the player's starting bounds.
-            .playbackContainer(item.id.value, playable = item.isPlayable)
-            .fillMaxWidth()
-            .onFocusChanged { focused = it.isFocused }
-            .focusOutline(focused, outline)
-            .then(interaction)
-            .semantics { if (highlighted) selected = true },
-        colors = if (highlighted) {
-            ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
-        } else {
-            ListItemDefaults.colors()
-        },
-        supportingContent = if (metadata == null && item.playback?.isWatched != true && downloadStatus == null) {
-            null
-        } else {
-            {
-                Column(verticalArrangement = Arrangement.spacedBy(FILES_PROGRESS_SPACING)) {
-                    metadata?.let { value ->
-                        Text(
-                            text = value,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    downloadStatus?.let { MobileFilesDownloadIndicator(it) }
-                    item.playback?.takeIf { it.isWatched }?.let { MobileFilesWatchedIndicator(it) }
-                }
-            }
-        },
-        leadingContent = {
-            Box(
-                modifier = Modifier.size(FILES_ICON_CONTAINER_SIZE),
-                contentAlignment = Alignment.Center,
-            ) {
-                FileTypeIcon(
-                    type = item.type,
-                    modifier = Modifier.size(FILES_ICON_SIZE),
-                )
-            }
-        },
-        trailingContent = onActions?.let { action ->
-            {
-                IconButton(onClick = action, enabled = actionsEnabled) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_ph_dots_three_vertical),
-                        contentDescription = actionsLabel,
-                    )
-                }
-            }
-        },
-    )
-}
-
-// One line under the metadata: the row reads as name, metadata, then device state.
-@Composable
-private fun MobileFilesDownloadIndicator(status: DownloadStatus) {
-    val label = when (status) {
-        is DownloadStatus.Completed -> stringResource(R.string.mobile_files_downloaded)
-        is DownloadStatus.Failed -> stringResource(R.string.mobile_files_download_failed)
-        DownloadStatus.Missing -> stringResource(R.string.mobile_files_download_missing)
-        is DownloadStatus.Paused -> stringResource(
-            when (status.reason) {
-                DownloadPauseReason.NETWORK -> R.string.mobile_files_download_waiting
-                DownloadPauseReason.STORAGE -> R.string.mobile_files_download_waiting_storage
-                DownloadPauseReason.USER -> R.string.mobile_files_download_paused
-            },
-        )
-        DownloadStatus.Queued, is DownloadStatus.Downloading -> stringResource(R.string.mobile_files_downloading)
-    }
-    Row(
-        modifier = Modifier.fillMaxWidth().testTag(MOBILE_FILES_DOWNLOAD_TAG),
-        horizontalArrangement = Arrangement.spacedBy(FILES_PROGRESS_SPACING),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            painter = painterResource(
-                if (status is DownloadStatus.Completed) R.drawable.ic_ph_check else R.drawable.ic_ph_download_simple,
-            ),
-            contentDescription = null,
-            modifier = Modifier.size(FILES_BADGE_ICON_SIZE),
-            tint = if (status is DownloadStatus.Failed || status == DownloadStatus.Missing) {
-                PutioDesignTokens.redTextSecondary
-            } else {
-                MaterialTheme.colorScheme.primary
-            },
-        )
-        Text(label, style = MaterialTheme.typography.labelMedium)
-    }
-}
-
-// Known duration draws a determinate bar; an unknown duration still marks the row watched.
-// The bar is decorative: the label text is the accessible content and merges into the row
-// node, so TalkBack reads name, metadata, and watched state as one item.
-@Composable
-private fun MobileFilesWatchedIndicator(progress: FilesPlaybackProgress) {
-    val fraction = progress.fraction
-    val label = if (fraction == null) {
-        stringResource(R.string.mobile_files_watched)
-    } else {
-        stringResource(R.string.mobile_files_watched_percent, (fraction * PERCENT_SCALE).roundToInt())
-    }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .testTag(MOBILE_FILES_WATCHED_TAG),
-        horizontalArrangement = Arrangement.spacedBy(FILES_PROGRESS_SPACING),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (fraction != null) {
-            LinearProgressIndicator(
-                progress = { fraction },
-                modifier = Modifier
-                    .weight(1f)
-                    .heightIn(max = FILES_PROGRESS_HEIGHT)
-                    .clearAndSetSemantics {},
-                drawStopIndicator = {},
-            )
-        }
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.primary,
-            maxLines = 1,
-        )
-    }
-}
-
-@Composable
 private fun MobileFilesPaging(
     paging: FilesPaging,
     enabled: Boolean,
@@ -1067,37 +935,6 @@ private fun MobileFilesPaging(
     }
 }
 
-private fun Modifier.focusOutline(focused: Boolean, color: Color): Modifier =
-    if (focused) border(FILES_FOCUS_OUTLINE, color) else this
-
-private fun formatFilesItemMetadata(
-    context: Context,
-    item: FilesItem,
-): String? {
-    val date = item.createdAt.toDisplayDate(context)
-    if (item.isFolder) {
-        return date
-    }
-
-    val size = Formatter.formatShortFileSize(context, item.sizeBytes.coerceAtLeast(0L))
-    return if (date == null) {
-        size
-    } else {
-        context.getString(R.string.mobile_files_metadata_size_date, size, date)
-    }
-}
-
-private fun String.toDisplayDate(context: Context): String? =
-    parsePutioTimestamp(this)
-        ?.toEpochMilli()
-        ?.let { timestamp ->
-            DateUtils.formatDateTime(
-                context,
-                timestamp,
-                DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_ABBREV_MONTH or DateUtils.FORMAT_SHOW_YEAR,
-            )
-        }
-
 /** put.io's reason for a refused request, else this failure's copy. */
 @Composable
 internal fun FilesFailure.mobileMessage(): String =
@@ -1120,10 +957,3 @@ internal fun FilesFailure.mobileMessageResource(): Int =
     }
 
 private const val FILES_PAGING_ITEM_KEY = "files-paging"
-private val FILES_ICON_CONTAINER_SIZE = 40.dp
-private val FILES_ICON_SIZE = 24.dp
-private val FILES_PROGRESS_SPACING = 6.dp
-private val FILES_PROGRESS_HEIGHT = 4.dp
-private val FILES_BADGE_ICON_SIZE = 16.dp
-private val FILES_FOCUS_OUTLINE = 2.dp
-private const val PERCENT_SCALE = 100f

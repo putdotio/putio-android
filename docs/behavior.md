@@ -282,6 +282,54 @@ Tests: `FilesDeleteReducerTest`, `SdkFilesDeleteRepositoryTest`,
 `MobileSearchScreensTest`, `MobileFilesMoveTest`, `TvFilesScreenTest`,
 `TvFilesPagingTest`, `TvFilesRowActionsTest`.
 
+## Files root and folders
+
+Mobile only. A file row is 64dp tall at the default text size and grows with
+larger text. It marks a played file with one eye glyph, started or
+finished alike (`start_from` above 0), and a finished download with the
+on-device glyph; it shows no progress. Its name is cut in the middle to fit
+one line with the shared `MobileMiddleCutText`, keeping its last 11
+characters; screen readers get the full name. Sizes use decimal units with one
+decimal below 100 ("3.2 GB", "19.4 GB", "31 MB").
+
+A folder's first page asks put.io for the total, so the line under its bar
+gives the whole folder's item count and size (the folder's own `size`), not
+the loaded rows'. Later pages keep that count; a refresh or a reload after a
+change reads it again. Search from a folder's bar sends the query as
+`<term> in:<folderId>`, so it covers the whole folder; recent searches keep
+the bare term. Leaving that scope, or entering another, clears the query. The
+root's search pill searches the whole account.
+
+New folder, in the bar's overflow and the empty-folder state, creates the
+folder with the trimmed name through the SDK's `createFolder`, then reloads the
+folder it was made in, or marks it stale while another operation holds it.
+put.io's refusal (a duplicate, a slash) shows under the field, and the dialog
+stays open. Shared folders, which take no new items, don't offer it.
+
+**Continue watching.** put.io keeps a position per file but has no list of
+started videos, so the root's row lists videos played on this device. A video
+joins once the player knows its duration and put.io accepts a position for
+it, and leaves when put.io accepts 0 or a position within 5 % or 10 s of the
+end, the bounds TV's Watch Next uses. The row keeps the 10 most recent, per
+user, in private storage that sign-out clears. Once per session, the app
+reads each entry's file: a 404 removes it, a position saved elsewhere moves
+or removes it, other failures keep it, and a 401 rejects the session. A
+delete Files confirms removes the entry too. A card plays the video, which
+offers to resume.
+
+**Offline.** When a folder can't load because the network is down, it shows
+`(x_x)` "Can't reach put.io." with Try now. It retries by itself 30 s after
+each failure, and at once when a missing or unvalidated network validates. At
+the root, finished downloads list above it under "Offline. Showing what's on
+this device." and play from the device; they stay while a retry runs. A
+refresh or a page that fails after the folder loaded keeps the rows and offers
+Retry on its line.
+
+Tests: `FilesBrowserReducerTest`, `SdkFilesRepositoryTest`,
+`SearchControllerTest`, `MobileContinueWatchingTest`,
+`MobileContinueWatchingStoreTest`, `MobileMiddleCutTextTest`, `MobileFileSizeTest`,
+`MobileFilesScreenTest`, `MobileFilesBarsTest`, `MobileShellTest`.
+
 ## Trash
 
 Every Trash action confirms, submits exactly once, then verifies with one fresh
@@ -322,7 +370,7 @@ continues from its saved position without asking, as iOS does. A saved position
 within 10 seconds of the known duration counts as finished (iOS main's
 threshold): the video or audio starts from the beginning without asking, on
 both surfaces and for autoplay. The server keeps that position, so the file
-still reads as watched with its progress bar. The duration comes from the
+still reads as watched. The duration comes from the
 listing. When a video with a saved position opens without one (search, History,
 product links, a row without `video_metadata`), resolution lists the file to
 read it and keeps a duration it finds for the prompt and later retries. A

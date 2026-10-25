@@ -90,6 +90,32 @@ public class SearchController internal constructor(
         return true
     }
 
+    /**
+     * The folder searches stay inside, or null for the whole account. A new scope starts over
+     * from an empty query, so results never mix scopes; a closed controller ignores it.
+     */
+    public var scope: SearchScope?
+        get() = state.value.scope
+        set(value) {
+            val previousJob = synchronized(lock) {
+                if (closed || mutableState.value.scope == value) {
+                    null
+                } else {
+                    val running = activeJob
+                    activeJob = null
+                    mutableState.value =
+                        mutableState.value.copy(
+                            query = "",
+                            content = SearchContent.Idle,
+                            consumedCursors = emptySet(),
+                            scope = value,
+                        )
+                    running
+                }
+            }
+            previousJob?.cancel()
+        }
+
     public fun submit(): Boolean {
         val term: SearchTerm
         val requestId: SearchRequestId
@@ -224,7 +250,9 @@ public class SearchController internal constructor(
                 // A pause while typing is not a search anyone chose; only submit and open record.
                 if (!committed) return@launch
             }
-            val result = safely { repository.search(term) }
+            // Recent searches keep the bare term; only the request carries the scope.
+            val scope = synchronized(lock) { mutableState.value.scope }
+            val result = safely { repository.search(term.within(scope)) }
             applyInitialResult(lock, mutableState, term, requestId, result)
         }
     }

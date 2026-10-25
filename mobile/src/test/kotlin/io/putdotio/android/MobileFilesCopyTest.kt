@@ -94,7 +94,7 @@ class MobileFilesCopyTest {
         compose.onNodeWithTag(MOBILE_FILES_MOVE_CANCEL_TAG).performClick()
         compose.onNodeWithTag(MOBILE_FILES_MOVE_PICKER_TAG).assertDoesNotExist()
 
-        compose.onNodeWithContentDescription("Actions for ${sharedFolder.name}").performClick()
+        compose.openRowActions(sharedFolder.name)
         compose.onNodeWithTag(MOBILE_FILES_COPY_ACTION_TAG).performClick()
         compose.onNode(hasText(sharedFolder.name) and hasAnyAncestor(hasTestTag(MOBILE_FILES_MOVE_PICKER_TAG)))
             .assertIsDisplayed()
@@ -245,7 +245,7 @@ class MobileFilesCopyTest {
             PutioTheme { MobileFilesScreen(running, onEvent = {}, onPlayMedia = {}, onCopyItem = {}) }
         }
 
-        compose.onNodeWithContentDescription("Actions for ${sharedFolder.name}").performClick()
+        compose.openRowActions(sharedFolder.name)
         compose.onNodeWithTag(MOBILE_FILES_COPY_ACTION_TAG).assertIsNotEnabled()
     }
 

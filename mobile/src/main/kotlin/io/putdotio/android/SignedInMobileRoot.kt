@@ -25,7 +25,10 @@ import io.putdotio.android.downloads.OfflinePositionsResume
 import io.putdotio.android.downloads.OfflineResume
 import io.putdotio.android.files.FilesBrowserController
 import io.putdotio.android.files.FilesBrowserEvent
+import io.putdotio.android.files.FilesDeleteStatus
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.files.MobileContinueWatching
+import io.putdotio.android.files.MobileContinueWatchingStore
 import io.putdotio.android.files.MobileFilesViewModel
 import io.putdotio.android.files.SdkFilesRepository
 import io.putdotio.android.files.authoritativeSessionFailure
@@ -77,6 +80,8 @@ import io.putdotio.android.widgets.MobileWidgets
 import io.putdotio.sdk.files.PutioCredentialUrl
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -166,6 +171,11 @@ internal fun SignedInMobileRoot(
         remember(publicLinksViewModel, publicLinksRepository, account.userId, sessionId) {
             publicLinksViewModel?.controllerFor(account.userId, sessionId, publicLinksRepository)
         }
+    val continueWatching = remember(filesViewModel, downloadsContext, account.userId, sessionId) {
+        filesViewModel.continueWatchingFor(account.userId, sessionId) {
+            MobileContinueWatchingStore(downloadsContext, account.userId)
+        }
+    }
     // Each view model hands out null once its session is no longer current.
     val controllersReady = trashController != null && filesController != null &&
         accountSettingsController != null && appConfigController != null &&
@@ -193,6 +203,7 @@ internal fun SignedInMobileRoot(
         nowPlayingRequests = nowPlayingRequests,
         deepLinkRequests = deepLinkRequests,
         transferDraft = transferDraft,
+        continueWatching = continueWatching,
     )
 }
 
@@ -216,6 +227,7 @@ private fun SignedInMobileSession(
     nowPlayingRequests: NowPlayingRequests,
     deepLinkRequests: MobileDeepLinkRequests,
     transferDraft: MobileTransferDraft,
+    continueWatching: MobileContinueWatching?,
 ) {
     val account = signedIn.account
     val sessionId = signedIn.sessionId
@@ -245,13 +257,7 @@ private fun SignedInMobileSession(
     val reportingPlayerFactory = remember(runtime, sessionId, accountSettingsController, playbackPlayerFactory) {
         runtime.playbackReporting.factoryFor(sessionId, accountSettingsController.state, playbackPlayerFactory)
     }
-    LaunchedEffect(runtime, filesController) {
-        runtime.playbackReporting.savedPositions.collect { saved ->
-            filesController.dispatch(
-                FilesBrowserEvent.PlaybackPositionReported(FilesItemId(saved.fileId), saved.seconds),
-            )
-        }
-    }
+    SavedPositionEffects(runtime, filesController, filesRepository, continueWatching, authController)
     val trashState by trashController.state.collectAsStateWithLifecycle()
     val filesState by filesController.state.collectAsStateWithLifecycle()
     val accountSettingsState by accountSettingsController.state.collectAsStateWithLifecycle()
@@ -317,6 +323,8 @@ private fun SignedInMobileSession(
         },
         downloadsController = downloadsController,
         publicLinksController = publicLinksController,
+        folderCreator = filesRepository,
+        continueWatching = continueWatching,
         sessionId = sessionId,
         onFilesEvent = filesController::dispatch,
         onAccountSettingsEvent = accountSettingsController::dispatch,
@@ -347,6 +355,7 @@ private fun SignedInMobileSession(
                 onRecentEdit = { searchHistorySession.search.editRecentSearches(it) },
                 onRecentRetry = searchHistorySession::retryRecentSearches,
                 onHistoryEvent = { searchHistorySession.history.dispatch(it) },
+                onScopeChanged = { searchHistorySession.search.scope = it },
             ),
         onTransfersEvent = transfersController::dispatch,
         resolveTransferFile = { fileId -> filesRepository.resolveItem(FilesItemId(fileId.value)) },
@@ -359,6 +368,44 @@ private fun SignedInMobileSession(
             rootScope.launch { authController.logout() }
         },
     )
+}
+
+/**
+ * Positions put.io accepted update the cached Files rows and Continue watching, whose entries are
+ * read again once per session. A 401 from that read is as authoritative as one from Files.
+ */
+@Composable
+private fun SavedPositionEffects(
+    runtime: MobileOAuthRuntime,
+    filesController: FilesBrowserController,
+    filesRepository: SdkFilesRepository,
+    continueWatching: MobileContinueWatching?,
+    authController: MobileAuthController,
+) {
+    LaunchedEffect(runtime, filesController, continueWatching) {
+        runtime.playbackReporting.savedPositions.collect { saved ->
+            val fileId = FilesItemId(saved.fileId)
+            filesController.dispatch(FilesBrowserEvent.PlaybackPositionReported(fileId, saved.seconds))
+            continueWatching?.positionSaved(fileId, saved.seconds)
+        }
+    }
+    LaunchedEffect(continueWatching, filesRepository) {
+        if (continueWatching?.reconcile(filesRepository::resolveItem) != null) {
+            authController.rejectAuthoritativeSession()
+        }
+    }
+    // A delete the fresh read confirmed takes the video out of Continue watching too.
+    LaunchedEffect(filesController, continueWatching) {
+        val row = continueWatching ?: return@LaunchedEffect
+        filesController.state
+            .map { state ->
+                state.stack.mapNotNull { folder ->
+                    folder.deleteOutcome?.takeIf { it.status == FilesDeleteStatus.NO_LONGER_AVAILABLE }?.intent?.itemId
+                }
+            }
+            .distinctUntilChanged()
+            .collect { gone -> gone.forEach(row::removed) }
+    }
 }
 
 /** Offline playback falls back to the resume setting this device last confirmed. */

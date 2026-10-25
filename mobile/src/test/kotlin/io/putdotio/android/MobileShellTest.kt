@@ -939,36 +939,50 @@ class MobileShellFilesTest {
                 ),
             )
             .performClick()
-        val sortOptions = listOf(
-            "Name, A–Z",
-            "Name, Z–A",
-            "Size, smallest first",
-            "Size, largest first",
-            "Date added, oldest first",
-            "Date added, newest first",
-            "Date modified, oldest first",
-            "Date modified, newest first",
-            "Type, A–Z",
-            "Type, Z–A",
-            "Unwatched first",
-            "Watched first",
+        // Three labelled groups; the field and the order each carry a check.
+        listOf("Sort by", "Order", "Videos").forEach { compose.onNodeWithText(it).assertExists() }
+        val options = listOf(
+            "Name", "Size", "Date added", "Date modified", "Type",
+            "A to Z", "Z to A",
+            "Unwatched first", "Watched first",
         )
-        sortOptions.forEachIndexed { index, label ->
+        options.forEach { label ->
             val option = compose.onNodeWithText(label)
                 .assertExists()
                 .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.RadioButton))
-            if (index == 0) {
-                option.assertIsSelected()
-            } else {
-                option.assertIsNotSelected()
-            }
+            if (label == "Name" || label == "A to Z") option.assertIsSelected() else option.assertIsNotSelected()
         }
-        compose.onNodeWithText("Size, largest first").performClick()
-
-        assertEquals(FilesBrowserEvent.SelectSort(FilesSort.SIZE_DESCENDING), events.last())
+        // A field keeps the order; the order's words follow the field.
+        val choose = { label: String ->
+            // The menu scrolls on the test's small screen.
+            compose.onNodeWithText(label).performScrollTo().performClick()
+            compose.waitUntil(5_000L) { compose.onAllNodesWithText("Sort by").fetchSemanticsNodes().isEmpty() }
+        }
+        choose("Size")
+        assertEquals(FilesBrowserEvent.SelectSort(FilesSort.SIZE_ASCENDING), events.last())
+        compose.onNodeWithTag(MOBILE_FILES_SORT_TAG).performClick()
+        choose("Z to A")
+        assertEquals(FilesBrowserEvent.SelectSort(FilesSort.NAME_DESCENDING), events.last())
+        compose.onNodeWithTag(MOBILE_FILES_SORT_TAG).performClick()
+        choose("Watched first")
+        assertEquals(FilesBrowserEvent.SelectSort(FilesSort.WATCH_STATUS_DESCENDING), events.last())
 
         compose.onNodeWithText("Transfers").performClick()
         compose.onAllNodesWithTag(MOBILE_FILES_SORT_TAG).assertCountEquals(0)
+    }
+
+    @Test
+    fun theOrderWordsFollowTheFieldAndKeepIt() {
+        val events = mutableListOf<FilesBrowserEvent>()
+        compose.setShell(filesState = readyFilesState(FilesSort.SIZE_ASCENDING), onFilesEvent = events::add)
+
+        compose.onNodeWithTag(MOBILE_FILES_SORT_TAG).performClick()
+        compose.onNodeWithText("Size").assertIsSelected()
+        compose.onNodeWithText("Smallest first").assertIsSelected()
+        compose.onAllNodesWithText("A to Z").assertCountEquals(0)
+        compose.onNodeWithText("Largest first").performScrollTo().performClick()
+
+        assertEquals(FilesBrowserEvent.SelectSort(FilesSort.SIZE_DESCENDING), events.last())
     }
 
     @Test
@@ -987,7 +1001,7 @@ class MobileShellFilesTest {
         compose.setShell(filesState = failed, onFilesEvent = events::add)
 
         compose.onNodeWithTag(MOBILE_FILES_SORT_TAG).assertIsEnabled().performClick()
-        compose.onNodeWithText("Name, A–Z").assertIsSelected().performClick()
+        compose.onNodeWithText("A to Z").assertIsSelected().performClick()
 
         assertEquals(FilesBrowserEvent.SelectSort(FilesSort.NAME_ASCENDING), events.last())
     }
@@ -1015,7 +1029,7 @@ class MobileShellFilesTest {
         }
 
         compose.onNodeWithTag(MOBILE_FILES_SORT_TAG).performClick()
-        compose.onNodeWithText("Size, largest first").assertIsDisplayed()
+        compose.onNodeWithText("Date modified").assertIsDisplayed()
 
         compose.runOnIdle {
             filesState = filesState.copyForTest(
@@ -1029,7 +1043,7 @@ class MobileShellFilesTest {
             )
         }
 
-        compose.onAllNodesWithText("Size, largest first").assertCountEquals(0)
+        compose.onAllNodesWithText("Date modified").assertCountEquals(0)
         compose.onNodeWithTag(MOBILE_FILES_SORT_TAG).assertIsNotEnabled()
         assertTrue(events.isEmpty())
     }

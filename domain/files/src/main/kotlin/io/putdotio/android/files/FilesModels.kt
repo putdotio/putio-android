@@ -74,7 +74,26 @@ public data class FilesPage(
     val sort: FilesSort? = null,
     /** The listed item itself; for a media file, the only read that carries its duration. */
     val parent: FilesItem? = null,
+    /** How many items the whole folder holds; only a first page carries it. */
+    val total: Int? = null,
 )
+
+/** What put.io reports about a folder with its first page: its item count, total size and ownership. */
+public data class FilesFolderSummary(
+    val itemCount: Int,
+    val sizeBytes: Long?,
+    /** False for shared folders, which take no new items from the viewer, and when the page names no parent. */
+    val acceptsNewItems: Boolean = true,
+)
+
+internal fun FilesPage.summary(): FilesFolderSummary? =
+    total?.takeIf { it >= 0 }?.let { count ->
+        FilesFolderSummary(
+            itemCount = count,
+            sizeBytes = parent?.sizeBytes?.takeIf { it >= 0L },
+            acceptsNewItems = parent?.acceptsOwnerActions ?: false,
+        )
+    }
 
 /** Where an item opened from outside the Files browser came from; Back from its folder returns there. */
 public enum class FilesOpenOrigin {

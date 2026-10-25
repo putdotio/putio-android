@@ -115,7 +115,7 @@ class MobileFilesRenameTest {
     }
 
     private fun saveRenameAndStartReload(flow: RenameFlow): FilesRequestId {
-        compose.onNodeWithContentDescription("Actions for old.mkv").performClick()
+        compose.openRowActions("old.mkv")
         compose.onNodeWithText("Rename").assertIsButton().performClick()
         compose.onNodeWithTag(MOBILE_FILES_RENAME_FIELD_TAG).performTextReplacement("saved.mkv")
         compose.onNodeWithText("Save").performClick()

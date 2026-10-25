@@ -87,7 +87,7 @@ class MobilePublicLinksTest {
         compose.onNodeWithText("Download to this device").performClick()
         compose.onNodeWithContentDescription("Actions for ${sharedRoot.name}").assertDoesNotExist()
 
-        compose.onNodeWithContentDescription("Actions for ${folder.name}").performClick()
+        compose.openRowActions(folder.name)
         compose.onNodeWithTag(MOBILE_FILES_PUBLIC_LINK_ACTION_TAG).performClick()
         compose.onNode(hasText(folder.name) and hasAnyAncestorTag(MOBILE_PUBLIC_LINK_SHEET_TAG)).assertIsDisplayed()
     }

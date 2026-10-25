@@ -595,6 +595,44 @@ class FilesBrowserReducerTest {
         assertEquals(listOf(0L, 7L, 8L, 7L, 8L), reopened.state.path.map { it.id.value })
     }
 
+    @Test
+    fun folderSummaryComesFromFirstPagesAndSurvivesLaterPages() {
+        val shows = item(id = 7L, name = "Shows", type = PutioFileType.FOLDER)
+        val parent = shows.copy(sizeBytes = 19_400_000_000L)
+        val episode = item(8L, "episode.mkv", PutioFileType.VIDEO)
+        val opened = FilesBrowserReducer.reduce(
+            loadedRoot(listOf(shows), null),
+            FilesBrowserEvent.OpenFolder(shows.id),
+        )
+        val request = (opened.effect as FilesBrowserEffect.LoadFolder).requestId
+        val firstPage = FilesPage(listOf(episode), FilesCursor("next"), parent = parent, total = 6)
+        val loaded = FilesBrowserReducer.reduce(
+            opened.state,
+            FilesBrowserEvent.LoadSucceeded(request, firstPage),
+        ).state
+        assertEquals(FilesFolderSummary(6, 19_400_000_000L), loaded.current.summary)
+
+        // A continuation carries no total; the first page's count stays.
+        val paging = FilesBrowserReducer.reduce(loaded, FilesBrowserEvent.LoadNextPage)
+        val pageRequest = (paging.effect as FilesBrowserEffect.LoadNextPage).requestId
+        val nextPage = FilesPage(listOf(item(9L, "episode2.mkv", PutioFileType.VIDEO)), null)
+        val paged = FilesBrowserReducer.reduce(
+            paging.state,
+            FilesBrowserEvent.LoadSucceeded(pageRequest, nextPage),
+        ).state
+        assertEquals(FilesFolderSummary(6, 19_400_000_000L), paged.current.summary)
+
+        // A refresh reads the first page again and takes its count.
+        val refreshing = FilesBrowserReducer.reduce(paged, FilesBrowserEvent.Refresh)
+        val refreshRequest = (refreshing.effect as FilesBrowserEffect.LoadFolder).requestId
+        val smaller = firstPage.copy(total = 5, parent = parent.copy(sizeBytes = 1L))
+        val refreshed = FilesBrowserReducer.reduce(
+            refreshing.state,
+            FilesBrowserEvent.LoadSucceeded(refreshRequest, smaller),
+        ).state
+        assertEquals(FilesFolderSummary(5, 1L), refreshed.current.summary)
+    }
+
     private fun opened(state: FilesBrowserState, event: FilesBrowserEvent): FilesBrowserState {
         val transition = FilesBrowserReducer.reduce(state, event)
         assertTrue(transition.consumed)

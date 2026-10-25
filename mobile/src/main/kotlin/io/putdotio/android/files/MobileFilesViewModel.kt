@@ -22,6 +22,14 @@ internal class MobileFilesViewModel(
         close = FilesBrowserController::close,
     )
 
+    // Lives with the session, not the screen, so a rotation does not read every entry again.
+    private val continueWatching = SessionScopedHolder<MobileAuthState, MobileSessionKey, MobileContinueWatching>(
+        authState = authState,
+        keyOf = MobileAuthState::sessionKey,
+        scope = viewModelScope,
+        close = MobileContinueWatching::close,
+    )
+
     fun controllerFor(
         userId: Long,
         sessionId: MobileAuthSessionId,
@@ -31,8 +39,16 @@ internal class MobileFilesViewModel(
             FilesBrowserController(repository, viewModelScope)
         }
 
+    fun continueWatchingFor(
+        userId: Long,
+        sessionId: MobileAuthSessionId,
+        store: () -> ContinueWatchingStore,
+    ): MobileContinueWatching? =
+        continueWatching.valueFor(MobileSessionKey(userId, sessionId)) { MobileContinueWatching(store()) }
+
     override fun onCleared() {
         session.clear()
+        continueWatching.clear()
     }
 }
 

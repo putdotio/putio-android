@@ -127,6 +127,8 @@ public data class FilesFolderState(
     internal val revealSearch: FilesRevealSearch? = null,
     // Cleared when a full read starts so later invalidations survive that read's result.
     val needsReload: Boolean = false,
+    /** The folder's count and size from its latest first page; null until one has loaded. */
+    val summary: FilesFolderSummary? = null,
     internal val consumedCursors: Set<FilesCursor> = emptySet(),
 )
 

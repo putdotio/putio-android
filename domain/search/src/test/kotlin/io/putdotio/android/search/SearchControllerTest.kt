@@ -237,6 +237,38 @@ class SearchControllerTest {
             }
         }
 
+    @Test
+    fun folderScopeTravelsInTheQueryButRecentSearchesKeepTheBareTerm() =
+        runBlocking<Unit> {
+            val queried = mutableListOf<SearchTerm>()
+            val store = FakeRecentSearchStore()
+            val repository = repository { term ->
+                queried += term
+                success(item(1L, "S04E01.mkv"))
+            }
+            val controller = controller(repository, store)
+
+            controller.use {
+                controller.scope = SearchScope(FilesItemId(42L), "Blue Lights")
+                controller.updateQuery("S04")
+                assertTrue(controller.submit())
+                controller.awaitContent<SearchContent.Ready>()
+
+                assertEquals(SearchTerm("S04 in:42"), queried.last())
+                assertEquals(listOf(SearchTerm("S04")), store.recorded)
+                assertEquals(SearchTerm("S04"), (controller.state.value.content as SearchContent.Ready).term)
+
+                // Leaving the folder's scope starts over, so results never mix scopes.
+                controller.scope = null
+                assertEquals("", controller.state.value.query)
+                assertTrue(controller.state.value.content is SearchContent.Idle)
+                controller.updateQuery("S04")
+                assertTrue(controller.submit())
+                controller.awaitContent<SearchContent.Ready>()
+                assertEquals(SearchTerm("S04"), queried.last())
+            }
+        }
+
     private fun CoroutineScope.controller(
         repository: SearchRepository,
         store: RecentSearchStore = FakeRecentSearchStore(),

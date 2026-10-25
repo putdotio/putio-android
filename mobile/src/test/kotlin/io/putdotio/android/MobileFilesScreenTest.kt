@@ -72,8 +72,15 @@ import io.putdotio.android.files.MOBILE_FILES_REFRESH_TAG
 import io.putdotio.android.files.MOBILE_FILES_RENAME_FIELD_TAG
 import io.putdotio.android.files.MOBILE_FILES_SHARE_ACTION_TAG
 import io.putdotio.android.files.MOBILE_FILES_WATCHED_TAG
+import io.putdotio.android.files.MOBILE_FILES_DOWNLOAD_TAG
 import io.putdotio.android.files.MobileFilesActions
+import io.putdotio.android.files.MobileFilesRow
 import io.putdotio.android.files.MobileFilesScreen
+import io.putdotio.android.downloads.DownloadStatus
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.unit.dp
 
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -320,12 +327,12 @@ class MobileFilesScreenTest {
             }
         }
 
-        compose.onNodeWithText("Loading").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Loading files").assertIsDisplayed()
 
         compose.runOnIdle {
             state = browserState(FilesContent.Empty(FilesPaging.Complete))
         }
-        compose.onNodeWithText("This folder is empty.").assertIsDisplayed()
+        compose.onNodeWithText("Empty folder.").assertIsDisplayed()
         val emptyRefreshAction = compose.onNodeWithTag(MOBILE_FILES_REFRESH_TAG)
             .fetchSemanticsNode().config[SemanticsActions.CustomActions]
             .single { it.label == "Refresh files" }
@@ -370,16 +377,16 @@ class MobileFilesScreenTest {
 
     @Test
     fun zoneLessCreatedAtStillShowsTheDate() {
-        val file = filesItem(1L, "movie.mkv").copy(createdAt = "2026-04-20T10:00:00")
-        val folder = filesItem(2L, "Shows", PutioFileType.FOLDER).copy(createdAt = "2026-04-21T10:00:00")
+        val file = filesItem(1L, "movie.mkv").copy(createdAt = "2020-04-20T10:00:00")
+        val folder = filesItem(2L, "Shows", PutioFileType.FOLDER).copy(createdAt = "2020-04-21T10:00:00")
         val state = browserState(FilesContent.Ready(listOf(file, folder), FilesPaging.Complete))
         compose.setContent { PutioTheme { MobileFilesScreen(state, onEvent = {}, onPlayMedia = {}) } }
-        compose.onNode(hasText("movie.mkv") and hasText("Apr 20, 2026", substring = true)).assertIsDisplayed()
-        compose.onNode(hasText("Shows") and hasText("Apr 21, 2026", substring = true)).assertIsDisplayed()
+        compose.onNode(hasText("movie.mkv") and hasText("Apr 20, 2020")).assertIsDisplayed()
+        compose.onNode(hasText("Shows") and hasText("Apr 21, 2020")).assertIsDisplayed()
     }
 
     @Test
-    fun watchedMediaMergesTheLabelIntoTheRowAndKeepsTheBarDecorative() {
+    fun playedMediaShowsOneEyeGlyphAndNoProgressInTheRow() {
         val partly = filesItem(1L, "partly.mkv", PutioFileType.VIDEO)
             .copy(playback = FilesPlaybackProgress(90.0, 360.0))
         val unknown = filesItem(2L, "unknown.mp3", PutioFileType.AUDIO)
@@ -389,14 +396,34 @@ class MobileFilesScreenTest {
         val state = browserState(FilesContent.Ready(listOf(partly, unknown, fresh, plain), FilesPaging.Complete))
         compose.setContent { PutioTheme { MobileFilesScreen(state, onEvent = {}, onPlayMedia = {}) } }
         compose.onAllNodesWithTag(MOBILE_FILES_WATCHED_TAG, useUnmergedTree = true).assertCountEquals(2)
-        // One merged row node carries name, metadata, and watched label together.
-        compose.onNode(hasText("partly.mkv") and hasText("128 B", substring = true) and hasText("25% watched"))
+        // One merged row node carries the name, the size and the watched glyph's name together.
+        compose.onNode(hasText("partly.mkv") and hasText("128 B") and hasContentDescription("Watched"))
             .assertIsDisplayed()
-        compose.onNode(hasText("unknown.mp3") and hasText("Watched")).assertIsDisplayed()
+        compose.onNode(hasText("unknown.mp3") and hasContentDescription("Watched")).assertIsDisplayed()
         compose.onAllNodes(hasProgressBarRangeInfo(ProgressBarRangeInfo(0.25f, 0f..1f))).assertCountEquals(0)
-        compose.onAllNodesWithText("watched", substring = true, ignoreCase = true).assertCountEquals(2)
-        compose.onNode(hasText("fresh.mkv") and hasText("watched", substring = true, ignoreCase = true))
-            .assertDoesNotExist()
+        compose.onAllNodesWithText("watched", substring = true, ignoreCase = true).assertCountEquals(0)
+        compose.onNode(hasText("fresh.mkv") and hasContentDescription("Watched")).assertDoesNotExist()
+    }
+
+    @Test
+    fun onlyAFinishedDownloadMarksTheRowAndALongNameKeepsItsFullNameForReaders() {
+        val name = "Blue.Lights.S04E01.1080p.HDTV.H264-ORGANiC.Extended.Cut.Remastered.mkv"
+        val file = filesItem(1L, name, PutioFileType.VIDEO)
+        compose.setContent {
+            PutioTheme {
+                androidx.compose.foundation.layout.Column(Modifier.width(320.dp)) {
+                    MobileFilesRow(file, downloadStatus = DownloadStatus.Completed(128L))
+                    MobileFilesRow(
+                        file.copy(id = FilesItemId(2L)),
+                        downloadStatus = DownloadStatus.Downloading(64L, percent = 50f),
+                    )
+                }
+            }
+        }
+        compose.onAllNodesWithTag(MOBILE_FILES_DOWNLOAD_TAG, useUnmergedTree = true).assertCountEquals(1)
+        compose.onAllNodes(hasText(name)).assertCountEquals(2)
+        // Readers get the full name, never the cut line.
+        compose.onAllNodesWithText("…", substring = true).assertCountEquals(0)
     }
 }
 
@@ -640,7 +667,7 @@ class MobileFilesListTest {
             state = browserState(FilesContent.Empty(FilesPaging.Complete))
         }
         val refreshBounds = compose.onNodeWithTag(MOBILE_FILES_REFRESH_TAG).fetchSemanticsNode().boundsInRoot
-        val emptyMessageBounds = compose.onNodeWithText("This folder is empty.").fetchSemanticsNode().boundsInRoot
+        val emptyMessageBounds = compose.onNodeWithText("Empty folder.").fetchSemanticsNode().boundsInRoot
         assertTrue(
             kotlin.math.abs(emptyMessageBounds.center.y - refreshBounds.center.y) < refreshBounds.height / 4f,
         )

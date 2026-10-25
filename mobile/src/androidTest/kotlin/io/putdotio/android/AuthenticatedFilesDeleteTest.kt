@@ -7,7 +7,6 @@ import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.longClick
-import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -98,7 +97,7 @@ class AuthenticatedFilesDeleteTest {
         requireSession(runtime, session)
         openContainer(fixture)
         compose.onNode(row(MOBILE_FILES_LIST_TAG, fixture.actionName)).performClick()
-        waitFor(hasText("This folder is empty."))
+        waitFor(hasText("Empty folder."))
         deleteProofScreenshot("empty")
         compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
         row(MOBILE_FILES_LIST_TAG, fixture.actionName)
@@ -154,9 +153,15 @@ class AuthenticatedFilesDeleteTest {
     }
 
     private fun sortDescending(fixture: DeleteProofFixture, runtime: MobileOAuthRuntime) {
+        // The order words follow the field, so Name goes first; the current sort may be another field.
         compose.onNodeWithTag(MOBILE_FILES_SORT_TAG).performClick()
+        compose.onNodeWithText(compose.activity.getString(R.string.mobile_files_sort_field_name)).performClick()
+        compose.waitUntil(TIMEOUT) {
+            SemanticsProperties.Disabled !in compose.onNodeWithTag(MOBILE_FILES_SORT_TAG).fetchSemanticsNode().config
+        }
+        compose.onNodeWithTag(MOBILE_FILES_SORT_TAG).performClick()
+        compose.onNodeWithText(compose.activity.getString(R.string.mobile_files_sort_z_to_a)).performClick()
         val label = compose.activity.getString(R.string.mobile_files_sort_name_descending)
-        compose.onNodeWithText(label).performClick()
         compose.waitUntil(TIMEOUT) {
             compose.onNodeWithTag(MOBILE_FILES_SORT_TAG).fetchSemanticsNode()
                 .config[SemanticsProperties.StateDescription] == label
@@ -171,10 +176,8 @@ class AuthenticatedFilesDeleteTest {
     }
 
     private fun confirmOrCancel(fixture: DeleteProofFixture, name: String, cancel: Boolean) {
-        if (cancel) compose.onNode(row(MOBILE_FILES_LIST_TAG, name)).performTouchInput { longClick() }
-        else compose.onNodeWithContentDescription(
-            compose.activity.getString(R.string.mobile_files_actions, name),
-        ).performClick()
+        // Folders have no overflow button; a long-press opens the same sheet for any row.
+        compose.onNode(row(MOBILE_FILES_LIST_TAG, name)).performTouchInput { longClick() }
         val action = if (fixture.expectedTrashEnabled) R.string.mobile_files_trash else R.string.mobile_files_delete
         val actionLabel = compose.activity.getString(action)
         waitFor(hasText(actionLabel))

@@ -38,9 +38,10 @@ internal fun FilesBrowserState.listingLoaded(
         folder
     }
     val consumedCursors = if (search == null) emptySet() else folder.consumedCursors + search.cursor
+    val summarized = named.copy(summary = page.summary() ?: named.summary)
     val items = (search?.items.orEmpty() + page.items).distinctBy(FilesItem::id)
     val paging = page.nextCursor.toPaging(consumedCursors)
-    return settleReveal(index, named.copy(consumedCursors = consumedCursors), items, paging)
+    return settleReveal(index, summarized.copy(consumedCursors = consumedCursors), items, paging)
 }
 
 /** A reveal search page failed: the rows read so far show, with a retry for the rest. */

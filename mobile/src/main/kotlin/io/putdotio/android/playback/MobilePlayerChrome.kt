@@ -64,7 +64,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
@@ -77,6 +76,7 @@ import androidx.media3.ui.compose.indicators.ProgressIndicator
 import androidx.media3.common.util.Util
 import androidx.media3.ui.compose.state.rememberPlayPauseButtonState
 import androidx.media3.ui.compose.state.rememberProgressStateWithTickInterval
+import io.putdotio.android.MobileMiddleCutText
 import io.putdotio.android.R
 import io.putdotio.android.design.putioMono
 import io.putdotio.android.design.R as DesignR
@@ -304,14 +304,12 @@ private fun MobileVideoLayout(
     }
 }
 
-/** The filename on one line, cut in the middle so its start and extension stay. */
+/** The filename on one line, cut in the middle as file rows cut it, so its start and extension stay. */
 @Composable
 internal fun MobilePlayerTitle(title: String, modifier: Modifier = Modifier) {
-    Text(
-        title,
+    MobileMiddleCutText(
+        text = title,
         style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
-        maxLines = 1,
-        overflow = TextOverflow.MiddleEllipsis,
         modifier = modifier,
     )
 }

@@ -14,6 +14,7 @@ import io.putdotio.android.downloads.MobileDownloadNotifications
 import io.putdotio.android.downloads.OfflinePlaybackPositions
 import io.putdotio.android.downloads.PositionRemote
 import io.putdotio.android.downloads.downloadPreferences
+import io.putdotio.android.files.MobileContinueWatchingStore
 import io.putdotio.android.files.MobileMoveTargetStore
 import io.putdotio.android.share.MobileFileDrags
 import io.putdotio.android.share.MobileFileShareService
@@ -198,7 +199,7 @@ class MobileOAuthRuntime internal constructor(
                     revoker = PutioAuthTokenRevoker(putioClient.config),
                     scope = applicationScope,
                 ),
-                clearAccountLocalState = { MobileMoveTargetStore.clearAll(context) },
+                clearAccountLocalState = { clearAccountLocalState(context) },
             )
             // Sessions also change without a UI, so the process scope tells diagnostics.
             applicationScope.launch {
@@ -226,6 +227,12 @@ class MobileOAuthRuntime internal constructor(
             ).also { runtime ->
                 syncWhenOnline(context, runtime.keepOfflinePositions(downloadPreferences(context)))
             }
+        }
+
+        /** What sign-out removes from this device for every account: move targets and Continue watching. */
+        private fun clearAccountLocalState(context: Context) {
+            MobileMoveTargetStore.clearAll(context)
+            MobileContinueWatchingStore.clearAll(context)
         }
 
         /** put.io answers again once a validated network returns; positions saved offline go then. */

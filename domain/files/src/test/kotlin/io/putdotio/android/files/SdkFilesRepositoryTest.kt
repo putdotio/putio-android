@@ -261,6 +261,44 @@ class SdkFilesRepositoryTest {
             assertEquals(expected.map { 42L to it.second }, persisted)
         }
 
+    @Test
+    fun firstPageAsksForTheTotalAndCarriesFolderCountAndSize() =
+        runBlocking {
+            var requestedTotal = false
+            val repository = repository(
+                listFolder = { _, query ->
+                    requestedTotal = query.total
+                    response(parent = sdkFile(7L, "Blue Lights", PutioFileType.FOLDER).copy(size = 19_400L))
+                        .copy(total = 6)
+                },
+            )
+
+            val page = (repository.loadFolder(FilesItemId(7L)) as PutioResult.Success).value
+
+            assertTrue(requestedTotal)
+            assertEquals(FilesFolderSummary(6, 19_400L), page.summary())
+        }
+
+    @Test
+    fun createsFolderWithTrimmedNameAndRefusesBlankWithoutARequest() =
+        runBlocking {
+            val created = mutableListOf<Pair<String, Long>>()
+            val repository = folderCreatingRepository(
+                createFolder = { name, parentId ->
+                    created += name to parentId
+                    sdkFile(31L, name, PutioFileType.FOLDER)
+                },
+            )
+
+            val folder = repository.createFolder(FilesItemId(7L), "  Shorts ") as PutioResult.Success
+            val blank = repository.createFolder(FilesItemId(7L), "   ")
+
+            assertEquals(listOf("Shorts" to 7L), created)
+            assertEquals(FilesItemId(31L), folder.value.id)
+            assertTrue(folder.value.isFolder)
+            assertTrue(blank is PutioResult.Failure)
+        }
+
     private fun repository(
         listFolder: suspend (Long, FilesListQuery) -> FilesListResponse = { _, _ -> error("Unexpected folder load") },
         continueListing: suspend (String, FilesContinueQuery) -> FilesListResponse = { _, _ ->
@@ -278,6 +316,19 @@ class SdkFilesRepositoryTest {
             rename = rename,
             delete = { _, _ -> error("Unexpected delete") },
             move = { _, _ -> error("Unexpected move") },
+        ),
+    )
+
+    private fun folderCreatingRepository(createFolder: suspend (String, Long) -> PutioFile) = SdkFilesRepository(
+        listFolder = { _, _ -> error("Unexpected folder load") },
+        continueListing = { _, _ -> error("Unexpected continuation") },
+        setSort = { _, _ -> error("Unexpected sort") },
+        getFile = { error("Unexpected file resolution") },
+        mutations = SdkFilesMutations(
+            rename = { _, _ -> error("Unexpected rename") },
+            delete = { _, _ -> error("Unexpected delete") },
+            move = { _, _ -> error("Unexpected move") },
+            createFolder = createFolder,
         ),
     )
 
