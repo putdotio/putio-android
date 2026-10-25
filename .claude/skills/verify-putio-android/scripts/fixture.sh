@@ -40,10 +40,11 @@ touch "${LEDGER}"
 # One fixture command per run at a time, so two writes cannot both pass the
 # settled check before either records its intent.
 LOCK="${LEDGER}.lock"
-for _ in $(seq 30); do mkdir "${LOCK}" 2>/dev/null && break; sleep 1; done
-[[ -d "${LOCK}" && ! -e "${LOCK}/held" ]] || die "another fixture.sh holds ${LOCK}; if none runs, remove that directory"
-touch "${LOCK}/held"
+locked=0
+for _ in $(seq 30); do mkdir "${LOCK}" 2>/dev/null && { locked=1; break; }; sleep 1; done
+((locked)) || die "another fixture.sh holds ${LOCK}; if none runs, remove that directory"
 trap 'rm -rf "${LOCK}"' EXIT
+trap 'rm -rf "${LOCK}"; trap - EXIT; exit 130' INT TERM HUP
 
 # The profile alone decides the identity; an ambient token would override it.
 cli() { env -u PUTIO_CLI_TOKEN PUTIO_CLI_PROFILE="${PROFILE}" putio "$@"; }
@@ -189,8 +190,17 @@ case "${cmd}" in
     parent="$(python3 -I -c 'import json,sys; print(json.loads(sys.argv[1])[0])' "${fields}")"
     kind="$(python3 -I -c 'import json,sys; print(json.loads(sys.argv[1])[1])' "${fields}")"
     name="$(python3 -I -c 'import json,sys; print(json.loads(sys.argv[1])[2])' "${fields}")"
-    # An owned item may have moved anywhere the app put it; a new one must sit in an owned folder.
-    ledger is-owned "${id}" || require_owned_folder "${parent}"
+    # An owned item may have moved anywhere the app put it; a new one must sit
+    # in an owned folder. The one exception is this run's own root container,
+    # found after its mkdir answered with an unknown outcome.
+    if ! ledger is-owned "${id}"; then
+      if [[ "${parent}" == "0" ]]; then
+        [[ "${kind}" == "FOLDER" && "${name}" == "android-verify-${run}" && -z "$(ledger owned)" ]] ||
+          die "${id} sits at the account root and is not this run's root container"
+      else
+        require_owned_folder "${parent}"
+      fi
+    fi
     record op=adopt id="${id}" name="${name}" parent="${parent}" kind="${kind}" state=adopted
     echo "adopted ${id} ${kind} ${name} (parent ${parent})"
     ;;

@@ -26,7 +26,9 @@ serial="$(sed -n 's/^SERIAL=//p' "${ENV_FILE}" | tail -1)"
 package="$(sed -n 's/^PACKAGE=//p' "${ENV_FILE}" | tail -1)"
 
 STAGE="$(mktemp -d "${DIR}/.capture-XXXXXX")"
+# Bash 3.2 skips the EXIT trap on a fatal signal, so signals clean up too.
 trap 'rm -rf "${STAGE}"' EXIT
+trap 'rm -rf "${STAGE}"; trap - EXIT; exit 130' INT TERM HUP
 
 png="$(EVIDENCE_DIR="${STAGE}" "${ROOT}/scripts/evidence.sh" screenshot --serial "${serial}" --label "${label}" ${allow_dark:+--allow-dark})" ||
   die "screenshot rejected as black or corrupt; nothing kept"
@@ -41,15 +43,17 @@ uid="$("${ADB}" -s "${serial}" shell pm list packages -U "${package}" | sed -n "
 # Token-shaped values in query, header, JSON, escaped-JSON and entity-encoded
 # forms; the match is never printed.
 python3 -I - "${STAGE}" <<'PY' || die "a capture held a session secret; nothing kept"
-import html, os, re, sys
+import html, os, re, sys, urllib.parse
 pattern = re.compile(
     rb"(oauth_token|access_token|refresh_token|download_token)[\"'\s]*[=:][\"'\s]*[A-Za-z0-9_.~+/-]"
+    rb"|[?&;]token=[A-Za-z0-9_.~+/-]"
     rb"|authorization[\"'\s]*[=:][\"'\s]*(bearer|token)\s+[A-Za-z0-9_.~+/-]",
     re.IGNORECASE,
 )
 for name in os.listdir(sys.argv[1]):
     data = open(os.path.join(sys.argv[1], name), "rb").read()
-    unescaped = html.unescape(data.decode("utf-8", "replace")).encode()
+    text = data.decode("utf-8", "replace")
+    unescaped = urllib.parse.unquote(html.unescape(text)).encode()
     for form in (data, unescaped, data.replace(b"\\", b""), unescaped.replace(b"\\", b"")):
         if pattern.search(form):
             sys.exit(1)

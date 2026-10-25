@@ -39,6 +39,20 @@ ENV_FILE="${DIR}/run.env"
 
 env_value() { [[ -f "${ENV_FILE}" ]] && sed -n "s/^$1=//p" "${ENV_FILE}" | tail -1; }
 
+# Succeeds while <pid> is an emulator started with exactly `-avd <avd>` and
+# `-port <port>` (whole arguments, not prefixes).
+pid_runs() {
+  local pid="$1" avd="$2" port="$3" command
+  [[ -n "${pid}" ]] || return 1
+  command="$(ps -o command= -p "${pid}" 2>/dev/null)" || return 1
+  python3 -I -c '
+import sys
+args = sys.argv[1].split()
+pairs = {args[i]: args[i + 1] for i in range(len(args) - 1) if args[i] in ("-avd", "-port")}
+sys.exit(0 if pairs.get("-avd") == sys.argv[2] and pairs.get("-port") == sys.argv[3] else 1)
+' "${command}" "${avd}" "${port}"
+}
+
 # Succeeds while <serial> is a running emulator of <avd> served by <pid> (when known).
 is_ours() {
   local serial="$1" avd="$2" pid="${3:-}" name
@@ -46,7 +60,7 @@ is_ours() {
   name="$("${ADB}" -s "${serial}" emu avd name 2>/dev/null | head -1 | tr -d '\r')"
   [[ "${name}" == "${avd}" ]] || return 1
   [[ -z "${pid}" ]] && return 0
-  ps -o command= -p "${pid}" 2>/dev/null | grep -q -- "-port ${serial#emulator-}"
+  pid_runs "${pid}" "${avd}" "${serial#emulator-}"
 }
 
 owns_run_serial() { is_ours "$(env_value SERIAL)" "$(env_value AVD)" "$(env_value PID)"; }
@@ -135,7 +149,9 @@ boot_fresh() {
   write_env fresh "${run}" "" ""
   local boot_log pid
   boot_log="${DIR}/boot-fresh.log"
-  serial="$("${ROOT}/scripts/emulator.sh" boot phone --headless --name "${run}" 2>"${boot_log}")" ||
+  # emulator.sh writes "<serial> <pid>" here once it starts the process, so
+  # down finds an emulator even if this script dies before recording it.
+  serial="$(PUTIO_BOOT_STATE_FILE="${DIR}/boot-state" "${ROOT}/scripts/emulator.sh" boot phone --headless --name "${run}" 2>"${boot_log}")" ||
     { cat "${boot_log}" >&2; die "boot failed; run session.sh down ${run}"; }
   cat "${boot_log}" >&2
   pid="$(sed -n 's/.*booted .* on .* (pid \([0-9]*\)).*/\1/p' "${boot_log}" | tail -1)"
@@ -192,15 +208,12 @@ case "${cmd}" in
     mode="$(env_value MODE || true)"
     pid="$(env_value PID || true)"
     avd="$(env_value AVD || true)"
+    if [[ -z "${serial}" && -f "${DIR}/boot-state" ]]; then
+      read -r serial pid < "${DIR}/boot-state" || true
+    fi
     # The recorded pid is still ours while it runs this AVD (and, for a shared
     # snapshot AVD, this port), even when adb lists the serial offline.
-    pid_ours() {
-      local command
-      [[ -n "${pid}" ]] || return 1
-      command="$(ps -o command= -p "${pid}" 2>/dev/null)" || return 1
-      [[ "${command}" == *"-avd ${avd}"* ]] || return 1
-      [[ "${mode}" != "snapshot" || "${command}" == *"-port ${serial#emulator-}"* ]]
-    }
+    pid_ours() { pid_runs "${pid}" "${avd}" "${serial#emulator-}"; }
     if owns_run_serial; then
       "${ADB}" -s "${serial}" shell am force-stop "${PACKAGE}" || true
       if [[ "${mode}" == "fresh" ]]; then

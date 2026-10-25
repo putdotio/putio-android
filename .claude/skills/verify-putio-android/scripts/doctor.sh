@@ -29,7 +29,7 @@ check() {
 }
 same() { [[ -n "$1" && "$1" == "$2" ]]; }
 
-[[ -f "${ENV_FILE}" ]] || { fail "run.env: missing; run session.sh up ${run}"; finish; }
+[[ -f "${ENV_FILE}" ]] || { fail "run.env: missing; run session.sh down ${run}, then session.sh up ${run} --snapshot"; finish; }
 serial="$(sed -n 's/^SERIAL=//p' "${ENV_FILE}" | tail -1)"
 package="$(sed -n 's/^PACKAGE=//p' "${ENV_FILE}" | tail -1)"
 adb_() { "${ADB}" -s "${serial}" "$@" 2>/dev/null | tr -d '\r'; }
@@ -38,7 +38,7 @@ revision="${ROOT}/.evidence/${run}/revision.txt"
 check "copy: $(paste -sd' ' "${revision}" 2>/dev/null)" "copy: no revision.txt; run devbox.sh sync ${run}" test -f "${revision}"
 
 if [[ "$(adb_ get-state)" != "device" ]]; then
-  fail "emulator: ${serial} is not running; run session.sh up ${run}"; finish
+  fail "emulator: ${serial} is not running; run session.sh down ${run}, then session.sh up ${run} --snapshot"; finish
 fi
 want_avd="$(sed -n 's/^AVD=//p' "${ENV_FILE}" | tail -1)"
 mode="$(sed -n 's/^MODE=//p' "${ENV_FILE}" | tail -1)"

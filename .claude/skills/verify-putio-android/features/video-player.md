@@ -46,7 +46,8 @@ Preconditions:
   description is `Faster, 1.25×`. Run
   `$V/ui.sh tap $SERIAL --match "^Playback speed "` and
   `$V/ui.sh tap $SERIAL --match "^Faster, "`. The chip reads `1.25×`. Put it
-  back to `1×` with `--match "^Slower, "`.
+  back to `1×` with `--match "^Slower, "`. The sheet stays open: press Back
+  and `$V/ui.sh gone $SERIAL --match "^Faster, "`.
 - **Subtitles.** Tap the subtitles chip; the sheet lists `Off` first. Press
   Back to close it.
 - **Resume.** Play to about 40 s (well clear of the last 10 s, where no
@@ -54,8 +55,9 @@ Preconditions:
   `Resume from <time>?`; `Resume` continues there. Read the position back
   with `files.getStartFrom`.
 - **Back.** Press Back. The shell returns in portrait with its bars.
-- **Restore.** Set the position back to the value read first with
-  `putio files start-from`.
+- **Restore.** Put the position back to the value read first:
+  `putio files start-from set <id> <seconds>`, or
+  `putio files start-from reset <id>` when it was unset.
 
 ## Gotchas
 

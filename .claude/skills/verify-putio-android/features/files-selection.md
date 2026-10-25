@@ -28,9 +28,10 @@ same bar and toolbar for removing local copies.
 
 Preconditions:
 
-- The selection change is on this copy's build. On `main` before it lands,
-  [#397](https://github.com/putdotio/putio-android/pull/397) carries it; a
-  build without it shows no selection bar after `Select`.
+- The build has selection mode. Until
+  [#397](https://github.com/putdotio/putio-android/pull/397) merges, `main`
+  shows no `Select` row in the actions sheet: report every sub-feature here
+  unreachable on such a build.
 - Doctor passes. The run's root holds `Target folder` and three small
   uploaded files `a-<run>.txt`, `b-<run>.txt`, `c-<run>.txt`.
 
