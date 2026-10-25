@@ -7,7 +7,6 @@ import android.app.NotificationManager
 import android.content.ComponentName
 import android.content.Intent
 import android.net.Uri
-import androidx.media3.common.C
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.database.StandaloneDatabaseProvider
 import androidx.media3.exoplayer.offline.DefaultDownloadIndex
@@ -203,8 +202,8 @@ class MobileDownloadNotificationsTest {
             context,
             "downloads",
             listOf(
-                download(10L, Download.STATE_DOWNLOADING, name = "Blue.Lights.S04E02.mkv", percent = 30f),
-                download(11L, Download.STATE_DOWNLOADING, name = "Tears.mkv", percent = 54f),
+                running(10L, "Blue.Lights.S04E02.mkv", percent = 30f),
+                running(11L, "Tears.mkv", percent = 54f),
                 download(12L, Download.STATE_QUEUED, name = "Sintel.mkv"),
                 // Paused by the viewer, parked for another account, and being removed: none is on its way.
                 download(13L, Download.STATE_STOPPED, stopReason = MobileDownloadEngine.STOP_REASON_PAUSED),
@@ -265,7 +264,6 @@ class MobileDownloadNotificationsTest {
         state: Int,
         user: Long = USER,
         name: String? = null,
-        percent: Float = C.PERCENTAGE_UNSET.toFloat(),
         stopReason: Int = Download.STOP_REASON_NONE,
     ) = Download(
         DownloadRequest.Builder("$user:$fileId", Uri.parse("https://api.put.io/v2/files/$fileId/stream"))
@@ -277,8 +275,22 @@ class MobileDownloadNotificationsTest {
         0L,
         stopReason,
         if (state == Download.STATE_FAILED) Download.FAILURE_REASON_UNKNOWN else Download.FAILURE_REASON_NONE,
-        DownloadProgress().also { it.percentDownloaded = percent },
+        DownloadProgress(),
     )
+
+    private fun running(fileId: Long, name: String, percent: Float): Download {
+        val queued = download(fileId, Download.STATE_DOWNLOADING, name = name)
+        return Download(
+            queued.request,
+            queued.state,
+            0L,
+            0L,
+            0L,
+            Download.STOP_REASON_NONE,
+            Download.FAILURE_REASON_NONE,
+            DownloadProgress().also { it.percentDownloaded = percent },
+        )
+    }
 
     private companion object {
         const val USER = 7L

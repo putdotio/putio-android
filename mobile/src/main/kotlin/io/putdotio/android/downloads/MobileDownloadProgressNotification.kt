@@ -27,7 +27,8 @@ internal fun downloadProgressNotification(
     downloads: List<Download>,
     notMetRequirements: Int,
 ): Notification {
-    val live = downloads.filter { it.stopReason == Download.STOP_REASON_NONE && it.state in LIVE_STATES }
+    val liveStates = setOf(Download.STATE_QUEUED, Download.STATE_DOWNLOADING, Download.STATE_RESTARTING)
+    val live = downloads.filter { it.stopReason == Download.STOP_REASON_NONE && it.state in liveStates }
     val running = live.filter { it.state == Download.STATE_DOWNLOADING || it.state == Download.STATE_RESTARTING }
     val title = context.resources.getQuantityString(R.plurals.mobile_downloads_notification, live.size, live.size)
     val percents = running.map { it.percentDownloaded }
@@ -90,5 +91,4 @@ private fun Download.name(context: Context): String =
     request.data.takeIf { it.isNotEmpty() }?.decodeToString()
         ?: context.getString(R.string.mobile_downloads_recovered_name)
 
-private val LIVE_STATES = setOf(Download.STATE_QUEUED, Download.STATE_DOWNLOADING, Download.STATE_RESTARTING)
 private const val PERCENT_MAX = 100
