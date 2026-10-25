@@ -220,6 +220,20 @@ attach evidence.
 
 ## Mobile lanes
 
+### Mobile device-code sign-in
+
+Signs the debug app in as `devs-auto` with no browser: a debug-only screen
+shows a device code and the CLI approves it. The session is the normal
+Keystore one. `--help` covers prerequisites and failures.
+
+```bash
+./scripts/sign-in-devs-auto.sh emulator-5554
+```
+
+Release builds never declare the screen:
+`verifyProductionReleaseDebugSignInManifest` fails if they do. Each approval
+adds a grant; sign out in the app to revoke it.
+
 ### Mobile accessibility proof
 
 Unless a selector says otherwise, accessibility lanes run on the API 37
@@ -322,7 +336,8 @@ session. Screenshots: `playback-options-proof-<UUID>/`.
 
 ### Authenticated rename proof
 
-With the mobile production debug app signed in as `devs-auto`:
+With the mobile production debug app signed in as `devs-auto`
+([Mobile device-code sign-in](#mobile-device-code-sign-in)):
 
 ```bash
 ./gradlew --no-daemon :mobile:proveAuthenticatedRename \
@@ -646,7 +661,8 @@ Behaviour:
 `OfflinePlaybackPositionsTest`, `UserScopedCacheKeysTest` and
 `OfflinePlaybackRepositoryTest` pin the rules on the JVM.
 
-Live, with `devs-auto`:
+Live, with the app signed in as `devs-auto`
+([Mobile device-code sign-in](#mobile-device-code-sign-in)):
 
 - Download a small root video; its Downloads row advances about once a second
   until `On this device` shows there and in Files. Enable airplane mode
@@ -748,8 +764,8 @@ the system chooser and Account's list on faked repositories; synthetic.
 Arguments: `putio.publiclinks.enabled`, `.runId`. Each step holds about a
 second for a recording. Screenshots in `public-links-proof-<UUID>/` cover a
 friend's file without Exclusive access, create, copy, share, revoke, the daily
-limit copy and Account's list. A live run needs the app signed in to
-`devs-auto` through Auth Tab, which takes the account's web sign-in.
+limit copy and Account's list. A live run needs the app signed in as
+`devs-auto` ([Mobile device-code sign-in](#mobile-device-code-sign-in)).
 
 ### Transfer retry proof
 

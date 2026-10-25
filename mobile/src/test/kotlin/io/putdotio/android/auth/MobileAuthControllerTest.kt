@@ -2,6 +2,7 @@ package io.putdotio.android.auth
 
 import io.putdotio.android.auth.AuthControllerTestValues.AUTHORIZATION_URL
 import io.putdotio.android.auth.AuthControllerTestValues.OAUTH_STATE
+import io.putdotio.android.auth.AuthControllerTestValues.OLD_TOKEN
 import io.putdotio.android.auth.AuthControllerTestValues.SIGNED_IN
 import io.putdotio.android.auth.AuthControllerTestValues.TOKEN
 import io.putdotio.android.auth.AuthControllerTestValues.VALID_CALLBACK
@@ -84,6 +85,37 @@ class MobileAuthControllerTest {
         assertEquals(TOKEN, fixture.gateway.configuredToken?.reveal())
         assertEquals(listOf("clear-token", "build-url", "set-token", "validate"), fixture.gateway.calls)
         assertEquals(SIGNED_IN, fixture.controller.state.value)
+    }
+
+    @Test
+    fun `a device-linked token is stored and validated like a callback's`() = runBlocking {
+        val fixture = AuthControllerFixture()
+        fixture.controller.restoreSession()
+
+        assertTrue(fixture.controller.completeDeviceLink(checkNotNull(AccessToken.parse(TOKEN))))
+
+        assertEquals(TOKEN, fixture.tokenStore.token?.reveal())
+        assertEquals(TOKEN, fixture.gateway.configuredToken?.reveal())
+        assertEquals(listOf("clear-token", "set-token", "validate"), fixture.gateway.calls)
+        assertEquals(SIGNED_IN, fixture.controller.state.value)
+    }
+
+    @Test
+    fun `a device-linked token never replaces a session or a browser sign-in in flight`() = runBlocking {
+        val signedIn = AuthControllerFixture(storedToken = OLD_TOKEN)
+        signedIn.controller.restoreSession()
+        val awaitingBrowser = AuthControllerFixture()
+        awaitingBrowser.controller.restoreSession()
+        awaitingBrowser.controller.beginSignIn()
+
+        listOf(signedIn to OLD_TOKEN, awaitingBrowser to null).forEach { (fixture, storedToken) ->
+            val before = fixture.controller.state.value
+
+            assertFalse(fixture.controller.completeDeviceLink(checkNotNull(AccessToken.parse(TOKEN))))
+
+            assertEquals(storedToken, fixture.tokenStore.token?.reveal())
+            assertEquals(before, fixture.controller.state.value)
+        }
     }
 
     @Test

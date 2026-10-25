@@ -17,5 +17,12 @@
             android:name=".MobileTabletProofActivity"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden|navigation|assetsPaths"
             android:exported="false" />
+        <!-- Harness device-code sign-in (docs/harness.md#mobile-device-code-sign-in). Exported for
+             `adb shell am start`; DUMP limits callers to the shell and the system. Release builds
+             never merge this source set, which verifyProductionReleaseDebugSignInManifest checks. -->
+        <activity
+            android:name=".auth.DebugDeviceSignInActivity"
+            android:exported="true"
+            android:permission="android.permission.DUMP" />
     </application>
 </manifest>
