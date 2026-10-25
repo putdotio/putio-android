@@ -203,6 +203,11 @@ internal fun Transfer.toTransferItem(): TransferItem =
         errorMessage = errorMessage?.trim()?.takeIf(String::isNotEmpty),
         createdAt = createdAt,
         userFileExists = userFileExists,
+        saveParentId = saveParentId.takeIf { it >= 0 },
+        source = source.trim().takeIf { TransferSubmission.parse(it) != null }?.let(::TransferSource),
+        downloadedBytes = downloaded,
+        currentRatio = currentRatio,
+        finishedAt = finishedAt?.takeIf(String::isNotBlank),
     )
 
 private fun PutioException.isTransferNotFound(): Boolean {

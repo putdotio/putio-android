@@ -135,6 +135,32 @@ class MobileTransferDraftTest {
     }
 
     @Test
+    fun goodLinesGoWhileABadLineStaysInTheDraftWithTheLinksPutioRefused() {
+        val draft = MobileTransferDraft()
+        val input = "$SECOND\nhttps://example.invalid/page and prose\n$FIRST"
+        draft.receive(MobileSharedTransfer(input))
+        assertEquals(TransfersEvent.Add("$SECOND\n$FIRST"), draft.validate())
+        assertEquals(input, draft.state.value.input)
+        assertNull(draft.state.value.validation)
+        draft.setSubmitting(true)
+        draft.submissionSucceeded(rejectedLinks = listOf(FIRST))
+        val state = draft.state.value
+        assertEquals("$FIRST\nhttps://example.invalid/page and prose", state.input)
+        assertEquals(MobileShareValidation.NotAdded, state.validation)
+        assertTrue(state.open)
+
+        draft.edit("https://example.invalid/page and prose")
+        assertNull(draft.validate())
+        assertEquals(MobileShareValidation.InvalidLink, draft.state.value.validation)
+        draft.edit("$SECOND\nnot a link")
+        assertEquals(TransfersEvent.Add(SECOND), draft.validate())
+        draft.submissionSucceeded()
+        assertEquals("not a link", draft.state.value.input)
+        assertNull(draft.state.value.validation)
+        assertTrue(draft.state.value.open)
+    }
+
+    @Test
     fun aSharedTorrentSubmitsAsAnUploadToTheChosenFolderAndStaysAfterARejection() {
         val draft = MobileTransferDraft()
         draft.receive(MobileSharedTransfer(torrent = TORRENT))
@@ -210,6 +236,59 @@ class MobileTransferDraftTest {
         draft.reconcileSession(MobileAuthSessionId(2))
         settle()
         assertEquals(MobileTransferDraftState(), draft.state.value)
+    }
+
+    @Test
+    fun aTorrentPickedInTheOpenSheetTakesTheFieldsPlaceWithoutAskingAndFailuresSayWhy() = runTest {
+        val draft = MobileTransferDraft(StandardTestDispatcher(testScheduler))
+        draft.open()
+        draft.edit(FIRST)
+        draft.receiveLater(picked = true) { MobileSharedTransfer(torrent = TORRENT) }
+        assertTrue(draft.state.value.readingTorrent)
+        assertNull("Nothing submits while the picked torrent is read", draft.validate())
+        settle()
+        assertFalse(draft.state.value.readingTorrent)
+        assertSame(TORRENT, draft.state.value.torrent)
+        assertEquals(FIRST, draft.state.value.input)
+        assertFalse(draft.state.value.pendingReplacement)
+        draft.removeTorrent()
+        assertEquals(FIRST, draft.state.value.input)
+
+        draft.receiveLater(picked = true) { MobileSharedTransfer(validation = MobileShareValidation.InvalidTorrent) }
+        settle()
+        assertNull(draft.state.value.torrent)
+        assertEquals(MobileShareValidation.InvalidTorrent, draft.state.value.validation)
+
+        draft.dismiss()
+        draft.receiveLater(picked = true) { MobileSharedTransfer(torrent = TORRENT) }
+        settle()
+        assertNull(draft.state.value.torrent)
+
+        // A slow read that outlives its draft does not land in the next one.
+        draft.open()
+        draft.receiveLater(picked = true) { MobileSharedTransfer(torrent = TORRENT) }
+        draft.submissionSucceeded()
+        draft.open()
+        settle()
+        assertNull(draft.state.value.torrent)
+    }
+
+    @Test
+    fun linksParkedBehindAnUploadedTorrentStayInTheDraft() = runTest {
+        val draft = MobileTransferDraft(StandardTestDispatcher(testScheduler))
+        draft.open()
+        draft.edit(FIRST)
+        draft.receiveLater(picked = true) { MobileSharedTransfer(torrent = TORRENT) }
+        settle()
+        assertEquals(TransfersEvent.AddTorrent(TORRENT), draft.validate())
+        draft.setSubmitting(true)
+        draft.receive(parseMobileSharedTransfer(SECOND))
+        draft.submissionSucceeded()
+        val state = draft.state.value
+        assertEquals(FIRST, state.input)
+        assertNull(state.torrent)
+        assertTrue(state.open)
+        assertTrue("A share that arrived meanwhile still asks", state.pendingReplacement)
     }
 
     @Test

@@ -1,81 +1,61 @@
 package io.putdotio.android.transfers
 
-import android.content.Context
-import android.content.res.Configuration
-import android.text.format.DateUtils
-import android.text.format.Formatter
-import androidx.annotation.DrawableRes
+import android.content.ClipData
+import android.os.PersistableBundle
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.InlineTextContent
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.text.appendInlineContent
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.stateDescription
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.Placeholder
-import androidx.compose.ui.text.PlaceholderVerticalAlign
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.em
-import androidx.compose.ui.window.DialogProperties
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.putdotio.android.MobileEmptyState
 import io.putdotio.android.MobileErrorState
 import io.putdotio.android.MobileLoadingState
@@ -85,15 +65,22 @@ import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioDestructiveButton
 import io.putdotio.android.design.PutioEmptyGlyph
-import io.putdotio.android.files.FilesFolder
+import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.files.FilesRepository
 import io.putdotio.android.files.mobileMessage
-import java.text.NumberFormat
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 internal const val MOBILE_TRANSFERS_LIST_TAG = "mobile-transfers-list"
-internal const val MOBILE_TRANSFER_ADD_FIELD_TAG = "mobile-transfer-add-field"
 internal const val MOBILE_TRANSFERS_SNACKBAR_TAG = "mobile-transfers-snackbar"
+internal const val MOBILE_TRANSFERS_ADD_FAB_TAG = "mobile-transfers-add-fab"
+internal const val MOBILE_TRANSFERS_OVERFLOW_TAG = "mobile-transfers-overflow"
 
+/**
+ * Transfers: sections of transfer cards (Active, Needs attention, Completed), a yellow extended FAB
+ * that opens Add transfer, and Transfer actions for one card. The tab title and its overflow belong
+ * to the shell ([MobileTransfersOverflow]).
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun MobileTransfersScreen(
@@ -109,13 +96,106 @@ internal fun MobileTransfersScreen(
         draft.reconcileSession(sessionId)
         draft.reconcileTransfers(state)
     }
-    var confirmation by remember(sessionId) { mutableStateOf<TransferConfirmation?>(null) }
+    var stopping by remember(sessionId) { mutableStateOf<TransferItem?>(null) }
+    var actionsFor by remember(sessionId) { mutableStateOf<TransferId?>(null) }
     val snackbarHostState = remember(sessionId) { SnackbarHostState() }
+    MobileTransfersNews(state, snackbarHostState, sessionId, onEvent)
+
+    val enabled = state.enabledInteractions()
+    val listState = rememberLazyListState()
+    val showFab = state.content !is TransfersContent.Empty
+    Box(modifier = modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            MobileTransfersRefreshFailure(state.refresh, enabled.controls, onEvent)
+            PullToRefreshBox(
+                isRefreshing = state.refresh is TransfersRefresh.Refreshing,
+                onRefresh = { if (enabled.refresh) onEvent(TransfersEvent.Refresh) },
+                modifier = Modifier.weight(1f),
+            ) {
+                MobileTransfersContent(
+                    state = state,
+                    listState = listState,
+                    enabled = enabled,
+                    onEvent = onEvent,
+                    onActions = { actionsFor = it },
+                    onAdd = draft::open,
+                )
+            }
+        }
+        if (showFab) {
+            val expanded by remember {
+                derivedStateOf { listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0 }
+            }
+            MobileAddTransferFab(
+                expanded = expanded,
+                onClick = draft::open,
+                modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
+            )
+        }
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = if (showFab) FAB_CLEARANCE else 0.dp)
+                .testTag(MOBILE_TRANSFERS_SNACKBAR_TAG),
+        )
+    }
+
+    MobileAddTransfer(
+        draft = draft,
+        state = state,
+        onEvent = onEvent,
+        enabled = enabled.controls,
+        filesRepository = filesRepository,
+        onFilesAuthenticationRequired = onFilesAuthenticationRequired,
+    )
+    // Outside the sheet: the copy outlives the sheet it closes.
+    val copy = rememberSourceCopy(snackbarHostState)
+    val actionsItem = actionsFor?.let { id -> (state.content as? TransfersContent.Ready)?.items?.find { it.id == id } }
+    if (actionsItem != null) {
+        MobileTransferActionsSheet(
+            item = actionsItem,
+            enabled = enabled.rows,
+            folders = filesRepository,
+            actions = MobileTransferActions(
+                onOpenFile = { onEvent(TransfersEvent.Open(actionsItem.id)) },
+                onOpenFolder = { onEvent(TransfersEvent.OpenFolder(actionsItem.id)) },
+                onCopySource = { actionsItem.source?.let(copy) },
+                onStop = { stopping = actionsItem },
+                onRetry = { onEvent(TransfersEvent.RetryTransfer(actionsItem.id)) },
+                onRemove = { onEvent(TransfersEvent.Remove(actionsItem.id)) },
+            ),
+            onDismiss = { actionsFor = null },
+            onAuthenticationRequired = onFilesAuthenticationRequired,
+        )
+    }
+    stopping?.let { item ->
+        MobileTransferConfirmation(
+            title = R.string.mobile_transfers_cancel_title,
+            message = stringResource(R.string.mobile_transfers_cancel_message, item.name),
+            confirm = R.string.mobile_transfers_cancel_confirm,
+            onDismiss = { stopping = null },
+            onConfirm = {
+                stopping = null
+                onEvent(TransfersEvent.Cancel(item.id))
+            },
+        )
+    }
+    MobileTransferActionFailure(state.mutation, onEvent)
+}
+
+/** Started transfers and retry results, each once, replacing a visible snackbar instead of queueing. */
+@Composable
+private fun MobileTransfersNews(
+    state: TransfersState,
+    snackbarHostState: SnackbarHostState,
+    sessionId: MobileAuthSessionId?,
+    onEvent: (TransfersEvent) -> Unit,
+) {
     val addedCount = state.lastAddReceipt?.addedCount ?: 0
     val addedMessage = pluralStringResource(R.plurals.mobile_transfers_added, addedCount, addedCount)
     // The successful add id changes once per accepted submission; the first value is history, not news.
     var announcedAdd by remember(sessionId) { mutableStateOf(state.lastSuccessfulAddRequestId) }
-    // Newest news replaces a visible snackbar instead of queueing behind it, where leaving the screen would drop it.
     LaunchedEffect(state.lastSuccessfulAddRequestId) {
         val added = state.lastSuccessfulAddRequestId
         if (added != null && added != announcedAdd) {
@@ -137,297 +217,215 @@ internal fun MobileTransfersScreen(
             onEvent(TransfersEvent.DismissRetryOutcome(outcome.requestId))
         }
     }
-
-    val enabled = state.enabledInteractions()
-    Box(modifier = modifier.fillMaxSize()) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
-                    MobileAddTransfer(
-                        draft = draft,
-                        state = state,
-                        onEvent = onEvent,
-                        enabled = enabled.controls,
-                        filesRepository = filesRepository,
-                        onFilesAuthenticationRequired = onFilesAuthenticationRequired,
-                    )
-                }
-                MobileTransferActionsMenu(
-                    refreshEnabled = enabled.refresh,
-                    cleanEnabled = enabled.controls,
-                    showClean = state.content is TransfersContent.Ready,
-                    sessionId = sessionId,
-                    onRefresh = { onEvent(TransfersEvent.Refresh) },
-                    onClean = { confirmation = TransferConfirmation.Clean },
-                )
-            }
-
-            MobileTransfersRefreshFailure(state.refresh, enabled.controls, onEvent)
-            PullToRefreshBox(
-                isRefreshing = state.refresh is TransfersRefresh.Refreshing,
-                onRefresh = { if (enabled.refresh) onEvent(TransfersEvent.Refresh) },
-                modifier = Modifier.weight(1f),
-            ) {
-                MobileTransfersContent(
-                    content = state.content,
-                    mutation = state.mutation,
-                    interactionsEnabled = enabled.rows,
-                    pagingEnabled = enabled.paging,
-                    onEvent = onEvent,
-                    onConfirmation = { confirmation = it },
-                )
-            }
-        }
-        SnackbarHost(
-            hostState = snackbarHostState,
-            modifier = Modifier.align(Alignment.BottomCenter).testTag(MOBILE_TRANSFERS_SNACKBAR_TAG),
-        )
-    }
-
-    confirmation?.let { pending ->
-        MobileTransferConfirmation(
-            confirmation = pending,
-            onDismiss = { confirmation = null },
-            onConfirm = {
-                confirmation = null
-                onEvent(pending.event)
-            },
-        )
-    }
-
-    val nonAddFailure =
-        (state.mutation as? TransferMutation.Failed)?.takeUnless { it.action is TransferAction.Add }
-    if (nonAddFailure != null) {
-        AlertDialog(
-            onDismissRequest = { onEvent(TransfersEvent.DismissMutationFailure) },
-            title = { Text(stringResource(R.string.mobile_transfers_action_error_title)) },
-            text = { Text(nonAddFailure.failure.mobileMessage()) },
-            confirmButton = {
-                TextButton(onClick = { onEvent(TransfersEvent.DismissMutationFailure) }) {
-                    Text(stringResource(R.string.mobile_action_ok))
-                }
-            },
-        )
-    }
 }
 
 @Composable
-private fun MobileTransferActionsMenu(
-    refreshEnabled: Boolean,
-    cleanEnabled: Boolean,
-    showClean: Boolean,
+private fun rememberSourceCopy(snackbarHostState: SnackbarHostState): (TransferSource) -> Unit {
+    val clipboard = LocalClipboard.current
+    val scope = rememberCoroutineScope()
+    val label = stringResource(R.string.mobile_transfer_source_clip_label)
+    val copied = stringResource(R.string.mobile_transfer_link_copied)
+    return { source ->
+        scope.launch {
+            clipboard.setClipEntry(ClipEntry(sensitiveClip(label, source.value)))
+            snackbarHostState.currentSnackbarData?.dismiss()
+            snackbarHostState.showSnackbar(copied)
+        }
+    }
+}
+
+/**
+ * A source can carry a tracker passkey or a signed URL, so the clipboard keeps it out of previews.
+ * Android documents the literal key for releases before `ClipDescription.EXTRA_IS_SENSITIVE` existed.
+ */
+private fun sensitiveClip(label: String, link: String): ClipData =
+    ClipData.newPlainText(label, link).apply {
+        description.extras = PersistableBundle().apply { putBoolean(CLIP_IS_SENSITIVE, true) }
+    }
+
+private const val CLIP_IS_SENSITIVE = "android.content.extra.IS_SENSITIVE"
+
+/** Material clears the label's semantics so a collapsed FAB keeps one name; the FAB carries it instead. */
+@Composable
+private fun MobileAddTransferFab(expanded: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val label = stringResource(R.string.mobile_transfers_add)
+    ExtendedFloatingActionButton(
+        text = { Text(label, style = PutioTypeScale.bodyLg.copy(fontWeight = FontWeight.Medium)) },
+        icon = { Icon(painterResource(R.drawable.ic_ph_plus), contentDescription = null) },
+        onClick = onClick,
+        expanded = expanded,
+        containerColor = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        modifier = modifier
+            .semantics { contentDescription = label }
+            .testTag(MOBILE_TRANSFERS_ADD_FAB_TAG),
+    )
+}
+
+/**
+ * The Transfers tab's overflow in the tab-title row: Refresh once the list has loaded, empty included,
+ * so keyboard and TalkBack users need no pull; and Clear completed, which confirms, while transfers are
+ * listed.
+ */
+@Composable
+internal fun MobileTransfersOverflow(
+    state: TransfersState,
+    onEvent: (TransfersEvent) -> Unit,
     sessionId: MobileAuthSessionId?,
-    onRefresh: () -> Unit,
-    onClean: () -> Unit,
 ) {
+    val listed = state.content is TransfersContent.Ready
+    if (!listed && state.content !is TransfersContent.Empty) return
+    val enabled = state.enabledInteractions()
     var expanded by remember(sessionId) { mutableStateOf(false) }
+    var confirming by remember(sessionId) { mutableStateOf(false) }
     Box {
-        IconButton(onClick = { expanded = true }) {
+        IconButton(onClick = { expanded = true }, modifier = Modifier.testTag(MOBILE_TRANSFERS_OVERFLOW_TAG)) {
             Icon(
                 painter = painterResource(R.drawable.ic_ph_dots_three_vertical),
-                contentDescription = stringResource(R.string.mobile_transfer_actions),
+                contentDescription = stringResource(R.string.mobile_transfers_more),
             )
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.mobile_transfers_refresh)) },
-                enabled = refreshEnabled,
+                enabled = enabled.refresh,
                 onClick = {
                     expanded = false
-                    onRefresh()
+                    onEvent(TransfersEvent.Refresh)
                 },
             )
-            if (showClean) {
+            if (listed) {
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.mobile_transfers_clean)) },
-                    enabled = cleanEnabled,
+                    enabled = enabled.controls,
                     onClick = {
                         expanded = false
-                        onClean()
+                        confirming = true
                     },
                 )
             }
         }
     }
+    if (confirming) {
+        MobileTransferConfirmation(
+            title = R.string.mobile_transfers_clean_title,
+            message = stringResource(R.string.mobile_transfers_clean_message),
+            confirm = R.string.mobile_transfers_clean_confirm,
+            onDismiss = { confirming = false },
+            onConfirm = {
+                confirming = false
+                onEvent(TransfersEvent.CleanCompleted)
+            },
+        )
+    }
 }
 
 @Composable
 private fun MobileTransfersContent(
-    content: TransfersContent,
-    mutation: TransferMutation,
-    interactionsEnabled: Boolean,
-    pagingEnabled: Boolean,
+    state: TransfersState,
+    listState: LazyListState,
+    enabled: TransfersInteractions,
     onEvent: (TransfersEvent) -> Unit,
-    onConfirmation: (TransferConfirmation) -> Unit,
+    onActions: (TransferId) -> Unit,
+    onAdd: () -> Unit,
 ) {
-    when (content) {
+    when (val content = state.content) {
         is TransfersContent.InitialLoading ->
             MobileLoadingState(message = stringResource(R.string.mobile_transfers_loading))
         TransfersContent.Empty ->
             MobileEmptyState(
                 title = stringResource(R.string.mobile_transfers_empty_title),
                 message = stringResource(R.string.mobile_transfers_empty_message),
+                // The state sits a little above the middle, clear of the navigation.
+                modifier = Modifier.padding(bottom = 56.dp),
                 glyph = PutioEmptyGlyph.NoTransfers,
-            )
+            ) {
+                Button(onClick = onAdd, enabled = enabled.controls) {
+                    Icon(
+                        painterResource(R.drawable.ic_ph_plus),
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Text(stringResource(R.string.mobile_transfers_add), modifier = Modifier.padding(start = 8.dp))
+                }
+            }
         is TransfersContent.Failed ->
             MobileErrorState(
                 title = stringResource(R.string.mobile_transfers_error_title),
                 message = content.failure.mobileMessage(),
                 retryLabel = stringResource(R.string.mobile_action_retry),
                 onRetry = { onEvent(TransfersEvent.RetryLoad) },
-                retryEnabled = interactionsEnabled,
+                retryEnabled = enabled.rows,
             )
         is TransfersContent.Ready ->
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .testTag(MOBILE_TRANSFERS_LIST_TAG),
-            ) {
-                items(content.items, key = { it.id.value }) { item ->
-                    MobileTransferRow(
-                        item = item,
-                        mutation = mutation,
-                        interactionsEnabled = interactionsEnabled,
-                        onEvent = onEvent,
-                        onConfirmation = onConfirmation,
-                    )
-                }
-                if (content.paging != TransfersPaging.Complete) {
-                    item(key = "transfers-paging") {
-                        MobileTransfersPaging(content.paging, pagingEnabled, onEvent)
-                    }
-                }
-            }
+            MobileTransfersList(content, state.mutation, listState, enabled, onEvent, onActions)
     }
 }
 
 @Composable
-private fun MobileTransferRow(
-    item: TransferItem,
+private fun MobileTransfersList(
+    content: TransfersContent.Ready,
     mutation: TransferMutation,
-    interactionsEnabled: Boolean,
+    listState: LazyListState,
+    enabled: TransfersInteractions,
     onEvent: (TransfersEvent) -> Unit,
-    onConfirmation: (TransferConfirmation) -> Unit,
+    onActions: (TransferId) -> Unit,
 ) {
-    val context = LocalContext.current
-    val busy = mutation is TransferMutation.Running && mutation.action.targets(item.id)
-    val actionsEnabled = interactionsEnabled && mutation !is TransferMutation.Running
-    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-        val stackActions = maxWidth / LocalDensity.current.fontScale < 320.dp
-        ListItem(
-            modifier = Modifier.fillMaxWidth(),
-            headlineContent = {
-                Text(item.name, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            },
-            supportingContent = {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    MobileTransferDetails(item, context)
-                    if (stackActions) {
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            MobileTransferRowActions(item, busy, actionsEnabled, onEvent, onConfirmation)
-                        }
-                    }
-                }
-            },
-            trailingContent = if (stackActions) null else {
-                {
-                    Column(horizontalAlignment = Alignment.End) {
-                        MobileTransferRowActions(item, busy, actionsEnabled, onEvent, onConfirmation)
-                    }
-                }
-            },
-        )
-    }
-}
-
-@Composable
-private fun MobileTransferDetails(item: TransferItem, context: Context) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(item.statusLabel())
-        item.percentDone?.takeIf { it in 0.0..PERCENTAGE_SCALE }?.let { percent ->
-            LinearProgressIndicator(
-                progress = { (percent / PERCENTAGE_SCALE).toFloat() },
-                modifier = Modifier.fillMaxWidth().clearAndSetSemantics {},
-            )
-            Text(
-                text = NumberFormat.getPercentInstance().format(percent / PERCENTAGE_SCALE),
-                style = MaterialTheme.typography.bodySmall,
-            )
+    val nowMillis by produceMinuteClock()
+    val sections = remember(content.items) { content.items.groupBy(TransferItem::section) }
+    LazyColumn(
+        state = listState,
+        modifier = Modifier
+            .fillMaxSize()
+            .testTag(MOBILE_TRANSFERS_LIST_TAG),
+        contentPadding = PaddingValues(top = 8.dp, bottom = FAB_CLEARANCE),
+    ) {
+        for (section in MobileTransferSection.entries) {
+            val rows = sections[section] ?: continue
+            item(key = "section-${section.name}", contentType = "section") {
+                MobileTransferSectionLabel(section.label)
+            }
+            items(rows, key = { it.id.value }, contentType = { "card" }) { item ->
+                MobileTransferCard(
+                    item = item,
+                    busy = mutation is TransferMutation.Running && mutation.action.targets(item.id),
+                    enabled = enabled.rows,
+                    nowMillis = nowMillis,
+                    onOpen = { onEvent(TransfersEvent.Open(item.id)) },
+                    onActions = { onActions(item.id) },
+                    onRetry = { onEvent(TransfersEvent.RetryTransfer(item.id)) },
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+            }
         }
-        val error =
-            item.errorMessage
-                ?: stringResource(R.string.mobile_transfer_error).takeIf { item.status == AppTransferStatus.Failed }
-        if (error != null) {
-            Text(
-                text = error,
-                color = PutioDesignTokens.redTextSecondary,
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
-        item.details(context).takeIf { it.isNotBlank() }?.let {
-            Text(
-                text = it,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodySmall,
-                inlineContent = TRANSFER_SPEED_ICONS,
-            )
+        if (content.paging != TransfersPaging.Complete) {
+            item(key = "transfers-paging") {
+                MobileTransfersPaging(content.paging, enabled.paging, onEvent)
+            }
         }
     }
 }
 
+/** The time completed cards measure "3 hr. ago" from, moved on once a minute while shown. */
 @Composable
-private fun MobileTransferRowActions(
-    item: TransferItem,
-    busy: Boolean,
-    actionsEnabled: Boolean,
-    onEvent: (TransfersEvent) -> Unit,
-    onConfirmation: (TransferConfirmation) -> Unit,
-) {
-    if (item.canOpen) {
-        val openLabel = stringResource(R.string.mobile_transfers_open_named, item.name)
-        TextButton(
-            onClick = { onEvent(TransfersEvent.Open(item.id)) },
-            enabled = actionsEnabled,
-            modifier = Modifier.semantics { contentDescription = openLabel },
-        ) {
-            Text(stringResource(R.string.mobile_transfers_open), modifier = Modifier.clearAndSetSemantics {})
-        }
+private fun produceMinuteClock(): State<Long> = produceState(System.currentTimeMillis()) {
+    while (true) {
+        delay(MINUTE_MILLIS)
+        value = System.currentTimeMillis()
     }
-    when (item.status) {
-        AppTransferStatus.Failed -> {
-            val retryLabel = stringResource(R.string.mobile_transfers_retry_named, item.name)
-            TextButton(
-                onClick = { onEvent(TransfersEvent.RetryTransfer(item.id)) },
-                enabled = actionsEnabled,
-                modifier = Modifier.semantics { contentDescription = retryLabel },
-            ) {
-                Text(stringResource(R.string.mobile_action_retry), modifier = Modifier.clearAndSetSemantics {})
-            }
-        }
-        else ->
-            if (item.status.canCancel) {
-                val cancelLabel = stringResource(R.string.mobile_transfers_cancel_named, item.name)
-                TextButton(
-                    onClick = { onConfirmation(TransferConfirmation.Cancel(item.id, item.name)) },
-                    enabled = actionsEnabled,
-                    modifier = Modifier.semantics { contentDescription = cancelLabel },
-                ) {
-                    Text(stringResource(R.string.mobile_action_cancel), modifier = Modifier.clearAndSetSemantics {})
-                }
-            }
-    }
-    if (busy) {
-        CircularProgressIndicator(
-            modifier = Modifier.size(20.dp),
-            strokeWidth = 2.dp,
-        )
-    }
+}
+
+@Composable
+private fun MobileTransferSectionLabel(@StringRes label: Int) {
+    Text(
+        text = stringResource(label),
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 4.dp)
+            .semantics { heading() },
+    )
 }
 
 @Composable
@@ -445,6 +443,7 @@ private fun MobileTransfersPaging(
                 contentAlignment = Alignment.Center,
             ) {
                 TextButton(
+                    colors = neutralTextButtonColors(),
                     onClick = { onEvent(TransfersEvent.LoadNextPage) },
                     enabled = interactionsEnabled,
                 ) {
@@ -479,6 +478,7 @@ private fun MobileTransfersPaging(
             ) {
                 Text(stringResource(R.string.mobile_transfers_paging_error))
                 TextButton(
+                    colors = neutralTextButtonColors(),
                     onClick = { onEvent(TransfersEvent.RetryLoad) },
                     enabled = interactionsEnabled,
                 ) {
@@ -508,6 +508,7 @@ private fun MobileTransfersRefreshFailure(
                 color = PutioDesignTokens.redTextSecondary,
             )
             TextButton(
+                colors = neutralTextButtonColors(),
                 onClick = { onEvent(TransfersEvent.Refresh) },
                 enabled = interactionsEnabled,
             ) {
@@ -518,240 +519,37 @@ private fun MobileTransfersRefreshFailure(
 }
 
 @Composable
-private fun MobileAddTransfer(
-    draft: MobileTransferDraft,
-    state: TransfersState,
-    onEvent: (TransfersEvent) -> Unit,
-    enabled: Boolean,
-    filesRepository: FilesRepository?,
-    onFilesAuthenticationRequired: suspend () -> Unit,
-) {
-    val input by draft.state.collectAsStateWithLifecycle()
-    val adding = (state.mutation as? TransferMutation.Running)?.action is TransferAction.Add
-    var choosingDestination by rememberSaveable { mutableStateOf(false) }
-    Button(onClick = draft::open, enabled = enabled) {
-        Text(stringResource(R.string.mobile_transfers_add))
-    }
-    if (input.open) {
-        val addFailure = (state.mutation as? TransferMutation.Failed)?.takeIf { it.action is TransferAction.Add }
-        val dismissAddFailure = { if (addFailure != null) onEvent(TransfersEvent.DismissMutationFailure) }
-        MobileAddTransferSheet(
-            input = input.input,
-            torrent = input.torrent,
-            destination = input.destination,
-            onChooseDestination = filesRepository?.let { { choosingDestination = true } },
-            onResetDestination = { draft.chooseDestination(null) },
-            onRemoveTorrent = {
-                draft.removeTorrent()
-                dismissAddFailure()
-            },
-            validation = input.validation,
-            failure = addFailure,
-            adding = adding,
-            submitEnabled = enabled && input.validation != MobileShareValidation.TooLong,
-            onInputChanged = {
-                draft.edit(it)
-                dismissAddFailure()
-            },
-            onDismiss = {
-                if (!adding) {
-                    draft.dismiss()
-                    dismissAddFailure()
-                }
-            },
-            onSubmit = {
-                if (enabled) draft.validate()?.let { add ->
-                    dismissAddFailure()
-                    onEvent(add)
-                }
-            },
-        )
-    }
-    if (input.open && choosingDestination && filesRepository != null) {
-        MobileTransferDestinationPicker(
-            repository = filesRepository,
-            onAuthenticationRequired = onFilesAuthenticationRequired,
-            onDismiss = { choosingDestination = false },
-            onChoose = { folder ->
-                draft.chooseDestination(folder)
-                choosingDestination = false
-            },
-        )
-    }
-    if (input.pendingReplacement) {
-        MobileShareReplacementDialog(draft = draft, mutation = state.mutation, onEvent = onEvent)
-    }
-}
-
-@Composable
-private fun MobileShareReplacementDialog(
-    draft: MobileTransferDraft,
-    mutation: TransferMutation,
-    onEvent: (TransfersEvent) -> Unit,
-) {
-    val mutationRunning = mutation is TransferMutation.Running
-    val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+private fun MobileTransferActionFailure(mutation: TransferMutation, onEvent: (TransfersEvent) -> Unit) {
+    val failure = (mutation as? TransferMutation.Failed)?.takeUnless { it.action is TransferAction.Add } ?: return
     AlertDialog(
-        modifier = if (landscape) {
-            Modifier.padding(horizontal = 24.dp).widthIn(max = 560.dp).fillMaxWidth()
-        } else {
-            Modifier
-        },
-        properties = DialogProperties(usePlatformDefaultWidth = !landscape),
-        onDismissRequest = { if (!mutationRunning) draft.keepDraft() },
-        title = { Text(stringResource(R.string.mobile_share_replace_title)) },
-        text = {
-            Text(
-                stringResource(R.string.mobile_share_replace_message),
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-            )
-        },
+        onDismissRequest = { onEvent(TransfersEvent.DismissMutationFailure) },
+        title = { Text(stringResource(R.string.mobile_transfers_action_error_title)) },
+        text = { Text(failure.failure.mobileMessage()) },
         confirmButton = {
-            TextButton(onClick = {
-                draft.useSharedLink()
-                val failedAction = (mutation as? TransferMutation.Failed)?.action
-                if (failedAction is TransferAction.Add) onEvent(TransfersEvent.DismissMutationFailure)
-            }, enabled = !mutationRunning) {
-                Text(stringResource(R.string.mobile_share_use_link))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = draft::keepDraft, enabled = !mutationRunning) {
-                Text(stringResource(R.string.mobile_share_keep_draft))
+            TextButton(onClick = { onEvent(TransfersEvent.DismissMutationFailure) }) {
+                Text(stringResource(R.string.mobile_action_ok))
             }
         },
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun MobileAddTransferSheet(
-    input: String,
-    torrent: TorrentUpload?,
-    destination: FilesFolder?,
-    onChooseDestination: (() -> Unit)?,
-    onResetDestination: () -> Unit,
-    onRemoveTorrent: () -> Unit,
-    validation: MobileShareValidation?,
-    failure: TransferMutation.Failed?,
-    adding: Boolean,
-    submitEnabled: Boolean,
-    onInputChanged: (String) -> Unit,
-    onDismiss: () -> Unit,
-    onSubmit: () -> Unit,
-) {
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp)
-                .padding(bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Text(
-                text = stringResource(R.string.mobile_transfers_add_title),
-                style = MaterialTheme.typography.titleLarge,
-            )
-            MobileTransferDestinationRow(destination, enabled = !adding, onChooseDestination, onResetDestination)
-            if (torrent != null) {
-                MobileTransferTorrentRow(torrent, enabled = !adding, onRemove = onRemoveTorrent)
-                val message = validation?.messageResource()?.let { stringResource(it) }
-                    ?: failure?.failure?.mobileMessage()
-                if (message != null) {
-                    Text(
-                        message,
-                        color = PutioDesignTokens.redTextSecondary,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-            } else OutlinedTextField(
-                value = input,
-                onValueChange = onInputChanged,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag(MOBILE_TRANSFER_ADD_FIELD_TAG),
-                enabled = !adding,
-                isError = validation != null || failure != null,
-                label = { Text(stringResource(R.string.mobile_transfers_add_label)) },
-                placeholder = { Text(stringResource(R.string.mobile_transfers_add_placeholder)) },
-                supportingText = {
-                    when {
-                        validation != null -> Text(stringResource(validation.messageResource()))
-                        failure != null -> Text(failure.failure.mobileMessage())
-                        else -> Text(stringResource(R.string.mobile_transfers_add_help))
-                    }
-                },
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                keyboardActions = KeyboardActions(onDone = { if (submitEnabled) onSubmit() }),
-                minLines = 2,
-                maxLines = 6,
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                TextButton(onClick = onDismiss, enabled = !adding) {
-                    Text(stringResource(R.string.mobile_action_cancel))
-                }
-                val addingDescription = stringResource(R.string.mobile_transfers_adding)
-                Button(
-                    onClick = onSubmit,
-                    enabled = submitEnabled,
-                    modifier =
-                        Modifier.semantics {
-                            if (adding) {
-                                liveRegion = LiveRegionMode.Polite
-                                stateDescription = addingDescription
-                            }
-                        },
-                ) {
-                    if (adding) {
-                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    }
-                    Text(
-                        text = stringResource(R.string.mobile_transfers_add_confirm),
-                        modifier = Modifier.padding(start = if (adding) 8.dp else 0.dp),
-                    )
-                }
-            }
-        }
-    }
-}
-
 @Composable
 private fun MobileTransferConfirmation(
-    confirmation: TransferConfirmation,
+    @StringRes title: Int,
+    message: String,
+    @StringRes confirm: Int,
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
 ) {
-    val title =
-        when (confirmation) {
-            is TransferConfirmation.Cancel -> stringResource(R.string.mobile_transfers_cancel_title)
-            is TransferConfirmation.Clean -> stringResource(R.string.mobile_transfers_clean_title)
-        }
-    val message =
-        when (confirmation) {
-            is TransferConfirmation.Cancel ->
-                stringResource(R.string.mobile_transfers_cancel_message, confirmation.name)
-            is TransferConfirmation.Clean -> stringResource(R.string.mobile_transfers_clean_message)
-        }
-    val action =
-        when (confirmation) {
-            is TransferConfirmation.Cancel -> stringResource(R.string.mobile_transfers_cancel_confirm)
-            is TransferConfirmation.Clean -> stringResource(R.string.mobile_transfers_clean_confirm)
-        }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(title) },
+        title = { Text(stringResource(title)) },
         text = { Text(message) },
-        confirmButton = { PutioDestructiveButton(onClick = onConfirm) { Text(action) } },
+        confirmButton = { PutioDestructiveButton(onClick = onConfirm) { Text(stringResource(confirm)) } },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.mobile_action_cancel)) }
+            TextButton(onClick = onDismiss, colors = neutralTextButtonColors()) {
+                Text(stringResource(R.string.mobile_action_cancel))
+            }
         },
     )
 }
@@ -772,10 +570,7 @@ private fun retryOutcomeMessage(outcome: TransferRetryOutcome): String =
             )
     }
 
-@Composable
-private fun TransferItem.statusLabel(): String = stringResource(statusLabelRes())
-
-/** The status a row shows; the home-screen widget shows the same words. */
+/** The status a card shows; the home-screen widget shows the same words. */
 @StringRes
 internal fun TransferItem.statusLabelRes(): Int =
     when (status) {
@@ -802,74 +597,14 @@ private fun TransferItem.completedStatusResource(): Int =
         else -> R.string.mobile_transfer_status_completed
     }
 
-private fun TransferItem.details(context: Context): AnnotatedString {
-    val parts = buildList {
-        sizeBytes?.takeIf { it >= 0.0 }?.let {
-            add(AnnotatedString(Formatter.formatShortFileSize(context, it.toLong())))
-        }
-        downloadSpeedBytesPerSecond?.takeIf { it > 0.0 }?.let {
-            add(transferSpeed(context, TRANSFER_DOWNLOAD_ICON, R.string.mobile_transfer_download_direction, it))
-        }
-        uploadSpeedBytesPerSecond?.takeIf { it > 0.0 }?.let {
-            add(transferSpeed(context, TRANSFER_UPLOAD_ICON, R.string.mobile_transfer_upload_direction, it))
-        }
-        estimatedSecondsRemaining?.takeIf { it > 0.0 }?.let {
-            val remaining = DateUtils.formatElapsedTime(it.toLong())
-            add(AnnotatedString(context.getString(R.string.mobile_transfer_eta, remaining)))
-        }
-        availability?.takeIf { it in 0.0..PERCENTAGE_SCALE }?.let {
-            val percentage = NumberFormat.getPercentInstance().format(it / PERCENTAGE_SCALE)
-            add(AnnotatedString(context.getString(R.string.mobile_transfer_availability, percentage)))
-        }
-    }
-    return buildAnnotatedString {
-        parts.forEachIndexed { index, part ->
-            if (index > 0) append(" · ")
-            append(part)
-        }
-    }
-}
-
-// The arrow glyph's alternate text is the direction's word, so TalkBack reads "Download 1.6 MB/s".
-private fun transferSpeed(
-    context: Context,
-    icon: String,
-    @StringRes direction: Int,
-    bytesPerSecond: Double,
-): AnnotatedString = buildAnnotatedString {
-    appendInlineContent(icon, context.getString(direction))
-    append(" ")
-    val speed = Formatter.formatShortFileSize(context, bytesPerSecond.toLong())
-    append(context.getString(R.string.mobile_transfer_speed, speed))
-}
-
-private const val TRANSFER_DOWNLOAD_ICON = "transfer-download"
-private const val TRANSFER_UPLOAD_ICON = "transfer-upload"
-
-private val TRANSFER_SPEED_ICONS = mapOf(
-    TRANSFER_DOWNLOAD_ICON to transferSpeedIcon(R.drawable.ic_ph_arrow_down),
-    TRANSFER_UPLOAD_ICON to transferSpeedIcon(R.drawable.ic_ph_arrow_up),
-)
-
-private fun transferSpeedIcon(@DrawableRes icon: Int) = InlineTextContent(
-    Placeholder(width = 1.em, height = 1.em, placeholderVerticalAlign = PlaceholderVerticalAlign.TextCenter),
-) {
-    Icon(
-        painter = painterResource(icon),
-        contentDescription = null,
-        modifier = Modifier.fillMaxSize(),
-        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-}
-
-private data class TransfersInteractions(
+internal data class TransfersInteractions(
     val controls: Boolean,
     val rows: Boolean,
     val paging: Boolean,
     val refresh: Boolean,
 )
 
-private fun TransfersState.enabledInteractions(): TransfersInteractions {
+internal fun TransfersState.enabledInteractions(): TransfersInteractions {
     val controls =
         mutation !is TransferMutation.Running &&
             navigation !is TransferNavigation.Resolving &&
@@ -890,20 +625,11 @@ private fun TransferAction.targets(id: TransferId): Boolean =
     when (this) {
         is TransferAction.Cancel -> this.id == id
         is TransferAction.Retry -> this.id == id
+        is TransferAction.Remove -> this.id == id
         TransferAction.Clean -> false
         is TransferAction.Add -> false
     }
 
-private sealed interface TransferConfirmation {
-    val event: TransfersEvent
-
-    data class Cancel(val id: TransferId, val name: String) : TransferConfirmation {
-        override val event = TransfersEvent.Cancel(id)
-    }
-
-    data object Clean : TransferConfirmation {
-        override val event = TransfersEvent.CleanCompleted
-    }
-}
-
-private const val PERCENTAGE_SCALE = 100.0
+/** Room the FAB takes above the list's end and the snackbar: 56dp and its 16dp margins. */
+private val FAB_CLEARANCE = 88.dp
+private const val MINUTE_MILLIS = 60_000L

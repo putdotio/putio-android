@@ -53,7 +53,8 @@ public class TransfersController internal constructor(
                 mutableState.value = next.state
                 val hidDuringRead =
                     event is TransfersEvent.VisibilityChanged && !event.visible && current.refresh.isRunning
-                val openedDuringPoll = event is TransfersEvent.Open && current.refresh is TransfersRefresh.Polling
+                val opening = event is TransfersEvent.Open || event is TransfersEvent.OpenFolder
+                val openedDuringPoll = opening && current.refresh is TransfersRefresh.Polling
                 val cancelledRead = readJob.takeIf { next.consumed && (hidDuringRead || openedDuringPoll) }
                 next to cancelledRead
             }
@@ -281,6 +282,7 @@ private suspend fun TransfersRepository.execute(action: TransferAction): PutioRe
         is TransferAction.Cancel -> cancel(action.id).mapSuccess { MutationResult.Affected(setOf(action.id)) }
         is TransferAction.Retry -> retry(action.id).mapSuccess(MutationResult::Item)
         TransferAction.Clean -> clean(emptyList()).mapSuccess(MutationResult::Affected)
+        is TransferAction.Remove -> clean(listOf(action.id)).mapSuccess(MutationResult::Affected)
     }
 
 private fun <T, R> PutioResult<T>.mapSuccess(mapper: (T) -> R): PutioResult<R> =

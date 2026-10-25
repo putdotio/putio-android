@@ -2,15 +2,15 @@ package io.putdotio.android.transfers
 
 import io.putdotio.android.FilesFailure
 
-internal fun TransfersState.open(id: TransferId): TransfersTransition {
-    val readInFlight = refresh is TransfersRefresh.Refreshing || content.isPaging
-    if (
-        mutation is TransferMutation.Running ||
-        navigation is TransferNavigation.Resolving ||
-        readInFlight
-    ) {
-        return TransfersTransition(this, consumed = false)
+/** A mutation, another resolution or a foreground read is running, so nothing may open now. */
+private val TransfersState.navigationBlocked: Boolean
+    get() {
+        val readInFlight = refresh is TransfersRefresh.Refreshing || content.isPaging
+        return mutation is TransferMutation.Running || navigation is TransferNavigation.Resolving || readInFlight
     }
+
+internal fun TransfersState.open(id: TransferId): TransfersTransition {
+    if (navigationBlocked) return TransfersTransition(this, consumed = false)
     val item = content.items().firstOrNull { it.id == id }
     val base = if (refresh is TransfersRefresh.Polling) copy(refresh = TransfersRefresh.Idle) else this
     return when {
@@ -33,6 +33,21 @@ internal fun TransfersState.open(id: TransferId): TransfersTransition {
         else ->
             base.notice(TransferNotice.FileUnavailable(id, TransfersRequestId(nextRequestValue)))
     }
+}
+
+/** Resolves the folder a transfer saves into; the shell opens it in Files like a transfer's file. */
+internal fun TransfersState.openFolder(id: TransferId): TransfersTransition {
+    val folderId = content.items().firstOrNull { it.id == id }?.saveParentId
+    if (navigationBlocked || folderId == null) return TransfersTransition(this, consumed = false)
+    val base = if (refresh is TransfersRefresh.Polling) copy(refresh = TransfersRefresh.Idle) else this
+    val requestId = TransfersRequestId(nextRequestValue)
+    return TransfersTransition(
+        base.copy(
+            navigation = TransferNavigation.Resolving(TransferFileId(folderId), requestId),
+            notice = null,
+            nextRequestValue = nextRequestValue + 1,
+        ),
+    )
 }
 
 internal fun TransfersState.openSucceeded(requestId: TransfersRequestId): TransfersTransition {

@@ -207,7 +207,14 @@ class TransfersControllerTest {
     }
 
     @Test
-    fun openingAFileCancelsBackgroundPolling(): Unit = runBlocking {
+    fun openingAFileCancelsBackgroundPolling() =
+        assertOpeningCancelsPolling(TransfersEvent.Open(TransferId(1L)), TransferFileId(11L))
+
+    @Test
+    fun openingTheSaveFolderCancelsBackgroundPolling() =
+        assertOpeningCancelsPolling(TransfersEvent.OpenFolder(TransferId(1L)), TransferFileId(42L))
+
+    private fun assertOpeningCancelsPolling(open: TransfersEvent, resolving: TransferFileId): Unit = runBlocking {
         val refreshStarted = CompletableDeferred<Unit>()
         val refreshCancelled = CompletableDeferred<Unit>()
         val repository =
@@ -215,7 +222,7 @@ class TransfersControllerTest {
                 load = {
                     PutioResult.Success(
                         TransfersPage(
-                            listOf(item(1L, AppTransferStatus.Seeding, TransferFileId(11L))),
+                            listOf(item(1L, AppTransferStatus.Seeding, TransferFileId(11L)).copy(saveParentId = 42L)),
                             null,
                         ),
                     )
@@ -236,12 +243,12 @@ class TransfersControllerTest {
             withTimeout(TIMEOUT) { refreshStarted.await() }
             controller.awaitState { it.refresh is TransfersRefresh.Polling }
 
-            assertTrue(controller.dispatch(TransfersEvent.Open(TransferId(1L))))
+            assertTrue(controller.dispatch(open))
             withTimeout(TIMEOUT) { refreshCancelled.await() }
 
             assertEquals(TransfersRefresh.Idle, controller.state.value.refresh)
             assertEquals(
-                TransferNavigation.Resolving(TransferFileId(11L), TransfersRequestId(3L)),
+                TransferNavigation.Resolving(resolving, TransfersRequestId(3L)),
                 controller.state.value.navigation,
             )
         } finally {
@@ -360,6 +367,31 @@ class TransfersControllerTest {
                 listOf(active.id),
                 (refreshed.content as TransfersContent.Ready).items.map(TransferItem::id),
             )
+        } finally {
+            controller.close()
+        }
+    }
+
+    @Test
+    fun removeCleansOnlyThatTransfer(): Unit = runBlocking {
+        var cleanedIds: List<TransferId>? = null
+        val completed = item(1L, AppTransferStatus.Completed)
+        val other = item(2L, AppTransferStatus.Completed)
+        val base = repository { PutioResult.Success(TransfersPage(listOf(completed, other), null)) }
+        val repository = object : TransfersRepository by base {
+            override suspend fun clean(ids: List<TransferId>): PutioResult<Set<TransferId>> {
+                cleanedIds = ids
+                return PutioResult.Success(ids.toSet())
+            }
+        }
+        val controller = TransfersController(repository, this)
+        try {
+            controller.awaitState { it.content is TransfersContent.Ready }
+            assertTrue(controller.dispatch(TransfersEvent.Remove(completed.id)))
+            val removed = controller.awaitState { it.mutation == TransferMutation.Idle && cleanedIds != null }
+
+            assertEquals(listOf(completed.id), cleanedIds)
+            assertEquals(listOf(other.id), (removed.content as TransfersContent.Ready).items.map(TransferItem::id))
         } finally {
             controller.close()
         }

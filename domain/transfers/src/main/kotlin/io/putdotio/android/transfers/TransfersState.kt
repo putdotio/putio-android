@@ -46,6 +46,8 @@ public sealed interface TransferAction {
     public data class Cancel(val id: TransferId) : TransferAction
     public data class Retry(val id: TransferId) : TransferAction
     public data object Clean : TransferAction
+    /** Takes one finished transfer off the list; the file stays in put.io. */
+    public data class Remove(val id: TransferId) : TransferAction
 }
 
 public sealed interface TransferMutation {
@@ -128,9 +130,12 @@ public sealed interface TransfersEvent {
     public data class Cancel(val id: TransferId) : TransfersEvent
     public data class RetryTransfer(val id: TransferId) : TransfersEvent
     public data object CleanCompleted : TransfersEvent
+    public data class Remove(val id: TransferId) : TransfersEvent
     public data object DismissMutationFailure : TransfersEvent
     public data class DismissRetryOutcome(val requestId: TransfersRequestId) : TransfersEvent
     public data class Open(val id: TransferId) : TransfersEvent
+    /** Opens the folder the transfer saves into, through the same resolution as [Open]. */
+    public data class OpenFolder(val id: TransferId) : TransfersEvent
     public data class OpenSucceeded(val requestId: TransfersRequestId) : TransfersEvent
     public data class OpenFailed(val requestId: TransfersRequestId, val failure: FilesFailure) : TransfersEvent
     public data object DismissNavigationFailure : TransfersEvent
@@ -194,10 +199,12 @@ public object TransfersReducer {
             is TransfersEvent.Add, is TransfersEvent.AddTorrent -> state.add(event)
             is TransfersEvent.Cancel -> state.cancel(event.id)
             is TransfersEvent.RetryTransfer -> state.retryTransfer(event.id)
-            TransfersEvent.CleanCompleted -> state.cleanCompleted()
+            TransfersEvent.CleanCompleted, is TransfersEvent.Remove ->
+                state.clean((event as? TransfersEvent.Remove)?.id)
             TransfersEvent.DismissMutationFailure -> state.dismissMutationFailure()
             is TransfersEvent.DismissRetryOutcome -> state.dismissRetryOutcome(event.requestId)
             is TransfersEvent.Open,
+            is TransfersEvent.OpenFolder,
             is TransfersEvent.OpenSucceeded,
             is TransfersEvent.OpenFailed,
             TransfersEvent.DismissNavigationFailure,
@@ -209,6 +216,7 @@ public object TransfersReducer {
     private fun reduceNavigation(state: TransfersState, event: TransfersEvent): TransfersTransition =
         when (event) {
             is TransfersEvent.Open -> state.open(event.id)
+            is TransfersEvent.OpenFolder -> state.openFolder(event.id)
             is TransfersEvent.OpenSucceeded -> state.openSucceeded(event.requestId)
             is TransfersEvent.OpenFailed -> state.openFailed(event.requestId, event.failure)
             TransfersEvent.DismissNavigationFailure -> state.dismissNavigationFailure()

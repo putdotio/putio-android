@@ -235,7 +235,7 @@ accessibility checks.
 - `MobileAccessibilityProofTest` mounts controlled auth, Files, Trash and
   Settings with no API calls. Require `OK (2 tests)`.
 - `MobileShellAccessibilityProofTest#fullShellWithPrivateAudioKeepsNavigationAndTransfersReachable`
-  adds the real navigation shell, app bars, Transfers toolbar and the
+  adds the real navigation shell, app bars, the Transfers overflow and FAB, and the
   now-playing bar with a private muted player. It needs
   `putio.accessibility.audio` (a 180 s local audio fixture). Run it in
   portrait and landscape with `putio.accessibility.orientation`, one

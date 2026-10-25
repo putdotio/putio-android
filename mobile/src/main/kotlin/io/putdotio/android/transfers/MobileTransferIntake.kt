@@ -4,6 +4,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.ButtonColors
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -44,14 +49,28 @@ internal fun MobileTransferDestinationRow(
     onChoose: (() -> Unit)?,
     onReset: () -> Unit,
 ) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(
+        modifier = Modifier.padding(top = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(
+            painterResource(R.drawable.ic_ph_folder),
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(end = 8.dp).size(24.dp),
+        )
         Column(
             modifier = Modifier
                 .weight(1f)
                 .semantics(mergeDescendants = true) {}
                 .testTag(MOBILE_TRANSFER_DESTINATION_TAG),
         ) {
-            Text(stringResource(R.string.mobile_transfers_save_to), style = MaterialTheme.typography.labelMedium)
+            Text(
+                stringResource(R.string.mobile_transfers_save_to),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             Text(
                 text = when {
                     destination == null -> stringResource(R.string.mobile_transfers_default_folder)
@@ -62,22 +81,29 @@ internal fun MobileTransferDestinationRow(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        if (destination != null) {
-            TextButton(onClick = onReset, enabled = enabled) {
-                Text(stringResource(R.string.mobile_transfers_use_default_folder))
+        // The labels, not the buttons' padding, line up with the field's edge above.
+        Row(modifier = Modifier.offset(x = TEXT_BUTTON_INSET)) {
+            if (destination != null) {
+                TextButton(colors = neutralTextButtonColors(), onClick = onReset, enabled = enabled) {
+                    Text(stringResource(R.string.mobile_transfers_use_default_folder))
+                }
             }
-        }
-        if (onChoose != null) {
-            TextButton(
-                onClick = onChoose,
-                enabled = enabled,
-                modifier = Modifier.testTag(MOBILE_TRANSFER_CHANGE_DESTINATION_TAG),
-            ) {
-                Text(stringResource(R.string.mobile_transfers_change_folder))
+            if (onChoose != null) {
+                TextButton(
+                    colors = neutralTextButtonColors(),
+                    onClick = onChoose,
+                    enabled = enabled,
+                    modifier = Modifier.testTag(MOBILE_TRANSFER_CHANGE_DESTINATION_TAG),
+                ) {
+                    Text(stringResource(R.string.mobile_transfers_change_folder))
+                }
             }
         }
     }
 }
+
+/** Material's text button pads its label by 12dp on each side. */
+private val TEXT_BUTTON_INSET = 12.dp
 
 @Composable
 internal fun MobileTransferTorrentRow(torrent: TorrentUpload, enabled: Boolean, onRemove: () -> Unit) {
@@ -99,6 +125,11 @@ internal fun MobileTransferTorrentRow(torrent: TorrentUpload, enabled: Boolean, 
         }
     }
 }
+
+/** DESIGN.md keeps every button but the one primary action neutral; Material's text button is yellow. */
+@Composable
+internal fun neutralTextButtonColors(): ButtonColors =
+    ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
 
 /** The Files move picker, choosing where a new transfer saves instead of where an item moves. */
 @Composable

@@ -10,6 +10,12 @@ internal interface MobileTransferDraftEdits {
 
     fun removeTorrent()
 
+    /**
+     * A `.torrent` picked from the open sheet takes the field's place without asking; the typed links
+     * come back when it is removed. A read that failed shows why in the sheet.
+     */
+    fun attachTorrent(picked: MobileSharedTransfer)
+
     fun chooseDestination(folder: FilesFolder?)
 
     fun dismiss()
@@ -47,6 +53,12 @@ internal class MobileTransferDraftEditor(
         mutableState.value = mutableState.value.copy(torrent = null, validation = null)
     }
 
+    override fun attachTorrent(picked: MobileSharedTransfer) {
+        val current = mutableState.value
+        if (!current.open || current.submitting) return
+        mutableState.value = current.copy(torrent = picked.torrent ?: current.torrent, validation = picked.validation)
+    }
+
     override fun chooseDestination(folder: FilesFolder?) {
         if (mutableState.value.submitting) return
         mutableState.value = mutableState.value.copy(destination = folder)
@@ -61,15 +73,18 @@ internal class MobileTransferDraftEditor(
         val current = mutableState.value
         val saveParentId = current.destination?.id?.value
         return when {
-            current.submitting || current.validation == MobileShareValidation.TooLong -> null
+            current.submitting || current.readingTorrent || current.validation == MobileShareValidation.TooLong ->
+                null
             current.torrent != null -> TransfersEvent.AddTorrent(current.torrent, saveParentId)
             else -> {
-                val valid = TransferSubmission.parseAll(current.input)?.joinLines()
+                // Good lines go; a bad line stays in the field with its reason for the user to fix.
+                val lines = checkMobileTransferLines(current.input)
+                val links = lines.links.takeIf { it.isNotEmpty() && it.size <= MAX_TRANSFER_LINKS }
                 mutableState.value = current.copy(
-                    input = valid ?: current.input,
-                    validation = if (valid == null) current.validation ?: current.linkProblem() else null,
+                    input = if (links != null && lines.badLines.isEmpty()) links.joinLines() else current.input,
+                    validation = if (links == null) current.validation ?: lines.problem() else null,
                 )
-                valid?.let { TransfersEvent.Add(it, saveParentId) }
+                links?.let { TransfersEvent.Add(it.joinLines(), saveParentId) }
             }
         }
     }
@@ -102,9 +117,5 @@ internal class MobileTransferDraftEditor(
     }
 }
 
-private fun MobileTransferDraftState.linkProblem(): MobileShareValidation =
-    if (input.split(SharedWhitespace).count(String::isNotEmpty) > MAX_TRANSFER_LINKS) {
-        MobileShareValidation.TooManyLinks
-    } else {
-        MobileShareValidation.InvalidLink
-    }
+private fun MobileTransferLines.problem(): MobileShareValidation =
+    if (links.size > MAX_TRANSFER_LINKS) MobileShareValidation.TooManyLinks else MobileShareValidation.InvalidLink

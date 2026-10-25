@@ -471,13 +471,6 @@
     },
     {
       "resDir": "mobile/src/main/res",
-      "resource": "ic_ph_arrow_up",
-      "asset": "assets/regular/arrow-up.svg",
-      "sourceSha256": "361aa9f9c52a759bf598faf6ed38ccd426f949f541d662c65b5b5d868fa76980",
-      "outputSha256": "4e4d66e1a51cf0d6559a0b7984d85fae21432a1c714a1315c62e871a0c40e03c"
-    },
-    {
-      "resDir": "mobile/src/main/res",
       "resource": "ic_ph_clock_counter_clockwise_fill",
       "asset": "assets/fill/clock-counter-clockwise-fill.svg",
       "sourceSha256": "618d6c238df479c26b40aab3271602a801797338d5521a28a1b254a86edf5398",
@@ -503,6 +496,76 @@
       "asset": "assets/fill/download-simple-fill.svg",
       "sourceSha256": "dee151da85ad71e90a882a556481e2069a154b8892063c9f91b621a0e06ad479",
       "outputSha256": "9eb3e8739ed85086982c54887905297ffd93c8be319d67f3ab13d3a4d16a1195"
+    },
+    {
+      "resDir": "mobile/src/main/res",
+      "resource": "ic_ph_plus",
+      "asset": "assets/regular/plus.svg",
+      "sourceSha256": "d688feb9dd2e41c1721d6906a05a2a42e18cd774762fe706d72b2bdfd91cddc4",
+      "outputSha256": "8fa2e57279ddf5a05b421b70f925b93f34b3fe884011a28bfa8f96aadb77512a"
+    },
+    {
+      "resDir": "mobile/src/main/res",
+      "resource": "ic_ph_clipboard_text",
+      "asset": "assets/regular/clipboard-text.svg",
+      "sourceSha256": "1b1116133ad78d227c8d77f52856bde049dc02a351a1810d5dc91b2475cb873f",
+      "outputSha256": "020b26de0090a2c1be92367153ab5f7036a761d6545af8492d70f084dab17c7f"
+    },
+    {
+      "resDir": "mobile/src/main/res",
+      "resource": "ic_ph_file_arrow_up",
+      "asset": "assets/regular/file-arrow-up.svg",
+      "sourceSha256": "b7127fb44729f481bb574b3e3ddfff1085de38bfe82d112c743f887ba7352da2",
+      "outputSha256": "6dbb41f0d19d60023da238476c720d370713c6113c5794ddaab21921d75794ce"
+    },
+    {
+      "resDir": "mobile/src/main/res",
+      "resource": "ic_ph_folder_open",
+      "asset": "assets/regular/folder-open.svg",
+      "sourceSha256": "9157518d00547242d3986c4fdaaf44a62ef056caf3ecee0c88137529947170ea",
+      "outputSha256": "ff47e3ab7689fca08c234d7b94ff02cdb54eb688edac794e8850997cdcca8636"
+    },
+    {
+      "resDir": "mobile/src/main/res",
+      "resource": "ic_ph_copy",
+      "asset": "assets/regular/copy.svg",
+      "sourceSha256": "5a892fc6a72866e60c67db2088a87653cf44b57b1a5d183b36e950cdc5dd66b3",
+      "outputSha256": "6db0395012c1533d26b08993529243534ccc79f7ea386ef24e841ca930dd75b2"
+    },
+    {
+      "resDir": "mobile/src/main/res",
+      "resource": "ic_ph_stop_circle",
+      "asset": "assets/regular/stop-circle.svg",
+      "sourceSha256": "3bb4ad4299117aef1415eb9716f17613559ad01e15720ee328279eb9711d4528",
+      "outputSha256": "8bce3119f0f023ee0aed90398130391047c2e78ff89686c9f5457890c8a3d671"
+    },
+    {
+      "resDir": "mobile/src/main/res",
+      "resource": "ic_ph_magnet",
+      "asset": "assets/regular/magnet.svg",
+      "sourceSha256": "b62b4c2348845e7b498b274540b9eda464ab1f4f39176e5c5d51f7485f038f5d",
+      "outputSha256": "f6a90254ffe1b3887ba8c4e221fac62c976dfea037b6140a2f494a587b777fee"
+    },
+    {
+      "resDir": "mobile/src/main/res",
+      "resource": "ic_ph_arrows_clockwise",
+      "asset": "assets/regular/arrows-clockwise.svg",
+      "sourceSha256": "2e80fbc9c5c37553934c9ebbd6324bf7fabe9a4b4d7c2445d99edfce55cc22df",
+      "outputSha256": "5647de7b61944beb5db3b03f905331ff9d38cd9d57b26a56d3a1eb88fdca6216"
+    },
+    {
+      "resDir": "mobile/src/main/res",
+      "resource": "ic_ph_caret_right",
+      "asset": "assets/regular/caret-right.svg",
+      "sourceSha256": "e6dec01e074807965b7f3146b976a9b5e82c31d9c2c88aeb52e77cc2ab16c1d7",
+      "outputSha256": "fc0a578ae88e79240491be8fb9c330a1b5074bcdfa4ebf8cc75c242a23f94c63"
+    },
+    {
+      "resDir": "mobile/src/main/res",
+      "resource": "ic_ph_file",
+      "asset": "assets/regular/file.svg",
+      "sourceSha256": "eb2dcc530fb0727a1718dfdc55a466479bb5ad7c8f0e45f1993541093c747e06",
+      "outputSha256": "3a1686dbdb40e6c157e3aabf5bfaf111333740bdef857d97ec59a375a2ddbc3f"
     }
   ]
 }

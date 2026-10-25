@@ -9,6 +9,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.sync.Mutex
@@ -24,11 +25,14 @@ internal data class MobileTransferDraftState(
     val incomingRequestId: Long? = null,
     val pendingReplacement: Boolean = false,
     val submitting: Boolean = false,
+    /** A `.torrent` picked from the sheet is still being read; nothing submits until it settles. */
+    val readingTorrent: Boolean = false,
 ) {
     override fun toString(): String =
         "MobileTransferDraftState(<redacted>, torrent=${torrent != null}, destination=${destination?.id}, " +
             "open=$open, validation=$validation, " +
-            "incomingRequestId=$incomingRequestId, pendingReplacement=$pendingReplacement, submitting=$submitting)"
+            "incomingRequestId=$incomingRequestId, pendingReplacement=$pendingReplacement, submitting=$submitting, " +
+            "readingTorrent=$readingTorrent)"
 }
 
 /** Activity-owned memory only: signed URLs must never enter a saved-state registry. */
@@ -49,12 +53,15 @@ class MobileTransferDraft private constructor(
     private var lastSuccessfulAdd: TransfersRequestId? = null
     private var lastMutation: TransferMutation = TransferMutation.Idle
     private var pendingRead: Job? = null
+    /** Moves on whenever the draft is replaced or finished, so a slow picked read can't land in the next one. */
+    private var draftGeneration = 0L
     private val readLock = Mutex()
 
     internal fun reconcileSession(sessionId: MobileAuthSessionId?) {
         if (boundSessionId != null && boundSessionId != sessionId) {
             pendingRead?.cancel()
             replacement = null
+            draftGeneration++
             mutableState.value = MobileTransferDraftState()
             observedTransfers = false
             lastSuccessfulAdd = null
@@ -91,15 +98,29 @@ class MobileTransferDraft private constructor(
      * Reads a shared `.torrent` off the main thread; the result arrives like any other share. A newer
      * intake or a session change cancels the read so none lands out of order. A provider may ignore the
      * interrupt, so the lock is held until the read actually returns: at most one runs at a time.
-     * [onDone] runs once the read has finished, failed or been cancelled.
+     * [onDone] runs once the read has finished, failed or been cancelled. A torrent the user [picked]
+     * from the open sheet goes straight into it instead ([attachTorrent]).
      */
-    internal fun receiveLater(onDone: () -> Unit = {}, read: () -> MobileSharedTransfer) {
+    internal fun receiveLater(
+        onDone: () -> Unit = {},
+        picked: Boolean = false,
+        read: () -> MobileSharedTransfer,
+    ) {
         pendingRead?.cancel()
+        val generation = draftGeneration
+        mutableState.update { it.copy(readingTorrent = picked) }
         pendingRead = viewModelScope.launch {
-            deliver(readLock.withLock { runInterruptible(ioDispatcher) { read() } })
+            val shared = readLock.withLock { runInterruptible(ioDispatcher) { read() } }
+            when {
+                !picked -> deliver(shared)
+                generation == draftGeneration -> attachTorrent(shared)
+            }
         }.apply {
             // Also when a newer intake cancels this read before it began.
-            invokeOnCompletion { onDone() }
+            invokeOnCompletion {
+                if (pendingRead === this) mutableState.update { it.copy(readingTorrent = false) }
+                onDone()
+            }
         }
     }
 
@@ -121,16 +142,26 @@ class MobileTransferDraft private constructor(
         }
     }
 
-    /** put.io refused [rejectedLinks]; they stay in the draft for the user to fix or drop. */
+    /**
+     * put.io refused [rejectedLinks]; they stay in the draft for the user to fix or drop, after the
+     * lines that never went because they didn't parse or were parked behind an uploaded torrent.
+     */
     internal fun submissionSucceeded(rejectedLinks: List<String> = emptyList()) {
         val current = mutableState.value
         val pending = replacement
+        draftGeneration++
+        // Behind an uploaded torrent every typed line is unsent; otherwise only the lines that didn't parse.
+        val unsent = if (current.torrent == null) {
+            checkMobileTransferLines(current.input).badText
+        } else {
+            current.input.lines().map(String::trim).filter(String::isNotEmpty)
+        }
         when {
-            rejectedLinks.isNotEmpty() -> mutableState.value = MobileTransferDraftState(
-                input = rejectedLinks.joinToString("\n"),
+            rejectedLinks.isNotEmpty() || unsent.isNotEmpty() -> mutableState.value = MobileTransferDraftState(
+                input = (rejectedLinks + unsent).joinToString("\n"),
                 destination = current.destination,
                 open = true,
-                validation = MobileShareValidation.NotAdded,
+                validation = MobileShareValidation.NotAdded.takeIf { rejectedLinks.isNotEmpty() },
                 incomingRequestId = current.incomingRequestId,
                 pendingReplacement = pending != null,
             )
@@ -152,6 +183,7 @@ class MobileTransferDraft private constructor(
 
     private fun present(shared: MobileSharedTransfer, requestId: Long?) {
         replacement = null
+        draftGeneration++
         mutableState.value = MobileTransferDraftState(
             input = shared.input,
             torrent = shared.torrent,

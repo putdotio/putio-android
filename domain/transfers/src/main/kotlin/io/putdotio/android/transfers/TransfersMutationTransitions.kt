@@ -33,12 +33,16 @@ internal fun TransfersState.retryTransfer(id: TransferId): TransfersTransition {
     }
 }
 
-internal fun TransfersState.cleanCompleted(): TransfersTransition =
-    if (content !is TransfersContent.Ready) {
-        TransfersTransition(this, consumed = false)
-    } else {
-        mutate(TransferAction.Clean)
+/** Clears every completed transfer, or with [id] only that one, which must be completed itself. */
+internal fun TransfersState.clean(id: TransferId? = null): TransfersTransition {
+    val allowed = content is TransfersContent.Ready &&
+        (id == null || content.items().firstOrNull { it.id == id }?.canRemove == true)
+    return when {
+        !allowed -> TransfersTransition(this, consumed = false)
+        id == null -> mutate(TransferAction.Clean)
+        else -> mutate(TransferAction.Remove(id))
     }
+}
 
 internal fun TransfersState.mutate(action: TransferAction): TransfersTransition {
     if (
@@ -125,6 +129,8 @@ private fun applyMutationSuccess(
             items.filterNot {
                 it.status == AppTransferStatus.Completed || it.id in event.affectedIds
             }
+        // put.io reports what it deleted; a transfer it kept stays listed.
+        is TransferAction.Remove -> items.filterNot { it.id == action.id && it.id in event.affectedIds }
     }
 
 private fun TransfersState.withoutActiveRead(): TransfersState {

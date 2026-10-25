@@ -22,6 +22,7 @@ import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -68,6 +69,8 @@ import io.putdotio.android.transfers.TransfersEvent
 import io.putdotio.android.transfers.TransfersPaging
 import io.putdotio.android.transfers.parseMobileSharedTransfer
 import io.putdotio.android.transfers.transfersState
+import io.putdotio.android.transfers.mobileTransferCardTag
+import io.putdotio.android.transfers.MOBILE_TRANSFER_ADD_CONFIRM_TAG
 import java.io.Closeable
 import java.io.File
 import org.junit.Assert.assertEquals
@@ -231,19 +234,21 @@ class MobileShellAccessibilityProofTest {
         assertTrue("The shell must leave usable scrolling space below its toolbar", list.height >= minimum)
         compose.onNodeWithText(TRANSFER_NAME).assertIsDisplayed()
         capture("transfers")
-        compose.onNodeWithContentDescription("Transfer actions").performClick()
+        compose.onNodeWithContentDescription("More options").performClick()
         compose.onNodeWithText("Refresh").assertIsDisplayed().assertIsEnabled()
-        compose.onNodeWithText("Clean completed").assertIsDisplayed().assertIsEnabled()
+        compose.onNodeWithText("Clear completed").assertIsDisplayed().assertIsEnabled()
         capture("transfer-actions")
-        compose.onNodeWithText("Clean completed").performClick()
-        compose.onNodeWithText("Clean completed transfers?").assertIsDisplayed()
+        compose.onNodeWithText("Clear completed").performClick()
+        compose.onNodeWithText("Clear completed transfers?").assertIsDisplayed()
         compose.onNodeWithText("Cancel").performClick()
         assertTrue(events.isEmpty())
-        compose.onNodeWithContentDescription("Cancel transfer $TRANSFER_NAME")
+        compose.onNodeWithTag(mobileTransferCardTag(TransferId(147)))
             .performScrollTo().assertIsDisplayed().performClick()
         compose.onNodeWithText("Stop transfer").assertIsDisplayed().performClick()
+        compose.onNodeWithText("Stop transfer?").assertIsDisplayed()
+        compose.onNodeWithText("Stop transfer").performClick()
         assertEquals(listOf(TransfersEvent.Cancel(TransferId(147))), events)
-        compose.onNodeWithText("Add transfer").performClick()
+        compose.onNode(hasContentDescription("Add transfer") or hasText("Add transfer")).performClick()
         proofStage = "transfer-keyboard"
         compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).performScrollTo().performClick()
             .performTextInput(SHARED_URL)
@@ -254,9 +259,9 @@ class MobileShellAccessibilityProofTest {
         }
         compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).performScrollTo().assertIsDisplayed()
         capture("transfer-edit-keyboard")
-        compose.onNodeWithText("Add").performScrollTo().assertIsDisplayed().assertIsEnabled()
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_CONFIRM_TAG).performScrollTo().assertIsDisplayed().assertIsEnabled()
         capture("transfer-add-keyboard")
-        compose.onNodeWithText("Add").performClick()
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_CONFIRM_TAG).performClick()
         assertEquals(listOf(TransfersEvent.Cancel(TransferId(147)), TransfersEvent.Add(SHARED_URL)), events)
         compose.onNodeWithText("Cancel").performScrollTo().performClick()
     }
@@ -272,7 +277,7 @@ class MobileShellAccessibilityProofTest {
         checkReplacementMessage("share-keep")
         compose.onNodeWithText("Keep draft").assertIsDisplayed().assertIsEnabled().performClick()
         compose.onNodeWithText("Replace the current draft?").assertDoesNotExist()
-        compose.onNodeWithText("Add transfer").assertIsDisplayed().performClick()
+        compose.onNode(hasContentDescription("Add transfer") or hasText("Add transfer")).assertIsDisplayed().performClick()
         compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).performScrollTo()
             .assertIsDisplayed().assertTextContains(SHARED_URL)
         compose.runOnIdle {

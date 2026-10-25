@@ -15,6 +15,7 @@ import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
@@ -128,7 +129,7 @@ class MobileKeyboardNavigationProofTest {
             editor.assertIsDisplayed().assertIsFocused().assertTextContains("Rehearsal archive")
             compose.onNodeWithTag(navigationTag).assertIsDisplayed()
             compose.onNode(hasText("Transfers") and hasAnyAncestor(hasTestTag(navigationTag))).performClick()
-            compose.onNodeWithText("Add transfer").assertIsDisplayed()
+            compose.onNode(hasContentDescription("Add transfer") or hasText("Add transfer")).assertIsDisplayed()
             capture("normal-$orientation-transfers")
         } catch (failure: Throwable) {
             try {

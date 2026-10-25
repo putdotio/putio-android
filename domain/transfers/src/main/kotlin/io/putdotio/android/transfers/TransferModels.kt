@@ -81,7 +81,24 @@ public data class TransferItem(
     val errorMessage: String?,
     val createdAt: String,
     val userFileExists: Boolean?,
+    /** The folder put.io saves into; 0 is the root. Null when the API sends none. */
+    val saveParentId: Long? = null,
+    /** The link the transfer started from, only when it is an HTTP(S) or magnet link. */
+    val source: TransferSource? = null,
+    val downloadedBytes: Double? = null,
+    val currentRatio: Double? = null,
+    val finishedAt: String? = null,
 )
+
+/** A transfer's source link; it can carry a tracker passkey or a signed URL, so it never prints. */
+@JvmInline
+public value class TransferSource(public val value: String) {
+    override fun toString(): String = "TransferSource(<redacted>)"
+}
+
+/** Only a finished transfer leaves the list on its own; put.io keeps running and failed ones. */
+public val TransferItem.canRemove: Boolean
+    get() = status == AppTransferStatus.Completed
 
 public data class TransfersPage(
     val items: List<TransferItem>,

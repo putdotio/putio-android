@@ -37,14 +37,23 @@ object DesignTokenCodegen {
      * other color reaches the apps only through the color schemes and stays `internal` to
      * `core/design`. The overscan ratios are always public: the TV shell pads by them.
      */
-    val APP_TOKENS: Set<String> = setOf("yellowSolid", "redTextSecondary", "greenSolid")
+    val APP_TOKENS: Set<String> = setOf("yellowSolid", "redTextSecondary", "greenSolid", "solid")
 
     /**
      * Tokens Android XML reads as `@color/putio_<css-name>`: RemoteViews layouts, which Compose
      * colors cannot reach, and adaptive shortcut icons. Add a token here before an XML surface uses it.
      */
     val RESOURCE_TOKENS: Set<String> =
-        setOf("appBg", "componentBg", "text", "textSecondary", "yellowSolid", "redTextSecondary", "greenSolid")
+        setOf(
+            "appBg",
+            "componentBg",
+            "componentBgActive",
+            "text",
+            "textSecondary",
+            "yellowSolid",
+            "redTextSecondary",
+            "greenSolid",
+        )
 
     /**
      * M3 role → token property (optionally `property:alpha`). These are the
