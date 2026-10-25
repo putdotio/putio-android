@@ -134,7 +134,8 @@ internal class MobileDownloadEngine(
                 store.addBlocking(download.recoveredEntry(fileId, standInName))
             }
             if (download.stopReason == STOP_REASON_OTHER_USER) {
-                downloadManager.setStopReason(download.request.id, wantedStopReason(fileId))
+                val wanted = wantedStopReason(fileId) ?: Download.STOP_REASON_NONE
+                downloadManager.setStopReason(download.request.id, wanted)
             }
             if (fileId in missing) store.markMissing(fileId) else reflect(download, null)
         }
@@ -228,7 +229,9 @@ internal class MobileDownloadEngine(
     fun park() {
         for (download in downloadManager.currentDownloads) {
             val fileId = fileIdOf(userId, download.request.id) ?: continue
-            if (wantedStopReason(fileId) != STOP_REASON_PAUSED) {
+            val paused = wantedStopReason(fileId)?.let { it == STOP_REASON_PAUSED }
+                ?: (download.stopReason == STOP_REASON_PAUSED)
+            if (!paused) {
                 downloadManager.setStopReason(download.request.id, STOP_REASON_OTHER_USER)
             }
         }
@@ -261,7 +264,7 @@ internal class MobileDownloadEngine(
         // A pause that reached Media3 before its request did, or that parking overwrote, is applied
         // again; so is a resume Media3 missed.
         val wanted = wantedStopReason(fileId)
-        if (!download.isTerminalState &&
+        if (wanted != null && !download.isTerminalState &&
             (download.stopReason == STOP_REASON_PAUSED) != (wanted == STOP_REASON_PAUSED)
         ) {
             downloadManager.setStopReason(download.request.id, wanted)
@@ -280,9 +283,12 @@ internal class MobileDownloadEngine(
         }
     }
 
-    /** The viewer's pause, as the app's index keeps it, else no stop reason. */
-    private fun wantedStopReason(fileId: FilesItemId): Int =
-        if (store.find(fileId)?.pauseRequested == true) STOP_REASON_PAUSED else Download.STOP_REASON_NONE
+    /**
+     * The viewer's pause, as the app's index keeps it, else no stop reason; null while the index has
+     * no row, so Media3's own pause stands until reconcile rebuilds the row from it.
+     */
+    private fun wantedStopReason(fileId: FilesItemId): Int? =
+        store.find(fileId)?.let { if (it.pauseRequested) STOP_REASON_PAUSED else Download.STOP_REASON_NONE }
 
     internal companion object {
         /** Media3 stop reason for requests whose owner is not the signed-in user. */

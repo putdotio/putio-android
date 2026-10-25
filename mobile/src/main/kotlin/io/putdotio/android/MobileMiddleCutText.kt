@@ -48,7 +48,15 @@ internal fun MobileMiddleCutText(
             maxLines = 1,
             softWrap = false,
             overflow = TextOverflow.Ellipsis,
-            onTextLayout = { drawn = it.layoutInput.text.text },
+            onTextLayout = { layout ->
+                val laidOut = layout.layoutInput.text.text
+                // What shows: a clipped end reads as cut there, so a lost extension cannot pass for a cut.
+                drawn = if (layout.isLineEllipsized(0)) {
+                    laidOut.substring(0, layout.getLineEnd(0, visibleEnd = true)) + ELLIPSIS
+                } else {
+                    laidOut
+                }
+            },
             // A merged row reads its text in order, so the full name stands in for the cut one there;
             // a content description would hide the row's meta from TalkBack.
             modifier = if (shown == text) {

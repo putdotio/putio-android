@@ -353,6 +353,20 @@ class MobileDownloadEngineTest {
     }
 
     @Test
+    fun aPausedDownloadWhoseRowWasLostComesBackPaused() {
+        index.putDownload(download("$ALICE:10", Download.STATE_STOPPED, stopReason = 2))
+        val store = store(ALICE)
+        val manager = manager()
+
+        engine(ALICE, store, manager)
+
+        awaitMain { (store.status(10L) as? DownloadStatus.Paused)?.reason == DownloadPauseReason.USER }
+        assertTrue(store.find(FilesItemId(10L))?.pauseRequested == true)
+        awaitMain { manager.isInitialized }
+        assertEquals(2, manager.stopReasonOf("$ALICE:10"))
+    }
+
+    @Test
     fun aPauseSentBeforeMedia3HasTheRequestHoldsOnceTheAddArrives() {
         val store = store(ALICE)
         runBlocking { store.upsert(entry(10L, accepted = false)) }
