@@ -156,7 +156,9 @@ internal data class FilesSelectionActions(
     val download: Boolean,
     val watched: Boolean?,
     val delete: Boolean,
-)
+) {
+    val any: Boolean get() = move || download || watched != null || delete
+}
 
 internal fun List<FilesItem>.selectionActions(
     canMove: Boolean,
@@ -354,7 +356,13 @@ internal fun MobileFilesSelectionToolbarSlot(
 ) {
     val currentState by rememberUpdatedState(state)
     val items = selection?.selected(state).orEmpty()
-    if (selection == null || items.isEmpty()) {
+    // Rows that share no action, such as an owned file beside a friend's folder, get no empty toolbar.
+    val offered = items.selectionActions(
+        canMove = actions.onMove != null,
+        canDownload = actions.onDownload != null,
+        canSetWatched = actions.onSetWatched != null,
+    ).any
+    if (selection == null || !offered) {
         SideEffect { onHeightChanged(0) }
         return
     }

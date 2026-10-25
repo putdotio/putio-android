@@ -148,6 +148,9 @@ class MobileFilesSelectionTest {
         assertNull(withShared.watched)
         assertTrue(withShared.download)
 
+        // A friend's folder beside an owned file shares no action, so the toolbar shows none.
+        assertFalse(actions(SERIES.copy(id = FilesItemId(15L), isShared = true), SINTEL).any)
+
         val offline = listOf(SINTEL).selectionActions(canMove = false, canDownload = false, canSetWatched = false)
         assertFalse(offline.move || offline.download)
         assertNull(offline.watched)
