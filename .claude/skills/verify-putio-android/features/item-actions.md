@@ -37,7 +37,7 @@ Preconditions:
 
 - **Open from overflow.** In the run's folder, tap the file's overflow. Run
   `$V/ui.sh tap $SERIAL --desc "Actions for note-$RUN.txt"`. The sheet shows
-  the full name, `Rename`, `Move`, `Make a copy` and `Move to trash` (or
+  the full name, `Rename`, `Move` and `Move to trash` (or
   `Delete permanently` with Trash off). Capture `actions-open`.
 - **Open from long-press.** Press Back, then run
   `$V/ui.sh long-press $SERIAL --text "note-$RUN.txt"`. The same sheet opens.
@@ -53,9 +53,12 @@ Preconditions:
   `Target folder`, confirm. The row leaves this folder;
   `putio files list --parent-id <target id>` lists it. Adopt the id and
   settle.
-- **Copy.** Intend `copy <file id>`, open the sheet, tap `Make a copy`, pick
+- **Copy.** `Make a copy` shows only on items shared with the account, never
+  on its own uploads. Open `Items shared with you`; if it holds a small
+  file, intend `copy <file id>`, open its sheet, tap `Make a copy` and pick
   the run's root. The snackbar reads `Copied “<name>” to <folder>.` Adopt
-  the copy's id and settle.
+  the copy's id and settle. With nothing shared, report `actions-copy`
+  unreachable.
 - **Trash.** With `trash_enabled` true: intend `trash <folder id>`. Long-press `Inner folder` to open its
   sheet. Run `$V/ui.sh long-press $SERIAL --text "Inner folder"`, then tap
   `Move to trash`. The snackbar reads `Moved to Trash` and the row leaves.

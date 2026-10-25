@@ -22,16 +22,17 @@ same bar and toolbar for removing local copies.
 
 - Open a row's actions (`Actions for <name>` or long-press) and tap
   `Select`.
-- In Downloads, tap `Select` in the bar.
+- In Downloads, tap `More options`, then `Select`.
 
 ## Driving it with verify-putio-android
 
 Preconditions:
 
-- The build has selection mode. Until
+- Files selection needs a build with it. Until
   [#397](https://github.com/putdotio/putio-android/pull/397) merges, `main`
-  shows no `Select` row in the actions sheet: report every sub-feature here
-  unreachable on such a build.
+  shows no `Select` row in the Files actions sheet: report the Files
+  sub-features unreachable on such a build. `select-downloads` works on
+  `main`: with downloads present, Downloads' `More options` offers `Select`.
 - Doctor passes. The run's root holds `Target folder` and three small
   uploaded files `a-<run>.txt`, `b-<run>.txt`, `c-<run>.txt`.
 

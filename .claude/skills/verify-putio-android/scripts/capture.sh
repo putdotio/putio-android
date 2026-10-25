@@ -18,7 +18,8 @@ ADB="${ANDROID_HOME}/platform-tools/adb"
 
 die() { echo "capture.sh: $*" >&2; exit 1; }
 run="${1:-}"; label="${2:-}"; allow_dark="${3:-}"
-[[ "${run}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ && "${label}" =~ ^[A-Za-z0-9._-]+$ ]] || die "usage: capture.sh <run> <label> [--allow-dark]"
+[[ "${run}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ && "${label}" =~ ^[A-Za-z0-9._-]+$ && $# -le 3 &&
+  ( -z "${allow_dark}" || "${allow_dark}" == "--allow-dark" ) ]] || die "usage: capture.sh <run> <label> [--allow-dark]"
 DIR="${ROOT}/.evidence/${run}"
 ENV_FILE="${DIR}/run.env"
 [[ -f "${ENV_FILE}" ]] || die "no ${ENV_FILE}; run session.sh up ${run}"
@@ -45,8 +46,9 @@ uid="$("${ADB}" -s "${serial}" shell pm list packages -U "${package}" | sed -n "
 python3 -I - "${STAGE}" <<'PY' || die "a capture held a session secret; nothing kept"
 import html, os, re, sys, urllib.parse
 pattern = re.compile(
-    rb"(oauth_token|access_token|refresh_token|download_token)[\"'\s]*[=:][\"'\s]*[A-Za-z0-9_.~+/-]"
+    rb"(oauth_?token|access_?token|refresh_?token|download_?token)[\"'\s]*[=:][\"'\s]*[A-Za-z0-9_.~+/-]"
     rb"|[?&;]token=[A-Za-z0-9_.~+/-]"
+    rb"|[\"']token[\"']\s*:\s*[\"'][A-Za-z0-9_.~+/-]"
     rb"|authorization[\"'\s]*[=:][\"'\s]*(bearer|token)\s+[A-Za-z0-9_.~+/-]",
     re.IGNORECASE,
 )

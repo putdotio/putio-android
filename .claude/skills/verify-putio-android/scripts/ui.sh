@@ -150,9 +150,12 @@ case "${cmd}" in
     ;;
   type)
     [[ -n "${1:-}" ]] || usage
-    # `input text` takes %s for a space and needs shell metacharacters escaped.
-    escaped="$(printf '%s' "$1" | sed -e 's/[][(){}<>|&;$*?~`"'"'"'\\]/\\&/g' -e 's/ /%s/g')"
-    adb_ shell input text "${escaped}"
+    [[ "$1" != *[[:cntrl:]]* ]] || die "type takes one line of printable text"
+    # `input text` reads %s as a space; the device shell gets the whole
+    # argument single-quoted, with any apostrophe closed and escaped.
+    quote="'\\''"
+    text="${1// /%s}"
+    adb_ shell "input text '${text//\'/${quote}}'"
     ;;
   link)
     [[ -n "${1:-}" ]] || usage

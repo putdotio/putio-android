@@ -202,8 +202,10 @@ Proof standards:
 ## Cleanup
 
 In this order, also after a failed attempt. A `--fresh` run first signs out
-under Account ([Account and sign-out](features/account-and-sign-out.md)), so
-its grant is revoked; a `--snapshot` run never signs out.
+under Account ([Account and sign-out](features/account-and-sign-out.md)) while
+online, and waits a few seconds: revocation runs in the background after
+Welcome shows, and deleting the AVD drops a pending retry. A `--snapshot` run
+never signs out.
 
 ```bash
 $S/devbox.sh run "$RUN" '$V/session.sh down $RUN'     # force-stop the app, stop this instance (and delete AVD <run> if --fresh)

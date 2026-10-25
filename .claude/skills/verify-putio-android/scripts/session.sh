@@ -214,7 +214,9 @@ case "${cmd}" in
     # The recorded pid is still ours while it runs this AVD (and, for a shared
     # snapshot AVD, this port), even when adb lists the serial offline.
     pid_ours() { pid_runs "${pid}" "${avd}" "${serial#emulator-}"; }
-    if owns_run_serial; then
+    # Serial commands only while this run's process serves the port; after a
+    # port race the serial can belong to another run's emulator.
+    if owns_run_serial && { [[ -z "${pid}" ]] || listens "${pid}" "${serial#emulator-}"; }; then
       "${ADB}" -s "${serial}" shell am force-stop "${PACKAGE}" || true
       if [[ "${mode}" == "fresh" ]]; then
         "${ROOT}/scripts/emulator.sh" stop "${serial}" >&2

@@ -146,13 +146,18 @@ probe() {
   out="$(cli sdk call --operation files.get --args "[{\"id\":${id}}]" --execute --output json 2>&1 || true)"
   python3 -I -c '
 import json, sys
+# Every shape other than an exact 404 or an exact match is "unknown" (2).
 try:
     d = json.loads(sys.stdin.read())
-except ValueError:
-    sys.exit(2)
-if d.get("error", {}).get("httpStatusCode") == 404: sys.exit(0)
-r = d.get("result", {})
-if str(r.get("id")) == sys.argv[1] and r.get("name") == sys.argv[2] and str(r.get("parent_id")) == sys.argv[3]: sys.exit(1)
+    error = d.get("error") if isinstance(d, dict) else None
+    if isinstance(error, dict) and error.get("httpStatusCode") == 404:
+        sys.exit(0)
+    r = d.get("result") if isinstance(d, dict) else None
+    if (isinstance(r, dict) and str(r.get("id")) == sys.argv[1] and r.get("name") == sys.argv[2]
+            and str(r.get("parent_id")) == sys.argv[3]):
+        sys.exit(1)
+except Exception:
+    pass
 sys.exit(2)
 ' "${id}" "$(ledger field "${id}" name)" "$(ledger field "${id}" parent)" <<<"${out}"
 }
