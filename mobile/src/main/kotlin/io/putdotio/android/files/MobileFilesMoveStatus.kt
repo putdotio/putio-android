@@ -69,10 +69,15 @@ private fun FilesMoveOutcome.statusMessage(): String? {
     }
 }
 
-/** The items put.io's answer refused, by ID; an answer that names none of them counts them all. */
+/**
+ * The items put.io's answer refused, by ID, and any the check or a later page found outside the
+ * destination; when neither names one, every item counts.
+ */
 private val FilesMoveOutcome.refusedCount: Int
-    get() = errors.orEmpty().map { it.id }.filter { id -> intent.itemIds.any { it.value == id } }.toSet().size
-        .takeIf { it > 0 } ?: itemCount
+    get() {
+        val refused = intent.itemIds.filter { id -> errors.orEmpty().any { it.id == id.value } }.toSet()
+        return (refused + remainingIds).size.takeIf { it > 0 } ?: itemCount
+    }
 
 // put.io answers a move with a bare 403 only when the destination is the item or a folder inside
 // it; the app never sends the negative IDs that also get one.

@@ -2,6 +2,7 @@ package io.putdotio.android.files
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
@@ -69,6 +70,8 @@ internal fun MobileFilesRoute(
     // The file the detail pane shows; another folder starts with none.
     var detailId by rememberSaveable(currentKey.first, currentKey.second) { mutableStateOf<Long?>(null) }
     var viewerId by rememberSaveable { mutableStateOf<Long?>(null) }
+    // Select from a viewer's actions closes the viewer, so the selection shows.
+    LaunchedEffect(selecting) { if (selecting) viewerId = null }
     val actionsRequests = remember { MutableSharedFlow<FilesItemId>(extraBufferCapacity = 1) }
     val openWithAnotherApp: (FilesItem) -> Unit = { item -> fileOpener?.openWithAnotherApp(context, item) }
     val openFile = fileOpenAction(onPlayMedia, onView = { viewerId = it.id.value }, onOther = openWithAnotherApp)
