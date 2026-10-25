@@ -23,6 +23,9 @@ import androidx.compose.ui.focus.focusTarget
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.media3.common.util.Util
 import io.putdotio.android.MobileKeyCommand
+import io.putdotio.android.MobileShortcutScope
+import io.putdotio.android.mobileKeyCommand
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.util.UnstableApi
@@ -106,8 +109,12 @@ internal fun rememberCastHandover(
     playerCast: PlayerCast,
     fileId: Long,
     preferences: RetainedPlayerPreferences,
+    restarted: Boolean,
 ): CastHandover? {
-    var handover by remember(fileId) { mutableStateOf(playerCast.controller?.takeHandover(fileId)) }
+    // Start over is the viewer's own word: the receiver's position is dropped for it.
+    var handover by remember(fileId) {
+        mutableStateOf(playerCast.controller?.takeHandover(fileId)?.takeUnless { restarted })
+    }
     LaunchedEffect(handover) {
         handover?.let {
             preferences.retainPlayback(RetainedPlayback(it.positionMillis, it.playing))
@@ -159,7 +166,10 @@ internal fun MobileCastPlayback(
     var failed by remember(fileId) { mutableStateOf(false) }
     val currentPolicy by rememberUpdatedState(subtitleStartupPolicy)
     val currentOnSourceRequired by rememberUpdatedState(onSourceRequired)
-    LaunchedEffect(fileId, source) {
+    // A session reconnecting holds the handover until it answers again.
+    val connected = cast.availability.collectAsState().value is CastAvailability.Connected
+    LaunchedEffect(fileId, source, connected) {
+        if (!connected) return@LaunchedEffect
         failed = false
         // One player at a time: session audio stops once the receiver takes over, for a video too.
         playerFactory.stopAudio(context)
@@ -225,7 +235,15 @@ private fun MobileCastVideo(
 ) {
     val options = rememberPlayerOptionsSnapshot(player)
     var speedSheet by rememberSaveable { mutableStateOf(false) }
-    Box(modifier.fillMaxSize()) {
+    // Back from the keyboard closes the Speed sheet before it leaves the player, as on local video.
+    val closeSheet = Modifier.onPreviewKeyEvent { event ->
+        val key = event.nativeKeyEvent
+        val back = mobileKeyCommand(MobileShortcutScope.Player, key.keyCode, key.metaState) == MobileKeyCommand.Back
+        (speedSheet && back).also { closes ->
+            if (closes && key.action == android.view.KeyEvent.ACTION_DOWN) speedSheet = false
+        }
+    }
+    Box(closeSheet.then(modifier).fillMaxSize()) {
         MobileCastFrameLabel(label)
         MobilePlayerChrome(
             player = player,
@@ -294,9 +312,9 @@ private suspend fun MobileCastController.handOver(
         onSourceRequired(retained)
         return true
     }
-    // The controls attach at once; the media resolves after, for Play to send again once the file has
-    // finished there, and a failed lookup leaves the controls up.
-    if (holds) attach(item)
+    // The controls follow this file at once, so a failed lookup never leaves them driving another file;
+    // the media resolves after, for Play to send again once the file has finished there.
+    attach(item)
     val loaded = castMedia(ready?.source) as? PlaybackRepositoryResult.Success
     when {
         holds -> attach(item, loaded?.value)

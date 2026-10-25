@@ -298,7 +298,12 @@ private fun MobileReadyContent(
         )
         return
     }
-    val handover = rememberCastHandover(playerCast, state.target.fileId.value, preferences)
+    val handover = rememberCastHandover(
+        playerCast,
+        state.target.fileId.value,
+        preferences,
+        restarted = state.resumePositionMillis == 0L,
+    )
     val ready = state.content as? PlaybackContent.Ready
     MobileSessionPlayerHost(
         mediaType = state.target.mediaType,
