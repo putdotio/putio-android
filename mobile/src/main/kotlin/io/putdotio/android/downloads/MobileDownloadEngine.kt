@@ -33,6 +33,8 @@ import kotlinx.coroutines.withContext
  * reports progress back here. Requests of any other user are stopped while this
  * user is signed in, so no session ever drives another account's transfers.
  */
+// One function per DownloadEngine operation, plus the reconcile and listener plumbing Media3 needs.
+@Suppress("TooManyFunctions")
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal class MobileDownloadEngine(
     context: Context,
@@ -114,8 +116,11 @@ internal class MobileDownloadEngine(
         for (download in indexed) {
             val fileId = fileIdOf(userId, download.request.id)
             if (fileId == null) {
-                // Another account's request: park it; its owner's session resumes it.
-                if (download.request.ownerUserId() != null && !download.isTerminalState) {
+                // Another account's request: park it; its owner's session resumes it. One its owner
+                // paused stays paused, so the owner's next sign-in does not resume it.
+                if (download.request.ownerUserId() != null && !download.isTerminalState &&
+                    download.stopReason != STOP_REASON_PAUSED
+                ) {
                     downloadManager.setStopReason(download.request.id, STOP_REASON_OTHER_USER)
                 }
                 continue
@@ -129,7 +134,7 @@ internal class MobileDownloadEngine(
                 store.addBlocking(download.recoveredEntry(fileId, standInName))
             }
             if (download.stopReason == STOP_REASON_OTHER_USER) {
-                downloadManager.setStopReason(download.request.id, Download.STOP_REASON_NONE)
+                downloadManager.setStopReason(download.request.id, wantedStopReason(fileId))
             }
             if (fileId in missing) store.markMissing(fileId) else reflect(download, null)
         }
@@ -172,6 +177,21 @@ internal class MobileDownloadEngine(
         }
     }
 
+    /**
+     * Set on the manager directly, on the main thread like [park], so a sign-out can never land
+     * between a resume and its effect; a closed engine sends nothing. The row follows Media3's
+     * report, and Media3 keeps the stop reason in its index, so a pause outlives the process.
+     */
+    override fun setPaused(fileId: FilesItemId, paused: Boolean) {
+        if (closed) return
+        // The index keeps the viewer's intent first; reconcile and every report hold Media3 to it.
+        store.updateStatusBlocking(fileId, commit = true) { it.copy(pauseRequested = paused) }
+        downloadManager.setStopReason(
+            downloadContentId(userId, fileId),
+            if (paused) STOP_REASON_PAUSED else Download.STOP_REASON_NONE,
+        )
+    }
+
     /** True while Media3 is still deleting this file's bytes; a new download must wait. */
     override fun isRemoving(fileId: FilesItemId): Boolean = synchronized(removing) { fileId in removing }
 
@@ -196,10 +216,15 @@ internal class MobileDownloadEngine(
         if (downloads.onTokenClearing === parkOnTokenClearing) downloads.onTokenClearing = null
     }
 
-    /** Sign-out: stop this user's transfers before the token disappears; the next sign-in resumes them. */
+    /**
+     * Sign-out: stop this user's transfers before the token disappears; the next sign-in resumes
+     * them. Ones the viewer paused keep their own stop reason, so they stay paused after that
+     * sign-in. The index decides, not Media3's report, which can still lag a Resume.
+     */
     fun park() {
         for (download in downloadManager.currentDownloads) {
-            if (fileIdOf(userId, download.request.id) != null) {
+            val fileId = fileIdOf(userId, download.request.id) ?: continue
+            if (wantedStopReason(fileId) != STOP_REASON_PAUSED) {
                 downloadManager.setStopReason(download.request.id, STOP_REASON_OTHER_USER)
             }
         }
@@ -215,7 +240,12 @@ internal class MobileDownloadEngine(
         for (download in downloadManager.currentDownloads) {
             val fileId = fileIdOf(userId, download.request.id)
             if (download.state != Download.STATE_DOWNLOADING || fileId == null) continue
-            store.updateProgressInMemory(fileId, download.bytesDownloaded, download.knownPercent())
+            store.updateProgressInMemory(
+                fileId,
+                download.bytesDownloaded,
+                download.knownPercent(),
+                download.knownContentLength,
+            )
         }
     }
 
@@ -224,6 +254,14 @@ internal class MobileDownloadEngine(
         if (closed || fileId == null || download.state == Download.STATE_REMOVING) return
         val pause = downloadManager.pauseReason()
         val status = download.toStatus(error, pause) ?: return
+        // A pause that reached Media3 before its request did, or that parking overwrote, is applied
+        // again; so is a resume Media3 missed.
+        val wanted = wantedStopReason(fileId)
+        if (!download.isTerminalState &&
+            (download.stopReason == STOP_REASON_PAUSED) != (wanted == STOP_REASON_PAUSED)
+        ) {
+            downloadManager.setStopReason(download.request.id, wanted)
+        }
         store.updateStatusBlocking(fileId) { current ->
             // Reconcile sees the failed state without its exception; the stored reason is better.
             val kept = current.status as? DownloadStatus.Failed
@@ -232,13 +270,22 @@ internal class MobileDownloadEngine(
                 status = next,
                 accepted = true,
                 queuedAt = download.startTimeMs.takeIf { it > 0L } ?: current.queuedAt,
+                // A pause ends with its transfer; any retry, the notification's included, starts clean.
+                pauseRequested = current.pauseRequested && !download.isTerminalState,
             )
         }
     }
 
+    /** The viewer's pause, as the app's index keeps it, else no stop reason. */
+    private fun wantedStopReason(fileId: FilesItemId): Int =
+        if (store.find(fileId)?.pauseRequested == true) STOP_REASON_PAUSED else Download.STOP_REASON_NONE
+
     internal companion object {
         /** Media3 stop reason for requests whose owner is not the signed-in user. */
         const val STOP_REASON_OTHER_USER = 1
+
+        /** Media3 stop reason for a transfer the viewer paused. */
+        const val STOP_REASON_PAUSED = 2
     }
 }
 
@@ -293,6 +340,7 @@ private fun Download.recoveredEntry(fileId: FilesItemId, standInName: String): D
         queuedAt = time,
         recovered = true,
         subtitlesHidden = if (hls) subtitleCount?.let { it == "0" } else null,
+        pauseRequested = stopReason == MobileDownloadEngine.STOP_REASON_PAUSED,
     )
 }
 
@@ -315,10 +363,16 @@ internal fun DownloadArtifact.apiUrl(fileId: FilesItemId, subtitlesHidden: Boole
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 private fun Download.toStatus(error: Exception?, pause: DownloadPauseReason?): DownloadStatus? =
     when (state) {
-        // Parked by sign-out, or held by a missing network or low storage; all resume without user action.
-        Download.STATE_QUEUED, Download.STATE_RESTARTING, Download.STATE_STOPPED ->
-            pause?.let { DownloadStatus.Paused(it, bytesDownloaded) } ?: DownloadStatus.Queued
-        Download.STATE_DOWNLOADING -> DownloadStatus.Downloading(bytesDownloaded, knownPercent())
+        Download.STATE_QUEUED, Download.STATE_RESTARTING, Download.STATE_STOPPED -> {
+            // Paused by the viewer, it holds until Resume; Media3 keeps its stop reason across
+            // restarts. Otherwise it is parked by sign-out, or held by a missing network or low
+            // storage, and resumes without user action.
+            val held = if (stopReason == MobileDownloadEngine.STOP_REASON_PAUSED) DownloadPauseReason.USER else pause
+            held?.let { DownloadStatus.Paused(it, bytesDownloaded, knownPercent(), knownContentLength) }
+                ?: DownloadStatus.Queued
+        }
+        Download.STATE_DOWNLOADING ->
+            DownloadStatus.Downloading(bytesDownloaded, knownPercent(), knownContentLength)
         Download.STATE_COMPLETED -> DownloadStatus.Completed(bytesDownloaded)
         Download.STATE_FAILED -> DownloadStatus.Failed(error.toFailureReason(), bytesDownloaded)
         else -> null
@@ -332,6 +386,11 @@ private fun Download.toStatus(error: Exception?, pause: DownloadPauseReason?): D
 private fun Download.knownPercent(): Float? =
     // C.PERCENTAGE_UNSET is negative.
     percentDownloaded.takeIf { it.isFinite() && it >= 0f }?.coerceAtMost(PERCENT)
+
+/** C.LENGTH_UNSET is negative; an HLS rendition reports none until every segment length is known. */
+@get:androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+private val Download.knownContentLength: Long?
+    get() = contentLength.takeIf { it > 0L }
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 private fun DownloadManager.pauseReason(): DownloadPauseReason? {

@@ -237,7 +237,7 @@ class MobileDownloadEngineTest {
         awaitMain { store.status(10L) is DownloadStatus.Downloading }
 
         context.sendStickyBroadcast(Intent(Intent.ACTION_DEVICE_STORAGE_LOW))
-        awaitMain { store.status(10L) == DownloadStatus.Paused(DownloadPauseReason.STORAGE, 0L) }
+        awaitMain { store.status(10L) == DownloadStatus.Paused(DownloadPauseReason.STORAGE, 0L, 0f, TOTAL) }
     }
 
     @Test
@@ -279,6 +279,94 @@ class MobileDownloadEngineTest {
     }
 
     @Test
+    fun aPauseHoldsThroughSignOutAndAnotherAccountUntilTheOwnerResumes() {
+        index.putDownload(download("$ALICE:10", Download.STATE_QUEUED))
+        val aliceStore = store(ALICE)
+        runBlocking { aliceStore.upsert(entry(10L, accepted = true)) }
+        val manager = manager()
+        val alice = engine(ALICE, aliceStore, manager)
+        downloaders.await("$ALICE:10").report(bytes = 250L)
+        awaitMain {
+            alice.refreshProgress()
+            aliceStore.status(10L) == DownloadStatus.Downloading(250L, 25f, TOTAL)
+        }
+
+        alice.setPaused(FilesItemId(10L), paused = true)
+        awaitMain { aliceStore.status(10L) == DownloadStatus.Paused(DownloadPauseReason.USER, 250L, 25f, TOTAL) }
+        assertTrue(aliceStore.find(FilesItemId(10L))?.pauseRequested == true)
+
+        // Signing out parks running transfers; a paused one keeps its own reason, and the closed
+        // session can no longer release it.
+        checkNotNull(downloads.onTokenClearing).invoke()
+        alice.close()
+        alice.setPaused(FilesItemId(10L), paused = false)
+        awaitMain { manager.isIdle }
+        assertEquals(MobileDownloadEngine.STOP_REASON_PAUSED, manager.stopReasonOf("$ALICE:10"))
+        engine(BOB, store(BOB), manager).close()
+        awaitMain { manager.isIdle }
+        assertEquals(MobileDownloadEngine.STOP_REASON_PAUSED, manager.stopReasonOf("$ALICE:10"))
+
+        // Process death: only Media3's index and the app's preferences remain.
+        manager.release()
+        val restarted = manager()
+        val restored = store(ALICE)
+        val again = engine(ALICE, restored, restarted)
+        awaitMain { (restored.status(10L) as? DownloadStatus.Paused)?.reason == DownloadPauseReason.USER }
+        // The index read reaches the row before the new manager has loaded its downloads.
+        awaitMain { restarted.isInitialized }
+        assertEquals(Download.STATE_STOPPED, restarted.stateOf("$ALICE:10"))
+        assertEquals(MobileDownloadEngine.STOP_REASON_PAUSED, restarted.stopReasonOf("$ALICE:10"))
+
+        assertTrue(restored.find(FilesItemId(10L))?.pauseRequested == true)
+        again.setPaused(FilesItemId(10L), paused = false)
+        awaitMain { restarted.stateOf("$ALICE:10") == Download.STATE_DOWNLOADING }
+        awaitMain { restored.status(10L) is DownloadStatus.Downloading }
+    }
+
+    @Test
+    fun theViewersPauseWinsOverParkingThatOverwroteItAndAnAddThatOutranIt() {
+        // Parking landed after the pause; an Add reached Media3 after the pause it should hold.
+        index.putDownload(download("$ALICE:10", Download.STATE_STOPPED, stopReason = PARKED))
+        index.putDownload(download("$ALICE:11", Download.STATE_QUEUED))
+        runBlocking {
+            store(ALICE).upsert(entry(10L, accepted = true).copy(pauseRequested = true))
+            store(ALICE).upsert(entry(11L, accepted = true).copy(pauseRequested = true))
+        }
+        // The intent survives the process, in the app's own index.
+        val store = store(ALICE)
+        assertTrue(store.find(FilesItemId(11L))?.pauseRequested == true)
+        val manager = manager(concurrency = 2)
+
+        engine(ALICE, store, manager)
+
+        awaitMain {
+            listOf(10L, 11L).all { manager.stopReasonOf("$ALICE:$it") == MobileDownloadEngine.STOP_REASON_PAUSED }
+        }
+        awaitMain {
+            listOf(10L, 11L).all { (store.status(it) as? DownloadStatus.Paused)?.reason == DownloadPauseReason.USER }
+        }
+    }
+
+    @Test
+    fun aPauseSentBeforeMedia3HasTheRequestHoldsOnceTheAddArrives() {
+        val store = store(ALICE)
+        runBlocking { store.upsert(entry(10L, accepted = false)) }
+        val manager = manager()
+        val engine = engine(ALICE, store, manager)
+        awaitMain { manager.isInitialized }
+
+        // Media3 has no record yet, so the stop reason lands nowhere; the index keeps the pause.
+        engine.setPaused(FilesItemId(10L), paused = true)
+        val url = Uri.parse(DownloadArtifact.ORIGINAL.apiUrl(FilesItemId(10L)))
+        manager.addDownload(DownloadRequest.Builder("$ALICE:10", url).build())
+
+        awaitMain { manager.stopReasonOf("$ALICE:10") == MobileDownloadEngine.STOP_REASON_PAUSED }
+        awaitMain { (store.status(10L) as? DownloadStatus.Paused)?.reason == DownloadPauseReason.USER }
+        engine.setPaused(FilesItemId(10L), paused = false)
+        awaitMain { manager.stateOf("$ALICE:10") == Download.STATE_DOWNLOADING }
+    }
+
+    @Test
     fun closeBeforeTheIndexReadLandsKeepsParkedTransfersParked() {
         index.putDownload(download("$ALICE:10", Download.STATE_STOPPED, stopReason = PARKED))
         val store = store(ALICE)
@@ -306,19 +394,19 @@ class MobileDownloadEngineTest {
         val manager = manager()
         val engine = engine(ALICE, store, manager)
         val transfer = downloaders.await("$ALICE:10")
-        awaitMain { store.status(10L) == DownloadStatus.Downloading(0L, 0f) }
+        awaitMain { store.status(10L) == DownloadStatus.Downloading(0L, 0f, TOTAL) }
         val persisted = preferences.getString(storeKey(ALICE), null)
 
         // Without a denominator the row has bytes and no percentage.
         transfer.report(bytes = 300L, percent = C.PERCENTAGE_UNSET.toFloat())
         awaitMain {
             engine.refreshProgress()
-            store.status(10L) == DownloadStatus.Downloading(300L, null)
+            store.status(10L) == DownloadStatus.Downloading(300L, null, TOTAL)
         }
         transfer.report(bytes = 600L)
         awaitMain {
             engine.refreshProgress()
-            store.status(10L) == DownloadStatus.Downloading(600L, 60f)
+            store.status(10L) == DownloadStatus.Downloading(600L, 60f, TOTAL)
         }
         assertEquals(persisted, preferences.getString(storeKey(ALICE), null))
 

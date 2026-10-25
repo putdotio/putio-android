@@ -575,13 +575,19 @@ rows:
   reason in the meta and a 36dp progress ring in the trailing slot: yellow with
   pause bars while running, grey with a play triangle while paused, dashed
   with a stop square while queued. Tapping the ring pauses or resumes the
-  download, or cancels a queued one.
-- Needs attention: failed and missing downloads, with Retry or Download again.
+  download, or cancels a queued one. A wait for the network or storage is grey
+  with pause bars: it resumes by itself, so the ring offers Pause.
+- Needs attention: failed and missing downloads, with Retry or Download again
+  as a trailing icon button. The meta reads a red "Failed" and a short reason
+  in `on-surface-variant`; the sheet keeps the full sentence.
 - On this device: the normal file row, without the on-device marker.
 
-Long-press starts selection. Its floating toolbar holds Pause, Resume and
-Remove; each shows when at least one selected row allows it and acts on those
-rows. Remove cancels unfinished downloads and deletes local copies.
+The tab's overflow holds Select and Downloads at the same time, with the limit
+in mono. Long-press starts selection: its bar replaces the tab title, and the
+On this device label gains the space used in mono. The floating toolbar holds
+Pause, Resume and Remove; each shows when at least one selected row allows it
+and acts on those rows. Remove cancels unfinished downloads and deletes local
+copies.
 
 Actions here act on the local copy only: Remove from this device, with a
 confirm. They never trash or delete the file on put.io
@@ -590,7 +596,10 @@ confirm. They never trash or delete the file on put.io
 ## History
 
 A tab title, date headers (Today, Yesterday, then dates), neutral event glyphs,
-and the event with its time in mono. Clear history lives in the overflow.
+and one-line rows: the name the event concerns, cut in the middle, over what
+happened ("Transfer completed", "Shared with you", "Uploaded") and its time in
+mono. Clear history lives in the overflow and confirms with a red filled
+button.
 
 ## Account
 
@@ -732,8 +741,8 @@ opens put.io OAuth in the browser.
 - Sort is a flat dropdown of twelve combined options, not three labelled
   groups, and its button doesn't name the current sort.
 - Sign out is an outlined button that signs out at once, with no confirm.
-- File names wrap instead of being cut in the middle on one line.
-- Downloads shows a bar under each running row, not a progress ring.
+- File names outside Downloads and History wrap instead of being cut in the
+  middle on one line.
 - Rename does not preselect the name up to the extension.
 - Empty states other than Transfers' keep 3.0.0's words and offer no action.
   Offline has no state of its own, so `(x_x)` never shows.
@@ -745,13 +754,13 @@ opens put.io OAuth in the browser.
 - Played files show a progress bar and "N% watched" when the duration is known,
   and a plain "Watched" label otherwise.
 - Settings are two-line rows under yellow subheads.
-- Only the player's timestamps, the tab-title summaries and Transfers set
-  numbers in mono; sizes, speeds and counts elsewhere use the UI face.
+- Only the player's timestamps, the tab-title summaries, Transfers, and
+  Downloads and History rows set numbers in mono; sizes, speeds and counts
+  elsewhere use the UI face.
 - Transfer cards and Transfer actions show no peer count: the Kotlin SDK's
   `Transfer` has no peers field.
-- The mini player (`MobileNowPlayingBar`) and Downloads selection exist in other
-  forms; Files has no selection mode, and there is no offline banner or tablet
-  list-detail.
+- The mini player (`MobileNowPlayingBar`) exists in another form; Files has no
+  selection mode, and there is no offline banner or tablet list-detail.
 - Player options open as bottom sheets, and speed presets run 0.75× to 2×.
   There is no cast button, sleep timer, Up next or subtitle size and timing.
 - Files has no Continue watching row, and images, PDF and text don't open
@@ -760,7 +769,6 @@ opens put.io OAuth in the browser.
   stars icon.
 - The player has no picture-in-picture or Next episode button; picture-in-
   picture starts when you leave playback.
-- History has no event glyphs and keeps Clear history above the list.
 
 ## Android TV
 

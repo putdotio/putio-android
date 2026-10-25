@@ -59,7 +59,10 @@ import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.downloads.DownloadsController
 import io.putdotio.android.downloads.DownloadsEvent
+import io.putdotio.android.downloads.DownloadsSelection
 import io.putdotio.android.downloads.DownloadsState
+import io.putdotio.android.downloads.MobileDownloadsTopBar
+import io.putdotio.android.downloads.rememberDownloadsSelection
 import io.putdotio.android.downloads.toFilesItem
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserState
@@ -73,6 +76,7 @@ import io.putdotio.android.files.MobileFilesSortMenu
 import io.putdotio.android.files.mobileMessage
 import io.putdotio.android.files.pendingDelete
 import io.putdotio.android.files.pendingMove
+import io.putdotio.android.history.HistoryContent
 import io.putdotio.android.history.HistoryEvent
 import io.putdotio.android.history.HistoryReducer
 import io.putdotio.android.history.HistoryState
@@ -82,6 +86,7 @@ import io.putdotio.android.playback.MobilePlayerFactory
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.rememberNowPlaying
+import io.putdotio.android.search.MobileHistoryOverflow
 import io.putdotio.android.search.RecentSearchEdit
 import io.putdotio.android.search.SearchReducer
 import io.putdotio.android.search.SearchState
@@ -207,6 +212,8 @@ internal fun MobileShell(
         remember(controller, state) { MobilePublicLinks(state, controller::dispatch) }
     }
     val downloadsState = downloadsController?.state?.collectAsStateWithLifecycle()?.value ?: DownloadsState()
+    // The Downloads top bar and list share one selection: in selection its bar replaces the title.
+    val downloadsSelection = rememberDownloadsSelection()
     val trashState = trashController?.state?.collectAsStateWithLifecycle()?.value
     TrashRestoreEffects(trashState, onFilesEvent)
     val shareNavigationBlocked = shareNavigationBlocked(filesState, trashState, transfersState, nowPlayingPending)
@@ -330,7 +337,14 @@ internal fun MobileShell(
                                     transfersState,
                                     transfersSessionId,
                                     onTransfersEvent,
+                                ) ?: historyActions(
+                                    selectedDestination,
+                                    searchHistoryState.history,
+                                    searchHistoryActions.onHistoryEvent,
                                 ),
+                                downloads = downloadsController?.let {
+                                    MobileDownloadsBar(downloadsState, downloadsSelection, it::dispatch)
+                                },
                             )
                         },
                     ) { contentModifier ->
@@ -342,6 +356,7 @@ internal fun MobileShell(
                             trashController = trashController,
                             downloadsController = downloadsController,
                             downloadsState = downloadsState,
+                            downloadsSelection = downloadsSelection,
                             onShareItem = onShareItem,
                             accountSettingsState = accountSettingsState,
                             appConfigState = appConfigState,
@@ -895,6 +910,7 @@ private fun MobileTopBar(
     openNavigation: (() -> Unit)?,
     summary: AnnotatedString?,
     tabActions: (@Composable RowScope.() -> Unit)? = null,
+    downloads: MobileDownloadsBar? = null,
 ) {
     val subpageTitle = accountSubpageTitle(route)
     when {
@@ -903,6 +919,15 @@ private fun MobileTopBar(
             onBack = onSubpageBack,
             openNavigation = openNavigation,
         )
+        destination == MobileDestination.Downloads && downloads != null -> MobileDownloadsTopBar(
+            title = stringResource(destination.labelRes),
+            summary = summary,
+            state = downloads.state,
+            selection = downloads.selection,
+            onEvent = downloads.onEvent,
+        ) {
+            openNavigation?.let { MobileNavigationMenuButton(it) }
+        }
         destination != MobileDestination.Files -> MobileTabTitle(
             title = stringResource(destination.labelRes),
             summary = summary,
@@ -986,6 +1011,13 @@ private fun MobileBackButton(onClick: () -> Unit, enabled: Boolean = true) {
     }
 }
 
+/** What the Downloads top bar reads: its rows, the selection it shares with the list, and its events. */
+private class MobileDownloadsBar(
+    val state: DownloadsState,
+    val selection: DownloadsSelection,
+    val onEvent: (DownloadsEvent) -> Boolean,
+)
+
 /** The one-line summary under a tab title, with its numbers in mono. */
 @Composable
 private fun tabSummary(
@@ -1015,6 +1047,18 @@ private fun tabActions(
         }
         MobileDestination.Files, MobileDestination.History, MobileDestination.Downloads, MobileDestination.Account ->
             null
+    }
+
+/** History's overflow holds Clear history, so it shows only over a list to clear. */
+private fun historyActions(
+    destination: MobileDestination,
+    history: HistoryState,
+    onHistoryEvent: (HistoryEvent) -> Unit,
+): (@Composable RowScope.() -> Unit)? =
+    if (destination == MobileDestination.History && history.content is HistoryContent.Ready) {
+        { MobileHistoryOverflow(history.clearing, onHistoryEvent) }
+    } else {
+        null
     }
 
 @StringRes

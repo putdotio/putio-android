@@ -1,5 +1,9 @@
 package io.putdotio.android
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.onAllNodesWithText
@@ -25,6 +29,7 @@ import io.putdotio.android.history.HistoryFileId
 import io.putdotio.android.history.HistoryItem
 import io.putdotio.android.history.HistoryNoticeType
 import io.putdotio.android.history.HistoryPaging
+import io.putdotio.android.history.HistoryRequestId
 import io.putdotio.android.history.HistoryState
 import io.putdotio.android.history.historyState
 import io.putdotio.android.search.RecentSearchEdit
@@ -34,6 +39,7 @@ import io.putdotio.android.search.SearchState
 import io.putdotio.android.search.SearchTerm
 import io.putdotio.android.search.searchState
 import io.putdotio.sdk.files.PutioFileType
+import java.time.LocalDate
 import java.util.TimeZone
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -43,6 +49,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import io.putdotio.android.search.MOBILE_HISTORY_LIST_TAG
 import io.putdotio.android.search.MOBILE_SEARCH_RESULTS_TAG
+import io.putdotio.android.search.MobileHistoryOverflow
 import io.putdotio.android.search.MobileHistoryScreen
 import io.putdotio.android.search.MobileSearchScreen
 
@@ -163,6 +170,21 @@ class MobileSearchScreensTest {
     }
 
     @Test
+    fun clearHistorySitsInTheOverflowAndWaitsWhileAClearRuns() {
+        val events = mutableListOf<HistoryEvent>()
+        var clearing by mutableStateOf<HistoryClearing>(HistoryClearing.Idle)
+        compose.setContent { PutioTheme { MobileHistoryOverflow(clearing, events::add) } }
+
+        compose.onNodeWithContentDescription("More options").performClick()
+        compose.onNodeWithText("Clear history").performClick()
+        assertEquals(listOf<HistoryEvent>(HistoryEvent.RequestClear), events)
+
+        clearing = HistoryClearing.Clearing(HistoryRequestId(1L))
+        compose.onNodeWithContentDescription("More options").performClick()
+        compose.onNodeWithText("Clear history").assertIsNotEnabled()
+    }
+
+    @Test
     fun zoneLessStampsFromOneDayShareADateHeaderAndShowTimes() {
         val previous = TimeZone.getDefault()
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
@@ -188,8 +210,8 @@ class MobileSearchScreensTest {
                 )
             setHistoryScreen(history = history)
 
-            compose.onAllNodesWithText("2026-09-09").assertCountEquals(1)
-            compose.onAllNodesWithText("2026-09-09T", substring = true).assertCountEquals(0)
+            compose.onAllNodesWithText("Sep 9").assertCountEquals(1)
+            compose.onAllNodesWithText("2026-09-09", substring = true).assertCountEquals(0)
             compose.onNodeWithText("3:25", substring = true).assertIsDisplayed()
         } finally {
             TimeZone.setDefault(previous)
@@ -197,7 +219,32 @@ class MobileSearchScreensTest {
     }
 
     @Test
-    fun eachEventTypeReadsAsIosStatesItWithOnlyItsTime() {
+    fun dateHeadersReadTodayYesterdayThenTheDate() {
+        val previous = TimeZone.getDefault()
+        TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+        try {
+            val stamps = listOf("2026-10-25", "2026-10-24", "2026-10-20", "2025-12-31").map { "${it}T09:00:00" }
+            val items = stamps
+                .mapIndexed { index, stamp ->
+                    HistoryItem(
+                        HistoryEventId(index + 1L),
+                        stamp,
+                        HistoryEventKind.File(HistoryFileId(index + 1L), "file-$index.mkv"),
+                    )
+                }
+            setHistoryScreen(history = historyState(HistoryContent.Ready(items, HistoryPaging.Complete)))
+
+            listOf("Today", "Yesterday", "Oct 20", "Dec 31, 2025").forEach { header ->
+                compose.onNodeWithTag(MOBILE_HISTORY_LIST_TAG).performScrollToNode(hasText(header))
+                compose.onNodeWithText(header).assertIsDisplayed()
+            }
+        } finally {
+            TimeZone.setDefault(previous)
+        }
+    }
+
+    @Test
+    fun eachEventNamesItsSubjectThenWhatHappenedAndWhen() {
         val previous = TimeZone.getDefault()
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
         try {
@@ -215,20 +262,22 @@ class MobileSearchScreensTest {
             }
             setHistoryScreen(history = historyState(HistoryContent.Ready(items, HistoryPaging.Complete)))
 
-            // iOS details these rows with their time alone; only shared files and transfers name a kind.
-            compose.onAllNodesWithText(" · ", substring = true).assertCountEquals(0)
             listOf(
-                "Harbor film.mp4",
-                "Error in transfer Sample transfer",
-                "We had to delete Old episode.mkv per your instructions, since there wasn’t enough free space.",
-                "Sample feed is paused because we couldn’t reach the source",
-                "Error in transfer from RSS for Feed item",
-                "Error in transfer callback for Callback transfer",
-                "No title",
-            ).forEach { title ->
+                "Harbor film.mp4" to "Uploaded · ",
+                "Sample transfer" to "Transfer failed · ",
+                "Old episode.mkv" to "Deleted to free space · ",
+                "Sample feed" to "RSS filter paused · ",
+                "Feed item" to "RSS transfer failed · ",
+                "Callback transfer" to "Callback failed · ",
+            ).forEach { (title, kind) ->
                 compose.onNodeWithTag(MOBILE_HISTORY_LIST_TAG).performScrollToNode(hasText(title))
                 compose.onNodeWithText(title).assertIsDisplayed()
+                compose.onNodeWithText(kind, substring = true).assertIsDisplayed()
             }
+            // A type with no copy names nothing and gives its time alone.
+            compose.onNodeWithTag(MOBILE_HISTORY_LIST_TAG).performScrollToNode(hasText("No title"))
+            compose.onNodeWithText("No title").assertIsDisplayed()
+            compose.onAllNodesWithText(" · ", substring = true).assertCountEquals(6)
             compose.onAllNodesWithText("zip_created", substring = true).assertCountEquals(0)
             compose.onAllNodesWithText("Activity", substring = true).assertCountEquals(0)
         } finally {
@@ -245,8 +294,8 @@ class MobileSearchScreensTest {
         setHistoryScreen(history = historyState(HistoryContent.Ready(items, HistoryPaging.Complete)))
 
         compose.onAllNodesWithText("No title").assertCountEquals(2)
-        compose.onNodeWithText("Shared file · ", substring = true).assertIsDisplayed()
-        compose.onNodeWithText("Completed transfer · ", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("Shared with you · ", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("Transfer completed · ", substring = true).assertIsDisplayed()
     }
 
     @Test
@@ -262,7 +311,7 @@ class MobileSearchScreensTest {
     ) {
         compose.setContent {
             PutioTheme {
-                MobileHistoryScreen(historyState = history, onHistoryEvent = actions.onHistoryEvent)
+                MobileHistoryScreen(historyState = history, onHistoryEvent = actions.onHistoryEvent, today = TODAY)
             }
         }
     }
@@ -303,4 +352,8 @@ class MobileSearchScreensTest {
             sizeBytes = 1_024L,
             createdAt = "2026-08-30T10:00:00Z",
         )
+
+    private companion object {
+        val TODAY: LocalDate = LocalDate.of(2026, 10, 25)
+    }
 }

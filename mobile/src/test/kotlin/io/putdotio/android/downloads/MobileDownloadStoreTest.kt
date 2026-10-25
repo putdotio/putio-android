@@ -60,6 +60,11 @@ class MobileDownloadStoreTest {
         assertEquals(missing, reloaded[0])
         // A pause resumes by itself, so the next process starts it from the queue.
         assertEquals(paused.copy(status = DownloadStatus.Queued), reloaded[1])
+        // The viewer's pause holds, so the row offers Resume before Media3 reports.
+        val held = entry(3L, DownloadStatus.Paused(DownloadPauseReason.USER, 9L)).copy(pauseRequested = true)
+        store.upsert(held)
+        val heldAgain = MobileDownloadStore(preferences, "user-3", Dispatchers.Unconfined).find(FilesItemId(3L))
+        assertEquals(held, heldAgain)
         // A row written before these fields existed: queued when created, setting unknown.
         preferences.edit().putString(
             "user-4",

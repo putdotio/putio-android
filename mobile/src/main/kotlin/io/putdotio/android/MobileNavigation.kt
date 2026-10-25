@@ -32,6 +32,7 @@ import io.putdotio.android.downloads.DownloadRequest
 import io.putdotio.android.downloads.DownloadsController
 import io.putdotio.android.downloads.DownloadsEvent
 import io.putdotio.android.downloads.DownloadsState
+import io.putdotio.android.downloads.DownloadsSelection
 import io.putdotio.android.downloads.MobileDownloadsScreen
 import io.putdotio.android.downloads.rememberFirstDownloadNotificationPrompt
 import io.putdotio.android.files.FilesBrowserEvent
@@ -112,6 +113,7 @@ internal fun MobileNavHost(
     onSignOut: () -> Unit,
     downloadsController: DownloadsController?,
     downloadsState: DownloadsState,
+    downloadsSelection: DownloadsSelection,
     onShareItem: ((FilesItem) -> Unit)?,
     loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>>,
     modifier: Modifier = Modifier,
@@ -217,6 +219,7 @@ internal fun MobileNavHost(
                                 onEvent = controller::dispatch,
                                 onPlay = navController::navigateToPlayback,
                                 onShare = onShareItem,
+                                selection = downloadsSelection,
                             )
                         }
                     }

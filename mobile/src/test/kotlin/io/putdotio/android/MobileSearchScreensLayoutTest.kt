@@ -83,25 +83,32 @@ class MobileSearchScreensLayoutTest {
     }
 
     @Test
-    fun historyMetadataUsesFullWidthAndTheRowHasOneNamedOpenAction() {
+    fun aLongHistoryNameIsCutInTheMiddleAndTheRowHasOneNamedOpenAction() {
         val events = mutableListOf<HistoryEvent>()
         setScreen(
             history = HistoryEventKind.Transfer(null, HistoryFileId(7), HISTORY_NAME),
             actions = MobileSearchHistoryActions(onHistoryEvent = events::add),
         )
-        val name = compose.onNodeWithText(HISTORY_NAME, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
-        val metadata = compose.onNodeWithText("Completed transfer", substring = true, useUnmergedTree = true)
+        // At twice the font size the cut name stays on one line, and accessibility reads it whole.
+        val nameNode = compose.onNodeWithText(HISTORY_NAME, useUnmergedTree = true).fetchSemanticsNode()
+        val shown = nameNode.config[MiddleCutShown]
+        assertTrue(shown, shown.startsWith("Harbor") && shown.endsWith(HISTORY_NAME.takeLast(11)) && "…" in shown)
+        val name = nameNode.boundsInRoot
+        val metadata = compose.onNodeWithText("Transfer completed", substring = true, useUnmergedTree = true)
             .fetchSemanticsNode().boundsInRoot
-        val viewport = compose.onNodeWithTag(VIEWPORT).fetchSemanticsNode().boundsInRoot
-        assertTrue("Title keeps the row width", name.width >= viewport.width * 0.85f)
-        assertTrue("Metadata keeps the row width", metadata.width >= viewport.width * 0.85f)
-        assertTrue("Metadata follows the complete title", metadata.top >= name.bottom)
-        assertFalse(textLayout(HISTORY_NAME).hasVisualOverflow)
-        compose.onAllNodes(hasText(HISTORY_NAME) and hasClickAction()).assertCountEquals(1)
-        val open = compose.onNodeWithText(HISTORY_NAME).fetchSemanticsNode().config[SemanticsActions.OnClick]
-        assertEquals("Open file", open.label)
+        val lineHeight = 22f * 2f * compose.density.density
+        assertTrue("The name takes one line", name.height < lineHeight * 1.5f)
+        assertTrue("Metadata follows the name", metadata.top >= name.bottom)
+        // The time, the only text here with a colon, is never what the kind's ellipsis takes.
+        val time = mutableListOf<TextLayoutResult>()
+        compose.onNodeWithText(":", substring = true, useUnmergedTree = true).assertIsDisplayed()
+            .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(time) }
+        assertFalse(time.single().didOverflowWidth)
+        val row = compose.onNode(hasText(HISTORY_NAME) and hasClickAction())
+        assertEquals("Open file", row.fetchSemanticsNode().config[SemanticsActions.OnClick].label)
+        compose.onAllNodes(hasClickAction()).assertCountEquals(1)
         compose.onAllNodesWithText("Open file").assertCountEquals(0)
-        compose.onNodeWithText(HISTORY_NAME).assertIsDisplayed().performClick()
+        row.assertIsDisplayed().performClick()
         assertEquals(listOf(HistoryEvent.OpenFile(HistoryFileId(7))), events)
     }
 
