@@ -738,14 +738,17 @@ the navigation bar: **Welcome!** as a 40sp medium title on a 48sp line, then
   then the privacy note and a tonal **Copy for support**.
 - **Storage full:** the storage bar turns red, and one line says new transfers
   wait and what frees space.
-- **Notifications:** transfers post none. Downloads use the yellow put.io
-  mark: a running count with progress and **Cancel**, **Download finished**
-  with **Play**, and **Download failed** with the reason, **Try again** and
-  **Open in Downloads**. Playback keeps its media notification and
+- **Notifications:** transfers post none. Downloads set the small icon on
+  yellow: a running count over the first running file's name and the overall
+  percentage, a bar, **Pause** and **Cancel**; **Download finished** with
+  **Play**; and **Download failed** with the reason, **Try again** and **Open
+  in Downloads**. Notification text stays in the system face. Playback keeps its media notification and
   share-out its progress, failure and ready notifications
   ([Share-out](docs/behavior.md#share-out)).
 - **Launcher icon and shortcuts:** the putio-design app icons (production,
-  nightly, dev); long-press offers Add transfer, Search files and Downloads.
+  nightly, and dev for debug builds) as an adaptive icon, so each launcher
+  masks the full art to its own shape. Long-press offers Add transfer, Search
+  files and Downloads, in that order, each a yellow glyph on a dark disc.
 
 ## Accessibility
 
@@ -788,8 +791,6 @@ the navigation bar: **Welcome!** as a 40sp medium title on a 48sp line, then
 - Now Playing's options open as a bottom sheet with speeds 0.75× to 2×, and it
   has no sleep timer or Up next.
 - Images, PDF and text don't open in-app.
-- The production launcher icon is a placeholder; nightly uses its generated
-  stars icon.
 
 ## Android TV
 

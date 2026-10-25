@@ -523,6 +523,8 @@
     <string name="mobile_downloads_notification_failed">Download failed</string>
     <string name="mobile_downloads_notification_failed_text">%1$s\n%2$s</string>
     <string name="mobile_downloads_notification_open">Open in Downloads</string>
+    <!-- The running notification: the first running file and the overall percentage. -->
+    <string name="mobile_downloads_notification_running">%1$s · %2$d%%</string>
     <!-- Home-screen Transfers widget. -->
     <string name="mobile_widget_transfers_label">put.io transfers</string>
     <string name="mobile_widget_transfers_description">Active transfers and their progress</string>
@@ -549,7 +551,7 @@
     <string name="mobile_widget_preview_more">2 more running</string>
     <!-- Launcher shortcuts: long-press the app icon. -->
     <string name="mobile_shortcut_search_short">Search</string>
-    <string name="mobile_shortcut_search_long">Search put.io</string>
+    <string name="mobile_shortcut_search_long">Search files</string>
     <string name="mobile_shortcut_add_transfer_short">Add</string>
     <string name="mobile_shortcut_add_transfer_long">Add transfer</string>
     <string name="mobile_shortcut_downloads_short">Downloads</string>

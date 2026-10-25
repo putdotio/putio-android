@@ -1061,9 +1061,9 @@ Tests: `MobileDeepLinksTest`, `MainActivityDeepLinkTest`, `MobileShellLinkAction
 
 ## App shortcuts
 
-Long-pressing the mobile launcher icon offers three static shortcuts: Search
-(`putio://search`), Add transfer (`putio://transfers/add`) and Downloads
-(`putio://downloads`). Each is an explicit `ACTION_VIEW` intent for this
+Long-pressing the mobile launcher icon offers three static shortcuts, listed in
+this order: Add transfer (`putio://transfers/add`), Search files
+(`putio://search`) and Downloads (`putio://downloads`). Each is an explicit `ACTION_VIEW` intent for this
 variant's `MainActivity`, whose package the build generates from the variant's
 application id, so production, nightly and debug installs never open each
 other's. Each routes as the product link it carries under
@@ -1071,7 +1071,9 @@ other's. Each routes as the product link it carries under
 target once signed in. Add transfer opens an empty sheet and adds nothing until
 the viewer taps Add; no shortcut changes anything on its own. The shortcuts
 need no session, so the launcher lists them from install. Their icons are
-adaptive: a Phosphor glyph on the brand yellow, in the launcher's own shape.
+adaptive: a yellow Phosphor glyph on a dark disc, in the launcher's own shape.
+The app icon is adaptive too: each channel's locked putio-design art (dev for
+debug builds) fills the area every launcher masks.
 
 Tests: `MobileShortcutsTest` (reads `shortcuts.xml` with the platform's own
 intent parser), `MobileShellLinkActionsTest`, `MobileDeepLinksTest`.
@@ -1241,8 +1243,8 @@ asks for every subtitle rendition, or for none when the account's confirmed
 the row, so a cold offline start, which cannot read settings, still hides the
 Captions picker for a download made without subtitles; a row started before
 settings confirmed keeps the old all-subtitles request and the player's usual
-rule. Media3 owns bytes, resume and the foreground notification, which
-shows a count and progress only. The app's index in private SharedPreferences
+rule. Media3 owns bytes, resume and the foreground service; the app builds its
+notification (see Notifications below). The app's index in private SharedPreferences
 holds file id, name, type, rendition, status, queue time, a pending-delete mark,
 the confirmed subtitle setting, the listing's saved position, the viewer's
 pause and whether the row was rebuilt per user; it never holds a URL.
@@ -1319,17 +1321,30 @@ rows are marked before Media3 deletes their bytes, stop counting as available
 at once, and leave once Media3 confirms; a process death in between finishes
 the delete on the next start.
 
-**Notifications.** When a download finishes or fails, with or without the app
+**Notifications.** While downloads run, the download service's notification
+counts the live ones (queued and running; paused, parked and removing ones are
+not on their way), names the first running file with the overall percentage
+over a bar, or says what they wait for, and opens Downloads. The lock screen
+shows the count without the name. Its Pause and Cancel act on every live
+download of the account the notification was built for, only while that account
+is signed in: Pause holds each as the viewer's pause, written to the app's index
+before Media3's stop reason, so Downloads shows the rows paused and they stay
+paused until Resume; Cancel marks each row for removal and has Media3 delete its
+partial bytes, as Remove does. Once nothing is live, the notification goes.
+
+When a download finishes or fails, with or without the app
 open, a notification names the file and opens its row in Downloads; the lock
 screen shows the outcome without the name. A finished download offers Play
-(the copy on this device over Downloads, or its row if the copy is gone) and
-Open in Downloads; a failed one offers Try again and Open in Downloads. Play,
-Open and the tap are explicit, immutable intents for MainActivity carrying
-`putio://downloads/<id>[/play]?user=<userId>`, so under another account they
+(the copy on this device over Downloads, or its row if the copy is gone); a
+failed one offers Try again and Open in Downloads. Play,
+Open and the taps are explicit, immutable intents for MainActivity carrying
+`putio://downloads[/<id>[/play]]?user=<userId>`, so under another account they
 open nothing (see [Deep links](#deep-links)).
 
-Try again is an explicit, immutable broadcast to an unexported receiver, so no
-other app can send it. It restores a stored session first, for up to 5 s
+Try again, Pause and Cancel are explicit, immutable broadcasts to an
+unexported receiver, so no other app can send them. The receiver and Downloads
+share one index per account in the process, so a notification's write is the
+row the screen and the engine read. Try again restores a stored session first, for up to 5 s
 (Android lets an app start its download service for about 10 s after a
 notification tap), then hands the download back to Media3 without opening the
 app, only for the owning account and only while the row is still failed or
@@ -1376,7 +1391,8 @@ events), `MobileShellDownloadsTest` (bulk delete never reaches
 put.io, notification links, the subtitle setting a Files download carries),
 `MobileDownloadStoreTest` (unreadable rows kept),
 `MobileDownloadActionReceiverTest` (Try again for the owner only, a refused
-start keeps the notification), `BroadcastHoldTest`, `MobileDownloadEngineTest`
+start keeps the notification, Pause and Cancel for the signed-in owner only,
+their intents, one shared index per account), `BroadcastHoldTest`, `MobileDownloadEngineTest`
 (queue order and limit across process recreation, recovery of every row state,
 rows rebuilt for downloads an unreadable index lost, low-storage pause,
 reconcile, sign-out parking, a pause held through sign-out, another account,
@@ -1386,7 +1402,8 @@ in-memory progress and its denominator, the recorded request URL and the
 local-copy check against a real Media3 manager and cache),
 `MobileDownloadNotificationsTest` (granted, denied and disabled states,
 signed-in account only, actions and their intents, other accounts' outcomes at a
-session's end), `OfflinePlaybackPositionsTest` (sync rules, the player's write
+session's end, the running notification's count, text, bar, waiting reason and
+actions), `OfflinePlaybackPositionsTest` (sync rules, the player's write
 racing a pass, refused files), `MobilePlaybackReportingTest` (cold offline
 start), `UserScopedCacheKeysTest` (token-free, user-scoped cache keys),
 `OfflinePlaybackRepositoryTest`, `MobileDeepLinksTest`.

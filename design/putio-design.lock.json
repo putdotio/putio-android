@@ -19,6 +19,13 @@
       { "density": "xhdpi", "size": 96, "sha256": "0be414435b94be3cfe3d480aa49113c63147861ec6ed23b38cec6fa184c0b141" },
       { "density": "xxhdpi", "size": 144, "sha256": "0cccddf7499930e5f1ccb3881d0a43cbb9e3ac35c2ea9ca1de3592d5c227523c" },
       { "density": "xxxhdpi", "size": 192, "sha256": "e669bc5992f59ed24686bfdf1a1007e37aada534f94d10c22690bf53a2b36aba" }
+    ],
+    "artOutputs": [
+      { "density": "mdpi", "size": 72, "sha256": "f98bb6735ee247a9f36648c0913d7dd55e53a434da6a6e2586184166942d56e2" },
+      { "density": "hdpi", "size": 108, "sha256": "b7b8936d8ecef0a746e7a437a7a91bd03f1f5813a7c11ba6a907cc641308132a" },
+      { "density": "xhdpi", "size": 144, "sha256": "0cccddf7499930e5f1ccb3881d0a43cbb9e3ac35c2ea9ca1de3592d5c227523c" },
+      { "density": "xxhdpi", "size": 216, "sha256": "ba337fe17323df5d68c8501122d10d70c937245dacab17c3cefafcd31c72f76c" },
+      { "density": "xxxhdpi", "size": 288, "sha256": "592a9b637a85a558307f6272cea7d7411762d71908a393b1c2a236ef392aa209" }
     ]
   },
   "nightlyIcon": {
@@ -30,6 +37,31 @@
       { "density": "xhdpi", "size": 96, "sha256": "f086ebae75e75f0b685e3236a0442d6734355fa56c22f0b971d146f6778d6279" },
       { "density": "xxhdpi", "size": 144, "sha256": "9a00c3398e6cdd6fb24379a74853e8f993fb6fd8242df1e1bc9ee27f8db5fd93" },
       { "density": "xxxhdpi", "size": 192, "sha256": "55586eec7ea76b9c2da8858971fa6643c6502e98a29d11877e5e258bbe3ce2aa" }
+    ],
+    "artOutputs": [
+      { "density": "mdpi", "size": 72, "sha256": "8aa27a1a64b6507467141a5ccf0c55dd18cd3090e2f5c0e21799c70dcf2b5243" },
+      { "density": "hdpi", "size": 108, "sha256": "ab45d2cd23b03c02ecbdc7a4d89603d773665a5eef6c8fff689c90e9de935e29" },
+      { "density": "xhdpi", "size": 144, "sha256": "9a00c3398e6cdd6fb24379a74853e8f993fb6fd8242df1e1bc9ee27f8db5fd93" },
+      { "density": "xxhdpi", "size": 216, "sha256": "9620e480135c87a14f3e211a072964d49ced111430da1d84ee9568a002e343ed" },
+      { "density": "xxxhdpi", "size": 288, "sha256": "64d3716cd9d67055cfaa707700ce1d43d6d4c8301f4b043f8bbb8a802057907e" }
+    ]
+  },
+  "devIcon": {
+    "asset": "system/assets/app-icon-dev-blueprint.png",
+    "sourceSha256": "83aa70e1c4a8b714b9d806039e93789c2a9c2a61f5cf3a5c558b3626adf79d1c",
+    "outputs": [
+      { "density": "mdpi", "size": 48, "sha256": "b6de9a34be201c9cf9264d0a3081d77db2f987e3345e597378e84257390ec702" },
+      { "density": "hdpi", "size": 72, "sha256": "03020766c7c356e6061bc389aa2f3ae6ee9e9a97e77e10f6b486882958ba8e0d" },
+      { "density": "xhdpi", "size": 96, "sha256": "fbb53197a33b432b3fa62b8dab2461ffb5123024867e161b1aeff56962cf939a" },
+      { "density": "xxhdpi", "size": 144, "sha256": "b3bf058829b869efbe257aad03a5fc839a5cca23c5856bd470758d3f4001c0ad" },
+      { "density": "xxxhdpi", "size": 192, "sha256": "556433fcad4ca5070479b01f378377acd6a71fc83b5848e28d45be3eb1fbc6ee" }
+    ],
+    "artOutputs": [
+      { "density": "mdpi", "size": 72, "sha256": "03020766c7c356e6061bc389aa2f3ae6ee9e9a97e77e10f6b486882958ba8e0d" },
+      { "density": "hdpi", "size": 108, "sha256": "a471623f30361e95736cd4fea51d2875df0bac1d917215cced099740f700e637" },
+      { "density": "xhdpi", "size": 144, "sha256": "b3bf058829b869efbe257aad03a5fc839a5cca23c5856bd470758d3f4001c0ad" },
+      { "density": "xxhdpi", "size": 216, "sha256": "7f4f37ecf5972e7b86fbdecbfe094a3b001c3fdfa3858dc16a5d71d8a2e11db2" },
+      { "density": "xxxhdpi", "size": 288, "sha256": "a0f92979e75abb1bc965e003085a7cea7f98995a68ec2510a9565854a7f89f59" }
     ]
   },
   "wordmark": {

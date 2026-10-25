@@ -727,6 +727,30 @@
       "asset": "assets/fill/warning-circle-fill.svg",
       "sourceSha256": "29199dd3ff20a7fc36380dc366c9004fafa98d979649dc2311c5b1f8fd968dac",
       "outputSha256": "c38bbd5fae3c4a5ac87df6748f2be0475f0e287ba9eefcaaff038d566e80fcd3"
+    },
+    {
+      "resDir": "mobile/src/main/res",
+      "resource": "ic_ph_shortcut_plus",
+      "asset": "assets/regular/plus.svg",
+      "sourceSha256": "d688feb9dd2e41c1721d6906a05a2a42e18cd774762fe706d72b2bdfd91cddc4",
+      "outputSha256": "c97937a53d8d11564a2a4a38af8f59c11780a0e2e561377e7bb7a43e026c9537",
+      "tint": "@color/putio_yellow_solid"
+    },
+    {
+      "resDir": "mobile/src/main/res",
+      "resource": "ic_ph_shortcut_magnifying_glass",
+      "asset": "assets/regular/magnifying-glass.svg",
+      "sourceSha256": "f9fa2561978a9a3291e8ae0ebfcb651104f5069fade8f84871627bca68889cde",
+      "outputSha256": "18b479f9a9abc7d0063f2e14d31a053dc81883b0bde9633d880f3a0b3530de5e",
+      "tint": "@color/putio_yellow_solid"
+    },
+    {
+      "resDir": "mobile/src/main/res",
+      "resource": "ic_ph_shortcut_download_simple",
+      "asset": "assets/regular/download-simple.svg",
+      "sourceSha256": "c48678aa09b44ba4974954690ee6cc846379c448a7214f8c802604c2a1562014",
+      "outputSha256": "863dffbf617e6432f36ae1127621409a7098c1d3d067e2ba751836d5d527fa6f",
+      "tint": "@color/putio_yellow_solid"
     }
   ]
 }

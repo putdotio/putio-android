@@ -37,6 +37,7 @@ class MobileDownloadActionReceiverTest {
     @After
     fun tearDown() {
         MobileDownloadActionReceiver.retriesForTest = null
+        MobileDownloadActionReceiver.controlsForTest = null
         notifications.cancelAll()
     }
 
@@ -132,6 +133,64 @@ class MobileDownloadActionReceiverTest {
 
         assertTrue(received.isCompleted)
         assertEquals(USER to FilesItemId(11L), runBlocking { received.await() })
+    }
+
+    @Test
+    fun pauseAndCancelActOnEveryLiveDownloadOfTheSignedInOwnerOnly() = runBlocking {
+        val paused = mutableListOf<Pair<Long, FilesItemId>>()
+        val cancelled = mutableListOf<Pair<Long, FilesItemId>>()
+        val controls = DownloadNotificationControls(
+            signedIn = { account },
+            live = { userId -> if (userId == USER) listOf(FilesItemId(10L), FilesItemId(11L)) else emptyList() },
+            pause = { userId, fileId -> paused += userId to fileId },
+            cancel = { userId, fileId -> cancelled += userId to fileId },
+        )
+
+        assertEquals(2, controls.pauseAll(USER))
+        assertEquals(listOf(USER to FilesItemId(10L), USER to FilesItemId(11L)), paused)
+
+        // A notification left from another session acts on nothing.
+        account = SignedInAccount.User(OTHER)
+        assertEquals(0, controls.cancelAll(USER))
+        account = SignedInAccount.Unknown
+        assertEquals(0, controls.cancelAll(USER))
+        assertTrue(cancelled.isEmpty())
+
+        account = SignedInAccount.User(USER)
+        assertEquals(2, controls.cancelAll(USER))
+        assertEquals(listOf(USER to FilesItemId(10L), USER to FilesItemId(11L)), cancelled)
+    }
+
+    @Test
+    fun theRunningNotificationsPauseAndCancelReachTheReceiverForTheirAccount() {
+        val paused = CompletableDeferred<Long>()
+        val cancelled = CompletableDeferred<Long>()
+        MobileDownloadActionReceiver.controlsForTest = DownloadNotificationControls(
+            signedIn = { SignedInAccount.User(USER) },
+            live = { listOf(FilesItemId(10L)) },
+            pause = { userId, _ -> paused.complete(userId) },
+            cancel = { userId, _ -> cancelled.complete(userId) },
+        )
+
+        val pause = shadowOf(MobileDownloadActionReceiver.pauseAll(context, USER))
+        val cancel = shadowOf(MobileDownloadActionReceiver.cancelAll(context, USER))
+        // Explicit and immutable broadcasts to the unexported receiver; nothing opens.
+        assertTrue(pause.isBroadcast && pause.isImmutable && cancel.isBroadcast && cancel.isImmutable)
+        context.sendBroadcast(pause.savedIntent)
+        shadowOf(Looper.getMainLooper()).idle()
+        assertTrue(paused.isCompleted && !cancelled.isCompleted)
+        context.sendBroadcast(cancel.savedIntent)
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertEquals(USER, runBlocking { paused.await() })
+        assertEquals(USER, runBlocking { cancelled.await() })
+    }
+
+    @Test
+    fun theNotificationAndTheScreenShareOneStorePerAccount() {
+        // A pause written from the notification is the row the engine reads, so it never undoes it.
+        assertTrue(MobileDownloadStore.shared(context, USER) === MobileDownloadStore.shared(context, USER))
+        assertTrue(MobileDownloadStore.shared(context, USER) !== MobileDownloadStore.shared(context, OTHER))
     }
 
     private fun row(fileId: Long, status: DownloadStatus) = DownloadEntry(

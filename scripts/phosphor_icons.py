@@ -28,6 +28,10 @@ RES_DIRS = frozenset({"core/design/src/main/res", "mobile/src/main/res", "tv/src
 SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 RESOURCE_PATTERN = re.compile(r"ic_ph_[a-z0-9_]+")
 ASSET_PATTERN = re.compile(r"assets/(?:fill|regular)/[a-z0-9-]+\.svg")
+# A tint is a generated token colour; only XML surfaces Compose cannot tint, such as launcher
+# shortcut icons, carry one.
+TINT_PATTERN = re.compile(r"@color/putio_[a-z0-9_]+")
+ICON_FIELDS = frozenset({"resDir", "resource", "asset", "sourceSha256", "outputSha256"})
 
 
 @dataclass(frozen=True)
@@ -45,6 +49,7 @@ class IconLock:
     asset: str
     source_sha256: str
     output_sha256: str
+    tint: str | None = None
 
     @property
     def output_path(self) -> Path:
@@ -137,13 +142,7 @@ def load_lock() -> tuple[PackageLock, tuple[IconLock, ...]]:
     for index, raw_icon in enumerate(icons_value):
         field = f"icons[{index}]"
         icon_value = require_object(raw_icon, field)
-        if set(icon_value) != {
-            "resDir",
-            "resource",
-            "asset",
-            "sourceSha256",
-            "outputSha256",
-        }:
+        if set(icon_value) not in (ICON_FIELDS, ICON_FIELDS | {"tint"}):
             fail(f"{field} fields do not match the schema")
         icon = IconLock(
             res_dir=require_string(icon_value["resDir"], f"{field}.resDir"),
@@ -151,7 +150,10 @@ def load_lock() -> tuple[PackageLock, tuple[IconLock, ...]]:
             asset=require_string(icon_value["asset"], f"{field}.asset"),
             source_sha256=require_sha256(icon_value["sourceSha256"], f"{field}.sourceSha256"),
             output_sha256=require_sha256(icon_value["outputSha256"], f"{field}.outputSha256"),
+            tint=require_string(icon_value["tint"], f"{field}.tint") if "tint" in icon_value else None,
         )
+        if icon.tint is not None and TINT_PATTERN.fullmatch(icon.tint) is None:
+            fail(f"{field}.tint must be a generated @color/putio_* token")
         if icon.res_dir not in RES_DIRS:
             fail(f"{field}.resDir is unsupported")
         if RESOURCE_PATTERN.fullmatch(icon.resource) is None:
@@ -243,14 +245,16 @@ def render_drawable(icon: IconLock, version: str, svg: bytes) -> bytes:
         f'        android:pathData="{escape(path, {chr(34): "&quot;"})}" />'
         for path in paths
     )
-    icon_name = icon.resource.removeprefix("ic_ph_").replace("_", "-")
+    # A tinted copy keeps its own resource name; the comment names the Phosphor glyph it draws.
+    icon_name = Path(icon.asset).stem if icon.tint else icon.resource.removeprefix("ic_ph_").replace("_", "-")
+    tint = f'\n    android:tint="{icon.tint}"' if icon.tint else ""
     return (
         f"<!-- Phosphor {icon_name} v{version} (MIT). {GENERATED_MARKER} -->\n"
         '<vector xmlns:android="http://schemas.android.com/apk/res/android"\n'
         '    android:width="24dp"\n'
         '    android:height="24dp"\n'
         '    android:viewportWidth="256"\n'
-        '    android:viewportHeight="256">\n'
+        f'    android:viewportHeight="256"{tint}>\n'
         f"{body}\n"
         "</vector>\n"
     ).encode("utf-8")

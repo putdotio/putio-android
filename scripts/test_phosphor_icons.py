@@ -112,6 +112,27 @@ class PhosphorIconLockTest(unittest.TestCase):
                 self.write_lock(document)
                 self.assert_lock_rejected(message)
 
+    def test_a_tint_must_be_a_generated_token_colour(self) -> None:
+        for tint in ("#FFFDCE45", "@color/black", "@android:color/white"):
+            with self.subTest(tint=tint):
+                document = json.loads(json.dumps(self.document))
+                document["icons"][0]["tint"] = tint
+                self.write_lock(document)
+                self.assert_lock_rejected("tint must be a generated @color/putio_\\* token")
+
+    def test_a_tinted_icon_keeps_black_paths_under_its_token_tint(self) -> None:
+        icon = phosphor_icons.IconLock(
+            "mobile/src/main/res", "ic_ph_shortcut_plus", "assets/regular/plus.svg", "0" * 64, "0" * 64,
+            "@color/putio_yellow_solid",
+        )
+        svg = b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path d="M0 0H8V8H0Z"/></svg>'
+
+        drawable = phosphor_icons.render_drawable(icon, "2.1.1", svg).decode("utf-8")
+
+        self.assertIn("<!-- Phosphor plus v2.1.1 (MIT).", drawable)
+        self.assertIn('android:viewportHeight="256"\n    android:tint="@color/putio_yellow_solid">', drawable)
+        self.assertIn('android:fillColor="#FF000000"', drawable)
+
     def test_missing_output_is_rejected(self) -> None:
         self.write_lock()
         package, icons = self.load()
