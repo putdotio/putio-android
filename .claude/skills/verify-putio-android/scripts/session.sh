@@ -112,7 +112,9 @@ listens() {
 
 boot_snapshot() {
   local SNAPSHOT="$1"
-  [[ -d "${ANDROID_AVD_HOME:-${ANDROID_USER_HOME:-${HOME}/.android}/avd}/${SHARED_AVD}.avd/snapshots/${SNAPSHOT}" ]] ||
+  local avd_path
+  avd_path="$(avd_path_for "${SHARED_AVD}")"
+  [[ -n "${avd_path}" && -d "${avd_path}/snapshots/${SNAPSHOT}" ]] ||
     die "no snapshot ${SNAPSHOT} on ${SHARED_AVD}; use --fresh, or save one as SKILL.md says"
   local port serial pid logfile deadline
   port="$(free_port)" || die "no free emulator port in 5554-5584"

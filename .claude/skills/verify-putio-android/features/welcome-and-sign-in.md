@@ -27,7 +27,7 @@ A stored session restores at launch without showing Welcome.
 
 Preconditions:
 
-- A `--fresh` run (`session.sh up $RUN --fresh`) whose app has no session:
+- A `--fresh` run (`$S/session.sh up "$RUN" --fresh`) whose app has no session:
   right after `session.sh install`. Never clear or sign out a `--snapshot`
   run; its session is shared.
 

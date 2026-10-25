@@ -29,7 +29,7 @@ From the repository root:
 ```bash
 S=.claude/skills/verify-putio-android/scripts
 RUN="verify-$(date -u +%Y%m%d-%H%M%S)-$(openssl rand -hex 3)"
-export PUTIO_CLI_PROFILE=devs-auto PATH="$(sed -n 's/^sdk\.dir=//p' local.properties)/platform-tools:$PATH"
+export PUTIO_CLI_PROFILE=devs-auto PATH="$(bash -c '. scripts/lib.sh && resolve_sdk_root')/platform-tools:$PATH"
 unset PUTIO_CLI_TOKEN                         # an ambient token would override the profile
 ./gradlew :mobile:assembleProductionDebug
 SERIAL="$($S/session.sh up "$RUN" --fresh)"   # or --snapshot <name>, or --serial <serial>
@@ -159,7 +159,7 @@ run one class:
 
 ```bash
 adb -s $SERIAL shell am instrument -w -r -e class io.putdotio.android.<Class> \
-  -e putio.<lane>.enabled true -e putio.<lane>.runId "$(uuidgen | tr A-Z a-z)" \
+  -e putio.<lane>.enabled true -e putio.<lane>.runId "$(python3 -c 'import uuid; print(uuid.uuid4())')" \
   io.put.putio.mobile.debug.test/androidx.test.runner.AndroidJUnitRunner
 ```
 
