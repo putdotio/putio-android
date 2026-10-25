@@ -123,6 +123,8 @@ internal fun MobilePlayerScreen(
     onStartConversion: () -> Unit = {},
     nextEpisode: PlaybackTarget? = null,
     onNextEpisode: () -> Unit = {},
+    neighbours: PlaybackNeighbours = PlaybackNeighbours(),
+    onPlay: (PlaybackTarget) -> Unit = {},
 ) {
     // Like iOS, the window turns only for a landscape video; the last shape holds across autoplay.
     var landscapeVideo by rememberSaveable { mutableStateOf(false) }
@@ -194,6 +196,8 @@ internal fun MobilePlayerScreen(
                     sidecarSubtitles = (content as? PlaybackContent.Ready)?.source?.subtitles.sidecarTracks(),
                     nextEpisode = nextEpisode.takeIf { isVideo },
                     onNextEpisode = onNextEpisode,
+                    neighbours = neighbours,
+                    onPlay = onPlay,
                 )
                 }
 
@@ -234,7 +238,10 @@ internal fun MobilePlayerScreen(
     }
 }
 
-/** Back where the player's own controls are not up: with the filename for video, alone for audio. */
+/**
+ * Back where the player's own controls are not up: with the filename for video. Audio always has
+ * it here, a caret down at the start of Now Playing's 64dp top bar, whatever state it is in.
+ */
 @Composable
 private fun MobilePlayerSeparateBack(state: PlaybackState, onBack: () -> Unit, modifier: Modifier) {
     if (state.target.mediaType == PlaybackMediaType.VIDEO) {
@@ -244,10 +251,10 @@ private fun MobilePlayerSeparateBack(state: PlaybackState, onBack: () -> Unit, m
             onClick = onBack,
             modifier = modifier
                 .windowInsetsPadding(WindowInsets.safeDrawing)
-                .padding(8.dp),
+                .padding(start = 4.dp, top = 8.dp),
         ) {
             Icon(
-                painter = painterResource(R.drawable.ic_ph_arrow_left),
+                painter = painterResource(R.drawable.ic_ph_caret_down),
                 contentDescription = stringResource(R.string.mobile_action_back),
             )
         }
@@ -315,6 +322,8 @@ private fun MobileReadyPlayer(
     sidecarSubtitles: List<PlaybackSubtitle>,
     nextEpisode: PlaybackTarget?,
     onNextEpisode: () -> Unit,
+    neighbours: PlaybackNeighbours,
+    onPlay: (PlaybackTarget) -> Unit,
 ) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -483,6 +492,8 @@ private fun MobileReadyPlayer(
         sidecarSubtitles = sidecarSubtitles,
         nextEpisode = nextEpisode,
         onNextEpisode = onNextEpisode,
+        neighbours = neighbours,
+        onPlay = onPlay,
         enterPictureInPicture = enterPictureInPicture,
         pictureInPictureSeeks = pictureInPictureSeeks,
     )
@@ -601,6 +612,11 @@ private fun PlaybackPreparationEffect(
                 )
         }
         playerState.activeFileId = fileId
+        // A file taking over session audio, from Now Playing's skips say, keeps the listener's speed, even
+        // after the last file ended.
+        if (!playerState.ownsPlayer && replacingFileId != fileId && player.mediaItemCount > 0) {
+            preferences.playbackSpeed = player.playbackParameters.speed
+        }
         player.setPlaybackSpeed(preferences.playbackSpeed)
         player.trackSelectionParameters = player.trackSelectionParameters.withAudioSelection(
             preferences.audioSelection,
@@ -1020,6 +1036,8 @@ private fun MobileReadyPlayerContent(
     sidecarSubtitles: List<PlaybackSubtitle>,
     nextEpisode: PlaybackTarget?,
     onNextEpisode: () -> Unit,
+    neighbours: PlaybackNeighbours,
+    onPlay: (PlaybackTarget) -> Unit,
     enterPictureInPicture: (() -> Unit)?,
     pictureInPictureSeeks: SeekRelay,
 ) {
@@ -1035,7 +1053,7 @@ private fun MobileReadyPlayerContent(
         playerState.seekWindow = currentWindow
         if (!currentWindow.available) return
         val request =
-            currentWindow.nextPendingSeek(
+            currentWindow.copy(intervals = if (isAudio) AudioSeekIntervals else VideoSeekIntervals).nextPendingSeek(
                 previous = pendingSeek.value,
                 currentPositionMillis = player.currentPosition,
                 direction = direction,
@@ -1104,12 +1122,24 @@ private fun MobileReadyPlayerContent(
                 subtitleDelayMillis = preferences.subtitleOffsetMillis,
             )
         }
-        // The window shows only the video and its subtitles; its own menu carries the controls.
-        if (!pictureInPicture && sheet == null) {
+        if (isAudio) {
+            MobileNowPlayingScreen(
+                player = player,
+                title = title,
+                neighbours = neighbours,
+                seekEnabled = playerState.seekWindow.available,
+                onSeek = ::seek,
+                onScrub = { pendingSeek.value = null },
+                onPlay = onPlay,
+                onAudioSelectionChanged = { preferences.audioSelection = it },
+                modifier = Modifier.zIndex(2f).observeControlNavigation(onPointerNavigation, onKeyboardNavigation),
+            )
+            MobileSeekFeedbackLayer(pendingSeek.value)
+        } else if (!pictureInPicture && sheet == null) {
+            // The window shows only the video and its subtitles; its own menu carries the controls.
             MobilePlayerChrome(
                 player = player,
                 title = title,
-                isAudio = isAudio,
                 visible = controlsVisible.value,
                 seekEnabled = playerState.seekWindow.available,
                 onSeek = ::seek,
@@ -1117,19 +1147,7 @@ private fun MobileReadyPlayerContent(
                 onBack = onBack,
                 modifier = Modifier.zIndex(2f),
                 topActions = { MobilePictureInPictureButton(enterPictureInPicture, optionModifier) },
-                settings = {
-                    if (isAudio) {
-                        MobilePlaybackOptions(
-                            player = player,
-                            onAudioSelectionChanged = { preferences.audioSelection = it },
-                            onMenuVisibilityChanged = { controlsMenuOpen.value = it },
-                            onKeyboardNavigation = onKeyboardNavigation,
-                            onPointerNavigation = onPointerNavigation,
-                        )
-                    } else {
-                        MobileVideoChips(options, subtitleStartupPolicy, { sheet = it }, optionModifier)
-                    }
-                },
+                settings = { MobileVideoChips(options, subtitleStartupPolicy, { sheet = it }, optionModifier) },
                 trailingChip = { MobileNextEpisodeChip(nextEpisode, onNextEpisode, optionModifier) },
                 onFooterHeight = { footerHeight = it },
             )

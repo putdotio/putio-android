@@ -212,13 +212,6 @@
     },
     {
       "resDir": "mobile/src/main/res",
-      "resource": "ic_ph_gear",
-      "asset": "assets/regular/gear.svg",
-      "sourceSha256": "5c0cb3ba307c72babf78d952d9140c682ff30307fedc7fbb87c9a293c1e2fd64",
-      "outputSha256": "b617f008b15d1348296e0708c5ff3ebc9bd3e6cf75eea40d128f804f119405d6"
-    },
-    {
-      "resDir": "mobile/src/main/res",
       "resource": "ic_ph_check",
       "asset": "assets/regular/check.svg",
       "sourceSha256": "cbb89a8c42f283d4f846eb935e05d88c1be04462f16480e068c0f82b9ce40b12",
@@ -751,6 +744,41 @@
       "sourceSha256": "c48678aa09b44ba4974954690ee6cc846379c448a7214f8c802604c2a1562014",
       "outputSha256": "863dffbf617e6432f36ae1127621409a7098c1d3d067e2ba751836d5d527fa6f",
       "tint": "@color/putio_yellow_solid"
+    },
+    {
+      "resDir": "mobile/src/main/res",
+      "resource": "ic_ph_caret_down",
+      "asset": "assets/regular/caret-down.svg",
+      "sourceSha256": "53f0cf2d0b144ac3cb07e353e0cd0853ffb3ed432d741460ce288edfcb0924b1",
+      "outputSha256": "cc3d2b6c7f120be4f03ebaf4594b16846587d3d1da1e017b1b81d70f06dc6dc6"
+    },
+    {
+      "resDir": "mobile/src/main/res",
+      "resource": "ic_ph_skip_back_fill",
+      "asset": "assets/fill/skip-back-fill.svg",
+      "sourceSha256": "65a2d664196ad28fff7288ed7a1870f508fdb922334ad1a49c54586dae7592d7",
+      "outputSha256": "3a1ae1fa899296220388859c3a03a6c1f866b10a8acf24da9731effe930554d8"
+    },
+    {
+      "resDir": "mobile/src/main/res",
+      "resource": "ic_ph_skip_forward_fill",
+      "asset": "assets/fill/skip-forward-fill.svg",
+      "sourceSha256": "2f13f5cbeab47627d30782e7942001e7f80f7da993df053d3be2b8c6cb737ae2",
+      "outputSha256": "d3ce9d910ca5c2338f65f50aa0ae9fc325a0b6176a6cbfa03b643207d8fb1f30"
+    },
+    {
+      "resDir": "mobile/src/main/res",
+      "resource": "ic_ph_moon",
+      "asset": "assets/regular/moon.svg",
+      "sourceSha256": "5c91f82aea4e7b53305bf29628caebc22a1198ba9fa46c62eef13fb8b3c3f21d",
+      "outputSha256": "4153965bb1cf779095dad7a56b162b5794a4cffa2ce9d30c3c322c068d45a68c"
+    },
+    {
+      "resDir": "mobile/src/main/res",
+      "resource": "ic_ph_queue",
+      "asset": "assets/regular/queue.svg",
+      "sourceSha256": "afca8abc51d163ba1aa058888463146cceb0d131ad9654ed4f37253e19e429d6",
+      "outputSha256": "167427e30f792396b307bddc0f6428c2f6a5d000a6d94af41e7f55ba95b7ac51"
     }
   ]
 }

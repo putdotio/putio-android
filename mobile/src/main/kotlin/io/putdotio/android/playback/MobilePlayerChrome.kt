@@ -7,7 +7,6 @@ import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -22,7 +21,6 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
@@ -33,11 +31,11 @@ import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -86,7 +84,6 @@ import io.putdotio.android.design.R as DesignR
 internal fun MobilePlayerChrome(
     player: Player,
     title: String,
-    isAudio: Boolean,
     visible: Boolean,
     seekEnabled: Boolean,
     onSeek: (SeekDirection) -> Unit,
@@ -98,107 +95,11 @@ internal fun MobilePlayerChrome(
     trailingChip: @Composable () -> Unit = {},
     onFooterHeight: (Dp) -> Unit = {},
 ) {
-    if (isAudio) {
-        MobileAudioLayout(player, title, seekEnabled, onSeek, onScrub, settings, modifier)
-    } else if (visible) {
+    if (visible) {
         MobileVideoLayout(
             player, title, seekEnabled, onSeek, onScrub, settings, modifier, onBack, topActions, trailingChip,
             onFooterHeight,
         )
-    }
-}
-
-@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-@Composable
-private fun MobileAudioLayout(
-    player: Player,
-    title: String,
-    seekEnabled: Boolean,
-    onSeek: (SeekDirection) -> Unit,
-    onScrub: () -> Unit,
-    settings: @Composable () -> Unit,
-    modifier: Modifier,
-) {
-    Column(modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
-        Row(
-            Modifier.fillMaxWidth().padding(start = 64.dp, end = 8.dp, top = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                stringResource(R.string.mobile_playback_now_playing),
-                Modifier.weight(1f),
-                style = MaterialTheme.typography.titleMedium,
-            )
-            settings()
-        }
-        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
-            val wide = maxWidth >= 600.dp
-            val artworkSize = if (maxHeight / LocalDensity.current.fontScale < 560.dp) 80.dp else 240.dp
-            if (wide) {
-                Row(
-                    Modifier.fillMaxSize().verticalScroll(rememberScrollState())
-                        .padding(horizontal = 32.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(48.dp),
-                ) {
-                    MobileAudioArtwork(Modifier.weight(1f))
-                    MobileAudioDetails(player, title, seekEnabled, onSeek, onScrub, Modifier.weight(1f))
-                }
-            } else {
-                Column(
-                    Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(32.dp),
-                    verticalArrangement = Arrangement.spacedBy(32.dp, Alignment.CenterVertically),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    MobileAudioArtwork(Modifier.size(artworkSize))
-                    MobileAudioDetails(player, title, seekEnabled, onSeek, onScrub, Modifier.fillMaxWidth())
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun MobileAudioArtwork(modifier: Modifier) {
-    Box(modifier.testTag(MOBILE_AUDIO_COVER_TAG), contentAlignment = Alignment.Center) {
-        Surface(
-            modifier = Modifier.size(240.dp),
-            color = MaterialTheme.colorScheme.surfaceContainer,
-            shape = MaterialTheme.shapes.extraLarge,
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    painterResource(DesignR.drawable.ic_ph_file_audio_fill),
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(56.dp),
-                )
-            }
-        }
-    }
-}
-
-@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-@Composable
-private fun MobileAudioDetails(
-    player: Player,
-    title: String,
-    seekEnabled: Boolean,
-    onSeek: (SeekDirection) -> Unit,
-    onScrub: () -> Unit,
-    modifier: Modifier,
-) {
-    Column(modifier.widthIn(max = 480.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(title, style = MaterialTheme.typography.headlineSmall)
-            Text(
-                stringResource(R.string.mobile_playback_audio_file),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        MobilePlayerTimeline(player, onScrub)
-        MobileTransport(player, seekEnabled, onSeek, Modifier.fillMaxWidth())
     }
 }
 
@@ -423,56 +324,8 @@ private fun MobileVideoTransport(
 private val VIDEO_TRANSPORT_GAP = 52.dp
 private const val VIDEO_PLAY_CIRCLE_ALPHA = 0.42f
 
-@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @Composable
-private fun MobileTransport(
-    player: Player,
-    seekEnabled: Boolean,
-    onSeek: (SeekDirection) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val playPause = rememberPlayPauseButtonState(player)
-    val buffering = rememberBuffering(player)
-    Row(
-        modifier,
-        horizontalArrangement = Arrangement.spacedBy(32.dp, Alignment.CenterHorizontally),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        MobileSeekButton(SeekDirection.Backward, seekEnabled, { onSeek(SeekDirection.Backward) })
-        Box(Modifier.size(80.dp), contentAlignment = Alignment.Center) {
-            if (buffering) {
-                val loading = stringResource(R.string.mobile_state_loading)
-                CircularProgressIndicator(
-                    modifier = Modifier.size(80.dp).semantics { contentDescription = loading },
-                    strokeWidth = 2.dp,
-                )
-            }
-            FilledIconButton(
-                onClick = playPause::onClick,
-                enabled = playPause.isEnabled,
-                modifier = Modifier.size(72.dp),
-                colors = IconButtonDefaults.filledIconButtonColors(
-                    containerColor = MaterialTheme.colorScheme.onSurface,
-                    contentColor = MaterialTheme.colorScheme.surface,
-                ),
-            ) {
-                Icon(
-                    painterResource(
-                        if (playPause.showPlay) DesignR.drawable.ic_ph_play_fill else DesignR.drawable.ic_ph_pause_fill,
-                    ),
-                    contentDescription = stringResource(
-                        if (playPause.showPlay) R.string.mobile_now_playing_play else R.string.mobile_now_playing_pause,
-                    ),
-                    modifier = Modifier.size(32.dp),
-                )
-            }
-        }
-        MobileSeekButton(SeekDirection.Forward, seekEnabled, { onSeek(SeekDirection.Forward) })
-    }
-}
-
-@Composable
-private fun rememberBuffering(player: Player): Boolean {
+internal fun rememberBuffering(player: Player): Boolean {
     var buffering by remember(player) { mutableStateOf(player.playbackState == Player.STATE_BUFFERING) }
     DisposableEffect(player) {
         val listener = object : Player.Listener {
@@ -486,23 +339,7 @@ private fun rememberBuffering(player: Player): Boolean {
     return buffering
 }
 
-@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-@Composable
-private fun MobilePlayerTimeline(player: Player, onScrub: () -> Unit) {
-    Column {
-        MobileProgressSlider(player, onScrub)
-        ProvideTextStyle(
-            MaterialTheme.typography.labelMedium.putioMono().copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
-        ) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                MobileTimeText(player, PlayerTime.Position)
-                MobileTimeText(player, PlayerTime.Duration)
-            }
-        }
-    }
-}
-
-private enum class PlayerTime { Position, Duration, Remaining }
+internal enum class PlayerTime { Position, Duration, Remaining }
 
 /**
  * Elapsed, total or remaining time in the inherited style. Media3's PositionText and DurationText
@@ -510,18 +347,30 @@ private enum class PlayerTime { Position, Duration, Remaining }
  */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @Composable
-private fun MobileTimeText(player: Player, time: PlayerTime) {
+internal fun MobileTimeText(player: Player, time: PlayerTime) {
     val progress = rememberProgressStateWithTickInterval(player, tickIntervalMs = 1_000)
+    MobileTimeText(time, progress.currentPositionMs, progress.durationMs)
+}
+
+/** [time] from a position and duration already read, in the inherited style with mono numbers. */
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+@Composable
+internal fun MobileTimeText(
+    time: PlayerTime,
+    positionMillis: Long,
+    durationMillis: Long,
+    modifier: Modifier = Modifier,
+) {
     val text = when (time) {
-        PlayerTime.Position -> Util.getStringForTime(progress.currentPositionMs)
-        PlayerTime.Duration -> Util.getStringForTime(progress.durationMs)
-        PlayerTime.Remaining -> if (progress.durationMs == C.TIME_UNSET) {
+        PlayerTime.Position -> Util.getStringForTime(positionMillis)
+        PlayerTime.Duration -> Util.getStringForTime(durationMillis)
+        PlayerTime.Remaining -> if (durationMillis == C.TIME_UNSET) {
             Util.getStringForTime(C.TIME_UNSET)
         } else {
-            "-" + Util.getStringForTime((progress.durationMs - progress.currentPositionMs).coerceAtLeast(0L))
+            "-" + Util.getStringForTime((durationMillis - positionMillis).coerceAtLeast(0L))
         }
     }
-    Text(text)
+    Text(text, modifier, style = LocalTextStyle.current.putioMono())
 }
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])

@@ -37,13 +37,24 @@ internal const val MOBILE_SEEK_BACK_TAG = "mobile-seek-back"
 internal const val MOBILE_SEEK_FORWARD_TAG = "mobile-seek-forward"
 internal const val MOBILE_SEEK_FEEDBACK_TAG = "mobile-seek-feedback"
 private const val MOBILE_SEEK_FEEDBACK_DELAY_MILLIS = 800L
-internal const val MOBILE_SEEK_INTERVAL_MILLIS = 10_000L
 private const val VIDEO_SEEK_CIRCLE_ALPHA = 0.32f
 
 internal enum class SeekDirection {
     Backward,
     Forward,
 }
+
+/** How far one press moves each way. */
+internal data class SeekIntervals(val backMillis: Long, val forwardMillis: Long) {
+    fun millis(direction: SeekDirection): Long =
+        if (direction == SeekDirection.Backward) backMillis else forwardMillis
+}
+
+/** Video moves 10 seconds either way (DESIGN.md Player). */
+internal val VideoSeekIntervals = SeekIntervals(backMillis = 10_000L, forwardMillis = 10_000L)
+
+/** Now Playing goes back 15 seconds and forward 30, as podcast players do (DESIGN.md Player). */
+internal val AudioSeekIntervals = SeekIntervals(backMillis = 15_000L, forwardMillis = 30_000L)
 
 internal data class PendingSeek(
     val direction: SeekDirection,
@@ -59,6 +70,8 @@ internal fun PendingSeek.accumulatesAt(nowMillis: Long): Boolean = nowMillis < a
 internal data class PlayerSeekWindow(
     val available: Boolean,
     val durationMillis: Long,
+    /** How far one press moves in this window: video's or Now Playing's steps. */
+    val intervals: SeekIntervals = VideoSeekIntervals,
 )
 
 internal fun pendingSeekAfterWindowUpdate(
@@ -111,17 +124,18 @@ internal fun PlayerSeekWindow.nextPendingSeek(
     nowMillis: Long,
 ): PendingSeek? {
     if (durationMillis <= 0L) return null
+    val interval = intervals.millis(direction)
     // The window is measured from the previous request, not from when its effect started.
     val stacked = previous?.takeIf { it.accumulatesAt(nowMillis) }
     val basePosition = (stacked?.targetPositionMillis ?: currentPositionMillis).coerceIn(0L, durationMillis)
     val targetPosition =
         when (direction) {
-            SeekDirection.Backward -> (basePosition - MOBILE_SEEK_INTERVAL_MILLIS).coerceAtLeast(0L)
+            SeekDirection.Backward -> (basePosition - interval).coerceAtLeast(0L)
             SeekDirection.Forward ->
-                if (durationMillis - basePosition <= MOBILE_SEEK_INTERVAL_MILLIS) {
+                if (durationMillis - basePosition <= interval) {
                     durationMillis
                 } else {
-                    basePosition + MOBILE_SEEK_INTERVAL_MILLIS
+                    basePosition + interval
                 }
         }
     val movedMillis =
@@ -172,17 +186,8 @@ internal fun MobileSeekButton(
     modifier: Modifier = Modifier,
     onVideo: Boolean = false,
 ) {
-    val intervalSeconds = (MOBILE_SEEK_INTERVAL_MILLIS / 1_000L).toInt()
-    val description =
-        pluralStringResource(
-            if (direction == SeekDirection.Backward) {
-                R.plurals.mobile_playback_seek_back
-            } else {
-                R.plurals.mobile_playback_seek_forward
-            },
-            intervalSeconds,
-            intervalSeconds,
-        )
+    val intervalSeconds = (VideoSeekIntervals.millis(direction) / 1_000L).toInt()
+    val description = seekDescription(direction, intervalSeconds)
     IconButton(
         onClick = onClick,
         enabled = enabled,
@@ -219,13 +224,26 @@ internal fun MobileSeekButton(
             )
             // The number belongs to the fixed-size glyph; the accessible label carries the interval.
             Text(
-                "10",
+                intervalSeconds.toString(),
                 style = MaterialTheme.typography.labelSmall.putioMono(),
                 fontSize = with(LocalDensity.current) { 12.dp.toSp() },
             )
         }
     }
 }
+
+/** "Back 15 seconds", "Forward 30 seconds": a seek button's name and its feedback. */
+@Composable
+internal fun seekDescription(direction: SeekDirection, seconds: Int): String =
+    pluralStringResource(
+        if (direction == SeekDirection.Backward) {
+            R.plurals.mobile_playback_seek_back
+        } else {
+            R.plurals.mobile_playback_seek_forward
+        },
+        seconds,
+        seconds,
+    )
 
 @Composable
 internal fun MobileSeekFeedback(

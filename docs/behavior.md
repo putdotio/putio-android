@@ -459,7 +459,7 @@ Back or a tap on the dimmed video closes it. Controls keep 48dp touch targets.
   sheet.
 - Speed steps through 0.5×, 0.75×, 1×, 1.25×, 1.5×, 2×, 2.5× and 3× with −
   and +, a stepped track and quick choices; every control snaps to a preset.
-  Audio keeps its 0.75× to 2× choices.
+  Now Playing's speed sheet holds the same panel.
 
 With the account's `next_episode` on, a playing video asks for the next video
 in its folder once, by autoplay's own walk of the folder in name order, and a
@@ -475,6 +475,36 @@ Tests: `MobileVideoWindowTest`, `MobilePlayerScreenTest`,
 `PlaybackSubtitleTimingTest`, `PlaybackReducerTest` (Next episode), device proof
 `MobileFullscreenVideoProofTest`
 ([Harness](./harness.md#immersive-landscape-video-proof)).
+
+## Mobile audio player
+
+Audio plays on the background audio service, so its media session, lock-screen
+and headset controls and its media notification outlive the screen. While the
+session holds a file, a mini player card sits above the navigation bar on every
+tab: the name cut in the middle, the elapsed and total time, Pause or Play, and
+close, which stops playback and the service. Tapping the card opens Now
+Playing.
+
+Now Playing seeks back 15 seconds and forward 30. Previous and next play the
+audio file before or after this one in its folder, by the same name-order walk
+autoplay uses for video, and Up next shows the next one. The walk runs once per
+file and also names the folder under the title. A file at either end of its
+folder has nothing on that side; a failed walk leaves the skip buttons and Up
+next off, and playback goes on. Another file replaces the Now Playing route, so
+Back still returns to the screen below it.
+
+- Speed opens the video player's speed panel in a bottom sheet: the same eight
+  presets, 0.5× to 3×.
+- Sleep timer offers 15, 30 and 45 minutes and 1 hour. The service carries it
+  out: when it runs out, playback pauses and the timer turns off. Choosing again
+  counts from then; Off, closing the mini player or the service stopping
+  cancels it.
+- More lists the audio tracks when the file has more than one.
+
+Tests: `SdkPlaybackRepositoryTest` (the folder neighbours), `MobileSleepTimerTest`,
+`MobilePlaybackOptionsTest` (Now Playing's speed, More, sleep timer, skip and Up
+next), `MobilePlayerAudioTest` in `MobilePlayerScreenTest.kt` (the cover and the
+15-second seek), `MobileShellTest` (the mini player follows the session).
 
 ## Picture-in-picture
 
@@ -944,8 +974,8 @@ Backspace and the arrows, and a focused button keeps Enter and Space:
   sheet, which says why it cannot delete yet. Items shared with the viewer
   have no delete, so the key does nothing on them.
 - The player takes focus when it opens. Space plays or pauses, Left and Right
-  seek 10 s as the on-screen buttons do (a held arrow keeps seeking), and
-  Escape or Backspace leaves.
+  seek as the on-screen buttons do (10 s on video, 15 s back and 30 s forward
+  on Now Playing; a held arrow keeps seeking), and Escape or Backspace leaves.
 
 Only bare keys and Ctrl are taken: Android's own shortcuts use Meta or Alt,
 and Shift combinations are left alone. The system Keyboard Shortcuts Helper

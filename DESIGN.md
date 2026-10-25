@@ -658,12 +658,29 @@ progress bar with a mono percentage. The one tonal action follows the state
 waits for the viewer, Convert again after a failure, and only Back for a video
 that can't be converted.
 
-Audio keeps playing while you browse: a mini player card above the nav bar
-(glyph, filename, mono time, pause, close, a 2dp progress line). Tapping it
-opens Now Playing: a large type glyph, the filename, a scrubber with mono
-times, a 88dp neutral pause between skip and ±15/30-second buttons, then speed,
-sleep timer and Up next chips. Up next is the next file in the folder; the API
-has no queue.
+Audio keeps playing while you browse: a mini player card above the nav bar on
+every tab, on `surface-container-high` with 16dp corners, 8dp from the sides
+and the bar. It holds the type glyph on a 40dp `surface-container-highest`
+tile, the filename cut in the middle in `body-sm`, elapsed and total time in
+mono, pause and close, and a 2dp yellow progress line along its foot. Tapping
+it opens Now Playing:
+
+- Top: back as a caret down, and More when the file has more than one audio
+  track.
+- A large type glyph on a square `surface-container` tile with 28dp corners,
+  32dp from the sides.
+- The filename in 20sp medium on a 28sp line, on up to two lines and cut in the
+  middle past that, over its folder's name in `on-surface-variant`.
+- A yellow scrubber with elapsed and remaining times in mono under it.
+- Back 15 seconds, previous, an 88dp neutral play and pause, next, forward 30
+  seconds.
+- Speed, Sleep timer and Up next chips, each opening a bottom sheet. Speed
+  holds the speed panel above, so audio steps through the same eight presets.
+  Sleep timer offers Off, 15, 30 and 45 minutes and 1 hour; while it runs, its
+  chip fills and counts down in mono. Up next shows the next file.
+
+Previous, next and Up next are the files of the same type before and after
+this one in its folder, in name order; the API has no queue.
 
 ## Welcome
 
@@ -784,12 +801,9 @@ the navigation bar: **Welcome!** as a 40sp medium title on a 48sp line, then
   speeds and counts elsewhere use the UI face.
 - Transfer cards and Transfer actions show no peer count: the Kotlin SDK's
   `Transfer` has no peers field.
-- The mini player (`MobileNowPlayingBar`) exists in another form; Files has no
-  selection mode, and there is no tablet list-detail.
+- Files has no selection mode, and there is no tablet list-detail.
 - The player has no cast button, and its error offers no action: downloads keep
   the HLS rendition, and Open in VLC is not built.
-- Now Playing's options open as a bottom sheet with speeds 0.75× to 2×, and it
-  has no sleep timer or Up next.
 - Images, PDF and text don't open in-app.
 
 ## Android TV

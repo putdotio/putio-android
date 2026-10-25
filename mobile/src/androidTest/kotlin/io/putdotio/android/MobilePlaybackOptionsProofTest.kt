@@ -57,6 +57,7 @@ import io.putdotio.android.playback.AudioTrackIdentity
 import io.putdotio.android.playback.playbackAudioTracks
 import io.putdotio.android.playback.DefaultMobilePlayerFactory
 import io.putdotio.android.playback.MOBILE_PLAYER_GESTURE_TAG
+import io.putdotio.android.playback.MOBILE_NOW_PLAYING_SHEET_TAG
 import io.putdotio.android.playback.MOBILE_PLAYER_SIDE_SHEET_TAG
 import io.putdotio.android.playback.languageName
 import io.putdotio.android.playback.MobilePlayerFactory
@@ -183,17 +184,14 @@ class MobilePlaybackOptionsProofTest {
         compose.onNodeWithText("1.5×").performTouchInput { click() }
         closeVideoSheet()
         val track = compose.runOnIdle { factory.current().currentTracks.playbackAudioTracks()[1] }
-        // The video's side sheet names a track by its language in its own words.
-        val title = languageName(track.identity.language).takeIf { proofMediaType == PlaybackMediaType.VIDEO }
+        // Both players' audio sheets name a track by its language in its own words.
+        val title = languageName(track.identity.language)
             ?: track.label ?: context.getString(R.string.mobile_playback_audio_track_number, 2)
         openAudioOptions()
         compose.onNodeWithText(title).performScrollTo().performTouchInput { click() }
         awaitSelection(factory, track.identity)
         showOptions()
         screenshot("$label-settings")
-        if (proofMediaType == PlaybackMediaType.AUDIO) {
-            compose.onNodeWithText("Audio track").performTouchInput { click() }
-        }
         compose.onNodeWithText(title).performScrollTo().assertIsDisplayed()
         screenshot("$label-selected")
         compose.onNodeWithText(title).performTouchInput { click() }
@@ -216,42 +214,40 @@ class MobilePlaybackOptionsProofTest {
         }
     }
 
+    /** The audio choices: the video's Audio side sheet, or Now Playing's sheet under More. */
     private fun showOptions() {
         showControls()
         if (proofMediaType == PlaybackMediaType.VIDEO) {
             tapThroughAndroid(compose.onNodeWithContentDescription("Audio: ", substring = true))
             compose.onNodeWithTag(MOBILE_PLAYER_SIDE_SHEET_TAG).assertIsDisplayed()
         } else {
-            tapThroughAndroid(compose.onNodeWithContentDescription("Playback options"))
-            compose.onNodeWithText("Playback speed").assertIsDisplayed()
+            tapThroughAndroid(compose.onNodeWithContentDescription("More options"))
+            compose.onNodeWithText("Audio track").performTouchInput { click() }
+            compose.onNodeWithTag(MOBILE_NOW_PLAYING_SHEET_TAG).assertIsDisplayed()
         }
         compose.mainClock.advanceTimeBy(300)
         compose.waitForIdle()
     }
 
     private fun openSpeedOptions() {
-        if (proofMediaType == PlaybackMediaType.VIDEO) {
-            showControls()
-            tapThroughAndroid(compose.onNodeWithContentDescription("Playback speed ", substring = true))
-        } else {
-            showOptions()
-            compose.onNodeWithText("Playback speed").performTouchInput { click() }
-        }
+        showControls()
+        tapThroughAndroid(compose.onNodeWithContentDescription("Playback speed ", substring = true))
     }
 
     private fun openAudioOptions() {
         showOptions()
-        if (proofMediaType == PlaybackMediaType.AUDIO) {
-            compose.onNodeWithText("Audio track").performTouchInput { click() }
-        }
     }
 
-    /** A video's side sheet stays open for speed choices, and the chips return once it closes. */
+    /** The speed sheet stays open for speed choices, and the chips return once it closes. */
     private fun closeVideoSheet() {
-        if (proofMediaType != PlaybackMediaType.VIDEO) return
-        tapThroughAndroid(compose.onNodeWithContentDescription("Close"))
+        if (proofMediaType == PlaybackMediaType.VIDEO) {
+            tapThroughAndroid(compose.onNodeWithContentDescription("Close"))
+        } else {
+            InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
+        }
         compose.waitUntil(5_000) {
-            compose.onAllNodesWithTag(MOBILE_PLAYER_SIDE_SHEET_TAG).fetchSemanticsNodes().isEmpty()
+            compose.onAllNodesWithTag(MOBILE_PLAYER_SIDE_SHEET_TAG).fetchSemanticsNodes().isEmpty() &&
+                compose.onAllNodesWithTag(MOBILE_NOW_PLAYING_SHEET_TAG).fetchSemanticsNodes().isEmpty()
         }
     }
 
@@ -270,7 +266,7 @@ class MobilePlaybackOptionsProofTest {
         val trigger = if (proofMediaType == PlaybackMediaType.VIDEO) {
             hasContentDescription("Audio: ", substring = true)
         } else {
-            hasContentDescription("Playback options")
+            hasContentDescription("Playback speed ", substring = true)
         }
         if (compose.onAllNodes(trigger).fetchSemanticsNodes().isEmpty()) {
             compose.onNodeWithTag(MOBILE_PLAYER_GESTURE_TAG).performTouchInput { click() }

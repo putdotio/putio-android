@@ -24,6 +24,7 @@ import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.isEnabled
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isSelected
 import androidx.compose.ui.test.junit4.ComposeContentTestRule
@@ -81,6 +82,8 @@ import io.putdotio.android.files.MOBILE_FILES_SORT_TAG
 import io.putdotio.android.files.copyForTest
 import io.putdotio.android.playback.ActiveAudio
 import io.putdotio.android.playback.MOBILE_AUDIO_COVER_TAG
+import io.putdotio.android.playback.MOBILE_AUDIO_NEXT_TAG
+import io.putdotio.android.playback.PlaybackNeighbours
 import io.putdotio.android.playback.MOBILE_NOW_PLAYING_DISMISS_TAG
 import io.putdotio.android.playback.MOBILE_NOW_PLAYING_OPEN_TAG
 import io.putdotio.android.playback.MOBILE_NOW_PLAYING_TAG
@@ -1828,6 +1831,36 @@ class MobileShellPlaybackTest {
             assertFalse(session.released)
             assertEquals(1, factory.audioStops)
         }
+    }
+
+    @Test
+    fun nowPlayingSkipsToTheNextFileInPlaceAndKeepsTheSpeed() {
+        val session = RecordingPlayer()
+        val next = PlaybackTarget(FilesItemId(10L), "next.mp3", PlaybackMediaType.AUDIO)
+        val repository = object : PlaybackRepository by EndingPlaybackRepository {
+            override suspend fun findNeighbours(target: PlaybackTarget) = PlaybackRepositoryResult.Success(
+                if (target.fileId.value == 9L) PlaybackNeighbours(next = next) else PlaybackNeighbours(),
+            )
+        }
+        compose.setPlaybackShell(
+            filesState = mediaFilesState(),
+            playback = ShellPlayback(repository, ShellSessionFactory(session) {}),
+        )
+        compose.runOnIdle {
+            session.playSong()
+            session.setPlaybackSpeed(1.5f)
+        }
+
+        compose.onNodeWithTag(MOBILE_NOW_PLAYING_OPEN_TAG).performClick()
+        compose.waitUntil(5_000) {
+            compose.onAllNodes(hasTestTag(MOBILE_AUDIO_NEXT_TAG) and isEnabled()).fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithTag(MOBILE_AUDIO_NEXT_TAG).performScrollTo().performClick()
+        compose.waitUntil(5_000) { compose.runOnIdle { session.currentMediaItem?.mediaId == "10" } }
+        compose.runOnIdle { assertEquals(1.5f, session.playbackParameters.speed) }
+        // The skip replaced Now Playing: one Back returns to the shell.
+        compose.onNodeWithContentDescription("Back").performClick()
+        compose.onNodeWithTag(MOBILE_NAV_BAR_TAG).assertIsDisplayed()
     }
 
     @Test

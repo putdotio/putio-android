@@ -1,15 +1,22 @@
 package io.putdotio.android.playback
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -26,15 +33,17 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.media3.common.C
 import androidx.media3.common.Player as Media3Player
+import io.putdotio.android.MobileMiddleCutText
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
+import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.design.R as DesignR
 import io.putdotio.android.files.FilesItemId
 import kotlinx.coroutines.delay
@@ -51,6 +60,9 @@ internal data class NowPlaying(
     val title: String,
     val isPlaying: Boolean,
     val progress: Float?,
+    val positionMillis: Long = 0L,
+    /** [C.TIME_UNSET] until the player knows it. */
+    val durationMillis: Long = C.TIME_UNSET,
 )
 
 // The bar shows only prepared audio. A cleared or ended session leaves nothing to resume.
@@ -64,6 +76,8 @@ internal fun Media3Player.nowPlayingOrNull(): NowPlaying? {
         title = item.mediaMetadata.title?.toString().orEmpty().ifBlank { fileId.toString() },
         isPlaying = playWhenReady && playbackState != Media3Player.STATE_IDLE,
         progress = durationMillis?.let { (currentPosition.toFloat() / it).coerceIn(0f, 1f) },
+        positionMillis = currentPosition,
+        durationMillis = durationMillis ?: C.TIME_UNSET,
     )
 }
 
@@ -142,6 +156,11 @@ internal class NowPlayingHandle(
     }
 }
 
+/**
+ * The mini player (DESIGN.md Player): a card above the nav bar with the type glyph, the filename cut
+ * in the middle, the mono time, pause and close, and a 2dp yellow progress line along its foot.
+ * Tapping the card opens Now Playing.
+ */
 @Composable
 internal fun MobileNowPlayingBar(
     nowPlaying: NowPlaying,
@@ -151,12 +170,16 @@ internal fun MobileNowPlayingBar(
     modifier: Modifier = Modifier,
 ) {
     Surface(
-        tonalElevation = 3.dp,
-        modifier = modifier.testTag(MOBILE_NOW_PLAYING_TAG),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        shape = MaterialTheme.shapes.large,
+        modifier = modifier
+            .padding(start = 8.dp, end = 8.dp, bottom = 8.dp)
+            .testTag(MOBILE_NOW_PLAYING_TAG),
     ) {
-        Column {
+        Box {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag(MOBILE_NOW_PLAYING_OPEN_TAG)
@@ -165,59 +188,102 @@ internal fun MobileNowPlayingBar(
                         role = Role.Button,
                         onClick = onOpen,
                     )
-                    .padding(start = 16.dp, end = 4.dp),
+                    .padding(start = 12.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
             ) {
-                Icon(
-                    painter = painterResource(DesignR.drawable.ic_ph_file_audio_fill),
-                    contentDescription = null,
-                    tint = PutioDesignTokens.yellowSolid,
-                    modifier = Modifier.size(24.dp),
-                )
-                Text(
-                    text = nowPlaying.title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = 12.dp),
-                )
-                IconButton(
-                    onClick = onToggle,
-                    modifier = Modifier.testTag(MOBILE_NOW_PLAYING_TOGGLE_TAG),
+                Box(
+                    Modifier
+                        .size(40.dp)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHighest, MaterialTheme.shapes.small),
+                    contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        painter = painterResource(
-                            if (nowPlaying.isPlaying) {
-                                DesignR.drawable.ic_ph_pause_fill
-                            } else {
-                                DesignR.drawable.ic_ph_play_fill
-                            },
-                        ),
-                        contentDescription = stringResource(
-                            if (nowPlaying.isPlaying) {
-                                R.string.mobile_now_playing_pause
-                            } else {
-                                R.string.mobile_now_playing_play
-                            },
-                        ),
+                        painter = painterResource(DesignR.drawable.ic_ph_file_audio_fill),
+                        contentDescription = null,
+                        tint = PutioDesignTokens.yellowSolid,
+                        modifier = Modifier.size(22.dp),
                     )
                 }
-                IconButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.testTag(MOBILE_NOW_PLAYING_DISMISS_TAG),
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_ph_x),
-                        contentDescription = stringResource(R.string.mobile_now_playing_dismiss),
-                    )
+                Column(Modifier.weight(1f)) {
+                    MobileMiddleCutText(nowPlaying.title, style = MaterialTheme.typography.bodyMedium)
+                    MobileNowPlayingTime(nowPlaying)
+                }
+                Row {
+                    IconButton(
+                        onClick = onToggle,
+                        modifier = Modifier.testTag(MOBILE_NOW_PLAYING_TOGGLE_TAG),
+                    ) {
+                        Icon(
+                            painter = painterResource(
+                                if (nowPlaying.isPlaying) {
+                                    DesignR.drawable.ic_ph_pause_fill
+                                } else {
+                                    DesignR.drawable.ic_ph_play_fill
+                                },
+                            ),
+                            contentDescription = stringResource(
+                                if (nowPlaying.isPlaying) {
+                                    R.string.mobile_now_playing_pause
+                                } else {
+                                    R.string.mobile_now_playing_play
+                                },
+                            ),
+                        )
+                    }
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.testTag(MOBILE_NOW_PLAYING_DISMISS_TAG),
+                        colors = IconButtonDefaults.iconButtonColors(
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        ),
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_ph_x),
+                            contentDescription = stringResource(R.string.mobile_now_playing_dismiss),
+                        )
+                    }
                 }
             }
             nowPlaying.progress?.let { progress ->
-                LinearProgressIndicator(
-                    progress = { progress },
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                Box(
+                    Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(horizontal = 12.dp)
+                        .fillMaxWidth()
+                        .height(2.dp)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+                ) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth(progress)
+                            .fillMaxHeight()
+                            .background(MaterialTheme.colorScheme.primary),
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * "12:04 / 47:51" in label-sm, the times in mono; the elapsed time alone until the length is known.
+ * A row too narrow for both, at large text, moves the total to a line of its own.
+ */
+@Composable
+private fun MobileNowPlayingTime(nowPlaying: NowPlaying) {
+    ProvideTextStyle(
+        MaterialTheme.typography.bodySmall.copy(
+            fontSize = PutioTypeScale.labelSm.fontSize,
+            lineHeight = PutioTypeScale.labelSm.lineHeight,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        ),
+    ) {
+        FlowRow {
+            MobileTimeText(PlayerTime.Position, nowPlaying.positionMillis, nowPlaying.durationMillis)
+            if (nowPlaying.durationMillis != C.TIME_UNSET) {
+                Row {
+                    Text(" / ")
+                    MobileTimeText(PlayerTime.Duration, nowPlaying.positionMillis, nowPlaying.durationMillis)
+                }
             }
         }
     }

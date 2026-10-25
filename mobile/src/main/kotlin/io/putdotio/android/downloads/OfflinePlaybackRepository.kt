@@ -1,6 +1,7 @@
 package io.putdotio.android.downloads
 
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.playback.PlaybackNeighbours
 import io.putdotio.android.playback.PlaybackNextResult
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
@@ -91,4 +92,7 @@ internal class OfflinePlaybackRepository(
         delegate.startConversion(target)
 
     override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult = delegate.findNextVideo(target)
+
+    override suspend fun findNeighbours(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackNeighbours> =
+        delegate.findNeighbours(target)
 }
