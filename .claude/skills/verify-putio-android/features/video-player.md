@@ -35,19 +35,19 @@ Preconditions:
   `PUTIO_CLI_PROFILE=devs-auto putio sdk call --operation files.getStartFrom --args '[<id>]' --execute --output json`.
 
 - **Open.** Tap the clip's row. Run
-  `$V/ui.sh tap $SERIAL --text "verify-clip.mp4"` and
-  `$V/ui.sh gone $SERIAL --text "Preparing video" 60`. The window turns
+  `$S/ui.sh tap $SERIAL --text "verify-clip.mp4"` and
+  `$S/ui.sh gone $SERIAL --text "Preparing video" 60`. The window turns
   landscape: `adb -s $SERIAL shell dumpsys window | grep -m1 mCurrentRotation`
   reads `ROTATION_90` or `ROTATION_270`. Capture `video-open --allow-dark`.
 - **Controls.** Tap the video, then `Back 10 seconds` and
-  `Forward 10 seconds`. Run `$V/ui.sh tap $SERIAL --desc "Forward 10 seconds"`.
+  `Forward 10 seconds`. Run `$S/ui.sh tap $SERIAL --desc "Forward 10 seconds"`.
   The elapsed time moves.
 - **Speed.** Tap the speed chip (`Playback speed 1×`), then the step whose
   description is `Faster, 1.25×`. Run
-  `$V/ui.sh tap $SERIAL --match "^Playback speed "` and
-  `$V/ui.sh tap $SERIAL --match "^Faster, "`. The chip reads `1.25×`. Put it
+  `$S/ui.sh tap $SERIAL --match "^Playback speed "` and
+  `$S/ui.sh tap $SERIAL --match "^Faster, "`. The chip reads `1.25×`. Put it
   back to `1×` with `--match "^Slower, "`. The sheet stays open: press Back
-  and `$V/ui.sh gone $SERIAL --match "^Faster, "`.
+  and `$S/ui.sh gone $SERIAL --match "^Faster, "`.
 - **Subtitles.** Tap the subtitles chip; the sheet lists `Off` first. Press
   Back to close it.
 - **Resume.** Play to about 40 s (well clear of the last 10 s, where no

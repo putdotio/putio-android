@@ -33,10 +33,10 @@ Preconditions:
 
 - **Welcome.** Launch. Run
   `adb -s $SERIAL shell am start -n io.put.putio.mobile.debug/io.putdotio.android.MainActivity`
-  and `$V/ui.sh wait $SERIAL --text "Welcome!"`. `Sign in` shows. Capture
+  and `$S/ui.sh wait $SERIAL --text "Welcome!"`. `Sign in` shows. Capture
   `welcome-screen`.
-- **Browser.** Tap `Sign in`. Run `$V/ui.sh tap $SERIAL --text "Sign in"`
-  and `$V/ui.sh gone $SERIAL --text "Welcome!"`. Chrome takes the screen.
+- **Browser.** Tap `Sign in`. Run `$S/ui.sh tap $SERIAL --text "Sign in"`
+  and `$S/ui.sh gone $SERIAL --text "Welcome!"`. Chrome takes the screen.
   Press Back; the app returns to Welcome. Stop here: the browser path needs
   a password, which this skill never types.
 - **Device code.** Run `./scripts/sign-in-devs-auto.sh $SERIAL`. It prints
@@ -44,7 +44,7 @@ Preconditions:
   shows. Capture `sign-in-device-code`.
 - **Restore.** Force-stop and relaunch. Run
   `adb -s $SERIAL shell am force-stop io.put.putio.mobile.debug`, the
-  `am start` above, and `$V/ui.sh wait $SERIAL --text "Search your files"`.
+  `am start` above, and `$S/ui.sh wait $SERIAL --text "Search your files"`.
   Files shows with no Welcome in between.
 - **Link waits.** Unreachable with this harness: the sign-in script starts
   its screen with `--activity-clear-task`, which drops a link MainActivity

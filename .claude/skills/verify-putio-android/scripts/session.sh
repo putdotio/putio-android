@@ -1,43 +1,53 @@
 #!/usr/bin/env bash
-# Devbox side of verify-putio-android: one emulator and one app install per run.
-# Run it in the devbox copy (through devbox.sh run).
+# One emulator and one app install per run. Run it from the repository root.
 #
-#   session.sh up      <run> --snapshot   boot a read-only putio-phone instance from the
-#                                         devs-auto-signed-in snapshot on a free port (signed in,
-#                                         no new grant)
 #   session.sh up      <run> --fresh      create AVD <run> from putio-phone's image and boot it
 #                                         (signed out; sign in with scripts/sign-in-devs-auto.sh)
+#   session.sh up      <run> --snapshot <name>
+#                                         boot a read-only putio-phone instance from its snapshot
+#                                         <name> on a free port (signed in if saved signed in)
+#   session.sh up      <run> --serial <serial>
+#                                         drive an emulator that already runs; down never stops it
 #   session.sh install <run>              install the built production debug APK (adb install -r)
 #   session.sh relaunch <run>             force-stop and start the app, wait for Files or Welcome;
 #                                         taps Try again on "Couldn’t check your session" (4 min bound)
-#   session.sh down    <run>              force-stop the app and stop the run's emulator; --fresh
+#   session.sh down    <run>              force-stop the app and stop the emulator up booted; --fresh
 #                                         runs also delete AVD <run>. .evidence/<run>/ stays
 #
-# Both print or record the serial in .evidence/<run>/run.env. Only that serial
-# is ever stopped, and only while it still is this run's emulator; other
-# emulators and the attached phones are never touched.
+# up prints the serial and records it in .evidence/<run>/run.env, with the
+# checkout's revision in revision.txt. Only a serial this run booted is ever
+# stopped, and only while it still is this run's emulator; other emulators and
+# attached phones are never touched.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 PACKAGE="${PUTIO_VERIFY_PACKAGE:-io.put.putio.mobile.debug}"
 APK="${ROOT}/mobile/build/outputs/apk/production/debug/mobile-production-debug.apk"
 SHARED_AVD="putio-phone"
-SNAPSHOT="devs-auto-signed-in"
-: "${ANDROID_HOME:?ANDROID_HOME must point at the Android SDK}"
-ADB="${ANDROID_HOME}/platform-tools/adb"
-EMULATOR="${ANDROID_HOME}/emulator/emulator"
+# The repo's SDK lookup: ANDROID_HOME, ANDROID_SDK_ROOT, then local.properties sdk.dir.
+# shellcheck source=../../../../scripts/lib.sh
+source "${ROOT}/scripts/lib.sh"
+require_sdk_root
+EMULATOR="${EMULATOR_BIN}"
 BOOT_TIMEOUT="${PUTIO_VERIFY_BOOT_TIMEOUT:-300}"
 
 die() { echo "session.sh: $*" >&2; exit 1; }
 log() { echo "[$(date +%H:%M:%S)] $*" >&2; }
 usage() { awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "${BASH_SOURCE[0]}" >&2; exit 64; }
 
-cmd="${1:-}"; run="${2:-}"; mode_arg="${3:-}"
+cmd="${1:-}"; run="${2:-}"; mode_arg="${3:-}"; mode_value="${4:-}"
 [[ -n "${cmd}" && "${run}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || usage
 DIR="${ROOT}/.evidence/${run}"
 ENV_FILE="${DIR}/run.env"
 
 env_value() { [[ -f "${ENV_FILE}" ]] && sed -n "s/^$1=//p" "${ENV_FILE}" | tail -1; }
+
+# set_state <from ERE> <to> rewrites STATE= in run.env without in-place sed, whose flags differ by platform.
+set_state() {
+  local tmp
+  tmp="$(mktemp "${DIR}/.run.env.XXXXXX")"
+  sed -E "s/^STATE=($1)\$/STATE=$2/" "${ENV_FILE}" > "${tmp}" && mv "${tmp}" "${ENV_FILE}"
+}
 
 # Succeeds while <pid> is an emulator started with exactly `-avd <avd>` and
 # `-port <port>` (whole arguments, not prefixes).
@@ -71,8 +81,8 @@ free_port() {
   listed="$("${ADB}" devices | awk '{ print $1 }')"
   for ((port = 5554; port <= 5584; port += 2)); do
     grep -qx "emulator-${port}" <<<"${listed}" && continue
-    nc -z 127.0.0.1 "${port}" 2>/dev/null && continue
-    nc -z 127.0.0.1 $((port + 1)) 2>/dev/null && continue
+    (exec 3<>"/dev/tcp/127.0.0.1/${port}") 2>/dev/null && continue
+    (exec 3<>"/dev/tcp/127.0.0.1/$((port + 1))") 2>/dev/null && continue
     echo "${port}"; return 0
   done
   return 1
@@ -101,8 +111,9 @@ listens() {
 }
 
 boot_snapshot() {
-  [[ -d "${HOME}/.android/avd/${SHARED_AVD}.avd/snapshots/${SNAPSHOT}" ]] ||
-    die "no ${SNAPSHOT} snapshot on ${SHARED_AVD}; use --fresh and sign in with scripts/sign-in-devs-auto.sh"
+  local SNAPSHOT="$1"
+  [[ -d "${ANDROID_AVD_HOME:-${ANDROID_USER_HOME:-${HOME}/.android}/avd}/${SHARED_AVD}.avd/snapshots/${SNAPSHOT}" ]] ||
+    die "no snapshot ${SNAPSHOT} on ${SHARED_AVD}; use --fresh, or save one as SKILL.md says"
   local port serial pid logfile deadline
   port="$(free_port)" || die "no free emulator port in 5554-5584"
   serial="emulator-${port}"
@@ -115,14 +126,14 @@ boot_snapshot() {
   write_env snapshot "${SHARED_AVD}" "${serial}" "${pid}"
   deadline=$((SECONDS + BOOT_TIMEOUT))
   until [[ "$("${ADB}" -s "${serial}" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" == "1" ]]; do
-    kill -0 "${pid}" 2>/dev/null || { sed -i '' 's/^STATE=up$/STATE=failed/' "${ENV_FILE}"; die "emulator exited; see ${logfile}"; }
+    kill -0 "${pid}" 2>/dev/null || { set_state up failed; die "emulator exited; see ${logfile}"; }
     # Another boot may hold this serial after a port race; stop only the process this run started.
-    ((SECONDS < deadline)) || { kill "${pid}"; sed -i '' 's/^STATE=up$/STATE=failed/' "${ENV_FILE}"; die "boot timed out after ${BOOT_TIMEOUT}s"; }
+    ((SECONDS < deadline)) || { kill "${pid}"; set_state up failed; die "boot timed out after ${BOOT_TIMEOUT}s"; }
     sleep 2
   done
   is_ours "${serial}" "${SHARED_AVD}" "${pid}" || die "${serial} is not the instance this run started"
   # Two boots can pick the same free port; the console port's listener names the winner.
-  listens "${pid}" "${port}" || { kill "${pid}"; sed -i '' 's/^STATE=up$/STATE=failed/' "${ENV_FILE}"; die "port ${port} belongs to another emulator; retry"; }
+  listens "${pid}" "${port}" || { kill "${pid}"; set_state up failed; die "port ${port} belongs to another emulator; retry"; }
   # The restored app checks its session at once; give it a validated network first.
   local connectivity
   while :; do
@@ -132,7 +143,7 @@ boot_snapshot() {
     sleep 2
   done
   grep -q "Successfully loaded snapshot '${SNAPSHOT}'" "${logfile}" ||
-    log "WARNING: ${SNAPSHOT} did not load; this is a cold boot and the app may be signed out (Doctor will say)"
+    log "WARNING: snapshot ${SNAPSHOT} did not load; this is a cold boot and the app may be signed out (Doctor will say)"
   log "booted ${serial} (pid ${pid}) from ${SNAPSHOT}"
   echo "${serial}"
 }
@@ -160,6 +171,16 @@ boot_fresh() {
   echo "${serial}"
 }
 
+# Records an emulator someone else started; down force-stops the app and leaves it running.
+attach_serial() {
+  local serial="$1" avd
+  [[ "$("${ADB}" -s "${serial}" get-state 2>/dev/null)" == "device" ]] || die "${serial} is not a running device"
+  avd="$("${ADB}" -s "${serial}" emu avd name 2>/dev/null | head -1 | tr -d '\r')"
+  [[ -n "${avd}" ]] || die "${serial} is not an emulator"
+  write_env serial "${avd}" "${serial}" ""
+  echo "${serial}"
+}
+
 case "${cmd}" in
   up)
     mkdir -p "${DIR}"
@@ -169,18 +190,21 @@ case "${cmd}" in
     case "$(env_value STATE)" in
       up | failed) die "run.env says run ${run} may still hold an emulator or AVD; run session.sh down ${run} first" ;;
     esac
+    printf 'revision=%s\nuncommitted_paths=%s\n' "$(git -C "${ROOT}" rev-parse HEAD)" \
+      "$(git -C "${ROOT}" status --short | wc -l | tr -d ' ')" > "${DIR}/revision.txt"
     case "${mode_arg}" in
-      --snapshot) boot_snapshot ;;
       --fresh) boot_fresh ;;
+      --snapshot) [[ "${mode_value}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || usage; boot_snapshot "${mode_value}" ;;
+      --serial) [[ -n "${mode_value}" ]] || usage; attach_serial "${mode_value}" ;;
       *) usage ;;
     esac
     ;;
   install)
     serial="$(env_value SERIAL)"
-    owns_run_serial || die "no running emulator for run ${run}; run session.sh up ${run} --snapshot"
-    [[ -f "${APK}" ]] || die "missing ${APK}; run ./gradlew --max-workers=6 :mobile:assembleProductionDebug"
+    owns_run_serial || die "no running emulator for run ${run}; run session.sh up ${run} <mode>"
+    [[ -f "${APK}" ]] || die "missing ${APK}; run ./gradlew :mobile:assembleProductionDebug"
     "${ADB}" -s "${serial}" install -r "${APK}" >&2
-    echo "installed $(shasum -a 256 "${APK}" | cut -c1-12) on ${serial}"
+    echo "installed ${APK#"${ROOT}/"} on ${serial}"
     ;;
   relaunch)
     serial="$(env_value SERIAL)"
@@ -218,7 +242,9 @@ case "${cmd}" in
     # port race the serial can belong to another run's emulator.
     if owns_run_serial && { [[ -z "${pid}" ]] || listens "${pid}" "${serial#emulator-}"; }; then
       "${ADB}" -s "${serial}" shell am force-stop "${PACKAGE}" || true
-      if [[ "${mode}" == "fresh" ]]; then
+      if [[ "${mode}" == "serial" ]]; then
+        :
+      elif [[ "${mode}" == "fresh" ]]; then
         "${ROOT}/scripts/emulator.sh" stop "${serial}" >&2
       else
         "${ADB}" -s "${serial}" emu kill >/dev/null 2>&1 || true
@@ -229,7 +255,7 @@ case "${cmd}" in
       pid_ours && { log "pid ${pid} still serves ${serial}; stopping it"; kill "${pid}"; sleep 3; }
       pid_ours && die "pid ${pid} still serves ${serial}; run.env stays up"
     fi
-    if [[ -n "${serial}" ]]; then
+    if [[ -n "${serial}" && "${mode}" != "serial" ]]; then
       for _ in $(seq 15); do "${ADB}" devices | grep -q "^${serial}[[:space:]]" || break; sleep 1; done
       if "${ADB}" devices | grep -q "^${serial}[[:space:]]" && { owns_run_serial || pid_ours; }; then
         die "${serial} is still up; run.env stays up"
@@ -238,7 +264,7 @@ case "${cmd}" in
     if [[ "${mode}" == "fresh" ]]; then
       "${ROOT}/scripts/emulator.sh" delete phone --name "${run}" >&2 || die "could not delete AVD ${run}; run.env stays up"
     fi
-    [[ -f "${ENV_FILE}" ]] && sed -i '' -E 's/^STATE=(up|failed)$/STATE=down/' "${ENV_FILE}"
+    [[ -f "${ENV_FILE}" ]] && set_state 'up|failed' down
     echo "down ${run}; evidence kept in .evidence/${run}/"
     ;;
   *) usage ;;

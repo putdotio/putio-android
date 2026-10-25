@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Capture one proof step: screenshot, accessibility tree and the app's logcat,
-# into .evidence/<run>/. Run it in the devbox copy (through devbox.sh run).
+# into .evidence/<run>/. Run it from the repository root.
 #
 #   capture.sh <run> <label> [--allow-dark]
 #
@@ -13,8 +13,10 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
-: "${ANDROID_HOME:?ANDROID_HOME must point at the Android SDK}"
-ADB="${ANDROID_HOME}/platform-tools/adb"
+# The repo's SDK lookup: ANDROID_HOME, ANDROID_SDK_ROOT, then local.properties sdk.dir.
+# shellcheck source=../../../../scripts/lib.sh
+source "${ROOT}/scripts/lib.sh"
+require_sdk_root
 
 die() { echo "capture.sh: $*" >&2; exit 1; }
 run="${1:-}"; label="${2:-}"; allow_dark="${3:-}"

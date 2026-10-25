@@ -32,37 +32,37 @@ Preconditions:
   folder `Inner folder` (`fixture.sh mkdir`) and one small text file
   (`printf 'proof\n' > build/verify-note.txt` then `fixture.sh upload`).
 
-- **Root listing.** Open Files. Run `$V/ui.sh link $SERIAL putio://files`,
-  then `$V/ui.sh wait $SERIAL --text "Search your files"`. The pill and the
+- **Root listing.** Open Files. Run `$S/ui.sh link $SERIAL putio://files`,
+  then `$S/ui.sh wait $SERIAL --text "Search your files"`. The pill and the
   five tabs show. Capture `files-root-before`.
-- **Refresh.** Pull to refresh. Run `$V/ui.sh refresh $SERIAL`. The listing
+- **Refresh.** Pull to refresh. Run `$S/ui.sh refresh $SERIAL`. The listing
   reloads from put.io and now holds fixtures made after launch.
 - **Find the fixture.** Scroll the root. Run
-  `$V/ui.sh scroll-to $SERIAL --text "android-verify-$RUN"`, then
-  `$V/capture.sh $RUN files-root`. The folder row shows its name, its date
+  `$S/ui.sh scroll-to $SERIAL --text "android-verify-$RUN"`, then
+  `$S/capture.sh $RUN files-root`. The folder row shows its name, its date
   and a chevron.
 - **Open folder.** Tap the row. Run
-  `$V/ui.sh tap $SERIAL --text "android-verify-$RUN"` and
-  `$V/ui.sh wait $SERIAL --text "Inner folder"`. The bar names the folder
+  `$S/ui.sh tap $SERIAL --text "android-verify-$RUN"` and
+  `$S/ui.sh wait $SERIAL --text "Inner folder"`. The bar names the folder
   beside `Back`, the line under it reads `2 items` and `6 B`, and the bar's
   search button is `Search in android-verify-<run>` (a content description).
-- **Proof.** Run `$V/capture.sh $RUN files-open-folder`. The XML holds
+- **Proof.** Run `$S/capture.sh $RUN files-open-folder`. The XML holds
   `Inner folder` and the text file's full name.
-- **Back.** Press Back. Run `$V/ui.sh key $SERIAL BACK` and
-  `$V/ui.sh wait $SERIAL --text "Search your files"`. The root returns.
+- **Back.** Press Back. Run `$S/ui.sh key $SERIAL BACK` and
+  `$S/ui.sh wait $SERIAL --text "Search your files"`. The root returns.
 - **Empty folder.** Open `Inner folder`. The state reads `Empty folder.` with
   New folder.
-- **New folder.** Run `$V/fixture.sh intend $RUN "new folder"`. In the fixture folder, tap `More options`, then
+- **New folder.** Run `$S/fixture.sh intend $RUN "new folder"`. In the fixture folder, tap `More options`, then
   `New folder`; type a name; tap `Create`. Run
-  `$V/ui.sh tap $SERIAL --desc "More options"`,
-  `$V/ui.sh tap $SERIAL --text "New folder"`,
-  `$V/ui.sh type $SERIAL "Made in app"` and
-  `$V/ui.sh tap $SERIAL --text "Create"`. The listing reloads with
+  `$S/ui.sh tap $SERIAL --desc "More options"`,
+  `$S/ui.sh tap $SERIAL --text "New folder"`,
+  `$S/ui.sh type $SERIAL "Made in app"` and
+  `$S/ui.sh tap $SERIAL --text "Create"`. The listing reloads with
   `Made in app`. Read its id with `putio files list`, adopt it and settle.
 - **Sort.** Tap `Sort files` in the bar, pick a field under `Sort by` and a
-  direction under `Order`. Run `$V/ui.sh tap $SERIAL --desc "Sort files"`.
+  direction under `Order`. Run `$S/ui.sh tap $SERIAL --desc "Sort files"`.
   The rows reorder. Sort persists to the account: put the folder's sort back.
-- **Offline.** Run `$V/ui.sh link $SERIAL putio://files`, then
+- **Offline.** Run `$S/ui.sh link $SERIAL putio://files`, then
   `adb -s $SERIAL shell cmd connectivity airplane-mode enable` and pull to
   refresh. The state reads `Can’t reach put.io.` with `Try now`. Disable
   airplane mode; the folder loads again without a tap.

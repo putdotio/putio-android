@@ -29,7 +29,7 @@ play with no network, and Files lists them at the root while offline.
 Preconditions:
 
 - Doctor passes. The run's root holds a short MP4 uploaded with
-  `fixture.sh upload`, made on the devbox with
+  `fixture.sh upload`, made with
   `ffmpeg -f lavfi -i testsrc2=size=640x360:rate=30:duration=120 -f lavfi -i sine=frequency=440:duration=120 -c:v libx264 -pix_fmt yuv420p -c:a aac -shortest build/verify-clip.mp4`.
 - `putio files list --parent-id <root id>` lists the clip with
   `file_type` `VIDEO`.
@@ -38,15 +38,15 @@ Preconditions:
   `adb -s $SERIAL shell pm grant io.put.putio.mobile.debug android.permission.POST_NOTIFICATIONS`.
 
 - **Start.** Open the clip's actions and tap `Download`. Run
-  `$V/ui.sh tap $SERIAL --desc "Actions for verify-clip.mp4"` and
-  `$V/ui.sh tap $SERIAL --text "Download"`.
-- **Progress.** Open Downloads. Run `$V/ui.sh link $SERIAL putio://downloads`
+  `$S/ui.sh tap $SERIAL --desc "Actions for verify-clip.mp4"` and
+  `$S/ui.sh tap $SERIAL --text "Download"`.
+- **Progress.** Open Downloads. Run `$S/ui.sh link $SERIAL putio://downloads`
   and capture `downloads-progress`: the clip's row shows its progress under
   `Downloading`.
 - **Done.** Back in the run's folder, the clip is the folder's only video, so
   its row's `On this device` glyph proves this download finished. Run
-  `$V/ui.sh link $SERIAL "https://app.put.io/files/<root id>"` and
-  `$V/ui.sh wait $SERIAL --desc "On this device" 180`, then capture
+  `$S/ui.sh link $SERIAL "https://app.put.io/files/<root id>"` and
+  `$S/ui.sh wait $SERIAL --desc "On this device" 180`, then capture
   `downloads-complete`. In Downloads the row now sits under
   `On this device` and shows its size and date.
 - **Offline play.** Run

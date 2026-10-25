@@ -38,31 +38,31 @@ Preconditions:
   `search-recent` unreachable; search by typing alone, which keeps nothing.
 
 - **Open.** Tap the pill. Run
-  `$V/ui.sh tap $SERIAL --text "Search your files"`. The field takes focus
+  `$S/ui.sh tap $SERIAL --text "Search your files"`. The field takes focus
   and the chips `All`, `Folders`, `Videos`, `Audio`, `Subtitles` show.
 - **Account match.** Type the run name and submit (Enter only when fewer
   than five recent terms show). Run
-  `$V/ui.sh type $SERIAL "$RUN"` and `$V/ui.sh key $SERIAL ENTER`, then
-  `$V/ui.sh wait $SERIAL --text "android-verify-$RUN"`. The result groups
+  `$S/ui.sh type $SERIAL "$RUN"` and `$S/ui.sh key $SERIAL ENTER`, then
+  `$S/ui.sh wait $SERIAL --text "android-verify-$RUN"`. The result groups
   read `Folders` and `Files`, and each result names its parent folder.
-- **Proof.** Run `$V/capture.sh $RUN search-account`.
-- **Chips.** Tap `Folders`. Run `$V/ui.sh tap $SERIAL --text "Folders"`. Only
+- **Proof.** Run `$S/capture.sh $RUN search-account`.
+- **Chips.** Tap `Folders`. Run `$S/ui.sh tap $SERIAL --text "Folders"`. Only
   folders remain and the search runs again at once.
 - **Open result.** Tap the run's folder. The folder opens in Files; Back
   returns to the results with their scroll.
 - **Folder scope.** In `android-verify-<run>`, tap the bar's search button.
-  Run `$V/ui.sh tap $SERIAL --desc "Search in android-verify-$RUN"` and
-  `$V/ui.sh type $SERIAL "Inner"`. Only `Inner folder` shows. Back leaves
+  Run `$S/ui.sh tap $SERIAL --desc "Search in android-verify-$RUN"` and
+  `$S/ui.sh type $SERIAL "Inner"`. Only `Inner folder` shows. Back leaves
   Search first, then the folder.
 - **Recent.** Clear the field with `Clear search`. Run
-  `$V/ui.sh tap $SERIAL --desc "Clear search"`. `Recent searches` lists the
+  `$S/ui.sh tap $SERIAL --desc "Clear search"`. `Recent searches` lists the
   submitted run name; tapping it searches again. Remove it with its
   `Remove <term> from recent searches`.
 - **No results.** Type `zz-no-such-$RUN` without Enter, so it is not kept.
-  Run `$V/ui.sh type $SERIAL "zz-no-such-$RUN"` and
-  `$V/ui.sh wait $SERIAL --text "Nothing matches."`. The message names the
+  Run `$S/ui.sh type $SERIAL "zz-no-such-$RUN"` and
+  `$S/ui.sh wait $SERIAL --text "Nothing matches."`. The message names the
   term and the chips hide.
-- **Link entry.** Run `$V/ui.sh link $SERIAL putio://search`. Search opens
+- **Link entry.** Run `$S/ui.sh link $SERIAL putio://search`. Search opens
   without the keyboard.
 
 ## Gotchas

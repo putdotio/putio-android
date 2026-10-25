@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Drive the app on one serial through adb and uiautomator, by visible text and
-# content descriptions. Run it in the devbox copy (through devbox.sh run).
+# content descriptions. Run it from the repository root.
 #
 #   ui.sh dump       <serial> [out.xml]            accessibility tree as XML (stdout without a path)
 #   ui.sh find       <serial> <selector> [--last]   print the first (or last) match's centre "x y"; exit 1 if none
@@ -22,8 +22,9 @@
 set -euo pipefail
 
 PACKAGE="${PUTIO_VERIFY_PACKAGE:-io.put.putio.mobile.debug}"
-: "${ANDROID_HOME:?ANDROID_HOME must point at the Android SDK}"
-ADB="${ANDROID_HOME}/platform-tools/adb"
+# shellcheck source=../../../../scripts/lib.sh
+source "$(dirname "${BASH_SOURCE[0]}")/../../../../scripts/lib.sh"
+require_sdk_root
 
 die() { echo "ui.sh: $*" >&2; exit 1; }
 usage() { awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "${BASH_SOURCE[0]}" >&2; exit 64; }

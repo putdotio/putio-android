@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Live fixtures on the shared devs-auto account, owned through a ledger.
-# Run it in the devbox copy (through devbox.sh run); needs the putio CLI.
+# Run it from the repository root; needs the putio CLI.
 #
 #   fixture.sh root    <run>                            create folder android-verify-<run> at the root; print its id
 #   fixture.sh mkdir   <run> <parent-id> <name>         create a folder inside an owned folder; print its id

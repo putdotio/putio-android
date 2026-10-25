@@ -28,8 +28,7 @@ from a row and on tablets from the detail's Open.
 
 Preconditions:
 
-- Doctor passes. The run's root holds two PNGs and a text file, made on the
-  devbox with
+- Doctor passes. The run's root holds two PNGs and a text file, made with
   `ffmpeg -f lavfi -i testsrc2=size=800x600 -frames:v 1 build/verify-1.png`
   (and `verify-2.png`) and uploaded with `fixture.sh upload`.
 - For tablet steps, widen this run's own emulator:
@@ -42,7 +41,7 @@ Preconditions:
   Press Back.
 - **Text viewer.** Tap the text file. Its content shows in mono.
 - **Widen.** Run the two `wm` commands, then
-  `$V/ui.sh link $SERIAL putio://files` and open the run's folder. The
+  `$S/ui.sh link $SERIAL putio://files` and open the run's folder. The
   detail reads `No file selected.` and `Tap a file to see it here.`
   Capture `tablet-detail-empty`.
 - **Select.** Tap `verify-1.png`. The detail shows its preview, name, `Open`,

@@ -8,30 +8,27 @@ passes only when the device shows it.
 ## Baseline preconditions
 
 - Launch, sign in and pass Doctor as in [SKILL.md](../SKILL.md): the run's
-  own emulator on zebroid-devbox (`--snapshot` unless the recipe says
-  `--fresh`), production debug build of this copy, signed in as devs-auto,
-  five-tab shell on screen.
+  own emulator session, production debug build of this checkout, signed in
+  as devs-auto, five-tab shell on screen. A recipe that signs out says
+  `--fresh`.
 - Create the run's root container with `fixture.sh root <run>`. Its name is
   `android-verify-<run>`; put every other fixture inside it.
 - Drive only the serial `session.sh up` printed for this run.
 
 ## Driving conventions
 
-- Every command in a recipe runs in the devbox copy. Wrap it as
-  `$S/devbox.sh run "$RUN" '<command>'`, single-quoted, so `$V`, `$SERIAL`
-  and `$RUN` expand on the devbox. A command that holds single quotes itself
-  (JSON arguments) goes in double quotes instead, with each devbox-side `$`
-  escaped as `\$`.
-- Start each recipe from the Files root: `$V/ui.sh link $SERIAL putio://files`.
+- Run every command from the repository root, with `$S`, `$RUN` and
+  `$SERIAL` set as in Launch.
+- Start each recipe from the Files root: `$S/ui.sh link $SERIAL putio://files`.
 - Select nodes by what the user sees: `--text` for a label, `--desc` for an
   icon's content description, `--match` for a pattern. Compose test tags are
   not in the uiautomator tree.
 - Follow every action with `ui.sh wait` or `ui.sh gone` on the state it
   should produce.
 - Wrap every step that changes the account in the ledger: run
-  `$V/fixture.sh intend $RUN "<what>"` before the tap, then
-  `$V/fixture.sh adopt $RUN <id>` for each item the app created, renamed or
-  moved, then `$V/fixture.sh settle $RUN "<what happened>"` once all are
+  `$S/fixture.sh intend $RUN "<what>"` before the tap, then
+  `$S/fixture.sh adopt $RUN <id>` for each item the app created, renamed or
+  moved, then `$S/fixture.sh settle $RUN "<what happened>"` once all are
   recorded. Every "intend … adopt" step below ends with that settle.
   Read ids back with
   `PUTIO_CLI_PROFILE=devs-auto putio files list --parent-id <id> --output json`.
@@ -40,7 +37,7 @@ passes only when the device shows it.
 ## Proof and skip reporting
 
 - Capture before and after each action:
-  `$V/capture.sh $RUN <feature-id>-<step>`. Each capture is a screenshot, the
+  `$S/capture.sh $RUN <feature-id>-<step>`. Each capture is a screenshot, the
   uiautomator XML and the app's logcat.
 - A mutation's proof includes a CLI read-back of the account.
 - Name the feature id and the entry point used with every artifact.

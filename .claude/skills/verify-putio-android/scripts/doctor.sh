@@ -1,27 +1,30 @@
 #!/usr/bin/env bash
-# Read-only check: is this run's instance worth driving? Run it in the devbox
-# copy (through devbox.sh run).
+# Read-only check: is this run's instance worth driving? Run it from the
+# repository root.
 #
 #   doctor.sh <run>
 #
 # Prints OK/FAIL per check, then DOCTOR PASS or DOCTOR FAIL (exit 1). Checks:
 # the run's emulator is up and is the instance run.env records; API 37; the installed APK is the
-# one this copy built; the putio CLI is devs-auto; the app is running and shows
+# one this checkout built; the putio CLI is devs-auto; the app is running and shows
 # the signed-in shell. It taps nothing and changes no state.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 APK="${ROOT}/mobile/build/outputs/apk/production/debug/mobile-production-debug.apk"
-: "${ANDROID_HOME:?ANDROID_HOME must point at the Android SDK}"
-ADB="${ANDROID_HOME}/platform-tools/adb"
+# The repo's SDK lookup: ANDROID_HOME, ANDROID_SDK_ROOT, then local.properties sdk.dir.
+# shellcheck source=../../../../scripts/lib.sh
+source "${ROOT}/scripts/lib.sh"
+require_sdk_root
+set +e
 
 run="${1:-}"
 [[ "${run}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || { echo "usage: doctor.sh <run>" >&2; exit 64; }
 ENV_FILE="${ROOT}/.evidence/${run}/run.env"
-failed=0
+failures=0
 ok() { echo "OK   $*"; }
-fail() { echo "FAIL $*"; failed=1; }
-finish() { ((failed)) && { echo "DOCTOR FAIL"; exit 1; }; echo "DOCTOR PASS"; exit 0; }
+fail() { echo "FAIL $*"; failures=1; }
+finish() { ((failures)) && { echo "DOCTOR FAIL"; exit 1; }; echo "DOCTOR PASS"; exit 0; }
 # check <ok message> <fail message> <command...>
 check() {
   local pass="$1" miss="$2"; shift 2
@@ -29,16 +32,16 @@ check() {
 }
 same() { [[ -n "$1" && "$1" == "$2" ]]; }
 
-[[ -f "${ENV_FILE}" ]] || { fail "run.env: missing; run session.sh down ${run}, then session.sh up ${run} --snapshot"; finish; }
+[[ -f "${ENV_FILE}" ]] || { fail "run.env: missing; run session.sh down ${run}, then session.sh up ${run} <mode>"; finish; }
 serial="$(sed -n 's/^SERIAL=//p' "${ENV_FILE}" | tail -1)"
 package="$(sed -n 's/^PACKAGE=//p' "${ENV_FILE}" | tail -1)"
 adb_() { "${ADB}" -s "${serial}" "$@" 2>/dev/null | tr -d '\r'; }
 revision="${ROOT}/.evidence/${run}/revision.txt"
 
-check "copy: $(paste -sd' ' "${revision}" 2>/dev/null)" "copy: no revision.txt; run devbox.sh sync ${run}" test -f "${revision}"
+check "checkout: $(paste -sd' ' "${revision}" 2>/dev/null)" "checkout: no revision.txt; run session.sh up ${run}" test -f "${revision}"
 
 if [[ "$(adb_ get-state)" != "device" ]]; then
-  fail "emulator: ${serial} is not running; run session.sh down ${run}, then session.sh up ${run} --snapshot"; finish
+  fail "emulator: ${serial} is not running; run session.sh down ${run}, then session.sh up ${run} <mode>"; finish
 fi
 want_avd="$(sed -n 's/^AVD=//p' "${ENV_FILE}" | tail -1)"
 mode="$(sed -n 's/^MODE=//p' "${ENV_FILE}" | tail -1)"
@@ -56,12 +59,12 @@ installed="$(adb_ shell pm path "${package}" | sed -n 's/^package://p' | grep ba
 if [[ -z "${installed}" ]]; then
   fail "build: ${package} not installed; run session.sh install ${run}"
 elif [[ ! -f "${APK}" ]]; then
-  fail "build: no local APK; run ./gradlew --max-workers=6 :mobile:assembleProductionDebug"
+  fail "build: no local APK; run ./gradlew :mobile:assembleProductionDebug"
 else
   device_sum="$(adb_ shell sha256sum "${installed}" | cut -d' ' -f1)"
-  local_sum="$(shasum -a 256 "${APK}" | cut -d' ' -f1)"
-  check "build: installed APK matches this copy (${local_sum:0:12})" \
-    "build: installed APK differs from this copy; run session.sh install ${run}" same "${device_sum}" "${local_sum}"
+  local_sum="$(python3 -I -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1], "rb").read()).hexdigest())' "${APK}")"
+  check "build: installed APK matches this checkout (${local_sum:0:12})" \
+    "build: installed APK differs from this checkout; run session.sh install ${run}" same "${device_sum}" "${local_sum}"
 fi
 
 # shellcheck disable=SC2329  # invoked through check

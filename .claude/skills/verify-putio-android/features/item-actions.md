@@ -36,17 +36,17 @@ Preconditions:
   (`trash_enabled`).
 
 - **Open from overflow.** In the run's folder, tap the file's overflow. Run
-  `$V/ui.sh tap $SERIAL --desc "Actions for note-$RUN.txt"`. The sheet shows
+  `$S/ui.sh tap $SERIAL --desc "Actions for note-$RUN.txt"`. The sheet shows
   the full name, `Rename`, `Move` and `Move to trash` (or
   `Delete permanently` with Trash off). Capture `actions-open`.
 - **Open from long-press.** Press Back, then run
-  `$V/ui.sh long-press $SERIAL --text "note-$RUN.txt"`. The same sheet opens.
-- **Rename.** Run `$V/fixture.sh intend $RUN "rename <file id>"`. Tap
+  `$S/ui.sh long-press $SERIAL --text "note-$RUN.txt"`. The same sheet opens.
+- **Rename.** Run `$S/fixture.sh intend $RUN "rename <file id>"`. Tap
   `Rename`; the dialog's field selects `note-<run>` and keeps `.txt`. Type a
   new stem and tap the dialog's `Rename` button, the last node with that
-  label. Run `$V/ui.sh tap $SERIAL --text "Rename"`,
-  `$V/ui.sh type $SERIAL "renamed-$RUN"` and
-  `$V/ui.sh tap $SERIAL --text "Rename" --last`. The row reads
+  label. Run `$S/ui.sh tap $SERIAL --text "Rename"`,
+  `$S/ui.sh type $SERIAL "renamed-$RUN"` and
+  `$S/ui.sh tap $SERIAL --text "Rename" --last`. The row reads
   `renamed-<run>.txt`. Adopt the file id and settle, then read its name back
   with `putio files list --parent-id <root id>`.
 - **Move.** Intend `move <file id>`, open the sheet, tap `Move`, open
@@ -60,12 +60,12 @@ Preconditions:
   the copy's id and settle. With nothing shared, report `actions-copy`
   unreachable.
 - **Trash.** With `trash_enabled` true: intend `trash <folder id>`. Long-press `Inner folder` to open its
-  sheet. Run `$V/ui.sh long-press $SERIAL --text "Inner folder"`, then tap
+  sheet. Run `$S/ui.sh long-press $SERIAL --text "Inner folder"`, then tap
   `Move to trash`. The snackbar reads `Moved to Trash` and the row leaves.
   Remove that one id from Trash:
   `PUTIO_CLI_PROFILE=devs-auto putio sdk call --operation trash.delete --args '[{"file_ids":[<id>]}]' --execute`,
   check `trash.list` no longer holds it, then
-  `$V/fixture.sh settle $RUN "trashed <id>, removed from Trash"`.
+  `$S/fixture.sh settle $RUN "trashed <id>, removed from Trash"`.
 - **Delete permanently.** With `trash_enabled` false the sheet offers
   `Delete permanently` instead. Intend `delete <folder id>`, tap it, confirm.
   The row leaves and `files.get` answers 404; settle with

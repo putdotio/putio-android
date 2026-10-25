@@ -37,11 +37,11 @@ Preconditions:
   uploaded files `a-<run>.txt`, `b-<run>.txt`, `c-<run>.txt`.
 
 - **Enter.** Open the run's folder, then the sheet of `a-<run>.txt`, and tap
-  `Select`. Run `$V/ui.sh tap $SERIAL --desc "Actions for a-$RUN.txt"` and
-  `$V/ui.sh tap $SERIAL --text "Select"`. The bar shows `1 selected`. Capture
+  `Select`. Run `$S/ui.sh tap $SERIAL --desc "Actions for a-$RUN.txt"` and
+  `$S/ui.sh tap $SERIAL --text "Select"`. The bar shows `1 selected`. Capture
   `select-enter`.
 - **Toggle.** Tap `b-<run>.txt` and `c-<run>.txt`. Run
-  `$V/ui.sh tap $SERIAL --text "b-$RUN.txt"` and the same for `c`. The bar
+  `$S/ui.sh tap $SERIAL --text "b-$RUN.txt"` and the same for `c`. The bar
   shows `3 selected`; tapping one again drops it to `2 selected`.
 - **Move.** Intend `move <ids>`. With two selected, tap `Move`, open `Target folder` and confirm.
   Both rows leave; `putio files list --parent-id <target id>` lists both.
@@ -49,7 +49,7 @@ Preconditions:
 - **Trash.** Intend `trash <id>`. Select the remaining file and tap `Trash`. The snackbar reads
   `Moved 1 item to Trash` with Undo. Tap Undo and adopt the id, or delete it
   from Trash by id as in [Item actions](./item-actions.md); then settle.
-- **Exit.** Press Back while selecting. Run `$V/ui.sh key $SERIAL BACK`. The
+- **Exit.** Press Back while selecting. Run `$S/ui.sh key $SERIAL BACK`. The
   bar leaves and the folder stays.
 - **Proof.** Capture the bar, the picker, the snackbar and the CLI read-back.
 
