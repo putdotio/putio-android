@@ -15,6 +15,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.auth.MobileSignedOutReason
 import io.putdotio.android.design.PutioTheme
@@ -52,25 +53,31 @@ class MobileWelcomeScreenTest {
 
         compose.onNodeWithContentDescription("put.io").assertIsDisplayed()
         compose.onNodeWithText("Welcome!").assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading))
-        compose.onNodeWithText("Sign in to stream, download and manage your files.").assertIsDisplayed()
-        compose.onNodeWithText("Sign in").performClick()
+        compose.onNodeWithText("Your put.io files, streaming and offline on this phone.").assertIsDisplayed()
+        compose.onNodeWithText("Sign in").performScrollTo().performClick()
         assertEquals(1, actions)
 
         compose.runOnIdle { reason = MobileSignedOutReason.SessionExpired }
         compose.onNodeWithText("Welcome back!").assertIsDisplayed()
         compose.onNodeWithText("Your session expired. Sign in again to continue.").assertIsDisplayed()
-        compose.onNodeWithText("Sign in").performClick()
+        compose.onNodeWithText("Sign in").performScrollTo().performClick()
         assertEquals(2, actions)
 
         compose.runOnIdle { reason = MobileSignedOutReason.SignInFailed }
-        compose.onNodeWithText("Sign-in didn’t finish", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("Welcome!").assertIsDisplayed()
+        compose.onNodeWithText("Sign-in didn’t finish.").assertIsDisplayed()
+        compose.onNodeWithText("Nothing was saved, so you can try again.").assertIsDisplayed()
         compose.onAllNodesWithText("Sign in").assertCountEquals(0)
-        compose.onNodeWithText("Try again").performClick()
+        compose.onNodeWithText("Try again").performScrollTo().performClick()
         assertEquals(3, actions)
 
         compose.runOnIdle { reason = MobileSignedOutReason.SecureStorageUnavailable }
-        compose.onNodeWithText("could not be read or stored safely", substring = true).assertIsDisplayed()
-        compose.onNodeWithText("Reset and sign in").performClick()
+        compose.onNodeWithText("Secure storage is unavailable.").assertIsDisplayed()
+        compose.onNodeWithText(
+            "Your session couldn’t be read or saved safely on this device. Reset clears it so you can sign in again.",
+        ).assertIsDisplayed()
+        compose.onAllNodesWithText("Try again").assertCountEquals(0)
+        compose.onNodeWithText("Reset and sign in").performScrollTo().performClick()
         assertEquals(4, actions)
     }
 
@@ -93,8 +100,35 @@ class MobileWelcomeScreenTest {
         }
 
         compose.onNodeWithText("Almost there").assertIsDisplayed()
+        compose.onNodeWithText("Finish signing in in your browser, then come back here.").assertIsDisplayed()
         compose.onAllNodes(hasClickAction()).assertCountEquals(1)
-        compose.onNodeWithText("Cancel").performClick()
+        compose.onNodeWithText("Cancel").performScrollTo().performClick()
         assertEquals(1, actions)
     }
+
+    @Test
+    fun sequenceHoldsEachFrameThenRollsToTheNext() {
+        // DESIGN.md Welcome: each of the four frames holds 1.9 s, then the next rolls in over 0.6 s.
+        assertEquals(0f, welcomeSequencePosition(0L, frameCount = 4))
+        assertEquals(0f, welcomeSequencePosition(1_900L, frameCount = 4))
+        // The roll eases on cubic-bezier(0.7, 0, 0.2, 1): slow out, fast through the middle.
+        assertEquals(0.066f, welcomeSequencePosition(2_050L, frameCount = 4), EASING_TOLERANCE)
+        assertEquals(0.636f, welcomeSequencePosition(2_200L, frameCount = 4), EASING_TOLERANCE)
+        assertEquals(0.954f, welcomeSequencePosition(2_350L, frameCount = 4), EASING_TOLERANCE)
+        assertEquals(1f, welcomeSequencePosition(2_500L, frameCount = 4))
+        assertEquals(3f, welcomeSequencePosition(7_500L, frameCount = 4))
+        // The last roll brings the first frame back in.
+        assertEquals(3.636f, welcomeSequencePosition(9_700L, frameCount = 4), EASING_TOLERANCE)
+        assertEquals(0f, welcomeSequencePosition(10_000L, frameCount = 4))
+    }
+
+    @Test
+    @Config(qualifiers = "w412dp-h915dp")
+    fun aPhoneShowsTheActionWithoutScrolling() {
+        setSignedOut()
+
+        compose.onNodeWithText("Sign in").assertIsDisplayed()
+    }
 }
+
+private const val EASING_TOLERANCE = 0.005f

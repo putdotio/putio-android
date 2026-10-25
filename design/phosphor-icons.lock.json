@@ -436,13 +436,6 @@
     },
     {
       "resDir": "mobile/src/main/res",
-      "resource": "ic_ph_clock_countdown",
-      "asset": "assets/regular/clock-countdown.svg",
-      "sourceSha256": "7c244c61bd1dbecc02d89ba2aed311b9ee0b24208ec5d21c8fa38194eba7ba19",
-      "outputSha256": "17233b6c93e9af53a78c4cf987ef40b5c15f94c3638df78d626dd8532d17c635"
-    },
-    {
-      "resDir": "mobile/src/main/res",
       "resource": "ic_ph_warning_circle",
       "asset": "assets/regular/warning-circle.svg",
       "sourceSha256": "e48a90760a68659fd3f06dd9187e471aead4877c72e915339071b2c7f7bd714c",
