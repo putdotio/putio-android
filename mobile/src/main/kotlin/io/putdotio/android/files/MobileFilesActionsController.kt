@@ -184,7 +184,12 @@ internal class MobileFilesActionsController(
             ensureActive()
             when (result) {
                 is PutioResult.Success -> {
-                    awaitRestored(itemIds)
+                    val rejected = awaitRestored(itemIds)
+                    ensureActive()
+                    if (rejected != null) {
+                        onAuthenticationRequired()
+                        return@launch
+                    }
                     // Another delete may have replaced the outcome meanwhile; the item still comes back somewhere.
                     if (!onFilesEvent(FilesBrowserEvent.TrashUndone(outcome))) {
                         onFilesEvent(FilesBrowserEvent.InvalidateAllFolders)
@@ -204,17 +209,26 @@ internal class MobileFilesActionsController(
 
     /**
      * Reads each restored item until put.io serves it again, a few rounds at most; the folder reads
-     * after either way.
+     * after either way. A 401 ends the reads and is returned, since it is the session's verdict.
      */
-    private suspend fun awaitRestored(itemIds: List<FilesItemId>) {
+    private suspend fun awaitRestored(itemIds: List<FilesItemId>): PutioFailure.AuthenticationRequired? {
         var pending = itemIds
-        repeat(RESTORE_READBACK_ROUNDS) { round ->
+        var rejected: PutioFailure.AuthenticationRequired? = null
+        var round = 0
+        while (pending.isNotEmpty() && rejected == null && round < RESTORE_READBACK_ROUNDS) {
             if (round > 0) delay(RESTORE_READBACK_DELAY_MS)
+            round += 1
             pending = pending.filterNot { id ->
-                (sources.trash.resolveItem(id) as? PutioResult.Success)?.value?.id == id
+                rejected == null && when (val read = sources.trash.resolveItem(id)) {
+                    is PutioResult.Success -> read.value.id == id
+                    is PutioResult.Failure -> {
+                        rejected = read.failure as? PutioFailure.AuthenticationRequired
+                        false
+                    }
+                }
             }
-            if (pending.isEmpty()) return
         }
+        return rejected
     }
 
     fun close() {
