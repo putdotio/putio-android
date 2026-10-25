@@ -1281,7 +1281,8 @@ it lists up to three transfers still running (anything but completed or
 failed, seeding included) from the first page of the account's transfers,
 newest first. Each row shows the status in the Transfers screen's words, a
 percentage when put.io reports one and a progress bar, indeterminate without
-one and green while seeding; a footer says when the rows were read and how many more are running. With
+one; a seeding row's bar is green, and full without a percentage. A footer
+says when the rows were read and how many more are running. With
 none it reads No active transfers. A tap opens Transfers through
 `putio://transfers`, and a refresh button reads again. Signed out it reads Sign
 in to put.io to see your transfers, with no refresh button, and a tap opens

@@ -174,7 +174,13 @@ private fun MobileTransferActionsHeader(item: TransferItem) {
             }
         }
         MobileTransferMeta(item.dot, state, maxLines = 1)
-        val percent = item.percentDone?.takeIf { item.status != AppTransferStatus.Failed && it in 0.0..100.0 }
+        // A running transfer without a reported share shows an empty track rather than no bar.
+        val reported = item.percentDone?.takeIf { it in 0.0..100.0 }
+        val percent = when (item.section) {
+            MobileTransferSection.NeedsAttention -> null
+            MobileTransferSection.Active -> reported ?: 0.0
+            MobileTransferSection.Completed -> reported
+        }
         if (percent != null) {
             LinearProgressIndicator(
                 progress = { (percent / 100.0).toFloat() },
