@@ -367,16 +367,18 @@ app's [Documents provider](#documents-provider), so a finished download reads
 from disk and anything else streams with the session in the request header;
 no URL with a token is built. Images decode at the frame's size. A PDF is
 copied once into a private cache file that closing the viewer deletes (the
-cache clears again when a viewer opens), renders one page at a time at the
-frame's width under 4 megapixels, and opens with another app from 200 MB; a
-page that won't render says so in its place. Text shows the first 250 kB as
+cache also clears on a fresh launch, when a viewer opens and at sign-out),
+renders one page at a time at the frame's width under 4 megapixels, and opens
+with another app from 200 MB; a page that won't render, or one more than 20
+times taller than wide, says so in its place. TalkBack reads each page's number
+and offers Open with another app for the text. Text shows the first 250 kB as
 UTF-8 in mono and says when the file goes on. A file the viewer can't read
-offers Open with another app; when no app takes it, the viewer closes so the
-Files snackbar can say so.
+offers Open with another app.
 
-Other types open with another app: `ACTION_VIEW` on the file's documents-provider
-URI with its extension's MIME type and a read grant only, which sign-out
-revokes. When no app takes the type, the Files snackbar says so.
+Other types open with another app: the system chooser over `ACTION_VIEW` on
+the file's documents-provider URI, with its extension's MIME type and a read
+grant only, which sign-out revokes. The chooser leaves this app out, since it
+takes `.torrent` files as transfers, and says itself when no app fits.
 
 Tests: `MobileFilesListDetailTest`, `MobileViewerLimitsTest`,
 `SdkFilesSubtitleLanguagesTest`.

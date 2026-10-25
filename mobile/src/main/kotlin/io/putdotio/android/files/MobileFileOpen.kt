@@ -2,10 +2,12 @@ package io.putdotio.android.files
 
 import android.content.ActivityNotFoundException
 import android.content.ClipData
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.DocumentsContract
+import io.putdotio.android.MainActivity
 import io.putdotio.android.documents.MobileDocumentsProvider
 import io.putdotio.android.documents.PutioDocumentId
 import io.putdotio.android.documents.mimeTypeOf
@@ -39,18 +41,23 @@ internal class MobileFileOpener(private val userId: Long) {
     /** [documentUri] as a function value, for the detail pane's image preview. */
     fun documentUris(): (Context, FilesItem) -> Uri = ::documentUri
 
-    /** Hands the file to whichever app views its type; false when none on the device does. */
-    fun openWithAnotherApp(context: Context, item: FilesItem): Boolean {
+    /**
+     * Offers the file to the apps that view its type through the system chooser, which also says when
+     * none does. This app is left out: it takes .torrent files as transfers, not its own documents.
+     */
+    fun openWithAnotherApp(context: Context, item: FilesItem) {
         val uri = documentUri(context, item)
         val view = Intent(Intent.ACTION_VIEW)
             .setDataAndType(uri, mimeTypeOf(item.name))
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         view.clipData = ClipData.newRawUri(null, uri)
-        return try {
-            context.startActivity(view)
-            true
+        val chooser = Intent.createChooser(view, null)
+            .putExtra(Intent.EXTRA_EXCLUDE_COMPONENTS, arrayOf(ComponentName(context, MainActivity::class.java)))
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        try {
+            context.startActivity(chooser)
         } catch (_: ActivityNotFoundException) {
-            false
+            // No chooser at all is a broken device; there is nothing more to offer.
         }
     }
 }

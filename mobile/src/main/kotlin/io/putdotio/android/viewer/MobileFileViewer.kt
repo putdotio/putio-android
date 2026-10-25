@@ -192,19 +192,28 @@ private fun MobileFileViewerBar(
     }
 }
 
+/** The position in mono over a scrim that fades up, so it stays readable over a light picture. */
 @Composable
 private fun MobileFileViewerPosition(position: Int, count: Int, modifier: Modifier = Modifier) {
     val description = stringResource(R.string.mobile_viewer_position, position, count)
-    Text(
-        text = "$position / $count",
-        style = PutioTypeScale.mono,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    val scrim = MaterialTheme.colorScheme.scrim
+    Box(
         modifier = modifier
+            .fillMaxWidth()
+            .background(Brush.verticalGradient(listOf(Color.Transparent, scrim.copy(alpha = VIEWER_SCRIM_ALPHA))))
             .windowInsetsPadding(WindowInsets.navigationBars)
-            .padding(top = 16.dp, bottom = VIEWER_POSITION_BOTTOM)
-            .semantics { contentDescription = description }
-            .testTag(MOBILE_FILE_VIEWER_POSITION_TAG),
-    )
+            .padding(top = 16.dp, bottom = VIEWER_POSITION_BOTTOM),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = "$position / $count",
+            style = PutioTypeScale.mono,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier
+                .semantics { contentDescription = description }
+                .testTag(MOBILE_FILE_VIEWER_POSITION_TAG),
+        )
+    }
 }
 
 /** The empty-state voice for a file the viewer can't show, with the one way left to see it. */

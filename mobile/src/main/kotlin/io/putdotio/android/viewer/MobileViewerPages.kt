@@ -36,7 +36,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.SubcomposeAsyncImage
@@ -100,8 +103,19 @@ internal fun MobilePdfPage(file: FilesItem, uri: Uri, onOpenWithAnotherApp: () -
 private fun MobilePdfPages(document: MobilePdfDocument, onOpenWithAnotherApp: () -> Unit) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val widthPx = with(LocalDensity.current) { maxWidth.roundToPx() }
+        // The pages are pictures, so readers get the way to an app that reads the document's text.
+        val openElsewhere = stringResource(R.string.mobile_viewer_open_with)
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .semantics {
+                    customActions = listOf(
+                        CustomAccessibilityAction(openElsewhere) {
+                            onOpenWithAnotherApp()
+                            true
+                        },
+                    )
+                },
             contentPadding = viewerContentPadding(),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
@@ -151,7 +165,7 @@ private fun MobilePdfPageImage(
         }
         is PageState.Ready -> Image(
             bitmap = current.bitmap.asImageBitmap(),
-            contentDescription = null,
+            contentDescription = stringResource(R.string.mobile_viewer_page, index + 1, document.pageCount),
             contentScale = ContentScale.FillWidth,
             modifier = Modifier.fillMaxWidth().aspectRatio(1f / current.ratio),
         )

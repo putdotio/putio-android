@@ -48,7 +48,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.InputMode
-import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.platform.LocalView
@@ -183,8 +182,6 @@ internal class MobileFilesOpening(
     val showsDetail: Boolean = false,
     val selectedFileId: FilesItemId? = null,
     val actionsRequests: Flow<FilesItemId> = emptyFlow(),
-    /** Files no app on the device would open, for the snackbar. */
-    val openFailures: Flow<FilesItem> = emptyFlow(),
 )
 
 /** A copy outlives folder navigation, so its line stays while the folder loads or fails. */
@@ -301,7 +298,6 @@ private fun MobileRefreshableFilesContent(
 
     val snackbarHostState = remember { SnackbarHostState() }
     MobileFilesTrashedAnnouncement(state.current, snackbarHostState, onEvent, onViewTrash)
-    MobileFilesOpenFailures(fileOpening, snackbarHostState)
 
     Box(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -498,19 +494,6 @@ private fun MobileFilesActionsRequests(
     val requests = fileOpening?.actionsRequests ?: return
     LaunchedEffect(requests) {
         requests.collect { id -> if (currentItems.any { it.id == id }) currentOnOpenSheet(id) }
-    }
-}
-
-/** A file no app on the device opens, said in one line. */
-@Composable
-private fun MobileFilesOpenFailures(fileOpening: MobileFilesOpening?, snackbarHostState: SnackbarHostState) {
-    val resources = LocalResources.current
-    val failures = fileOpening?.openFailures ?: return
-    LaunchedEffect(failures) {
-        failures.collect { item ->
-            snackbarHostState.currentSnackbarData?.dismiss()
-            snackbarHostState.showSnackbar(resources.getString(R.string.mobile_files_open_failed, item.name))
-        }
     }
 }
 

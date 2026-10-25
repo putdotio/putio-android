@@ -1,6 +1,5 @@
 package io.putdotio.android.files
 
-import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.MutableState
@@ -62,8 +61,7 @@ internal fun MobileFilesRoute(
     var detailId by rememberSaveable(currentKey.first, currentKey.second) { mutableStateOf<Long?>(null) }
     var viewerId by rememberSaveable { mutableStateOf<Long?>(null) }
     val actionsRequests = remember { MutableSharedFlow<FilesItemId>(extraBufferCapacity = 1) }
-    val openFailures = remember { MutableSharedFlow<FilesItem>(extraBufferCapacity = 1) }
-    val openWithAnotherApp = withAnotherApp(context, fileOpener) { openFailures.tryEmit(it) }
+    val openWithAnotherApp: (FilesItem) -> Unit = { item -> fileOpener?.openWithAnotherApp(context, item) }
     val openFile = fileOpenAction(onPlayMedia, onView = { viewerId = it.id.value }, onOther = openWithAnotherApp)
     val fileOpening = fileOpener?.let {
         MobileFilesOpening(
@@ -71,7 +69,6 @@ internal fun MobileFilesRoute(
             showsDetail = showsDetail,
             selectedFileId = detailId?.takeIf { showsDetail }?.let(::FilesItemId),
             actionsRequests = actionsRequests,
-            openFailures = openFailures,
         )
     }
     val openActions: (FilesItem) -> Unit = { item ->
@@ -112,7 +109,7 @@ internal fun MobileFilesRoute(
                 val shown = items.firstOrNull { it.id.value == detailId && !it.isFolder }
                 MobileFilesDetailPane(
                     item = shown,
-                    folderPath = state.folderPath(),
+                    folderPath = state.folderPath() ?: stringResource(R.string.mobile_destination_files),
                     downloadStatus = shown?.let { downloads.entry(it.id)?.status },
                     subtitleLanguages = subtitleLanguages,
                     onAuthenticationRequired = onAuthenticationRequired,
@@ -133,11 +130,7 @@ internal fun MobileFilesRoute(
             viewerId = viewerId,
             actions = MobileFileViewerActions(
                 documentUri = { fileOpener.documentUri(context, it) },
-                // The Files snackbar sits under the viewer, so the viewer closes for it to say no app took the file.
-                onOpenWithAnotherApp = withAnotherApp(context, fileOpener) { item ->
-                    viewerId = null
-                    openFailures.tryEmit(item)
-                },
+                onOpenWithAnotherApp = openWithAnotherApp,
                 onShare = onShareItem,
                 onMore = openActions,
             ),
@@ -161,14 +154,6 @@ private fun fileOpenAction(
         item.viewerKind != null -> onView(item)
         else -> onOther(item)
     }
-}
-
-private fun withAnotherApp(
-    context: Context,
-    opener: MobileFileOpener?,
-    onNoApp: (FilesItem) -> Unit,
-): (FilesItem) -> Unit = { item ->
-    if (opener?.openWithAnotherApp(context, item) == false) onNoApp(item)
 }
 
 /** The viewer over the folder's files of the shown file's kind, while that file is still listed. */

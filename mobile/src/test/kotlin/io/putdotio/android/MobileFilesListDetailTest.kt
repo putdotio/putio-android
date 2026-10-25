@@ -1,5 +1,6 @@
 package io.putdotio.android
 
+import android.content.ComponentName
 import android.content.Intent
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Box
@@ -121,13 +122,20 @@ class MobileFilesListDetailTest {
     }
 
     @Test
-    fun aTypeNoViewerTakesGoesToAnotherAppThroughTheDocumentsProviderWithOnlyAReadGrant() {
+    fun aTypeNoViewerTakesGoesToOtherAppsThroughTheDocumentsProviderWithOnlyAReadGrant() {
         setRoute(width = 400.dp, wide = false)
 
         compose.onNodeWithText(ARCHIVE.name).performClick()
 
         compose.runOnIdle {
-            val started = shadowOf(compose.activity).nextStartedActivity
+            val chooser = shadowOf(compose.activity).nextStartedActivity
+            assertEquals(Intent.ACTION_CHOOSER, chooser.action)
+            // The app takes .torrent files as transfers, so it never offers itself here.
+            assertEquals(
+                listOf(ComponentName(compose.activity, MainActivity::class.java)),
+                chooser.getParcelableArrayExtra(Intent.EXTRA_EXCLUDE_COMPONENTS, ComponentName::class.java)?.toList(),
+            )
+            val started = requireNotNull(chooser.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java))
             assertEquals(Intent.ACTION_VIEW, started.action)
             assertEquals("application/zip", started.type)
             assertEquals(

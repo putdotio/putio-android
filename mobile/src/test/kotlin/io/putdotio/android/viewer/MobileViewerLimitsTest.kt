@@ -3,6 +3,7 @@ package io.putdotio.android.viewer
 import java.io.ByteArrayInputStream
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -46,8 +47,9 @@ class MobileViewerLimitsTest {
         assertTrue(poster.width.toLong() * poster.height <= 4_000_000L)
         assertEquals(10.0, poster.height.toDouble() / poster.width, 0.05)
 
-        // A page one pixel wide keeps its height under the cap too.
-        val sliver = pdfBitmapSize(pageWidth = 1, pageHeight = 20_000_000, widthPx = 1080)
-        assertTrue(sliver.width.toLong() * sliver.height <= 4_000_000L)
+        // A strip too tall to lay out at the frame's width fails as a page that won't render.
+        assertThrows(IllegalArgumentException::class.java) {
+            pdfBitmapSize(pageWidth = 10, pageHeight = 3_000, widthPx = 1080)
+        }
     }
 }

@@ -15,6 +15,7 @@ import io.putdotio.android.share.MobileResumedActivity
 import io.putdotio.android.transfers.MobileTransferDraft
 import io.putdotio.android.transfers.consumeMobileIncomingTransfer
 import io.putdotio.android.transfers.receive
+import io.putdotio.android.viewer.MobilePdfDocument
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -48,7 +49,11 @@ class MainActivity : BasePutioActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         configureEdgeToEdge()
-        if (savedInstanceState == null) MobileFileShareService.pruneStale(applicationContext)
+        if (savedInstanceState == null) {
+            MobileFileShareService.pruneStale(applicationContext)
+            // A PDF copy a viewer left when the process died.
+            MobilePdfDocument.clearCache(applicationContext)
+        }
         consumeShare(intent, savedInstanceState?.getBoolean(STATE_SHARE_CONSUMED) == true)
         consumeDeepLink(intent, savedInstanceState?.getBoolean(STATE_DEEP_LINK_CONSUMED) == true)
         restorePendingDeepLink(savedInstanceState)

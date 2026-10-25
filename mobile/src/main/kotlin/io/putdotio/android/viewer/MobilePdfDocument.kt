@@ -125,6 +125,8 @@ internal data class PdfBitmapSize(val width: Int, val height: Int)
  */
 internal fun pdfBitmapSize(pageWidth: Int, pageHeight: Int, widthPx: Int): PdfBitmapSize {
     val ratio = pageHeight.toDouble() / pageWidth.coerceAtLeast(1)
+    // A strip taller than this can't be laid out at the frame's width; it fails as a page that won't render.
+    require(ratio <= PDF_MAX_PAGE_RATIO) { "Page too tall to show" }
     var width = widthPx.coerceAtLeast(1).toDouble()
     var height = width * ratio
     val pixels = width * height
@@ -138,6 +140,8 @@ internal fun pdfBitmapSize(pageWidth: Int, pageHeight: Int, widthPx: Int): PdfBi
     val finalHeight = height.toInt().coerceIn(1, (PDF_MAX_PIXELS / finalWidth).toInt().coerceAtLeast(1))
     return PdfBitmapSize(finalWidth, finalHeight)
 }
+
+private const val PDF_MAX_PAGE_RATIO = 20.0
 
 /** About 16 MB per page bitmap at four bytes a pixel. */
 private const val PDF_MAX_PIXELS = 4_000_000.0
