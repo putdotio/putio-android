@@ -25,6 +25,7 @@ import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
@@ -454,7 +455,12 @@ private fun QuickSpeed(label: String, selected: Boolean, enabled: Boolean, onCli
     }
     val padding = PaddingValues(horizontal = 4.dp)
     val text: @Composable () -> Unit = {
-        Text(label, style = PutioTypeScale.mono, maxLines = 1)
+        BasicText(
+            label,
+            style = PutioTypeScale.mono.copy(color = LocalContentColor.current),
+            maxLines = 1,
+            autoSize = TextAutoSize.StepBased(maxFontSize = PutioTypeScale.mono.fontSize),
+        )
     }
     if (selected) {
         FilledTonalButton(

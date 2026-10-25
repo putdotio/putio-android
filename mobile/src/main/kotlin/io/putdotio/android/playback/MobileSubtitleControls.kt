@@ -476,15 +476,21 @@ internal fun subtitleBottomPadding(frame: DpSize, aspectRatio: Float?, clearance
     return if (clearance > 0.dp) maxOf(default, needed) else default
 }
 
+/** The uncovered part of the video: from [left], [width] wide and the video's full height. */
+internal data class SubtitleArea(val left: Dp, val width: Dp, val height: Dp)
+
 /**
- * Where subtitles lay out beside a sheet covering [coveredWidth] at the end: the uncovered part of
- * the video, at the video's full height. Null when nothing covers it or the video has no shape yet.
+ * Where subtitles lay out beside a sheet covering [coveredWidth] at the end: the part of the
+ * centred video the sheet leaves, at the video's full height. Null when nothing covers it or the
+ * video has no shape yet.
  */
-internal fun subtitleArea(frame: DpSize, aspectRatio: Float?, coveredWidth: Dp): DpSize? {
+internal fun subtitleArea(frame: DpSize, aspectRatio: Float?, coveredWidth: Dp): SubtitleArea? {
     val ratio = aspectRatio?.takeIf { it.isFinite() && it > 0f && coveredWidth > 0.dp } ?: return null
     val videoHeight = minOf(frame.height, frame.width / ratio)
-    val width = minOf(videoHeight * ratio, frame.width - coveredWidth)
-    return DpSize(width, videoHeight).takeIf { width > 0.dp && videoHeight > 0.dp }
+    val videoLeft = (frame.width - videoHeight * ratio) / 2
+    val right = minOf(videoLeft + videoHeight * ratio, frame.width - coveredWidth)
+    return SubtitleArea(videoLeft, right - videoLeft, videoHeight)
+        .takeIf { it.width > 0.dp && it.height > 0.dp }
 }
 
 // Between the controls and the lowest subtitle line.

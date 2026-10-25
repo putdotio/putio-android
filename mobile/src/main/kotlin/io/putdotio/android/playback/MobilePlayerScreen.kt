@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.absoluteOffset
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
@@ -881,6 +882,11 @@ private fun PlayerListenerEffect(
                     playerState.cueHistory.record(player.currentPosition, cueGroup.cues)
                 }
 
+                override fun onTrackSelectionParametersChanged(parameters: TrackSelectionParameters) {
+                    // Off or another track: what showed before must not replay after a delay.
+                    playerState.cueHistory.clear()
+                }
+
                 override fun onPositionDiscontinuity(
                     oldPosition: Media3Player.PositionInfo,
                     newPosition: Media3Player.PositionInfo,
@@ -1124,7 +1130,7 @@ private fun MobileReadyPlayerContent(
             )
             MobileSeekFeedbackLayer(pendingSeek.value)
         }
-        if (!isAudio) {
+        if (!isAudio && !pictureInPicture) {
             MobileVideoSheets(
                 sheet = sheet,
                 onSheet = { sheet = it },
@@ -1342,11 +1348,12 @@ private fun BoxScope.MobileVideoLayers(
         )
         val sheetWidth = if (subtitlesBesideSheet) MOBILE_PLAYER_SIDE_SHEET_WIDTH.coerceAtMost(maxWidth) else 0.dp
         val area = subtitleArea(frame, aspectRatio, sheetWidth)
-        Box(Modifier.fillMaxSize().padding(end = sheetWidth), contentAlignment = Alignment.Center) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.CenterStart) {
             SubtitleCueOverlay(
                 cues = rememberShownCues(playerState, subtitleDelayMillis),
                 videoAspectRatio = area?.let { it.width / it.height } ?: aspectRatio,
-                modifier = area?.let { Modifier.size(it) } ?: Modifier.fillMaxSize(),
+                modifier = area?.let { Modifier.absoluteOffset(x = it.left).size(it.width, it.height) }
+                    ?: Modifier.fillMaxSize(),
                 textScale = subtitleTextScale,
                 bottomPaddingFraction = bottomPadding,
             )

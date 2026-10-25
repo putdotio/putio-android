@@ -24,6 +24,7 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.click
@@ -193,8 +194,8 @@ class MobileSubtitleControlsTest {
 
     @Test
     fun sizeAndTimingStepsByATenthAndResets() {
-        var size = SubtitleTextSize.Medium
-        var offset = 500L
+        var size by mutableStateOf(SubtitleTextSize.Medium)
+        var offset by mutableStateOf(500L)
         compose.setContent {
             PutioTheme {
                 Column {
@@ -205,12 +206,17 @@ class MobileSubtitleControlsTest {
         compose.onNodeWithText("+0.5 s").assertIsDisplayed()
         compose.onNodeWithContentDescription("Medium").assertIsSelected()
         compose.onNodeWithContentDescription("Extra large").performClick()
-        compose.onNodeWithContentDescription("Earlier by 0.1 seconds").performClick()
+        compose.onNodeWithContentDescription("Extra large").assertIsSelected()
+        compose.onNodeWithContentDescription("Medium").assertIsNotSelected()
+        repeat(7) { compose.onNodeWithContentDescription("Earlier by 0.1 seconds").performClick() }
+        compose.onNodeWithText("\u22120.2 s").assertIsDisplayed()
         compose.runOnIdle {
             assertEquals(SubtitleTextSize.ExtraLarge, size)
-            assertEquals(400L, offset)
+            assertEquals(-200L, offset)
         }
         compose.onNodeWithText("Reset").performClick()
+        compose.onNodeWithText("0.0 s").assertIsDisplayed()
+        compose.onNodeWithText("Reset").assertIsNotEnabled()
         compose.runOnIdle { assertEquals(0L, offset) }
         assertEquals("0.0 s", formatSubtitleOffset(0L))
         assertEquals("\u22121.3 s", formatSubtitleOffset(-1_300L))
