@@ -674,6 +674,14 @@
     <string name="mobile_playback_subtitle_caption_settings">Font and colours follow Android’s caption settings.</string>
     <string name="mobile_playback_cant_play_title">Can’t play this here.</string>
     <string name="mobile_playback_cant_play_message">This format needs another player.</string>
+    <string name="mobile_cast">Cast</string>
+    <string name="mobile_cast_casting_to">Casting to %1$s</string>
+    <string name="mobile_cast_to">Cast to</string>
+    <string name="mobile_cast_audio_only">Audio only</string>
+    <string name="mobile_cast_searching">Looking for devices…</string>
+    <string name="mobile_cast_stop">Stop casting</string>
+    <string name="mobile_cast_playing_on">Playing on %1$s</string>
+    <string name="mobile_cast_failed">Can’t play this on %1$s.</string>
     <string name="mobile_playback_conversion_message">This video can’t play in its original format, so put.io started a conversion. It keeps going if you leave.</string>
     <string name="mobile_share_too_long">This text is too long. Paste fewer links.</string>
     <string name="mobile_share_replace_title">Replace the current draft?</string>

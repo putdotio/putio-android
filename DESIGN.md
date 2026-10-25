@@ -643,6 +643,15 @@ over a top and bottom scrim:
   Subtitles and Speed chips, and Next episode on the right when the account's
   next-episode setting is on.
 
+**Cast** shows in the top bar only while a receiver is in reach, in yellow
+while casting. It opens "Cast to", a bottom sheet at most 560dp wide: 64dp
+rows with the kind's glyph (TV, screen, speaker), the name over its model or
+"Audio only", a yellow check on the one playing, and Stop casting while
+connected. Casting video swaps the picture for black with "Playing on" and the
+device, over the cast glyph in `on-surface-variant`, above the same transport,
+times and scrubber; only Speed stays, when the receiver takes a playback rate.
+Now Playing keeps its layout and names the device in its top bar.
+
 Audio, Subtitles and Speed open a 340dp side sheet from the right with the
 video dimmed behind:
 
@@ -669,8 +678,8 @@ tile, the filename cut in the middle in `body-sm`, elapsed and total time in
 mono, pause and close, and a 2dp yellow progress line along its foot. Tapping
 it opens Now Playing:
 
-- Top: back as a caret down, and More when the file has more than one audio
-  track.
+- Top: back as a caret down, Cast, and More when the file has more than one
+  audio track.
 - A large type glyph on a square `surface-container` tile with 28dp corners,
   32dp from the sides.
 - The filename in 20sp medium on a 28sp line, on up to two lines and cut in the
@@ -749,8 +758,10 @@ the navigation bar: **Welcome!** as a 40sp medium title on a 48sp line, then
 - **Resume:** "Resume from 18:42?" over the dimmed player, with **Start over**
   and a filled **Resume**.
 - **Player error:** the empty-state voice over the dimmed player, with
-  **Open in VLC** as the action for a video the player can't play, or **Try
-  again** when a retry can fix it.
+  **Open in VLC** as the only action for a video the player can't play, or
+  **Try again** when a retry can fix it. It never offers Download, which keeps
+  the same HLS rendition, or a browser, whose history would keep the
+  tokened link.
 - **Drop zone:** dragging a link, magnet or .torrent over Transfers shows one
   dashed yellow area: "Drop to add a transfer".
 - **Trash:** days left in each row's meta, **Restore** on the row (it confirms,
@@ -799,8 +810,6 @@ the navigation bar: **Welcome!** as a 40sp medium title on a 48sp line, then
   counts elsewhere use the UI face.
 - Transfer cards and Transfer actions show no peer count: the Kotlin SDK's
   `Transfer` has no peers field.
-- The player has no cast button, and its error has no Download: downloads keep
-  the HLS rendition.
 - The viewers have no Download: Downloads hold video and audio only.
 
 ## Android TV

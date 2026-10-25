@@ -56,10 +56,14 @@ import io.putdotio.android.files.MobileFilesItemActions
 import io.putdotio.android.files.FilesSelection
 import io.putdotio.android.files.MobileFilesRoute
 import io.putdotio.android.files.MobileMoveTargetStore
+import io.putdotio.android.playback.MobileCast
+import io.putdotio.android.playback.MobileCastController
+import io.putdotio.android.playback.MobileCastMediaLoader
 import io.putdotio.android.playback.MobilePlaybackViewModel
 import io.putdotio.android.playback.MobilePlayerFactory
 import io.putdotio.android.playback.MobilePlayerScreen
 import io.putdotio.android.playback.PlaybackContent
+import io.putdotio.android.playback.PlaybackCastMedia
 import io.putdotio.android.playback.PlaybackController
 import io.putdotio.android.playback.PlaybackEvent
 import io.putdotio.android.playback.PlaybackFailure
@@ -80,6 +84,7 @@ import io.putdotio.android.playback.putioFailure
 import io.putdotio.android.playback.rememberPictureInPictureMode
 import io.putdotio.android.playback.subtitleStartupPolicy
 import io.putdotio.android.playback.nextEpisodeEnabled
+import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.android.search.MobileHistoryScreen
 import io.putdotio.android.search.MobileSearchScreen
 import io.putdotio.android.settings.AccountSettingsEvent
@@ -364,6 +369,8 @@ internal fun MobileNavHost(
                     val durationSeconds = backStackEntry.arguments?.getString("duration")?.toDoubleOrNull()
                         ?.takeIf { it.isFinite() && it > 0.0 }
                     val target = PlaybackTarget(FilesItemId(fileId), name, mediaType, durationSeconds)
+                    val castContext = LocalContext.current
+                    val cast = remember(castContext) { MobileCast.controller(castContext) }
                     val playbackViewModel: MobilePlaybackViewModel =
                         viewModel(
                             viewModelStoreOwner = backStackEntry,
@@ -395,6 +402,8 @@ internal fun MobileNavHost(
                             onOpenInVlc = filesActions?.let { actions ->
                                 { target -> actions.openInVlc(target.fileId, target.name) }
                             },
+                            cast = cast,
+                            castMedia = playbackRepository::castMedia,
                         )
                         // Over the player, which paints its own background.
                         filesActions?.let { MobileFilesNoticeHost(it.notices, Modifier.align(Alignment.BottomCenter)) }
@@ -445,6 +454,9 @@ private fun MobilePlaybackRoute(
     findNeighbours: (suspend (PlaybackTarget) -> PlaybackRepositoryResult<PlaybackNeighbours>)? = null,
     onPlay: (PlaybackTarget) -> Unit = {},
     onOpenInVlc: ((PlaybackTarget) -> Unit)? = null,
+    cast: MobileCastController? = null,
+    castMedia: (suspend (PlaybackTarget, PlaybackSource, String?) -> PlaybackRepositoryResult<PlaybackCastMedia>)? =
+        null,
 ) {
     val state by controller.state.collectAsStateWithLifecycle()
     // With the account's next_episode on, a playing video asks autoplay's folder walk for the one after it, once.
@@ -498,8 +510,17 @@ private fun MobilePlaybackRoute(
         neighbours = neighbours,
         onPlay = onPlay,
         onOpenInVlc = onOpenInVlc?.let { open -> { open(state.target) } },
+        cast = cast,
+        castMedia = castMediaFor(castMedia, state.target),
     )
 }
+
+/** [load] for the file on screen, or no Cast without it. */
+private fun castMediaFor(
+    load: (suspend (PlaybackTarget, PlaybackSource, String?) -> PlaybackRepositoryResult<PlaybackCastMedia>)?,
+    target: PlaybackTarget,
+): MobileCastMediaLoader? =
+    if (load == null) null else { source, subtitleKey -> load(target, source, subtitleKey) }
 
 /**
  * Playing audio asks for its folder once: the files around it for the skip buttons and Up next, and

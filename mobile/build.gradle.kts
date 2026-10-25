@@ -203,6 +203,10 @@ dependencies {
     implementation(libs.androidx.media3.ui)
     implementation(libs.androidx.media3.ui.compose)
     implementation(libs.androidx.media3.ui.compose.material3)
+    // Google Cast: the device picker reads MediaRouter's routes; sessions and the receiver's media
+    // run through the Cast framework, which stays dormant without Google Play services.
+    implementation(libs.androidx.mediarouter)
+    implementation(libs.play.services.cast.framework)
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
     implementation(libs.kotlinx.coroutines.android)

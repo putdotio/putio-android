@@ -1,0 +1,399 @@
+package io.putdotio.android.playback
+
+import android.content.Context
+import androidx.core.net.toUri
+import android.os.SystemClock
+import androidx.core.content.ContextCompat
+import androidx.mediarouter.media.MediaRouteSelector
+import androidx.mediarouter.media.MediaRouter
+import com.google.android.gms.cast.CastDevice as GmsCastDevice
+import com.google.android.gms.cast.CastMediaControlIntent
+import com.google.android.gms.cast.MediaInfo
+import com.google.android.gms.cast.MediaLoadRequestData
+import com.google.android.gms.cast.MediaMetadata
+import com.google.android.gms.cast.MediaSeekOptions
+import com.google.android.gms.cast.MediaStatus
+import com.google.android.gms.cast.MediaTrack
+import com.google.android.gms.cast.framework.CastContext
+import com.google.android.gms.cast.framework.CastOptions
+import com.google.android.gms.cast.framework.CastSession
+import com.google.android.gms.cast.framework.CastState
+import com.google.android.gms.cast.framework.OptionsProvider
+import com.google.android.gms.cast.framework.SessionManagerListener
+import com.google.android.gms.cast.framework.SessionProvider
+import com.google.android.gms.cast.framework.media.CastMediaOptions
+import com.google.android.gms.cast.framework.media.MediaIntentReceiver
+import com.google.android.gms.cast.framework.media.NotificationOptions
+import com.google.android.gms.cast.framework.media.RemoteMediaClient
+import com.google.android.gms.common.ConnectionResult
+import com.google.android.gms.common.GoogleApiAvailability
+import com.google.android.gms.common.images.WebImage
+import io.putdotio.android.MainActivity
+import io.putdotio.android.R
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import org.json.JSONObject
+
+/** The process's Cast controller, started on first use; null where Google Play services is missing. */
+internal object MobileCast {
+    @Volatile
+    private var controller: MobileCastController? = null
+
+    fun controller(context: Context): MobileCastController? {
+        val appContext = context.applicationContext
+        if (!playServicesAvailable(appContext)) return null
+        return controller ?: synchronized(this) {
+            controller ?: run {
+                val gateway = GmsCastGateway(appContext).also { it.start() }
+                MobileCastController(gateway, MainScope(), SystemClock::elapsedRealtime).also { cast ->
+                    // The receiver's positions reach put.io as the local player's do, under the item's lease.
+                    DefaultMobilePlayerFactory.observePositions(appContext, cast.remotePlayer)
+                    controller = cast
+                }
+            }
+        }
+    }
+
+    // A device without Play services, or one whose Play services cannot answer, has no Cast.
+    @Suppress("SwallowedException")
+    private fun playServicesAvailable(context: Context): Boolean =
+        try {
+            GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(context) == ConnectionResult.SUCCESS
+        } catch (_: RuntimeException) {
+            false
+        }
+}
+
+/**
+ * Google's Default Media Receiver, as putio-web and putio-ios use it: put.io has no receiver of its
+ * own. While casting, the Cast SDK's own notification and media session carry the remote controls;
+ * the local player has stopped, so there is one of each.
+ */
+class MobileCastOptionsProvider : OptionsProvider {
+    override fun getCastOptions(context: Context): CastOptions {
+        val notification = NotificationOptions.Builder()
+            .setActions(
+                listOf(
+                    MediaIntentReceiver.ACTION_REWIND,
+                    MediaIntentReceiver.ACTION_TOGGLE_PLAYBACK,
+                    MediaIntentReceiver.ACTION_FORWARD,
+                    MediaIntentReceiver.ACTION_STOP_CASTING,
+                ),
+                // The compact notification keeps play and pause, and stop casting.
+                intArrayOf(TOGGLE_ACTION_INDEX, STOP_ACTION_INDEX),
+            )
+            .setSkipStepMs(NOTIFICATION_SKIP_MILLIS)
+            .setSmallIconDrawableResId(R.drawable.ic_ph_screencast)
+            .setTargetActivityClassName(MainActivity::class.java.name)
+            .build()
+        return CastOptions.Builder()
+            .setReceiverApplicationId(CastMediaControlIntent.DEFAULT_MEDIA_RECEIVER_APPLICATION_ID)
+            .setCastMediaOptions(
+                CastMediaOptions.Builder()
+                    .setNotificationOptions(notification)
+                    .setMediaSessionEnabled(true)
+                    .build(),
+            )
+            .setStopReceiverApplicationWhenEndingSession(true)
+            .build()
+    }
+
+    override fun getAdditionalSessionProviders(context: Context): List<SessionProvider>? = null
+
+    private companion object {
+        const val NOTIFICATION_SKIP_MILLIS = 10_000L
+        const val TOGGLE_ACTION_INDEX = 1
+        const val STOP_ACTION_INDEX = 3
+    }
+}
+
+/**
+ * [CastGateway] over the Cast SDK and MediaRouter. Without Google Play services, or when Cast fails
+ * to start, it stays [CastAvailability.Unsupported] and touches nothing else.
+ */
+internal class GmsCastGateway private constructor(
+    private val context: Context,
+    private val routes: GmsCastRoutes,
+    private val remote: GmsCastRemote,
+) : CastGateway, CastRoutes by routes, CastRemote by remote {
+    constructor(context: Context) : this(context, GmsCastRoutes(context), GmsCastRemote())
+
+    private val mutableAvailability = MutableStateFlow<CastAvailability>(CastAvailability.Unsupported)
+    override val availability: StateFlow<CastAvailability> = mutableAvailability
+    private var castContext: CastContext? = null
+
+    // Play services runs Cast in its own process; a failure to start it means no Cast here.
+    @Suppress("SwallowedException")
+    fun start() {
+        try {
+            CastContext.getSharedInstance(context, ContextCompat.getMainExecutor(context))
+                .addOnSuccessListener(::bind)
+        } catch (_: RuntimeException) {
+            mutableAvailability.value = CastAvailability.Unsupported
+        }
+    }
+
+    private fun bind(cast: CastContext) {
+        castContext = cast
+        routes.selector = cast.mergedSelector
+        cast.addCastStateListener { updateAvailability() }
+        cast.sessionManager.addSessionManagerListener(sessions, CastSession::class.java)
+        cast.sessionManager.currentCastSession?.takeIf { it.isConnected }?.let(::attach)
+        updateAvailability()
+    }
+
+    /**
+     * Connected spans exactly the time a media client is attached: a screen that sees it can load at
+     * once, and the receiver's last status is out before a screen sees the session gone.
+     */
+    private fun updateAvailability() {
+        val cast = castContext ?: return
+        val device = cast.sessionManager.currentCastSession?.castDevice?.friendlyName
+        mutableAvailability.value = when {
+            remote.attached -> CastAvailability.Connected(device.orEmpty())
+            cast.castState == CastState.NO_DEVICES_AVAILABLE -> CastAvailability.NoDevices
+            cast.castState == CastState.CONNECTING || cast.castState == CastState.CONNECTED ->
+                CastAvailability.Connecting(device)
+            else -> CastAvailability.Available
+        }
+    }
+
+    private val sessions = object : SessionManagerListener<CastSession> {
+        override fun onSessionStarting(session: CastSession) = updateAvailability()
+
+        override fun onSessionStarted(session: CastSession, sessionId: String) = attach(session)
+
+        override fun onSessionStartFailed(session: CastSession, error: Int) = updateAvailability()
+
+        // The receiver's last position, read while the session still answers.
+        override fun onSessionEnding(session: CastSession) = remote.publish()
+
+        override fun onSessionEnded(session: CastSession, error: Int) = detach()
+
+        override fun onSessionResuming(session: CastSession, sessionId: String) = updateAvailability()
+
+        override fun onSessionResumed(session: CastSession, wasSuspended: Boolean) = attach(session)
+
+        override fun onSessionResumeFailed(session: CastSession, error: Int) = detach()
+
+        override fun onSessionSuspended(session: CastSession, reason: Int) = remote.publish()
+    }
+
+    private fun attach(session: CastSession) {
+        remote.attach(session.remoteMediaClient)
+        updateAvailability()
+    }
+
+    private fun detach() {
+        remote.detach()
+        updateAvailability()
+    }
+
+    override fun stopCasting() {
+        castContext?.sessionManager?.endCurrentSession(true)
+    }
+}
+
+/** The receivers MediaRouter finds for the Cast framework's selector, while the picker asks. */
+internal class GmsCastRoutes(private val context: Context) : CastRoutes {
+    private val mutableDevices = MutableStateFlow<List<CastDevice>>(emptyList())
+    override val devices: StateFlow<List<CastDevice>> = mutableDevices
+    var selector: MediaRouteSelector? = null
+    private var discovering = false
+
+    private val callback = object : MediaRouter.Callback() {
+        override fun onRouteAdded(router: MediaRouter, route: MediaRouter.RouteInfo) = refresh()
+
+        override fun onRouteRemoved(router: MediaRouter, route: MediaRouter.RouteInfo) = refresh()
+
+        override fun onRouteChanged(router: MediaRouter, route: MediaRouter.RouteInfo) = refresh()
+
+        override fun onRouteSelected(router: MediaRouter, route: MediaRouter.RouteInfo, reason: Int) = refresh()
+
+        override fun onRouteUnselected(router: MediaRouter, route: MediaRouter.RouteInfo, reason: Int) = refresh()
+    }
+
+    override fun startDiscovery() {
+        val selector = selector ?: return
+        if (discovering) return
+        discovering = true
+        MediaRouter.getInstance(context).addCallback(selector, callback, MediaRouter.CALLBACK_FLAG_PERFORM_ACTIVE_SCAN)
+        refresh()
+    }
+
+    override fun stopDiscovery() {
+        if (!discovering) return
+        discovering = false
+        MediaRouter.getInstance(context).removeCallback(callback)
+    }
+
+    private fun refresh() {
+        val selector = selector ?: return
+        mutableDevices.value = MediaRouter.getInstance(context).routes
+            .filter { !it.isDefault && !it.isBluetooth && it.isEnabled && it.matchesSelector(selector) }
+            .map { route ->
+                val device = GmsCastDevice.getFromBundle(route.extras)
+                val audioOnly = device?.hasCapability(GmsCastDevice.CAPABILITY_VIDEO_OUT) == false
+                CastDevice(
+                    id = route.id,
+                    name = route.name,
+                    model = device?.modelName?.takeIf { it.isNotBlank() },
+                    audioOnly = audioOnly,
+                    kind = when {
+                        audioOnly -> CastDeviceKind.Speaker
+                        route.deviceType == MediaRouter.RouteInfo.DEVICE_TYPE_TV -> CastDeviceKind.Tv
+                        else -> CastDeviceKind.Other
+                    },
+                    selected = route.isSelected,
+                )
+            }
+    }
+
+    override fun select(deviceId: String) {
+        val router = MediaRouter.getInstance(context)
+        router.routes.firstOrNull { it.id == deviceId }?.let(router::selectRoute)
+    }
+}
+
+/** The session's media client: what the receiver plays, and the commands that drive it. */
+internal class GmsCastRemote : CastRemote {
+    private val mutableStatus = MutableStateFlow<CastRemoteStatus?>(null)
+    override val status: StateFlow<CastRemoteStatus?> = mutableStatus
+    private var client: RemoteMediaClient? = null
+    private var lastFileId: Long? = null
+
+    val attached: Boolean get() = client != null
+
+    private val callback = object : RemoteMediaClient.Callback() {
+        override fun onStatusUpdated() = publish()
+
+        override fun onMetadataUpdated() = publish()
+    }
+
+    private val progress = RemoteMediaClient.ProgressListener { _, _ -> publish() }
+
+    fun attach(remote: RemoteMediaClient?) {
+        release()
+        client = remote?.also {
+            it.registerCallback(callback)
+            it.addProgressListener(progress, PROGRESS_INTERVAL_MILLIS)
+        }
+        publish()
+    }
+
+    /** The session ended: one last status, then none, so the app hands the file back. */
+    fun detach() {
+        publish()
+        release()
+        lastFileId = null
+        mutableStatus.value = null
+    }
+
+    private fun release() {
+        client?.let {
+            it.unregisterCallback(callback)
+            it.removeProgressListener(progress)
+        }
+        client = null
+    }
+
+    fun publish() {
+        val remote = client ?: return
+        val media = remote.mediaStatus ?: return
+        // A finished file's status drops its media; it still belongs to the file it finished.
+        val fileId = remote.mediaInfo?.customData?.optLong(FILE_ID_KEY)?.takeIf { it > 0L }
+            ?: lastFileId.takeIf { media.playerState == MediaStatus.PLAYER_STATE_IDLE }
+        lastFileId = fileId
+        mutableStatus.value = CastRemoteStatus(
+            fileId = fileId,
+            state = media.castRemoteState(),
+            positionMillis = remote.approximateStreamPosition.coerceAtLeast(0L),
+            durationMillis = remote.streamDuration.takeIf { it > 0L },
+            speed = media.playbackRate.toFloat().takeIf { it > 0f } ?: 1f,
+            speedSupported = media.isMediaCommandSupported(MediaStatus.COMMAND_PLAYBACK_RATE),
+            seekable = media.isMediaCommandSupported(MediaStatus.COMMAND_SEEK),
+            sampledAtMillis = SystemClock.elapsedRealtime(),
+        )
+    }
+
+    override fun load(media: PlaybackCastMedia, startMillis: Long, autoplay: Boolean, speed: Float) {
+        val remote = client ?: return
+        lastFileId = media.fileId
+        remote.load(
+            MediaLoadRequestData.Builder()
+                .setMediaInfo(media.toMediaInfo())
+                .setAutoplay(autoplay)
+                .setCurrentTime(startMillis)
+                .setPlaybackRate(speed.toDouble())
+                .setActiveTrackIds(media.activeSubtitleId?.let { longArrayOf(it) } ?: longArrayOf())
+                .build(),
+        )
+    }
+
+    override fun play() {
+        client?.play()
+    }
+
+    override fun pause() {
+        client?.pause()
+    }
+
+    override fun seekTo(positionMillis: Long) {
+        client?.seek(MediaSeekOptions.Builder().setPosition(positionMillis).build())
+    }
+
+    override fun setSpeed(speed: Float) {
+        client?.setPlaybackRate(speed.toDouble())
+    }
+}
+
+private fun MediaStatus.castRemoteState(): CastRemoteState =
+    when (playerState) {
+        MediaStatus.PLAYER_STATE_PLAYING -> CastRemoteState.Playing
+        MediaStatus.PLAYER_STATE_PAUSED -> CastRemoteState.Paused
+        MediaStatus.PLAYER_STATE_BUFFERING, MediaStatus.PLAYER_STATE_LOADING -> CastRemoteState.Buffering
+        MediaStatus.PLAYER_STATE_IDLE -> when (idleReason) {
+            MediaStatus.IDLE_REASON_FINISHED -> CastRemoteState.Ended
+            MediaStatus.IDLE_REASON_ERROR -> CastRemoteState.Failed
+            else -> CastRemoteState.Idle
+        }
+        else -> CastRemoteState.Idle
+    }
+
+/** The Cast form of [PlaybackCastMedia], tagged with its file id. */
+private fun PlaybackCastMedia.toMediaInfo(): MediaInfo {
+    val kind = if (mediaType == PlaybackMediaType.AUDIO) {
+        MediaMetadata.MEDIA_TYPE_MUSIC_TRACK
+    } else {
+        MediaMetadata.MEDIA_TYPE_MOVIE
+    }
+    val metadata = MediaMetadata(kind).apply {
+        putString(MediaMetadata.KEY_TITLE, title)
+        posterUrl?.let { addImage(WebImage(it.toUri())) }
+    }
+    return MediaInfo.Builder(fileId.toString())
+        .setContentUrl(url)
+        .setContentType(contentType)
+        .setStreamType(if (buffered) MediaInfo.STREAM_TYPE_BUFFERED else MediaInfo.STREAM_TYPE_NONE)
+        .setMetadata(metadata)
+        .setMediaTracks(
+            subtitles.map { subtitle ->
+                MediaTrack.Builder(subtitle.id, MediaTrack.TYPE_TEXT)
+                    .setContentId(subtitle.url)
+                    .setContentType(WEBVTT_CONTENT_TYPE)
+                    .setSubtype(MediaTrack.SUBTYPE_SUBTITLES)
+                    .setName(subtitle.name)
+                    .setLanguage(subtitle.languageCode)
+                    .build()
+            },
+        )
+        .setCustomData(JSONObject().put(FILE_ID_KEY, fileId))
+        .apply { durationMillis?.let(::setStreamDuration) }
+        .build()
+}
+
+/** Ties the receiver's media to the put.io file; another sender's media carries none. */
+private const val FILE_ID_KEY = "putioFileId"
+private const val WEBVTT_CONTENT_TYPE = "text/vtt"
+private const val PROGRESS_INTERVAL_MILLIS = 1_000L

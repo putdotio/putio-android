@@ -114,6 +114,19 @@ public interface PlaybackRepository {
      */
     public suspend fun findNeighbours(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackNeighbours> =
         PlaybackRepositoryResult.Success(PlaybackNeighbours())
+
+    /**
+     * [source] as a Cast receiver plays it ([toCastMedia]), with the account's download token on
+     * every URL, as Open in VLC hands it. No download token fails as
+     * [PlaybackFailure.MediaCredentialUnavailable]; a source no receiver can reach as
+     * [PlaybackFailure.MediaUnsupported].
+     */
+    public suspend fun castMedia(
+        target: PlaybackTarget,
+        source: PlaybackSource,
+        activeSubtitleKey: String? = null,
+    ): PlaybackRepositoryResult<PlaybackCastMedia> =
+        PlaybackRepositoryResult.Failure(PlaybackFailure.MediaUnsupported(UncastableSourceException()))
 }
 
 /** What sits around a playing file in its folder; null where there is nothing, or nothing known. */
@@ -193,6 +206,32 @@ internal class SdkPlaybackRepository internal constructor(
                     ready
                 },
             )
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: PutioException) {
+            PlaybackRepositoryResult.Failure(error.toPlaybackFailure())
+        } catch (unexpected: Exception) {
+            PlaybackRepositoryResult.Failure(PlaybackFailure.Putio(PutioFailure.Unexpected(unexpected)))
+        }
+
+    @Suppress("TooGenericExceptionCaught")
+    override suspend fun castMedia(
+        target: PlaybackTarget,
+        source: PlaybackSource,
+        activeSubtitleKey: String?,
+    ): PlaybackRepositoryResult<PlaybackCastMedia> =
+        try {
+            // Never the session's access token: the receiver keeps what it is sent.
+            val token = loadAccount().downloadToken
+            val media = token?.let { source.toCastMedia(target, it.value, activeSubtitleKey) }
+            when {
+                token == null -> PlaybackRepositoryResult.Failure(
+                    PlaybackFailure.MediaCredentialUnavailable(MissingPlaybackCredentialException()),
+                )
+                media == null ->
+                    PlaybackRepositoryResult.Failure(PlaybackFailure.MediaUnsupported(UncastableSourceException()))
+                else -> PlaybackRepositoryResult.Success(media)
+            }
         } catch (error: CancellationException) {
             throw error
         } catch (error: PutioException) {
@@ -401,6 +440,8 @@ public class ConvertingPlaybackRepository internal constructor(
 private const val AUTOPLAY_PAGE_SIZE = 200
 
 internal class MissingPlaybackCredentialException : IllegalStateException("Playback credential is unavailable")
+
+internal class UncastableSourceException : IllegalStateException("This source cannot play on a Cast receiver")
 
 private fun io.putdotio.sdk.files.PlaybackResolution.toAppResolution(
     useStartFrom: Boolean,
