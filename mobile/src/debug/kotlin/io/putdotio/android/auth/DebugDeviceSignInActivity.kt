@@ -124,7 +124,7 @@ internal class DebugDeviceSignIn(
             ?: return DebugDeviceSignInState.Stopped("put.io returned an unusable token")
         val controller = runtime.authController
         if (!controller.completeDeviceLink(accessToken)) {
-            return DebugDeviceSignInState.Stopped("the app left the signed-out state")
+            return DebugDeviceSignInState.Stopped("the app is not signed out, or a browser sign-in is pending")
         }
         return when (val after = controller.state.value) {
             is MobileAuthState.SignedIn -> DebugDeviceSignInState.SignedIn(after.account.userId)

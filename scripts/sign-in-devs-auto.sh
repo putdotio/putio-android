@@ -155,6 +155,6 @@ app_account="${first#Signed in account }"
 echo "SIGNED IN ${app_account}"
 
 adb_ shell am start -W -n "${package}/${MAIN_ACTIVITY}" >/dev/null 2>&1 || die "could not open ${MAIN_ACTIVITY}"
-await_text '^Transfers$' "Files" >/dev/null
-await_text '^Files$' "Files" >/dev/null
+# The Files root's search bar shows in every navigation layout; Welcome has none.
+await_text '^Search your files$' "Files" >/dev/null
 echo "PROOF PASS sign-in-devs-auto"

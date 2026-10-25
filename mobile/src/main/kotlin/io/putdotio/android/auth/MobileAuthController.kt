@@ -205,10 +205,17 @@ class MobileAuthController internal constructor(
 
     /**
      * Signs in with a token a device-code grant produced, through the same storage and validation as
-     * an OAuth callback. Only the debug build's device-code sign-in calls this; false unless signed out.
+     * an OAuth callback. Only the debug build's device-code sign-in calls this. False unless signed out
+     * with no browser sign-in pending, including one an earlier process started.
      */
     internal suspend fun completeDeviceLink(accessToken: AccessToken): Boolean = operationMutex.withLock {
         val signedOutState = mutableState.value as? MobileAuthState.SignedOut ?: return@withLock false
+        val browserPending = try {
+            oauthAttempts.readUnexpired() != null
+        } catch (_: PendingOAuthAttemptStorageException) {
+            true
+        }
+        if (browserPending) return@withLock false
         withContext(NonCancellable) {
             if (signedOutState.reason == MobileSignedOutReason.SecureStorageUnavailable) clearLocalSession()
             persistAndValidateToken(accessToken, SessionValidationSource.DEVICE_LINK)

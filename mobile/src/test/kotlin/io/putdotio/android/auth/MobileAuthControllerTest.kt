@@ -107,15 +107,25 @@ class MobileAuthControllerTest {
         val awaitingBrowser = AuthControllerFixture()
         awaitingBrowser.controller.restoreSession()
         awaitingBrowser.controller.beginSignIn()
+        // The browser attempt outlives the process that started it; the restored process is signed out.
+        val pendingStore = FakePendingOAuthAttemptStore()
+        AuthControllerFixture(pendingAttemptStore = pendingStore).run {
+            controller.restoreSession()
+            controller.beginSignIn()
+        }
+        val recreated = AuthControllerFixture(pendingAttemptStore = pendingStore)
+        recreated.controller.restoreSession()
 
-        listOf(signedIn to OLD_TOKEN, awaitingBrowser to null).forEach { (fixture, storedToken) ->
+        listOf(signedIn to OLD_TOKEN, awaitingBrowser to null, recreated to null).forEach { (fixture, storedToken) ->
             val before = fixture.controller.state.value
 
-            assertFalse(fixture.controller.completeDeviceLink(checkNotNull(AccessToken.parse(TOKEN))))
+            assertFalse(fixture.controller.completeDeviceLink(checkNotNull(AccessToken.parse(OLD_TOKEN + "-linked"))))
 
             assertEquals(storedToken, fixture.tokenStore.token?.reveal())
             assertEquals(before, fixture.controller.state.value)
         }
+        assertEquals(OAuthCallbackHandlingResult.ACCEPTED, recreated.controller.handleOAuthCallback(VALID_CALLBACK))
+        assertEquals(SIGNED_IN, recreated.controller.state.value)
     }
 
     @Test

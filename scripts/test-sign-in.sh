@@ -49,7 +49,8 @@ case "$*" in
   "exec-out uiautomator dump /dev/tty")
     printf '<?xml version="1.0"?><hierarchy>'
     if [[ -e "${FAKE_STATE}/main" ]]; then
-      node Files; node History; node Transfers
+      # A closed navigation drawer (large text, compact windows) hides every tab label.
+      node "Search your files"
     elif [[ -e "${FAKE_STATE}/app-account" ]]; then
       node "Signed in account $(cat "${FAKE_STATE}/app-account")"
     elif [[ -e "${FAKE_STATE}/approved" ]]; then
