@@ -196,6 +196,11 @@ case "${cmd}" in
     esac
     printf 'revision=%s\nuncommitted_paths=%s\n' "$(git -C "${ROOT}" rev-parse HEAD)" \
       "$(git -C "${ROOT}" status --short | wc -l | tr -d ' ')" > "${DIR}/revision.txt"
+    # AGENTS.md: proof built against a local SDK checkout records its revision too.
+    sdk_path="$(sed -n 's/^putioSdkKotlinPath=//p' "${ROOT}/local.properties" 2>/dev/null | tail -1 || true)"
+    if [[ -n "${sdk_path}" ]]; then
+      { echo "sdk_revision=$(git -C "${sdk_path}" rev-parse HEAD)"; git -C "${sdk_path}" status --short | sed 's/^/sdk_status=/'; } >> "${DIR}/revision.txt"
+    fi
     case "${mode_arg}" in
       --fresh) boot_fresh ;;
       --snapshot) [[ "${mode_value}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || usage; boot_snapshot "${mode_value}" ;;

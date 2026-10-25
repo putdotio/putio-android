@@ -55,7 +55,8 @@ Three ways to get an emulator:
   and the sign-in script passes with no approval. Every instance shares that
   one grant: never sign out in a snapshot run.
 - `--serial <serial>`: an emulator that already runs. `down` force-stops the
-  app and leaves the emulator up.
+  app and leaves the emulator up. Steps that change device-wide state
+  (airplane mode, Home, system settings) run only on an emulator you started.
 
 - Ready means the sign-in script printed `SIGNED IN <account id>` and
   `PROOF PASS sign-in-devs-auto`: the app holds a devs-auto session and shows
