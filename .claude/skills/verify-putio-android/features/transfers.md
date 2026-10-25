@@ -53,7 +53,10 @@ Preconditions:
   The sheet shows that link and adds nothing until `Add 1`. Press Back.
 - **Actions.** Long-press the run's card by its file name (`Transfer actions`
   is only an action label, and a tap on a completed card opens its file).
-  Run `$S/ui.sh long-press $SERIAL --text "<file name>"`, then tap
+  The queue is shared, so first count the cards with that name:
+  `$S/ui.sh dump $SERIAL | grep -o 'text="<file name>"' | wc -l`. Go on only at exactly 1;
+  otherwise skip this step and report it, since the long-press takes the
+  first match. Run `$S/ui.sh long-press $SERIAL --text "<file name>"`, then tap
   `Remove from list`. The card leaves and `putio transfers list` no longer
   holds its id.
 

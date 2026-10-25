@@ -14,7 +14,8 @@ that retries by itself.
 - `files-new-folder` creates a folder from the overflow or an empty folder.
 - `files-empty` shows the empty-folder state.
 - `files-continue-watching` lists videos played on this device at the root.
-- `files-offline` shows "Can’t reach put.io." and retries.
+- `files-offline` keeps the listing and shows "Couldn’t refresh files." when a
+  refresh fails; a folder with nothing loaded shows "Can’t reach put.io.".
 
 ## How to get to it (user POV)
 
@@ -32,8 +33,10 @@ Preconditions:
   folder `Inner folder` (`fixture.sh mkdir`) and one small text file
   (`printf 'proof\n' > build/verify-note.txt` then `fixture.sh upload`).
 
-- **Root listing.** Open Files. Run `$S/ui.sh link $SERIAL putio://files`,
-  then `$S/ui.sh wait $SERIAL --text "Search your files"`. The pill and the
+- **Root listing.** Open Files at the root. From a fresh launch run
+  `$S/ui.sh link $SERIAL putio://files`; inside a folder that link keeps the
+  folder, so press Back until the pill shows. Then run
+  `$S/ui.sh wait $SERIAL --text "Search your files"`. The pill and the
   five tabs show. Capture `files-root-before`.
 - **Refresh.** Pull to refresh. Run `$S/ui.sh refresh $SERIAL`. The listing
   reloads from put.io and now holds fixtures made after launch.
@@ -64,8 +67,8 @@ Preconditions:
   The rows reorder. Sort persists to the account: put the folder's sort back.
 - **Offline.** Run `$S/ui.sh link $SERIAL putio://files`, then
   `adb -s $SERIAL shell cmd connectivity airplane-mode enable` and pull to
-  refresh. The state reads `Can’t reach put.io.` with `Try now`. Disable
-  airplane mode; the folder loads again without a tap.
+  refresh. The listing stays and `Couldn’t refresh files.` shows with
+  `Try again`. Disable airplane mode and tap `Try again`; the folder reloads.
 
 ## Gotchas
 
