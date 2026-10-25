@@ -1,6 +1,9 @@
 package io.putdotio.android
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -17,6 +20,7 @@ import io.putdotio.android.downloads.DownloadsController
 import io.putdotio.android.downloads.FakeDownloadEngine
 import io.putdotio.android.downloads.FakeDownloadStore
 import io.putdotio.android.downloads.MOBILE_DOWNLOADS_ITEM_SHEET_TAG
+import io.putdotio.android.downloads.MOBILE_DOWNLOADS_OVERFLOW_TAG
 import io.putdotio.android.downloads.MOBILE_DOWNLOADS_REMOVE_CONFIRM_TAG
 import io.putdotio.android.downloads.MOBILE_DOWNLOADS_SELECTION_DELETE_TAG
 import io.putdotio.android.downloads.MOBILE_DOWNLOADS_SELECT_TAG
@@ -89,11 +93,12 @@ class MobileShellDownloadsTest {
         setShell(links)
         compose.runOnIdle { links.receive(MobileDeepLink.Downloads()) }
 
+        compose.onNodeWithTag(MOBILE_DOWNLOADS_OVERFLOW_TAG).performClick()
         compose.onNodeWithTag(MOBILE_DOWNLOADS_SELECT_TAG).performClick()
-        compose.onNodeWithText("Select all").performClick()
+        compose.onNodeWithContentDescription("Select all").performClick()
         compose.onNodeWithText("3 selected").assertIsDisplayed()
         compose.onNodeWithTag(MOBILE_DOWNLOADS_SELECTION_DELETE_TAG).performClick()
-        compose.onNodeWithText("Delete 3 downloads?").assertIsDisplayed()
+        compose.onNodeWithText("Remove 3 downloads from this device?").assertIsDisplayed()
         compose.onNodeWithText(
             "The files stay in your put.io account. Only the copies on this device are removed.",
         ).assertIsDisplayed()
@@ -119,7 +124,10 @@ class MobileShellDownloadsTest {
         compose.runOnIdle { links.receive(MobileDeepLink.Downloads(FilesItemId(11L))) }
 
         compose.onNodeWithTag(MOBILE_DOWNLOADS_ITEM_SHEET_TAG).assertIsDisplayed()
-        compose.onNodeWithText("Tears.mkv", useUnmergedTree = true).assertIsDisplayed()
+        compose.onNode(
+            hasText("Tears.mkv") and hasAnyAncestor(hasTestTag(MOBILE_DOWNLOADS_ITEM_SHEET_TAG)),
+            useUnmergedTree = true,
+        ).assertIsDisplayed()
         compose.runOnIdle { assertEquals(null, links.pending.value) }
     }
 

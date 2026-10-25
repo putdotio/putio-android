@@ -16,6 +16,12 @@ internal interface DownloadEngine {
 
     fun isRemoving(fileId: FilesItemId): Boolean = false
 
+    /**
+     * Holds a running or waiting transfer, keeping its bytes, until it is released again; a released
+     * one rejoins the queue in its old place.
+     */
+    fun setPaused(fileId: FilesItemId, paused: Boolean)
+
     /** Mirrors live byte progress into the store; the controller calls it while the Downloads screen is visible. */
     fun refreshProgress() = Unit
 

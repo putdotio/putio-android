@@ -13,6 +13,8 @@ internal data class DownloadsState(
     val concurrency: Int = DOWNLOAD_CONCURRENCY_DEFAULT,
     /** A row a notification or link asked to show; the screen opens it once. */
     val focus: FilesItemId? = null,
+    /** Bytes per second of each running row, measured while the screen watches progress. */
+    val speeds: Map<FilesItemId, Long> = emptyMap(),
 ) {
     fun entry(fileId: FilesItemId): DownloadEntry? = entries.firstOrNull { it.fileId == fileId }
 
@@ -59,6 +61,15 @@ internal sealed interface DownloadsEvent {
     data object CancelRemoval : DownloadsEvent
 
     data object ConfirmRemoval : DownloadsEvent
+
+    /** Holds the rows that can pause; the others are left alone. */
+    data class Pause(val fileIds: Set<FilesItemId>) : DownloadsEvent
+
+    /** Lets the viewer's paused rows rejoin the queue; the others are left alone. */
+    data class Resume(val fileIds: Set<FilesItemId>) : DownloadsEvent
+
+    /** Drops a row still waiting for a slot, without asking: nothing playable is lost. */
+    data class Cancel(val fileId: FilesItemId) : DownloadsEvent
 
     data class SetConcurrency(val limit: Int) : DownloadsEvent
 

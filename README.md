@@ -25,6 +25,9 @@ Mobile, on the emulator harness against the live API:
   filling with its progress; Transfer actions open the save folder, copy the
   source link, stop, retry, open the file or remove it from the list
 - Search
+- History under Today, Yesterday and date headers, one line per event with a
+  neutral glyph and its time; Clear history sits in the tab's overflow and
+  confirms first
 - Video playback with subtitles, 10-second touch seek, autoplay next, and
   configurable HLS or MP4
 - Separate audio and video player layouts with a compact timeline and native
@@ -46,9 +49,10 @@ Mobile, on the emulator harness against the live API:
 - About section with copyable app, Android, device, and player info
 - Downloads: video saves the HLS rendition it streams (without subtitles for
   accounts that hide them), audio the original. The Downloads tab shows
-  the queue with each row's place, a 1–4 concurrency limit, paused, failed and
-  missing rows with retry, storage used, and multi-select delete of local
-  copies. Finished and failed downloads notify with Play or Try again, acting
+  storage used and free, unfinished rows with a progress ring that pauses,
+  resumes, or cancels a queued row, each row's place in line, a 1–4
+  concurrency limit, failed and missing rows with retry, and multi-select
+  pause, resume and removal of local copies. Finished and failed downloads notify with Play or Try again, acting
   only for the account that downloaded them. Downloads play offline and resume
   where this device left off; offline positions reach put.io once it answers
 - Transfer intake: tapped magnet links, opened, shared or picked `.torrent`

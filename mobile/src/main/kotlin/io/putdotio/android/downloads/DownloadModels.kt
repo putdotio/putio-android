@@ -16,10 +16,15 @@ internal sealed interface DownloadStatus {
     /** Waiting for a free slot; Media3 starts queued rows oldest first. */
     data object Queued : DownloadStatus
 
-    /** Partial bytes are kept; Media3 resumes by itself once [reason] clears. */
+    /**
+     * Partial bytes are kept. Media3 resumes by itself once a network or storage [reason] clears;
+     * a [DownloadPauseReason.USER] pause waits for Resume. [contentLength] is null when unknown.
+     */
     data class Paused(
         val reason: DownloadPauseReason,
         val bytesDownloaded: Long,
+        val percent: Float? = null,
+        val contentLength: Long? = null,
     ) : DownloadStatus
 
     /**
@@ -29,6 +34,8 @@ internal sealed interface DownloadStatus {
     data class Downloading(
         val bytesDownloaded: Long,
         val percent: Float?,
+        /** The whole transfer's size; an HLS rendition has none until every segment length is known. */
+        val contentLength: Long? = null,
     ) : DownloadStatus
 
     data class Failed(
@@ -49,6 +56,9 @@ internal enum class DownloadPauseReason {
 
     /** The system reports low storage; Media3 holds every transfer until it clears. */
     STORAGE,
+
+    /** The viewer paused it; it holds, across restarts and sign-outs, until they resume it. */
+    USER,
 }
 
 internal enum class DownloadFailureReason {
@@ -85,12 +95,22 @@ internal data class DownloadEntry(
     /** The listing's saved position when the download started; offline resume falls back to it. */
     val startFromSeconds: Double = 0.0,
     val durationSeconds: Double? = null,
+    /**
+     * The viewer paused it and has not resumed it. Media3's stop reason can lag behind or be
+     * overwritten by sign-out parking, so the engine holds Media3 to this.
+     */
+    val pauseRequested: Boolean = false,
 ) {
     val isCompleted: Boolean get() = status is DownloadStatus.Completed
     val canRetry: Boolean get() = status is DownloadStatus.Failed || status is DownloadStatus.Missing
     val isActive: Boolean
         get() = status is DownloadStatus.Queued || status is DownloadStatus.Downloading ||
             status is DownloadStatus.Paused
+
+    /** Running, waiting for a slot, or held by the network or storage: a pause holds it until Resume. */
+    val canPause: Boolean get() = isActive && !isPausedByUser
+
+    val isPausedByUser: Boolean get() = (status as? DownloadStatus.Paused)?.reason == DownloadPauseReason.USER
 }
 
 /** Enough of a Files item to start a download without another API call. */

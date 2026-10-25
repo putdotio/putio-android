@@ -22,11 +22,15 @@ import kotlinx.coroutines.sync.withLock
  * updates as transfers progress; this class turns UI intents into store writes
  * and engine calls without holding any URL or credential.
  */
+// One handler per family of DownloadsEvent, each of which writes the store and calls the engine.
+@Suppress("TooManyFunctions")
 internal class DownloadsController(
     private val store: DownloadStore,
     private val engine: DownloadEngine,
     parentScope: CoroutineScope,
     private val progressInterval: Duration = 1.seconds,
+    /** A monotonic clock for speed intervals, which a wall-clock change must not bend. */
+    private val elapsedMillis: () -> Long = { System.nanoTime() / NANOS_PER_MILLI },
     private val clock: () -> Long = System::currentTimeMillis,
 ) : Closeable {
     private val lock = Any()
@@ -37,15 +41,30 @@ internal class DownloadsController(
     )
     private val mutations = Mutex()
     private var closed = false
-    private val progress = ProgressWatch(scope, engine, progressInterval)
+    private val speeds = SpeedWatch()
+
+    // Speed is measured on progress ticks alone: a stalled transfer, whose unchanged bytes the store
+    // does not re-emit, falls to no speed, and another row's change never moves a baseline.
+    private val progress = ProgressWatch(scope, engine, progressInterval) { sampleSpeeds(store.entries.value) }
 
     val state: StateFlow<DownloadsState> = mutableState.asStateFlow()
 
     init {
         scope.launch {
             store.entries.collect { entries ->
-                synchronized(lock) { mutableState.value = mutableState.value.withEntries(entries) }
+                val running = entries.filter { it.status is DownloadStatus.Downloading }
+                    .mapTo(mutableSetOf()) { it.fileId }
+                synchronized(lock) {
+                    val next = mutableState.value.withEntries(entries)
+                    mutableState.value = next.copy(speeds = next.speeds.filterKeys { it in running })
+                }
             }
+        }
+    }
+
+    private fun sampleSpeeds(entries: List<DownloadEntry>) {
+        synchronized(lock) {
+            mutableState.value = mutableState.value.copy(speeds = speeds.sample(entries, elapsedMillis()))
         }
     }
 
@@ -58,7 +77,9 @@ internal class DownloadsController(
             is DownloadsEvent.Retry -> retry(event)
             is DownloadsEvent.RequestRemoval -> requestRemoval(event)
             DownloadsEvent.CancelRemoval -> update { it.copy(removal = null) }
-            DownloadsEvent.ConfirmRemoval -> confirmRemoval()
+            DownloadsEvent.ConfirmRemoval, is DownloadsEvent.Cancel ->
+                removeNow(cancelling = (event as? DownloadsEvent.Cancel)?.fileId)
+            is DownloadsEvent.Pause, is DownloadsEvent.Resume -> setPaused(event)
             is DownloadsEvent.SetConcurrency -> setConcurrency(event.limit)
             // Files and Downloads stop offering a row whose bytes are gone; Download again fetches them.
             is DownloadsEvent.LocalCopyMissing -> {
@@ -68,10 +89,9 @@ internal class DownloadsController(
                 }
                 true
             }
-            is DownloadsEvent.Focus -> update { it.copy(focus = event.fileId) }
-            DownloadsEvent.FocusHandled -> update { it.copy(focus = null) }
-            DownloadsEvent.Shown -> progress.watch(true)
-            DownloadsEvent.Hidden -> progress.watch(false)
+            is DownloadsEvent.Focus, DownloadsEvent.FocusHandled ->
+                update { it.copy(focus = (event as? DownloadsEvent.Focus)?.fileId) }
+            DownloadsEvent.Shown, DownloadsEvent.Hidden -> progress.watch(event == DownloadsEvent.Shown)
         }
     }
 
@@ -103,7 +123,8 @@ internal class DownloadsController(
         if (!accepts(event.fileId, retry = true)) return false
         enqueue {
             val entry = store.find(event.fileId)?.takeIf { accepts(it.fileId, retry = true) } ?: return@enqueue
-            val queued = entry.copy(status = DownloadStatus.Queued, queuedAt = clock())
+            // A pause that raced the failure must not hold the retried request.
+            val queued = entry.copy(status = DownloadStatus.Queued, queuedAt = clock(), pauseRequested = false)
             store.upsert(queued)
             engine.start(queued)
         }
@@ -126,22 +147,46 @@ internal class DownloadsController(
     }
 
     /**
-     * Each row is marked before the engine deletes its bytes, so a process death in between
-     * finishes the removal on the next start. Only local copies are touched: the controller
-     * has no way to reach the put.io originals.
+     * A confirmed removal, or [cancelling] a queued row, which asks nothing since the row holds
+     * nothing playable. Each row is marked before the engine deletes its bytes, so a process death
+     * in between finishes the removal on the next start. Only local copies are touched: the
+     * controller has no way to reach the put.io originals.
      */
-    private fun confirmRemoval(): Boolean {
-        val pending = synchronized(lock) {
+    private fun removeNow(cancelling: FilesItemId?): Boolean {
+        val fileIds = synchronized(lock) {
             val current = mutableState.value
-            val removal = current.removal ?: return false
-            mutableState.value = current.copy(removal = null, removing = current.removing + removal.fileIds)
-            removal
+            val chosen = if (cancelling == null) {
+                current.removal?.fileIds
+            } else {
+                setOf(cancelling).takeIf {
+                    store.find(cancelling)?.status == DownloadStatus.Queued &&
+                        cancelling !in current.removing && !engine.isRemoving(cancelling)
+                }
+            } ?: return false
+            val removal = if (cancelling == null) null else current.removal
+            mutableState.value = current.copy(removal = removal, removing = current.removing + chosen)
+            chosen
         }
         enqueue {
-            for (fileId in pending.fileIds) {
+            for (fileId in fileIds) {
                 store.find(fileId)?.let { store.upsert(it.copy(removing = true)) }
                 engine.remove(fileId)
             }
+        }
+        return true
+    }
+
+    /** Pause holds the rows that can pause, Resume releases the viewer's paused ones; deleting rows take neither. */
+    private fun setPaused(event: DownloadsEvent): Boolean {
+        val paused = event is DownloadsEvent.Pause
+        val fileIds = (event as? DownloadsEvent.Pause)?.fileIds ?: (event as? DownloadsEvent.Resume)?.fileIds.orEmpty()
+        fun allowed(fileId: FilesItemId): Boolean =
+            store.find(fileId)?.let { if (paused) it.canPause else it.isPausedByUser } == true &&
+                !engine.isRemoving(fileId) && synchronized(lock) { fileId !in mutableState.value.removing }
+        if (fileIds.none(::allowed)) return false
+        enqueue {
+            // Re-check under the mutation lock: the row may have moved on since dispatch.
+            for (fileId in fileIds) if (allowed(fileId)) engine.setPaused(fileId, paused)
         }
         return true
     }
@@ -180,6 +225,7 @@ private class ProgressWatch(
     private val scope: CoroutineScope,
     private val engine: DownloadEngine,
     private val interval: Duration,
+    private val onTick: () -> Unit,
 ) {
     private var job: Job? = null
 
@@ -190,6 +236,7 @@ private class ProgressWatch(
             scope.launch {
                 while (true) {
                     engine.refreshProgress()
+                    onTick()
                     delay(interval)
                 }
             }
@@ -200,6 +247,50 @@ private class ProgressWatch(
         return true
     }
 }
+
+/**
+ * Each running row's speed over the bytes the last two progress reports carried. Reports arrive
+ * about once a second while the screen watches; a gap longer than [MAX_WINDOW_MILLIS], such as the
+ * time the screen was hidden, starts over rather than average over it.
+ */
+private class SpeedWatch {
+    private class Sample(val bytes: Long, val atMillis: Long)
+
+    private val samples = mutableMapOf<FilesItemId, Sample>()
+    private var speeds = emptyMap<FilesItemId, Long>()
+
+    fun sample(entries: List<DownloadEntry>, nowMillis: Long): Map<FilesItemId, Long> {
+        val running = entries.mapNotNull { entry ->
+            (entry.status as? DownloadStatus.Downloading)?.let { entry.fileId to it.bytesDownloaded }
+        }.toMap()
+        samples.keys.retainAll(running.keys)
+        val next = mutableMapOf<FilesItemId, Long>()
+        for ((fileId, bytes) in running) {
+            val last = samples[fileId]
+            if (last == null || bytes < last.bytes || nowMillis - last.atMillis > MAX_WINDOW_MILLIS) {
+                samples[fileId] = Sample(bytes, nowMillis)
+                continue
+            }
+            val elapsed = nowMillis - last.atMillis
+            if (elapsed >= MIN_WINDOW_MILLIS) {
+                next[fileId] = (bytes - last.bytes) * MILLIS_PER_SECOND / elapsed
+                samples[fileId] = Sample(bytes, nowMillis)
+            } else {
+                speeds[fileId]?.let { next[fileId] = it }
+            }
+        }
+        speeds = next
+        return next
+    }
+
+    private companion object {
+        const val MIN_WINDOW_MILLIS = 500L
+        const val MAX_WINDOW_MILLIS = 5_000L
+        const val MILLIS_PER_SECOND = 1_000L
+    }
+}
+
+private const val NANOS_PER_MILLI = 1_000_000L
 
 /** Video downloads the HLS rendition the player streams; audio has only the original. */
 private fun PutioFileType.downloadArtifact(): DownloadArtifact? =

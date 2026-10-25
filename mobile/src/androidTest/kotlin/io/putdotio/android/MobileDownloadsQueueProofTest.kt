@@ -7,6 +7,7 @@ import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import android.net.Uri
 import android.os.SystemClock
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.Surface
@@ -48,6 +49,7 @@ import io.putdotio.android.downloads.DownloadPauseReason
 import io.putdotio.android.downloads.DownloadStatus
 import io.putdotio.android.downloads.DownloadsController
 import io.putdotio.android.downloads.DownloadsState
+import io.putdotio.android.downloads.MOBILE_DOWNLOADS_OVERFLOW_TAG
 import io.putdotio.android.downloads.MOBILE_DOWNLOADS_REMOVE_CONFIRM_TAG
 import io.putdotio.android.downloads.MOBILE_DOWNLOADS_SELECTION_DELETE_TAG
 import io.putdotio.android.downloads.MOBILE_DOWNLOADS_SELECT_TAG
@@ -56,6 +58,8 @@ import io.putdotio.android.downloads.MobileDownloadNotifications
 import io.putdotio.android.downloads.MobileDownloadSettings
 import io.putdotio.android.downloads.MobileDownloadStore
 import io.putdotio.android.downloads.MobileDownloadsScreen
+import io.putdotio.android.downloads.MobileDownloadsTopBar
+import io.putdotio.android.downloads.rememberDownloadsSelection
 import io.putdotio.android.downloads.downloadContentId
 import io.putdotio.android.downloads.downloadPreferences
 import io.putdotio.android.files.FilesItemId
@@ -193,7 +197,12 @@ class MobileDownloadsQueueProofTest {
             val state by controller.state.collectAsStateWithLifecycle()
             PutioTheme {
                 Surface(Modifier.fillMaxSize()) {
-                    MobileDownloadsScreen(state, controller::dispatch, onPlay = {}, Modifier.safeDrawingPadding())
+                    // The tab as the shell draws it: the top bar over the list, sharing one selection.
+                    val selection = rememberDownloadsSelection()
+                    Column(Modifier.safeDrawingPadding()) {
+                        MobileDownloadsTopBar("Downloads", null, state, selection, controller::dispatch)
+                        MobileDownloadsScreen(state, controller::dispatch, onPlay = {}, selection = selection)
+                    }
                 }
             }
         }
@@ -222,8 +231,8 @@ class MobileDownloadsQueueProofTest {
 
         instrumentation.uiAutomation.grantRuntimePermission(context.packageName, Manifest.permission.POST_NOTIFICATIONS)
         failing = false
-        compose.onNodeWithContentDescription("Download actions for ${FILES[2].second}").performClick()
-        compose.onNodeWithText("Try again").performClick()
+        // A failed row retries from its own button.
+        compose.onNodeWithContentDescription("Retry download").performClick()
         awaitState { it.entry(FailingId)?.isCompleted == true }
         awaitCondition { "download:$USER_ID:$FAILING" in activeTags() }
         instrumentation.uiAutomation.executeShellCommand("cmd statusbar expand-notifications").close()
@@ -235,10 +244,11 @@ class MobileDownloadsQueueProofTest {
         awaitState { state -> FILES.all { state.isAvailableOffline(FilesItemId(it.first)) } }
         screenshot("all-on-this-device")
 
+        compose.onNodeWithTag(MOBILE_DOWNLOADS_OVERFLOW_TAG).performClick()
         compose.onNodeWithTag(MOBILE_DOWNLOADS_SELECT_TAG).performClick()
-        compose.onNodeWithText("Select all").performClick()
+        compose.onNodeWithContentDescription("Select all").performClick()
         compose.onNodeWithTag(MOBILE_DOWNLOADS_SELECTION_DELETE_TAG).performClick()
-        compose.onNodeWithText("Delete ${FILES.size} downloads?").assertExists()
+        compose.onNodeWithText("Remove ${FILES.size} downloads from this device?").assertExists()
         screenshot("bulk-delete-confirmation")
         compose.onNodeWithTag(MOBILE_DOWNLOADS_REMOVE_CONFIRM_TAG).performClick()
         awaitState { it.entries.isEmpty() }

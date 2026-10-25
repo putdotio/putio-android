@@ -1023,18 +1023,21 @@ Tests: `PutioTimestampTest`, `MobileSearchHistoryViewModelTest`,
 
 ## History events
 
-Mobile gives each event iOS's copy (`HistoryTableViewCell`): shared files and
-completed transfers show their name and kind, uploads their name; transfer
-errors, RSS deletions and paused RSS filters read as a sentence naming the
-transfer, file or filter. An event with no name, or of a type iOS has no copy
-for, reads No title, never its raw API type. TV lists only shared files and
+Mobile names the file, transfer or filter an event concerns, cut in the
+middle on one line, over what happened and its time: Shared with you, Transfer
+completed, Uploaded, Transfer failed, Deleted to free space, RSS filter paused,
+RSS transfer failed or Callback failed. Date headers read Today, Yesterday,
+then the date, with the year only when it is not this one. An event with no
+name, or of a type with no copy, reads No title, never its raw API type; one of
+a type with no copy gives its time alone. TV lists only shared files and
 completed transfers, as tv-native does, including a share whose file is gone; a
 page with neither reads on to the next, so dropped events neither end the list
 nor leave it empty while older events wait.
 With history off, both surfaces name the Keep account history switch in Account.
 
 Tests: `SdkHistoryRepositoryTest`, `MobileSearchScreensTest`,
-`TvSessionViewModelTest`, `TvHistoryScreenTest`.
+`MobileSearchScreensLayoutTest` (the middle cut), `TvSessionViewModelTest`,
+`TvHistoryScreenTest`.
 
 ## Storage quota
 
@@ -1146,8 +1149,8 @@ settings confirmed keeps the old all-subtitles request and the player's usual
 rule. Media3 owns bytes, resume and the foreground notification, which
 shows a count and progress only. The app's index in private SharedPreferences
 holds file id, name, type, rendition, status, queue time, a pending-delete mark,
-the confirmed subtitle setting, the listing's saved position and whether the
-row was rebuilt per user; it never holds a URL.
+the confirmed subtitle setting, the listing's saved position, the viewer's
+pause and whether the row was rebuilt per user; it never holds a URL.
 
 Requests carry the token-free API URL and the file's name, and a resolving data
 source adds the session header for `api.put.io` hosts. The app builds that URL
@@ -1167,20 +1170,34 @@ sign-in cannot un-park the transfers.
 
 **Queue.** Media3 runs up to the device-wide concurrency limit at once, 1 to 4,
 default 3 (iOS main's choices), and starts the rest oldest first by its own
-start time, which it persists. The Downloads screen shows the limit and lets the
+start time, which it persists. The tab's overflow shows the limit and lets the
 viewer change it; a lower limit stops the extra transfers, keeping their bytes,
-and they rejoin the line. Its Queue section lists unfinished rows in Media3's
-start order with each waiting row's place (`Queued · #1 in line`), then Needs
-attention (failed and missing rows), then On this device. A retry or Download
-again joins the back of the line. A row shows a percentage only when Media3
-reports one over a known denominator, the original's content length or the HLS
-segment count once the playlists are read; otherwise it shows bytes and an
-indeterminate bar. Only transitions reach the index; while the Downloads screen
-is started, the controller reads live bytes once a second into memory.
+and they rejoin the line. Its Downloading section lists unfinished rows in
+Media3's start order with each waiting row's place (`Queued · #1 in line`), then
+Needs attention (failed and missing rows), then On this device. A retry or
+Download again joins the back of the line. A row's ring fills only when Media3
+reports a percentage over a known denominator, the original's content length or
+the HLS segment count once the playlists are read; otherwise it spins. Its meta
+reads bytes of the whole when Media3 knows the content length, which an HLS
+rendition rarely has, else the bytes and any percentage, then the speed. Only
+transitions reach the index; while the Downloads screen is started, the
+controller reads live bytes once a second into memory and measures each running
+row's speed between two reads at least half a second apart, starting over after
+a gap of more than 5 s.
 
-**States and recovery.** A row is queued, downloading, paused (waiting for a
+**Pause and resume.** A row's ring pauses a running or waiting download,
+resumes one the viewer paused, and cancels a queued one without asking, since a
+queued row holds nothing playable. Selection's Pause and Resume act on the
+selected rows that allow them. The index keeps a pause and Media3 holds it as a
+stop reason; every start and report holds Media3 to the index, so a pause
+outlasts process death, sign-out parking, another account's sign-in and a
+request Media3 heard of only after the pause. A resumed download keeps its
+place in line; a wait for the network or storage still resumes by itself.
+
+**States and recovery.** A row is queued, downloading, waiting (for a
 network, or for the system to stop reporting low storage; both resume by
-themselves), failed (retryable), on this device, missing, or deleting. Transfers
+themselves), paused by the viewer, failed (retryable), on this device, missing,
+or deleting. Transfers
 that fail with `ENOSPC` read as not enough storage, with Retry. On start the
 engine reconciles Media3's index into the rows, so a transfer that finished,
 failed or paused while the UI was dead reads that way after relaunch. A row
@@ -1200,8 +1217,9 @@ the next write. Bytes leave the device only through a confirmed delete.
 
 **Removal.** Deleting removes only local copies; Downloads has no path to the
 put.io originals. One row's sheet or a multi-select asks first, saying the
-files stay in the account. Select opens an empty selection and Delete waits for
-a row; a long press opens one with its row; Select all takes every row. Confirmed
+files stay in the account. Select, in the tab's overflow, opens an empty
+selection and Remove waits for a row; a long press opens one with its row;
+Select all takes every row. Confirmed
 rows are marked before Media3 deletes their bytes, stop counting as available
 at once, and leave once Media3 confirms; a process death in between finishes
 the delete on the next start.
@@ -1255,16 +1273,20 @@ older one over it. A file put.io refuses for good (deleted, or access lost)
 drops its waiting position instead of being read on every pass.
 
 Tests: `DownloadsControllerTest` (intents, bulk removal, retry order, missing
-copies, concurrency, progress polling while shown), `MobileDownloadsScreenTest`
-(queue order and places, the limit, the notification notice, selection, shown
-and hidden events), `MobileShellDownloadsTest` (bulk delete never reaches
+copies, concurrency, progress polling while shown, pause and resume for the rows
+that allow them, cancelling a queued row, speed), `MobileDownloadsScreenTest`
+(queue order and places, progress meta, the limit, each ring's action, stuck
+rows, the notification notice, selection and its toolbar, shown and hidden
+events), `MobileShellDownloadsTest` (bulk delete never reaches
 put.io, notification links, the subtitle setting a Files download carries),
 `MobileDownloadStoreTest` (unreadable rows kept),
 `MobileDownloadActionReceiverTest` (Try again for the owner only, a refused
 start keeps the notification), `BroadcastHoldTest`, `MobileDownloadEngineTest`
 (queue order and limit across process recreation, recovery of every row state,
 rows rebuilt for downloads an unreadable index lost, low-storage pause,
-reconcile, sign-out parking, account isolation, close before reconcile,
+reconcile, sign-out parking, a pause held through sign-out, another account,
+process death, parking that overwrote it and a late Add until resumed, account
+isolation, close before reconcile,
 in-memory progress and its denominator, the recorded request URL and the
 local-copy check against a real Media3 manager and cache),
 `MobileDownloadNotificationsTest` (granted, denied and disabled states,

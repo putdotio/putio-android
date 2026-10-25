@@ -58,7 +58,12 @@ internal class MobileDownloadStore internal constructor(
      * asynchronously; terminal states commit so a completed download survives an
      * immediate process death. Media3's own index is reconciled on start either way.
      */
-    fun updateStatusBlocking(fileId: FilesItemId, transform: (DownloadEntry) -> DownloadEntry) {
+    fun updateStatusBlocking(
+        fileId: FilesItemId,
+        // A viewer's choice, like a terminal state, must survive an immediate process death.
+        commit: Boolean = false,
+        transform: (DownloadEntry) -> DownloadEntry,
+    ) {
         synchronized(lock) {
             val current = mutableEntries.value
             val entry = current.firstOrNull { it.fileId == fileId } ?: return
@@ -67,7 +72,7 @@ internal class MobileDownloadStore internal constructor(
             val next = current.map { if (it.fileId == fileId) updated else it }
             val terminal = updated.status is DownloadStatus.Completed || updated.status is DownloadStatus.Failed ||
                 updated.status is DownloadStatus.Missing
-            preferences.edit(commit = terminal) { putString(key, next.toJson(unreadable)) }
+            preferences.edit(commit = commit || terminal) { putString(key, next.toJson(unreadable)) }
             mutableEntries.value = next
         }
     }
@@ -83,11 +88,11 @@ internal class MobileDownloadStore internal constructor(
     }
 
     /** Advances a running row's bytes without a write; a stale report never overrides a transition. */
-    fun updateProgressInMemory(fileId: FilesItemId, bytesDownloaded: Long, percent: Float?) {
+    fun updateProgressInMemory(fileId: FilesItemId, bytesDownloaded: Long, percent: Float?, contentLength: Long?) {
         synchronized(lock) {
             val current = mutableEntries.value
             val entry = current.firstOrNull { it.fileId == fileId }
-            val status = DownloadStatus.Downloading(bytesDownloaded, percent)
+            val status = DownloadStatus.Downloading(bytesDownloaded, percent, contentLength)
             if (entry?.status is DownloadStatus.Downloading && entry.status != status) {
                 mutableEntries.value = current.map { if (it.fileId == fileId) it.copy(status = status) else it }
             }
@@ -181,6 +186,7 @@ private fun DownloadEntry.toJson(): JSONObject =
         .also { json ->
             subtitlesHidden?.let { json.put("subtitlesHidden", it) }
             durationSeconds?.let { json.put("duration", it) }
+            if (pauseRequested) json.put("pauseRequested", true)
         }
 
 private fun DownloadStatus.toJson(): JSONObject =
@@ -199,7 +205,16 @@ private fun JSONObject.toEntryOrNull(): DownloadEntry? {
     val fileId = optLong("fileId", -1L).takeIf { it > 0L } ?: return null
     val type = optString("type").takeIf { it.isNotBlank() }?.let(PutioFileType::fromRaw)
     val artifact = DownloadArtifact.entries.firstOrNull { it.name == optString("artifact") }
-    val status = optJSONObject("status")?.toStatusOrNull()
+    val pauseRequested = optBoolean("pauseRequested", false)
+    // A viewer's pause reads as paused at once, so the row offers Resume, never Cancel, before
+    // reconcile hears from Media3.
+    val status = optJSONObject("status")?.toStatusOrNull()?.let { status ->
+        if (pauseRequested && status == DownloadStatus.Queued) {
+            DownloadStatus.Paused(DownloadPauseReason.USER, optJSONObject("status")?.optLong("bytes") ?: 0L)
+        } else {
+            status
+        }
+    }
     return if (type == null || artifact == null || status == null) {
         null
     } else {
@@ -218,6 +233,7 @@ private fun JSONObject.toEntryOrNull(): DownloadEntry? {
             subtitlesHidden = if (has("subtitlesHidden")) optBoolean("subtitlesHidden") else null,
             startFromSeconds = optDouble("startFrom", 0.0).takeIf { it.isFinite() && it >= 0.0 } ?: 0.0,
             durationSeconds = optDouble("duration", Double.NaN).takeIf { it.isFinite() && it > 0.0 },
+            pauseRequested = pauseRequested,
         )
     }
 }

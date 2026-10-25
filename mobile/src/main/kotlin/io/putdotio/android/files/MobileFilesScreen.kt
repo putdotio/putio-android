@@ -942,6 +942,7 @@ private fun MobileFilesDownloadIndicator(status: DownloadStatus) {
             when (status.reason) {
                 DownloadPauseReason.NETWORK -> R.string.mobile_files_download_waiting
                 DownloadPauseReason.STORAGE -> R.string.mobile_files_download_waiting_storage
+                DownloadPauseReason.USER -> R.string.mobile_files_download_paused
             },
         )
         DownloadStatus.Queued, is DownloadStatus.Downloading -> stringResource(R.string.mobile_files_downloading)

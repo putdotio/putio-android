@@ -217,6 +217,109 @@ class DownloadsControllerTest {
         assertEquals(4, engine.progressRefreshes)
     }
 
+    @Test
+    fun pauseAndResumeReachTheEngineOnlyForRowsThatAllowThem() = runBlocking {
+        val third = video.copy(fileId = FilesItemId(9L), name = "Tears.mkv")
+        DownloadsController(store, engine, this).use { controller ->
+            for (request in listOf(video, audio, third)) assertTrue(controller.dispatch(DownloadsEvent.Start(request)))
+            store.await { it.size == 3 }
+            store.report(video.fileId, DownloadStatus.Downloading(10L, 1f))
+            store.report(audio.fileId, DownloadStatus.Paused(DownloadPauseReason.USER, 10L))
+            store.complete(third.fileId, 10L)
+            controller.awaitState { it.entry(third.fileId)?.isCompleted == true }
+            val all = setOf(video.fileId, audio.fileId, third.fileId)
+
+            assertTrue(controller.dispatch(DownloadsEvent.Pause(all)))
+            engine.await { it.paused.isNotEmpty() }
+            assertTrue(controller.dispatch(DownloadsEvent.Resume(all)))
+            engine.await { it.resumed.isNotEmpty() }
+            assertEquals(listOf(video.fileId), engine.paused)
+            assertEquals(listOf(audio.fileId), engine.resumed)
+
+            // Nothing in the set allows the action: the controller turns it down.
+            assertFalse(controller.dispatch(DownloadsEvent.Pause(setOf(audio.fileId, third.fileId))))
+            assertFalse(controller.dispatch(DownloadsEvent.Resume(setOf(video.fileId, third.fileId))))
+        }
+    }
+
+    @Test
+    fun cancelDropsOnlyAQueuedRowAndAsksNothing() = runBlocking {
+        DownloadsController(store, engine, this).use { controller ->
+            assertTrue(controller.dispatch(DownloadsEvent.Start(video)))
+            assertTrue(controller.dispatch(DownloadsEvent.Start(audio)))
+            store.await { it.size == 2 }
+            store.complete(audio.fileId, 10L)
+            controller.awaitState { it.entry(audio.fileId)?.isCompleted == true }
+
+            assertFalse(controller.dispatch(DownloadsEvent.Cancel(audio.fileId)))
+            assertTrue(controller.dispatch(DownloadsEvent.Cancel(video.fileId)))
+            assertNull(controller.state.value.removal)
+            assertTrue(video.fileId in controller.state.value.removing)
+            engine.await { it.removed == listOf(video.fileId) }
+            assertFalse(controller.dispatch(DownloadsEvent.Cancel(video.fileId)))
+        }
+    }
+
+    @Test
+    fun speedFollowsTheBytesBetweenProgressTicksAndIgnoresOtherRows() = runTest {
+        val ticks = testScheduler
+        val controller = DownloadsController(store, engine, backgroundScope, elapsedMillis = { ticks.currentTime })
+        assertTrue(controller.dispatch(DownloadsEvent.Start(video)))
+        assertTrue(controller.dispatch(DownloadsEvent.Start(audio)))
+        runCurrent()
+        store.report(video.fileId, DownloadStatus.Downloading(1_000L, null))
+        assertTrue(controller.dispatch(DownloadsEvent.Shown))
+        runCurrent()
+        assertNull(controller.state.value.speeds[video.fileId])
+
+        // Another row finishing between ticks moves nothing.
+        advanceTimeBy(500L)
+        store.complete(audio.fileId, 10L)
+        runCurrent()
+        advanceTimeBy(500L)
+        store.report(video.fileId, DownloadStatus.Downloading(3_000L, null))
+        runCurrent()
+        assertEquals(2_000L, controller.state.value.speeds[video.fileId])
+
+        // After a gap longer than five seconds, such as the screen being hidden, it measures afresh.
+        assertTrue(controller.dispatch(DownloadsEvent.Hidden))
+        advanceTimeBy(60_000L)
+        store.report(video.fileId, DownloadStatus.Downloading(90_000L, null))
+        assertTrue(controller.dispatch(DownloadsEvent.Shown))
+        runCurrent()
+        assertNull(controller.state.value.speeds[video.fileId])
+
+        // A row that stops running drops its speed at once.
+        advanceTimeBy(1_000L)
+        store.report(video.fileId, DownloadStatus.Downloading(100_000L, null))
+        runCurrent()
+        assertEquals(10_000L, controller.state.value.speeds[video.fileId])
+        store.complete(video.fileId, 100_000L)
+        runCurrent()
+        assertTrue(controller.state.value.speeds.isEmpty())
+    }
+
+    @Test
+    fun aStalledTransferLosesItsSpeedOnTheNextProgressTick() = runTest {
+        val ticks = testScheduler
+        val controller = DownloadsController(store, engine, backgroundScope, elapsedMillis = { ticks.currentTime })
+        assertTrue(controller.dispatch(DownloadsEvent.Start(video)))
+        runCurrent()
+        store.report(video.fileId, DownloadStatus.Downloading(1_000L, null))
+        assertTrue(controller.dispatch(DownloadsEvent.Shown))
+        runCurrent()
+
+        advanceTimeBy(1_000L)
+        store.report(video.fileId, DownloadStatus.Downloading(3_000L, null))
+        runCurrent()
+        assertEquals(2_000L, controller.state.value.speeds[video.fileId])
+
+        // The store does not re-emit unchanged bytes; the tick still measures them.
+        advanceTimeBy(1_000L)
+        runCurrent()
+        assertEquals(0L, controller.state.value.speeds[video.fileId])
+    }
+
     private suspend fun DownloadsController.awaitState(predicate: (DownloadsState) -> Boolean): DownloadsState =
         withTimeout(5_000L) { state.first(predicate) }
 }
@@ -241,6 +344,8 @@ internal class FakeDownloadStore : DownloadStore {
         it.copy(status = DownloadStatus.Completed(bytes))
     }
 
+    fun report(fileId: FilesItemId, status: DownloadStatus) = transform(fileId) { it.copy(status = status) }
+
     private fun transform(fileId: FilesItemId, block: (DownloadEntry) -> DownloadEntry) {
         mutable.value = mutable.value.map { if (it.fileId == fileId) block(it) else it }
     }
@@ -252,6 +357,8 @@ internal class FakeDownloadStore : DownloadStore {
 internal class FakeDownloadEngine : DownloadEngine {
     val started = mutableListOf<DownloadEntry>()
     val removed = mutableListOf<FilesItemId>()
+    val paused = mutableListOf<FilesItemId>()
+    val resumed = mutableListOf<FilesItemId>()
     override var concurrency: Int = DOWNLOAD_CONCURRENCY_DEFAULT
         private set
     var progressRefreshes = 0
@@ -271,6 +378,11 @@ internal class FakeDownloadEngine : DownloadEngine {
     }
 
     override fun isRemoving(fileId: FilesItemId): Boolean = fileId in removing
+
+    override fun setPaused(fileId: FilesItemId, paused: Boolean) {
+        if (paused) this.paused += fileId else resumed += fileId
+        version.value += 1
+    }
 
     override fun setConcurrency(limit: Int) {
         concurrency = limit
