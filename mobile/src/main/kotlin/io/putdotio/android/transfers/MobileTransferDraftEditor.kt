@@ -73,7 +73,8 @@ internal class MobileTransferDraftEditor(
         val current = mutableState.value
         val saveParentId = current.destination?.id?.value
         return when {
-            current.submitting || current.validation == MobileShareValidation.TooLong -> null
+            current.submitting || current.readingTorrent || current.validation == MobileShareValidation.TooLong ->
+                null
             current.torrent != null -> TransfersEvent.AddTorrent(current.torrent, saveParentId)
             else -> {
                 // Good lines go; a bad line stays in the field with its reason for the user to fix.

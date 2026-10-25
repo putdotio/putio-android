@@ -9,6 +9,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.sync.Mutex
@@ -24,11 +25,14 @@ internal data class MobileTransferDraftState(
     val incomingRequestId: Long? = null,
     val pendingReplacement: Boolean = false,
     val submitting: Boolean = false,
+    /** A `.torrent` picked from the sheet is still being read; nothing submits until it settles. */
+    val readingTorrent: Boolean = false,
 ) {
     override fun toString(): String =
         "MobileTransferDraftState(<redacted>, torrent=${torrent != null}, destination=${destination?.id}, " +
             "open=$open, validation=$validation, " +
-            "incomingRequestId=$incomingRequestId, pendingReplacement=$pendingReplacement, submitting=$submitting)"
+            "incomingRequestId=$incomingRequestId, pendingReplacement=$pendingReplacement, submitting=$submitting, " +
+            "readingTorrent=$readingTorrent)"
 }
 
 /** Activity-owned memory only: signed URLs must never enter a saved-state registry. */
@@ -104,6 +108,7 @@ class MobileTransferDraft private constructor(
     ) {
         pendingRead?.cancel()
         val generation = draftGeneration
+        mutableState.update { it.copy(readingTorrent = picked) }
         pendingRead = viewModelScope.launch {
             val shared = readLock.withLock { runInterruptible(ioDispatcher) { read() } }
             when {
@@ -112,7 +117,10 @@ class MobileTransferDraft private constructor(
             }
         }.apply {
             // Also when a newer intake cancels this read before it began.
-            invokeOnCompletion { onDone() }
+            invokeOnCompletion {
+                if (pendingRead === this) mutableState.update { it.copy(readingTorrent = false) }
+                onDone()
+            }
         }
     }
 

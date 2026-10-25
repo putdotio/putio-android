@@ -99,7 +99,7 @@ internal fun MobileAddTransfer(
             input = input,
             failure = addFailure,
             adding = adding,
-            submitEnabled = enabled && input.validation != MobileShareValidation.TooLong,
+            submitEnabled = enabled && !input.readingTorrent && input.validation != MobileShareValidation.TooLong,
             actions = MobileAddTransferActions(
                 onInputChanged = {
                     draft.edit(it)
@@ -246,7 +246,9 @@ private fun MobileAddTransferSheet(
                 )
             }
             reason?.let { MobileAddTransferReason(it) }
-            if (input.torrent == null) MobileAddTransferChips(enabled = !adding, input.input, actions)
+            if (input.torrent == null) {
+                MobileAddTransferChips(enabled = !adding && !input.readingTorrent, input.input, actions)
+            }
             MobileTransferDestinationRow(
                 input.destination,
                 enabled = !adding,

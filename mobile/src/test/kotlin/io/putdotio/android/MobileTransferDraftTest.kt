@@ -244,7 +244,10 @@ class MobileTransferDraftTest {
         draft.open()
         draft.edit(FIRST)
         draft.receiveLater(picked = true) { MobileSharedTransfer(torrent = TORRENT) }
+        assertTrue(draft.state.value.readingTorrent)
+        assertNull("Nothing submits while the picked torrent is read", draft.validate())
         settle()
+        assertFalse(draft.state.value.readingTorrent)
         assertSame(TORRENT, draft.state.value.torrent)
         assertEquals(FIRST, draft.state.value.input)
         assertFalse(draft.state.value.pendingReplacement)
