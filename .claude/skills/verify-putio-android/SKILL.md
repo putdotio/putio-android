@@ -32,8 +32,9 @@ $S/devbox.sh sync "$RUN"         # copy, sdk.dir, git init, brand fonts; prints 
 $S/devbox.sh run "$RUN" './gradlew --max-workers=6 :mobile:assembleProductionDebug'
 $S/devbox.sh run "$RUN" '$V/session.sh up $RUN --snapshot'  # prints the serial, e.g. emulator-5556
 $S/devbox.sh run "$RUN" '$V/session.sh install $RUN'
+$S/devbox.sh run "$RUN" '$V/session.sh relaunch $RUN'     # the app checks its restored session first
 $S/devbox.sh run "$RUN" './scripts/sign-in-devs-auto.sh $SERIAL'
-$S/devbox.sh run "$RUN" '$V/session.sh relaunch $RUN'
+$S/devbox.sh run "$RUN" '$V/session.sh relaunch $RUN'     # redraws a window the snapshot left black
 ```
 
 Single quotes matter: `devbox.sh run` sets `$RUN`, `$V` (this skill's
@@ -55,16 +56,17 @@ Two ways to boot:
 - Ready means the sign-in script printed `SIGNED IN <account id>` and
   `PROOF PASS sign-in-devs-auto`: the app holds a devs-auto session and shows
   Files. Its `--help` lists failures and fixes.
-- `Device sign-in stopped: app is ValidationUnavailable` means the restored
-  app could not reach put.io to check its session yet. `session.sh up` waits
-  for a validated network to make this rare; run the script once more.
+- `Device sign-in stopped: app is ValidationUnavailable` came on three of
+  five snapshot runs that went from `install` straight to the sign-in
+  script, once twice in a row; it passed after the app was relaunched. Hence
+  the first `relaunch`. If it still shows, relaunch and run the script again.
 - Every `putio-phone` instance runs `-read-only`, ours included; boot that
   AVD only through `session.sh up --snapshot`. A snapshot loads only with the
   renderer that saved it (`-gpu swiftshader_indirect`).
 - After a snapshot load the app's window can composite black: the status bar
   draws, the app does not, and `capture.sh` rejects the screenshot as
   near-black. `session.sh relaunch` restarts the app, which draws it again;
-  it is the last Launch step for that reason.
+  it is also the last Launch step for that reason.
 - Run one Gradle invocation at a time per run. Other agents share the devbox.
 - After a code change: `devbox.sh sync`, assemble, then `session.sh install`.
   `install -r` keeps the session, so skip sign-in; Doctor confirms it.
