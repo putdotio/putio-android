@@ -92,12 +92,12 @@ internal fun MobilePdfPage(file: FilesItem, uri: Uri, onOpenWithAnotherApp: () -
     when (val current = state) {
         PdfState.Loading -> MobileViewerLoading()
         PdfState.Failed -> MobileViewerFailure(onOpenWithAnotherApp)
-        is PdfState.Ready -> MobilePdfPages(current.document)
+        is PdfState.Ready -> MobilePdfPages(current.document, onOpenWithAnotherApp)
     }
 }
 
 @Composable
-private fun MobilePdfPages(document: MobilePdfDocument) {
+private fun MobilePdfPages(document: MobilePdfDocument, onOpenWithAnotherApp: () -> Unit) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val widthPx = with(LocalDensity.current) { maxWidth.roundToPx() }
         LazyColumn(
@@ -105,31 +105,55 @@ private fun MobilePdfPages(document: MobilePdfDocument) {
             contentPadding = viewerContentPadding(),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            items(count = document.pageCount) { index -> MobilePdfPageImage(document, index, widthPx) }
+            items(count = document.pageCount) { index ->
+                MobilePdfPageImage(document, index, widthPx, onOpenWithAnotherApp)
+            }
         }
     }
 }
 
+private sealed interface PageState {
+    data object Loading : PageState
+
+    data class Ready(val bitmap: Bitmap, val ratio: Float) : PageState
+
+    data object Failed : PageState
+}
+
+/** One page, A4-shaped until it renders; a page that won't render says so and offers another app. */
 @Composable
-private fun MobilePdfPageImage(document: MobilePdfDocument, index: Int, widthPx: Int) {
-    val ratio by produceState<Float?>(null, document, index) {
-        value = runCatching { document.aspectRatio(index) }.getOrNull()
+private fun MobilePdfPageImage(
+    document: MobilePdfDocument,
+    index: Int,
+    widthPx: Int,
+    onOpenWithAnotherApp: () -> Unit,
+) {
+    val state by produceState<PageState>(PageState.Loading, document, index, widthPx) {
+        value = try {
+            val bitmap = document.render(index, widthPx)
+            PageState.Ready(bitmap, bitmap.height.toFloat() / bitmap.width)
+        } catch (_: IllegalStateException) {
+            // The document closed under the page, or the renderer refused it.
+            PageState.Failed
+        } catch (_: IllegalArgumentException) {
+            PageState.Failed
+        }
     }
-    val bitmap by produceState<Bitmap?>(null, document, index, widthPx) {
-        value = runCatching { document.render(index, widthPx) }.getOrNull()
-    }
-    val pageModifier = Modifier
-        .fillMaxWidth()
-        .aspectRatio(1f / (ratio ?: A4_RATIO))
-    val shown = bitmap
-    if (shown == null) {
-        Box(pageModifier.background(MaterialTheme.colorScheme.surfaceContainerHigh))
-    } else {
-        Image(
-            bitmap = shown.asImageBitmap(),
+    when (val current = state) {
+        PageState.Loading -> Box(
+            Modifier
+                .fillMaxWidth()
+                .aspectRatio(1f / A4_RATIO)
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+        )
+        PageState.Failed -> Box(Modifier.fillMaxWidth().aspectRatio(1f / A4_RATIO)) {
+            MobileViewerFailure(onOpenWithAnotherApp)
+        }
+        is PageState.Ready -> Image(
+            bitmap = current.bitmap.asImageBitmap(),
             contentDescription = null,
             contentScale = ContentScale.FillWidth,
-            modifier = pageModifier,
+            modifier = Modifier.fillMaxWidth().aspectRatio(1f / current.ratio),
         )
     }
 }

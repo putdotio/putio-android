@@ -15,6 +15,7 @@ import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -30,15 +31,18 @@ import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesFolderState
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.files.FilesOpenOrigin
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.files.MOBILE_FILES_DETAIL_PRIMARY_TAG
 import io.putdotio.android.files.MOBILE_FILES_DETAIL_SHARE_TAG
 import io.putdotio.android.files.MOBILE_FILES_DETAIL_TAG
 import io.putdotio.android.files.MOBILE_FILES_LIST_PANE_TAG
+import io.putdotio.android.files.MOBILE_FILES_SHARE_ACTION_TAG
 import io.putdotio.android.files.MobileFileOpener
 import io.putdotio.android.files.MobileFilesRoute
 import io.putdotio.android.files.filesBrowserState
+import io.putdotio.android.files.folderPath
 import io.putdotio.android.playback.PlaybackNextResult
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
@@ -167,6 +171,51 @@ class MobileFilesListDetailTest {
         compose.onNodeWithTag(MOBILE_FILES_DETAIL_TAG).assertExists()
     }
 
+    @Test
+    fun crossingTheBreakpointKeepsAnOpenActionsSheet() {
+        var wide by mutableStateOf(false)
+        compose.setContent {
+            PutioTheme {
+                Box(Modifier.requiredSize(width = if (wide) 1184.dp else 600.dp, height = 700.dp)) {
+                    MobileFilesRoute(
+                        state = blueLights(),
+                        repository = null,
+                        onEvent = { true },
+                        onPlayMedia = { played += it },
+                        confirmedTrashEnabled = true,
+                        onAuthenticationRequired = {},
+                        onShareItem = { shared += it },
+                        listPaneTopBar = if (wide) { { Text("Blue Lights") } } else null,
+                        fileOpener = MobileFileOpener(userId = 42L),
+                    )
+                }
+            }
+        }
+        compose.onNodeWithContentDescription("Actions for ${ARCHIVE.name}").performClick()
+        compose.onNodeWithTag(MOBILE_FILES_SHARE_ACTION_TAG).assertExists()
+
+        compose.runOnIdle { wide = true }
+
+        compose.onNodeWithTag(MOBILE_FILES_LIST_PANE_TAG).assertExists()
+        compose.onNodeWithTag(MOBILE_FILES_SHARE_ACTION_TAG).assertExists()
+    }
+
+    @Test
+    fun theFolderFactIsThePathFromTheRootOnlyWhenFilesWalkedThere() {
+        assertEquals("Series / Blue Lights", blueLights().folderPath())
+
+        val documents = FilesFolder(FilesItemId(30L), "Documents")
+        val openedFromSearch = filesBrowserState(
+            stack = blueLights().stack + FilesFolderState(
+                documents,
+                FilesContent.Ready(listOf(ARCHIVE), FilesPaging.Complete),
+                openedFrom = FilesOpenOrigin.SEARCH,
+            ),
+            nextRequestValue = 3L,
+        )
+        assertEquals("Documents", openedFromSearch.folderPath())
+    }
+
     private val unusedPlayback = object : PlaybackRepository {
         override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> =
             PlaybackRepositoryResult.Success(PlaybackResolution.Conversion(PlaybackConversionState.Queued))
@@ -198,10 +247,24 @@ class MobileFilesListDetailTest {
         val series = FilesFolder(FilesItemId(10L), "Series")
         val blueLights = FilesFolder(FilesItemId(11L), "Blue Lights")
         val items = listOf(EPISODE, FIRST_IMAGE, ARCHIVE, SECOND_IMAGE)
+        fun folderItem(folder: FilesFolder, parent: FilesFolder) = FilesItem(
+            id = folder.id,
+            parentId = parent.id,
+            name = folder.name.orEmpty(),
+            type = PutioFileType.FOLDER,
+            sizeBytes = 0L,
+            createdAt = "2026-10-13T10:00:00",
+        )
         return filesBrowserState(
             stack = listOf(
-                FilesFolderState(FilesFolder.Root, FilesContent.Empty(FilesPaging.Complete)),
-                FilesFolderState(series, FilesContent.Empty(FilesPaging.Complete)),
+                FilesFolderState(
+                    FilesFolder.Root,
+                    FilesContent.Ready(listOf(folderItem(series, FilesFolder.Root)), FilesPaging.Complete),
+                ),
+                FilesFolderState(
+                    series,
+                    FilesContent.Ready(listOf(folderItem(blueLights, series)), FilesPaging.Complete),
+                ),
                 FilesFolderState(blueLights, FilesContent.Ready(items, FilesPaging.Complete)),
             ),
             nextRequestValue = 2L,

@@ -10,6 +10,8 @@ import androidx.core.graphics.createBitmap
 import java.io.File
 import java.io.IOException
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicReference
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -43,11 +45,6 @@ internal class MobilePdfDocument private constructor(
         }
     }
 
-    /** The page's height over its width, for laying out a page before it renders. */
-    suspend fun aspectRatio(index: Int): Float = withContext(dispatcher) {
-        renderer.openPage(index).use { page -> page.height.toFloat() / page.width.coerceAtLeast(1) }
-    }
-
     /** Closes after any page still rendering, off the caller's thread, and deletes the copy. */
     fun close() {
         CoroutineScope(dispatcher + NonCancellable).launch {
@@ -63,20 +60,29 @@ internal class MobilePdfDocument private constructor(
             if (sizeBytes > PDF_MAX_BYTES) throw IOException("Too large to view in the app")
             // One renderer may run one page at a time, so every call on it shares one thread.
             val dispatcher = Dispatchers.IO.limitedParallelism(1)
-            return withContext(dispatcher) {
-                val directory = viewerCache(context).apply { mkdirs() }
-                val file = File(directory, "${UUID.randomUUID()}.pdf")
-                var opened: MobilePdfDocument? = null
-                try {
-                    val input = context.contentResolver.openInputStream(uri) ?: throw IOException("No stream")
-                    input.use { source -> file.outputStream().use { source.copyCancellably(it) } }
-                    val descriptor = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
-                    val renderer = openRenderer(descriptor)
-                    MobilePdfDocument(file, descriptor, renderer, dispatcher).also { opened = it }
-                } finally {
-                    if (opened == null) file.delete()
+            // A caller cancelled as the document opens never receives it, so it is closed here instead.
+            val opened = AtomicReference<MobilePdfDocument?>(null)
+            try {
+                return withContext(dispatcher) {
+                    val file = File(viewerCache(context).apply { mkdirs() }, "${UUID.randomUUID()}.pdf")
+                    try {
+                        copyInto(context, uri, file)
+                        val descriptor = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
+                        MobilePdfDocument(file, descriptor, openRenderer(descriptor), dispatcher)
+                            .also { opened.set(it) }
+                    } finally {
+                        if (opened.get() == null) file.delete()
+                    }
                 }
+            } catch (cancelled: CancellationException) {
+                opened.get()?.close()
+                throw cancelled
             }
+        }
+
+        private suspend fun copyInto(context: Context, uri: Uri, file: File) {
+            val input = context.contentResolver.openInputStream(uri) ?: throw IOException("No stream")
+            input.use { source -> file.outputStream().use { source.copyCancellably(it) } }
         }
 
         /** The renderer over [descriptor], which closes when the document doesn't parse or is protected. */
@@ -127,7 +133,10 @@ internal fun pdfBitmapSize(pageWidth: Int, pageHeight: Int, widthPx: Int): PdfBi
         width *= scale
         height *= scale
     }
-    return PdfBitmapSize(width.toInt().coerceAtLeast(1), height.toInt().coerceAtLeast(1))
+    // A sliver of a page keeps one pixel of width, so its height is bounded again from that.
+    val finalWidth = width.toInt().coerceAtLeast(1)
+    val finalHeight = height.toInt().coerceIn(1, (PDF_MAX_PIXELS / finalWidth).toInt().coerceAtLeast(1))
+    return PdfBitmapSize(finalWidth, finalHeight)
 }
 
 /** About 16 MB per page bitmap at four bytes a pixel. */

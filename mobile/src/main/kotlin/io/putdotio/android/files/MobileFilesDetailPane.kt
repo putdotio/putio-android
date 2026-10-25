@@ -35,6 +35,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,6 +54,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import coil3.compose.SubcomposeAsyncImage
 import coil3.compose.SubcomposeAsyncImageContent
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
 import io.putdotio.android.R
 import io.putdotio.android.design.FileTypeIcon
@@ -94,6 +97,8 @@ internal fun MobileFilesDetailPane(
     subtitleLanguages: FilesSubtitleLanguages?,
     actions: MobileFilesDetailActions,
     modifier: Modifier = Modifier,
+    /** A 401 on the subtitles read rejects the session, as one anywhere else does. */
+    onAuthenticationRequired: suspend () -> Unit = {},
 ) {
     Box(
         modifier = modifier
@@ -111,10 +116,12 @@ internal fun MobileFilesDetailPane(
             )
             return@Box
         }
+        // Another file starts at the top.
+        val scroll = key(item.id) { rememberScrollState() }
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scroll)
                 .windowInsetsPadding(WindowInsets.statusBars)
                 .padding(horizontal = DETAIL_HORIZONTAL_PADDING, vertical = DETAIL_VERTICAL_PADDING),
             verticalArrangement = Arrangement.spacedBy(DETAIL_GAP),
@@ -126,7 +133,7 @@ internal fun MobileFilesDetailPane(
                 modifier = Modifier.semantics { heading() },
             )
             MobileFilesDetailButtons(item, downloadStatus, actions)
-            MobileFilesDetailFacts(item, folderPath, subtitleLanguages)
+            MobileFilesDetailFacts(item, folderPath, subtitleLanguages, onAuthenticationRequired)
         }
     }
 }
@@ -244,7 +251,11 @@ private fun MobileFilesDetailButtons(
 
 @Composable
 private fun primaryAction(item: FilesItem): Pair<Int, String> {
-    val resumeAt = item.playback?.takeIf { isInProgress(it.startFromSeconds, it.durationSeconds) }?.startFromSeconds
+    // A position with no known duration still resumes, as the player offers it.
+    val playback = item.playback
+    val resumeAt = playback?.startFromSeconds?.takeIf { position ->
+        position > 0.0 && (playback.durationSeconds == null || isInProgress(position, playback.durationSeconds))
+    }
     return when {
         resumeAt != null -> DesignR.drawable.ic_ph_play_fill to
             stringResource(R.string.mobile_files_detail_resume, DateUtils.formatElapsedTime(resumeAt.toLong()))
@@ -310,14 +321,20 @@ private fun MobileFilesDetailFacts(
     item: FilesItem,
     folderPath: String?,
     subtitleLanguages: FilesSubtitleLanguages?,
+    onAuthenticationRequired: suspend () -> Unit,
 ) {
     val context = LocalContext.current
     val style = PutioTypeScale.bodySm
+    val currentOnAuthenticationRequired by rememberUpdatedState(onAuthenticationRequired)
     val subtitles by produceState<List<String>?>(null, item.id, subtitleLanguages) {
         value = null
         val reader = subtitleLanguages?.takeIf { item.type == PutioFileType.VIDEO && item.id.value > 0L }
-        val result = reader?.subtitleLanguages(item.id)
-        value = (result as? PutioResult.Success)?.value
+        when (val result = reader?.subtitleLanguages(item.id)) {
+            is PutioResult.Success -> value = result.value
+            is PutioResult.Failure ->
+                if (result.failure is PutioFailure.AuthenticationRequired) currentOnAuthenticationRequired()
+            null -> Unit
+        }
     }
     val facts = buildList {
         add(DetailFact(R.string.mobile_files_detail_size, formatFileSize(item.sizeBytes), mono = true))
@@ -369,11 +386,21 @@ private fun String.toFullDate(context: Context): String? =
         )
     }
 
-/** The folders above the listing, root left out: "Series / Blue Lights". Null at the root. */
-internal fun FilesBrowserState.folderPath(): String? =
-    stack.mapNotNull { it.folder.name?.takeIf(String::isNotBlank) }
+/**
+ * The listed folder's path from the root, root left out: "Series / Blue Lights". The stack is where
+ * Files has been, not the folder's ancestry: a folder opened from Search or a link sits on the prior
+ * location. So the path counts only folders each opened from the listing below it, and it falls back
+ * to the folder's own name when that chain doesn't reach the root. Null at the root.
+ */
+internal fun FilesBrowserState.folderPath(): String? {
+    var start = stack.lastIndex
+    while (start > 0 && stack[start - 1].content.items().any { it.id == stack[start].folder.id }) start--
+    val fromRoot = start == 0 && stack[0].folder.id == FilesFolder.Root.id
+    val chain = if (fromRoot) stack.drop(1) else listOf(stack.last())
+    return chain.mapNotNull { it.folder.name?.takeIf(String::isNotBlank) }
         .takeIf { it.isNotEmpty() }
         ?.joinToString(" / ")
+}
 
 private const val PREVIEW_ASPECT_RATIO = 2f
 private const val PREVIEW_PLAY_ALPHA = 0.45f

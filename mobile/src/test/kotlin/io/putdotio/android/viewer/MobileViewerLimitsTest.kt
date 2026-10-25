@@ -45,5 +45,9 @@ class MobileViewerLimitsTest {
         val poster = pdfBitmapSize(pageWidth = 1000, pageHeight = 10_000, widthPx = 2560)
         assertTrue(poster.width.toLong() * poster.height <= 4_000_000L)
         assertEquals(10.0, poster.height.toDouble() / poster.width, 0.05)
+
+        // A page one pixel wide keeps its height under the cap too.
+        val sliver = pdfBitmapSize(pageWidth = 1, pageHeight = 20_000_000, widthPx = 1080)
+        assertTrue(sliver.width.toLong() * sliver.height <= 4_000_000L)
     }
 }

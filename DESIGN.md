@@ -310,7 +310,7 @@ as today. The selected item uses the stock indicator with a filled Phosphor
 glyph in `on-secondary-container`; unselected items use the regular glyph.
 
 From 840dp, Files is list-detail: the folder's bar and list on the left (520dp,
-or half the window when that is less), the selected file's detail on the right
+or half the space beside the rail when that is less), the selected file's detail on the right
 with its preview, primary actions and facts (size, added, length, subtitles,
 folder). Here a tap on a file selects it into
 the detail pane; Play in the pane starts playback. Folders open in the list.

@@ -8,6 +8,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -78,8 +79,10 @@ internal fun MobileFilesRoute(
             actionsRequests.tryEmit(item.id)
         }
     }
-    val folders = @Composable {
-        MobileFilesFolders(
+    // Movable, so crossing 840dp keeps the folder's sheet, rename draft and pickers.
+    val folders = remember { movableContentOf { args: MobileFilesFoldersArgs -> MobileFilesFolders(args) } }
+    val foldersArgs =
+        MobileFilesFoldersArgs(
             state = state,
             currentKey = currentKey,
             folderKey = folderKey,
@@ -99,13 +102,12 @@ internal fun MobileFilesRoute(
             onNewFolder = onNewFolder,
             fileOpening = fileOpening,
         )
-    }
     if (listPaneTopBar == null) {
-        folders()
+        folders(foldersArgs)
     } else {
         MobileFilesListDetail(
             topBar = listPaneTopBar,
-            list = folders,
+            list = { folders(foldersArgs) },
             detail = {
                 val shown = items.firstOrNull { it.id.value == detailId && !it.isFolder }
                 MobileFilesDetailPane(
@@ -113,6 +115,7 @@ internal fun MobileFilesRoute(
                     folderPath = state.folderPath(),
                     downloadStatus = shown?.let { downloads.entry(it.id)?.status },
                     subtitleLanguages = subtitleLanguages,
+                    onAuthenticationRequired = onAuthenticationRequired,
                     actions = MobileFilesDetailActions(
                         onOpen = openFile,
                         onDownload = onDownloadItem,
@@ -130,7 +133,11 @@ internal fun MobileFilesRoute(
             viewerId = viewerId,
             actions = MobileFileViewerActions(
                 documentUri = { fileOpener.documentUri(context, it) },
-                onOpenWithAnotherApp = openWithAnotherApp,
+                // The Files snackbar sits under the viewer, so the viewer closes for it to say no app took the file.
+                onOpenWithAnotherApp = withAnotherApp(context, fileOpener) { item ->
+                    viewerId = null
+                    openFailures.tryEmit(item)
+                },
                 onShare = onShareItem,
                 onMore = openActions,
             ),
@@ -190,27 +197,30 @@ private fun MobileFilesViewerHost(
     }
 }
 
+/** Everything the folder listings take; one value, so the movable listing gets it as its parameter. */
+private data class MobileFilesFoldersArgs(
+    val state: FilesBrowserState,
+    val currentKey: Pair<Int, Long>,
+    val folderKey: (FilesBrowserState) -> Pair<Int, Long>,
+    val repository: FilesRepository?,
+    val onEvent: (FilesBrowserEvent) -> Boolean,
+    val onPlayMedia: (FilesItem) -> Unit,
+    val confirmedTrashEnabled: Boolean?,
+    val onAuthenticationRequired: suspend () -> Unit,
+    val downloads: DownloadsState,
+    val onDownloadItem: ((FilesItem) -> Unit)?,
+    val onShareItem: ((FilesItem) -> Unit)?,
+    val onViewTrash: (() -> Unit)?,
+    val moveTargetStore: FilesMoveTargetStore?,
+    val publicLinks: MobilePublicLinks?,
+    val fileDragOut: MobileFileDragOut?,
+    val continueWatching: List<ContinueWatchingEntry>,
+    val onNewFolder: (() -> Unit)?,
+    val fileOpening: MobileFilesOpening?,
+)
+
 @Composable
-private fun MobileFilesFolders(
-    state: FilesBrowserState,
-    currentKey: Pair<Int, Long>,
-    folderKey: (FilesBrowserState) -> Pair<Int, Long>,
-    repository: FilesRepository?,
-    onEvent: (FilesBrowserEvent) -> Boolean,
-    onPlayMedia: (FilesItem) -> Unit,
-    confirmedTrashEnabled: Boolean?,
-    onAuthenticationRequired: suspend () -> Unit,
-    downloads: DownloadsState,
-    onDownloadItem: ((FilesItem) -> Unit)?,
-    onShareItem: ((FilesItem) -> Unit)?,
-    onViewTrash: (() -> Unit)?,
-    moveTargetStore: FilesMoveTargetStore?,
-    publicLinks: MobilePublicLinks?,
-    fileDragOut: MobileFileDragOut?,
-    continueWatching: List<ContinueWatchingEntry>,
-    onNewFolder: (() -> Unit)?,
-    fileOpening: MobileFilesOpening?,
-) {
+private fun MobileFilesFolders(args: MobileFilesFoldersArgs) = with(args) {
     MobileAxisContent(
         state = state,
         contentKey = folderKey,
