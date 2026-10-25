@@ -476,5 +476,16 @@ internal fun subtitleBottomPadding(frame: DpSize, aspectRatio: Float?, clearance
     return if (clearance > 0.dp) maxOf(default, needed) else default
 }
 
+/**
+ * Where subtitles lay out beside a sheet covering [coveredWidth] at the end: the uncovered part of
+ * the video, at the video's full height. Null when nothing covers it or the video has no shape yet.
+ */
+internal fun subtitleArea(frame: DpSize, aspectRatio: Float?, coveredWidth: Dp): DpSize? {
+    val ratio = aspectRatio?.takeIf { it.isFinite() && it > 0f && coveredWidth > 0.dp } ?: return null
+    val videoHeight = minOf(frame.height, frame.width / ratio)
+    val width = minOf(videoHeight * ratio, frame.width - coveredWidth)
+    return DpSize(width, videoHeight).takeIf { width > 0.dp && videoHeight > 0.dp }
+}
+
 // Between the controls and the lowest subtitle line.
 private val SUBTITLE_AIR = 8.dp

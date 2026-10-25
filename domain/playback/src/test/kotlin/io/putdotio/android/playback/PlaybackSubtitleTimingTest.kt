@@ -4,6 +4,7 @@ import android.os.Handler
 import android.os.Looper
 import androidx.media3.common.C
 import androidx.media3.common.Format
+import androidx.media3.common.text.Cue
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.BaseRenderer
 import androidx.media3.exoplayer.RendererCapabilities
@@ -22,18 +23,35 @@ import org.robolectric.annotation.Config
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 class PlaybackSubtitleTimingTest {
     @Test
-    fun theTextRendererReadsItsCuesAtTheOffsetPosition() {
+    fun theTextRendererReadsItsCuesAheadByTheLead() {
         val text = RecordingRenderer()
-        val renderer = SubtitleOffsetRenderer(text)
+        val renderer = SubtitleLeadRenderer(text)
 
         renderer.render(10_000_000L, 0L)
-        renderer.handleMessage(SubtitleOffsetRenderer.MSG_SET_SUBTITLE_OFFSET, 500_000L)
-        renderer.render(10_000_000L, 0L)
-        renderer.handleMessage(SubtitleOffsetRenderer.MSG_SET_SUBTITLE_OFFSET, -1_300_000L)
+        renderer.handleMessage(SubtitleLeadRenderer.MSG_SET_SUBTITLE_LEAD, 1_300_000L)
         renderer.render(10_000_000L, 0L)
 
-        // Later subtitles read behind the position; sooner ones read ahead of it.
-        assertEquals(listOf(10_000_000L, 9_500_000L, 11_300_000L), text.positions)
+        assertEquals(listOf(10_000_000L, 11_300_000L), text.positions)
+    }
+
+    @Test
+    fun delayedCuesShowWhatPlayedThatLongAgoAndForgetASeek() {
+        val first = listOf(Cue.Builder().setText("first").build())
+        val second = listOf(Cue.Builder().setText("second").build())
+        val cues = DelayedSubtitleCues()
+        cues.record(10_000L, first)
+        cues.record(13_000L, second)
+        cues.record(16_000L, emptyList())
+
+        assertEquals(emptyList<Cue>(), cues.at(10_400L, delayMillis = 500L))
+        assertEquals(first, cues.at(10_500L, delayMillis = 500L))
+        assertEquals(second, cues.at(16_400L, delayMillis = 3_000L))
+        assertEquals(emptyList<Cue>(), cues.at(19_000L, delayMillis = 3_000L))
+        // A seek back replaces what came after it.
+        cues.record(12_000L, second)
+        assertEquals(second, cues.at(15_000L, delayMillis = 3_000L))
+        cues.clear()
+        assertEquals(emptyList<Cue>(), cues.at(20_000L, delayMillis = 500L))
     }
 
     @Test
@@ -49,8 +67,8 @@ class PlaybackSubtitleTimingTest {
 
         val text = renderers.filter { it.trackType == C.TRACK_TYPE_TEXT }
         assertTrue(text.isNotEmpty())
-        assertTrue(text.all { it is SubtitleOffsetRenderer })
-        assertTrue(renderers.filter { it.trackType != C.TRACK_TYPE_TEXT }.none { it is SubtitleOffsetRenderer })
+        assertTrue(text.all { it is SubtitleLeadRenderer })
+        assertTrue(renderers.filter { it.trackType != C.TRACK_TYPE_TEXT }.none { it is SubtitleLeadRenderer })
     }
 }
 

@@ -130,7 +130,8 @@ class MobileSubtitleControlsTest {
             subtitle(key = "os-tr", language = "Turkish", code = "tr", source = "opensubtitles", format = "srt"),
         )
         var selection: SubtitleSelection? = null
-        val defaults = TrackSelectionParameters.Builder().build()
+        val defaults = TrackSelectionParameters.Builder().setPreferredAudioLanguage("de").build()
+        compose.runOnIdle { player.trackSelectionParameters = defaults }
         compose.setContent { SubtitleSheet(player, defaults, sidecar) { selection = it } }
         compose.onNodeWithText("No captions available").assertIsDisplayed()
         // Tracks arrive after the sheet is up.
@@ -164,6 +165,8 @@ class MobileSubtitleControlsTest {
         compose.runOnIdle { assertTrue(C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes) }
         compose.onNode(hasText("English · SDH") and isSelectable()).performClick()
         compose.runOnIdle {
+            // Subtitle choices leave the audio preference alone.
+            assertEquals(listOf("de"), player.trackSelectionParameters.preferredAudioLanguages)
             assertTrue(C.TRACK_TYPE_TEXT !in player.trackSelectionParameters.disabledTrackTypes)
             assertEquals(listOf(2), player.trackSelectionParameters.overrides.getValue(group).trackIndices)
         }

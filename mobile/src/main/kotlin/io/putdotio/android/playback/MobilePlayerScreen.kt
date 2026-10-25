@@ -11,8 +11,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.requiredSize
-import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.foundation.layout.size
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.media3.ui.compose.state.rememberProgressStateWithTickInterval
@@ -80,6 +79,7 @@ import androidx.media3.common.Player as Media3Player
 import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.Tracks
 import androidx.media3.common.VideoSize
+import androidx.media3.common.text.Cue
 import androidx.media3.common.text.CueGroup
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.common.util.Util
@@ -506,6 +506,9 @@ private class ReadyPlayerState(
     var activeFileId by mutableStateOf(player.sessionFileId(sessionHandled))
     var optionsInitialized by mutableStateOf(false)
     var cues by mutableStateOf(player.currentCues.cues)
+
+    /** What showed, by position, for subtitles the viewer delayed. */
+    val cueHistory = DelayedSubtitleCues()
     var videoSize by mutableStateOf(player.videoSize)
     var playbackState by mutableIntStateOf(player.playbackState)
     var keepScreenOn by mutableStateOf(keepScreenOn)
@@ -875,6 +878,16 @@ private fun PlayerListenerEffect(
 
                 override fun onCues(cueGroup: CueGroup) {
                     playerState.cues = cueGroup.cues
+                    playerState.cueHistory.record(player.currentPosition, cueGroup.cues)
+                }
+
+                override fun onPositionDiscontinuity(
+                    oldPosition: Media3Player.PositionInfo,
+                    newPosition: Media3Player.PositionInfo,
+                    reason: Int,
+                ) {
+                    // What showed before a seek no longer lines up with the new position.
+                    if (reason == Media3Player.DISCONTINUITY_REASON_SEEK) playerState.cueHistory.clear()
                 }
 
                 override fun onVideoSizeChanged(size: VideoSize) {
@@ -1077,6 +1090,7 @@ private fun MobileReadyPlayerContent(
                 subtitleTextScale = appearance.textSize.scale,
                 subtitlesBesideSheet = sheet != null,
                 subtitleClearance = footerHeight.takeIf { controlsVisible.value && sheet == null } ?: 0.dp,
+                subtitleDelayMillis = preferences.subtitleOffsetMillis,
             )
         }
         // The window shows only the video and its subtitles; its own menu carries the controls.
@@ -1129,18 +1143,36 @@ private fun MobileReadyPlayerContent(
 }
 
 /**
- * Gives a new player the video's timing, and a changed timing to the playing one, which then reads
- * its subtitles again from where it is.
+ * Sooner subtitles: the text renderer reads ahead by the lead, and a playing player whose lead
+ * changed reads its subtitles again. Later subtitles wait in the cue history instead.
  */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @Composable
 private fun SubtitleOffsetEffect(player: Media3Player, offsetMillis: Long) {
+    val lead = (-offsetMillis).coerceAtLeast(0L)
     val applied = remember(player) { mutableStateOf<Long?>(null) }
-    LaunchedEffect(player, offsetMillis) {
-        player.setSubtitleOffset(offsetMillis, reread = applied.value != null)
-        applied.value = offsetMillis
+    LaunchedEffect(player, lead) {
+        player.setSubtitleLead(lead, reread = applied.value != null)
+        applied.value = lead
     }
 }
+
+/** The cues on screen: as the player shows them, or what it showed [delayMillis] ago. */
+@Composable
+private fun rememberShownCues(playerState: ReadyPlayerState, delayMillis: Long): List<Cue> {
+    if (delayMillis <= 0L) return playerState.cues
+    var shown by remember(playerState) { mutableStateOf(emptyList<Cue>()) }
+    LaunchedEffect(playerState, delayMillis) {
+        while (true) {
+            val position = playerState.player.currentPosition
+            shown = playerState.cueHistory.at(position, delayMillis)
+            delay(DELAYED_CUE_TICK_MILLIS)
+        }
+    }
+    return shown
+}
+
+private const val DELAYED_CUE_TICK_MILLIS = 50L
 
 /**
  * The window shows only the video, so a sheet open when it starts goes with the controls; hidden
@@ -1235,6 +1267,7 @@ private fun BoxScope.MobileVideoLayers(
     subtitleTextScale: Float,
     subtitlesBesideSheet: Boolean,
     subtitleClearance: Dp,
+    subtitleDelayMillis: Long,
 ) {
     val player = playerState.player
     val currentPictureInPicture by rememberUpdatedState(pictureInPicture)
@@ -1297,30 +1330,23 @@ private fun BoxScope.MobileVideoLayers(
             )
         }
     }
-    // Beside an open side sheet the subtitles stay clear of the dimming, centred in the video that
-    // still shows, at the size they play at, so Size and timing previews them as they will look.
+    // Beside an open side sheet the subtitles stay clear of the dimming: they lay out in the video
+    // that still shows, at the video's height, so they wrap there at the size they play at and Size
+    // and timing previews them as they will look.
     BoxWithConstraints(Modifier.fillMaxSize().zIndex(3f)) {
         val frame = DpSize(maxWidth, maxHeight)
+        val aspectRatio = playerState.videoSize.displayAspectRatioOrNull()
         val bottomPadding by animateFloatAsState(
-            subtitleBottomPadding(
-                frame,
-                playerState.videoSize.displayAspectRatioOrNull(),
-                subtitleClearance.takeUnless { pictureInPicture } ?: 0.dp,
-            ),
+            subtitleBottomPadding(frame, aspectRatio, subtitleClearance.takeUnless { pictureInPicture } ?: 0.dp),
             label = "subtitle-clearance",
         )
         val sheetWidth = if (subtitlesBesideSheet) MOBILE_PLAYER_SIDE_SHEET_WIDTH.coerceAtMost(maxWidth) else 0.dp
-        Box(
-            Modifier
-                .fillMaxSize()
-                .padding(end = sheetWidth)
-                .clipToBounds(),
-            contentAlignment = Alignment.Center,
-        ) {
+        val area = subtitleArea(frame, aspectRatio, sheetWidth)
+        Box(Modifier.fillMaxSize().padding(end = sheetWidth), contentAlignment = Alignment.Center) {
             SubtitleCueOverlay(
-                cues = playerState.cues,
-                videoAspectRatio = playerState.videoSize.displayAspectRatioOrNull(),
-                modifier = Modifier.requiredSize(frame),
+                cues = rememberShownCues(playerState, subtitleDelayMillis),
+                videoAspectRatio = area?.let { it.width / it.height } ?: aspectRatio,
+                modifier = area?.let { Modifier.size(it) } ?: Modifier.fillMaxSize(),
                 textScale = subtitleTextScale,
                 bottomPaddingFraction = bottomPadding,
             )

@@ -389,9 +389,10 @@ Back or a tap on the dimmed video closes it. Controls keep 48dp touch targets.
 - Size and timing scales Android's caption size by S, M, L or XL, kept on the
   device for every video; a size other than M also overrides sizes a styled
   subtitle file sets. It shifts this video's subtitles in 0.1 s steps up to
-  10 s either way: the text renderer reads its cues at the shifted position, so
-  subtitles show sooner from the buffered samples, and each change seeks to
-  where the video is so the cues are read again. While a sheet is open the
+  10 s either way. Sooner subtitles come from the text renderer reading ahead in
+  the buffered samples; a change to that lead seeks a millisecond on so the cues
+  are read again. Later subtitles replay what showed that long ago, so right
+  after a seek a delay leaves its first stretch without subtitles. While a sheet is open the
   subtitles stay centred in the uncovered video, at full size; while the
   controls show, they rise above them. A stream that does not name a subtitle's
   source, as HLS does not, lists it under the file.
