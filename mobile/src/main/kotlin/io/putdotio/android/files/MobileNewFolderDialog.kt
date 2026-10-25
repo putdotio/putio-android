@@ -53,7 +53,8 @@ internal class MobileNewFolderRequest(private val folderId: MutableState<Long?>)
      * a shared folder, which takes no new items.
      */
     fun action(creator: FilesFolderCreator?, folder: FilesFolderState): (() -> Unit)? =
-        if (creator == null || folder.summary?.acceptsNewItems == false) null else { { ask(folder.folder.id) } }
+        // Unknown until the folder's first page says who owns it.
+        if (creator == null || folder.summary?.acceptsNewItems != true) null else { { ask(folder.folder.id) } }
 
     fun clear() {
         folderId.value = null
@@ -113,7 +114,8 @@ internal fun MobileNewFolderDialog(
     LaunchedEffect(focus) { focus.requestFocus() }
     val canCreate = name.isNotBlank() && !creating
     val create: () -> Unit = create@{
-        if (!canCreate) return@create
+        // Read the state now, not as composed: two Done presses can land before a recomposition.
+        if (creating || name.isBlank()) return@create
         creating = true
         failure = null
         scope.launch {

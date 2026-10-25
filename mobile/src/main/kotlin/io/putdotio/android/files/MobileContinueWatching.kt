@@ -6,6 +6,7 @@ import androidx.core.content.edit
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
 import io.putdotio.sdk.files.PutioFileType
+import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -130,6 +131,11 @@ internal class MobileContinueWatching(
         return rejected
     }
 
+    /** put.io confirmed the file gone, deleted or moved to Trash from this device. */
+    fun removed(fileId: FilesItemId) {
+        update(mutableEntries.value.filterNot { it.fileId == fileId })
+    }
+
     /** The session ended; nothing it still has in flight writes the row again. */
     fun close() {
         closed = true
@@ -183,17 +189,24 @@ internal class MobileContinueWatchingStore internal constructor(
             }
         }.orEmpty()
 
+    /** The wipe this store was made after; a later one retires it. */
+    private val generation = wipes.get()
+
     override fun write(entries: List<ContinueWatchingEntry>) {
+        // A session being torn down can still finish a read after sign-out wiped the row.
+        if (wipes.get() != generation) return
         preferences.edit { putString(key, entries.toJson().toString()) }
     }
 
     companion object {
         private const val PREFERENCES_NAME = "io.putdotio.android.files.continue-watching"
+        private val wipes = AtomicInteger()
 
         private fun preferences(context: Context): SharedPreferences =
             context.applicationContext.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
 
         fun clearAll(context: Context) {
+            wipes.incrementAndGet()
             preferences(context).edit { clear() }
         }
     }

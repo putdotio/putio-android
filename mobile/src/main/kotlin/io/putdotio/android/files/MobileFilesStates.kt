@@ -40,6 +40,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
@@ -79,6 +80,7 @@ import io.putdotio.android.rememberMobileMotion
 import io.putdotio.sdk.files.PutioFileType
 import java.time.Instant
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.delay
 
 internal const val MOBILE_FILES_CONTINUE_WATCHING_TAG = "mobile-files-continue-watching"
 internal const val MOBILE_FILES_SUMMARY_TAG = "mobile-files-summary"
@@ -400,6 +402,12 @@ private fun MobileOfflineBanner() {
 private fun RetryWhenOnline(onRetry: () -> Unit) {
     val context = LocalContext.current
     val retry by rememberUpdatedState(onRetry)
+    // Also try again on a slow clock: the network may have returned before this was on screen,
+    // or put.io itself was down. The try replaces this screen, so it runs once per failure.
+    LaunchedEffect(Unit) {
+        delay(OFFLINE_RETRY_MILLIS)
+        retry()
+    }
     DisposableEffect(context) {
         val connectivity = context.getSystemService(ConnectivityManager::class.java)
         // Registration reports the current network at once. Only a network that was missing or
@@ -478,6 +486,7 @@ internal fun DownloadsState.onDeviceItems(): List<FilesItem> =
     }
 
 private const val CONTINUE_WATCHING_ITEMS = 3
+private const val OFFLINE_RETRY_MILLIS = 30_000L
 private val CONTINUE_WATCHING_CARD_WIDTH = 172.dp
 private val SKELETON_ROW_HEIGHT = 72.dp
 private val EMPTY_BOTTOM_PADDING = 80.dp

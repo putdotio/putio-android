@@ -972,6 +972,20 @@ class MobileShellFilesTest {
     }
 
     @Test
+    fun theOrderWordsFollowTheFieldAndKeepIt() {
+        val events = mutableListOf<FilesBrowserEvent>()
+        compose.setShell(filesState = readyFilesState(FilesSort.SIZE_ASCENDING), onFilesEvent = events::add)
+
+        compose.onNodeWithTag(MOBILE_FILES_SORT_TAG).performClick()
+        compose.onNodeWithText("Size").assertIsSelected()
+        compose.onNodeWithText("Smallest first").assertIsSelected()
+        compose.onAllNodesWithText("A to Z").assertCountEquals(0)
+        compose.onNodeWithText("Largest first").performScrollTo().performClick()
+
+        assertEquals(FilesBrowserEvent.SelectSort(FilesSort.SIZE_DESCENDING), events.last())
+    }
+
+    @Test
     fun failedSortReloadCanSelectTheDisplayedSort() {
         val ready = readyFilesState(FilesSort.NAME_ASCENDING)
         val failed = ready.copyForTest(

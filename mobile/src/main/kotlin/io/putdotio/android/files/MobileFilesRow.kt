@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -36,6 +37,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.MobileMiddleCutText
 import io.putdotio.android.R
@@ -149,9 +151,21 @@ private fun MobileFilesMeta(item: FilesItem, onDevice: Boolean) {
     val watched = item.playback?.isWatched == true
     val style = MaterialTheme.typography.bodySmall
     val color = MaterialTheme.colorScheme.onSurfaceVariant
-    val parts = buildList<@Composable () -> Unit> {
+    val parts = buildList<@Composable RowScope.() -> Unit> {
         size?.let { add { Text(it, style = style.putioMono(), color = color, maxLines = 1) } }
-        date?.let { add { Text(it, style = style, color = color, maxLines = 1) } }
+        // The date gives way first, so the glyphs after it keep their room at large text sizes.
+        date?.let {
+            add {
+                Text(
+                    it,
+                    style = style,
+                    color = color,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+            }
+        }
         if (watched) {
             add {
                 Icon(

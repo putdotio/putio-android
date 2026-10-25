@@ -25,6 +25,7 @@ import io.putdotio.android.downloads.OfflinePositionsResume
 import io.putdotio.android.downloads.OfflineResume
 import io.putdotio.android.files.FilesBrowserController
 import io.putdotio.android.files.FilesBrowserEvent
+import io.putdotio.android.files.FilesDeleteStatus
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.MobileContinueWatching
 import io.putdotio.android.files.MobileContinueWatchingStore
@@ -79,6 +80,8 @@ import io.putdotio.android.widgets.MobileWidgets
 import io.putdotio.sdk.files.PutioCredentialUrl
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -390,6 +393,18 @@ private fun SavedPositionEffects(
         if (continueWatching?.reconcile(filesRepository::resolveItem) != null) {
             authController.rejectAuthoritativeSession()
         }
+    }
+    // A delete the fresh read confirmed takes the video out of Continue watching too.
+    LaunchedEffect(filesController, continueWatching) {
+        val row = continueWatching ?: return@LaunchedEffect
+        filesController.state
+            .map { state ->
+                state.stack.mapNotNull { folder ->
+                    folder.deleteOutcome?.takeIf { it.status == FilesDeleteStatus.NO_LONGER_AVAILABLE }?.intent?.itemId
+                }
+            }
+            .distinctUntilChanged()
+            .collect { gone -> gone.forEach(row::removed) }
     }
 }
 

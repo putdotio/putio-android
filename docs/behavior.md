@@ -312,17 +312,20 @@ it, and leaves when put.io accepts 0 or a position within 5 % or 10 s of the
 end, the bounds TV's Watch Next uses. The row keeps the 10 most recent, per
 user, in private storage that sign-out clears. Once per session, the app
 reads each entry's file: a 404 removes it, a position saved elsewhere moves
-or removes it, other failures keep it, and a 401 stops the pass. A card plays
-the video, which offers to resume.
+or removes it, other failures keep it, and a 401 rejects the session. A
+delete Files confirms removes the entry too. A card plays the video, which
+offers to resume.
 
 **Offline.** When a folder can't load because the network is down, it shows
-`(x_x)` "Can't reach put.io." with Try now, and retries by itself once the
-system reports a validated network. At the root, finished downloads list
-above it under "Offline. Showing what's on this device." and play from the
-device.
+`(x_x)` "Can't reach put.io." with Try now. It retries by itself 30 s after
+each failure, and at once when a missing or unvalidated network validates. At
+the root, finished downloads list above it under "Offline. Showing what's on
+this device." and play from the device. A refresh or a page that fails after
+the folder loaded keeps the rows and offers Retry on its line.
 
 Tests: `FilesBrowserReducerTest`, `SdkFilesRepositoryTest`,
-`SearchControllerTest`, `MobileContinueWatchingTest`, `MobileMiddleCutTest`,
+`SearchControllerTest`, `MobileContinueWatchingTest`,
+`MobileContinueWatchingStoreTest`, `MobileMiddleCutTest`, `MobileFileSizeTest`,
 `MobileFilesScreenTest`, `MobileFilesBarsTest`, `MobileShellTest`.
 
 ## Trash
