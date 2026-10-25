@@ -125,6 +125,8 @@ internal fun MobilePlayerScreen(
     onNextEpisode: () -> Unit = {},
     neighbours: PlaybackNeighbours = PlaybackNeighbours(),
     onPlay: (PlaybackTarget) -> Unit = {},
+    /** Hands the original to VLC when this player can't play it; null where VLC isn't offered. */
+    onOpenInVlc: (() -> Unit)? = null,
 ) {
     // Like iOS, the window turns only for a landscape video; the last shape holds across autoplay.
     var landscapeVideo by rememberSaveable { mutableStateOf(false) }
@@ -229,6 +231,7 @@ internal fun MobilePlayerScreen(
                     failure = content.failure,
                     onRetry = onRetry,
                     video = isVideo,
+                    onOpenInVlc = onOpenInVlc,
                 )
         }
 

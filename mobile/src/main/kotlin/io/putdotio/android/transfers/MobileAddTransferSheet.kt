@@ -71,6 +71,7 @@ import io.putdotio.android.design.putioMono
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesRepository
 import io.putdotio.android.files.mobileMessage
+import io.putdotio.android.neutralTextButtonColors
 import kotlinx.coroutines.launch
 
 internal const val MOBILE_TRANSFER_ADD_FIELD_TAG = "mobile-transfer-add-field"

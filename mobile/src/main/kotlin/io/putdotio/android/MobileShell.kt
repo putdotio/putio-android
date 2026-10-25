@@ -80,6 +80,7 @@ import io.putdotio.android.files.FilesSubtitleLanguages
 import io.putdotio.android.files.isFilesListDetailWidth
 import io.putdotio.android.files.showsFilesListDetail
 import io.putdotio.android.files.MobileContinueWatching
+import io.putdotio.android.files.MobileFilesActionsController
 import io.putdotio.android.files.MobileFilesBarActions
 import io.putdotio.android.files.MobileFilesSearchBar
 import io.putdotio.android.files.MobileFolderTopBar
@@ -120,6 +121,8 @@ import io.putdotio.android.settings.confirmedDefaultSort
 import io.putdotio.android.sharing.MOBILE_PUBLIC_LINKS_ROUTE
 import io.putdotio.android.sharing.MobilePublicLinks
 import io.putdotio.android.share.MobileFileDragOut
+import io.putdotio.android.share.MobileFileShareService
+import io.putdotio.android.share.MobileShareProgressDialog
 import io.putdotio.android.sharing.PublicLinksController
 import io.putdotio.android.transfers.MobileTransferDraft
 import io.putdotio.android.transfers.MobileTransferDropZone
@@ -132,6 +135,7 @@ import io.putdotio.android.transfers.TransfersEvent
 import io.putdotio.android.transfers.TransfersReducer
 import io.putdotio.android.transfers.TransfersState
 import io.putdotio.android.trash.MOBILE_TRASH_ROUTE
+import io.putdotio.android.trash.trashTopBarActions
 import io.putdotio.android.trash.TrashController
 import io.putdotio.android.trash.TrashState
 import kotlinx.coroutines.currentCoroutineContext
@@ -193,6 +197,7 @@ internal fun MobileShell(
     folderCreator: FilesFolderCreator? = null,
     continueWatching: MobileContinueWatching? = null,
     subtitleLanguages: FilesSubtitleLanguages? = null,
+    filesActions: MobileFilesActionsController? = null,
 ) {
     val navController = rememberNavController()
     var rejectedNavigation by remember(sessionId) { mutableStateOf<FilesFailure?>(null) }
@@ -405,6 +410,11 @@ internal fun MobileShell(
                                 searchHistoryState.history,
                                 searchHistoryActions.onHistoryEvent,
                             ),
+                            subpageActions = trashTopBarActions(
+                                backStackEntry?.destination?.route,
+                                trashState,
+                                trashController,
+                            ),
                             downloads = downloadsController?.let {
                                 MobileDownloadsBar(downloadsState, downloadsSelection, it::dispatch)
                             },
@@ -463,6 +473,8 @@ internal fun MobileShell(
                             onNewFolder = requestNewFolder,
                             filesListPaneTopBar = paneTopBar.takeIf { filesListDetail },
                             subtitleLanguages = subtitleLanguages,
+                            filesActions = filesActions,
+                            folderCreator = folderCreator,
                         )
                     }
                 }
@@ -485,6 +497,8 @@ internal fun MobileShell(
         onAuthenticationRequired = onFilesAuthenticationRequired,
     )
     if (!isPlayback) {
+        val shareContext = LocalContext.current.applicationContext
+        MobileShareProgressDialog(onCancel = { MobileFileShareService.cancel(shareContext) })
         MobileNavigationAlerts(
             navigationFailure = rejectedNavigation ?: navigationFailure,
             transfersState = transfersState,
@@ -1027,6 +1041,7 @@ private fun MobileTopBar(
     summary: AnnotatedString?,
     tabActions: (@Composable RowScope.() -> Unit)? = null,
     downloads: MobileDownloadsBar? = null,
+    subpageActions: (@Composable RowScope.() -> Unit)? = null,
 ) {
     val subpageTitle = accountSubpageTitle(route)
     when {
@@ -1034,6 +1049,7 @@ private fun MobileTopBar(
             title = stringResource(subpageTitle),
             onBack = onSubpageBack,
             openNavigation = openNavigation,
+            actions = subpageActions,
         )
         destination == MobileDestination.Downloads && downloads != null -> MobileDownloadsTopBar(
             title = stringResource(destination.labelRes),
@@ -1059,11 +1075,19 @@ private fun MobileTopBar(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun MobileSmallTopBar(title: String, onBack: () -> Unit, openNavigation: (() -> Unit)?) {
+private fun MobileSmallTopBar(
+    title: String,
+    onBack: () -> Unit,
+    openNavigation: (() -> Unit)?,
+    actions: (@Composable RowScope.() -> Unit)? = null,
+) {
     TopAppBar(
         title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         navigationIcon = { MobileBackButton(onClick = onBack) },
-        actions = { openNavigation?.let { MobileNavigationMenuButton(it) } },
+        actions = {
+            openNavigation?.let { MobileNavigationMenuButton(it) }
+            actions?.invoke(this)
+        },
     )
 }
 
@@ -1169,7 +1193,7 @@ private fun historyActions(
 private fun accountSubpageTitle(route: String?): Int? =
     when (route) {
         MOBILE_TRASH_ROUTE -> R.string.mobile_trash_title
-        MOBILE_PUBLIC_LINKS_ROUTE -> R.string.mobile_public_links_manage
+        MOBILE_PUBLIC_LINKS_ROUTE -> R.string.mobile_settings_exclusive_links
         MOBILE_PRIVACY_CONTROLS_ROUTE -> R.string.mobile_settings_privacy_controls
         MOBILE_APP_INFO_ROUTE -> R.string.mobile_settings_about
         else -> null

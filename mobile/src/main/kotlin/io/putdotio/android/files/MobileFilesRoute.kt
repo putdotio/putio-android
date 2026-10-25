@@ -14,6 +14,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import io.putdotio.android.R
 import io.putdotio.android.AuthoritativeSessionFailureEffect
@@ -39,7 +40,6 @@ internal fun MobileFilesRoute(
     downloads: DownloadsState = DownloadsState(),
     onDownloadItem: ((FilesItem) -> Unit)? = null,
     onShareItem: ((FilesItem) -> Unit)? = null,
-    onViewTrash: (() -> Unit)? = null,
     moveTargetStore: FilesMoveTargetStore? = null,
     publicLinks: MobilePublicLinks? = null,
     fileDragOut: MobileFileDragOut? = null,
@@ -52,6 +52,9 @@ internal fun MobileFilesRoute(
     subtitleLanguages: FilesSubtitleLanguages? = null,
     /** The account's confirmed resume setting, which the detail's Resume label follows. */
     resumePlayback: Boolean = true,
+    itemActions: MobileFilesItemActions = MobileFilesItemActions(),
+    /** Lets the Move and Make a copy pickers create a folder; null hides their New folder. */
+    folderCreator: FilesFolderCreator? = null,
 ) {
     val context = LocalContext.current
     // Opening a folder pushes along the shared axis and Back pops; the leaving folder keeps its own state.
@@ -93,13 +96,14 @@ internal fun MobileFilesRoute(
             downloads = downloads,
             onDownloadItem = onDownloadItem,
             onShareItem = onShareItem,
-            onViewTrash = onViewTrash,
             moveTargetStore = moveTargetStore,
             publicLinks = publicLinks,
             fileDragOut = fileDragOut,
             continueWatching = continueWatching,
             onNewFolder = onNewFolder,
             fileOpening = fileOpening,
+            itemActions = itemActions,
+            folderCreator = folderCreator,
         )
     if (listPaneTopBar == null) {
         folders(foldersArgs)
@@ -198,13 +202,14 @@ private data class MobileFilesFoldersArgs(
     val downloads: DownloadsState,
     val onDownloadItem: ((FilesItem) -> Unit)?,
     val onShareItem: ((FilesItem) -> Unit)?,
-    val onViewTrash: (() -> Unit)?,
     val moveTargetStore: FilesMoveTargetStore?,
     val publicLinks: MobilePublicLinks?,
     val fileDragOut: MobileFileDragOut?,
     val continueWatching: List<ContinueWatchingEntry>,
     val onNewFolder: (() -> Unit)?,
     val fileOpening: MobileFilesOpening?,
+    val itemActions: MobileFilesItemActions,
+    val folderCreator: FilesFolderCreator?,
 )
 
 @Composable
@@ -229,13 +234,14 @@ private fun MobileFilesFolders(args: MobileFilesFoldersArgs) = with(args) {
             downloads = downloads,
             onDownloadItem = onDownloadItem?.let { download -> { item -> if (!leaving) download(item) } },
             onShareItem = onShareItem?.let { share -> { item -> if (!leaving) share(item) } },
-            onViewTrash = onViewTrash?.let { view -> { if (!leaving) view() } },
             moveTargetStore = moveTargetStore,
             publicLinks = publicLinks,
             fileDragOut = fileDragOut,
             continueWatching = continueWatching,
             onNewFolder = onNewFolder?.takeUnless { leaving },
             fileOpening = fileOpening?.takeUnless { leaving },
+            itemActions = itemActions,
+            folderCreator = folderCreator,
         )
     }
 }
@@ -251,13 +257,14 @@ private fun MobileFilesFolder(
     downloads: DownloadsState,
     onDownloadItem: ((FilesItem) -> Unit)?,
     onShareItem: ((FilesItem) -> Unit)?,
-    onViewTrash: (() -> Unit)?,
     moveTargetStore: FilesMoveTargetStore?,
     publicLinks: MobilePublicLinks?,
     fileDragOut: MobileFileDragOut?,
     continueWatching: List<ContinueWatchingEntry>,
     onNewFolder: (() -> Unit)?,
     fileOpening: MobileFilesOpening?,
+    itemActions: MobileFilesItemActions,
+    folderCreator: FilesFolderCreator?,
 ) {
     key(repository, state.current.folder.id.value) {
         var movingItemId by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -279,14 +286,19 @@ private fun MobileFilesFolder(
             downloads = downloads,
             onDownloadItem = onDownloadItem,
             onShareItem = onShareItem,
-            onViewTrash = onViewTrash,
             onCopyItem = if (repository == null) null else { item -> copyingItemId = item.id.value },
             onPublicLinkItem = publicLinks?.let { { item -> publicLinkItemId = item.id.value } },
             fileDragOut = fileDragOut,
             continueWatching = continueWatching,
             onNewFolder = onNewFolder,
             fileOpening = fileOpening,
+            itemActions = itemActions,
         )
+        // A folder made in the picker is new to every cached listing of its parent. Those listings
+        // read again once the picker closes: a reload now could drop the item it is moving or copying.
+        val createdInPicker = remember { PickerCreatedFolders() }
+        val pickerFolders = MobileMovePickerFolders(folderCreator, onAuthenticationRequired, createdInPicker::add)
+        val closePicker = { createdInPicker.invalidate(onEvent) }
         if (movingItem != null && repository != null) {
             MobileFilesMoveSession(
                 item = movingItem,
@@ -296,7 +308,11 @@ private fun MobileFilesFolder(
                 targetStore = moveTargetStore,
                 onAuthenticationRequired = onAuthenticationRequired,
                 onEvent = onEvent,
-                onDismiss = { movingItemId = null },
+                onDismiss = {
+                    movingItemId = null
+                    closePicker()
+                },
+                folders = pickerFolders,
             )
         }
         if (copyingItem != null && repository != null) {
@@ -308,11 +324,25 @@ private fun MobileFilesFolder(
                 targetStore = moveTargetStore,
                 onAuthenticationRequired = onAuthenticationRequired,
                 onEvent = onEvent,
-                onDismiss = { copyingItemId = null },
+                onDismiss = {
+                    copyingItemId = null
+                    closePicker()
+                },
+                folders = pickerFolders,
             )
         }
         if (publicLinkItem != null && publicLinks != null) {
-            MobilePublicLinkSheet(publicLinkItem, publicLinks, onDismiss = { publicLinkItemId = null })
+            MobilePublicLinkSheet(
+                item = publicLinkItem,
+                publicLinks = publicLinks,
+                onDismiss = { publicLinkItemId = null },
+                onCopied = itemActions.onLinkCopied?.let { announce ->
+                    {
+                        publicLinkItemId = null
+                        announce()
+                    }
+                },
+            )
         }
     }
 }
@@ -331,6 +361,7 @@ private fun MobileFilesCopySession(
     onAuthenticationRequired: suspend () -> Unit,
     onEvent: (FilesBrowserEvent) -> Boolean,
     onDismiss: () -> Unit,
+    folders: MobileMovePickerFolders,
 ) {
     val scope = rememberCoroutineScope()
     val memory = rememberMoveTargetMemory(targetStore, item.id)
@@ -367,11 +398,11 @@ private fun MobileFilesCopySession(
             }
         },
         canSubmit = canSubmit && !finished && !sessionFailure,
-        title = stringResource(R.string.mobile_files_make_copy),
-        confirmLabel = stringResource(R.string.mobile_files_copy_here),
-        sourceName = item.name,
+        title = pluralStringResource(R.plurals.mobile_files_copy_title, 1, 1),
+        confirmLabel = { stringResource(R.string.mobile_files_copy_to, it) },
         rememberTarget = targetStore?.let { memory.value.remember },
         onRememberTargetChange = { memory.setRemember(targetStore, it) },
+        folders = folders,
     )
 }
 
@@ -385,6 +416,7 @@ private fun MobileFilesMoveSession(
     onAuthenticationRequired: suspend () -> Unit,
     onEvent: (FilesBrowserEvent) -> Boolean,
     onDismiss: () -> Unit,
+    folders: MobileMovePickerFolders,
 ) {
     val scope = rememberCoroutineScope()
     val memory = rememberMoveTargetMemory(targetStore, item.id)
@@ -424,6 +456,7 @@ private fun MobileFilesMoveSession(
         },
         rememberTarget = targetStore?.let { memory.value.remember },
         onRememberTargetChange = { memory.setRemember(targetStore, it) },
+        folders = folders,
     )
 }
 
@@ -448,5 +481,19 @@ private fun MutableState<FilesMoveTargetMemory>.choose(store: FilesMoveTargetSto
     if (chosen != value) {
         value = chosen
         store?.write(chosen)
+    }
+}
+
+/** Folders made in an open picker; their parents' listings go stale once it closes. */
+private class PickerCreatedFolders {
+    private val folders = mutableListOf<FilesItem>()
+
+    fun add(folder: FilesItem) {
+        folders += folder
+    }
+
+    fun invalidate(onEvent: (FilesBrowserEvent) -> Boolean) {
+        folders.forEach { onEvent(FilesBrowserEvent.InvalidateRestoredItem(it)) }
+        folders.clear()
     }
 }

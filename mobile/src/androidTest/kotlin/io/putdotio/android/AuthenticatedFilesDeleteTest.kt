@@ -178,7 +178,8 @@ class AuthenticatedFilesDeleteTest {
     private fun confirmOrCancel(fixture: DeleteProofFixture, name: String, cancel: Boolean) {
         // Folders have no overflow button; a long-press opens the same sheet for any row.
         compose.onNode(row(MOBILE_FILES_LIST_TAG, name)).performTouchInput { longClick() }
-        val action = if (fixture.expectedTrashEnabled) R.string.mobile_files_trash else R.string.mobile_files_delete
+        val action =
+            if (fixture.expectedTrashEnabled) R.string.mobile_files_trash else R.string.mobile_files_delete_permanently
         val actionLabel = compose.activity.getString(action)
         waitFor(hasText(actionLabel))
         if (fixture.expectedTrashEnabled) {
@@ -194,11 +195,11 @@ class AuthenticatedFilesDeleteTest {
             return
         }
         compose.onNodeWithText(actionLabel).performClick()
-        val message = compose.activity.getString(R.string.mobile_files_delete_confirmation, name)
+        val message = compose.activity.getString(R.string.mobile_files_delete_permanently_message)
         waitFor(hasText(message))
         deleteProofScreenshot(if (cancel) "cancel-confirmation" else "action-confirmation")
         compose.onNodeWithText(compose.activity.getString(
-            if (cancel) R.string.mobile_action_cancel else R.string.mobile_files_confirm_action)).performClick()
+            if (cancel) R.string.mobile_action_cancel else R.string.mobile_files_delete)).performClick()
         compose.waitUntil(TIMEOUT) { compose.onAllNodes(hasText(message)).fetchSemanticsNodes().isEmpty() }
         if (cancel) row(MOBILE_FILES_LIST_TAG, name)
     }

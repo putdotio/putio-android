@@ -14,8 +14,8 @@ import io.putdotio.android.account.MobileAndroidAppConfigViewModel
 import io.putdotio.android.auth.MobileAuthController
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.auth.MobileAuthState
-import io.putdotio.android.auth.MobileSessionKey
 import io.putdotio.android.auth.MobileOAuthRuntime
+import io.putdotio.android.auth.MobileSessionKey
 import io.putdotio.android.downloads.DownloadsController
 import io.putdotio.android.downloads.DownloadsEvent
 import io.putdotio.android.downloads.MobileDownloadCache
@@ -29,9 +29,14 @@ import io.putdotio.android.files.FilesDeleteStatus
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.MobileContinueWatching
 import io.putdotio.android.files.MobileContinueWatchingStore
+import io.putdotio.android.files.MobileFilesActionSources
+import io.putdotio.android.files.MobileFilesActionsController
 import io.putdotio.android.files.MobileFilesViewModel
+import io.putdotio.android.files.MobileVlcIntentHandoff
 import io.putdotio.android.files.SdkFilesRepository
 import io.putdotio.android.files.SdkFilesSubtitleLanguages
+import io.putdotio.android.files.SdkFilesStreamUrls
+import io.putdotio.android.files.SdkFilesWatchedRepository
 import io.putdotio.android.files.authoritativeSessionFailure
 import io.putdotio.android.history.HistoryEvent
 import io.putdotio.android.history.SdkHistoryRepository
@@ -77,6 +82,7 @@ import io.putdotio.android.transfers.TransfersState
 import io.putdotio.android.trash.MobileTrashViewModel
 import io.putdotio.android.trash.SdkTrashRepository
 import io.putdotio.android.trash.TrashController
+import io.putdotio.android.trash.TrashRepository
 import io.putdotio.android.widgets.MobileWidgets
 import io.putdotio.sdk.files.PutioCredentialUrl
 import kotlinx.coroutines.CoroutineScope
@@ -87,6 +93,7 @@ import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
+import io.putdotio.android.playback.PlaybackRepositoryResult
 
 @Composable
 internal fun SignedInMobileRoot(
@@ -179,6 +186,31 @@ internal fun SignedInMobileRoot(
             MobileContinueWatchingStore(downloadsContext, account.userId)
         }
     }
+    val filesActions =
+        remember(filesViewModel, filesController, trashRepository, continueWatching, account.userId, sessionId) {
+            filesController?.let { browser ->
+                filesViewModel.actionsFor(account.userId, sessionId) { scope ->
+                    MobileFilesActionsController(
+                        scope = scope,
+                        sources = MobileFilesActionSources(
+                            watched = SdkFilesWatchedRepository(runtime.putioClient),
+                            streamUrls = SdkFilesStreamUrls(runtime.putioClient),
+                            trash = trashRepository,
+                        ),
+                        onFilesEvent = browser::dispatch,
+                        onPositionSaved = { fileId, seconds ->
+                            // Finished or cleared, the video leaves Continue watching; an offline position follows.
+                            continueWatching?.positionSaved(fileId, seconds)
+                            runtime.offlinePositions?.afterWrite(
+                                account.userId, fileId.value, seconds, PlaybackRepositoryResult.Success(Unit),
+                            )
+                        },
+                        onAuthenticationRequired = authController::rejectAuthoritativeSession,
+                        handoff = MobileVlcIntentHandoff(downloadsContext),
+                    )
+                }
+            }
+        }
     // Each view model hands out null once its session is no longer current.
     val controllersReady = trashController != null && filesController != null &&
         accountSettingsController != null && appConfigController != null &&
@@ -207,6 +239,7 @@ internal fun SignedInMobileRoot(
         deepLinkRequests = deepLinkRequests,
         transferDraft = transferDraft,
         continueWatching = continueWatching,
+        filesActions = filesActions,
     )
 }
 
@@ -231,6 +264,7 @@ private fun SignedInMobileSession(
     deepLinkRequests: MobileDeepLinkRequests,
     transferDraft: MobileTransferDraft,
     continueWatching: MobileContinueWatching?,
+    filesActions: MobileFilesActionsController?,
 ) {
     val account = signedIn.account
     val sessionId = signedIn.sessionId
@@ -337,6 +371,7 @@ private fun SignedInMobileSession(
         folderCreator = filesRepository,
         continueWatching = continueWatching,
         subtitleLanguages = remember(runtime.putioClient) { SdkFilesSubtitleLanguages(runtime.putioClient) },
+        filesActions = filesActions,
         sessionId = sessionId,
         onFilesEvent = filesController::dispatch,
         onAccountSettingsEvent = accountSettingsController::dispatch,

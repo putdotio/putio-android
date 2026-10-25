@@ -85,7 +85,7 @@ class MobileFilesMoveLayoutTest {
         }
 
         val layouts = mutableListOf<TextLayoutResult>()
-        compose.onNodeWithText(requireNotNull(state.sourceItem).name)
+        compose.onNodeWithText("Move 1 item")
             .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
         assertEquals(
             "The dialog must actually render at 200% font scale",

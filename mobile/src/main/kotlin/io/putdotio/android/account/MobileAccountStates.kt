@@ -48,7 +48,7 @@ import io.putdotio.android.settings.TunnelRouteName
 import io.putdotio.android.settings.VideoPlaybackType
 import io.putdotio.android.settings.apiReason
 import io.putdotio.android.settings.putioFailure
-import io.putdotio.android.transfers.neutralTextButtonColors
+import io.putdotio.android.neutralTextButtonColors
 
 /** [template] with its `%1$s`, `%2$s`… slots filled by [values] in [mono]. */
 internal fun monoArguments(template: String, mono: SpanStyle, vararg values: String): AnnotatedString =

@@ -237,7 +237,7 @@ private fun MobileFilesDetailButtons(
         actions.onShare?.let { share ->
             MobileFilesDetailTonalButton(
                 icon = R.drawable.ic_ph_share_network,
-                label = stringResource(R.string.mobile_files_detail_share),
+                label = stringResource(R.string.mobile_files_share_action),
                 tag = MOBILE_FILES_DETAIL_SHARE_TAG,
                 onClick = { share(item) },
             )
@@ -264,7 +264,7 @@ private fun primaryAction(item: FilesItem, resumePlayback: Boolean): Pair<Int, A
     return when {
         resumeAt != null -> DesignR.drawable.ic_ph_play_fill to resumeLabel(resumeAt)
         item.isPlayable ->
-            DesignR.drawable.ic_ph_play_fill to AnnotatedString(stringResource(R.string.mobile_files_detail_play))
+            DesignR.drawable.ic_ph_play_fill to AnnotatedString(stringResource(R.string.mobile_files_play))
         else -> R.drawable.ic_ph_arrow_square_out to AnnotatedString(stringResource(R.string.mobile_files_detail_open))
     }
 }
@@ -296,7 +296,7 @@ private data class DetailDownload(@param:DrawableRes val icon: Int, val label: S
 private fun downloadAction(status: DownloadStatus?): DetailDownload =
     when (status) {
         null, is DownloadStatus.Failed, DownloadStatus.Missing ->
-            DetailDownload(DOWNLOAD_ICON, stringResource(R.string.mobile_files_detail_download), enabled = true)
+            DetailDownload(DOWNLOAD_ICON, stringResource(R.string.mobile_files_download_action), enabled = true)
         is DownloadStatus.Completed ->
             DetailDownload(DOWNLOADED_ICON, stringResource(R.string.mobile_files_downloaded), enabled = false)
         else -> DetailDownload(DOWNLOAD_ICON, stringResource(R.string.mobile_files_downloading), enabled = false)

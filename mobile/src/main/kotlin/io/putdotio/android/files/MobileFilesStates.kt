@@ -337,6 +337,8 @@ internal fun MobileFilesOffline(
     modifier: Modifier = Modifier,
     /** The failure on screen; each new one restarts the retry clock. */
     failure: Any? = null,
+    /** Opens a row's sheet of what works offline. */
+    onActions: ((FilesItem) -> Unit)? = null,
 ) {
     onRetry?.let { RetryWhenOnline(failure, it) }
     LazyColumn(modifier = modifier.fillMaxSize().testTag(MOBILE_FILES_OFFLINE_TAG)) {
@@ -347,6 +349,7 @@ internal fun MobileFilesOffline(
                     item = item,
                     downloadStatus = DownloadStatus.Completed(item.sizeBytes),
                     onClick = if (item.isPlayable) ({ onPlayMedia(item) }) else null,
+                    onActions = onActions?.let { open -> { open(item) } },
                     onClickLabel = stringResource(R.string.mobile_files_play_media, item.name)
                         .takeIf { item.isPlayable },
                 )

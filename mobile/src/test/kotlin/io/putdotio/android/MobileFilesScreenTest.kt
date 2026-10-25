@@ -14,6 +14,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasProgressBarRangeInfo
 import androidx.compose.ui.test.junit4.ComposeContentTestRule
@@ -81,6 +82,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.unit.dp
+import io.putdotio.android.files.MOBILE_FILES_RENAME_CONFIRM_TAG
 
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -107,7 +109,7 @@ class MobileFilesScreenTest {
         assertEquals(2f, layouts.single().layoutInput.density.fontScale)
         compose.onNodeWithText("Rename").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Move").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("Delete").performScrollTo().assertIsDisplayed().performClick()
+        compose.onNodeWithText("Delete permanently").performScrollTo().assertIsDisplayed().performClick()
         compose.onNodeWithText("Cancel").assertIsDisplayed()
     }
 
@@ -202,7 +204,7 @@ class MobileFilesScreenTest {
         field.assertTextContains("old.mkv").assertIsFocused()
         field.performTextReplacement("  Türkçe.mp4  ")
         field.performImeAction()
-        compose.onNodeWithText("Save").assertDoesNotExist()
+        compose.onNodeWithTag(MOBILE_FILES_RENAME_CONFIRM_TAG).assertTextEquals("Renaming…").assertIsNotEnabled()
         field.assertIsNotEnabled()
         compose.runOnIdle {
             assertEquals(1, effects.size)
@@ -213,7 +215,7 @@ class MobileFilesScreenTest {
             )).state
         }
         field.assertIsEnabled().assertTextContains("  Türkçe.mp4  ")
-        compose.onNodeWithText("Save").performClick()
+        compose.onNodeWithTag(MOBILE_FILES_RENAME_CONFIRM_TAG).performClick()
         compose.runOnIdle {
             val renamed = effects.last() as FilesBrowserEffect.Rename
             val reload = FilesBrowserReducer.reduce(state, FilesBrowserEvent.MutationSucceeded(renamed.requestId))
@@ -269,7 +271,7 @@ class MobileFilesScreenTest {
         compose.onNodeWithTag(MOBILE_FILES_RENAME_FIELD_TAG)
             .assertTextContains("folder")
             .performTextReplacement("renamed folder")
-        compose.onNodeWithText("Save").performClick()
+        compose.onNodeWithTag(MOBILE_FILES_RENAME_CONFIRM_TAG).performClick()
         compose.onNodeWithTag(MOBILE_FILES_RENAME_FIELD_TAG).assertDoesNotExist()
         compose.onNodeWithText("renamed folder").assertIsDisplayed()
         compose.runOnIdle { assertEquals(1, renamed.size) }

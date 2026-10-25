@@ -236,7 +236,7 @@ private const val ONE_DECIMAL_BELOW = 100.0
 private const val TENTHS = 10.0
 
 /** "Oct 13" this year, "Oct 13, 2024" before it. */
-private fun String.toDisplayDate(context: Context): String? =
+internal fun String.toDisplayDate(context: Context): String? =
     parsePutioTimestamp(this)
         ?.toEpochMilli()
         ?.let { timestamp ->

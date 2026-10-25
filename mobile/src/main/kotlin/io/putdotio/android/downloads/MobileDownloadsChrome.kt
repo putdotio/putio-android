@@ -60,7 +60,7 @@ import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.putioMono
 import io.putdotio.android.files.FilesItemId
-import io.putdotio.android.transfers.neutralTextButtonColors
+import io.putdotio.android.neutralTextButtonColors
 
 internal const val MOBILE_DOWNLOADS_OVERFLOW_TAG = "mobile-downloads-overflow"
 internal const val MOBILE_DOWNLOADS_SELECT_TAG = "mobile-downloads-select"

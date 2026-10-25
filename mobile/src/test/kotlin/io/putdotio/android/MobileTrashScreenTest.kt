@@ -33,9 +33,11 @@ import io.putdotio.android.trash.TrashRestoreCheck
 import io.putdotio.android.trash.TrashRestoreOutcome
 import io.putdotio.android.trash.TrashRestoreSubmission
 import io.putdotio.android.trash.TrashState
-import io.putdotio.android.trash.trashDisplayDate
+import io.putdotio.android.trash.trashDaysLeft
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
+import java.time.LocalDate
+import java.time.ZoneId
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Rule
@@ -156,40 +158,38 @@ class MobileTrashScreenTest {
     fun trashStatesWebsFourteenDayRetention() {
         var state by mutableStateOf(TrashState(content = TrashContent.Loaded(emptyList(), null, 0, 0)))
         compose.setContent { PutioTheme { MobileTrashScreen(state, { true }) } }
-        compose.onNodeWithText("Heads up: Files in trash have an expiry date of 14 days.").assertIsDisplayed()
+        compose.onNodeWithText("deleted items stay 14 days").assertIsDisplayed()
         compose.onNodeWithText("Your trash is empty").assertIsDisplayed()
         compose.onNodeWithText("When you send files to trash, we keep them here for 14 days.").assertIsDisplayed()
 
         compose.runOnIdle { state = TrashState(content = loaded) }
-        compose.onNodeWithText("Heads up: Files in trash have an expiry date of 14 days.").assertIsDisplayed()
+        compose.onNodeWithText("deleted items stay 14 days").assertIsDisplayed()
         compose.onNodeWithText("Your trash is empty").assertDoesNotExist()
     }
 
     @Test
     fun missingAndInvalidExpirationNeverProduceADeadline() {
-        val context = RuntimeEnvironment.getApplication()
-        assertNull("not-a-date".trashDisplayDate(context))
-        assertNull("2026-99-99".trashDisplayDate(context))
+        val today = LocalDate.of(2026, 9, 6)
+        assertNull("not-a-date".trashDaysLeft(today))
+        assertNull("2026-99-99".trashDaysLeft(today))
         val state = TrashState(
             content = loaded.copy(items = listOf(item.copy(expirationDate = "invalid", deletedAt = null))),
         )
         compose.setContent { PutioTheme { MobileTrashScreen(state, { true }) } }
-        compose.onNodeWithText("Expires", substring = true).assertDoesNotExist()
-        compose.onNodeWithText("Deleted", substring = true).assertDoesNotExist()
+        compose.onNodeWithText("Gone", substring = true).assertDoesNotExist()
     }
 
     @Test
-    fun backendNaiveUtcDatesDisplayTheSameDatesAsExplicitUtc() {
-        val context = RuntimeEnvironment.getApplication()
-        val deleted = "2026-09-06T10:00:00"
+    fun backendNaiveUtcDatesCountTheSameDaysAsExplicitUtc() {
+        val today = LocalDate.of(2026, 9, 6)
+        val utc = ZoneId.of("UTC")
         val expires = "2026-09-20T10:00:00"
-        assertEquals("${deleted}Z".trashDisplayDate(context), deleted.trashDisplayDate(context))
-        val state = TrashState(content = loaded.copy(items = listOf(item.copy(
-            deletedAt = deleted, expirationDate = expires))))
+        assertEquals(14L, expires.trashDaysLeft(today, utc))
+        assertEquals("${expires}Z".trashDaysLeft(today, utc), expires.trashDaysLeft(today, utc))
+        assertEquals(0L, "2026-09-01".trashDaysLeft(today, utc))
+        val tomorrow = LocalDate.now().plusDays(1).toString()
+        val state = TrashState(content = loaded.copy(items = listOf(item.copy(expirationDate = tomorrow))))
         compose.setContent { PutioTheme { MobileTrashScreen(state, { true }) } }
-        compose.onNodeWithText(context.getString(R.string.mobile_trash_deleted,
-            "${deleted}Z".trashDisplayDate(context))).assertIsDisplayed()
-        compose.onNodeWithText(context.getString(R.string.mobile_trash_expires,
-            "${expires}Z".trashDisplayDate(context))).assertIsDisplayed()
+        compose.onNodeWithText("Gone tomorrow").assertIsDisplayed()
     }
 }

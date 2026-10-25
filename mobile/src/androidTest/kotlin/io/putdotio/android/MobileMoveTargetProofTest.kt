@@ -65,6 +65,9 @@ import org.junit.rules.RuleChain
 import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
+import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.hasTestTag
+import io.putdotio.android.files.MOBILE_FILES_MOVE_OPTIONS_TAG
 
 /**
  * Synthetic proof of "Remember target folder" through the production Files route, controller,
@@ -113,10 +116,10 @@ class MobileMoveTargetProofTest {
 
             openPicker(CLIP.name, "Move")
             awaitFolderRow(SAMPLE_FOLDER)
-            compose.onNodeWithTag(MOBILE_FILES_MOVE_REMEMBER_TAG).assertIsOff()
+            rememberTarget().assertIsOff()
             screenshot("01-move-default-root")
 
-            compose.onNodeWithTag(MOBILE_FILES_MOVE_REMEMBER_TAG).performClick().assertIsOn()
+            rememberTarget().performClick().assertIsOn()
             compose.onNodeWithTag(mobileFilesMoveFolderTag(SAMPLE_FOLDER.id)).performClick()
             awaitFolderRow(ARCHIVE)
             compose.onNodeWithTag(mobileFilesMoveFolderTag(ARCHIVE.id)).performClick()
@@ -134,7 +137,7 @@ class MobileMoveTargetProofTest {
             openPicker(NOTES.name, "Move")
             awaitEmptyFolder()
             compose.onNodeWithTag(MOBILE_FILES_MOVE_FOLDER_TAG).assertTextEquals(ARCHIVE.name)
-            compose.onNodeWithTag(MOBILE_FILES_MOVE_REMEMBER_TAG).assertIsOn()
+            rememberTarget().assertIsOn()
             screenshot("03-move-reopens-at-remembered")
             compose.onNodeWithTag(MOBILE_FILES_MOVE_BACK_TAG).performClick()
             awaitFolderRow(ARCHIVE)
@@ -145,7 +148,7 @@ class MobileMoveTargetProofTest {
             openPicker(SHARED_VIDEO.name, null)
             awaitEmptyFolder()
             compose.onNodeWithTag(MOBILE_FILES_MOVE_FOLDER_TAG).assertTextEquals(ARCHIVE.name)
-            compose.onNodeWithText("Make a copy").assertIsDisplayed()
+            compose.onNodeWithText("Copy 1 item").assertIsDisplayed()
             screenshot("05-copy-reopens-at-remembered")
             compose.onNodeWithTag(MOBILE_FILES_MOVE_CANCEL_TAG).performClick()
 
@@ -153,14 +156,14 @@ class MobileMoveTargetProofTest {
             MobileMoveTargetStore.clearAll(context)
             openPicker(NOTES.name, "Move")
             awaitFolderRow(SAMPLE_FOLDER)
-            compose.onNodeWithTag(MOBILE_FILES_MOVE_REMEMBER_TAG).assertIsOff()
+            rememberTarget().assertIsOff()
             screenshot("06-after-sign-out-root")
             compose.onNodeWithTag(MOBILE_FILES_MOVE_CANCEL_TAG).performClick()
 
             store.write(FilesMoveTargetMemory(true, listOf(FilesFolder(REMOVED_ID, "Removed folder"))))
             openPicker(NOTES.name, "Move")
             awaitFolderRow(SAMPLE_FOLDER)
-            compose.onNodeWithTag(MOBILE_FILES_MOVE_REMEMBER_TAG).assertIsOn()
+            rememberTarget().assertIsOn()
             check(REMOVED_ID in repository.listed) { "Never read the removed folder" }
             screenshot("07-missing-folder-root")
             compose.onNodeWithTag(MOBILE_FILES_MOVE_CANCEL_TAG).performClick()
@@ -214,6 +217,14 @@ class MobileMoveTargetProofTest {
         compose.waitForIdle()
         instrumentation.uiAutomation.waitForIdle(100, 3_000)
         saveProofScreenshot(proofDirectory("move-target-proof-$runId"), label)
+    }
+
+    /** Remember target folder sits in the picker's overflow; opens it first when it is closed. */
+    private fun rememberTarget(): SemanticsNodeInteraction {
+        if (compose.onAllNodes(hasTestTag(MOBILE_FILES_MOVE_REMEMBER_TAG)).fetchSemanticsNodes().isEmpty()) {
+            compose.onNodeWithTag(MOBILE_FILES_MOVE_OPTIONS_TAG).performClick()
+        }
+        return compose.onNodeWithTag(MOBILE_FILES_MOVE_REMEMBER_TAG)
     }
 }
 

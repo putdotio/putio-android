@@ -51,7 +51,7 @@ import androidx.media3.common.Player as Media3Player
 import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.util.UnstableApi
 import io.putdotio.android.R
-import io.putdotio.android.transfers.neutralTextButtonColors
+import io.putdotio.android.neutralTextButtonColors
 import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.design.putioMono
 import androidx.compose.ui.unit.Dp

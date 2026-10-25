@@ -87,7 +87,7 @@ import io.putdotio.android.settings.TunnelRouteOption
 import io.putdotio.android.settings.VideoPlaybackType
 import io.putdotio.android.settings.apiReason
 import io.putdotio.android.settings.putioFailure
-import io.putdotio.android.transfers.neutralTextButtonColors
+import io.putdotio.android.neutralTextButtonColors
 import io.putdotio.android.trash.MOBILE_MANAGE_TRASH_TAG
 
 internal const val MOBILE_ACCOUNT_LIST_TAG = "mobile-account-list"

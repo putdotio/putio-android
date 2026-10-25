@@ -747,7 +747,8 @@ the navigation bar: **Welcome!** as a 40sp medium title on a 48sp line, then
 - **Resume:** "Resume from 18:42?" over the dimmed player, with **Start over**
   and a filled **Resume**.
 - **Player error:** the empty-state voice over the dimmed player, with
-  **Download** as the action.
+  **Open in VLC** as the action for a video the player can't play, or **Try
+  again** when a retry can fix it.
 - **Drop zone:** dragging a link, magnet or .torrent over Transfers shows one
   dashed yellow area: "Drop to add a transfer".
 - **Trash:** days left in each row's meta, **Restore** on the row (it confirms,
@@ -787,24 +788,19 @@ the navigation bar: **Welcome!** as a 40sp medium title on a 48sp line, then
 
 - Expanded search is M3's search input field in the pill's place, not
   `ExpandedFullScreenSearchBar`, and the navigation bar stays under it.
-- The item actions sheet has rows only, no action tiles.
-- Names outside Files, Transfers, Downloads and History wrap instead of being
-  cut in the middle on one line.
-- Rename does not preselect the name up to the extension.
+- Names outside Files, Transfers, Downloads, History, Search, Trash and
+  Exclusive links wrap instead of being cut in the middle on one line.
 - Empty states outside Files, Transfers and Search keep 3.0.0's words and offer
   no action.
-- Search results have no overflow and no long-press actions.
-- The actions sheet has no Play or Resume and no Mark as watched.
-- The Move picker can't create a folder.
-- Moving to Trash offers View Trash in its snackbar, not Undo.
 - Only the player's timestamps, the tab-title summaries, Transfers, Files,
-  Account, Search, and Downloads and History rows set numbers in mono; sizes,
-  speeds and counts elsewhere use the UI face.
+  Account, Search, Downloads and History rows, Trash sizes, Exclusive link
+  expiry and the share dialog's progress set numbers in mono; sizes, speeds and
+  counts elsewhere use the UI face.
 - Transfer cards and Transfer actions show no peer count: the Kotlin SDK's
   `Transfer` has no peers field.
-- Files has no selection mode.
-- The player has no cast button, and its error offers no action: downloads keep
-  the HLS rendition, and Open in VLC is not built.
+- Files has no selection mode, so the actions sheet has no Select.
+- The player has no cast button, and its error has no Download: downloads keep
+  the HLS rendition.
 - The viewers have no Download: Downloads hold video and audio only.
 
 ## Android TV

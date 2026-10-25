@@ -65,6 +65,9 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
+import io.putdotio.android.sharing.mobilePublicLinkMoreTag
+import androidx.compose.ui.test.assertIsEnabled
+import io.putdotio.android.files.MobileFilesItemActions
 
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35], qualifiers = "en-rUS")
@@ -84,12 +87,13 @@ class MobilePublicLinksTest {
 
         compose.onNodeWithContentDescription("Actions for ${friendsFile.name}").performClick()
         compose.onNodeWithTag(MOBILE_FILES_PUBLIC_LINK_ACTION_TAG).assertDoesNotExist()
-        compose.onNodeWithText("Download to this device").performClick()
+        compose.onNodeWithText("Download").performClick()
         compose.onNodeWithContentDescription("Actions for ${sharedRoot.name}").assertDoesNotExist()
 
         compose.openRowActions(folder.name)
         compose.onNodeWithTag(MOBILE_FILES_PUBLIC_LINK_ACTION_TAG).performClick()
-        compose.onNode(hasText(folder.name) and hasAnyAncestorTag(MOBILE_PUBLIC_LINK_SHEET_TAG)).assertIsDisplayed()
+        compose.onNode(hasText(folder.name, substring = true) and hasAnyAncestorTag(MOBILE_PUBLIC_LINK_SHEET_TAG))
+            .assertIsDisplayed()
     }
 
     @Test
@@ -110,7 +114,7 @@ class MobilePublicLinksTest {
             .performScrollToNode(hasTestTag(mobilePublicLinkCopyTag(created.id)))
         compose.onNodeWithTag(mobilePublicLinkCopyTag(created.id)).performClick()
 
-        compose.onNodeWithText("Copied").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Copied").assertIsDisplayed()
         compose.runOnIdle {
             assertEquals(listOf(video.id), repository.created)
             assertEquals(created.url.value, clipboardText())
@@ -162,6 +166,25 @@ class MobilePublicLinksTest {
     }
 
     @Test
+    fun copyingFromFilesClosesTheSheetForFilesToSaySo() {
+        val existing = publicLink(id = 3L, fileId = video.id.value, token = "existing")
+        val repository = FakePublicLinksRepository(listOf(existing))
+        var announced = 0
+        compose.setContent {
+            FilesWithLinks(repository, listOf(video), MobileFilesItemActions(onLinkCopied = { announced++ }))
+        }
+
+        openSheet(video)
+        compose.onNodeWithTag(mobilePublicLinkCopyTag(existing.id)).performClick()
+
+        compose.onNodeWithTag(MOBILE_PUBLIC_LINK_SHEET_TAG).assertDoesNotExist()
+        compose.runOnIdle {
+            assertEquals(1, announced)
+            assertEquals(existing.url.value, clipboardText())
+        }
+    }
+
+    @Test
     fun createWaitsForTheItemsLinksToLoad() {
         val repository = FakePublicLinksRepository()
         repository.onList = { PutioResult.Failure(PutioFailure.NetworkUnavailable(IllegalStateException("offline"))) }
@@ -173,8 +196,7 @@ class MobilePublicLinksTest {
 
         repository.onList = { PutioResult.Success(emptyList()) }
         compose.onNodeWithText("Try again").performClick()
-        compose.onNodeWithText("No links for this item yet.").assertIsDisplayed()
-        compose.onNodeWithTag(MOBILE_PUBLIC_LINK_CREATE_TAG).performClick()
+        compose.onNodeWithTag(MOBILE_PUBLIC_LINK_CREATE_TAG).assertIsEnabled().performClick()
         compose.runOnIdle { assertEquals(listOf(video.id), repository.created) }
     }
 
@@ -190,9 +212,11 @@ class MobilePublicLinksTest {
         compose.onNodeWithTag(MOBILE_PUBLIC_LINKS_LIST_TAG).assertIsDisplayed()
         compose.onNodeWithText(video.name).assertIsDisplayed()
         compose.onNodeWithText(folder.name).assertIsDisplayed()
+        compose.onNodeWithTag(mobilePublicLinkMoreTag(second.id)).performClick()
         compose.onNodeWithTag(mobilePublicLinkRevokeTag(second.id)).performClick()
         compose.onNodeWithTag(MOBILE_PUBLIC_LINK_REVOKE_CONFIRM_TAG).performClick()
         compose.onNodeWithText(folder.name).assertDoesNotExist()
+        compose.onNodeWithTag(mobilePublicLinkMoreTag(first.id)).performClick()
         compose.onNodeWithTag(mobilePublicLinkRevokeTag(first.id)).performClick()
         compose.onNodeWithTag(MOBILE_PUBLIC_LINK_REVOKE_CONFIRM_TAG).performClick()
 
@@ -227,14 +251,18 @@ class MobilePublicLinksTest {
         compose.onNodeWithTag(MOBILE_MANAGE_PUBLIC_LINKS_TAG).performClick()
 
         compose.onNodeWithText(video.name).assertIsDisplayed()
-        compose.onNodeWithText("Exclusive access").assertIsDisplayed()
+        compose.onNodeWithText("Exclusive links").assertIsDisplayed()
         compose.onNodeWithContentDescription("Back").performClick()
         compose.onNodeWithTag(MOBILE_PUBLIC_LINKS_LIST_TAG).assertDoesNotExist()
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).assertIsDisplayed()
     }
 
     @Composable
-    private fun FilesWithLinks(repository: FakePublicLinksRepository, items: List<FilesItem>) {
+    private fun FilesWithLinks(
+        repository: FakePublicLinksRepository,
+        items: List<FilesItem>,
+        itemActions: MobileFilesItemActions = MobileFilesItemActions(),
+    ) {
         PutioTheme {
             WithLinks(repository) { links ->
                 MobileFilesRoute(
@@ -246,6 +274,7 @@ class MobilePublicLinksTest {
                     onAuthenticationRequired = {},
                     onDownloadItem = {},
                     publicLinks = links,
+                    itemActions = itemActions,
                 )
             }
         }

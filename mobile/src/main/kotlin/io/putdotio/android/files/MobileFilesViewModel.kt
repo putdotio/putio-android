@@ -10,6 +10,9 @@ import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.auth.MobileSessionKey
 import io.putdotio.android.auth.sessionKey
 import io.putdotio.android.session.SessionScopedHolder
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.StateFlow
 
 internal class MobileFilesViewModel(
@@ -30,6 +33,14 @@ internal class MobileFilesViewModel(
         close = MobileContinueWatching::close,
     )
 
+    // The sheet's own requests outlive a rotation, so a restore put.io accepted still settles the folder.
+    private val actions = SessionScopedHolder<MobileAuthState, MobileSessionKey, MobileFilesActionsController>(
+        authState = authState,
+        keyOf = MobileAuthState::sessionKey,
+        scope = viewModelScope,
+        close = MobileFilesActionsController::close,
+    )
+
     fun controllerFor(
         userId: Long,
         sessionId: MobileAuthSessionId,
@@ -46,9 +57,20 @@ internal class MobileFilesViewModel(
     ): MobileContinueWatching? =
         continueWatching.valueFor(MobileSessionKey(userId, sessionId)) { MobileContinueWatching(store()) }
 
+    fun actionsFor(
+        userId: Long,
+        sessionId: MobileAuthSessionId,
+        create: (CoroutineScope) -> MobileFilesActionsController,
+    ): MobileFilesActionsController? =
+        actions.valueFor(MobileSessionKey(userId, sessionId)) {
+            val parent = viewModelScope.coroutineContext
+            create(CoroutineScope(parent + SupervisorJob(parent[Job])))
+        }
+
     override fun onCleared() {
         session.clear()
         continueWatching.clear()
+        actions.clear()
     }
 }
 

@@ -233,6 +233,14 @@ public sealed interface FilesBrowserEvent {
         val outcome: FilesDeleteOutcome,
     ) : DeleteEvent
 
+    /**
+     * put.io accepted restoring this Trash move from Trash: the outcome leaves its folder, so a page
+     * that lists the item again is not read as a failed delete, and the folder reads again.
+     */
+    public data class TrashUndone(
+        val outcome: FilesDeleteOutcome,
+    ) : DeleteEvent
+
     public sealed interface MoveEvent : ItemMutationEvent
 
     public data class Move(

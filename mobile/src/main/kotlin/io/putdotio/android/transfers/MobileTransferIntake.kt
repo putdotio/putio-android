@@ -7,8 +7,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.ButtonColors
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -36,6 +34,7 @@ import io.putdotio.android.files.FilesMoveDestinationController
 import io.putdotio.android.files.FilesRepository
 import io.putdotio.android.files.MobileFilesMoveDestination
 import io.putdotio.android.files.authoritativeSessionFailure
+import io.putdotio.android.neutralTextButtonColors
 import io.putdotio.sdk.files.PutioFileType
 
 internal const val MOBILE_TRANSFER_DESTINATION_TAG = "mobile-transfer-destination"
@@ -126,11 +125,6 @@ internal fun MobileTransferTorrentRow(torrent: TorrentUpload, enabled: Boolean, 
     }
 }
 
-/** DESIGN.md keeps every button but the one primary action neutral; Material's text button is yellow. */
-@Composable
-internal fun neutralTextButtonColors(): ButtonColors =
-    ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
-
 /** The Files move picker, choosing where a new transfer saves instead of where an item moves. */
 @Composable
 internal fun MobileTransferDestinationPicker(
@@ -155,7 +149,7 @@ internal fun MobileTransferDestinationPicker(
         },
         canSubmit = !sessionFailure,
         title = stringResource(R.string.mobile_transfers_save_to),
-        confirmLabel = stringResource(R.string.mobile_transfers_save_here),
+        confirmLabel = { stringResource(R.string.mobile_transfers_save_here) },
     )
 }
 

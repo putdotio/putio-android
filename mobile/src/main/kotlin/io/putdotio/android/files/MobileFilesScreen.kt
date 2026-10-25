@@ -19,7 +19,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarDuration
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
@@ -48,6 +47,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.InputMode
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.platform.LocalView
@@ -75,11 +75,13 @@ import io.putdotio.android.design.PutioEmptyGlyph
 import io.putdotio.android.downloads.DownloadsState
 import io.putdotio.android.share.MobileFileDragOut
 import io.putdotio.android.share.MobileFileDragShadow
+import io.putdotio.sdk.files.PutioFolderType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.filterNotNull
+import io.putdotio.android.MobileSnackbarHost
 
 internal const val MOBILE_FILES_LIST_TAG = "mobile-files-list"
 internal const val MOBILE_FILES_OPERATION_RETRY_TAG = "mobile-files-operation-retry"
@@ -98,7 +100,6 @@ internal fun MobileFilesScreen(
     downloads: DownloadsState = DownloadsState(),
     onDownloadItem: ((FilesItem) -> Unit)? = null,
     onShareItem: ((FilesItem) -> Unit)? = null,
-    onViewTrash: (() -> Unit)? = null,
     onCopyItem: ((FilesItem) -> Unit)? = null,
     onPublicLinkItem: ((FilesItem) -> Unit)? = null,
     fileDragOut: MobileFileDragOut? = null,
@@ -108,6 +109,7 @@ internal fun MobileFilesScreen(
     onNewFolder: (() -> Unit)? = null,
     /** How a tap opens a file beyond playing media; null leaves only media playable. */
     fileOpening: MobileFilesOpening? = null,
+    itemActions: MobileFilesItemActions = MobileFilesItemActions(),
 ) {
     val current = state.current
     val atRoot = current.folder.id == FilesFolder.Root.id
@@ -120,9 +122,9 @@ internal fun MobileFilesScreen(
         }
     }
     when (content) {
-        is FilesContent.Loading -> MobileFilesStateWithCopy(state, onEvent, modifier) {
+        is FilesContent.Loading -> MobileFilesStateWithCopy(state, onEvent, itemActions.notices, modifier) {
             if (offline) {
-                MobileFilesOffline(
+                MobileFilesOfflineWithActions(
                     onDevice = if (atRoot) downloads.onDeviceItems() else emptyList(),
                     onRetry = null,
                     onPlayMedia = onPlayMedia,
@@ -132,9 +134,9 @@ internal fun MobileFilesScreen(
             }
         }
 
-        is FilesContent.Failed -> MobileFilesStateWithCopy(state, onEvent, modifier) {
+        is FilesContent.Failed -> MobileFilesStateWithCopy(state, onEvent, itemActions.notices, modifier) {
             if (content.failure is PutioFailure.NetworkUnavailable) {
-                MobileFilesOffline(
+                MobileFilesOfflineWithActions(
                     onDevice = if (atRoot) downloads.onDeviceItems() else emptyList(),
                     onRetry = { onEvent(FilesBrowserEvent.Retry) },
                     onPlayMedia = onPlayMedia,
@@ -157,7 +159,6 @@ internal fun MobileFilesScreen(
                 state, content, onEvent, onPlayMedia, modifier, confirmedTrashEnabled, onMoveItem, downloads,
                 onDownloadItem,
                 onShareItem,
-                onViewTrash,
                 onCopyItem,
                 onPublicLinkItem,
                 fileDragOut,
@@ -167,6 +168,7 @@ internal fun MobileFilesScreen(
                 ),
                 onNewFolder = onNewFolder,
                 fileOpening = fileOpening,
+                itemActions = itemActions,
             )
         }
     }
@@ -183,20 +185,51 @@ internal class MobileFilesOpening(
     val selectedFileId: FilesItemId? = null,
     val actionsRequests: Flow<FilesItemId> = emptyFlow(),
 )
+/** On-device files while put.io is out of reach; each row's sheet offers what works offline. */
+@Composable
+private fun MobileFilesOfflineWithActions(
+    onDevice: List<FilesItem>,
+    onRetry: (() -> Unit)?,
+    onPlayMedia: (FilesItem) -> Unit,
+    failure: Any? = null,
+) {
+    var sheetItemId by rememberSaveable { mutableStateOf<Long?>(null) }
+    MobileFilesOffline(
+        onDevice = onDevice,
+        onRetry = onRetry,
+        onPlayMedia = onPlayMedia,
+        failure = failure,
+        onActions = { sheetItemId = it.id.value },
+    )
+    onDevice.firstOrNull { it.id.value == sheetItemId }?.let { item ->
+        MobileFilesOfflineActions(item, onPlayItem = onPlayMedia, onDismiss = { sheetItemId = null })
+    }
+}
 
 /** A copy outlives folder navigation, so its line stays while the folder loads or fails. */
 @Composable
 private fun MobileFilesStateWithCopy(
     state: FilesBrowserState,
     onEvent: (FilesBrowserEvent) -> Unit,
+    notices: Flow<MobileFilesNotice>,
     modifier: Modifier,
     content: @Composable () -> Unit,
 ) {
-    Column(modifier = modifier.fillMaxSize()) {
-        Box(modifier = Modifier.weight(1f).fillMaxWidth()) { content() }
-        state.copyOutcome?.let {
-            MobileFilesCopyStatus(it, onDismiss = { onEvent(FilesBrowserEvent.DismissCopyOutcome) })
+    Box(modifier = modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            MobileFilesCopyLine(state, onEvent)
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) { content() }
         }
+        // Item actions started from a listing can fail while the next folder loads.
+        MobileFilesNoticeHost(notices, Modifier.align(Alignment.BottomCenter))
+    }
+}
+
+/** A copy runs on put.io after the picker closes, so its card sits under the bar of every folder. */
+@Composable
+private fun MobileFilesCopyLine(state: FilesBrowserState, onEvent: (FilesBrowserEvent) -> Unit) {
+    state.copyOutcome?.let {
+        MobileFilesCopyStatus(it, onDismiss = { onEvent(FilesBrowserEvent.DismissCopyOutcome) })
     }
 }
 
@@ -212,13 +245,13 @@ private fun MobileRefreshableFilesContent(
     downloads: DownloadsState,
     onDownloadItem: ((FilesItem) -> Unit)?,
     onShareItem: ((FilesItem) -> Unit)?,
-    onViewTrash: (() -> Unit)?,
     onCopyItem: ((FilesItem) -> Unit)?,
     onPublicLinkItem: ((FilesItem) -> Unit)?,
     fileDragOut: MobileFileDragOut?,
     headers: MobileFilesHeaders,
     onNewFolder: (() -> Unit)?,
     fileOpening: MobileFilesOpening?,
+    itemActions: MobileFilesItemActions,
 ) {
     val operation = state.current.operation
     val currentOperation by rememberUpdatedState(operation)
@@ -279,6 +312,9 @@ private fun MobileRefreshableFilesContent(
                     onCopyItem = onCopyItem,
                     canStartCopy = state.canStartCopy,
                     onPublicLinkItem = onPublicLinkItem,
+                    onPlayItem = onPlayMedia,
+                    itemActions = itemActions,
+                    sharedBy = state.sharedByName(),
                 )
             }
         }
@@ -297,10 +333,12 @@ private fun MobileRefreshableFilesContent(
     }
 
     val snackbarHostState = remember { SnackbarHostState() }
-    MobileFilesTrashedAnnouncement(state.current, snackbarHostState, onEvent, onViewTrash)
+    MobileFilesTrashedAnnouncement(state.current, snackbarHostState, onEvent, itemActions.onUndoTrash)
+    MobileFilesNotices(itemActions.notices, snackbarHostState)
 
     Box(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
+            MobileFilesCopyLine(state, onEvent)
             val refreshState = rememberPullToRefreshState()
             PullToRefreshBox(
                 isRefreshing = isRefreshing,
@@ -375,7 +413,7 @@ private fun MobileRefreshableFilesContent(
             }
             MobileFilesFolderStatus(state, onEvent)
         }
-        SnackbarHost(
+        MobileSnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -436,9 +474,6 @@ private fun MobileFilesFolderStatus(
         }
         state.current.moveOutcome?.let { MobileFilesMoveStatus(it) }
     }
-    state.copyOutcome?.let {
-        MobileFilesCopyStatus(it, onDismiss = { onEvent(FilesBrowserEvent.DismissCopyOutcome) })
-    }
 }
 
 /** The Trash request succeeded and the fresh read found the item gone; a failed request proves no Trash move. */
@@ -447,35 +482,34 @@ private val FilesDeleteOutcome.isConfirmedTrash: Boolean
         status == FilesDeleteStatus.NO_LONGER_AVAILABLE
 
 /**
- * A Trash move the fresh read confirmed is announced once, with a way to Trash and no Undo:
- * restoring is queued server-side and needs its own check. Shown in full or cut short, it is
- * then marked announced; the outcome stays, so a later page that still lists the item turns it
- * into the still-present line.
+ * A Trash move the fresh read confirmed is announced once, as "Moved to Trash" with Undo, which
+ * restores it from Trash. Shown in full or cut short, it is then marked announced; the outcome
+ * stays, so a later page that still lists the item turns it into the still-present line.
  */
 @Composable
 private fun MobileFilesTrashedAnnouncement(
     current: FilesFolderState,
     snackbarHostState: SnackbarHostState,
     onEvent: (FilesBrowserEvent) -> Unit,
-    onViewTrash: (() -> Unit)?,
+    onUndoTrash: ((FilesDeleteOutcome) -> Unit)?,
 ) {
     val trashed = current.deleteOutcome?.takeIf {
         current.operation == FilesFolderOperation.Idle && it.isConfirmedTrash && !it.announced
     }
     val message = stringResource(R.string.mobile_files_trash_done)
-    val viewTrash = stringResource(R.string.mobile_files_view_trash)
+    val undo = stringResource(R.string.mobile_files_undo)
     val currentOnEvent by rememberUpdatedState(onEvent)
-    val currentOnViewTrash by rememberUpdatedState(onViewTrash)
+    val currentOnUndo by rememberUpdatedState(onUndoTrash)
     LaunchedEffect(trashed?.requestId) {
         val outcome = trashed ?: return@LaunchedEffect
         snackbarHostState.currentSnackbarData?.dismiss()
         try {
             val result = snackbarHostState.showSnackbar(
                 message = message,
-                actionLabel = viewTrash.takeIf { currentOnViewTrash != null },
+                actionLabel = undo.takeIf { currentOnUndo != null },
                 duration = SnackbarDuration.Long,
             )
-            if (result == SnackbarResult.ActionPerformed) currentOnViewTrash?.invoke()
+            if (result == SnackbarResult.ActionPerformed) currentOnUndo?.invoke(outcome)
         } finally {
             currentOnEvent(FilesBrowserEvent.DeleteOutcomeAnnounced(outcome))
         }
@@ -495,6 +529,37 @@ private fun MobileFilesActionsRequests(
     LaunchedEffect(requests) {
         requests.collect { id -> if (currentItems.any { it.id == id }) currentOnOpenSheet(id) }
     }
+}
+
+/** The notices alone, for a screen without its own snackbar host, such as the player. */
+@Composable
+internal fun MobileFilesNoticeHost(notices: Flow<MobileFilesNotice>, modifier: Modifier = Modifier) {
+    val hostState = remember { SnackbarHostState() }
+    MobileFilesNotices(notices, hostState)
+    MobileSnackbarHost(hostState, modifier)
+}
+
+/** Item actions that did not go through, one short line each. */
+@Composable
+private fun MobileFilesNotices(notices: Flow<MobileFilesNotice>, snackbarHostState: SnackbarHostState) {
+    val context = LocalContext.current
+    LaunchedEffect(notices) {
+        notices.collect { notice ->
+            snackbarHostState.currentSnackbarData?.dismiss()
+            snackbarHostState.showSnackbar(notice.text(context), duration = SnackbarDuration.Long)
+        }
+    }
+}
+
+/**
+ * The friend whose folder holds the current one, by that folder's name; null outside shared items.
+ * A folder an outside open pushed starts a new path, so only folders from there on are its ancestry.
+ */
+internal fun FilesBrowserState.sharedByName(): String? {
+    val path = stack.drop(stack.indexOfLast { it.openedFrom != null }.coerceAtLeast(0))
+    return path.zipWithNext().lastOrNull { (parent, child) ->
+        parent.content.items().any { it.id == child.folder.id && it.folderType == PutioFolderType.SHARED_FRIEND }
+    }?.second?.folder?.name
 }
 
 @Composable

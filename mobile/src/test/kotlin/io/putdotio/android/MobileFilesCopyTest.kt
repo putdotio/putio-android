@@ -36,7 +36,6 @@ import io.putdotio.android.files.MOBILE_FILES_COPY_DISMISS_TAG
 import io.putdotio.android.files.MOBILE_FILES_COPY_STATUS_TAG
 import io.putdotio.android.files.MOBILE_FILES_MOVE_CANCEL_TAG
 import io.putdotio.android.files.MOBILE_FILES_MOVE_FOLDER_TAG
-import io.putdotio.android.files.MOBILE_FILES_MOVE_REMEMBER_TAG
 import io.putdotio.android.files.FilesMoveTargetMemory
 import io.putdotio.android.files.InMemoryMoveTargetStore
 import io.putdotio.android.files.MOBILE_FILES_MOVE_HERE_TAG
@@ -96,10 +95,9 @@ class MobileFilesCopyTest {
 
         compose.openRowActions(sharedFolder.name)
         compose.onNodeWithTag(MOBILE_FILES_COPY_ACTION_TAG).performClick()
-        compose.onNode(hasText(sharedFolder.name) and hasAnyAncestor(hasTestTag(MOBILE_FILES_MOVE_PICKER_TAG)))
+        compose.onNode(hasText("Copy 1 item") and hasAnyAncestor(hasTestTag(MOBILE_FILES_MOVE_PICKER_TAG)))
             .assertIsDisplayed()
-        compose.onNodeWithText("Make a copy").assertIsDisplayed()
-        compose.onNodeWithText("Copy here").assertIsEnabled()
+        compose.onNodeWithText("Copy to Files").assertIsEnabled()
         compose.onNodeWithTag(mobileFilesMoveFolderTag(destination.id)).performClick()
         compose.onNodeWithText("No folders here.").assertIsDisplayed()
         compose.onNodeWithTag(MOBILE_FILES_MOVE_HERE_TAG).performClick()
@@ -133,7 +131,7 @@ class MobileFilesCopyTest {
         compose.onNodeWithContentDescription("Actions for ${sharedVideo.name}").performClick()
         compose.onNodeWithTag(MOBILE_FILES_COPY_ACTION_TAG).performClick()
         compose.onNodeWithTag(MOBILE_FILES_MOVE_FOLDER_TAG).assertTextEquals(destination.name)
-        compose.onNodeWithTag(MOBILE_FILES_MOVE_REMEMBER_TAG).assertIsOn().performClick().assertIsOff()
+        compose.moveRememberTarget().assertIsOn().performClick().assertIsOff()
         compose.onNodeWithTag(MOBILE_FILES_MOVE_CANCEL_TAG).performClick()
         compose.runOnIdle {
             assertEquals(FilesMoveTargetMemory(remember = false, lastTarget = remembered), store.memory)
@@ -142,7 +140,7 @@ class MobileFilesCopyTest {
         compose.onNodeWithContentDescription("Actions for ${sharedVideo.name}").performClick()
         compose.onNodeWithTag(MOBILE_FILES_COPY_ACTION_TAG).performClick()
         compose.onNodeWithTag(mobileFilesMoveFolderTag(destination.id)).assertIsDisplayed()
-        compose.onNodeWithTag(MOBILE_FILES_MOVE_REMEMBER_TAG).assertIsOff()
+        compose.moveRememberTarget().assertIsOff()
         compose.onNodeWithTag(MOBILE_FILES_MOVE_CANCEL_TAG).performClick()
     }
 

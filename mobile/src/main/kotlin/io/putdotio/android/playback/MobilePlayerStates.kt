@@ -42,9 +42,9 @@ import io.putdotio.sdk.files.PlaybackConversionState
 import kotlin.math.roundToInt
 
 /**
- * A video that fails takes the empty-state voice over the player. One that needs another player has
- * no action here: a download keeps the same HLS rendition. One a retry can fix offers Try again.
- * Audio keeps its own screen.
+ * A video that fails takes the empty-state voice over the player. One that needs another player
+ * offers Open in VLC, which reads the original; a download would keep the same HLS rendition. One a
+ * retry can fix offers Try again. Audio keeps its own screen.
  */
 @Composable
 internal fun MobilePlaybackFailureState(
@@ -52,6 +52,7 @@ internal fun MobilePlaybackFailureState(
     failure: PlaybackFailure,
     onRetry: () -> Unit,
     video: Boolean = false,
+    onOpenInVlc: (() -> Unit)? = null,
 ) {
     val message = failure.apiReason ?: stringResource(failure.messageResource())
     if (!video) {
@@ -73,10 +74,19 @@ internal fun MobilePlaybackFailureState(
             glyph = PutioEmptyGlyph.CantPlay,
             headline = if (needsAnotherPlayer) stringResource(R.string.mobile_playback_cant_play_title) else title,
             message = if (needsAnotherPlayer) stringResource(R.string.mobile_playback_cant_play_message) else message,
-            action = if (failure.retryable) {
-                { MobilePlayerStateAction(stringResource(R.string.mobile_action_retry), onClick = onRetry) }
-            } else {
-                null
+            action = when {
+                failure.retryable -> {
+                    { MobilePlayerStateAction(stringResource(R.string.mobile_action_retry), onClick = onRetry) }
+                }
+                needsAnotherPlayer && onOpenInVlc != null -> {
+                    {
+                        MobilePlayerStateAction(
+                            stringResource(R.string.mobile_files_open_in_vlc),
+                            onClick = onOpenInVlc,
+                        )
+                    }
+                }
+                else -> null
             },
         )
     }

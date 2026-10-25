@@ -44,12 +44,15 @@ import io.putdotio.android.downloads.MobileDownloadsScreen
 import io.putdotio.android.downloads.rememberFirstDownloadNotificationPrompt
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserState
+import io.putdotio.android.files.FilesFolderCreator
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesRepository
 import io.putdotio.android.files.FilesSubtitleLanguages
 import io.putdotio.android.files.MobileFileOpener
 import io.putdotio.android.files.MobileContinueWatching
+import io.putdotio.android.files.MobileFilesActionsController
+import io.putdotio.android.files.MobileFilesItemActions
 import io.putdotio.android.files.MobileFilesRoute
 import io.putdotio.android.files.MobileMoveTargetStore
 import io.putdotio.android.playback.MobilePlaybackViewModel
@@ -106,6 +109,11 @@ import io.putdotio.android.trash.TrashEvent
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import io.putdotio.android.files.MobileFilesNoticeHost
+import androidx.compose.ui.Alignment
+import io.putdotio.android.files.MobileSearchResultActions
+import io.putdotio.android.files.MobileSearchResultActionsHost
+import io.putdotio.android.search.SearchContent
 
 internal const val MOBILE_PLAYBACK_ROUTE = "playback/{fileId}?name={name}&media={media}&duration={duration}"
 
@@ -150,6 +158,8 @@ internal fun MobileNavHost(
     /** From 840dp, the Files bar over the list pane; Files then shows the selected file beside the list. */
     filesListPaneTopBar: (@Composable () -> Unit)? = null,
     subtitleLanguages: FilesSubtitleLanguages? = null,
+    filesActions: MobileFilesActionsController? = null,
+    folderCreator: FilesFolderCreator? = null,
 ) {
     val currentTransfersState by rememberUpdatedState(transfersState)
     val currentTransfersSessionId by rememberUpdatedState(transfersSessionId)
@@ -174,25 +184,49 @@ internal fun MobileNavHost(
                 composable(MobileDestination.Files.route) {
                     val askForDownloadNotifications = rememberFirstDownloadNotificationPrompt()
                     val showSubtitles = accountSettingsState.confirmedShowSubtitles()
+                    val startDownload = downloadsController?.let { controller ->
+                        { item: FilesItem ->
+                            val start = DownloadsEvent.Start(item.toDownloadRequest(showSubtitles))
+                            if (controller.dispatch(start)) askForDownloadNotifications()
+                        }
+                    }
+                    val filesItemActions = filesActions?.itemActions(
+                        watchedToggle = accountSettingsState.confirmedResumePlayback() == true,
+                    ) ?: MobileFilesItemActions()
                     MobileFilesTab(
                         routeAnimation = this,
                         searchOpen = searchOpen,
                         searchForward = searchForward,
                         backPreview = filesBackPreview,
                         search = {
-                            MobileSearchScreen(
-                                searchState = searchHistoryState.search,
-                                recentSearchFailure = searchHistoryState.recentSearchFailure,
-                                onSearchResult = searchHistoryActions.onResult,
-                                onSearchNextPage = searchHistoryActions.onNextPage,
-                                onSearchRetry = searchHistoryActions.onRetry,
-                                onRecentSearch = searchHistoryActions.onRecentSearch,
-                                onRecentEdit = searchHistoryActions.onRecentEdit,
-                                onRecentRetry = searchHistoryActions.onRecentRetry,
-                                onFilterSelected = searchHistoryActions.onFilterSelected,
-                                folderNames = searchHistoryState.folderNames,
-                                downloadStatus = downloadsState::rowStatus,
-                            )
+                            val searchResults = (searchHistoryState.search.content as? SearchContent.Ready)?.items
+                            MobileSearchResultActionsHost(
+                                results = searchResults.orEmpty(),
+                                actions = MobileSearchResultActions(
+                                    itemActions = filesItemActions,
+                                    downloads = downloadsState,
+                                    // Through the result's own open, so the query joins Recent searches.
+                                    onPlayItem = searchHistoryActions.onResult,
+                                    onDownloadItem = startDownload,
+                                    onShareItem = onShareItem,
+                                    publicLinks = publicLinks,
+                                ),
+                            ) { onResultActions ->
+                                MobileSearchScreen(
+                                    searchState = searchHistoryState.search,
+                                    recentSearchFailure = searchHistoryState.recentSearchFailure,
+                                    onSearchResult = searchHistoryActions.onResult,
+                                    onSearchNextPage = searchHistoryActions.onNextPage,
+                                    onSearchRetry = searchHistoryActions.onRetry,
+                                    onRecentSearch = searchHistoryActions.onRecentSearch,
+                                    onRecentEdit = searchHistoryActions.onRecentEdit,
+                                    onRecentRetry = searchHistoryActions.onRecentRetry,
+                                    onFilterSelected = searchHistoryActions.onFilterSelected,
+                                    folderNames = searchHistoryState.folderNames,
+                                    downloadStatus = downloadsState::rowStatus,
+                                    onResultActions = onResultActions,
+                                )
+                            }
                         },
                     ) {
                         val startedVideos = continueWatching?.entries?.collectAsStateWithLifecycle()?.value
@@ -204,14 +238,8 @@ internal fun MobileNavHost(
                             onAuthenticationRequired = onFilesAuthenticationRequired,
                             confirmedTrashEnabled = accountSettingsState.confirmedTrashEnabled(),
                             downloads = downloadsState,
-                            onDownloadItem = downloadsController?.let { controller ->
-                                { item ->
-                                    val start = DownloadsEvent.Start(item.toDownloadRequest(showSubtitles))
-                                    if (controller.dispatch(start)) askForDownloadNotifications()
-                                }
-                            },
+                            onDownloadItem = startDownload,
                             onShareItem = onShareItem,
-                            onViewTrash = trashController?.let { { navController.navigateToTrash() } },
                             moveTargetStore = moveTargetStore,
                             publicLinks = publicLinks,
                             fileDragOut = fileDragOut,
@@ -221,6 +249,8 @@ internal fun MobileNavHost(
                             fileOpener = remember(account.userId) { MobileFileOpener(account.userId) },
                             subtitleLanguages = subtitleLanguages,
                             resumePlayback = accountSettingsState.confirmedResumePlayback() != false,
+                            itemActions = filesItemActions,
+                            folderCreator = folderCreator,
                         )
                     }
                 }
@@ -359,7 +389,12 @@ internal fun MobileNavHost(
                                     durationSeconds = next.durationSeconds,
                                 )
                             },
+                            onOpenInVlc = filesActions?.let { actions ->
+                                { target -> actions.openInVlc(target.fileId, target.name) }
+                            },
                         )
+                        // Over the player, which paints its own background.
+                        filesActions?.let { MobileFilesNoticeHost(it.notices, Modifier.align(Alignment.BottomCenter)) }
                     }
                 }
             }
@@ -406,6 +441,7 @@ private fun MobilePlaybackRoute(
     findNextEpisode: (suspend (PlaybackTarget) -> PlaybackNextResult)? = null,
     findNeighbours: (suspend (PlaybackTarget) -> PlaybackRepositoryResult<PlaybackNeighbours>)? = null,
     onPlay: (PlaybackTarget) -> Unit = {},
+    onOpenInVlc: ((PlaybackTarget) -> Unit)? = null,
 ) {
     val state by controller.state.collectAsStateWithLifecycle()
     // With the account's next_episode on, a playing video asks autoplay's folder walk for the one after it, once.
@@ -458,6 +494,7 @@ private fun MobilePlaybackRoute(
         onNextEpisode = { nextEpisode?.let { controller.dispatch(PlaybackEvent.NextChosen(it)) } },
         neighbours = neighbours,
         onPlay = onPlay,
+        onOpenInVlc = onOpenInVlc?.let { open -> { open(state.target) } },
     )
 }
 
