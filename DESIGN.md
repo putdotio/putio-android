@@ -666,19 +666,42 @@ has no queue.
 ## Welcome
 
 The signed-out screen is shared with iOS. The retro wordmark sits centred in
-the top bar. Below it, kaomoji take turns, each over a mono yellow caption:
-"Paste a magnet.", "put.io fetches it.", "Stream it anywhere.", "Or keep it
-offline.", with page dots under them. Reduced motion holds the first. Then
-**Welcome!**, one lede line, and one full-width 56dp **Sign in** button that
-opens put.io OAuth in the browser.
+a 64dp top bar, 88dp wide. 96dp below the bar, a 220dp stage centres a kaomoji
+over a caption, 24dp apart. The kaomoji is set in GT America medium at 48dp on
+a 56dp line, as art that ignores the font scale; the caption is 15sp mono in
+`primary`:
+
+| Kaomoji        | Caption               |
+| -------------- | --------------------- |
+| `┌( ಠ‿ಠ)┘`     | "Paste a magnet."     |
+| `( ⌐■_■)`      | "put.io fetches it."  |
+| `ᕕ( ᐛ )ᕗ`      | "Stream it anywhere." |
+| `(づ｡◕‿‿◕｡)づ` | "Or keep it offline." |
+
+Each frame holds for 1.9 s, then the next rolls up into its place over 0.6 s
+on `cubic-bezier(0.7, 0, 0.2, 1)`. After the fourth, the first rolls back in:
+a 10 s loop. Page dots sit 8dp under the stage: 6dp dots, 8dp apart, in
+`surface-container-highest`; the current one grows to 18dp in `on-surface` and
+follows the roll. Reduced motion holds the first frame.
+
+The copy sits at the bottom, left-aligned, 24dp from the sides and 16dp above
+the navigation bar: **Welcome!** as a 40sp medium title on a 48sp line, then
+"Your put.io files, streaming and offline on this phone." in `body-lg` on a
+24sp line in `on-surface-variant`, 16dp below. 32dp lower, one full-width
+56dp filled **Sign in** opens put.io OAuth in the browser.
 
 - Session expired: **Welcome back!** and "Your session expired. Sign in again to
-  continue."
-- While the browser finishes: one still kaomoji, **Almost there**, "Finish
-  signing in in your browser, then come back here.", and a text **Cancel**.
-- Failure: a still `(・_・;)`, a notice with the reason, and a filled **Try
-  again**. When the saved session can't be read, the action is **Reset and
-  sign in** instead.
+  continue." in place of the lede.
+- While the browser finishes: a still `( ˘ω˘ )` over "Waiting for your
+  browser…", no dots, **Almost there**, "Finish signing in in your browser,
+  then come back here.", and a full-width text **Cancel** in `on-surface`.
+- Failure: a still `(・_・;)` over "That didn’t work.", no dots, the welcome
+  copy, then 24dp lower a notice and 24dp below it a filled **Try again**. The
+  notice is a 16dp-corner card on `surface-container-high`, padded 14dp by
+  16dp, in `body-sm`: a medium first line, "Sign-in didn’t finish.", then
+  "Nothing was saved, so you can try again." When the saved session can't be
+  read, the notice says "Secure storage is unavailable." and the action is
+  **Reset and sign in**.
 
 ## Other screens
 

@@ -13,7 +13,9 @@ phones, tablets, Android TV, and Fire TV from one codebase.
 
 Mobile, on the emulator harness against the live API:
 
-- OAuth sign-in through an Auth Tab, with the session in Android secure storage
+- OAuth sign-in through an Auth Tab, with the session in Android secure storage,
+  from a Welcome screen whose kaomoji take turns and hold still with reduced
+  motion
 - put.io's type: GT America for text, Berkeley Mono for the player's times
 - Five tabs (Files, History, Transfers, Downloads, Account) on a navigation bar,
   a rail from 600 dp, or a drawer at large font sizes; each tab keeps its own
