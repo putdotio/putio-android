@@ -544,7 +544,8 @@ Completed. Each transfer is a transfer card:
   in `on-surface-variant`.
 
 Tapping a running or failed card, or long-pressing any card, opens **Transfer
-actions**: a sheet with the full name, the state and a progress bar, then facts
+actions**: a sheet with the full name, the state, put.io's whole reason in
+`body-sm` `on-surface-variant` when it gave one, and a progress bar, then facts
 (size, speed, time left and peers in mono; the destination folder in GT
 America), Open folder, and Copy source link when put.io returns the transfer's
 source. Running transfers end with Stop transfer in red; failed ones offer

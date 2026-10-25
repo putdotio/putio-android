@@ -5,6 +5,7 @@ import android.content.Context
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
@@ -22,7 +23,9 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.auth.MobileAuthSessionId
@@ -54,6 +57,7 @@ import io.putdotio.android.transfers.copyForTest
 import io.putdotio.android.transfers.mobileTransferCardTag
 import io.putdotio.sdk.errors.PutioConfigurationException
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -142,6 +146,23 @@ class MobileTransfersScreenTest {
         compose.onAllNodesWithText("Stop transfer").assertCountEquals(0)
         compose.onNodeWithText("Retry").performClick()
         assertEquals(TransfersEvent.RetryTransfer(TransferId(1L)), events.last())
+    }
+
+    @Test
+    fun theActionsSheetShowsAReasonTheCardCuts() {
+        val reason = "Downloading text/html is not allowed. " +
+            "The link points to a web page, not a file, so put.io stopped before it saved anything. " +
+            "Copy the direct link to the file and add it again."
+        val row = transferRow(1L, AppTransferStatus.Failed).copy(errorMessage = reason)
+        setScreen(transfersTestState(TransfersContent.Ready(listOf(row), TransfersPaging.Complete)), onEvent = {})
+        compose.onAllNodesWithText(reason).assertCountEquals(0)
+
+        compose.onNodeWithTag(mobileTransferCardTag(row.id)).performClick()
+
+        val layouts = mutableListOf<TextLayoutResult>()
+        compose.onNodeWithText(reason).assertIsDisplayed()
+            .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+        assertFalse(layouts.single().hasVisualOverflow)
     }
 
     @Test
