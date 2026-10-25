@@ -1582,9 +1582,9 @@ class MobileShellPlaybackTest {
 
     @Test
     fun tabletDestinationStateSurvivesPlayback() =
-        assertDestinationStateSurvivesPlayback(width = 700.dp, navigationTag = MOBILE_NAV_RAIL_TAG)
+        assertDestinationStateSurvivesPlayback(width = 700.dp, navigationTag = MOBILE_NAV_RAIL_TAG, height = 480.dp)
 
-    private fun assertDestinationStateSurvivesPlayback(width: Dp, navigationTag: String) {
+    private fun assertDestinationStateSurvivesPlayback(width: Dp, navigationTag: String, height: Dp = 460.dp) {
         val pending = MutableStateFlow(false)
         val requests = NowPlayingRequests(pending) { pending.value = false }
         val factory = object : MobilePlayerFactory by NoAudioSessionFactory {
@@ -1593,7 +1593,7 @@ class MobileShellPlaybackTest {
         }
         compose.setContent {
             PutioTheme {
-                Box(modifier = Modifier.requiredSize(width = width, height = 460.dp)) {
+                Box(modifier = Modifier.requiredSize(width = width, height = height)) {
                     MobileShell(
                         nowPlayingRequests = requests,
                         playbackPlayerFactory = factory,

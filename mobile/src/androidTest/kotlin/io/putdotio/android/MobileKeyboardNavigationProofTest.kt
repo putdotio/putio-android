@@ -70,7 +70,8 @@ class MobileKeyboardNavigationProofTest {
     fun keyboardKeepsNavigationAndTheFocusedSearchEditor() {
         val orientation = InstrumentationRegistry.getArguments().getString("putio.accessibility.orientation")
         require(orientation == "portrait" || orientation == "landscape")
-        val navigationTag = if (orientation == "portrait") MOBILE_NAV_BAR_TAG else MOBILE_NAV_RAIL_TAG
+        // A phone in landscape is compact in height, so it keeps the bar.
+        val navigationTag = MOBILE_NAV_BAR_TAG
         var query by mutableStateOf("")
         val mounted = mutableStateOf(true)
         val playerFactory = ShellProofPlayerFactory(null)
