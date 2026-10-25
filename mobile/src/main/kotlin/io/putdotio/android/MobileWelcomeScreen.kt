@@ -42,11 +42,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -339,11 +337,13 @@ private fun WelcomeStage(
 private fun rememberAnimationsOff(): Boolean {
     val atLifecycle = rememberMobileMotion().reducedMotion
     val resolver = LocalContext.current.contentResolver
-    var watched by remember(atLifecycle) { mutableStateOf<Boolean?>(null) }
+    // One state both readings write, so the latest of the two wins.
+    val off = remember { mutableStateOf(atLifecycle) }
+    LaunchedEffect(atLifecycle) { off.value = atLifecycle }
     DisposableEffect(resolver) {
         val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
             override fun onChange(selfChange: Boolean) {
-                watched = Settings.Global.getFloat(resolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
+                off.value = Settings.Global.getFloat(resolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
             }
         }
         resolver.registerContentObserver(
@@ -353,7 +353,7 @@ private fun rememberAnimationsOff(): Boolean {
         )
         onDispose { resolver.unregisterContentObserver(observer) }
     }
-    return watched ?: atLifecycle
+    return off.value
 }
 
 @Composable
