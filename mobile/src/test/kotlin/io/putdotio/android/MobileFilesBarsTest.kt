@@ -73,7 +73,7 @@ class MobileFilesBarsTest {
         val creator = object : FilesFolderCreator {
             override suspend fun createFolder(parentId: FilesItemId, name: String): PutioResult<FilesItem> {
                 created += parentId to name
-                return PutioResult.Success(file(31L, name, PutioFileType.FOLDER))
+                return PutioResult.Success(file(31L, name, PutioFileType.FOLDER).copy(parentId = parentId))
             }
         }
         compose.setShell({ folderState() }, creator = creator, onFilesEvent = { events += it })
@@ -84,8 +84,12 @@ class MobileFilesBarsTest {
         compose.onNodeWithTag(MOBILE_NEW_FOLDER_FIELD_TAG).performTextInput("Shorts")
         compose.onNodeWithTag(MOBILE_NEW_FOLDER_CREATE_TAG).performClick()
 
-        compose.waitUntil(TIMEOUT) { events.any { it is FilesBrowserEvent.InvalidateRestoredItem } }
+        compose.waitUntil(TIMEOUT) { FilesBrowserEvent.Refresh in events }
         assertEquals(listOf(FilesItemId(7L) to "Shorts"), created)
+        // The folder it was made in goes stale, then reloads when it can.
+        val stale = events.filterIsInstance<FilesBrowserEvent.InvalidateRestoredItem>().single()
+        assertEquals(FilesItemId(7L), stale.item.parentId)
+        assertEquals(FilesBrowserEvent.Refresh, events.last())
         compose.onNodeWithTag(MOBILE_NEW_FOLDER_FIELD_TAG).assertDoesNotExist()
     }
 

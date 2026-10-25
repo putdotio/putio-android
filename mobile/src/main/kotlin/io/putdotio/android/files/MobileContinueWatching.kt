@@ -133,6 +133,8 @@ internal class MobileContinueWatching(
 
     /** put.io confirmed the file gone, deleted or moved to Trash from this device. */
     fun removed(fileId: FilesItemId) {
+        // Forget the media too, so a save answered after the delete can't bring the card back.
+        media.remove(fileId)
         update(mutableEntries.value.filterNot { it.fileId == fileId })
     }
 

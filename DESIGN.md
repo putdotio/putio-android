@@ -370,8 +370,9 @@ id). Recent searches show while the query is empty
 
 ### File rows
 
-`ListItem` with two slots, headline and meta, and no dividers. A row is a fixed
-64dp, with a 40dp leading slot and 16dp start padding:
+`ListItem` with two slots, headline and meta, and no dividers. A row is 64dp
+(taller only when larger text needs it), with a 40dp leading slot and 16dp
+start padding:
 
 - Leading: a 26dp yellow Phosphor fill glyph for the file type.
 - Headline: the filename on one line. A name that doesn't fit is cut in the

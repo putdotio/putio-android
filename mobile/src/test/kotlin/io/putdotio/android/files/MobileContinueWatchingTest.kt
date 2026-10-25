@@ -102,6 +102,16 @@ class MobileContinueWatchingTest {
     }
 
     @Test
+    fun aSaveAnsweredAfterADeleteLeavesTheCardGone() {
+        row.opened(Tears, "Tears.of.Steel.mkv", 600.0)
+        row.positionSaved(Tears, 60.0)
+        row.removed(Tears)
+        row.positionSaved(Tears, 75.0)
+
+        assertTrue(row.entries.value.isEmpty())
+    }
+
+    @Test
     fun aClosedRowWritesNothing() {
         row.opened(Tears, "Tears.of.Steel.mkv", 600.0)
         row.close()
