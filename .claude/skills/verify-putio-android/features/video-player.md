@@ -69,4 +69,5 @@ Preconditions:
 - Positions are saved to the shared account. Restore the clip's start-from
   value before cleanup.
 - Tracks, captions and fullscreen rotation are proven deeper by the
-  synthetic lanes in [Harness](../../../../docs/harness.md#immersive-landscape-video-proof).
+  synthetic `MobileFullscreenVideoProofTest` and
+  `MobilePlaybackOptionsProofTest`.

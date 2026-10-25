@@ -7,8 +7,10 @@ description: Drive the put.io Android mobile app (`:mobile`, production debug) o
 
 The surface is the phone and tablet app, `:mobile` in its production debug
 build (`io.put.putio.mobile.debug`). Android TV (`:tv`) is a second surface
-with its own D-pad lanes in [Harness](../../../docs/harness.md#tv-lanes); this
-skill does not map it yet.
+with D-pad input and its own `Tv*ProofTest` lanes in `tv/src/androidTest/`;
+this skill does not map it yet. [AGENTS.md](../../../AGENTS.md#hazards) owns
+the hazards this skill works inside: the shared account, shared emulators,
+authenticated installs and evidence.
 
 Every Gradle build and every emulator runs on `zebroid-devbox`, never on the
 laptop. The laptop edits and calls [`devbox.sh`](scripts/devbox.sh); each
@@ -123,10 +125,10 @@ Handles, most stable first:
 Use `wait` and `gone` after each action instead of a fixed sleep. When a tap
 does nothing, the node was not the clickable one: tap its label text.
 
-Live data comes from [`fixture.sh`](scripts/fixture.sh) on devs-auto, under
-[Live API proof](../../../docs/harness.md#live-api-proof-putio-cli): one
+Live data comes from [`fixture.sh`](scripts/fixture.sh) on devs-auto: one
 uniquely named root container per run, a ledger line before each write, and
-cleanup of ledger ids only. Trash stays as it was.
+cleanup of ledger ids only. Trash stays as it was: deletes use `skip_trash`,
+and an item the app trashes is removed from Trash by its id.
 
 ```bash
 $S/devbox.sh run "$RUN" '$V/fixture.sh root $RUN'      # creates android-verify-<run>; prints its id
@@ -143,9 +145,21 @@ an intent is open, the next write and cleanup refuse. Cleanup checks each
 id's name and parent and each owned folder's contents against the ledger, and
 deletes nothing on a mismatch.
 
-Instrumentation lanes in [Harness](../../../docs/harness.md#device-lanes)
-cover what adb cannot drive well (player internals, TalkBack, drag and drop).
-Most make no API calls: report them as synthetic proof.
+Opt-in `*ProofTest` classes in `mobile/src/androidTest/` cover what adb
+cannot drive well (player internals, TalkBack, drag and drop). Each reads its
+`putio.<lane>.*` arguments through `InstrumentationRegistry.getArguments()`;
+its class header says whether it makes API calls. Build and install the test
+APK (`:mobile:assembleProductionDebugAndroidTest`, then `adb install -r`), and
+run one class:
+
+```bash
+adb -s $SERIAL shell am instrument -w -r -e class io.putdotio.android.<Class> \
+  -e putio.<lane>.enabled true -e putio.<lane>.runId "$(uuidgen | tr A-Z a-z)" \
+  io.put.putio.mobile.debug.test/androidx.test.runner.AndroidJUnitRunner
+```
+
+Require its `OK (n tests)`. Most lanes fake the API: report them as
+synthetic proof.
 
 ## Evidence
 

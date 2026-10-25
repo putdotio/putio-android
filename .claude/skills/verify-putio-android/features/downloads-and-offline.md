@@ -74,6 +74,7 @@ Preconditions:
 - Between runs clear only `databases/exoplayer_internal.db*`,
   `shared_prefs/io.putdotio.android.downloads.xml` and `files/downloads/`;
   never app data or the session.
-- The storage-limit, queue and progress lanes in
-  [Harness](../../../../docs/harness.md#downloads-and-offline-playback-proof)
-  cover what this recipe does not; the synthetic ones make no API calls.
+- `MobileDownloadsProgressProofTest` and `MobileDownloadsQueueProofTest`
+  cover progress, the queue limit and low storage over local files; they are
+  synthetic. The queue lane forces low storage on the whole emulator, so run
+  it only on this run's own instance.

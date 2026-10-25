@@ -66,8 +66,7 @@ Preconditions:
   `adb shell am start -d` splits a magnet at `&`.
 - The add button reads `Add` while the field is empty and `Add <n>` once it
   holds n links.
-- Transfer Retry proof over faked SDK calls lives in
-  [Harness](../../../../docs/harness.md#transfer-retry-proof); it is
-  synthetic.
+- Retry on a failed transfer is covered by `MobileTransferRetryProofTest`
+  over faked SDK calls; it is synthetic.
 - Polling updates cards every few seconds; wait for the end state, not a
   fixed time.

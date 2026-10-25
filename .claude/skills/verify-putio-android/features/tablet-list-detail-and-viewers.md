@@ -59,5 +59,5 @@ Preconditions:
 - Viewer bytes stream through the app's documents provider; no URL holds a
   token, and the logcat scan in `capture.sh` checks that.
 - A PDF opens with another app from 200 MB; keep PDF fixtures small.
-- Keyboard and drag-and-drop on tablets are synthetic lanes in
-  [Harness](../../../../docs/harness.md#tablet-proof).
+- Keyboard and drag-and-drop on tablets are covered synthetically by
+  `MobileTabletPowerProofTest`.
