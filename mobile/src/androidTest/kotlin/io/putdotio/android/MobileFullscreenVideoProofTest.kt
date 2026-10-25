@@ -111,7 +111,9 @@ class MobileFullscreenVideoProofTest {
             screenshot("landscape-direct-controls")
             compose.onNodeWithContentDescription("Playback speed 1×").performTouchInput { click() }
             screenshot("landscape-speed-sheet")
-            compose.onNode(hasText("1.5×") and isSelectable()).performScrollTo().performTouchInput { click() }
+            // The stepper walks the presets: 1×, then 1.25×, then 1.5×.
+            compose.onNodeWithContentDescription("Faster, 1.25×").performTouchInput { click() }
+            compose.onNodeWithContentDescription("Faster, 1.5×").performTouchInput { click() }
             closeSheet()
             val audio = compose.runOnIdle { factory.current().currentTracks.playbackAudioTracks()[1] }
             showControls()

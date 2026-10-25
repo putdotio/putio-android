@@ -5,7 +5,7 @@ import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityManager
 import androidx.activity.compose.LocalActivity
-import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -13,7 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.media3.ui.compose.state.rememberProgressStateWithTickInterval
 import io.putdotio.sdk.files.PlaybackSubtitle
@@ -1030,6 +1030,7 @@ private fun MobileReadyPlayerContent(
     LaunchedEffect(keyFocus) { keyFocus.requestFocus() }
 
     val options = rememberPlayerOptionsSnapshot(player)
+    var footerHeight by remember { mutableStateOf(0.dp) }
     val appearance = rememberSubtitleAppearanceStore()
     // The window shows only the video, so a sheet open when it starts goes with the controls.
     val sheetState = rememberSaveable(fileId) { mutableStateOf<MobileVideoSheet?>(null) }
@@ -1075,7 +1076,7 @@ private fun MobileReadyPlayerContent(
                 pictureInPicture = pictureInPicture,
                 subtitleTextScale = appearance.textSize.scale,
                 subtitlesBesideSheet = sheet != null,
-                subtitlesClearControls = controlsVisible.value && sheet == null && !pictureInPicture,
+                subtitleClearance = footerHeight.takeIf { controlsVisible.value && sheet == null } ?: 0.dp,
             )
         }
         // The window shows only the video and its subtitles; its own menu carries the controls.
@@ -1105,6 +1106,7 @@ private fun MobileReadyPlayerContent(
                     }
                 },
                 trailingChip = { MobileNextEpisodeChip(nextEpisode, onNextEpisode, optionModifier) },
+                onFooterHeight = { footerHeight = it },
             )
             MobileSeekFeedbackLayer(pendingSeek.value)
         }
@@ -1232,7 +1234,7 @@ private fun BoxScope.MobileVideoLayers(
     pictureInPicture: Boolean,
     subtitleTextScale: Float,
     subtitlesBesideSheet: Boolean,
-    subtitlesClearControls: Boolean,
+    subtitleClearance: Dp,
 ) {
     val player = playerState.player
     val currentPictureInPicture by rememberUpdatedState(pictureInPicture)
@@ -1299,9 +1301,13 @@ private fun BoxScope.MobileVideoLayers(
     // still shows, at the size they play at, so Size and timing previews them as they will look.
     BoxWithConstraints(Modifier.fillMaxSize().zIndex(3f)) {
         val frame = DpSize(maxWidth, maxHeight)
-        val lift by animateDpAsState(
-            if (subtitlesClearControls) subtitleLift(frame, playerState.videoSize.displayAspectRatioOrNull()) else 0.dp,
-            label = "subtitle-lift",
+        val bottomPadding by animateFloatAsState(
+            subtitleBottomPadding(
+                frame,
+                playerState.videoSize.displayAspectRatioOrNull(),
+                subtitleClearance.takeUnless { pictureInPicture } ?: 0.dp,
+            ),
+            label = "subtitle-clearance",
         )
         val sheetWidth = if (subtitlesBesideSheet) MOBILE_PLAYER_SIDE_SHEET_WIDTH.coerceAtMost(maxWidth) else 0.dp
         Box(
@@ -1314,8 +1320,9 @@ private fun BoxScope.MobileVideoLayers(
             SubtitleCueOverlay(
                 cues = playerState.cues,
                 videoAspectRatio = playerState.videoSize.displayAspectRatioOrNull(),
-                modifier = Modifier.requiredSize(frame).graphicsLayer { translationY = -lift.toPx() },
+                modifier = Modifier.requiredSize(frame),
                 textScale = subtitleTextScale,
+                bottomPaddingFraction = bottomPadding,
             )
         }
     }

@@ -86,6 +86,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import io.putdotio.android.playback.MOBILE_PLAYER_SIDE_SHEET_TAG
 import io.putdotio.android.playback.PlaybackEvent
 import io.putdotio.android.playback.PlaybackReducer
 import io.putdotio.android.design.PutioTheme
@@ -899,6 +900,21 @@ class MobilePlayerSubtitleTest {
                 if (nextPolicy.autoSelectSubtitles) assertEquals(listOf("en"), parameters.preferredTextLanguages)
             }
         }
+    }
+
+    @Test
+    fun theSpeedChipOpensItsSideSheetAndAPresetSetsThePlayer() {
+        lateinit var player: RecordingPlayer
+        compose.setPlayerScreen(
+            state = readyState(0.0),
+            playerFactory = MobilePlayerFactory { _, _ -> RecordingPlayer().also { player = it } },
+        )
+        compose.onNodeWithContentDescription("Playback speed 1×").performClick()
+        compose.onNodeWithTag(MOBILE_PLAYER_SIDE_SHEET_TAG).assertIsDisplayed()
+        compose.onNode(hasText("1.5×") and isSelectable()).performClick()
+        compose.runOnIdle { assertEquals(1.5f, player.playbackParameters.speed) }
+        compose.onNodeWithContentDescription("Close").performClick()
+        compose.onNodeWithContentDescription("Playback speed 1.5×").assertIsDisplayed()
     }
 
     @Test

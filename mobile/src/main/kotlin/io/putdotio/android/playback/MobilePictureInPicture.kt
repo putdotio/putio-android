@@ -125,10 +125,16 @@ internal fun rememberMobilePictureInPicture(
     val supported = remember(context) {
         context.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
     }
-    // Asked for, the window opens even for a paused video, which then shows Play. The parameters
-    // keep auto-entry as playback set it, so a paused video never enters on its own afterwards.
+    // Asked for, the window opens even for a paused video, which then shows Play. Entering needs
+    // enabled parameters; the playback-derived ones go straight back, so a paused video never
+    // enters on its own afterwards.
     val enter = {
-        pictureInPictureCall { activity.enterPictureInPictureMode(currentParams) }
+        pictureInPictureCall {
+            activity.enterPictureInPictureMode(
+                pictureInPictureParams(true, videoSize, videoFrame, actions.forState(playing)),
+            )
+            activity.setPictureInPictureParams(currentParams)
+        }
         Unit
     }
     return enter.takeIf { supported }

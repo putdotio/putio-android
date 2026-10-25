@@ -54,8 +54,10 @@ internal class SubtitleOffsetRenderer(renderer: Renderer) : ForwardingRenderer(r
         super.resetPosition(positionUs - offsetUs, sampleStreamIsResetToKeyFrame)
     }
 
-    // Reading behind, the renderer would still wait for cues after the media has ended.
-    override fun isEnded(): Boolean = super.isEnded() || (offsetUs > 0 && hasReadStreamToEnd())
+    // Media3 gives the final stream's end time only to a renderer that is a TextRenderer, so the
+    // wrapped one would wait out a cue that runs past the media. Read to the end, it holds up
+    // nothing; the player keeps rendering it until audio and video end.
+    override fun isEnded(): Boolean = super.isEnded() || hasReadStreamToEnd()
 
     companion object {
         const val MSG_SET_SUBTITLE_OFFSET: Int = Renderer.MSG_CUSTOM_BASE + 1
@@ -64,8 +66,8 @@ internal class SubtitleOffsetRenderer(renderer: Renderer) : ForwardingRenderer(r
 
 /**
  * Shows this player's subtitles [offsetMillis] later (negative: sooner). The text renderer drops
- * cues behind where it has read, so with [reread] the player seeks to where it is and reads its
- * subtitles again. Players built without the app's renderers, such as test fakes and media
+ * cues behind where it has read, so with [reread] the player seeks a millisecond on and reads
+ * its subtitles again. Players built without the app's renderers, such as test fakes and media
  * controllers, keep their timing.
  */
 @UnstableApi
@@ -79,6 +81,7 @@ public fun Player.setSubtitleOffset(offsetMillis: Long, reread: Boolean = false)
             .send()
     }
     if (reread && renderers.isNotEmpty() && player.playbackState != Player.STATE_IDLE) {
-        player.seekTo(player.currentPosition)
+        // Media3 skips a seek to the position it is already at, which would read nothing again.
+        player.seekTo(player.currentPosition + 1)
     }
 }

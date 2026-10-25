@@ -95,12 +95,14 @@ internal fun MobilePlayerChrome(
     onBack: () -> Unit = {},
     topActions: @Composable RowScope.() -> Unit = {},
     trailingChip: @Composable () -> Unit = {},
+    onFooterHeight: (Dp) -> Unit = {},
 ) {
     if (isAudio) {
         MobileAudioLayout(player, title, seekEnabled, onSeek, onScrub, settings, modifier)
     } else if (visible) {
         MobileVideoLayout(
             player, title, seekEnabled, onSeek, onScrub, settings, modifier, onBack, topActions, trailingChip,
+            onFooterHeight,
         )
     }
 }
@@ -212,6 +214,7 @@ private fun MobileVideoLayout(
     onBack: () -> Unit,
     topActions: @Composable RowScope.() -> Unit,
     trailingChip: @Composable () -> Unit,
+    onFooterHeight: (Dp) -> Unit,
 ) {
     val scrim = MaterialTheme.colorScheme.scrim
     val density = LocalDensity.current
@@ -255,6 +258,7 @@ private fun MobileVideoLayout(
                 }
                 MobileVideoFooter(
                     modifier = Modifier.fillMaxWidth()
+                        .onSizeChanged { onFooterHeight(with(density) { it.height.toDp() }) }
                         .windowInsetsPadding(safeDrawing.only(WindowInsetsSides.Bottom))
                         .padding(start = sidePadding, end = sidePadding, bottom = 8.dp),
                     times = { MobileVideoTimes(player) },

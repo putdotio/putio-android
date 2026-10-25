@@ -185,13 +185,34 @@ class MobilePictureInPictureTest {
 
         compose.onNodeWithContentDescription("Picture in picture").performClick()
         compose.runOnIdle {
-            assertEquals(before + 1, activity.params.size)
-            assertEquals("Pause", activity.params.last().actions[1].title)
+            // The entry, then the playback-derived parameters back.
+            assertEquals(before + 2, activity.params.size)
+            assertEquals("Pause", activity.params[before].actions[1].title)
             player.movePositionTo(30_000L)
         }
         compose.runOnIdle { activity.sendPictureInPictureAction("Forward 10 seconds") }
         // The video plays on in the window, so the seek starts a moment past where it was moved.
         compose.runOnIdle { assertTrue(player.seekPositions.single() in 40_000L..41_000L) }
+        host.close()
+    }
+
+    @Test
+    fun aPausedVideoEntersByHandWithoutArmingAutoEntry() {
+        val host = launchHost()
+        val activity = host.get()
+        val player = RecordingPlayer()
+        activity.setContent { PutioTheme { PlayerScreen(videoState(), MobilePlayerFactory { _, _ -> player }) } }
+        reportPlaying(player)
+        compose.runOnIdle { player.pause() }
+        val before = compose.runOnIdle { activity.params.size }
+
+        compose.onNodeWithContentDescription("Picture in picture").performClick()
+        compose.runOnIdle {
+            val (entered, restored) = activity.params.drop(before)
+            assertTrue(entered.isAutoEnterEnabled)
+            assertEquals("Play", entered.actions[1].title)
+            assertFalse(restored.isAutoEnterEnabled)
+        }
         host.close()
     }
 

@@ -460,17 +460,21 @@ internal fun PlaybackSubtitles?.sidecarTracks(): List<PlaybackSubtitle> =
     (this as? PlaybackSubtitles.Sidecar)?.tracks.orEmpty()
 
 /**
- * How far to raise the subtitles so they clear the times, scrubber and chips: the controls' height
- * less what already lies below the cues, the letterbox and Android's caption margin.
+ * The bottom padding, as a fraction of the video's height, that keeps bottom-placed subtitles
+ * above [clearance] of controls: Android's caption margin, or more where the controls reach into
+ * the picture past the letterbox.
  */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-internal fun subtitleLift(frame: DpSize, aspectRatio: Float?): Dp {
-    if (aspectRatio == null || !aspectRatio.isFinite() || aspectRatio <= 0f) return 0.dp
-    val videoHeight = minOf(frame.height, frame.width / aspectRatio)
+internal fun subtitleBottomPadding(frame: DpSize, aspectRatio: Float?, clearance: Dp): Float {
+    val default = SubtitleView.DEFAULT_BOTTOM_PADDING_FRACTION
+    val videoHeight = aspectRatio?.takeIf { it.isFinite() && it > 0f }
+        ?.let { minOf(frame.height, frame.width / it) }
+        ?.takeIf { it > 0.dp }
+        ?: return default
     val letterbox = (frame.height - videoHeight) / 2
-    val captionMargin = videoHeight * SubtitleView.DEFAULT_BOTTOM_PADDING_FRACTION
-    return (VIDEO_CONTROLS_HEIGHT - letterbox - captionMargin).coerceAtLeast(0.dp)
+    val needed = (clearance + SUBTITLE_AIR - letterbox) / videoHeight
+    return if (clearance > 0.dp) maxOf(default, needed) else default
 }
 
-// The footer's times, scrubber and chips, plus a little air above them.
-private val VIDEO_CONTROLS_HEIGHT = 118.dp
+// Between the controls and the lowest subtitle line.
+private val SUBTITLE_AIR = 8.dp
