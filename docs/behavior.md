@@ -288,8 +288,8 @@ Mobile only. A file row is 64dp tall at the default text size and grows with
 larger text. It marks a played file with one eye glyph, started or
 finished alike (`start_from` above 0), and a finished download with the
 on-device glyph; it shows no progress. Its name is cut in the middle to fit
-one line, keeping the last 7 characters before the extension and the
-extension; screen readers get the full name. Sizes use decimal units with one
+one line with the shared `MobileMiddleCutText`, keeping its last 11
+characters; screen readers get the full name. Sizes use decimal units with one
 decimal below 100 ("3.2 GB", "19.4 GB", "31 MB").
 
 A folder's first page asks put.io for the total, so the line under its bar
@@ -327,7 +327,7 @@ Retry on its line.
 
 Tests: `FilesBrowserReducerTest`, `SdkFilesRepositoryTest`,
 `SearchControllerTest`, `MobileContinueWatchingTest`,
-`MobileContinueWatchingStoreTest`, `MobileMiddleCutTest`, `MobileFileSizeTest`,
+`MobileContinueWatchingStoreTest`, `MobileMiddleCutTextTest`, `MobileFileSizeTest`,
 `MobileFilesScreenTest`, `MobileFilesBarsTest`, `MobileShellTest`.
 
 ## Trash

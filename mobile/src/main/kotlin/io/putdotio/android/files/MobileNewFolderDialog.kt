@@ -78,11 +78,14 @@ internal fun rememberNewFolderRequest(session: Any): MobileNewFolderRequest {
 internal fun MobileNewFolderHost(
     request: MobileNewFolderRequest,
     folder: FilesFolder,
-    onScreen: Boolean,
+    playing: Boolean,
+    onFiles: Boolean,
+    searchOpen: Boolean,
     creator: FilesFolderCreator?,
     onCreated: (FilesItem) -> Unit,
     onAuthenticationRequired: suspend () -> Unit,
 ) {
+    val onScreen = !playing && onFiles && !searchOpen
     if (creator == null || !onScreen || !request.isFor(folder.id)) return
     MobileNewFolderDialog(
         parentId = folder.id,

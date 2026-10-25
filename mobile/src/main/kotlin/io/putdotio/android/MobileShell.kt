@@ -420,7 +420,9 @@ internal fun MobileShell(
     MobileNewFolderHost(
         request = newFolder,
         folder = filesState.current.folder,
-        onScreen = !isPlayback && selectedDestination == MobileDestination.Files && !searchOpen,
+        playing = isPlayback,
+        onFiles = selectedDestination == MobileDestination.Files,
+        searchOpen = searchOpen,
         creator = folderCreator,
         onCreated = {
             // Stale first, so a folder busy with another operation reloads once it settles; the

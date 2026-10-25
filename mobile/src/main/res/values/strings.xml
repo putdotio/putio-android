@@ -437,6 +437,9 @@
     </plurals>
     <string name="mobile_files_downloaded">On this device</string>
     <string name="mobile_files_downloading">Downloading</string>
+    <string name="mobile_files_download_waiting">Waiting for network</string>
+    <string name="mobile_files_download_waiting_storage">Waiting for storage</string>
+    <string name="mobile_files_download_missing">No longer on this device</string>
     <string name="mobile_downloads_status_paused">Paused · %1$s saved</string>
     <string name="mobile_downloads_status_waiting_network">Waiting for network · %1$s saved</string>
     <string name="mobile_downloads_status_waiting_storage">Waiting for free storage · %1$s saved</string>

@@ -2,17 +2,12 @@ package io.putdotio.android.files
 
 import android.content.Context
 import android.text.format.DateUtils
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
@@ -40,6 +35,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.MobileMiddleCutText
+import io.putdotio.android.MobileRow
 import io.putdotio.android.R
 import io.putdotio.android.design.FileTypeIcon
 import io.putdotio.android.design.PutioDesignTokens
@@ -90,57 +86,51 @@ internal fun MobileFilesRow(
     } else {
         Modifier
     }
-    val container = if (highlighted) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent
 
-    Row(
-        modifier = modifier
-            // A playable row is the player's starting bounds.
-            .playbackContainer(item.id.value, playable = item.isPlayable)
-            .fillMaxWidth()
-            // 64dp at the default text size; larger text grows the row instead of clipping its meta.
-            .heightIn(min = FILES_ROW_HEIGHT)
-            .onFocusChanged { focused = it.isFocused }
-            .focusOutline(focused, outline)
-            .then(interaction)
-            .semantics(mergeDescendants = true) { if (highlighted) selected = true }
-            .background(container)
-            // A trailing button brings its own 12dp; a row without one keeps the 16dp gutter.
-            .padding(start = 16.dp, end = if (item.isFolder || onActions != null) 4.dp else 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(modifier = Modifier.size(FILES_LEADING_SIZE), contentAlignment = Alignment.Center) {
-            FileTypeIcon(type = item.type, modifier = Modifier.size(FILES_ICON_SIZE))
-        }
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            MobileMiddleCutText(
-                text = item.name,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            MobileFilesMeta(item, onDevice = downloadStatus is DownloadStatus.Completed)
-        }
-        when {
-            item.isFolder -> Icon(
-                painter = painterResource(R.drawable.ic_ph_caret_right),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(end = 12.dp).size(FILES_CHEVRON_SIZE),
-            )
-            onActions != null -> IconButton(
-                onClick = onActions,
-                enabled = actionsEnabled,
-                colors = IconButtonDefaults.iconButtonColors(
-                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                ),
-            ) {
+    val trailing: (@Composable () -> Unit)? = when {
+        item.isFolder -> {
+            {
                 Icon(
-                    painter = painterResource(R.drawable.ic_ph_dots_three_vertical),
-                    contentDescription = actionsLabel,
+                    painter = painterResource(R.drawable.ic_ph_caret_right),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(end = 12.dp).size(FILES_CHEVRON_SIZE),
                 )
             }
         }
+        onActions != null -> {
+            {
+                IconButton(
+                    onClick = onActions,
+                    enabled = actionsEnabled,
+                    colors = IconButtonDefaults.iconButtonColors(
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    ),
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_ph_dots_three_vertical),
+                        contentDescription = actionsLabel,
+                    )
+                }
+            }
+        }
+        else -> null
     }
+
+    MobileRow(
+        leading = { FileTypeIcon(type = item.type, modifier = Modifier.size(FILES_ICON_SIZE)) },
+        headline = { MobileMiddleCutText(text = item.name) },
+        meta = { MobileFilesMeta(item, onDevice = downloadStatus is DownloadStatus.Completed) },
+        trailing = trailing,
+        containerColor = if (highlighted) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
+        modifier = modifier
+            // A playable row is the player's starting bounds.
+            .playbackContainer(item.id.value, playable = item.isPlayable)
+            .onFocusChanged { focused = it.isFocused }
+            .focusOutline(focused, outline)
+            .then(interaction)
+            .semantics(mergeDescendants = true) { if (highlighted) selected = true },
+    )
 }
 
 /** Size in mono, the date, then a grey eye when played and a yellow mark when on this device. */
@@ -232,8 +222,6 @@ private fun String.toDisplayDate(context: Context): String? =
             DateUtils.formatDateTime(context, timestamp, DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_ABBREV_MONTH)
         }
 
-private val FILES_ROW_HEIGHT = 64.dp
-private val FILES_LEADING_SIZE = 40.dp
 private val FILES_ICON_SIZE = 26.dp
 private val FILES_CHEVRON_SIZE = 20.dp
 private val FILES_META_GAP = 6.dp
