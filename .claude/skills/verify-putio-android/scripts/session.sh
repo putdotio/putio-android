@@ -95,8 +95,8 @@ boot_snapshot() {
     sleep 2
   done
   is_ours "${serial}" "${SHARED_AVD}" "${pid}" || die "${serial} is not the instance this run started"
-  grep -qiE "fail.*snapshot|snapshot.*fail|cold boot" "${logfile}" &&
-    log "WARNING: ${SNAPSHOT} may not have loaded; the app could be signed out (Doctor will say)"
+  grep -q "Successfully loaded snapshot '${SNAPSHOT}'" "${logfile}" ||
+    log "WARNING: ${SNAPSHOT} did not load; this is a cold boot and the app may be signed out (Doctor will say)"
   log "booted ${serial} (pid ${pid}) from ${SNAPSHOT}"
   echo "${serial}"
 }
