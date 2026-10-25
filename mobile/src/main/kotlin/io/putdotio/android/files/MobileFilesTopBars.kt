@@ -99,7 +99,14 @@ internal fun MobileFilesSearchBar(actions: MobileFilesBarActions, modifier: Modi
                     modifier = Modifier.weight(1f),
                 )
                 actions.navigation?.invoke()
-                if (actions.sortable) MobileFilesSortMenu(actions.folder, actions.onSelectSort, colors = muted)
+                if (actions.sortable) {
+                    MobileFilesSortMenu(
+                        actions.folder,
+                        actions.onSelectSort,
+                        colors = muted,
+                        besideOverflow = actions.onNewFolder != null,
+                    )
+                }
                 MobileFilesOverflow(actions.onNewFolder, colors = muted)
             }
         }
@@ -134,7 +141,9 @@ internal fun MobileFolderTopBar(
             IconButton(onClick = actions.onOpenSearch, modifier = Modifier.testTag(MOBILE_FILES_SEARCH_TAG)) {
                 Icon(painter = painterResource(R.drawable.ic_ph_magnifying_glass), contentDescription = searchLabel)
             }
-            if (actions.sortable) MobileFilesSortMenu(actions.folder, actions.onSelectSort)
+            if (actions.sortable) {
+                MobileFilesSortMenu(actions.folder, actions.onSelectSort, besideOverflow = actions.onNewFolder != null)
+            }
             MobileFilesOverflow(actions.onNewFolder)
         },
         colors = TopAppBarDefaults.topAppBarColors(actionIconContentColor = MaterialTheme.colorScheme.onSurface),

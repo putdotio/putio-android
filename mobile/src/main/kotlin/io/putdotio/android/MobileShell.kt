@@ -422,8 +422,12 @@ internal fun MobileShell(
         folder = filesState.current.folder,
         onScreen = !isPlayback && selectedDestination == MobileDestination.Files && !searchOpen,
         creator = folderCreator,
-        // Marks the parent stale; it reloads once no other operation holds it.
-        onCreated = { onFilesEvent(FilesBrowserEvent.InvalidateRestoredItem(it)) },
+        onCreated = {
+            // Stale first, so a folder busy with another operation reloads once it settles; the
+            // refresh reloads now when it can, after a failed refresh included.
+            onFilesEvent(FilesBrowserEvent.InvalidateRestoredItem(it))
+            onFilesEvent(FilesBrowserEvent.Refresh)
+        },
         onAuthenticationRequired = onFilesAuthenticationRequired,
     )
     if (!isPlayback) {

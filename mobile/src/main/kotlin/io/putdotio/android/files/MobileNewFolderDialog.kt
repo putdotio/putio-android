@@ -53,8 +53,12 @@ internal class MobileNewFolderRequest(private val folderId: MutableState<Long?>)
      * a shared folder, which takes no new items.
      */
     fun action(creator: FilesFolderCreator?, folder: FilesFolderState): (() -> Unit)? =
-        // Unknown until the folder's first page says who owns it.
-        if (creator == null || folder.summary?.acceptsNewItems != true) null else { { ask(folder.folder.id) } }
+        // The root is always the viewer's; another folder is unknown until its first page says who owns it.
+        if (creator == null || !(folder.folder.id == FilesFolder.Root.id || folder.summary?.acceptsNewItems == true)) {
+            null
+        } else {
+            { ask(folder.folder.id) }
+        }
 
     fun clear() {
         folderId.value = null

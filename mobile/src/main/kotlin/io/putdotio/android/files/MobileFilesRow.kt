@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
@@ -97,7 +97,8 @@ internal fun MobileFilesRow(
             // A playable row is the player's starting bounds.
             .playbackContainer(item.id.value, playable = item.isPlayable)
             .fillMaxWidth()
-            .height(FILES_ROW_HEIGHT)
+            // 64dp at the default text size; larger text grows the row instead of clipping its meta.
+            .heightIn(min = FILES_ROW_HEIGHT)
             .onFocusChanged { focused = it.isFocused }
             .focusOutline(focused, outline)
             .then(interaction)

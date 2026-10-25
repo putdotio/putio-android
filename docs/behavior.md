@@ -284,7 +284,8 @@ Tests: `FilesDeleteReducerTest`, `SdkFilesDeleteRepositoryTest`,
 
 ## Files root and folders
 
-Mobile only. A file row marks a played file with one eye glyph, started or
+Mobile only. A file row is 64dp tall at the default text size and grows with
+larger text. It marks a played file with one eye glyph, started or
 finished alike (`start_from` above 0), and a finished download with the
 on-device glyph; it shows no progress. Its name is cut in the middle to fit
 one line, keeping the last 7 characters before the extension and the
@@ -300,8 +301,8 @@ the bare term. Leaving that scope, or entering another, clears the query. The
 root's search pill searches the whole account.
 
 New folder, in the bar's overflow and the empty-folder state, creates the
-folder with the trimmed name through the SDK's `createFolder`, then marks the
-folder it was made in stale, so it reloads once no other operation holds it.
+folder with the trimmed name through the SDK's `createFolder`, then reloads the
+folder it was made in, or marks it stale while another operation holds it.
 put.io's refusal (a duplicate, a slash) shows under the field, and the dialog
 stays open. Shared folders, which take no new items, don't offer it.
 
