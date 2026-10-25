@@ -9,7 +9,7 @@
 #   devbox.sh pull   <run>            copy the copy's .evidence/<run>/ to this worktree's .evidence/<run>/
 #   devbox.sh remove <run>            delete the copy (refuses while .evidence/<run>/run.env names a live AVD)
 #
-# <run> names the copy, the AVD and the evidence directory: [A-Za-z0-9._-]+.
+# <run> names the copy, the AVD and the evidence directory: a letter or digit, then [A-Za-z0-9._-].
 # Environment: PUTIO_VERIFY_HOST (default zebroid-devbox),
 # PUTIO_VERIFY_SDK (default /opt/homebrew/share/android-commandlinetools).
 set -euo pipefail
@@ -23,7 +23,7 @@ usage() { awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' 
 
 cmd="${1:-}"; run="${2:-}"
 [[ -n "${cmd}" && -n "${run}" ]] || usage
-[[ "${run}" =~ ^[A-Za-z0-9._-]+$ ]] || die "invalid run name '${run}'"
+[[ "${run}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || die "invalid run name '${run}'"
 REMOTE_DIR="projects/putdotio/putio-android/.claude/worktrees/${run}"
 
 # Tailscale SSH to a Mac always exits 0, so the status travels in-band.

@@ -3,9 +3,9 @@
 # content descriptions. Run it in the devbox copy (through devbox.sh run).
 #
 #   ui.sh dump       <serial> [out.xml]            accessibility tree as XML (stdout without a path)
-#   ui.sh find       <serial> <selector>            print the first match's centre "x y"; exit 1 if none
-#   ui.sh tap        <serial> <selector>            tap the first match
-#   ui.sh long-press <serial> <selector>            hold the first match for 1.2 s
+#   ui.sh find       <serial> <selector> [--last]   print the first (or last) match's centre "x y"; exit 1 if none
+#   ui.sh tap        <serial> <selector> [--last]   tap the first (or last) match
+#   ui.sh long-press <serial> <selector> [--last]   hold the first (or last) match for 1.2 s
 #   ui.sh wait       <serial> <selector> [seconds]  poll until a match shows (default 30 s)
 #   ui.sh gone       <serial> <selector> [seconds]  poll until no match shows (default 30 s)
 #   ui.sh scroll-to  <serial> <selector> [swipes]   swipe the list up until a match shows (default 12);
@@ -49,21 +49,30 @@ try:
     root = ET.fromstring(sys.stdin.read())
 except ET.ParseError:
     sys.exit(2)
+try:
+    regex = re.compile(value) if kind == "--match" else None
+except re.error:
+    sys.exit(64)
 def hit(node):
     text, desc = node.get("text", ""), node.get("content-desc", "")
     if kind == "--text": return text == value
     if kind == "--desc": return desc == value
     if kind == "--any": return value in (text, desc)
-    if kind == "--match": return bool(re.search(value, text) or re.search(value, desc))
+    if kind == "--match": return bool(regex.search(text) or regex.search(desc))
     sys.exit(64)
-for node in root.iter("node"):
-    if hit(node):
-        x1, y1, x2, y2 = map(int, re.findall(r"\d+", node.get("bounds", "")))
-        print((x1 + x2) // 2, (y1 + y2) // 2)
-        sys.exit(0)
-sys.exit(1)
-' "$1" "$2"
+matches = [node for node in root.iter("node") if hit(node)]
+if not matches:
+    sys.exit(1)
+node = matches[-1] if sys.argv[3] == "last" else matches[0]
+x1, y1, x2, y2 = map(int, re.findall(r"\d+", node.get("bounds", "")))
+print((x1 + x2) // 2, (y1 + y2) // 2)
+' "$1" "$2" "${PICK}"
 }
+
+# A trailing --last picks the last match in tree order, e.g. a dialog's confirm
+# button that shares its label with the dialog's title.
+PICK=first
+[[ "${*: -1}" == "--last" ]] && { PICK=last; set -- "${@:1:$(($# - 1))}"; }
 
 selector() {
   [[ $# -ge 2 ]] || usage
@@ -72,18 +81,21 @@ selector() {
 
 find_now() { dump_xml | locate "$1" "$2"; }
 
+# locate exits 0 on a match, 1 on a readable tree without one; anything else
+# (no tree, bad XML, a bad pattern) is a failed read, never an answer.
 poll() {
-  local want="$1" kind="$2" value="$3" seconds="$4" deadline
+  local want="$1" kind="$2" value="$3" seconds="$4" deadline status
   deadline=$((SECONDS + seconds))
   while ((SECONDS < deadline)); do
-    if find_now "${kind}" "${value}" >/dev/null; then
-      [[ "${want}" == "shown" ]] && return 0
-    else
-      [[ "${want}" == "gone" ]] && return 0
-    fi
+    set +e; find_now "${kind}" "${value}" >/dev/null; status=$?; set -e
+    case "${status}" in
+      0) [[ "${want}" == "shown" ]] && return 0 ;;
+      1) [[ "${want}" == "gone" ]] && return 0 ;;
+      64) die "invalid selector ${kind} '${value}'" ;;
+    esac
     sleep 1
   done
-  die "timed out after ${seconds}s waiting for ${kind} '${value}' to be ${want}"
+  die "timed out after ${seconds}s waiting for ${kind} '${value}' to be ${want} (last read status ${status})"
 }
 
 case "${cmd}" in

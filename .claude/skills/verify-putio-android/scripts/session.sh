@@ -32,7 +32,7 @@ log() { echo "[$(date +%H:%M:%S)] $*" >&2; }
 usage() { awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "${BASH_SOURCE[0]}" >&2; exit 64; }
 
 cmd="${1:-}"; run="${2:-}"; mode_arg="${3:-}"
-[[ -n "${cmd}" && "${run}" =~ ^[A-Za-z0-9._-]+$ ]] || usage
+[[ -n "${cmd}" && "${run}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || usage
 DIR="${ROOT}/.evidence/${run}"
 ENV_FILE="${DIR}/run.env"
 
@@ -92,7 +92,8 @@ boot_snapshot() {
   deadline=$((SECONDS + BOOT_TIMEOUT))
   until [[ "$("${ADB}" -s "${serial}" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" == "1" ]]; do
     kill -0 "${pid}" 2>/dev/null || { sed -i '' 's/^STATE=up$/STATE=failed/' "${ENV_FILE}"; die "emulator exited; see ${logfile}"; }
-    ((SECONDS < deadline)) || { "${ADB}" -s "${serial}" emu kill >/dev/null 2>&1 || kill "${pid}"; die "boot timed out after ${BOOT_TIMEOUT}s"; }
+    # Another boot may hold this serial after a port race; stop only the process this run started.
+    ((SECONDS < deadline)) || { kill "${pid}"; sed -i '' 's/^STATE=up$/STATE=failed/' "${ENV_FILE}"; die "boot timed out after ${BOOT_TIMEOUT}s"; }
     sleep 2
   done
   is_ours "${serial}" "${SHARED_AVD}" "${pid}" || die "${serial} is not the instance this run started"
@@ -109,6 +110,10 @@ boot_snapshot() {
 
 boot_fresh() {
   local serial
+  # emulator.sh reuses an existing AVD and its running instance; a fresh run must own both.
+  case "${run}" in putio-phone | putio-tv | putio-google-tv) die "${run} is a shared AVD name; pick another run name" ;; esac
+  [[ ! -e "${HOME}/.android/avd/${run}.avd" && ! -e "${HOME}/.android/avd/${run}.ini" ]] ||
+    die "AVD ${run} already exists and this run did not create it; pick another run name"
   "${ROOT}/scripts/emulator.sh" create phone --name "${run}" >&2
   serial="$("${ROOT}/scripts/emulator.sh" boot phone --headless --name "${run}")" || die "boot failed; see .evidence/logs/"
   is_ours "${serial}" "${run}" || die "${serial} is not AVD ${run}; leaving it alone"

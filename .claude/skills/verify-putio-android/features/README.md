@@ -28,8 +28,11 @@ passes only when the device shows it.
   not in the uiautomator tree.
 - Follow every action with `ui.sh wait` or `ui.sh gone` on the state it
   should produce.
-- Adopt every item the app creates, renames or moves:
-  `$V/fixture.sh adopt $RUN <id>`. Read ids back with
+- Wrap every step that changes the account in the ledger: run
+  `$V/fixture.sh intend $RUN "<what>"` before the tap, then
+  `$V/fixture.sh adopt $RUN <id>` for each item the app created, renamed or
+  moved, or `$V/fixture.sh settle $RUN "<what happened>"` when none is left.
+  Read ids back with
   `PUTIO_CLI_PROFILE=devs-auto putio files list --parent-id <id> --output json`.
 - Restore every account setting and device setting a recipe changes.
 

@@ -16,7 +16,7 @@ APK="${ROOT}/mobile/build/outputs/apk/production/debug/mobile-production-debug.a
 ADB="${ANDROID_HOME}/platform-tools/adb"
 
 run="${1:-}"
-[[ "${run}" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "usage: doctor.sh <run>" >&2; exit 64; }
+[[ "${run}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || { echo "usage: doctor.sh <run>" >&2; exit 64; }
 ENV_FILE="${ROOT}/.evidence/${run}/run.env"
 failed=0
 ok() { echo "OK   $*"; }

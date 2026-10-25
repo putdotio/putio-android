@@ -27,7 +27,7 @@ On the laptop, in this worktree:
 
 ```bash
 S=.claude/skills/verify-putio-android/scripts
-RUN="verify-$(date -u +%Y%m%d-%H%M%S)"
+RUN="verify-$(date -u +%Y%m%d-%H%M%S)-$(openssl rand -hex 3)"
 $S/devbox.sh sync "$RUN"         # copy, sdk.dir, git init, brand fonts; prints the revision
 $S/devbox.sh run "$RUN" './gradlew --max-workers=6 :mobile:assembleProductionDebug'
 $S/devbox.sh run "$RUN" '$V/session.sh up $RUN --snapshot'  # prints the serial, e.g. emulator-5556
@@ -128,12 +128,16 @@ cleanup of ledger ids only. Trash stays as it was.
 $S/devbox.sh run "$RUN" '$V/fixture.sh root $RUN'      # creates android-verify-<run>; prints its id
 $S/devbox.sh run "$RUN" '$V/fixture.sh mkdir $RUN <parent-id> "Inner folder"'
 $S/devbox.sh run "$RUN" '$V/fixture.sh upload $RUN <parent-id> <devbox path> ["name"]'
-$S/devbox.sh run "$RUN" '$V/fixture.sh adopt $RUN <id>' # after the app creates, renames or moves an item
-$S/devbox.sh run "$RUN" '$V/fixture.sh owned $RUN'     # id, kind, name per owned item
+$S/devbox.sh run "$RUN" '$V/fixture.sh intend $RUN "rename <id>"' # before a UI action that changes the account
+$S/devbox.sh run "$RUN" '$V/fixture.sh adopt $RUN <id>'  # after it: each item the app created, renamed or moved
+$S/devbox.sh run "$RUN" '$V/fixture.sh settle $RUN "cancelled"'   # after it, when nothing is left to adopt
+$S/devbox.sh run "$RUN" '$V/fixture.sh owned $RUN'      # id, kind, name per owned item
 ```
 
-Adopt every item the app creates or changes before cleanup. Cleanup checks
-each id's name and parent against the ledger and leaves a mismatch alone.
+Every UI mutation is an `intend`, the action, then `adopt` or `settle`. While
+an intent is open, the next write and cleanup refuse. Cleanup checks each
+id's name and parent and each owned folder's contents against the ledger, and
+deletes nothing on a mismatch.
 
 Instrumentation lanes in [Harness](../../../docs/harness.md#device-lanes)
 cover what adb cannot drive well (player internals, TalkBack, drag and drop).
@@ -166,19 +170,22 @@ Proof standards:
 
 ## Cleanup
 
-In this order, also after a failed attempt:
+In this order, also after a failed attempt. A `--fresh` run first signs out
+under Account ([Account and sign-out](features/account-and-sign-out.md)), so
+its grant is revoked; a `--snapshot` run never signs out.
 
 ```bash
 $S/devbox.sh run "$RUN" '$V/session.sh down $RUN'     # force-stop the app, stop this instance (and delete AVD <run> if --fresh)
-$S/devbox.sh run "$RUN" '$V/fixture.sh cleanup $RUN'  # owned ids, leaves first, 404 confirmed
+$S/devbox.sh run "$RUN" '$V/fixture.sh cleanup $RUN'  # owned ids, deepest first, 404 confirmed
 $S/devbox.sh pull "$RUN"                              # devbox .evidence/<run>/ -> laptop .evidence/<run>/
 $S/devbox.sh remove "$RUN"                            # delete the devbox copy
 ls .evidence/"$RUN"/                                  # the proof survives here
 ```
 
 - Stop the emulator before fixture cleanup, so the app is not mid-request.
-- `fixture.sh cleanup` stops on an unknown outcome. Reconcile that id
-  read-only; never repeat the write.
+- `fixture.sh cleanup` stops at an open intent or an unknown outcome.
+  Reconcile that id read-only, then `adopt` or `settle`; never repeat the
+  write.
 - `remove` refuses while `run.env` says the emulator is up.
 - The laptop's `.evidence/<run>/` keeps the captures, `fixtures.jsonl`,
   `run.env` and `revision.txt`. Cleanup leaves it alone.
@@ -188,14 +195,14 @@ ls .evidence/"$RUN"/                                  # the proof survives here
 All in [`scripts/`](scripts/); each prints its usage when run without
 arguments.
 
-| Script       | Host   | Use                                                                                                |
-| ------------ | ------ | -------------------------------------------------------------------------------------------------- |
-| `devbox.sh`  | laptop | `sync`, `run '<cmd>'`, `pull`, `remove` for `<run>`; returns the remote exit status                |
-| `session.sh` | devbox | `up --snapshot` or `up --fresh`, `install`, `relaunch`, `down`                                     |
-| `doctor.sh`  | devbox | read-only health check                                                                             |
-| `ui.sh`      | devbox | `dump`, `find`, `tap`, `long-press`, `wait`, `gone`, `scroll-to`, `refresh`, `type`, `link`, `key` |
-| `capture.sh` | devbox | screenshot, uiautomator XML and app logcat into `.evidence/<run>/`; secret scan                    |
-| `fixture.sh` | devbox | `root`, `mkdir`, `upload`, `adopt`, `owned`, `cleanup` on devs-auto, with the ledger               |
+| Script       | Host   | Use                                                                                                      |
+| ------------ | ------ | -------------------------------------------------------------------------------------------------------- |
+| `devbox.sh`  | laptop | `sync`, `run '<cmd>'`, `pull`, `remove` for `<run>`; returns the remote exit status                      |
+| `session.sh` | devbox | `up --snapshot` or `up --fresh`, `install`, `relaunch`, `down`                                           |
+| `doctor.sh`  | devbox | read-only health check                                                                                   |
+| `ui.sh`      | devbox | `dump`, `find`, `tap`, `long-press`, `wait`, `gone`, `scroll-to`, `refresh`, `type`, `link`, `key`       |
+| `capture.sh` | devbox | screenshot, uiautomator XML and app logcat into `.evidence/<run>/`; secret scan                          |
+| `fixture.sh` | devbox | `root`, `mkdir`, `upload`, `intend`, `adopt`, `settle`, `owned`, `cleanup` on devs-auto, with the ledger |
 
 `devbox.sh` carries the status in-band because Tailscale SSH to a Mac always
 exits 0: a bare `ssh zebroid-devbox` reports success for a failed command.

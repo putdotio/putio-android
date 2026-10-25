@@ -36,8 +36,10 @@ Preconditions:
   `$V/ui.sh scroll-to $SERIAL --text "App info"` and
   `$V/ui.sh tap $SERIAL --text "App info"`. `Version` and
   `Production, debug build` show.
-- **Setting.** Toggle `Autoplay next video`, then read `next_episode` back
-  with `account.getSettings`; toggle it back and read again.
+- **Setting.** Toggle `Autoplay next video`, then read the app config key
+  back with
+  `PUTIO_CLI_PROFILE=devs-auto putio sdk call --operation config.getKey --args '["autoplay_next_video"]' --execute --output json`;
+  toggle it back and read again.
 - **Trash.** Tap `Trash`. The list or its empty state shows. Leave it
   untouched.
 - **Sign out.** Only on a `--fresh` run, and last. Tap `Sign out`; the dialog reads

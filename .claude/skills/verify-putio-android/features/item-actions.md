@@ -41,23 +41,27 @@ Preconditions:
   `Delete` with Trash off). Capture `actions-open`.
 - **Open from long-press.** Press Back, then run
   `$V/ui.sh long-press $SERIAL --text "note-$RUN.txt"`. The same sheet opens.
-- **Rename.** Tap `Rename`; the field selects `note-<run>` and keeps `.txt`.
-  Type a new stem and tap `Save`. Run `$V/ui.sh tap $SERIAL --text "Rename"`,
-  `$V/ui.sh type $SERIAL "renamed-$RUN"`, `$V/ui.sh tap $SERIAL --text "Save"`.
-  The row reads `renamed-<run>.txt`. Adopt the file id, then read its name
-  back with `putio files list --parent-id <root id>`.
-- **Move.** Open the sheet, tap `Move`, open `Target folder`, confirm. The
-  row leaves this folder; `putio files list --parent-id <target id>` lists
-  it. Adopt the id.
-- **Copy.** Open the sheet, tap `Make a copy`, pick the run's root. The
-  snackbar reads `Copied "<name>" to <folder>.` Adopt the copy's id.
-- **Trash.** Long-press `Inner folder` to open its sheet. Run
-  `$V/ui.sh long-press $SERIAL --text "Inner folder"`, then tap
-  `Move to trash`. The
-  snackbar reads `Moved to Trash` and the row leaves. Remove that one id
-  from Trash:
+- **Rename.** Run `$V/fixture.sh intend $RUN "rename <file id>"`. Tap
+  `Rename`; the dialog's field selects `note-<run>` and keeps `.txt`. Type a
+  new stem and tap the dialog's `Rename` button, the last node with that
+  label. Run `$V/ui.sh tap $SERIAL --text "Rename"`,
+  `$V/ui.sh type $SERIAL "renamed-$RUN"` and
+  `$V/ui.sh tap $SERIAL --text "Rename" --last`. The row reads
+  `renamed-<run>.txt`. Adopt the file id, then read its name back with
+  `putio files list --parent-id <root id>`.
+- **Move.** Intend `move <file id>`, open the sheet, tap `Move`, open
+  `Target folder`, confirm. The row leaves this folder;
+  `putio files list --parent-id <target id>` lists it. Adopt the id.
+- **Copy.** Intend `copy <file id>`, open the sheet, tap `Make a copy`, pick
+  the run's root. The snackbar reads `Copied “<name>” to <folder>.` Adopt
+  the copy's id.
+- **Trash.** Intend `trash <folder id>`. Long-press `Inner folder` to open its
+  sheet. Run `$V/ui.sh long-press $SERIAL --text "Inner folder"`, then tap
+  `Move to trash`. The snackbar reads `Moved to Trash` and the row leaves.
+  Remove that one id from Trash:
   `PUTIO_CLI_PROFILE=devs-auto putio sdk call --operation trash.delete --args '[{"file_ids":[<id>]}]' --execute`,
-  then check `trash.list` no longer holds it.
+  check `trash.list` no longer holds it, then
+  `$V/fixture.sh settle $RUN "trashed <id>, removed from Trash"`.
 - **Proof.** Capture before and after each step, plus each CLI read-back.
 
 ## Gotchas
@@ -66,9 +70,11 @@ Preconditions:
   cleanup, or cleanup leaves it behind as unrecognised.
 - A trashed item reads 404 through `files.get`; cleanup cannot see it. Delete
   it from Trash by id; never empty Trash.
-- Mark as watched needs the account's resume setting on and a known length:
-  use an uploaded video that put.io has finished processing. A text file has
-  no watched action.
+- Mark as watched needs the account's resume setting on and a length put.io
+  knows: use the video fixture from
+  [Downloads and offline](./downloads-and-offline.md), and report a missing
+  action with the file's `files.get` answer. A text file has no watched
+  action.
 - Open in VLC needs VLC on the emulator and the account's download token;
   without them a snackbar says so. That snackbar is the expected end state
   on a fresh AVD.

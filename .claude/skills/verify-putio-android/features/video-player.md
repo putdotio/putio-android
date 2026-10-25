@@ -29,9 +29,8 @@ restores the shell.
 
 Preconditions:
 
-- Doctor passes. The run's root holds a landscape MP4 made with the ffmpeg
-  recipe in [Downloads and offline](./downloads-and-offline.md), processed by
-  put.io.
+- Doctor passes. The run's root holds the 120 s landscape MP4 made with the
+  ffmpeg recipe in [Downloads and offline](./downloads-and-offline.md).
 - Read its saved position first:
   `PUTIO_CLI_PROFILE=devs-auto putio sdk call --operation files.getStartFrom --args '[<id>]' --execute --output json`.
 
@@ -43,11 +42,15 @@ Preconditions:
 - **Controls.** Tap the video, then `Back 10 seconds` and
   `Forward 10 seconds`. Run `$V/ui.sh tap $SERIAL --desc "Forward 10 seconds"`.
   The elapsed time moves.
-- **Speed.** Tap the speed chip (`Playback speed 1×`) and `Faster`. The chip
-  reads `1.25×`. Put it back to `1×`.
+- **Speed.** Tap the speed chip (`Playback speed 1×`), then the step whose
+  description is `Faster, 1.25×`. Run
+  `$V/ui.sh tap $SERIAL --match "^Playback speed "` and
+  `$V/ui.sh tap $SERIAL --match "^Faster, "`. The chip reads `1.25×`. Put it
+  back to `1×` with `--match "^Slower, "`.
 - **Subtitles.** Tap the subtitles chip; the sheet lists `Off` first. Press
   Back to close it.
-- **Resume.** Play past 20 s, press Back, reopen the clip. The dialog reads
+- **Resume.** Play to about 40 s (well clear of the last 10 s, where no
+  Resume is offered), press Back, reopen the clip. The dialog reads
   `Resume from <time>?`; `Resume` continues there. Read the position back
   with `files.getStartFrom`.
 - **Back.** Press Back. The shell returns in portrait with its bars.

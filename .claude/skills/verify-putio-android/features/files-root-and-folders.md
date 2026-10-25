@@ -14,7 +14,7 @@ that retries by itself.
 - `files-new-folder` creates a folder from the overflow or an empty folder.
 - `files-empty` shows the empty-folder state.
 - `files-continue-watching` lists videos played on this device at the root.
-- `files-offline` shows "Can't reach put.io." and retries.
+- `files-offline` shows "Can’t reach put.io." and retries.
 
 ## How to get to it (user POV)
 
@@ -52,7 +52,7 @@ Preconditions:
   `$V/ui.sh wait $SERIAL --text "Search your files"`. The root returns.
 - **Empty folder.** Open `Inner folder`. The state reads `Empty folder.` with
   New folder.
-- **New folder.** In the fixture folder, tap `More options`, then
+- **New folder.** Run `$V/fixture.sh intend $RUN "new folder"`. In the fixture folder, tap `More options`, then
   `New folder`; type a name; tap `Create`. Run
   `$V/ui.sh tap $SERIAL --desc "More options"`,
   `$V/ui.sh tap $SERIAL --text "New folder"`,
@@ -63,7 +63,7 @@ Preconditions:
   rows reorder. Sort persists to the account: put the folder's sort back.
 - **Offline.** Run `$V/ui.sh link $SERIAL putio://files`, then
   `adb -s $SERIAL shell cmd connectivity airplane-mode enable` and pull to
-  refresh. The state reads `Can't reach put.io.` with `Try now`. Disable
+  refresh. The state reads `Can’t reach put.io.` with `Try now`. Disable
   airplane mode; the folder loads again without a tap.
 
 ## Gotchas
