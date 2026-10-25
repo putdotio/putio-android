@@ -67,6 +67,11 @@ Two ways to boot:
 - Every `putio-phone` instance runs `-read-only`, ours included; boot that
   AVD only through `session.sh up --snapshot`. A snapshot loads only with the
   renderer that saved it (`-gpu swiftshader_indirect`).
+- A missing or signed-out snapshot is rebuilt only while no `putio-phone`
+  instance runs: boot it once without `-read-only` (same flags otherwise),
+  sign in with the script, then
+  `adb -s <serial> emu avd snapshot save devs-auto-signed-in`. Every copy
+  shares that sign-in's grant.
 - After a snapshot load the app's window can composite black: the status bar
   draws, the app does not, and `capture.sh` rejects the screenshot as
   near-black. `session.sh relaunch` restarts the app, which draws it again;
