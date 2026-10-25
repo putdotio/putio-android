@@ -40,7 +40,7 @@ Preconditions:
   with `account.getSettings`; toggle it back and read again.
 - **Trash.** Tap `Trash`. The list or its empty state shows. Leave it
   untouched.
-- **Sign out.** Run it last. Tap `Sign out`; the dialog reads
+- **Sign out.** Only on a `--fresh` run, and last. Tap `Sign out`; the dialog reads
   `Sign out of put.io?` with `Remove downloads from this device`. Confirm
   `Sign out`. Run `$V/ui.sh tap $SERIAL --text "Sign out"` twice and
   `$V/ui.sh wait $SERIAL --match "^Welcome"`. Capture `account-sign-out`.
@@ -54,8 +54,9 @@ Preconditions:
 - Never confirm Restore all or Empty Trash: they act on the whole shared
   account. Trash recipes use owned fixtures only
   ([Harness](../../../../docs/harness.md#trash-bulk-actions-proof)).
-- Sign out revokes this app's grant; each sign-in through the script adds a
-  new one. Sign out at the end of a run that signed in, or note the grant
-  left behind.
+- Sign out revokes the session's grant. In a `--snapshot` run that grant is
+  shared by every snapshot instance and the snapshot itself: signing out
+  there signs out all of them. Sign out only in a `--fresh` run, whose
+  device-code sign-in made its own grant, and sign out at its end.
 - The `Sign out` label is both the row and the dialog's confirm button; tap
   the row, wait for `Sign out of put.io?`, then tap again.

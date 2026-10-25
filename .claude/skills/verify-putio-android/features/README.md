@@ -7,9 +7,10 @@ product rules; these files say how to see them on a device.
 
 ## Baseline preconditions
 
-- Launch, sign in and pass Doctor as in [SKILL.md](../SKILL.md): AVD `<run>`
-  on zebroid-devbox, production debug build of this copy, signed in as
-  devs-auto, five-tab shell on screen.
+- Launch, sign in and pass Doctor as in [SKILL.md](../SKILL.md): the run's
+  own emulator on zebroid-devbox (`--snapshot` unless the recipe says
+  `--fresh`), production debug build of this copy, signed in as devs-auto,
+  five-tab shell on screen.
 - Create the run's root container with `fixture.sh root <run>`. Its name is
   `android-verify-<run>`; put every other fixture inside it.
 - Drive only the serial `session.sh up` printed for this run.

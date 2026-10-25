@@ -27,8 +27,9 @@ A stored session restores at launch without showing Welcome.
 
 Preconditions:
 
-- A run whose app has no session: after `session.sh install` on a fresh
-  AVD, or after `adb -s $SERIAL shell pm clear io.put.putio.mobile.debug`.
+- A `--fresh` run (`session.sh up $RUN --fresh`) whose app has no session:
+  right after `session.sh install`. Never clear or sign out a `--snapshot`
+  run; its session is shared.
 
 - **Welcome.** Launch. Run
   `adb -s $SERIAL shell am start -n io.put.putio.mobile.debug/io.putdotio.android.MainActivity`
@@ -45,20 +46,22 @@ Preconditions:
   `adb -s $SERIAL shell am force-stop io.put.putio.mobile.debug`, the
   `am start` above, and `$V/ui.sh wait $SERIAL --text "Search your files"`.
   Files shows with no Welcome in between.
-- **Link waits.** Clear data, open `putio://transfers`, sign in with the
-  script. Transfers opens after sign-in.
+- **Link waits.** Sign out under Account
+  ([Account and sign-out](./account-and-sign-out.md)), open
+  `putio://transfers`, then sign in with the script. Transfers opens after
+  sign-in. Sign out again at the end of the run.
 
 ## Gotchas
 
 - The device-code screen exists only in debug builds; a release build fails
   the script with a named error.
-- `pm clear` drops the session but not the server's grant. Sign out in the
-  app first when you want the grant revoked.
+- `pm clear` drops the session but leaves its grant on the account. Sign out
+  in the app instead, so the grant is revoked.
 - The browser path cannot be completed without the account's password. Prove
   only that Chrome opens and that Back returns to Welcome.
 - On a fresh AVD, Chrome shows its own first-run screen
   (`com.android.chrome/...FirstRunActivity` in
   `dumpsys activity activities`) instead of put.io's page. That still proves
   the hand-off; leave Chrome's setup alone.
-- Every boot checks that Chrome holds the browser role with the Auth Tab
-  service; without it the emulator boot fails before install.
+- A `--fresh` boot checks that Chrome holds the browser role with the Auth
+  Tab service; without it the boot fails before install.

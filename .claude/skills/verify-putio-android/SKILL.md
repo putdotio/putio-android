@@ -12,10 +12,10 @@ skill does not map it yet.
 
 Every Gradle build and every emulator runs on `zebroid-devbox`, never on the
 laptop. The laptop edits and calls [`devbox.sh`](scripts/devbox.sh); each
-devbox command is one `devbox.sh run`. One run owns one devbox copy, one AVD,
-one emulator serial and one evidence directory, all named `<run>`. Other
-emulators and the attached phones on the devbox belong to someone else:
-address everything with `-s <serial>` and stop only the serial `session.sh`
+devbox command is one `devbox.sh run`. One run owns one devbox copy, one
+emulator instance and one evidence directory, named `<run>`. Other emulators
+and the attached phones on the devbox belong to someone else: address
+everything with `-s <serial>` and stop only the instance `session.sh`
 recorded.
 
 Read [features/README.md](features/README.md) before driving, then the
@@ -30,7 +30,7 @@ S=.claude/skills/verify-putio-android/scripts
 RUN="verify-$(date -u +%Y%m%d-%H%M%S)"
 $S/devbox.sh sync "$RUN"         # copy, sdk.dir, git init, brand fonts; prints the revision
 $S/devbox.sh run "$RUN" './gradlew --max-workers=6 :mobile:assembleProductionDebug'
-$S/devbox.sh run "$RUN" '$V/session.sh up $RUN'        # prints the serial, e.g. emulator-5556
+$S/devbox.sh run "$RUN" '$V/session.sh up $RUN --snapshot'  # prints the serial, e.g. emulator-5556
 $S/devbox.sh run "$RUN" '$V/session.sh install $RUN'
 $S/devbox.sh run "$RUN" './scripts/sign-in-devs-auto.sh $SERIAL'
 ```
@@ -39,12 +39,24 @@ Single quotes matter: `devbox.sh run` sets `$RUN`, `$V` (this skill's
 `scripts/` in the copy) and `$SERIAL` (once `session.sh up` ran) on the
 devbox side.
 
+Two ways to boot:
+
+- `--snapshot`, the default: a `-read-only` instance of the shared
+  `putio-phone` AVD, loaded from its `devs-auto-signed-in` snapshot on a free
+  port. It starts signed in, so the sign-in script passes with no approval.
+  Every instance shares that one grant: never sign out in a snapshot run.
+- `--fresh`: a new AVD named `<run>`, signed out. The sign-in script shows
+  the debug-only device-code screen and approves it with
+  `PUTIO_CLI_PROFILE=devs-auto putio auth approve <code>`: no password, no
+  browser, one new grant. Use it for Welcome and sign-out recipes, or when
+  the snapshot is missing.
+
 - Ready means the sign-in script printed `SIGNED IN <account id>` and
   `PROOF PASS sign-in-devs-auto`: the app holds a devs-auto session and shows
-  Files. A fresh AVD boots in about a minute.
-- Sign-in uses the debug-only device-code screen and
-  `PUTIO_CLI_PROFILE=devs-auto putio auth approve <code>`. It needs no
-  password and no browser; its `--help` lists failures and fixes.
+  Files. Its `--help` lists failures and fixes.
+- Every `putio-phone` instance runs `-read-only`, ours included; boot that
+  AVD only through `session.sh up --snapshot`. A snapshot loads only with the
+  renderer that saved it (`-gpu swiftshader_indirect`).
 - Run one Gradle invocation at a time per run. Other agents share the devbox.
 - After a code change: `devbox.sh sync`, assemble, then `session.sh install`.
   `install -r` keeps the session, so skip sign-in; Doctor confirms it.
@@ -59,7 +71,8 @@ Run it first, and again whenever anything looks off:
 $S/devbox.sh run "$RUN" '$V/doctor.sh $RUN'
 ```
 
-`DOCTOR PASS` means the serial is up and is AVD `<run>`, API 37, the installed
+`DOCTOR PASS` means the serial is up and is still the instance `run.env`
+records (AVD, and the emulator pid for snapshot runs), API 37, the installed
 APK is byte-identical to this copy's build, the CLI is devs-auto, and the app
 shows the signed-in five-tab shell. Each `FAIL` line names its fix. It taps
 nothing. For the session's account id, rerun the sign-in script: it passes
@@ -144,7 +157,7 @@ Proof standards:
 In this order, also after a failed attempt:
 
 ```bash
-$S/devbox.sh run "$RUN" '$V/session.sh down $RUN'     # force-stop the app, stop this serial, delete AVD <run>
+$S/devbox.sh run "$RUN" '$V/session.sh down $RUN'     # force-stop the app, stop this instance (and delete AVD <run> if --fresh)
 $S/devbox.sh run "$RUN" '$V/fixture.sh cleanup $RUN'  # owned ids, leaves first, 404 confirmed
 $S/devbox.sh pull "$RUN"                              # devbox .evidence/<run>/ -> laptop .evidence/<run>/
 $S/devbox.sh remove "$RUN"                            # delete the devbox copy
@@ -166,7 +179,7 @@ arguments.
 | Script       | Host   | Use                                                                                     |
 | ------------ | ------ | --------------------------------------------------------------------------------------- |
 | `devbox.sh`  | laptop | `sync`, `run '<cmd>'`, `pull`, `remove` for `<run>`; returns the remote exit status     |
-| `session.sh` | devbox | `up` (create and boot AVD `<run>`), `install`, `down`                                   |
+| `session.sh` | devbox | `up --snapshot` or `up --fresh`, `install`, `down`                                      |
 | `doctor.sh`  | devbox | read-only health check                                                                  |
 | `ui.sh`      | devbox | `dump`, `find`, `tap`, `long-press`, `wait`, `gone`, `scroll-to`, `type`, `link`, `key` |
 | `capture.sh` | devbox | screenshot, uiautomator XML and app logcat into `.evidence/<run>/`; secret scan         |

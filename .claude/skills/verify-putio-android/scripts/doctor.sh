@@ -5,7 +5,7 @@
 #   doctor.sh <run>
 #
 # Prints OK/FAIL per check, then DOCTOR PASS or DOCTOR FAIL (exit 1). Checks:
-# the run's emulator is up and is AVD <run>; API 37; the installed APK is the
+# the run's emulator is up and is the instance run.env records; API 37; the installed APK is the
 # one this copy built; the putio CLI is devs-auto; the app is running and shows
 # the signed-in shell. It taps nothing and changes no state.
 set -uo pipefail
@@ -40,9 +40,15 @@ check "copy: $(paste -sd' ' "${revision}" 2>/dev/null)" "copy: no revision.txt; 
 if [[ "$(adb_ get-state)" != "device" ]]; then
   fail "emulator: ${serial} is not running; run session.sh up ${run}"; finish
 fi
+want_avd="$(sed -n 's/^AVD=//p' "${ENV_FILE}" | tail -1)"
+mode="$(sed -n 's/^MODE=//p' "${ENV_FILE}" | tail -1)"
+pid="$(sed -n 's/^PID=//p' "${ENV_FILE}" | tail -1)"
 avd="$(adb_ emu avd name | head -1)"
-same "${avd}" "${run}" || { fail "emulator: ${serial} is AVD '${avd}', not ${run}; not ours"; finish; }
-ok "emulator: ${serial} is AVD ${avd}"
+same "${avd}" "${want_avd}" || { fail "emulator: ${serial} is AVD '${avd}', not ${want_avd}; not ours"; finish; }
+if [[ -n "${pid}" ]] && ! ps -o command= -p "${pid}" 2>/dev/null | grep -q -- "-port ${serial#emulator-}"; then
+  fail "emulator: pid ${pid} no longer serves ${serial}; not ours"; finish
+fi
+ok "emulator: ${serial} is ${mode} AVD ${avd}${pid:+ (pid ${pid})}"
 api="$(adb_ shell getprop ro.build.version.sdk)"
 check "api: ${api}" "api: ${api}, expected 37" same "${api}" 37
 
