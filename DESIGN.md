@@ -228,7 +228,7 @@ that matters.
 ## Colors
 
 The app generates one `darkColorScheme(...)` at build time from the vendored
-`dist/tokens.dtcg.json` ([design/README.md](design/README.md)). The block below
+`dist/tokens.dtcg.json` in `design/`. The block below
 is generated from the same graph and the same role map;
 `./gradlew updateDesignMdColors` rewrites it, and `verify` fails when it is
 stale. Colours with no M3 role come from the generated tokens
@@ -498,6 +498,10 @@ end.
 - Do use one yellow action per screen or dialog.
 - Do show progress in transfer cards and Downloads, never in file rows.
 - Do generate every colour from the token graph.
+- Do use regular-weight Phosphor icons for chrome; fill marks selected or
+  active states and file-kind glyphs.
+- Do keep saving to put.io (`cloud-arrow-down`) and downloading to this device
+  (`download-simple`) on distinct glyphs.
 - Don't use web recipes (`components.css` `.switch`, `.modal`, `.sheet`).
 
 Don't translate iOS:

@@ -93,8 +93,6 @@ The [Agent guide](./AGENTS.md#build-and-verify) covers what the gate runs and
 ## Docs
 
 - [Design](./DESIGN.md): the Android design contract
-- [Design system binding](./design/README.md): tokens, brand fonts and icon
-  generation
 - [Agent guide](./AGENTS.md): module layout, hazards, proof map and CI
 
 ## Security

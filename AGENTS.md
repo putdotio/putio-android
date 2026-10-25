@@ -39,8 +39,12 @@ script headers and `--help` own the harness.
 - [`putio-sdk-kotlin`](https://github.com/putdotio/putio-sdk-kotlin) is the
   API boundary. Close an SDK gap there instead of adding app-local HTTP.
 - Design values come from the locked `@putdotio/design` release and generated
-  Phosphor drawables; [design/README.md](design/README.md) owns both pipelines.
-  Never hand-write design values or edit generated output. A UI change follows
+  Phosphor drawables; `scripts/sync-design-assets.sh` (macOS only) and
+  `scripts/generate-icons.sh` write them from the locks in `design/`. To take a
+  design release, set the lock's version, tarball and `integrity`
+  (`npm view @putdotio/design@<version> dist.integrity`), run the sync, and
+  replace each digest it reports as unlocked. Never hand-write design values
+  or edit generated output. A UI change follows
   [Design](DESIGN.md); when it changes the design, update that file in the
   same pull request. `DESIGN.md` follows the
   [design.md format](https://github.com/google-labs-code/design.md); its
@@ -98,7 +102,7 @@ The machine provides JDK 21 (`.java-version`), Node 24 (`.node-version`),
 
 It installs the Android SDK packages and FFmpeg, creates the `putio-phone`
 (API 37) and `putio-tv` (API 36) AVDs, fetches the licensed brand fonts
-([design/README.md](design/README.md#brand-fonts)), and writes `sdk.dir` to the
+(`scripts/sync-brand-fonts.sh`), and writes `sdk.dir` to the
 ignored `local.properties`; the first run downloads several GB.
 `.worktreeinclude` copies `local.properties` and the fonts into Codex and
 Claude worktrees. Bootstrap, build, CI, and launch proof need no credentials;
@@ -149,7 +153,7 @@ that matches. Report skipped or unavailable proof.
 | UI, navigation, playback, or launch | The affected flow on the emulator: `./scripts/prove.sh <mobile\|tv>` or its opt-in `*ProofTest` lane                                                                |
 | Google Play delivery                | `./gradlew -PputioVersionName=3.0.1 :mobile:bundleProductionRelease :tv:bundleProductionRelease`, then a `dry_run` of [Google Play delivery](#google-play-delivery) |
 | Live API behavior                   | The lane's `devs-auto` steps, with fixtures from the `putio` CLI                                                                                                    |
-| Design tokens or icons              | The sync in [design/README.md](design/README.md), then `./gradlew verify`                                                                                           |
+| Design tokens or icons              | `./scripts/sync-design-assets.sh` or `./scripts/generate-icons.sh`, then `./gradlew verify`                                                                         |
 | Visible change                      | Reviewed captures from `.evidence/`, attached with `gh pr comment <n> --attach <file>`                                                                              |
 
 Shipped user-facing behavior updates the README's "What works today".
