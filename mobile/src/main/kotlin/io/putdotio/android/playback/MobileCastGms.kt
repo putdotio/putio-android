@@ -39,6 +39,10 @@ import io.putdotio.android.R
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
 
 /** The process's Cast controller, started on first use; null where Google Play services is missing. */
@@ -70,8 +74,18 @@ internal object MobileCast {
         Handler(Looper.getMainLooper()).post { cast.end() }
     }
 
-    /** The file a session plays now, for the Cast notification's tap; null without one. */
-    fun castingTarget(): PlaybackTarget? = controller?.castingTarget()
+    /**
+     * The file a session plays now, for the Cast notification's tap; null without one. A process the
+     * tap just started resumes the session first, so this waits a moment for the receiver's word.
+     */
+    suspend fun castingTarget(context: Context): PlaybackTarget? {
+        val cast = controller(context) ?: return null
+        return withTimeoutOrNull(SESSION_RESUME_WAIT_MILLIS) {
+            combine(cast.availability, cast.status) { _, _ -> cast.castingTarget() }.filterNotNull().first()
+        }
+    }
+
+    private const val SESSION_RESUME_WAIT_MILLIS = 3_000L
 
     // A device without Play services, or one whose Play services cannot answer, has no Cast.
     @Suppress("SwallowedException")
@@ -152,6 +166,10 @@ internal class GmsCastGateway private constructor(
     private val remote: GmsCastRemote,
 ) : CastGateway, CastRoutes by routes, CastRemote by remote {
     constructor(context: Context) : this(context, GmsCastRoutes(context), GmsCastRemote())
+
+    init {
+        remote.onAttachedChanged = { updateAvailability() }
+    }
 
     private val mutableAvailability = MutableStateFlow<CastAvailability>(CastAvailability.Unsupported)
     override val availability: StateFlow<CastAvailability> = mutableAvailability
@@ -299,10 +317,33 @@ internal class GmsCastRemote : CastRemote {
     private var client: RemoteMediaClient? = null
     private var lastFileId: Long? = null
 
-    val attached: Boolean get() = client != null
+    /** Whether play was last asked for, which a loading receiver's status does not say. */
+    private var playIntent: Boolean? = null
+
+    /**
+     * Whether the receiver has said what it plays. A resumed session can attach before its first
+     * status, and a screen must not take "nothing yet" for "nothing", or it would load over the
+     * receiver's own position.
+     */
+    private var statusKnown = false
+
+    /** Runs when [attached] changes, so availability follows it. */
+    var onAttachedChanged: () -> Unit = {}
+
+    val attached: Boolean get() = client != null && statusKnown
+
+    private val markStatusKnown = {
+        if (client != null && !statusKnown) {
+            statusKnown = true
+            onAttachedChanged()
+        }
+    }
 
     private val callback = object : RemoteMediaClient.Callback() {
-        override fun onStatusUpdated() = publish()
+        override fun onStatusUpdated() {
+            markStatusKnown()
+            publish()
+        }
 
         override fun onMetadataUpdated() = publish()
     }
@@ -314,6 +355,11 @@ internal class GmsCastRemote : CastRemote {
         client = remote?.also {
             it.registerCallback(callback)
             it.addProgressListener(progress, PROGRESS_INTERVAL_MILLIS)
+            // Answered or not, the first status request settles whether the receiver plays anything.
+            it.requestStatus().setResultCallback {
+                publish()
+                markStatusKnown()
+            }
         }
         publish()
     }
@@ -323,6 +369,7 @@ internal class GmsCastRemote : CastRemote {
         publish()
         release()
         lastFileId = null
+        playIntent = null
         endedStatus = mutableStatus.value
         mutableStatus.value = null
     }
@@ -333,30 +380,40 @@ internal class GmsCastRemote : CastRemote {
             it.removeProgressListener(progress)
         }
         client = null
+        statusKnown = false
     }
 
     fun publish() {
         val remote = client ?: return
         val media = remote.mediaStatus ?: return
         // A finished file's status drops its media; it still belongs to the file it finished.
-        val fileId = remote.mediaInfo?.customData?.optLong(FILE_ID_KEY)?.takeIf { it > 0L }
+        val info = remote.mediaInfo
+        val fileId = info?.customData?.optLong(FILE_ID_KEY)?.takeIf { it > 0L }
             ?: lastFileId.takeIf { media.playerState == MediaStatus.PLAYER_STATE_IDLE }
         lastFileId = fileId
+        val state = media.castRemoteState()
+        if (state == CastRemoteState.Playing || state == CastRemoteState.Paused) {
+            playIntent = state == CastRemoteState.Playing
+        }
         mutableStatus.value = CastRemoteStatus(
             fileId = fileId,
-            state = media.castRemoteState(),
+            state = state,
             positionMillis = remote.approximateStreamPosition.coerceAtLeast(0L),
             durationMillis = remote.streamDuration.takeIf { it > 0L },
             speed = media.playbackRate.toFloat().takeIf { it > 0f } ?: 1f,
             speedSupported = media.isMediaCommandSupported(MediaStatus.COMMAND_PLAYBACK_RATE),
             seekable = media.isMediaCommandSupported(MediaStatus.COMMAND_SEEK),
             sampledAtMillis = SystemClock.elapsedRealtime(),
+            playIntent = playIntent,
+            title = info?.metadata?.getString(MediaMetadata.KEY_TITLE),
+            audio = info?.metadata?.mediaType == MediaMetadata.MEDIA_TYPE_MUSIC_TRACK,
         )
     }
 
     override fun load(media: PlaybackCastMedia, startMillis: Long, autoplay: Boolean, speed: Float) {
         val remote = client ?: return
         lastFileId = media.fileId
+        playIntent = autoplay
         remote.load(
             MediaLoadRequestData.Builder()
                 .setMediaInfo(media.toMediaInfo())
@@ -365,14 +422,29 @@ internal class GmsCastRemote : CastRemote {
                 .setPlaybackRate(speed.castRate())
                 .setActiveTrackIds(media.activeSubtitleId?.let { longArrayOf(it) } ?: longArrayOf())
                 .build(),
-        )
+        ).setResultCallback { result ->
+            // A refused or timed-out load says so for its file, unless another load followed it.
+            if (!result.status.isSuccess && client === remote && lastFileId == media.fileId) {
+                mutableStatus.value = CastRemoteStatus(
+                    fileId = media.fileId,
+                    state = CastRemoteState.Failed,
+                    positionMillis = startMillis,
+                    durationMillis = media.durationMillis,
+                    sampledAtMillis = SystemClock.elapsedRealtime(),
+                    title = media.title,
+                    audio = media.mediaType == PlaybackMediaType.AUDIO,
+                )
+            }
+        }
     }
 
     override fun play() {
+        playIntent = true
         client?.play()
     }
 
     override fun pause() {
+        playIntent = false
         client?.pause()
     }
 

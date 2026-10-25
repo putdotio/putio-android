@@ -221,8 +221,12 @@ private suspend fun MobileCastController.handOver(
     } ?: bareItem(fileId, target.name)
     val media = source?.let { castMedia(it) }
     when {
-        // The receiver plays it already: what Play sends again after it finishes, if it resolved.
-        holds(fileId) -> attach(item, (media as? PlaybackRepositoryResult.Success)?.value)
+        // The receiver plays it already: what Play sends again after it finishes, if it resolved. Session
+        // audio opens without a source; resolving one brings the reporting lease and that media.
+        holds(fileId) -> {
+            attach(item, (media as? PlaybackRepositoryResult.Success)?.value)
+            if (source == null) onSourceRequired(local.positionMillis)
+        }
         media == null -> onSourceRequired(local.positionMillis)
         media is PlaybackRepositoryResult.Success -> cast(media.value, item, local)
     }

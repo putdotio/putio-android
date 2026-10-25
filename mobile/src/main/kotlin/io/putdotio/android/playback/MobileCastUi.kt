@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -126,6 +127,8 @@ internal fun MobileCastPicker(gateway: CastGateway, onDismiss: () -> Unit, modif
                     isTraversalGroup = true
                 }
                 .focusRequester(focus)
+                // Focus stays in the picker until it closes.
+                .focusProperties { onExit = { cancelFocusChange() } }
                 .focusGroup()
                 .testTag(MOBILE_CAST_PICKER_TAG),
             horizontalAlignment = Alignment.CenterHorizontally,

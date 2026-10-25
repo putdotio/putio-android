@@ -715,7 +715,7 @@ private fun NowPlayingNavigationEffect(
             // The Cast notification asks too: the receiver's file, while local audio has stopped.
             val target = playbackPlayerFactory.activeAudio(appContext)
                 ?.let { PlaybackTarget(it.fileId, it.title, PlaybackMediaType.AUDIO) }
-                ?: MobileCast.castingTarget()
+                ?: MobileCast.castingTarget(appContext)
             // Acknowledged only once the lookup finished: a cancelled lookup leaves it pending.
             nowPlayingRequests.acknowledge()
             if (target == null || transferDraft.state.value.incomingRequestId != null) return@collect

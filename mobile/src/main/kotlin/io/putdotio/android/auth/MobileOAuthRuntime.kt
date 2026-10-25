@@ -7,6 +7,7 @@ import android.net.Network
 import android.net.NetworkCapabilities
 import android.util.Log
 import io.putdotio.android.BuildConfig
+import io.putdotio.android.playback.MobileCast
 import io.putdotio.android.playback.SdkPlaybackPositionRepository
 import io.putdotio.android.documents.MobileDocumentsProvider
 import io.putdotio.android.downloads.MobileDownloadCache
@@ -210,18 +211,7 @@ class MobileOAuthRuntime internal constructor(
                 putioClient = putioClient,
                 authController = authController,
                 applicationScope = applicationScope,
-                onSessionLeft = { session ->
-                    MobileFileShareService.endSession(context, session)
-                    MobilePdfDocument.clearCache(context)
-                    MobileFileDrags.endSession(session)
-                    MobileDocumentsProvider.sessionLeft(context)
-                    // The collector can lag the next sign-in; that account's outcomes stay.
-                    MobileDownloadNotifications.cancelOtherAccounts(
-                        context,
-                        (authController.state.value as? MobileAuthState.SignedIn)?.account?.userId,
-                    )
-                    MobileWidgets.sessionLeft(context)
-                },
+                onSessionLeft = { session -> sessionLeft(context, session, authController) },
                 onSessionStarted = {
                     MobileDocumentsProvider.sessionStarted(context)
                     MobileWidgets.sessionStarted(context)
@@ -229,6 +219,22 @@ class MobileOAuthRuntime internal constructor(
             ).also { runtime ->
                 syncWhenOnline(context, runtime.keepOfflinePositions(downloadPreferences(context)))
             }
+        }
+
+        /** What a session leaves behind on this device, ended or removed once it is gone. */
+        private fun sessionLeft(context: Context, session: MobileAuthSessionId?, authController: MobileAuthController) {
+            MobileFileShareService.endSession(context, session)
+            MobilePdfDocument.clearCache(context)
+            MobileFileDrags.endSession(session)
+            MobileDocumentsProvider.sessionLeft(context)
+            // The collector can lag the next sign-in; that account's outcomes stay.
+            MobileDownloadNotifications.cancelOtherAccounts(
+                context,
+                (authController.state.value as? MobileAuthState.SignedIn)?.account?.userId,
+            )
+            MobileWidgets.sessionLeft(context)
+            // The receiver plays with the account's download token.
+            MobileCast.sessionLeft()
         }
 
         /** What sign-out removes from this device for every account: move targets and Continue watching. */

@@ -5,7 +5,6 @@ import android.os.Looper
 import androidx.media3.common.C
 import androidx.media3.common.DeviceInfo
 import androidx.media3.common.MediaItem
-import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.SimpleBasePlayer
@@ -52,8 +51,14 @@ internal data class CastRemoteStatus(
     val seekable: Boolean = true,
     /** The clock reading the position was taken at; a playing position moves on from it. */
     val sampledAtMillis: Long,
+    /** Whether play was last asked for; a loading or buffering receiver plays only if so. */
+    val playIntent: Boolean? = null,
+    /** The title and kind the media was sent with, so the app can reopen it without a screen's help. */
+    val title: String? = null,
+    val audio: Boolean = false,
 ) {
-    val playing: Boolean get() = state == CastRemoteState.Playing || state == CastRemoteState.Buffering
+    val playing: Boolean
+        get() = state == CastRemoteState.Playing || (state == CastRemoteState.Buffering && playIntent != false)
 
     fun positionAt(nowMillis: Long): Long {
         val moved = if (state == CastRemoteState.Playing) ((nowMillis - sampledAtMillis) * speed).toLong() else 0L
@@ -191,16 +196,17 @@ internal class MobileCastController(
         if (media != null) lastMedia = media
     }
 
-    /** The file the receiver plays for this app, named as it was sent; null without one. */
+    /**
+     * The file the receiver plays for this app, named as it was sent; null without one. Read from the
+     * receiver itself, so it answers in a process that never opened a player.
+     */
     fun castingTarget(): PlaybackTarget? {
-        val item = remotePlayer.currentMediaItem
-            ?.takeIf { gateway.availability.value is CastAvailability.Connected }
-        val fileId = item?.mediaId?.toLongOrNull() ?: return null
-        val audio = item.mediaMetadata.mediaType == MediaMetadata.MEDIA_TYPE_MUSIC
+        val status = gateway.status.value?.takeIf { gateway.availability.value is CastAvailability.Connected }
+        val fileId = status?.fileId ?: return null
         return PlaybackTarget(
             FilesItemId(fileId),
-            item.mediaMetadata.title?.toString().orEmpty(),
-            if (audio) PlaybackMediaType.AUDIO else PlaybackMediaType.VIDEO,
+            status.title.orEmpty(),
+            if (status.audio) PlaybackMediaType.AUDIO else PlaybackMediaType.VIDEO,
         )
     }
 

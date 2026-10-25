@@ -132,6 +132,18 @@ class MobileCastControllerTest {
     }
 
     @Test
+    fun aPausedFileStillLoadingHandsBackPaused() {
+        gateway.connect()
+        cast.cast(Media, Item, CastHandover(positionMillis = 5_000L, playing = false))
+        // Loading reads as buffering; only the play intent says it waits paused.
+        gateway.status.value =
+            gateway.remote(CastRemoteState.Buffering, positionMillis = 5_000L).copy(playIntent = false)
+        gateway.disconnect()
+
+        assertEquals(CastHandover(positionMillis = 5_000L, playing = false), cast.takeHandover(42L))
+    }
+
+    @Test
     fun aFileThatFailedOnTheReceiverIsSentAgain() {
         gateway.connect()
         cast.cast(Media, Item, CastHandover(positionMillis = 0L, playing = true))

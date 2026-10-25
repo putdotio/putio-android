@@ -66,6 +66,7 @@ import androidx.compose.ui.platform.LocalAccessibilityManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -153,77 +154,84 @@ internal fun MobilePlayerScreen(
                 onKeyboardNavigation = { keyboardNavigationActive = true },
             ),
     ) {
-        val isVideo = state.target.mediaType == PlaybackMediaType.VIDEO
-        when (val content = state.content) {
-            is PlaybackContent.Loading ->
-                MobileLoadingState(stringResource(state.target.mediaType.loadingMessage()))
+        // The open device picker is modal: TalkBack reaches only it.
+        Box(Modifier.fillMaxSize().hiddenFromAccessibility(castPicker.value)) {
+            val isVideo = state.target.mediaType == PlaybackMediaType.VIDEO
+            when (val content = state.content) {
+                is PlaybackContent.Loading ->
+                    MobileLoadingState(stringResource(state.target.mediaType.loadingMessage()))
 
-            is PlaybackContent.AwaitingResume -> MobileResumePlaybackDialog(
-                startFromSeconds = content.source.startFromSeconds,
-                onResume = onResume,
-                onRestart = onRestart,
-                onDismiss = onBack,
-            )
-
-            is PlaybackContent.Ready, PlaybackContent.Session -> MobileReadyContent(
-                state = state,
-                playerCast = playerCast,
-                preferences = preferences,
-                playerFactory = playerFactory,
-                subtitleStartupPolicy = subtitleStartupPolicy,
-                keyboardNavigation = keyboardNavigation,
-                onPlayerFailure = onPlayerFailure,
-                autoplayNextVideo = autoplayNextVideo,
-                onPlaybackEnded = onPlaybackEnded,
-                seekClock = seekClock,
-                onSourceRequired = onSourceRequired,
-                onBack = onBack,
-                onVideoAspectRatio = { landscapeVideo = it > 1f },
-                pictureInPicture = pictureInPicture,
-                nextEpisode = nextEpisode.takeIf { isVideo },
-                onNextEpisode = onNextEpisode,
-                neighbours = neighbours,
-                onPlay = onPlay,
-            )
-
-            is PlaybackContent.FindingNext ->
-                MobileLoadingState(stringResource(R.string.mobile_playback_finding_next))
-
-            is PlaybackContent.NextFailed ->
-                MobilePlaybackFailureState(
-                    title = stringResource(R.string.mobile_playback_next_error_title),
-                    failure = content.failure,
-                    onRetry = onRetry,
-                    video = isVideo,
+                is PlaybackContent.AwaitingResume -> MobileResumePlaybackDialog(
+                    startFromSeconds = content.source.startFromSeconds,
+                    onResume = onResume,
+                    onRestart = onRestart,
+                    onDismiss = onBack,
                 )
 
-            PlaybackContent.Ended -> Unit
-
-            is PlaybackContent.Conversion ->
-                MobileConversionState(content, onRefreshConversion, onStartConversion)
-
-            is PlaybackContent.Unsupported ->
-                MobileEmptyState(
-                    title = stringResource(R.string.mobile_playback_unsupported_title),
-                    message = stringResource(R.string.mobile_playback_unsupported_message),
+                is PlaybackContent.Ready, PlaybackContent.Session -> MobileReadyContent(
+                    state = state,
+                    playerCast = playerCast,
+                    preferences = preferences,
+                    playerFactory = playerFactory,
+                    subtitleStartupPolicy = subtitleStartupPolicy,
+                    keyboardNavigation = keyboardNavigation,
+                    onPlayerFailure = onPlayerFailure,
+                    autoplayNextVideo = autoplayNextVideo,
+                    onPlaybackEnded = onPlaybackEnded,
+                    seekClock = seekClock,
+                    onSourceRequired = onSourceRequired,
+                    onBack = onBack,
+                    onVideoAspectRatio = { landscapeVideo = it > 1f },
+                    pictureInPicture = pictureInPicture,
+                    nextEpisode = nextEpisode.takeIf { isVideo },
+                    onNextEpisode = onNextEpisode,
+                    neighbours = neighbours,
+                    onPlay = onPlay,
                 )
 
-            is PlaybackContent.Failed ->
-                MobilePlaybackFailureState(
-                    title = stringResource(state.target.mediaType.errorTitle()),
-                    failure = content.failure,
-                    onRetry = onRetry,
-                    video = isVideo,
-                    onOpenInVlc = onOpenInVlc,
-                )
-        }
+                is PlaybackContent.FindingNext ->
+                    MobileLoadingState(stringResource(R.string.mobile_playback_finding_next))
 
-        if (state.showsSeparateBack() && !pictureInPicture.value) {
-            MobilePlayerSeparateBack(state, onBack, Modifier.align(Alignment.TopStart))
+                is PlaybackContent.NextFailed ->
+                    MobilePlaybackFailureState(
+                        title = stringResource(R.string.mobile_playback_next_error_title),
+                        failure = content.failure,
+                        onRetry = onRetry,
+                        video = isVideo,
+                    )
+
+                PlaybackContent.Ended -> Unit
+
+                is PlaybackContent.Conversion ->
+                    MobileConversionState(content, onRefreshConversion, onStartConversion)
+
+                is PlaybackContent.Unsupported ->
+                    MobileEmptyState(
+                        title = stringResource(R.string.mobile_playback_unsupported_title),
+                        message = stringResource(R.string.mobile_playback_unsupported_message),
+                    )
+
+                is PlaybackContent.Failed ->
+                    MobilePlaybackFailureState(
+                        title = stringResource(state.target.mediaType.errorTitle()),
+                        failure = content.failure,
+                        onRetry = onRetry,
+                        video = isVideo,
+                        onOpenInVlc = onOpenInVlc,
+                    )
+            }
+
+            if (state.showsSeparateBack() && !pictureInPicture.value) {
+                MobilePlayerSeparateBack(state, onBack, Modifier.align(Alignment.TopStart))
+            }
         }
         MobileCastPickerHost(cast, castPicker, pictureInPicture.value, Modifier.zIndex(4f))
     }
 }
+
+/** Leaves this content out of accessibility while something modal covers it. */
+private fun Modifier.hiddenFromAccessibility(hidden: Boolean): Modifier =
+    if (hidden) clearAndSetSemantics {} else this
 
 /**
  * The player once it has something to play: the receiver's controls while a Cast session runs,
