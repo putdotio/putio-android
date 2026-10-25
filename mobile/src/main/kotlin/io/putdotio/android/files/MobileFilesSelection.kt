@@ -352,6 +352,7 @@ internal fun MobileFilesSelectionToolbarSlot(
     onHeightChanged: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val currentState by rememberUpdatedState(state)
     val items = selection?.selected(state).orEmpty()
     if (selection == null || items.isEmpty()) {
         SideEffect { onHeightChanged(0) }
@@ -372,8 +373,11 @@ internal fun MobileFilesSelectionToolbarSlot(
             }
         },
         onDelete = { chosen, mode ->
-            actions.onEvent(FilesBrowserEvent.Delete(state.current.folder.id, chosen.map { it.id }, mode))
-            selection.end()
+            // The reducer refuses a delete while another operation runs; the selection then stays.
+            if (currentState.current.operation.canStartOperation) {
+                actions.onEvent(FilesBrowserEvent.Delete(currentState.current.folder.id, chosen.map { it.id }, mode))
+                selection.end()
+            }
         },
     )
     MobileFilesSelectionToolbar(

@@ -796,11 +796,12 @@ private fun FilesDeleteOutcome.statusMessage(): String? {
             stringResource(R.string.mobile_files_delete_still_present, itemName)
         }
         FilesDeleteStatus.SKIPPED -> if (many) {
-            pluralStringResource(
-                R.plurals.mobile_files_delete_skipped_many,
-                remainingCount.takeIf { it > 0 } ?: itemCount,
-                remainingCount.takeIf { it > 0 } ?: itemCount,
-            )
+            // put.io left the request incomplete; the read-back says which items stayed, if any did.
+            if (remainingCount > 0) {
+                pluralStringResource(R.plurals.mobile_files_delete_skipped_many, remainingCount, remainingCount)
+            } else {
+                pluralStringResource(R.plurals.mobile_files_delete_unavailable_many, itemCount, itemCount)
+            }
         } else {
             stringResource(R.string.mobile_files_delete_skipped, itemName)
         }

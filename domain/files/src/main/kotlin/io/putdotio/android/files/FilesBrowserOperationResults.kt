@@ -77,7 +77,8 @@ internal fun FilesDeleteOutcome.afterFolderPage(page: FilesPage): FilesDeleteOut
         remainingIds.containsAll(listed) -> this
         status == FilesDeleteStatus.NO_LONGER_AVAILABLE || status == FilesDeleteStatus.STILL_PRESENT ->
             copy(status = FilesDeleteStatus.STILL_PRESENT, remainingIds = remainingIds + listed)
-        status == FilesDeleteStatus.SKIPPED -> copy(remainingIds = remainingIds + listed)
+        status == FilesDeleteStatus.SKIPPED || status == FilesDeleteStatus.TOO_LARGE_FOR_TRASH ->
+            copy(remainingIds = remainingIds + listed)
         else -> this
     }
 }

@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
+import io.putdotio.sdk.files.FileMoveError
 
 internal const val MOBILE_FILES_MOVE_OUTCOME_TAG = "mobile-files-move-outcome"
 
@@ -55,17 +56,21 @@ private fun FilesMoveOutcome.statusMessage(): String? {
         } else {
             stringResource(R.string.mobile_files_move_still_present, itemName)
         }
-        FilesMoveStatus.REJECTED -> {
-            // An unnamed clash among several items can't be named: the first item's name may not be its.
-            val clashName = collision?.name ?: itemName.takeUnless { many }
-            when {
-                collision != null && clashName != null ->
-                    stringResource(R.string.mobile_files_move_collision, clashName)
-                many -> pluralStringResource(R.plurals.mobile_files_move_rejected_many, refusedCount, refusedCount)
-                else -> stringResource(R.string.mobile_files_move_rejected, itemName)
-            }
-        }
+        FilesMoveStatus.REJECTED -> rejectedMessage(collision, many)
         FilesMoveStatus.CHECKING, FilesMoveStatus.UNKNOWN -> null
+    }
+}
+
+/** A refused move: a clash names its item when it is the one refusal; several count. */
+@Composable
+private fun FilesMoveOutcome.rejectedMessage(collision: FileMoveError?, many: Boolean): String {
+    // An unnamed clash among several items can't be named: the first item's name may not be its.
+    val clashName = collision?.name ?: itemName.takeUnless { many }
+    return when {
+        collision != null && clashName != null && (!many || refusedCount == 1) ->
+            stringResource(R.string.mobile_files_move_collision, clashName)
+        many -> pluralStringResource(R.plurals.mobile_files_move_rejected_many, refusedCount, refusedCount)
+        else -> stringResource(R.string.mobile_files_move_rejected, itemName)
     }
 }
 
