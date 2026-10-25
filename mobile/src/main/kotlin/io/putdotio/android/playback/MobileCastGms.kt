@@ -362,8 +362,14 @@ internal class GmsCastRemote : CastRemote {
         }
     }
 
+    /** A receiver that answered with no media plays nothing, whatever it played before. */
+    private val clearIfEmpty = {
+        if (client?.mediaStatus == null) mutableStatus.value = null
+    }
+
     private val callback = object : RemoteMediaClient.Callback() {
         override fun onStatusUpdated() {
+            clearIfEmpty()
             markStatusKnown()
             publish()
         }
@@ -382,6 +388,7 @@ internal class GmsCastRemote : CastRemote {
             // answer the next status update does.
             it.requestStatus().setResultCallback { result ->
                 if (client === it && result.status.isSuccess) {
+                    clearIfEmpty()
                     publish()
                     markStatusKnown()
                 }
@@ -418,10 +425,10 @@ internal class GmsCastRemote : CastRemote {
         val remote = client ?: return
         val media = remote.mediaStatus ?: return
         // A finished file's status drops its media; it still belongs to the file it finished, with the
-        // title and kind it was sent with.
+        // title and kind it was sent with. Media another sender sent, untagged, belongs to no file.
         val info = remote.mediaInfo
         val fileId = info?.customData?.optLong(FILE_ID_KEY)?.takeIf { it > 0L }
-            ?: lastFileId.takeIf { media.playerState == MediaStatus.PLAYER_STATE_IDLE }
+            ?: lastFileId.takeIf { info == null && media.playerState == MediaStatus.PLAYER_STATE_IDLE }
         val previous = mutableStatus.value?.takeIf { info == null && it.fileId == fileId }
         val state = media.castRemoteState()
         noteReport(fileId, state)

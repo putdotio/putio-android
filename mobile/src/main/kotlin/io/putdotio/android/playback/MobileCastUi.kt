@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -222,7 +223,8 @@ private fun MobileCastActionRow(
     Row(
         modifier
             .fillMaxWidth()
-            .height(CAST_ROW_HEIGHT)
+            // Large text grows the row past its 64dp.
+            .heightIn(min = CAST_ROW_HEIGHT)
             .clickable(role = Role.Button, onClick = onClick)
             .semantics { this.selected = selected }
             .padding(horizontal = 24.dp),

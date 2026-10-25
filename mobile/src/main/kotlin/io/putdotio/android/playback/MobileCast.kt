@@ -432,7 +432,7 @@ internal class CastRemotePlayer(
     }
 
     private val CastRemoteStatus.left: Boolean
-        get() = state == CastRemoteState.Ended || state == CastRemoteState.Failed
+        get() = state !in LIVE_STATES
 
     private val MediaItem.reportsPositions: Boolean
         get() = mediaMetadata.extras?.containsKey(PLAYBACK_REPORTING_LEASE_KEY) == true
