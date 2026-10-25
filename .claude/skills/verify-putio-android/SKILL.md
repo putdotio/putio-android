@@ -19,8 +19,7 @@ find the SDK the way the repo's scripts do: `ANDROID_HOME`, then
 evidence directory, named `<run>`. Address everything with `-s <serial>` and
 stop only what `session.sh` recorded.
 
-Read [features/README.md](features/README.md) before driving, then the
-feature file that matches the claim.
+Open the [feature file](#features) that matches the claim before driving.
 
 ## Launch
 
@@ -77,8 +76,6 @@ Three ways to get an emulator:
   near-black. `session.sh relaunch` restarts the app, which draws it again.
 - After a code change: assemble, then `session.sh install`. `install -r`
   keeps the session, so skip sign-in; Doctor confirms it.
-- Keep `connectedAndroidTest` and `scripts/prove.sh` out of an authenticated
-  run: both uninstall the app and its session.
 
 ## Doctor
 
@@ -88,12 +85,9 @@ Run it first, and again whenever anything looks off:
 $S/doctor.sh "$RUN"
 ```
 
-`DOCTOR PASS` means the serial is up and is still the instance `run.env`
-records (AVD, and the emulator pid for snapshot runs), API 37, the installed
-APK is byte-identical to this checkout's build, the CLI is devs-auto, and the app
-shows the signed-in five-tab shell. Each `FAIL` line names its fix. It taps
-nothing. For the session's account id, rerun the sign-in script: it passes
-with no approval when the app is already devs-auto.
+Continue only on `DOCTOR PASS`; each `FAIL` line names its fix. For the
+session's account id, rerun the sign-in script: it passes with no approval
+when the app is already devs-auto.
 
 ## Drive
 
@@ -127,13 +121,17 @@ Handles, most stable first:
    `Account`), button labels, a row's full name. A row exposes the full name
    even when the screen cuts it in the middle.
 
-Use `wait` and `gone` after each action instead of a fixed sleep. When a tap
-does nothing, the node was not the clickable one: tap its label text.
+Start each recipe from the Files root (`putio://files`). Follow every action
+with `wait` or `gone` on the state it should produce. When a tap does nothing,
+the node was not the clickable one: tap its label text.
 
 Live data comes from [`fixture.sh`](scripts/fixture.sh) on devs-auto: one
 uniquely named root container per run, a ledger line before each write, and
 cleanup of ledger ids only. Trash stays as it was: deletes use `skip_trash`,
 and an item the app trashes is removed from Trash by its id.
+
+Put every fixture inside the run's root, and write local fixture files under
+`build/`.
 
 ```bash
 $S/fixture.sh root $RUN                       # creates android-verify-<run>; prints its id
@@ -193,8 +191,10 @@ Proof standards:
   transfer, read the account back with
   `PUTIO_CLI_PROFILE=devs-auto putio files list --parent-id <id> --output json`.
 - A run on faked repositories proves layout, not the API.
-- Look at every screenshot before you cite it. `.evidence/` is gitignored:
-  attach captures with `gh pr comment <n> --attach <file>`.
+- Restore every account and device setting a recipe changes.
+- Look at every screenshot before you cite it.
+- Report a path you could not reach with the failing command and the missing
+  precondition, and a path you drove another way as unverified.
 
 ## Cleanup
 
@@ -223,15 +223,22 @@ $S/fixture.sh cleanup "$RUN"  # owned ids, deepest first, 404 confirmed
 - `.evidence/<run>/` keeps the captures, `fixtures.jsonl`, `run.env` and
   `revision.txt`. Cleanup leaves it alone.
 
-## Helpers
+## Features
 
-All in [`scripts/`](scripts/); each prints its usage when run without
+Each file lists preconditions, drive steps with the expected end state, and
+gotchas. A run passes only when the device shows that end state.
+
+- [Welcome and sign-in](features/welcome-and-sign-in.md)
+- [Files root and folders](features/files-root-and-folders.md)
+- [Search](features/search.md)
+- [Item actions](features/item-actions.md)
+- [Files selection](features/files-selection.md)
+- [Transfers](features/transfers.md)
+- [Downloads and offline](features/downloads-and-offline.md)
+- [Video player](features/video-player.md)
+- [Audio player](features/audio-player.md)
+- [Account and sign-out](features/account-and-sign-out.md)
+- [Tablet list-detail and viewers](features/tablet-list-detail-and-viewers.md)
+
+Each script in [`scripts/`](scripts/) prints its usage when run without
 arguments.
-
-| Script       | Use                                                                                                      |
-| ------------ | -------------------------------------------------------------------------------------------------------- |
-| `session.sh` | `up --fresh`, `up --snapshot <name>` or `up --serial <serial>`, `install`, `relaunch`, `down`            |
-| `doctor.sh`  | read-only health check                                                                                   |
-| `ui.sh`      | `dump`, `find`, `tap`, `long-press`, `wait`, `gone`, `scroll-to`, `refresh`, `type`, `link`, `key`       |
-| `capture.sh` | screenshot, uiautomator XML and app logcat into `.evidence/<run>/`; secret scan                          |
-| `fixture.sh` | `root`, `mkdir`, `upload`, `intend`, `adopt`, `settle`, `owned`, `cleanup` on devs-auto, with the ledger |

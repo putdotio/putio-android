@@ -1,30 +1,6 @@
 # Search
 
-Search opens over Files and finds files and folders across the account or
-inside one folder. Type chips filter the results, results group into Folders
-and Files with their parent folder named, recent searches replay a term, and
-an empty result says so.
-
-## Sub-features
-
-- `search-open` opens Search with the keyboard from the root pill or a
-  folder's search.
-- `search-account` finds a fixture by its unique name across the account.
-- `search-scope` searches inside one folder (`<term> in:<folderId>`).
-- `search-chips` filters by All, Folders, Videos, Audio or Subtitles.
-- `search-open-result` opens a folder or file from the results.
-- `search-recent` keeps a submitted term and replays it from a chip.
-- `search-none` shows "Nothing matches." with the term.
-- `search-back` closes Search before it leaves a folder.
-
-## How to get to it (user POV)
-
-- Tap `Search your files` at the Files root.
-- Tap `Search in <folder>` inside a folder.
-- Press Ctrl+F with a hardware keyboard.
-- Open `putio://search`, or the launcher shortcut Search files.
-
-## Driving it with verify-putio-android
+## Drive
 
 Preconditions:
 

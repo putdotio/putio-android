@@ -1,27 +1,6 @@
 # Account and sign-out
 
-Account shows the user, storage used and free, and the account's settings:
-playback, files, subtitles, privacy controls, Trash and public links, and App
-info. Sign out asks first, can remove downloads from the device, and returns
-to Welcome.
-
-## Sub-features
-
-- `account-header` shows the username and `Storage` with used and free.
-- `account-settings` toggles a setting and keeps the server's value on a
-  failed save.
-- `account-trash` opens Trash from `Trash`.
-- `account-public-links` lists exclusive links.
-- `account-about` shows App info and `Copy for support`.
-- `account-sign-out` confirms with `Sign out of put.io?`, optionally removes
-  downloads, revokes the session and shows Welcome.
-
-## How to get to it (user POV)
-
-- Tap the `Account` tab.
-- Open `putio://trash` for Trash.
-
-## Driving it with verify-putio-android
+## Drive
 
 Preconditions:
 

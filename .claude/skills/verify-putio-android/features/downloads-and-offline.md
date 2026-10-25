@@ -1,30 +1,6 @@
 # Downloads and offline
 
-A media file's Download keeps a copy on the device. Downloads lists rows in
-Downloading, Needs attention and On this device sections with a summary of
-space used and free; rows pause, resume, retry and remove. Finished copies
-play with no network, and Files lists them at the root while offline.
-
-## Sub-features
-
-- `downloads-start` starts a download from the actions sheet.
-- `downloads-progress` advances the row about once a second to
-  `On this device · <size>`.
-- `downloads-files-mark` shows the on-device glyph on the Files row.
-- `downloads-play-offline` plays the copy in airplane mode.
-- `downloads-offline-root` lists copies under "Offline. Showing what’s on
-  this device."
-- `downloads-waiting-network` reads `Waiting for network` and resumes.
-- `downloads-remove` removes the local copy and keeps the put.io file.
-- `downloads-notification` posts Download finished and opens its row.
-
-## How to get to it (user POV)
-
-- Open a video or audio file's actions and tap `Download`.
-- Tap the `Downloads` tab, or open `putio://downloads`.
-- Tap a download notification (`putio://downloads/<id>`).
-
-## Driving it with verify-putio-android
+## Drive
 
 Preconditions:
 

@@ -1,28 +1,6 @@
 # Transfers
 
-Transfers lists the account's transfers in Active, Needs attention and
-Completed sections under a summary of active and failed counts and speed. Add
-transfer takes URLs or magnet links, or a `.torrent`, with a Save to folder;
-each card's actions retry, stop or remove a transfer.
-
-## Sub-features
-
-- `transfers-list` shows the sections and the summary.
-- `transfers-add-url` adds an HTTP URL into a chosen folder.
-- `transfers-add-magnet` opens the sheet from a magnet link, unsent.
-- `transfers-save-to` changes the destination with `Change`.
-- `transfers-actions` offers Retry, Stop transfer and Remove from list.
-- `transfers-refresh` refreshes from the bar.
-
-## How to get to it (user POV)
-
-- Tap the `Transfers` tab.
-- Tap the `Add transfer` button in Transfers.
-- Open `putio://transfers` or `putio://transfers/add`, or the launcher
-  shortcut Add transfer.
-- Share a link or open a `magnet:` link from another app.
-
-## Driving it with verify-putio-android
+## Drive
 
 Preconditions:
 

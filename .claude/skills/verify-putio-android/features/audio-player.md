@@ -1,30 +1,6 @@
 # Audio player
 
-Audio plays on a background service with a media notification and lock-screen
-controls. While it plays, a mini player card sits above the navigation bar on
-every tab; tapping it opens Now Playing with 15-second back and 30-second
-forward seeks, previous and next files in the folder, Up next, speed and a
-sleep timer.
-
-## Sub-features
-
-- `audio-open` plays an audio file from its row and shows Now Playing.
-- `audio-mini-player` keeps the card on every tab with Pause or Play and
-  `Stop playback`.
-- `audio-seek` seeks back 15 s and forward 30 s.
-- `audio-skip` plays the previous or next audio file by name order and shows
-  `Up next`.
-- `audio-speed` opens the speed panel in a bottom sheet.
-- `audio-sleep` sets 15, 30, 45 minutes or 1 hour, and Off.
-- `audio-background` keeps playing with the app in the background.
-
-## How to get to it (user POV)
-
-- Tap an audio row in Files, Search or History.
-- Tap the mini player card.
-- Use the media notification or headset controls.
-
-## Driving it with verify-putio-android
+## Drive
 
 Preconditions:
 

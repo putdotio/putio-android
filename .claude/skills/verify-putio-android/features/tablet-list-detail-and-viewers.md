@@ -1,30 +1,6 @@
 # Tablet list-detail and viewers
 
-In a window 840 dp or wider, Files shows the folder's list on the left and
-the selected file's detail on the right: a preview, the full name, Play or
-Resume or Open, Download, Share, facts, and an overflow to the actions sheet.
-Images, PDFs and text open in an in-app viewer on a black frame, on phones
-from a row and on tablets from the detail's Open.
-
-## Sub-features
-
-- `tablet-detail-empty` shows `No file selected.` beside the list.
-- `tablet-select` selects a file into the detail; a folder still opens in
-  the list.
-- `tablet-facts` lists `Size`, `Added`, `Length`, `Subtitles` and `Folder`.
-- `viewer-image` shows an image and swipes to the next of the same kind with
-  `<n> of <total>`.
-- `viewer-pdf` renders one page at a time with `Page <n> of <total>`.
-- `viewer-text` shows text in mono up to 250 kB.
-- `viewer-other` hands other types to `Open with another app`.
-
-## How to get to it (user POV)
-
-- Use a tablet or a window at least 840 dp wide; tap a file in Files.
-- On a phone, tap an image, PDF or text row.
-- Tap `Open` in the tablet detail.
-
-## Driving it with verify-putio-android
+## Drive
 
 Preconditions:
 

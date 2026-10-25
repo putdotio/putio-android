@@ -1,30 +1,6 @@
 # Files root and folders
 
-Files is the first tab: the account's root listing, folders that open in
-place with their item count and size, a per-folder sort, New folder, the
-Continue watching row for videos played on this device, and an offline state
-that retries by itself.
-
-## Sub-features
-
-- `files-root` lists the root's items with the search pill on top.
-- `files-open-folder` opens a folder and shows its whole item count and size.
-- `files-back` pops folders back to the root.
-- `files-sort` changes a folder's order from the bar's overflow.
-- `files-new-folder` creates a folder from the overflow or an empty folder.
-- `files-empty` shows the empty-folder state.
-- `files-continue-watching` lists videos played on this device at the root.
-- `files-offline` keeps the listing and shows "Couldn’t refresh files." when a
-  refresh fails; a folder with nothing loaded shows "Can’t reach put.io.".
-
-## How to get to it (user POV)
-
-- Launch the app, or tap the `Files` tab.
-- Open a link: `putio://files` or `https://app.put.io/files/<id>`.
-- Tap a folder row; tap a History, Search or Transfers result that is a
-  folder.
-
-## Driving it with verify-putio-android
+## Drive
 
 Preconditions:
 

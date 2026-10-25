@@ -807,5 +807,4 @@ the navigation bar: **Welcome!** as a 40sp medium title on a 48sp line, then
 
 The shipped Android TV app is `putio-tv-native-legacy`: the React Native app
 shared with Apple TV, with its own components and `@putdotio/colors`. This
-repository's `tv` module replaces it; its design pass comes next and lands in
-this file.
+repository's `tv` module replaces it and has no design contract here yet.
