@@ -8,15 +8,16 @@
 #   fixture.sh intend  <run> <what>                     record a UI mutation before doing it ("rename <id>")
 #   fixture.sh adopt   <run> <id>                       record an item the app made or changed (a new folder,
 #                                                       a copy, a rename, a move) so cleanup finds it as it is now
-#   fixture.sh settle  <run> <what>                     close an intent that left no item to adopt
-#                                                       ("cancelled", "trashed <id>, removed from Trash")
+#   fixture.sh settle  <run> <what>                     close the open intent or unknown outcome once every
+#                                                       affected item is adopted or accounted for
+#                                                       ("renamed", "cancelled", "trashed <id>, removed from Trash")
 #   fixture.sh owned   <run>                            print "id kind name" for every owned item
 #   fixture.sh cleanup <run>                            delete owned items deepest first, then prove each is 404
 #
 # The ledger is .evidence/<run>/fixtures.jsonl. Every write, by this script or
 # through the UI, gets an intent line first and an outcome after it. While an
 # intent is open or an outcome is unknown, every write and cleanup refuses:
-# reconcile read-only, then adopt or settle; never repeat the write. Before
+# reconcile read-only, adopt what exists, then settle; never repeat the write. Before
 # deleting anything, cleanup checks each live id's name and parent and each
 # owned folder's contents against the ledger, and deletes nothing on a
 # mismatch. It deletes with skip_trash so nothing lands in Trash, stops at the
@@ -52,9 +53,17 @@ for row in rows:
     if row.get("state") in ("created", "adopted"):
         items[row["id"]] = row
 if query == "settled":
-    open_intent = any(r.get("state") == "intent" for r in rows[-1:])
-    unknown = any(r.get("state") == "unknown" for r in rows)
-    sys.exit(1 if open_intent or unknown else 0)
+    # An intent or an unknown outcome stays open until its write is created
+    # or deleted, or until settle closes it; adopt records items without
+    # closing, so a bulk action stays open until every item is adopted.
+    open_op = False
+    for row in rows:
+        state = row.get("state")
+        if state in ("intent", "unknown"):
+            open_op = True
+        elif state in ("created", "deleted", "settled"):
+            open_op = False
+    sys.exit(1 if open_op else 0)
 if query == "account":
     accounts = [r["id"] for r in rows if r.get("op") == "account"]
     print(accounts[-1] if accounts else "")
@@ -98,7 +107,7 @@ preflight() {
 }
 
 require_settled() {
-  ledger settled || die "the ledger has an open intent or an unknown outcome; reconcile read-only, then adopt or settle"
+  ledger settled || die "the ledger has an open intent or an unknown outcome; reconcile read-only, adopt what exists, then settle"
 }
 
 require_owned_folder() { ledger is-folder "$1" || die "parent $1 is not a folder this run owns"; }
@@ -218,6 +227,13 @@ case "${cmd}" in
         1) ;;
         *) die "${id} changed during cleanup; stopped before deleting it" ;;
       esac
+      # Its owned children are gone by now; anything left was added since the check.
+      if [[ "$(ledger field "${id}" kind)" == "FOLDER" ]]; then
+        left="$(cli files list --parent-id "${id}" --per-page 100 --output json |
+          python3 -I -c 'import json,sys; print(len(json.load(sys.stdin)["files"]))')" ||
+          die "could not list folder ${id}; stopped before deleting it"
+        [[ "${left}" == "0" ]] || die "folder ${id} still holds ${left} item(s); stopped before deleting it"
+      fi
       record op=delete id="${id}" name="${name}" state=intent
       deleted=0
       if cli files delete --id "${id}" --skip-trash --output json >/dev/null 2>&1; then

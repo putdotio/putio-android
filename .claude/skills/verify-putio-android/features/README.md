@@ -31,7 +31,8 @@ passes only when the device shows it.
 - Wrap every step that changes the account in the ledger: run
   `$V/fixture.sh intend $RUN "<what>"` before the tap, then
   `$V/fixture.sh adopt $RUN <id>` for each item the app created, renamed or
-  moved, or `$V/fixture.sh settle $RUN "<what happened>"` when none is left.
+  moved, then `$V/fixture.sh settle $RUN "<what happened>"` once all are
+  recorded. Every "intend … adopt" step below ends with that settle.
   Read ids back with
   `PUTIO_CLI_PROFILE=devs-auto putio files list --parent-id <id> --output json`.
 - Restore every account setting and device setting a recipe changes.

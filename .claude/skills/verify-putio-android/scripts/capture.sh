@@ -45,8 +45,8 @@ uid="$("${ADB}" -s "${serial}" shell pm list packages -U "${package}" | sed -n "
 python3 -I - "${files[@]}" <<'PY' || die "a capture held a session secret; all of its files were deleted"
 import html, re, sys
 pattern = re.compile(
-    rb"(oauth_token|access_token|refresh_token|download_token)[\"'\s]*[=:][\"'\s]*[A-Za-z0-9]"
-    rb"|authorization[\"'\s]*[=:][\"'\s]*(bearer|token)\s+[A-Za-z0-9]",
+    rb"(oauth_token|access_token|refresh_token|download_token)[\"'\s]*[=:][\"'\s]*[A-Za-z0-9_.~+/-]"
+    rb"|authorization[\"'\s]*[=:][\"'\s]*(bearer|token)\s+[A-Za-z0-9_.~+/-]",
     re.IGNORECASE,
 )
 for path in sys.argv[1:]:

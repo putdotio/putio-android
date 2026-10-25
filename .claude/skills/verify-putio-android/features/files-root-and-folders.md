@@ -58,9 +58,10 @@ Preconditions:
   `$V/ui.sh tap $SERIAL --text "New folder"`,
   `$V/ui.sh type $SERIAL "Made in app"` and
   `$V/ui.sh tap $SERIAL --text "Create"`. The listing reloads with
-  `Made in app`. Read its id with `putio files list` and adopt it.
-- **Sort.** Tap `More options`, pick a sort under `Sort by` and `Order`. The
-  rows reorder. Sort persists to the account: put the folder's sort back.
+  `Made in app`. Read its id with `putio files list`, adopt it and settle.
+- **Sort.** Tap `Sort files` in the bar, pick a field under `Sort by` and a
+  direction under `Order`. Run `$V/ui.sh tap $SERIAL --desc "Sort files"`.
+  The rows reorder. Sort persists to the account: put the folder's sort back.
 - **Offline.** Run `$V/ui.sh link $SERIAL putio://files`, then
   `adb -s $SERIAL shell cmd connectivity airplane-mode enable` and pull to
   refresh. The state reads `Can’t reach put.io.` with `Try now`. Disable

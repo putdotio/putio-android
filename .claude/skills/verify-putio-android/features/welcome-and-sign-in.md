@@ -10,7 +10,7 @@ A stored session restores at launch without showing Welcome.
 - `welcome-screen` shows the title, lede and `Sign in`.
 - `welcome-browser` opens the Auth Tab and waits with `Almost there`.
 - `welcome-cancel` returns from a cancelled browser sign-in with
-  `Sign-in didn't finish.`
+  `Sign-in didn’t finish.`
 - `sign-in-device-code` signs in through the debug-only device-code screen
   and the CLI.
 - `session-restore` reopens straight into Files after a force-stop.
@@ -46,10 +46,10 @@ Preconditions:
   `adb -s $SERIAL shell am force-stop io.put.putio.mobile.debug`, the
   `am start` above, and `$V/ui.sh wait $SERIAL --text "Search your files"`.
   Files shows with no Welcome in between.
-- **Link waits.** Sign out under Account
-  ([Account and sign-out](./account-and-sign-out.md)), open
-  `putio://transfers`, then sign in with the script. Transfers opens after
-  sign-in. Sign out again at the end of the run.
+- **Link waits.** Unreachable with this harness: the sign-in script starts
+  its screen with `--activity-clear-task`, which drops a link MainActivity
+  holds while signed out. Report `welcome-link-waits` as unverified, with
+  that reason.
 
 ## Gotchas
 

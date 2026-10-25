@@ -47,14 +47,15 @@ Preconditions:
   label. Run `$V/ui.sh tap $SERIAL --text "Rename"`,
   `$V/ui.sh type $SERIAL "renamed-$RUN"` and
   `$V/ui.sh tap $SERIAL --text "Rename" --last`. The row reads
-  `renamed-<run>.txt`. Adopt the file id, then read its name back with
-  `putio files list --parent-id <root id>`.
+  `renamed-<run>.txt`. Adopt the file id and settle, then read its name back
+  with `putio files list --parent-id <root id>`.
 - **Move.** Intend `move <file id>`, open the sheet, tap `Move`, open
   `Target folder`, confirm. The row leaves this folder;
-  `putio files list --parent-id <target id>` lists it. Adopt the id.
+  `putio files list --parent-id <target id>` lists it. Adopt the id and
+  settle.
 - **Copy.** Intend `copy <file id>`, open the sheet, tap `Make a copy`, pick
   the run's root. The snackbar reads `Copied “<name>” to <folder>.` Adopt
-  the copy's id.
+  the copy's id and settle.
 - **Trash.** Intend `trash <folder id>`. Long-press `Inner folder` to open its
   sheet. Run `$V/ui.sh long-press $SERIAL --text "Inner folder"`, then tap
   `Move to trash`. The snackbar reads `Moved to Trash` and the row leaves.

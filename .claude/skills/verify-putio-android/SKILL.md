@@ -117,7 +117,9 @@ Handles, most stable first:
    `ui.sh link` passes the package, so the https links skip the app chooser.
    A link opened while signed out waits for sign-in.
 2. Content descriptions: `Actions for <name>` on a row's overflow,
-   `More options`, `Open player`, `Stop playback`, `Back`.
+   `More options`, `Sort files`, `Stop playback`, `Back`. Click labels such
+   as the mini player's `Open player` are not in the tree; tap the node's
+   visible text instead.
 3. Visible text: tab labels (`Files`, `History`, `Transfers`, `Downloads`,
    `Account`), button labels, a row's full name. A row exposes the full name
    even when the screen cuts it in the middle.
@@ -136,11 +138,12 @@ $S/devbox.sh run "$RUN" '$V/fixture.sh mkdir $RUN <parent-id> "Inner folder"'
 $S/devbox.sh run "$RUN" '$V/fixture.sh upload $RUN <parent-id> <devbox path> ["name"]'
 $S/devbox.sh run "$RUN" '$V/fixture.sh intend $RUN "rename <id>"' # before a UI action that changes the account
 $S/devbox.sh run "$RUN" '$V/fixture.sh adopt $RUN <id>'  # after it: each item the app created, renamed or moved
-$S/devbox.sh run "$RUN" '$V/fixture.sh settle $RUN "cancelled"'   # after it, when nothing is left to adopt
+$S/devbox.sh run "$RUN" '$V/fixture.sh settle $RUN "renamed"'     # closes the intent once every item is adopted
 $S/devbox.sh run "$RUN" '$V/fixture.sh owned $RUN'      # id, kind, name per owned item
 ```
 
-Every UI mutation is an `intend`, the action, then `adopt` or `settle`. While
+Every UI mutation is an `intend`, the action, an `adopt` per item it created
+or changed, then one `settle`. While
 an intent is open, the next write and cleanup refuse. Cleanup checks each
 id's name and parent and each owned folder's contents against the ledger, and
 deletes nothing on a mismatch.
@@ -158,7 +161,12 @@ adb -s $SERIAL shell am instrument -w -r -e class io.putdotio.android.<Class> \
   io.put.putio.mobile.debug.test/androidx.test.runner.AndroidJUnitRunner
 ```
 
-Require its `OK (n tests)`. Most lanes fake the API: report them as
+Add every other `putio.<lane>.*` key the class reads; media lanes take file
+paths (`.fixture`, `.video`, `.audio`). Put media under
+`/sdcard/Android/data/io.put.putio.mobile.debug/files/`: that directory exists
+only once the app made it, so run the lane once, let it fail on the missing
+file, then `adb push`. Creating it with `adb shell mkdir` leaves it unreadable
+to the app. Require `OK (n tests)`. Most lanes fake the API: report them as
 synthetic proof.
 
 ## Evidence
@@ -202,7 +210,7 @@ ls .evidence/"$RUN"/                                  # the proof survives here
 
 - Stop the emulator before fixture cleanup, so the app is not mid-request.
 - `fixture.sh cleanup` stops at an open intent or an unknown outcome.
-  Reconcile that id read-only, then `adopt` or `settle`; never repeat the
+  Reconcile that id read-only, `adopt` what exists, then `settle`; never repeat the
   write.
 - `remove` refuses while `run.env` says the emulator is up.
 - The laptop's `.evidence/<run>/` keeps the captures, `fixtures.jsonl`,

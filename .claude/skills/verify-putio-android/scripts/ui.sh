@@ -33,9 +33,12 @@ cmd="${1:-}"; serial="${2:-}"
 shift 2
 adb_() { "${ADB}" -s "${serial}" "$@"; }
 
+# Prints the accessibility tree; fails, printing nothing, when uiautomator
+# returns no complete hierarchy (an error line, an idle-state timeout).
 dump_xml() {
   local xml
   xml="$(adb_ exec-out uiautomator dump /dev/tty 2>/dev/null || true)"
+  [[ "${xml}" == *"<hierarchy"*"</hierarchy>"* ]] || return 1
   # uiautomator appends "UI hierchary dumped to: /dev/tty" after the XML.
   printf '%s\n' "${xml%%</hierarchy>*}</hierarchy>"
 }
@@ -100,7 +103,12 @@ poll() {
 
 case "${cmd}" in
   dump)
-    if [[ -n "${1:-}" ]]; then dump_xml > "$1"; echo "$1"; else dump_xml; fi
+    if [[ -n "${1:-}" ]]; then
+      dump_xml > "$1" || { rm -f "$1"; die "no accessibility tree from ${serial}"; }
+      echo "$1"
+    else
+      dump_xml || die "no accessibility tree from ${serial}"
+    fi
     ;;
   find)
     selector "$@"; find_now "$1" "$2" || die "no node for $1 '$2'"
@@ -148,7 +156,11 @@ case "${cmd}" in
     ;;
   link)
     [[ -n "${1:-}" ]] || usage
-    adb_ shell am start -W -a android.intent.action.VIEW -d "'$1'" -p "${PACKAGE}" >/dev/null
+    # adb joins its arguments into one device-shell line: single-quote the URI,
+    # closing and escaping any apostrophe inside it.
+    quote="'\\''"
+    uri="${1//\'/${quote}}"
+    adb_ shell am start -W -a android.intent.action.VIEW -d "'${uri}'" -p "${PACKAGE}" >/dev/null
     ;;
   key)
     [[ -n "${1:-}" ]] || usage

@@ -36,10 +36,11 @@ Preconditions:
   `$V/ui.sh scroll-to $SERIAL --text "App info"` and
   `$V/ui.sh tap $SERIAL --text "App info"`. `Version` and
   `Production, debug build` show.
-- **Setting.** Toggle `Autoplay next video`, then read the app config key
-  back with
-  `PUTIO_CLI_PROFILE=devs-auto putio sdk call --operation config.getKey --args '["autoplay_next_video"]' --execute --output json`;
-  toggle it back and read again.
+- **Setting.** Toggle `Show subtitles`, then read `hide_subtitles` back with
+  `account.getSettings`: it flipped. Toggle it back and read again. App
+  config switches such as `Autoplay next video` have no CLI read-back (the
+  CLI refuses `config.*` key reads); prove those only by force-stopping,
+  relaunching and seeing the switch keep its state.
 - **Trash.** Tap `Trash`. The list or its empty state shows. Leave it
   untouched.
 - **Sign out.** Only on a `--fresh` run, and last. Tap `Sign out`; the dialog reads

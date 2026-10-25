@@ -5,7 +5,8 @@
 #   devbox.sh sync   <run>            copy the worktree to the devbox copy for <run>
 #   devbox.sh run    <run> '<command>' run <command> with bash in that copy; exits with its status.
 #                                     It sees $RUN, $V (the skill's scripts dir), $SERIAL (once
-#                                     session.sh up ran) and $ANDROID_HOME.
+#                                     session.sh up ran), $ANDROID_HOME, and PUTIO_CLI_PROFILE=devs-auto
+#                                     with PUTIO_CLI_TOKEN unset.
 #   devbox.sh pull   <run>            copy the copy's .evidence/<run>/ to this worktree's .evidence/<run>/
 #   devbox.sh remove <run>            delete the copy (refuses while .evidence/<run>/run.env names a live AVD)
 #
@@ -31,7 +32,8 @@ remote() {
   local script="$1" out status
   out="$(mktemp)"
   # stdin stays closed: adb shell would otherwise read the caller's terminal.
-  ssh -o BatchMode=yes "${HOST}" "bash -c $(printf '%q' "${script}"); echo __VERIFY_EXIT=\$?" </dev/null | tee "${out}"
+  # The marker starts on its own line even when the command's output does not end in one.
+  ssh -o BatchMode=yes "${HOST}" "bash -c $(printf '%q' "${script}"); printf '\n__VERIFY_EXIT=%s\n' \$?" </dev/null | tee "${out}"
   status="$(grep -E '^__VERIFY_EXIT=[0-9]+$' "${out}" | tail -1 | cut -d= -f2)"
   rm -f "${out}"
   [[ -n "${status}" ]] || die "no exit status from ${HOST}; the connection dropped"
@@ -54,7 +56,9 @@ case "${cmd}" in
     ;;
   run)
     command="${3:-}"; [[ -n "${command}" ]] || usage
-    remote "cd ~/${REMOTE_DIR} && export ANDROID_HOME='${SDK}' RUN='${run}' V=.claude/skills/verify-putio-android/scripts \
+    # Every putio call in a recipe runs as devs-auto; an ambient token would override the profile.
+    remote "cd ~/${REMOTE_DIR} && unset PUTIO_CLI_TOKEN && export PUTIO_CLI_PROFILE=devs-auto \
+      && export ANDROID_HOME='${SDK}' RUN='${run}' V=.claude/skills/verify-putio-android/scripts \
       && export SERIAL=\"\$(sed -n 's/^SERIAL=//p' .evidence/${run}/run.env 2>/dev/null | tail -1)\" && ${command}"
     ;;
   pull)
@@ -64,7 +68,7 @@ case "${cmd}" in
     ;;
   remove)
     remote "cd ~/${REMOTE_DIR} 2>/dev/null || exit 0
-      if [ -f .evidence/${run}/run.env ] && grep -q '^STATE=up$' .evidence/${run}/run.env; then
+      if [ -f .evidence/${run}/run.env ] && grep -qE '^STATE=(up|failed)$' .evidence/${run}/run.env; then
         echo 'run ${run} still has its emulator; run session.sh down ${run} first' >&2; exit 1
       fi
       cd .. && rm -rf './${run}' && echo 'removed devbox copy ${run}'"

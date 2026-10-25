@@ -40,10 +40,12 @@ Preconditions:
   `$V/ui.sh tap $SERIAL --text "Download"`.
 - **Progress.** Open Downloads. Run
   `$V/ui.sh link $SERIAL putio://downloads`, capture `downloads-progress`,
-  then wait for this clip's status, not the section heading:
-  `$V/ui.sh wait $SERIAL --text "On this device · <size>" 120`. The row
-  named `verify-clip.mp4` carries that status; check both in the capture's
-  XML.
+  then wait for the progress line to go:
+  `$V/ui.sh gone $SERIAL --match "^Downloading · " 120`. Open the row's
+  actions: `$V/ui.sh tap $SERIAL --desc "Download actions for verify-clip.mp4"`.
+  The sheet reads `On this device · <size>`:
+  `$V/ui.sh wait $SERIAL --match "^On this device · "`. Capture
+  `downloads-complete`, then press Back.
 - **Files mark.** Back in the run's folder, the clip's row carries
   `On this device`.
 - **Offline play.** Run
@@ -62,9 +64,9 @@ Preconditions:
 
 - Airplane mode acts on the whole emulator: turn it off before any other
   recipe.
-- A snapshot run may restore downloads from earlier runs. Match this clip's
-  own status line and name; `On this device` alone is also the section
-  heading.
+- A snapshot run may restore downloads from earlier runs. Check this clip's
+  state in its own actions sheet; a finished row shows only its size and
+  date, and `On this device` alone is also the section heading.
 - Strings use typographic apostrophes (`’`), and selectors match them
   exactly.
 - POST_NOTIFICATIONS is not granted on a fresh AVD, so no notification posts

@@ -21,7 +21,7 @@ sleep timer.
 ## How to get to it (user POV)
 
 - Tap an audio row in Files, Search or History.
-- Tap the mini player card (`Open player`).
+- Tap the mini player card.
 - Use the media notification or headset controls.
 
 ## Driving it with verify-putio-android
@@ -36,15 +36,18 @@ Preconditions:
 - **Open.** Tap `verify-a-1.m4a`. Run
   `$V/ui.sh tap $SERIAL --text "verify-a-1.m4a"` and
   `$V/ui.sh gone $SERIAL --text "Preparing audio" 60`. Now Playing shows the
-  name, the folder under the title and `Up next` naming `verify-a-2.m4a`.
-  Capture `audio-open`.
+  name, the folder under the title and an `Up next` chip. Capture
+  `audio-open`.
+- **Up next.** Tap the chip. Run `$V/ui.sh tap $SERIAL --text "Up next"`. Its
+  sheet names `verify-a-2.m4a`. Press Back to close it.
 - **Seek.** Tap `Forward 30 seconds`, then `Back 15 seconds`. The elapsed
   time moves by those amounts.
 - **Mini player.** Press Back, then tap the `Transfers` tab. Run
   `$V/ui.sh key $SERIAL BACK`, `$V/ui.sh tap $SERIAL --text "Transfers"` and
-  `$V/ui.sh wait $SERIAL --desc "Open player"`. The card shows on this tab.
-  Capture `audio-mini-player`.
-- **Next.** Open the player and tap `Next file`. `verify-a-2.m4a` plays and
+  `$V/ui.sh wait $SERIAL --desc "Stop playback"`. The card shows the file
+  name on this tab. Capture `audio-mini-player`. Tap the name to open Now
+  Playing again: `$V/ui.sh tap $SERIAL --text "verify-a-1.m4a"`.
+- **Next.** In the player, tap `Next file`. `verify-a-2.m4a` plays and
   `Previous file` is enabled.
 - **Sleep timer.** Tap `Sleep timer`, pick 15 minutes. The chip reads
   `Sleep timer, <time> left`; pick `Off` to clear it.

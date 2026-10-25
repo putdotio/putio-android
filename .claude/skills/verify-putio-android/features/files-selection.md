@@ -43,10 +43,10 @@ Preconditions:
   shows `3 selected`; tapping one again drops it to `2 selected`.
 - **Move.** Intend `move <ids>`. With two selected, tap `Move`, open `Target folder` and confirm.
   Both rows leave; `putio files list --parent-id <target id>` lists both.
-  Adopt both ids.
+  Adopt both ids, then settle.
 - **Trash.** Intend `trash <id>`. Select the remaining file and tap `Trash`. The snackbar reads
   `Moved 1 item to Trash` with Undo. Tap Undo and adopt the id, or delete it
-  from Trash by id and settle, as in [Item actions](./item-actions.md).
+  from Trash by id as in [Item actions](./item-actions.md); then settle.
 - **Exit.** Press Back while selecting. Run `$V/ui.sh key $SERIAL BACK`. The
   bar leaves and the folder stays.
 - **Proof.** Capture the bar, the picker, the snackbar and the CLI read-back.

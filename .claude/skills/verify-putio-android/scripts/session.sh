@@ -116,7 +116,9 @@ boot_fresh() {
   [[ ! -e "${HOME}/.android/avd/${run}.avd" && ! -e "${HOME}/.android/avd/${run}.ini" ]] ||
     die "AVD ${run} already exists and this run did not create it; pick another run name"
   "${ROOT}/scripts/emulator.sh" create phone --name "${run}" >&2
-  serial="$("${ROOT}/scripts/emulator.sh" boot phone --headless --name "${run}")" || die "boot failed; see .evidence/logs/"
+  # Record the AVD before booting, so down deletes it even when the boot fails.
+  write_env fresh "${run}" "" ""
+  serial="$("${ROOT}/scripts/emulator.sh" boot phone --headless --name "${run}")" || die "boot failed; see .evidence/logs/ and run session.sh down ${run}"
   is_ours "${serial}" "${run}" || die "${serial} is not AVD ${run}; leaving it alone"
   write_env fresh "${run}" "${serial}" ""
   echo "${serial}"
@@ -128,6 +130,9 @@ case "${cmd}" in
     if [[ "$(env_value STATE)" == "up" ]] && owns_run_serial; then
       env_value SERIAL; exit 0
     fi
+    case "$(env_value STATE)" in
+      up | failed) die "run.env says run ${run} may still hold an emulator or AVD; run session.sh down ${run} first" ;;
+    esac
     case "${mode_arg}" in
       --snapshot) boot_snapshot ;;
       --fresh) boot_fresh ;;
@@ -166,22 +171,32 @@ case "${cmd}" in
     serial="$(env_value SERIAL || true)"
     mode="$(env_value MODE || true)"
     pid="$(env_value PID || true)"
+    # A snapshot instance is ours while its recorded pid still serves the recorded port,
+    # even when adb lists it offline.
+    pid_ours() { [[ -n "${pid}" ]] && ps -o command= -p "${pid}" 2>/dev/null | grep -q -- "-port ${serial#emulator-}"; }
     if owns_run_serial; then
       "${ADB}" -s "${serial}" shell am force-stop "${PACKAGE}" || true
       if [[ "${mode}" == "fresh" ]]; then
         "${ROOT}/scripts/emulator.sh" stop "${serial}" >&2
       else
         "${ADB}" -s "${serial}" emu kill >/dev/null 2>&1 || true
-        for _ in $(seq 30); do kill -0 "${pid}" 2>/dev/null || break; sleep 1; done
-        kill -0 "${pid}" 2>/dev/null && { log "pid ${pid} still running after emu kill; stopping it"; kill "${pid}"; sleep 2; }
       fi
-    else
-      log "no running emulator for run ${run}"
     fi
-    [[ "${mode}" == "fresh" ]] && "${ROOT}/scripts/emulator.sh" delete phone --name "${run}" >&2
-    [[ -f "${ENV_FILE}" ]] && sed -i '' 's/^STATE=up$/STATE=down/' "${ENV_FILE}"
-    for _ in $(seq 15); do "${ADB}" devices | grep -q "^${serial:-none}[[:space:]]" || break; sleep 1; done
-    "${ADB}" devices | grep -q "^${serial:-none}[[:space:]]" && die "${serial} still listed by adb"
+    if [[ "${mode}" == "snapshot" ]] && pid_ours; then
+      for _ in $(seq 30); do pid_ours || break; sleep 1; done
+      pid_ours && { log "pid ${pid} still serves ${serial}; stopping it"; kill "${pid}"; sleep 3; }
+      pid_ours && die "pid ${pid} still serves ${serial}; run.env stays up"
+    fi
+    if [[ -n "${serial}" ]]; then
+      for _ in $(seq 15); do "${ADB}" devices | grep -q "^${serial}[[:space:]]" || break; sleep 1; done
+      if "${ADB}" devices | grep -q "^${serial}[[:space:]]" && { [[ "${mode}" == "fresh" ]] && owns_run_serial || pid_ours; }; then
+        die "${serial} is still up; run.env stays up"
+      fi
+    fi
+    if [[ "${mode}" == "fresh" ]]; then
+      "${ROOT}/scripts/emulator.sh" delete phone --name "${run}" >&2 || die "could not delete AVD ${run}; run.env stays up"
+    fi
+    [[ -f "${ENV_FILE}" ]] && sed -i '' -E 's/^STATE=(up|failed)$/STATE=down/' "${ENV_FILE}"
     echo "down ${run}; evidence kept in .evidence/${run}/"
     ;;
   *) usage ;;

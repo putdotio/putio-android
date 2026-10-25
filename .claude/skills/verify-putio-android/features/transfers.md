@@ -47,7 +47,7 @@ Preconditions:
   Completed. Capture `transfers-add-url`.
 - **Side effect.** Read the transfer back with
   `PUTIO_CLI_PROFILE=devs-auto putio transfers list --output json`: its
-  `save_parent_id` is the run's root. Adopt the file it saved.
+  `save_parent_id` is the run's root. Adopt the file it saved, then settle.
 - **Magnet.** Open the link. Run
   `$V/ui.sh link $SERIAL "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567&dn=Harbor%20film"`.
   The sheet shows that link and adds nothing until `Add 1`. Press Back.
