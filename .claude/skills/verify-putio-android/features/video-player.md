@@ -1,31 +1,6 @@
 # Video player
 
-Tapping a video plays it in immersive fullscreen: a landscape video turns a
-phone to landscape, controls hide during playback and come back on a tap, and
-chips under the scrubber name the audio track, subtitles and speed, each
-opening a side sheet. A saved position offers Resume or Start over; Back
-restores the shell.
-
-## Sub-features
-
-- `video-open` plays a video from its row, fullscreen, with the system bars
-  hidden.
-- `video-controls` shows play/pause between ten-second seeks, times and the
-  scrubber; a tap toggles them.
-- `video-resume` asks `Resume from <time>?` with `Resume` and `Start over`.
-- `video-sheets` opens the Audio, Subtitles and Speed side sheets.
-- `video-speed` steps 0.5× to 3×.
-- `video-next-episode` offers `Next episode` when autoplay is on.
-- `video-pip` enters picture-in-picture where the device has it.
-- `video-back` restores the shell's orientation and bars.
-
-## How to get to it (user POV)
-
-- Tap a video row in Files, Search or History.
-- Tap `Play` or `Resume` in a video's actions sheet or the tablet detail.
-- Tap a Continue watching card at the Files root.
-
-## Driving it with verify-putio-android
+## Drive
 
 Preconditions:
 

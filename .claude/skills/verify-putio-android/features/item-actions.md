@@ -1,31 +1,6 @@
 # Item actions
 
-A row's overflow or long-press opens one actions sheet: the item's glyph,
-full name and meta, then Play or Resume, Download and Share as tiles, then
-rows for Open in VLC, Select, Make a copy, Mark as watched, Rename, Move and
-Exclusive link, and Move to trash or Delete permanently in red. Each shows
-only when the item allows it.
-
-## Sub-features
-
-- `actions-open` opens the sheet from the overflow and from long-press.
-- `actions-rename` renames with the name selected up to its extension.
-- `actions-move` moves into a picked folder, with Cancel and collisions.
-- `actions-copy` makes a copy in a picked folder.
-- `actions-watched` marks a video watched or unwatched.
-- `actions-trash` moves to Trash, or deletes permanently when Trash is off.
-- `actions-vlc` hands a video to VLC, or says VLC is missing.
-- `actions-search-result` opens a reduced sheet from a Search result.
-
-## How to get to it (user POV)
-
-- Tap `Actions for <name>` at the end of a file's row; folder rows have a
-  chevron instead.
-- Long-press a file or folder row.
-- Tap the overflow or long-press a Search result.
-- On a tablet, tap the detail pane's overflow.
-
-## Driving it with verify-putio-android
+## Drive
 
 Preconditions:
 

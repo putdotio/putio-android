@@ -1,29 +1,6 @@
 # Welcome and sign-in
 
-Signed out, the app shows Welcome: the put.io animation, `Welcome!` (or
-`Welcome back!` after a sign-out) and `Sign in`, which opens put.io's sign-in
-in a browser Auth Tab. Debug builds add a device-code screen for harnesses.
-A stored session restores at launch without showing Welcome.
-
-## Sub-features
-
-- `welcome-screen` shows the title, lede and `Sign in`.
-- `welcome-browser` opens the Auth Tab and waits with `Almost there`.
-- `welcome-cancel` returns from a cancelled browser sign-in with
-  `Sign-in didn’t finish.`
-- `sign-in-device-code` signs in through the debug-only device-code screen
-  and the CLI.
-- `session-restore` reopens straight into Files after a force-stop.
-- `welcome-link-waits` keeps a deep link opened while signed out until
-  sign-in.
-
-## How to get to it (user POV)
-
-- Install and launch the app.
-- Sign out under Account.
-- Open any put.io link while signed out.
-
-## Driving it with verify-putio-android
+## Drive
 
 Preconditions:
 

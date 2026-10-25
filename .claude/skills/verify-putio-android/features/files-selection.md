@@ -1,30 +1,6 @@
 # Files selection
 
-Files can select several items from the actions sheet's Select, then move,
-download, mark watched or trash them together. A bar counts the selection and
-a toolbar holds the bulk actions; Back ends selection. Downloads shares the
-same bar and toolbar for removing local copies.
-
-## Sub-features
-
-- `select-enter` starts selection from the sheet's `Select`.
-- `select-toggle` adds and removes rows with taps while selecting.
-- `select-move` moves every selected item through one `Move N items` picker.
-- `select-trash` trashes them with one Undo snackbar, or confirms a permanent
-  delete when Trash is off.
-- `select-watched` marks every selected video watched, one write per file.
-- `select-download` downloads every selected media file.
-- `select-exit` ends selection with Back.
-- `select-downloads` selects rows in Downloads (`Select`, `Select all`,
-  `Cancel selection`) and removes their local copies.
-
-## How to get to it (user POV)
-
-- Open a row's actions (`Actions for <name>` or long-press) and tap
-  `Select`.
-- In Downloads, tap `More options`, then `Select`.
-
-## Driving it with verify-putio-android
+## Drive
 
 Preconditions:
 

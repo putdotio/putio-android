@@ -9,15 +9,13 @@ script headers and `--help` own the harness.
 
 ## Where code lives
 
-| Module           | Owns                                                                                                                                                                                                                                                                                  |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `core/common`    | The put.io failure and result kernel (`PutioFailure`, `PutioResult`, `putioRequest`, API rejection reasons), Files ids, cursors and sort order, the download-token account read, timestamps, avatar URLs, account storage keys, `SessionScopedHolder`                                 |
-| `core/design`    | `PutioTheme`, generated design tokens, font families and type and corner scales, the compact switch, destructive button and empty state, the production launcher icon and wordmark, file-type and shared Phosphor drawables, `BasePutioActivity`, the inactive-account notice's words |
-| `core/telemetry` | Sentry behind the account's `diagnostics_enabled`: the consent gate, the event allowlist, `TelemetryFailure` and `PutioDiagnostics`, the apps' only way to report                                                                                                                     |
-| `domain/<name>`  | One domain's models, SDK repository, reducer and controller, shared by both surfaces: `account` (account settings, app config, inactive-account notice), `auth`, `files`, `history`, `playback`, `search`, `sharing` (public links; mobile only so far), `transfers`, `trash`         |
-| `mobile`         | Phone and tablet app: touch UI, shell, navigation, offline downloads, the system file picker's documents provider, launcher shortcuts, the home-screen widget, services and session wiring, and the Google Play listing and publisher both apps share                                 |
-| `tv`             | Android TV app: D-pad UI, shell and session wiring                                                                                                                                                                                                                                    |
-| `build-logic`    | Convention plugins (`putio.android.application`, `putio.android.library`), design-token codegen, launcher-manifest check, proof tasks                                                                                                                                                 |
+- `core/*`: shared kernel (`common`), theme and generated design tokens
+  (`design`), and Sentry (`telemetry`).
+- `domain/<name>`: one domain's models, SDK repository, reducer and
+  controller, shared by both apps.
+- `mobile` (phones and tablets, plus the Google Play publisher both apps
+  share) and `tv` (D-pad UI): the apps.
+- `build-logic`: convention plugins, design-token codegen and proof tasks.
 
 - Dependencies point from the apps to `domain` to `core`; `history`, `search`
   and `trash` also build on `files` for `FilesItem`. A domain failure with
@@ -30,9 +28,7 @@ script headers and `--help` own the harness.
   owning module's `src/testFixtures`.
 - Only `core/telemetry` imports Sentry; detekt's `ForbiddenImport` rejects
   `io.sentry` anywhere else. Report a failure as a `TelemetryFailure` of codes,
-  never as a raw error or message. `SentryBoundary` builds every outgoing event
-  from an allowlist and drops its attachments; a field it does not copy never
-  leaves the device.
+  never as a raw error or message.
 - Mobile and TV share data, domain, theme, and component foundations; their
   shells diverge where input differs. TV should feel like Android TV: Compose
   for TV, D-pad focus, system media sessions, and platform search.
@@ -50,9 +46,6 @@ script headers and `--help` own the harness.
   [design.md format](https://github.com/google-labs-code/design.md); its
   `colors` block is generated (`./gradlew updateDesignMdColors`), and
   `markdownCheck` checks the block and lints the file.
-- Each app has `production` and `nightly` channel flavors. Nightly differs
-  only in its id and version-name suffixes, label, and stars launcher icon, so
-  its unit-test variants are disabled.
 
 ## Hazards
 
@@ -100,13 +93,9 @@ The machine provides JDK 21 (`.java-version`), Node 24 (`.node-version`),
 ./scripts/bootstrap.sh   # idempotent; --google-tv adds the Google TV image and AVD
 ```
 
-It installs the Android SDK packages and FFmpeg, creates the `putio-phone`
-(API 37) and `putio-tv` (API 36) AVDs, fetches the licensed brand fonts
-(`scripts/sync-brand-fonts.sh`), and writes `sdk.dir` to the
-ignored `local.properties`; the first run downloads several GB.
-`.worktreeinclude` copies `local.properties` and the fonts into Codex and
-Claude worktrees. Bootstrap, build, CI, and launch proof need no credentials;
-only live and authenticated lanes use the `devs-auto` profile.
+The first run downloads several GB. Bootstrap, build, CI, and launch proof
+need no credentials; only live and authenticated lanes use the `devs-auto`
+profile.
 
 ## Kotlin SDK
 
@@ -115,8 +104,7 @@ bump `putioSdkKotlin` in [`libs.versions.toml`](gradle/libs.versions.toml) to
 take a new release. To build against unreleased SDK changes, set
 `putioSdkKotlinPath` in `local.properties` to an absolute SDK checkout path and
 Gradle substitutes it as a composite build. Remove the key to return to the
-pinned release, and release the SDK before an app PR depends on it. Local proof
-built that way records the SDK checkout's SHA and `git status --short`.
+pinned release, and release the SDK before an app PR depends on it.
 
 ## Build and verify
 
@@ -147,7 +135,7 @@ that matches. Report skipped or unavailable proof.
 
 | Change                              | Proof                                                                                                                                                               |
 | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Docs only                           | `./gradlew markdownCheck`; check web links and commands. CI skips builds for docs-only pull requests and checks relative links                                      |
+| Docs only                           | `./gradlew markdownCheck`; check web links and commands                                                                                                             |
 | Domain or core logic                | `./gradlew :domain:<name>:testDebugUnitTest` or `:core:<name>:testDebugUnitTest`; tests live in the owning module                                                   |
 | App view models or services         | `./gradlew :mobile:testProductionDebugUnitTest` or `:tv:testProductionDebugUnitTest`                                                                                |
 | UI, navigation, playback, or launch | Mobile: the affected feature in [verify-putio-android](.claude/skills/verify-putio-android/SKILL.md); TV: `./scripts/prove.sh tv` or its opt-in `*ProofTest` lane   |
@@ -169,11 +157,6 @@ triggers and path filters; CI holds no secrets.
   `--dry-run` task lists with the full command's; together they must run
   exactly the same tasks.
 
-[Emulator smoke](.github/workflows/emulator-smoke.yml) runs `LaunchSmokeTest`
-and `StaleOAuthCallbackTest` on a Gradle Managed Device weekly and on dispatch.
-It is not a pull-request gate because shared-runner emulator boots are too slow
-and flaky; `scripts/prove.sh` stays the local proof.
-
 To reproduce a CI failure, check out the app SHA from the run summary in a
 detached worktree with `sdk.dir` set and `putioSdkKotlinPath` unset, then run
 the same command. A pull-request run tests a temporary merge commit; if it is
@@ -190,8 +173,8 @@ promotes or changes the rollout. Their inputs own the options.
   Environment's secrets.
 - Mobile and TV share the
   [putio-tv-native-legacy](https://github.com/putdotio/putio-tv-native-legacy)
-  listing and its version codes. Google Play never takes a code twice, and
-  codes up to 94 are taken. Each upload needs a new `version_name`
+  listing and its version codes. Google Play never takes a code twice, so
+  each upload needs a new `version_name`
   ([`putioVersionCode`](build-logic/src/main/kotlin/PutioAndroidApplicationPlugin.kt));
   only an upload Google Play rejected may reuse its name.
 - If the upload lands but its `tag` job fails, rerun only that job. A full
