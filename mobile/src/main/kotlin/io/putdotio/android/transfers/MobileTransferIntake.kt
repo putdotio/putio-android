@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.ButtonColors
@@ -80,23 +81,29 @@ internal fun MobileTransferDestinationRow(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        if (destination != null) {
-            TextButton(colors = neutralTextButtonColors(), onClick = onReset, enabled = enabled) {
-                Text(stringResource(R.string.mobile_transfers_use_default_folder))
+        // The labels, not the buttons' padding, line up with the field's edge above.
+        Row(modifier = Modifier.offset(x = TEXT_BUTTON_INSET)) {
+            if (destination != null) {
+                TextButton(colors = neutralTextButtonColors(), onClick = onReset, enabled = enabled) {
+                    Text(stringResource(R.string.mobile_transfers_use_default_folder))
+                }
             }
-        }
-        if (onChoose != null) {
-            TextButton(
-                colors = neutralTextButtonColors(),
-                onClick = onChoose,
-                enabled = enabled,
-                modifier = Modifier.testTag(MOBILE_TRANSFER_CHANGE_DESTINATION_TAG),
-            ) {
-                Text(stringResource(R.string.mobile_transfers_change_folder))
+            if (onChoose != null) {
+                TextButton(
+                    colors = neutralTextButtonColors(),
+                    onClick = onChoose,
+                    enabled = enabled,
+                    modifier = Modifier.testTag(MOBILE_TRANSFER_CHANGE_DESTINATION_TAG),
+                ) {
+                    Text(stringResource(R.string.mobile_transfers_change_folder))
+                }
             }
         }
     }
 }
+
+/** Material's text button pads its label by 12dp on each side. */
+private val TEXT_BUTTON_INSET = 12.dp
 
 @Composable
 internal fun MobileTransferTorrentRow(torrent: TorrentUpload, enabled: Boolean, onRemove: () -> Unit) {
