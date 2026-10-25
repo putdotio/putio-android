@@ -54,7 +54,7 @@ set_state() {
 pid_runs() {
   local pid="$1" avd="$2" port="$3" command
   [[ -n "${pid}" ]] || return 1
-  command="$(ps -o command= -p "${pid}" 2>/dev/null)" || return 1
+  command="$(ps -ww -o command= -p "${pid}" 2>/dev/null)" || return 1
   python3 -I -c '
 import sys
 args = sys.argv[1].split()
@@ -187,6 +187,8 @@ case "${cmd}" in
   up)
     mkdir -p "${DIR}"
     if [[ "$(env_value STATE)" == "up" ]] && owns_run_serial; then
+      [[ "${mode_arg}" == "--$(env_value MODE)" && ( "${mode_arg}" != "--serial" || "${mode_value}" == "$(env_value SERIAL)" ) ]] ||
+        die "run ${run} already runs as --$(env_value MODE) on $(env_value SERIAL); run session.sh down ${run} first"
       env_value SERIAL; exit 0
     fi
     case "$(env_value STATE)" in

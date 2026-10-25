@@ -48,7 +48,7 @@ mode="$(sed -n 's/^MODE=//p' "${ENV_FILE}" | tail -1)"
 pid="$(sed -n 's/^PID=//p' "${ENV_FILE}" | tail -1)"
 avd="$(adb_ emu avd name | head -1)"
 same "${avd}" "${want_avd}" || { fail "emulator: ${serial} is AVD '${avd}', not ${want_avd}; not ours"; finish; }
-if [[ -n "${pid}" ]] && ! ps -o command= -p "${pid}" 2>/dev/null | grep -q -- "-port ${serial#emulator-}"; then
+if [[ -n "${pid}" ]] && ! ps -ww -o command= -p "${pid}" 2>/dev/null | grep -q -- "-port ${serial#emulator-}"; then
   fail "emulator: pid ${pid} no longer serves ${serial}; not ours"; finish
 fi
 ok "emulator: ${serial} is ${mode} AVD ${avd}${pid:+ (pid ${pid})}"

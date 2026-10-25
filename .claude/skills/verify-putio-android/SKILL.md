@@ -28,7 +28,7 @@ From the repository root:
 
 ```bash
 S=.claude/skills/verify-putio-android/scripts
-RUN="verify-$(date -u +%Y%m%d-%H%M%S)-$(openssl rand -hex 3)"
+RUN="verify-$(date -u +%Y%m%d-%H%M%S)-$(python3 -c 'import secrets; print(secrets.token_hex(3))')"
 export PUTIO_CLI_PROFILE=devs-auto PATH="$(bash -c '. scripts/lib.sh && resolve_sdk_root')/platform-tools:$PATH"
 unset PUTIO_CLI_TOKEN                         # an ambient token would override the profile
 ./gradlew :mobile:assembleProductionDebug

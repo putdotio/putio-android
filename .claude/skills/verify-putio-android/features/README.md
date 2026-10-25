@@ -11,9 +11,10 @@ passes only when the device shows it.
   own emulator session, production debug build of this checkout, signed in
   as devs-auto, five-tab shell on screen. A recipe that signs out says
   `--fresh`.
-- Create the run's root container with `fixture.sh root <run>`. Its name is
+- Create the run's root container with `$S/fixture.sh root "$RUN"`. Its name is
   `android-verify-<run>`; put every other fixture inside it.
 - Drive only the serial `session.sh up` printed for this run.
+- Write local fixture files under `build/`; run `mkdir -p build` first.
 
 ## Driving conventions
 
