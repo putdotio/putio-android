@@ -318,8 +318,13 @@ class MobileDownloadEngineTest {
         assertEquals(MobileDownloadEngine.STOP_REASON_PAUSED, restarted.stopReasonOf("$ALICE:10"))
 
         assertTrue(restored.find(FilesItemId(10L))?.pauseRequested == true)
+        // Media3's index keeps the number, so it may never change across releases.
+        assertEquals(2, restarted.stopReasonOf("$ALICE:10"))
         again.setPaused(FilesItemId(10L), paused = false)
         awaitMain { restarted.stateOf("$ALICE:10") == Download.STATE_DOWNLOADING }
+        // A resume brings up the foreground service, which may not be running in this process.
+        val started = generateSequence { shadowOf(context).nextStartedService }.toList()
+        assertTrue(started.any { it.component?.className == MobileDownloadService::class.java.name })
         awaitMain { restored.status(10L) is DownloadStatus.Downloading }
     }
 

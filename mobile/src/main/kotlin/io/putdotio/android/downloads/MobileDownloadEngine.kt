@@ -190,6 +190,10 @@ internal class MobileDownloadEngine(
             downloadContentId(userId, fileId),
             if (paused) STOP_REASON_PAUSED else Download.STOP_REASON_NONE,
         )
+        // A resume after every transfer was paused may find no service in this process; the
+        // foreground service keeps the transfer alive in the background. The viewer taps from the
+        // app, so the start is allowed; were it refused, the transfer would still run while the app does.
+        if (!paused) runCatching { DownloadService.startForeground(appContext, MobileDownloadService::class.java) }
     }
 
     /** True while Media3 is still deleting this file's bytes; a new download must wait. */
