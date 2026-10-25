@@ -341,6 +341,49 @@ Tests: `FilesBrowserReducerTest`, `SdkFilesRepositoryTest`,
 `MobileContinueWatchingStoreTest`, `MobileMiddleCutTextTest`, `MobileFileSizeTest`,
 `MobileFilesScreenTest`, `MobileFilesBarsTest`, `MobileShellTest`.
 
+## Tablet list-detail and viewers
+
+Mobile only. In a window 840 dp or wider, Files is Material's list-detail
+(`ListDetailPaneScaffold`): the folder's bar and list on the left, 520 dp or
+half the space beside the rail when that is less, and the selected file's
+detail on the right. Crossing 840 dp keeps an open sheet, rename draft or
+picker.
+Search and narrower windows keep the single list. A tap on a file selects it
+into the detail; folders still open in the list, and another folder starts
+with nothing selected. The detail shows a preview (a video's still, an image
+decoded at the preview's size, else the type glyph), the full name, a filled
+Play, "Resume from 18:42" (the player's rule: a saved position more than 10 s
+from a known end, while the account resumes playback) or Open, Download for media, Share, and an
+overflow that opens the file's actions sheet. Its facts are Size, Added with
+the year, Length when put.io knows the duration, Subtitles for videos (each
+language put.io lists once; a 401 there signs out), and Folder: the path from
+the root when Files walked there, else the folder's own name, since a folder
+opened from Search, History, Transfers or a link sits on the prior location.
+
+Images, PDFs and text open in an in-app viewer on a black frame, from a row on
+a phone or from Open in the detail. A swipe moves between the folder's loaded
+files of the same kind, and the position shows in mono. Bytes come through the
+app's [Documents provider](#documents-provider), so a finished download reads
+from disk and anything else streams with the session in the request header;
+no URL with a token is built. Images decode at the frame's size. A PDF is
+copied once into a private cache file that closing the viewer deletes (the
+cache also clears when the process starts, when a viewer opens and at
+sign-out),
+renders one page at a time at the frame's width under 4 megapixels, and opens
+with another app from 200 MB; a page that won't render, or one more than 20
+times taller than wide, says so in its place. TalkBack reads each page's number
+and offers Open with another app for the text. Text shows the first 250 kB as
+UTF-8 in mono and says when the file goes on. A file the viewer can't read
+offers Open with another app.
+
+Other types open with another app: the system chooser over `ACTION_VIEW` on
+the file's documents-provider URI, with its extension's MIME type and a read
+grant only, which sign-out revokes. The chooser leaves this app out, since it
+takes `.torrent` files as transfers, and says itself when no app fits.
+
+Tests: `MobileFilesListDetailTest`, `MobileViewerLimitsTest`,
+`SdkFilesSubtitleLanguagesTest`.
+
 ## Trash
 
 Every Trash action confirms, submits exactly once, then verifies with one fresh
@@ -951,8 +994,9 @@ then out, Search over Files, cancelled and committed Back gestures), `MobileMoti
 
 Mobile only; TV keeps its D-pad rules. With a hardware keyboard, Tab and the
 arrow keys walk focus through Files, which outlines the focused row, and Enter
-opens the row as a tap would: a folder opens, media plays, any other file opens
-its actions. A folder reached from the keyboard puts focus on the row last
+opens the row as a tap would: a folder opens; below 840 dp media plays and other
+files open in the viewer or another app, and from 840 dp a file selects into
+the detail pane. A folder reached from the keyboard puts focus on the row last
 focused there, such as the video that just played, else on its first visible
 row. When the row that last held focus leaves the listing (moved to Trash,
 say) and no row holds focus, focus goes to the row now in its place; focus the

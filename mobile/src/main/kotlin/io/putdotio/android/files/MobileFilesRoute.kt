@@ -3,14 +3,17 @@ package io.putdotio.android.files
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import io.putdotio.android.R
 import io.putdotio.android.AuthoritativeSessionFailureEffect
@@ -21,6 +24,9 @@ import io.putdotio.android.playback.dispatch
 import io.putdotio.android.share.MobileFileDragOut
 import io.putdotio.android.sharing.MobilePublicLinkSheet
 import io.putdotio.android.sharing.MobilePublicLinks
+import io.putdotio.android.viewer.MobileFileViewer
+import io.putdotio.android.viewer.MobileFileViewerActions
+import kotlinx.coroutines.flow.MutableSharedFlow
 
 @Composable
 internal fun MobileFilesRoute(
@@ -39,10 +45,170 @@ internal fun MobileFilesRoute(
     fileDragOut: MobileFileDragOut? = null,
     continueWatching: List<ContinueWatchingEntry> = emptyList(),
     onNewFolder: (() -> Unit)? = null,
+    /** From 840dp, the Files bar; it then sits over the list pane, beside the selected file's detail. */
+    listPaneTopBar: (@Composable () -> Unit)? = null,
+    /** Reaches files for the viewers and other apps; null leaves only media playable. */
+    fileOpener: MobileFileOpener? = null,
+    subtitleLanguages: FilesSubtitleLanguages? = null,
+    /** The account's confirmed resume setting, which the detail's Resume label follows. */
+    resumePlayback: Boolean = true,
 ) {
+    val context = LocalContext.current
     // Opening a folder pushes along the shared axis and Back pops; the leaving folder keeps its own state.
     val folderKey = { browser: FilesBrowserState -> browser.stack.size to browser.current.folder.id.value }
     val currentKey = folderKey(state)
+    val items = state.current.content.items()
+    val showsDetail = listPaneTopBar != null
+    // The file the detail pane shows; another folder starts with none.
+    var detailId by rememberSaveable(currentKey.first, currentKey.second) { mutableStateOf<Long?>(null) }
+    var viewerId by rememberSaveable { mutableStateOf<Long?>(null) }
+    val actionsRequests = remember { MutableSharedFlow<FilesItemId>(extraBufferCapacity = 1) }
+    val openWithAnotherApp: (FilesItem) -> Unit = { item -> fileOpener?.openWithAnotherApp(context, item) }
+    val openFile = fileOpenAction(onPlayMedia, onView = { viewerId = it.id.value }, onOther = openWithAnotherApp)
+    val fileOpening = fileOpener?.let {
+        MobileFilesOpening(
+            onOpenFile = if (showsDetail) { item -> detailId = item.id.value } else openFile,
+            showsDetail = showsDetail,
+            selectedFileId = detailId?.takeIf { showsDetail }?.let(::FilesItemId),
+            actionsRequests = actionsRequests,
+        )
+    }
+    val openActions: (FilesItem) -> Unit = { item ->
+        if (item.hasMobileActions(onDownloadItem != null, onShareItem != null, repository != null)) {
+            actionsRequests.tryEmit(item.id)
+        }
+    }
+    // Movable, so crossing 840dp keeps the folder's sheet, rename draft and pickers.
+    val folders = remember { movableContentOf { args: MobileFilesFoldersArgs -> MobileFilesFolders(args) } }
+    val foldersArgs =
+        MobileFilesFoldersArgs(
+            state = state,
+            currentKey = currentKey,
+            folderKey = folderKey,
+            repository = repository,
+            onEvent = onEvent,
+            onPlayMedia = onPlayMedia,
+            confirmedTrashEnabled = confirmedTrashEnabled,
+            onAuthenticationRequired = onAuthenticationRequired,
+            downloads = downloads,
+            onDownloadItem = onDownloadItem,
+            onShareItem = onShareItem,
+            onViewTrash = onViewTrash,
+            moveTargetStore = moveTargetStore,
+            publicLinks = publicLinks,
+            fileDragOut = fileDragOut,
+            continueWatching = continueWatching,
+            onNewFolder = onNewFolder,
+            fileOpening = fileOpening,
+        )
+    if (listPaneTopBar == null) {
+        folders(foldersArgs)
+    } else {
+        MobileFilesListDetail(
+            topBar = listPaneTopBar,
+            list = { folders(foldersArgs) },
+            detail = {
+                val shown = items.firstOrNull { it.id.value == detailId && !it.isFolder }
+                MobileFilesDetailPane(
+                    item = shown,
+                    folderPath = state.folderPath() ?: stringResource(R.string.mobile_destination_files),
+                    downloadStatus = shown?.let { downloads.entry(it.id)?.status },
+                    subtitleLanguages = subtitleLanguages,
+                    onAuthenticationRequired = onAuthenticationRequired,
+                    actions = MobileFilesDetailActions(
+                        onOpen = openFile,
+                        onDownload = onDownloadItem,
+                        onShare = onShareItem,
+                        onMore = openActions,
+                        imageUri = fileOpener?.documentUris(),
+                        resumePlayback = resumePlayback,
+                    ),
+                )
+            },
+        )
+    }
+    if (fileOpener != null) {
+        MobileFilesViewerHost(
+            state = state,
+            viewerId = viewerId,
+            actions = MobileFileViewerActions(
+                documentUri = { fileOpener.documentUri(context, it) },
+                onOpenWithAnotherApp = openWithAnotherApp,
+                onShare = onShareItem,
+                onMore = openActions,
+            ),
+            onShown = { id ->
+                viewerId = id.value
+                if (showsDetail) detailId = id.value
+            },
+            onClose = { viewerId = null },
+        )
+    }
+}
+
+/** Media plays, images, PDFs and text open in the viewer, and anything else in another app. */
+private fun fileOpenAction(
+    onPlayMedia: (FilesItem) -> Unit,
+    onView: (FilesItem) -> Unit,
+    onOther: (FilesItem) -> Unit,
+): (FilesItem) -> Unit = { item ->
+    when {
+        item.isPlayable -> onPlayMedia(item)
+        item.viewerKind != null -> onView(item)
+        else -> onOther(item)
+    }
+}
+
+/** The viewer over the folder's files of the shown file's kind, while that file is still listed. */
+@Composable
+private fun MobileFilesViewerHost(
+    state: FilesBrowserState,
+    viewerId: Long?,
+    actions: MobileFileViewerActions,
+    onShown: (FilesItemId) -> Unit,
+    onClose: () -> Unit,
+) {
+    val items = state.current.content.items()
+    val viewerItem = items.firstOrNull { it.id.value == viewerId }
+    if (viewerItem != null) {
+        val kind = viewerItem.viewerKind
+        MobileFileViewer(
+            files = items.filter { it.viewerKind == kind },
+            shownId = viewerItem.id,
+            actions = actions,
+            onShown = onShown,
+            onDismiss = onClose,
+        )
+    } else if (viewerId != null && state.current.content !is FilesContent.Loading) {
+        // The file left the listing, or the listing changed folder: there is nothing left to view.
+        SideEffect(onClose)
+    }
+}
+
+/** Everything the folder listings take; one value, so the movable listing gets it as its parameter. */
+private data class MobileFilesFoldersArgs(
+    val state: FilesBrowserState,
+    val currentKey: Pair<Int, Long>,
+    val folderKey: (FilesBrowserState) -> Pair<Int, Long>,
+    val repository: FilesRepository?,
+    val onEvent: (FilesBrowserEvent) -> Boolean,
+    val onPlayMedia: (FilesItem) -> Unit,
+    val confirmedTrashEnabled: Boolean?,
+    val onAuthenticationRequired: suspend () -> Unit,
+    val downloads: DownloadsState,
+    val onDownloadItem: ((FilesItem) -> Unit)?,
+    val onShareItem: ((FilesItem) -> Unit)?,
+    val onViewTrash: (() -> Unit)?,
+    val moveTargetStore: FilesMoveTargetStore?,
+    val publicLinks: MobilePublicLinks?,
+    val fileDragOut: MobileFileDragOut?,
+    val continueWatching: List<ContinueWatchingEntry>,
+    val onNewFolder: (() -> Unit)?,
+    val fileOpening: MobileFilesOpening?,
+)
+
+@Composable
+private fun MobileFilesFolders(args: MobileFilesFoldersArgs) = with(args) {
     MobileAxisContent(
         state = state,
         contentKey = folderKey,
@@ -69,6 +235,7 @@ internal fun MobileFilesRoute(
             fileDragOut = fileDragOut,
             continueWatching = continueWatching,
             onNewFolder = onNewFolder?.takeUnless { leaving },
+            fileOpening = fileOpening?.takeUnless { leaving },
         )
     }
 }
@@ -90,6 +257,7 @@ private fun MobileFilesFolder(
     fileDragOut: MobileFileDragOut?,
     continueWatching: List<ContinueWatchingEntry>,
     onNewFolder: (() -> Unit)?,
+    fileOpening: MobileFilesOpening?,
 ) {
     key(repository, state.current.folder.id.value) {
         var movingItemId by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -117,6 +285,7 @@ private fun MobileFilesFolder(
             fileDragOut = fileDragOut,
             continueWatching = continueWatching,
             onNewFolder = onNewFolder,
+            fileOpening = fileOpening,
         )
         if (movingItem != null && repository != null) {
             MobileFilesMoveSession(

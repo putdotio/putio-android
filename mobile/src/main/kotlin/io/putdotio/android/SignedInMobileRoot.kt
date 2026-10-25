@@ -31,6 +31,7 @@ import io.putdotio.android.files.MobileContinueWatching
 import io.putdotio.android.files.MobileContinueWatchingStore
 import io.putdotio.android.files.MobileFilesViewModel
 import io.putdotio.android.files.SdkFilesRepository
+import io.putdotio.android.files.SdkFilesSubtitleLanguages
 import io.putdotio.android.files.authoritativeSessionFailure
 import io.putdotio.android.history.HistoryEvent
 import io.putdotio.android.history.SdkHistoryRepository
@@ -335,6 +336,7 @@ private fun SignedInMobileSession(
         publicLinksController = publicLinksController,
         folderCreator = filesRepository,
         continueWatching = continueWatching,
+        subtitleLanguages = remember(runtime.putioClient) { SdkFilesSubtitleLanguages(runtime.putioClient) },
         sessionId = sessionId,
         onFilesEvent = filesController::dispatch,
         onAccountSettingsEvent = accountSettingsController::dispatch,

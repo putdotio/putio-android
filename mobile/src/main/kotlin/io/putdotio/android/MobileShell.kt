@@ -21,6 +21,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBarDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -75,6 +76,9 @@ import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesOpenOrigin
 import io.putdotio.android.files.FilesRepository
+import io.putdotio.android.files.FilesSubtitleLanguages
+import io.putdotio.android.files.isFilesListDetailWidth
+import io.putdotio.android.files.showsFilesListDetail
 import io.putdotio.android.files.MobileContinueWatching
 import io.putdotio.android.files.MobileFilesBarActions
 import io.putdotio.android.files.MobileFilesSearchBar
@@ -188,6 +192,7 @@ internal fun MobileShell(
     fileDragOut: MobileFileDragOut? = null,
     folderCreator: FilesFolderCreator? = null,
     continueWatching: MobileContinueWatching? = null,
+    subtitleLanguages: FilesSubtitleLanguages? = null,
 ) {
     val navController = rememberNavController()
     var rejectedNavigation by remember(sessionId) { mutableStateOf<FilesFailure?>(null) }
@@ -342,12 +347,72 @@ internal fun MobileShell(
         ) {
             BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
                 val navigationLayout = mobileNavigationLayout(maxWidth, maxHeight)
+                // Files keeps its panes while Search covers it, so nothing under Search is rebuilt.
+                val filesListDetail = isFilesListDetailWidth(maxWidth)
+                val topBarInFilesPane = showsFilesListDetail(
+                    width = maxWidth,
+                    onFiles = selectedDestination == MobileDestination.Files,
+                    searchOpen = searchOpen,
+                    isPlayback = isPlayback,
+                )
                 MobileNavigationContainer(
                     layout = navigationLayout,
                     selectedDestination = selectedDestination,
                     onDestination = { navController.navigateTo(it) },
                     enabled = !isPlayback,
                 ) { openNavigation ->
+                    val topBar: @Composable () -> Unit = {
+                        MobileTopBar(
+                            destination = selectedDestination,
+                            route = backStackEntry?.destination?.route,
+                            searchOpen = searchOpen,
+                            // A new scope clears the query, so it gets a fresh field, not a reconciled one.
+                            searchBar = { navigation ->
+                                key(searchHistoryState.search.scope) {
+                                    MobileSearchBar(
+                                        query = searchHistoryState.search.query,
+                                        scope = searchHistoryState.search.scope,
+                                        onQueryChanged = searchHistoryActions.onQueryChanged,
+                                        onSubmit = searchHistoryActions.onSubmit,
+                                        onBack = onFilesBack,
+                                        focusRequested = searchFocusPending,
+                                        onFocused = { searchFocusPending = false },
+                                        replacement = searchFieldText,
+                                        onReplaced = { searchFieldText = null },
+                                        navigation = navigation,
+                                    )
+                                }
+                            },
+                            // Search opened from its pill or a folder's bar takes the cursor at once.
+                            onOpenSearch = { scope ->
+                                openScopedSearch(scope)
+                                searchFocusPending = true
+                            },
+                            onSubpageBack = { navController.popBackStack() },
+                            filesState = filesState,
+                            onFilesBack = onFilesBack,
+                            onFilesEvent = onFilesEvent,
+                            onNewFolder = requestNewFolder,
+                            openNavigation = openNavigation,
+                            summary = tabSummary(selectedDestination, transfersState, downloadsState),
+                            tabActions = tabActions(
+                                selectedDestination,
+                                transfersState,
+                                transfersSessionId,
+                                onTransfersEvent,
+                            ) ?: historyActions(
+                                selectedDestination,
+                                searchHistoryState.history,
+                                searchHistoryActions.onHistoryEvent,
+                            ),
+                            downloads = downloadsController?.let {
+                                MobileDownloadsBar(downloadsState, downloadsSelection, it::dispatch)
+                            },
+                        )
+                    }
+                    val paneTopBar: @Composable () -> Unit = {
+                        MobileFilesPaneTopBar(topBarInFilesPane, topBar, account.inactiveNotice)
+                    }
                     MobileChrome(
                         visible = !isPlayback,
                         layout = navigationLayout,
@@ -355,55 +420,8 @@ internal fun MobileShell(
                         selectedDestination = selectedDestination,
                         playbackPlayerFactory = playbackPlayerFactory,
                         inactiveNotice = account.inactiveNotice,
-                        topBar = {
-                            MobileTopBar(
-                                destination = selectedDestination,
-                                route = backStackEntry?.destination?.route,
-                                searchOpen = searchOpen,
-                                // A new scope clears the query, so it gets a fresh field, not a reconciled one.
-                                searchBar = { navigation ->
-                                    key(searchHistoryState.search.scope) {
-                                        MobileSearchBar(
-                                            query = searchHistoryState.search.query,
-                                            scope = searchHistoryState.search.scope,
-                                            onQueryChanged = searchHistoryActions.onQueryChanged,
-                                            onSubmit = searchHistoryActions.onSubmit,
-                                            onBack = onFilesBack,
-                                            focusRequested = searchFocusPending,
-                                            onFocused = { searchFocusPending = false },
-                                            replacement = searchFieldText,
-                                            onReplaced = { searchFieldText = null },
-                                            navigation = navigation,
-                                        )
-                                    }
-                                },
-                                // Search opened from its pill or a folder's bar takes the cursor at once.
-                                onOpenSearch = { scope ->
-                                    openScopedSearch(scope)
-                                    searchFocusPending = true
-                                },
-                                onSubpageBack = { navController.popBackStack() },
-                                filesState = filesState,
-                                onFilesBack = onFilesBack,
-                                onFilesEvent = onFilesEvent,
-                                onNewFolder = requestNewFolder,
-                                openNavigation = openNavigation,
-                                summary = tabSummary(selectedDestination, transfersState, downloadsState),
-                                tabActions = tabActions(
-                                    selectedDestination,
-                                    transfersState,
-                                    transfersSessionId,
-                                    onTransfersEvent,
-                                ) ?: historyActions(
-                                    selectedDestination,
-                                    searchHistoryState.history,
-                                    searchHistoryActions.onHistoryEvent,
-                                ),
-                                downloads = downloadsController?.let {
-                                    MobileDownloadsBar(downloadsState, downloadsSelection, it::dispatch)
-                                },
-                            )
-                        },
+                        topBarInContent = topBarInFilesPane,
+                        topBar = topBar,
                     ) { contentModifier ->
                         MobileNavHost(
                             transferDraft = transferDraft,
@@ -443,6 +461,8 @@ internal fun MobileShell(
                             fileDragOut = fileDragOut,
                             continueWatching = continueWatching,
                             onNewFolder = requestNewFolder,
+                            filesListPaneTopBar = paneTopBar.takeIf { filesListDetail },
+                            subtitleLanguages = subtitleLanguages,
                         )
                     }
                 }
@@ -879,6 +899,8 @@ private fun MobileChrome(
     playbackPlayerFactory: MobilePlayerFactory,
     inactiveNotice: InactiveAccountNotice?,
     topBar: @Composable () -> Unit,
+    /** The content draws the top bar itself, as Files' list pane does from 840dp, and owns the status bar inset. */
+    topBarInContent: Boolean = false,
     content: @Composable (Modifier) -> Unit,
 ) {
     val suiteType = when {
@@ -919,22 +941,8 @@ private fun MobileChrome(
         Scaffold(
             // The suite pads itself for the system bars it sits against; the slot must not again.
             modifier = Modifier.consumeWindowInsets(navigationSuiteInsets(suiteType)),
-            topBar = {
-                if (visible) {
-                    Column {
-                        topBar()
-                        // Every signed-in screen, like web's app layout; the top bar owns the status bar inset.
-                        inactiveNotice?.let { notice ->
-                            MobileInactiveAccountNotice(
-                                notice,
-                                Modifier.windowInsetsPadding(
-                                    WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal),
-                                ),
-                            )
-                        }
-                    }
-                }
-            },
+            topBar = { if (visible && !topBarInContent) MobileChromeTopBar(topBar, inactiveNotice) },
+            contentWindowInsets = chromeContentInsets(topBarInContent),
             bottomBar = {
                 if (visible) {
                     // The bar pads its own content; above it the now-playing bar needs only the side insets.
@@ -951,6 +959,40 @@ private fun MobileChrome(
         ) { padding ->
             // Playback draws edge to edge and handles its own insets.
             content(if (visible) Modifier.padding(padding) else Modifier.fillMaxSize())
+        }
+    }
+}
+
+/** Without its top bar the scaffold leaves the status bar to the content, which draws the bar itself. */
+@Composable
+private fun chromeContentInsets(topBarInContent: Boolean): WindowInsets =
+    if (topBarInContent) {
+        ScaffoldDefaults.contentWindowInsets.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)
+    } else {
+        ScaffoldDefaults.contentWindowInsets
+    }
+
+/** The chrome's top bar over Files' list pane, empty while Search or the player covers the panes. */
+@Composable
+private fun MobileFilesPaneTopBar(
+    shown: Boolean,
+    topBar: @Composable () -> Unit,
+    inactiveNotice: InactiveAccountNotice?,
+) {
+    if (shown) MobileChromeTopBar(topBar, inactiveNotice)
+}
+
+/** The top bar, then the inactive-account notice every signed-in screen shows under it, like web's app layout. */
+@Composable
+private fun MobileChromeTopBar(topBar: @Composable () -> Unit, inactiveNotice: InactiveAccountNotice?) {
+    Column {
+        // The top bar owns the status bar inset.
+        topBar()
+        inactiveNotice?.let { notice ->
+            MobileInactiveAccountNotice(
+                notice,
+                Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)),
+            )
         }
     }
 }

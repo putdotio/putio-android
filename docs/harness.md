@@ -546,8 +546,12 @@ Java against the framework only because it runs in the test package's process;
 its torrent provider sits outside the app's authority prefix, since put.io
 refuses torrents from providers named after its own package.
 
-Use a phone AVD you created, with a hardware keyboard and a tablet-size
-display; restore with `wm size reset` and `wm density reset`:
+The resized phone below proves keyboard, drag and window behaviour only. Captures
+of the tablet layout need true scale, status bar included: use an AVD created
+with `-d pixel_tablet` (2560x1600 at 320 dpi, 1280x800 dp).
+
+For this proof, use a phone AVD you created, with a hardware keyboard and a
+tablet-size display; restore with `wm size reset` and `wm density reset`:
 
 ```bash
 sed -i '' 's/^hw.keyboard=no$/hw.keyboard=yes/' ~/.android/avd/<name>.avd/config.ini   # before booting
@@ -558,8 +562,9 @@ Arguments: `putio.tablet.enabled`, `.runId` and `.video` (a landscape MP4 from
 the fixture recipe). One `OK (1 test)` per selector:
 
 - `keyboardDrivesFilesSearchTrashAndThePlayer`: Tab, Enter, Backspace, Ctrl+F,
-  Escape, F5, Delete with focus kept, the Keyboard Shortcuts Helper, then
-  Space, Right and Escape in the player.
+  Escape, F5, Delete with focus kept, the Keyboard Shortcuts Helper, Enter
+  selecting the video into the detail pane and its Play, then Space, Right and
+  Escape in the player.
 - `dragAndDropWithAnotherAppInSplitScreenKeepsTheVideoAndShell`: the video
   keeps playing in a split beside the probe; `poster.jpg` drags out, readable
   only while the drop's permissions are held and never writable; the probe's

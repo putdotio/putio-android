@@ -33,6 +33,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.time.Duration
 import io.putdotio.android.playback.MobilePlaybackReporting
+import io.putdotio.android.viewer.MobilePdfDocument
 
 internal fun interface OAuthRuntimeFailureReporter {
     fun report(error: Exception)
@@ -211,6 +212,7 @@ class MobileOAuthRuntime internal constructor(
                 applicationScope = applicationScope,
                 onSessionLeft = { session ->
                     MobileFileShareService.endSession(context, session)
+                    MobilePdfDocument.clearCache(context)
                     MobileFileDrags.endSession(session)
                     MobileDocumentsProvider.sessionLeft(context)
                     // The collector can lag the next sign-in; that account's outcomes stay.

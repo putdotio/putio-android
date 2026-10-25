@@ -309,9 +309,10 @@ fit, in short windows or at large font scales, a scrollable drawer takes over,
 as today. The selected item uses the stock indicator with a filled Phosphor
 glyph in `on-secondary-container`; unselected items use the regular glyph.
 
-From 840dp, Files is list-detail: the folder list on the left (520dp), the
-selected file's detail on the right with its preview, primary actions and facts
-(size, added, length, subtitles, folder). Here a tap on a file selects it into
+From 840dp, Files is list-detail: the folder's bar and list on the left (520dp,
+or half the space beside the rail when that is less), the selected file's detail on the right
+with its preview, primary actions and facts (size, added, length, subtitles,
+folder). Here a tap on a file selects it into
 the detail pane; Play in the pane starts playback. Folders open in the list.
 
 Each tab keeps its own back stack. Back pops within the tab, then returns to
@@ -801,10 +802,10 @@ the navigation bar: **Welcome!** as a 40sp medium title on a 48sp line, then
   speeds and counts elsewhere use the UI face.
 - Transfer cards and Transfer actions show no peer count: the Kotlin SDK's
   `Transfer` has no peers field.
-- Files has no selection mode, and there is no tablet list-detail.
+- Files has no selection mode.
 - The player has no cast button, and its error offers no action: downloads keep
   the HLS rendition, and Open in VLC is not built.
-- Images, PDF and text don't open in-app.
+- The viewers have no Download: Downloads hold video and audio only.
 
 ## Android TV
 

@@ -24,6 +24,10 @@ Mobile, on the emulator harness against the live API:
   items shared with you, create folders, search inside a folder, a played mark
   on media rows, Continue watching for videos started on this device, and
   downloads listed while put.io is unreachable
+- Files on tablets from 840 dp: the list beside the selected file's preview,
+  Play or Resume, Download, Share and facts
+- Images, PDFs and text open in an in-app viewer that swipes between the
+  folder's files of the same kind; other types open with another app
 - Trash: browse, restore one or all, delete permanently, empty
 - Transfers in Active, Needs attention and Completed sections, each card
   filling with its progress; Transfer actions open the save folder, copy the
