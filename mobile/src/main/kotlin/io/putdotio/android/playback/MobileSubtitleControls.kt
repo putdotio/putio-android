@@ -296,7 +296,12 @@ private fun subtitleTrackDetails(track: PlaybackSubtitleTrack, subtitle: Playbac
         SubtitleOrigin.Folder -> stringResource(R.string.mobile_playback_subtitles_from_folder)
         SubtitleOrigin.OpenSubtitles -> stringResource(R.string.mobile_playback_subtitles_from_opensubtitles)
         SubtitleOrigin.File -> subtitle?.format?.takeIf { it.isNotBlank() }?.uppercase(Locale.ROOT)
-            ?: subtitleFormatName(track.group.getFormat(track.trackIndex).let { it.codecs ?: it.sampleMimeType })
+            ?: subtitleFormatName(
+                track.group.getFormat(track.trackIndex).let { format ->
+                    // Codecs can read "text/vtt wvtt"; Media3 picks the text MIME type out of it.
+                    format.codecs?.let(MimeTypes::getTextMediaMimeType) ?: format.sampleMimeType
+                },
+            )
     }
 
 internal fun subtitleFormatName(mimeType: String?): String? =

@@ -77,6 +77,8 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player as Media3Player
+import androidx.media3.common.C
+import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.Tracks
 import androidx.media3.common.VideoSize
@@ -510,6 +512,7 @@ private class ReadyPlayerState(
 
     /** What showed, by position, for subtitles the viewer delayed. */
     val cueHistory = DelayedSubtitleCues()
+    var textChoice = player.trackSelectionParameters.textChoice()
     var videoSize by mutableStateOf(player.videoSize)
     var playbackState by mutableIntStateOf(player.playbackState)
     var keepScreenOn by mutableStateOf(keepScreenOn)
@@ -883,8 +886,10 @@ private fun PlayerListenerEffect(
                 }
 
                 override fun onTrackSelectionParametersChanged(parameters: TrackSelectionParameters) {
-                    // Off or another track: what showed before must not replay after a delay.
-                    playerState.cueHistory.clear()
+                    // Off or another subtitle track: what showed before must not replay after a delay.
+                    val text = parameters.textChoice()
+                    if (text != playerState.textChoice) playerState.cueHistory.clear()
+                    playerState.textChoice = text
                 }
 
                 override fun onPositionDiscontinuity(
@@ -1232,6 +1237,10 @@ private fun BoxScope.MobileSeekFeedbackLayer(request: PendingSeek?) {
     }
 }
 
+/** The subtitle part of a track selection: whether text is on, and which text track it pins. */
+private fun TrackSelectionParameters.textChoice(): Pair<Boolean, List<TrackSelectionOverride>> =
+    (C.TRACK_TYPE_TEXT in disabledTrackTypes) to overrides.values.filter { it.type == C.TRACK_TYPE_TEXT }
+
 /** Hands the window's seek actions to the composed screen's seek. */
 private class SeekRelay {
     var seek: (SeekDirection) -> Unit = {}
@@ -1336,30 +1345,52 @@ private fun BoxScope.MobileVideoLayers(
             )
         }
     }
-    // Beside an open side sheet the subtitles stay clear of the dimming: they lay out in the video
-    // that still shows, at the video's height, so they wrap there at the size they play at and Size
-    // and timing previews them as they will look.
+    MobileSubtitleLayer(
+        playerState = playerState,
+        textScale = subtitleTextScale,
+        besideSheet = subtitlesBesideSheet,
+        clearance = subtitleClearance.takeUnless { pictureInPicture } ?: 0.dp,
+        delayMillis = subtitleDelayMillis,
+    )
+    if (pictureInPicture) MobilePictureInPictureProgress(player, Modifier.align(Alignment.BottomStart).zIndex(3f))
+}
+
+/**
+ * Beside an open side sheet the subtitles stay clear of the dimming: they lay out in the video that
+ * still shows, at the video's height, so they wrap there at the size they play at and Size and
+ * timing previews them as they will look.
+ */
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+@Composable
+private fun MobileSubtitleLayer(
+    playerState: ReadyPlayerState,
+    textScale: Float,
+    besideSheet: Boolean,
+    clearance: Dp,
+    delayMillis: Long,
+) {
     BoxWithConstraints(Modifier.fillMaxSize().zIndex(3f)) {
         val frame = DpSize(maxWidth, maxHeight)
         val aspectRatio = playerState.videoSize.displayAspectRatioOrNull()
         val bottomPadding by animateFloatAsState(
-            subtitleBottomPadding(frame, aspectRatio, subtitleClearance.takeUnless { pictureInPicture } ?: 0.dp),
+            subtitleBottomPadding(frame, aspectRatio, clearance),
             label = "subtitle-clearance",
         )
-        val sheetWidth = if (subtitlesBesideSheet) MOBILE_PLAYER_SIDE_SHEET_WIDTH.coerceAtMost(maxWidth) else 0.dp
+        val sheetWidth = if (besideSheet) MOBILE_PLAYER_SIDE_SHEET_WIDTH.coerceAtMost(maxWidth) else 0.dp
         val area = subtitleArea(frame, aspectRatio, sheetWidth)
+        // A sheet as wide as the window leaves no video to show subtitles in.
+        if (sheetWidth > 0.dp && area == null) return@BoxWithConstraints
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.CenterStart) {
             SubtitleCueOverlay(
-                cues = rememberShownCues(playerState, subtitleDelayMillis),
+                cues = rememberShownCues(playerState, delayMillis),
                 videoAspectRatio = area?.let { it.width / it.height } ?: aspectRatio,
                 modifier = area?.let { Modifier.absoluteOffset(x = it.left).size(it.width, it.height) }
                     ?: Modifier.fillMaxSize(),
-                textScale = subtitleTextScale,
+                textScale = textScale,
                 bottomPaddingFraction = bottomPadding,
             )
         }
     }
-    if (pictureInPicture) MobilePictureInPictureProgress(player, Modifier.align(Alignment.BottomStart).zIndex(3f))
 }
 
 /** The window's thin yellow line of how far the video has played. */

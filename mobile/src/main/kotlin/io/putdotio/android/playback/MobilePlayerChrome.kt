@@ -70,6 +70,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.constrainHeight
 import androidx.compose.ui.unit.dp
+import androidx.media3.common.C
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.compose.indicators.ProgressIndicator
@@ -516,8 +517,11 @@ private fun MobileTimeText(player: Player, time: PlayerTime) {
     val text = when (time) {
         PlayerTime.Position -> Util.getStringForTime(progress.currentPositionMs)
         PlayerTime.Duration -> Util.getStringForTime(progress.durationMs)
-        PlayerTime.Remaining ->
+        PlayerTime.Remaining -> if (progress.durationMs == C.TIME_UNSET) {
+            Util.getStringForTime(C.TIME_UNSET)
+        } else {
             "-" + Util.getStringForTime((progress.durationMs - progress.currentPositionMs).coerceAtLeast(0L))
+        }
     }
     Text(text)
 }
