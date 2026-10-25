@@ -16,6 +16,7 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.Constraints
+import androidx.core.graphics.withTranslation
 import androidx.media3.common.VideoSize
 import androidx.media3.common.text.Cue
 import androidx.media3.common.util.UnstableApi
@@ -103,10 +104,9 @@ internal class SubtitleCueRenderer(
         val (bottomStacked, others) = cues.partition { it.isStackedFromBottom() }
         placed.draw(others, width, height, canvas)
         if (bottomStacked.isEmpty()) return
-        val save = canvas.save()
-        canvas.translate(0f, -(height.coerceAtLeast(1) * bottomPaddingFraction))
-        stacked.draw(bottomStacked, width, height, canvas)
-        canvas.restoreToCount(save)
+        canvas.withTranslation(y = -(height.coerceAtLeast(1) * bottomPaddingFraction)) {
+            stacked.draw(bottomStacked, width, height, this)
+        }
     }
 }
 
