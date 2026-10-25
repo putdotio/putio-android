@@ -27,7 +27,7 @@ plugins {
 android {
     defaultConfig {
         // Shared with the TV app: one Google Play listing serves both, phones get this bundle and
-        // TVs the TV one (docs/distribution.md#one-listing-two-apps).
+        // TVs the TV one (AGENTS.md#google-play-delivery).
         applicationId = "io.put.putio"
         // Dedicated public Android mobile OAuth client from #47.
         buildConfigField("String", "PUTIO_MOBILE_OAUTH_CLIENT_ID", "\"9677\"")
@@ -100,7 +100,7 @@ androidComponents {
 }
 
 // Google Play delivery runs from this module for both apps: each upload is one release carrying
-// the mobile and TV production bundles (docs/distribution.md).
+// the mobile and TV production bundles (.github/workflows/play-internal.yml).
 val playBundles = tasks.register<Sync>("syncPlayBundles") {
     description = "Collect the mobile and TV production bundles for one Google Play release"
     dependsOn("bundleProductionRelease", ":tv:bundleProductionRelease")

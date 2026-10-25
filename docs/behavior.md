@@ -171,7 +171,7 @@ Fire TV's Alexa and Video Skill Kit would need Amazon catalog integration
 outside the app. Results shown in Google TV's system UI are unverified: Google
 TV surfaces app content through Google's own catalog, and the emulator's
 Assistant answers nothing without a Google account
-([Harness](./harness.md#tv-platform-integration-proof)).
+([Harness](./harness.md#tv-platform-integration)).
 
 Tests: `TvSearchSuggestionsTest`, `TvLaunchRequestTest`, `TvAuthControllerTest`,
 `TvWatchNextTest`, `TvSessionViewModelTest`, `TvGlobalSearchProofTest` (opt-in
@@ -268,7 +268,7 @@ account.
 Tests: `FilesMoveTargetMemoryTest`, `FilesMoveDestinationControllerTest`,
 `MobileItemDialogsTest`, `MobileMoveTargetStoreTest`, `MobileAuthControllerSessionTest`, `MobileFilesMoveTest`,
 `MobileFilesCopyTest`, `MobileMoveTargetProofTest` (opt-in synthetic device
-proof; see [Harness](./harness.md#move-and-copy-target-folder-proof)).
+proof; see [Harness](./harness.md#mobile-lanes)).
 
 ## Files delete and paging
 
@@ -572,7 +572,7 @@ Tests: `MobileVideoWindowTest`, `MobilePlayerScreenTest`,
 `MobilePlaybackOptionsTest`, `MobileSubtitleControlsTest`,
 `PlaybackSubtitleTimingTest`, `PlaybackReducerTest` (Next episode), device proof
 `MobileFullscreenVideoProofTest`
-([Harness](./harness.md#immersive-landscape-video-proof)).
+([Harness](./harness.md#mobile-lanes)).
 
 ## Mobile audio player
 
@@ -647,16 +647,14 @@ the next visit finds the video paused at that position instead of playing on.
 Tests: `MobilePictureInPictureTest`,
 `MobileShellPlaybackTest.terminalAutoplayInPictureInPictureWaitsForTheWindowToClose`;
 device proof `MobilePictureInPictureProofTest`
-([Harness](./harness.md#picture-in-picture-proof)).
+([Harness](./harness.md#mobile-lanes)).
 
 ## MP4 conversion
 
 Both surfaces resolve a video that needs MP4 conversion to the same shared
 conversion state. The SDK resolves a conversion only for a video the server
 marks `need_convert`, and its MP4 status reads not available until a conversion
-is requested
-([live check](https://github.com/putdotio/putio-android/pull/222#issuecomment-5904428342):
-a not-available video converted and played). Opening such a video starts its
+is requested. Opening such a video starts its
 conversion through the SDK's `startMp4Conversion` without a tap, as putio-web,
 tv-native, tv-vite and iOS do, and the interstitial says the conversion has
 started. Only the first conversion status read of an opening can start one,
@@ -916,8 +914,7 @@ viewer don't (see [Shared-with-me items](#shared-with-me-items)), as web hides
 it for `is_shared` files. The sheet, titled Exclusive access, says in one line
 what a link allows (anyone with it, 72 hours, sooner at its IP or data limit),
 then lists the item's live links, each in mono cut in the middle with the time
-left ("Expires in 2d 14h"), then Create link. put.io issues a new link on every create (two creates on one file returned
-two links on the live API) and counts each against daily and weekly limits, so
+left ("Expires in 2d 14h"), then Create link. put.io issues a new link on every create and counts each against daily and weekly limits, so
 Create link waits until the account's links have loaded: the viewer sees what
 exists first, and a failed read offers Try again before anything else. A new
 link joins the list, newest first. Each link offers Copy link, which puts only
@@ -944,7 +941,7 @@ option for videos (`utm_campaign=party`) is not ported.
 
 Tests: `PublicLinksControllerTest`, `SdkPublicLinksRepositoryTest`,
 `MobilePublicLinksTest`, `MobilePublicLinksProofTest` (opt-in synthetic device
-proof; see [Harness](./harness.md#public-links-proof)).
+proof; see [Harness](./harness.md#mobile-lanes)).
 
 ## Documents provider
 
@@ -1010,7 +1007,7 @@ Tests: `MobileDocumentsProviderTest`, `OfflineOriginalsTest`,
 `MobileOAuthRuntimeTest` (the picker hears each session start and end),
 `SdkFilesRepositoryTest` (`updated_at`), `MobileDocumentsPickerProofTest`
 (opt-in synthetic device proof; see
-[Harness](./harness.md#documents-provider-proof)).
+[Harness](./harness.md#mobile-lanes)).
 
 ## Navigation
 
@@ -1092,7 +1089,7 @@ through it.
 Tests: `MobileKeyboardShortcutsTest` (keys through the window's real input
 stages, on API 35 and API 26), `FilesKeyboardFocusTest`,
 `MobilePlayerKeyboardTest`, device proof `MobileTabletPowerProofTest`
-([Harness](./harness.md#tablet-proof)).
+([Harness](./harness.md#tablet)).
 
 ## Drag and drop
 
@@ -1138,7 +1135,7 @@ Tests: `MobileDragProviderTest` (payload and grant flags; opening fetches
 nothing; ranged reads; a session change or end stops reads),
 `MobileTransferDropTest`, `MobileTransferDraftTest` (a cancelled read still
 releases the grant), device proof `MobileTabletPowerProofTest`
-([Harness](./harness.md#tablet-proof)).
+([Harness](./harness.md#tablet)).
 
 ## Multi-window
 
@@ -1160,7 +1157,7 @@ Activity; a density change recreates it and keeps its intake; the shell keeps
 its destination across resizing and recreation), `MobilePlayerKeyboardTest`
 (split-screen pause), `MobileLargeTextNavigationTest` and
 `MobileOrdinaryNavigationTest` (in `MobileAdaptiveNavigationTest.kt`), device
-proof `MobileTabletPowerProofTest` ([Harness](./harness.md#tablet-proof)).
+proof `MobileTabletPowerProofTest` ([Harness](./harness.md#tablet)).
 
 ## Launcher entry
 
@@ -1338,7 +1335,7 @@ Sentry; leaving the DSN out is the kill switch that needs no code change.
   player screen, audio from the background audio service.
 - The SDK is `sentry-android-core` alone: JVM crashes, ANRs and release-health
   sessions, with no NDK, replay, tracing, logs or metrics. Builds from
-  [Google Play delivery](distribution.md#signing) upload their R8 mapping
+  [Google Play delivery](../AGENTS.md#google-play-delivery) upload their R8 mapping
   under the id their events carry; other release builds upload none, so their
   stack traces stay obfuscated.
 
@@ -1680,7 +1677,7 @@ dialog, and a session rejection still signs out.
 Tests: `SdkTransfersRepositoryTest`, `TransfersReducerTest`,
 `MobileTransfersScreenTest`, `TransfersSessionFailureTest`,
 `MobileTransferRetryProofTest` (opt-in device proof; see
-[Harness](./harness.md#transfer-retry-proof)).
+[Harness](./harness.md#mobile-lanes)).
 
 ## Transfer actions
 
@@ -1716,13 +1713,10 @@ such rows are read by id, so a poll costs one small request per row however deep
 the history is. More rows are read from 1,000-row list pages until all are
 found. A row the API no longer has (404 by id, or absent from the list) leaves
 the list. Any other failure keeps the rows for the next poll; only a rejected
-session surfaces. Measured CPU cost per poll:
-[Android Transfers polling CPU benchmark](https://app.notion.com/p/3fdd546ba2f581fbaaa4ef35b3deb1c7)
-(put.io Notion).
+session surfaces.
 
 Tests: `SdkTransfersRepositoryTest`, `TransfersRefreshCostTest` (request and row
 counts per poll against 10k and 50k histories), `TransfersControllerTest`,
 `TransfersReducerTest` and `TransfersRefreshReducerTest` (failed polls keep rows;
 only a rejected session surfaces),
-`TransfersPollingCpuBenchmark` (opt-in device CPU time; see
-[Harness](./harness.md#transfers-polling-cpu-benchmark)).
+`TransfersPollingCpuBenchmark` (opt-in device CPU time).
