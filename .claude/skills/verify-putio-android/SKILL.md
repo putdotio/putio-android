@@ -41,7 +41,8 @@ $S/devbox.sh run "$RUN" '$V/session.sh relaunch $RUN'     # redraws a window the
 
 Single quotes matter: `devbox.sh run` sets `$RUN`, `$V` (this skill's
 `scripts/` in the copy) and `$SERIAL` (once `session.sh up` ran) on the
-devbox side.
+devbox side. `$SERIAL` is read when the call starts, so `session.sh up` gets a
+call of its own.
 
 Two ways to boot:
 
