@@ -1,3 +1,4 @@
+import com.android.build.api.artifact.SingleArtifact
 import java.io.File
 import java.util.Properties
 
@@ -83,6 +84,18 @@ androidComponents {
             outputDir.set(layout.buildDirectory.dir("generated/shortcuts/${variant.name}"))
         }
         variant.sources.res?.addGeneratedSourceDirectory(shortcuts, GenerateShortcutsTask::outputDir)
+
+        // The harness's device-code sign-in lives in src/debug; release must never declare it.
+        val debugSignIn = tasks.register<VerifyDebugOnlyActivityTask>(
+            "verify${variant.name.replaceFirstChar(Char::titlecase)}DebugSignInManifest",
+        ) {
+            group = "verification"
+            description = "Require the device-code sign-in in debug manifests and its absence from release"
+            mergedManifest.set(variant.artifacts.get(SingleArtifact.MERGED_MANIFEST))
+            activity.set("io.putdotio.android.auth.DebugDeviceSignInActivity")
+            present.set(variant.buildType == "debug")
+        }
+        tasks.named("check") { dependsOn(debugSignIn) }
     }
 }
 

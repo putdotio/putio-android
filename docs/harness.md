@@ -177,6 +177,34 @@ debug app after changing it, and name the client in the evidence.
 
 ## Mobile lanes
 
+### Mobile device-code sign-in
+
+Signs the debug app in as `devs-auto` with no browser: a debug-only screen
+shows a device code and the CLI approves it. `--help` covers prerequisites and
+failures.
+
+```bash
+./scripts/sign-in-devs-auto.sh emulator-5554
+```
+
+`verifyProductionReleaseDebugSignInManifest` fails if a release build declares
+the screen. Each approval adds a grant; sign out in the app to revoke it.
+
+Parallel lanes can share one sign-in through a `putio-phone` snapshot. Every
+instance of the AVD must then run `-read-only`, and a snapshot loads only with
+the renderer that saved it:
+
+```bash
+adb -s <serial> emu avd snapshot save devs-auto-signed-in   # signed in, booted with the flags below
+emulator -avd putio-phone -read-only -snapshot devs-auto-signed-in -no-snapshot-save \
+  -port <free even port> -no-window -gpu swiftshader_indirect -no-audio -no-boot-anim
+```
+
+Every copy restores the same session; the script passes on it without a new
+approval. Signing out in one copy revokes the grant for all.
+
+### Lanes
+
 Prefixes are `putio.<prefix>`; screenshots go to `<dir>-proof-<UUID>/`.
 
 | Class                                                               | Prefix               | Kind      | Behaviour                                                                |
@@ -203,7 +231,8 @@ Prefixes are `putio.<prefix>`; screenshots go to `<dir>-proof-<UUID>/`.
 
 Lane notes:
 
-- **Authenticated lanes** need the app signed in as `devs-auto` and a base64
+- **Authenticated lanes** need the app signed in as `devs-auto`
+  ([Mobile device-code sign-in](#mobile-device-code-sign-in)) and a base64
   JSON fixture; the matching `*ProofFixture.kt` or `TrashRestoreFixture.kt`
   parser defines its keys and rejects anything ambiguous. Run its
   `*FixtureTest` first. Trash/Delete never changes the account's Trash

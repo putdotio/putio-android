@@ -36,15 +36,7 @@ private const val ANDROID_NS = "http://schemas.android.com/apk/res/android"
 private const val ACTION_MAIN = "android.intent.action.MAIN"
 
 internal fun requireLauncherEntries(manifest: File, activity: String, categories: List<String>) {
-    val factory = DocumentBuilderFactory.newInstance().apply {
-        isNamespaceAware = true
-        setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
-        isXIncludeAware = false
-        isExpandEntityReferences = false
-    }
-    val document = factory.newDocumentBuilder().parse(manifest)
-    val activities = document.getElementsByTagName("activity").elements()
-        .filter { it.getAttributeNS(ANDROID_NS, "name") == activity }
+    val activities = manifestActivities(manifest, activity)
     if (activities.isEmpty()) throw GradleException("${manifest.name} declares no $activity")
 
     // A launcher query carries no data, so a filter with <data> cannot match it.
@@ -58,6 +50,18 @@ internal fun requireLauncherEntries(manifest: File, activity: String, categories
     if (missing.isNotEmpty()) {
         throw GradleException("$activity has no $ACTION_MAIN intent filter for ${missing.joinToString()}")
     }
+}
+
+/** The merged manifest's `<activity>` elements named [activity], fully qualified. */
+internal fun manifestActivities(manifest: File, activity: String): List<Element> {
+    val factory = DocumentBuilderFactory.newInstance().apply {
+        isNamespaceAware = true
+        setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
+        isXIncludeAware = false
+        isExpandEntityReferences = false
+    }
+    return factory.newDocumentBuilder().parse(manifest).getElementsByTagName("activity").elements()
+        .filter { it.getAttributeNS(ANDROID_NS, "name") == activity }
 }
 
 private fun org.w3c.dom.NodeList.elements(): List<Element> = (0 until length).map { item(it) as Element }

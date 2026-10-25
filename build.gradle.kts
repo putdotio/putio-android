@@ -48,6 +48,12 @@ val testEmulatorHarness = tasks.register<Exec>("testEmulatorHarness") {
     commandLine("bash", "scripts/test-emulator.sh")
 }
 
+val testSignInHarness = tasks.register<Exec>("testSignInHarness") {
+    description = "Run the devs-auto device-code sign-in script's contract tests"
+    cacheableCheck()
+    commandLine("bash", "scripts/test-sign-in.sh")
+}
+
 val checkIcons = tasks.register<Exec>("checkIcons") {
     description = "Verify locked Phosphor drawables without network access"
     cacheableCheck(
@@ -163,6 +169,7 @@ tasks.register("verify") {
         testEmulatorHarness,
         testEvidence,
         testIconPipeline,
+        testSignInHarness,
         testTalkBackInput,
         gradle.includedBuild("build-logic").task(":test"),
     )
