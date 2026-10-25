@@ -1,5 +1,9 @@
 package io.putdotio.android
 
+import android.database.ContentObserver
+import android.os.Handler
+import android.os.Looper
+import android.provider.Settings
 import androidx.annotation.StringRes
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.withInfiniteAnimationFrameMillis
@@ -36,9 +40,13 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -47,6 +55,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -281,7 +290,7 @@ private fun WelcomeStage(
     modifier: Modifier = Modifier,
 ) {
     val sequence = frames.size > 1
-    val animates = sequence && !rememberMobileMotion().reducedMotion
+    val animates = sequence && !rememberAnimationsOff()
     val position = remember(frames) { mutableFloatStateOf(0f) }
     LaunchedEffect(frames, animates) {
         position.floatValue = 0f
@@ -319,6 +328,32 @@ private fun WelcomeStage(
             )
         }
     }
+}
+
+/**
+ * Whether the system turned animations off (animator duration scale 0). [rememberMobileMotion] reads it on
+ * lifecycle changes; the setting can also change while this screen stays resumed, as from Settings in
+ * the other split-screen pane, so the stage watches it too.
+ */
+@Composable
+private fun rememberAnimationsOff(): Boolean {
+    val atLifecycle = rememberMobileMotion().reducedMotion
+    val resolver = LocalContext.current.contentResolver
+    var watched by remember(atLifecycle) { mutableStateOf<Boolean?>(null) }
+    DisposableEffect(resolver) {
+        val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
+            override fun onChange(selfChange: Boolean) {
+                watched = Settings.Global.getFloat(resolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
+            }
+        }
+        resolver.registerContentObserver(
+            Settings.Global.getUriFor(Settings.Global.ANIMATOR_DURATION_SCALE),
+            false,
+            observer,
+        )
+        onDispose { resolver.unregisterContentObserver(observer) }
+    }
+    return watched ?: atLifecycle
 }
 
 @Composable
