@@ -1,7 +1,12 @@
 package io.putdotio.android.playback
 
+import android.app.Activity
 import android.content.Context
+import android.content.Intent
 import androidx.core.net.toUri
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import androidx.core.content.ContextCompat
 import androidx.mediarouter.media.MediaRouteSelector
@@ -29,6 +34,7 @@ import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
 import com.google.android.gms.common.images.WebImage
 import io.putdotio.android.MainActivity
+import io.putdotio.android.MobilePlaybackService
 import io.putdotio.android.R
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -54,6 +60,18 @@ internal object MobileCast {
             }
         }
     }
+
+    /**
+     * The signed-in session left: the receiver plays with the account's download token, so the Cast
+     * session ends with it. A process that never cast has nothing to end.
+     */
+    fun sessionLeft() {
+        val cast = controller ?: return
+        Handler(Looper.getMainLooper()).post { cast.end() }
+    }
+
+    /** The file a session plays now, for the Cast notification's tap; null without one. */
+    fun castingTarget(): PlaybackTarget? = controller?.castingTarget()
 
     // A device without Play services, or one whose Play services cannot answer, has no Cast.
     @Suppress("SwallowedException")
@@ -85,7 +103,7 @@ class MobileCastOptionsProvider : OptionsProvider {
             )
             .setSkipStepMs(NOTIFICATION_SKIP_MILLIS)
             .setSmallIconDrawableResId(R.drawable.ic_ph_screencast)
-            .setTargetActivityClassName(MainActivity::class.java.name)
+            .setTargetActivityClassName(MobileCastNotificationActivity::class.java.name)
             .build()
         return CastOptions.Builder()
             .setReceiverApplicationId(CastMediaControlIntent.DEFAULT_MEDIA_RECEIVER_APPLICATION_ID)
@@ -105,6 +123,22 @@ class MobileCastOptionsProvider : OptionsProvider {
         const val NOTIFICATION_SKIP_MILLIS = 10_000L
         const val TOGGLE_ACTION_INDEX = 1
         const val STOP_ACTION_INDEX = 3
+    }
+}
+
+/**
+ * The Cast notification's tap. The Cast SDK opens its target with no action of its own, so this asks
+ * the app for the playing file as the audio notification does, which opens the receiver's controls.
+ */
+class MobileCastNotificationActivity : Activity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        startActivity(
+            Intent(this, MainActivity::class.java)
+                .setAction(MobilePlaybackService.ACTION_OPEN_NOW_PLAYING)
+                .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+        )
+        finish()
     }
 }
 
@@ -260,6 +294,8 @@ internal class GmsCastRoutes(private val context: Context) : CastRoutes {
 internal class GmsCastRemote : CastRemote {
     private val mutableStatus = MutableStateFlow<CastRemoteStatus?>(null)
     override val status: StateFlow<CastRemoteStatus?> = mutableStatus
+    override var endedStatus: CastRemoteStatus? = null
+        private set
     private var client: RemoteMediaClient? = null
     private var lastFileId: Long? = null
 
@@ -287,6 +323,7 @@ internal class GmsCastRemote : CastRemote {
         publish()
         release()
         lastFileId = null
+        endedStatus = mutableStatus.value
         mutableStatus.value = null
     }
 
@@ -325,7 +362,7 @@ internal class GmsCastRemote : CastRemote {
                 .setMediaInfo(media.toMediaInfo())
                 .setAutoplay(autoplay)
                 .setCurrentTime(startMillis)
-                .setPlaybackRate(speed.toDouble())
+                .setPlaybackRate(speed.castRate())
                 .setActiveTrackIds(media.activeSubtitleId?.let { longArrayOf(it) } ?: longArrayOf())
                 .build(),
         )
@@ -344,9 +381,13 @@ internal class GmsCastRemote : CastRemote {
     }
 
     override fun setSpeed(speed: Float) {
-        client?.setPlaybackRate(speed.toDouble())
+        client?.setPlaybackRate(speed.castRate())
     }
 }
+
+/** Cast takes 0.5x to 2x; the player's faster presets play at 2x there. */
+private fun Float.castRate(): Double =
+    toDouble().coerceIn(MediaLoadRequestData.PLAYBACK_RATE_MIN, MediaLoadRequestData.PLAYBACK_RATE_MAX)
 
 private fun MediaStatus.castRemoteState(): CastRemoteState =
     when (playerState) {

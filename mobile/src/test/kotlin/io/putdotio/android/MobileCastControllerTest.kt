@@ -111,12 +111,34 @@ class MobileCastControllerTest {
         gateway.report(CastRemoteState.Playing, positionMillis = 60_000L)
 
         // The session ends; the player recomposes before the status collector runs.
-        gateway.status.value = null
-        gateway.availability.value = CastAvailability.Available
+        gateway.end()
 
         assertEquals(CastHandover(positionMillis = 60_000L, playing = true), cast.takeHandover(42L))
         idle()
         assertNull(cast.takeHandover(42L))
+    }
+
+    @Test
+    fun theHandbackUsesTheReceiversLastWordEvenWhenNoCollectorSawIt() {
+        gateway.connect()
+        cast.cast(Media, Item, CastHandover(positionMillis = 0L, playing = true))
+        gateway.report(CastRemoteState.Playing, positionMillis = 60_000L)
+        // The viewer paused on the TV; that status and the session's end arrive in one looper turn.
+        now += 10_000L
+        gateway.status.value = gateway.remote(CastRemoteState.Paused, positionMillis = 70_000L)
+        gateway.disconnect()
+
+        assertEquals(CastHandover(positionMillis = 70_000L, playing = false), cast.takeHandover(42L))
+    }
+
+    @Test
+    fun aFileThatFailedOnTheReceiverIsSentAgain() {
+        gateway.connect()
+        cast.cast(Media, Item, CastHandover(positionMillis = 0L, playing = true))
+        gateway.report(CastRemoteState.Failed, positionMillis = 0L)
+
+        assertTrue(cast.cast(Media, Item, CastHandover(positionMillis = 0L, playing = true)))
+        assertEquals(2, gateway.loads.size)
     }
 
     @Test
@@ -218,6 +240,7 @@ class MobileCastControllerTest {
     private inner class FakeCastGateway : CastGateway {
         override val availability = MutableStateFlow<CastAvailability>(CastAvailability.Available)
         override val status = MutableStateFlow<CastRemoteStatus?>(null)
+        override var endedStatus: CastRemoteStatus? = null
         override val devices = MutableStateFlow<List<CastDevice>>(emptyList())
         val loads = mutableListOf<Load>()
         val commands = mutableListOf<String>()
@@ -228,9 +251,15 @@ class MobileCastControllerTest {
         }
 
         fun disconnect() {
+            end()
+            idle()
+        }
+
+        /** As the SDK ends a session: the last status kept, then cleared, all before any collector runs. */
+        fun end() {
+            endedStatus = status.value
             availability.value = CastAvailability.Available
             status.value = null
-            idle()
         }
 
         fun report(
@@ -240,7 +269,18 @@ class MobileCastControllerTest {
             speed: Float = 1f,
             speedSupported: Boolean = false,
         ) {
-            status.value = CastRemoteStatus(
+            status.value = remote(state, positionMillis, durationMillis, speed, speedSupported)
+            idle()
+        }
+
+        fun remote(
+            state: CastRemoteState,
+            positionMillis: Long,
+            durationMillis: Long? = null,
+            speed: Float = 1f,
+            speedSupported: Boolean = false,
+        ) =
+            CastRemoteStatus(
                 fileId = 42L,
                 state = state,
                 positionMillis = positionMillis,
@@ -249,8 +289,6 @@ class MobileCastControllerTest {
                 speedSupported = speedSupported,
                 sampledAtMillis = now,
             )
-            idle()
-        }
 
         override fun startDiscovery() = Unit
 

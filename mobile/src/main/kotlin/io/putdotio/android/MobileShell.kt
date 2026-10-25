@@ -97,10 +97,12 @@ import io.putdotio.android.history.HistoryEvent
 import io.putdotio.android.history.HistoryReducer
 import io.putdotio.android.history.HistoryState
 import io.putdotio.android.playback.DefaultMobilePlayerFactory
+import io.putdotio.android.playback.MobileCast
 import io.putdotio.android.playback.MobileNowPlayingBar
 import io.putdotio.android.playback.MobilePlayerFactory
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackRepository
+import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.playback.rememberNowPlaying
 import io.putdotio.android.search.MobileHistoryOverflow
 import io.putdotio.android.search.MobileSearchBar
@@ -710,7 +712,10 @@ private fun NowPlayingNavigationEffect(
     LaunchedEffect(nowPlayingRequests, playbackPlayerFactory, appContext, transferDraft) {
         nowPlayingRequests.pending.collect { pending ->
             if (!pending) return@collect
+            // The Cast notification asks too: the receiver's file, while local audio has stopped.
             val target = playbackPlayerFactory.activeAudio(appContext)
+                ?.let { PlaybackTarget(it.fileId, it.title, PlaybackMediaType.AUDIO) }
+                ?: MobileCast.castingTarget()
             // Acknowledged only once the lookup finished: a cancelled lookup leaves it pending.
             nowPlayingRequests.acknowledge()
             if (target == null || transferDraft.state.value.incomingRequestId != null) return@collect
@@ -719,8 +724,8 @@ private fun NowPlayingNavigationEffect(
             // A different item's route, still loading or failed, gives no controls for the live audio.
             navController.navigateToPlayback(
                 target.fileId,
-                target.title,
-                PlaybackMediaType.AUDIO,
+                target.name,
+                target.mediaType,
                 replaceCurrentPlayback = onPlaybackRoute != null,
             )
         }

@@ -70,6 +70,19 @@ class PlaybackCastMediaTest {
     }
 
     @Test
+    fun anEscapedCredentialNameIsReplacedToo() {
+        val media = source(
+            PlaybackSourceKind.MP4,
+            "https://api.put.io/v2/files/42/mp4/download?oauth%5Ftoken=$ACCESS&%6Fauth_token=$ACCESS",
+            PlaybackSubtitles.None,
+        ).castable(Video.copy(posterUrl = "https://api.put.io/v2/files/42/screenshot?oauth_token=$ACCESS"))
+
+        assertEquals("https://api.put.io/v2/files/42/mp4/download?oauth_token=$DOWNLOAD", media.url)
+        // A poster that carries a credential is left out rather than sent.
+        assertNull(media.posterUrl)
+    }
+
+    @Test
     fun aDownloadsTokenFreeApiUrlTakesTheDownloadToken() {
         val media = source(
             PlaybackSourceKind.HLS,

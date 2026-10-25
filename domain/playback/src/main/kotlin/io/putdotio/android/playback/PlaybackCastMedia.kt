@@ -5,6 +5,7 @@ import io.putdotio.sdk.files.PlaybackSourceKind
 import io.putdotio.sdk.files.PlaybackSubtitles
 import java.net.URI
 import java.net.URISyntaxException
+import java.net.URLDecoder
 import java.net.URLEncoder
 
 /**
@@ -78,7 +79,8 @@ public fun PlaybackSource.toCastMedia(
         contentType = castContentType(target),
         buffered = kind != PlaybackSourceKind.HLS,
         durationMillis = target.durationSeconds?.toPlaybackMillis()?.takeIf { it > 0L },
-        posterUrl = target.posterUrl?.takeIf { it.startsWith("https://") },
+        // A poster is a token-free still; one that carries a credential stays here.
+        posterUrl = target.posterUrl?.takeIf { it.startsWith("https://") && OAUTH_TOKEN_QUERY !in it.queryNames() },
         subtitles = castSubtitles,
         activeSubtitleId = castSubtitles.getOrNull(activeIndex)?.id,
     )
@@ -105,7 +107,8 @@ private fun String.withDownloadToken(token: String, vararg extra: Pair<String, S
     val uri = apiUri() ?: return null
     val replaced = setOf(OAUTH_TOKEN_QUERY) + extra.map { it.first }
     val kept = uri.rawQuery.orEmpty().split('&')
-        .filter { it.isNotEmpty() && it.substringBefore('=') !in replaced }
+        // Names compare decoded, so an escaped `oauth%5Ftoken` cannot carry the session's token through.
+        .filter { it.isNotEmpty() && it.substringBefore('=').decoded() !in replaced }
     val added = (extra.toList() + (OAUTH_TOKEN_QUERY to token)).map { (name, value) -> "$name=${value.encoded()}" }
     return "https://$PUTIO_API_HOST${uri.rawPath}?" + (kept + added).joinToString("&")
 }
@@ -117,6 +120,23 @@ private fun String.apiUri(): URI? =
         URI(this).takeIf { it.scheme == "https" && it.host == PUTIO_API_HOST && !it.rawPath.isNullOrEmpty() }
     } catch (_: URISyntaxException) {
         null
+    }
+
+/** This URL's query names, decoded; empty for a malformed URL. */
+@Suppress("SwallowedException")
+private fun String.queryNames(): Set<String> =
+    try {
+        URI(this).rawQuery.orEmpty().split('&').map { it.substringBefore('=').decoded() }.toSet()
+    } catch (_: URISyntaxException) {
+        emptySet()
+    }
+
+@Suppress("SwallowedException")
+private fun String.decoded(): String =
+    try {
+        URLDecoder.decode(this, Charsets.UTF_8.name())
+    } catch (_: IllegalArgumentException) {
+        this
     }
 
 private fun String.encoded(): String = URLEncoder.encode(this, Charsets.UTF_8.name())

@@ -62,8 +62,9 @@ private val NoCast: StateFlow<CastAvailability> = MutableStateFlow(CastAvailabil
 private val NoPlayerCast = PlayerCast(controller = null, button = {}, casting = null)
 
 /**
- * Where the local player picks [fileId] up after a Cast session ended, taken once; the preferences
- * keep it so a recreated player starts there too.
+ * Where the local player picks [fileId] up after a Cast session ended, taken once. It moves into the
+ * preferences at once, which then answer as local playback moves on, so a player recreated later
+ * starts where local playback got to rather than where the receiver stopped.
  */
 @Composable
 internal fun rememberCastHandover(
@@ -71,11 +72,12 @@ internal fun rememberCastHandover(
     fileId: Long,
     preferences: RetainedPlayerPreferences,
 ): CastHandover? {
-    val handover = remember(fileId) { playerCast.controller?.takeHandover(fileId) }
+    var handover by remember(fileId) { mutableStateOf(playerCast.controller?.takeHandover(fileId)) }
     LaunchedEffect(handover) {
-        if (handover != null) {
-            preferences.retainPlayback(RetainedPlayback(handover.positionMillis, handover.playing))
-            preferences.playbackSpeed = handover.speed
+        handover?.let {
+            preferences.retainPlayback(RetainedPlayback(it.positionMillis, it.playing))
+            preferences.playbackSpeed = it.speed
+            handover = null
         }
     }
     return handover
@@ -217,17 +219,14 @@ private suspend fun MobileCastController.handOver(
     val item = ready?.let {
         playerFactory.reportableItem(it.source.toMediaItem(target.name, target.mediaType), it.useStartFrom)
     } ?: bareItem(fileId, target.name)
-    val media = when {
-        holds(fileId) -> null
-        source == null -> null.also { onSourceRequired(local.positionMillis) }
-        else -> castMedia(source)
+    val media = source?.let { castMedia(it) }
+    when {
+        // The receiver plays it already: what Play sends again after it finishes, if it resolved.
+        holds(fileId) -> attach(item, (media as? PlaybackRepositoryResult.Success)?.value)
+        media == null -> onSourceRequired(local.positionMillis)
+        media is PlaybackRepositoryResult.Success -> cast(media.value, item, local)
     }
-    when (media) {
-        null -> if (holds(fileId)) attach(item)
-        is PlaybackRepositoryResult.Success -> cast(media.value, item, local)
-        is PlaybackRepositoryResult.Failure -> Unit
-    }
-    return media !is PlaybackRepositoryResult.Failure
+    return media !is PlaybackRepositoryResult.Failure || holds(fileId)
 }
 
 /** [intervals]' step from where the receiver is, within the file. */

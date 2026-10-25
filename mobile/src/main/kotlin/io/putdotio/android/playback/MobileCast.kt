@@ -5,12 +5,14 @@ import android.os.Looper
 import androidx.media3.common.C
 import androidx.media3.common.DeviceInfo
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.SimpleBasePlayer
 import androidx.media3.common.util.UnstableApi
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.SettableFuture
+import io.putdotio.android.files.FilesItemId
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSubtitles
 import kotlinx.coroutines.CoroutineScope
@@ -101,8 +103,14 @@ internal interface CastRoutes {
 
 /** The connected receiver's media: its status, and the commands that drive it. */
 internal interface CastRemote {
-    /** Null without a session; the last status before the session ends hands the file back. */
+    /** Null without a session. */
     val status: StateFlow<CastRemoteStatus?>
+
+    /**
+     * The last status of the session that ended most recently, set before [status] clears. A
+     * collector may see only the clearing, so the handback reads this instead.
+     */
+    val endedStatus: CastRemoteStatus?
 
     fun load(media: PlaybackCastMedia, startMillis: Long, autoplay: Boolean, speed: Float)
 
@@ -133,25 +141,29 @@ internal class MobileCastController(
     val remotePlayer: CastRemotePlayer = CastRemotePlayer(gateway, scope, clock) { replay(it) }
 
     private val handovers = mutableMapOf<Long, CastHandover>()
-    private var lastStatus: CastRemoteStatus? = null
     private var lastMedia: PlaybackCastMedia? = null
+
+    /** The ended session whose position has been handed back, so it is handed back once. */
+    private var handedBack: CastRemoteStatus? = null
 
     init {
         scope.launch {
             gateway.status.collect { status ->
-                val previous = lastStatus
-                // The gateway clears the status only as the session ends: freeze where the receiver
-                // stood, for the file's next local start. A file that finished hands back stopped.
-                val fileId = previous?.fileId
-                if (status == null && fileId != null) handovers[fileId] = previous.handover()
-                lastStatus = status
+                // The status clears only as the session ends: freeze where the receiver stood, for
+                // the file's next local start. A file that finished hands back stopped.
+                if (status == null) takeEnded()?.let { (fileId, handover) -> handovers[fileId] = handover }
             }
         }
     }
 
-    /** Whether the receiver holds [fileId] now, so a screen opened on it attaches instead of loading. */
+    /**
+     * Whether the receiver holds [fileId] now, so a screen opened on it attaches instead of loading.
+     * Media that failed there is sent again.
+     */
     fun holds(fileId: Long): Boolean =
-        gateway.status.value?.let { it.fileId == fileId && it.state != CastRemoteState.Idle } == true
+        gateway.status.value?.let {
+            it.fileId == fileId && it.state != CastRemoteState.Idle && it.state != CastRemoteState.Failed
+        } == true
 
     /**
      * Sends [media] to the receiver from where local playback stood, unless the receiver already
@@ -170,22 +182,52 @@ internal class MobileCastController(
         return loads
     }
 
-    /** Ties the receiver's controls to [item] without loading it: the receiver already plays it. */
-    fun attach(item: MediaItem) = remotePlayer.adopt(item)
+    /**
+     * Ties the receiver's controls to [item] without loading it: the receiver already plays it.
+     * [media], when known, is what Play sends again once the file has finished there.
+     */
+    fun attach(item: MediaItem, media: PlaybackCastMedia? = null) {
+        remotePlayer.adopt(item)
+        if (media != null) lastMedia = media
+    }
+
+    /** The file the receiver plays for this app, named as it was sent; null without one. */
+    fun castingTarget(): PlaybackTarget? {
+        val item = remotePlayer.currentMediaItem
+            ?.takeIf { gateway.availability.value is CastAvailability.Connected }
+        val fileId = item?.mediaId?.toLongOrNull() ?: return null
+        val audio = item.mediaMetadata.mediaType == MediaMetadata.MEDIA_TYPE_MUSIC
+        return PlaybackTarget(
+            FilesItemId(fileId),
+            item.mediaMetadata.title?.toString().orEmpty(),
+            if (audio) PlaybackMediaType.AUDIO else PlaybackMediaType.VIDEO,
+        )
+    }
+
+    /** Signing out ends the session: the receiver holds the account's download token. */
+    fun end() {
+        lastMedia = null
+        handovers.clear()
+        gateway.stopCasting()
+    }
 
     /** Where the local player picks [fileId] up after a session ended; taken once, null while casting. */
     fun takeHandover(fileId: Long): CastHandover? {
         if (gateway.availability.value is CastAvailability.Connected) return null
-        val stored = handovers.remove(fileId)
-        // The session ended a moment ago and the status collector has not run yet.
-        val pending = lastStatus?.takeIf { stored == null && gateway.status.value == null && it.fileId == fileId }
-        if (pending != null) lastStatus = null
-        return stored ?: pending?.handover()
+        // The session may have ended a moment ago, before the status collector ran.
+        if (gateway.status.value == null && gateway.endedStatus?.fileId == fileId) {
+            takeEnded()?.let { (endedFileId, handover) -> handovers[endedFileId] = handover }
+        }
+        return handovers.remove(fileId)
     }
 
-    private fun CastRemoteStatus.handover() = CastHandover(positionAt(clock()), playing, speed)
+    private fun takeEnded(): Pair<Long, CastHandover>? {
+        val ended = gateway.endedStatus?.takeIf { it !== handedBack } ?: return null
+        handedBack = ended
+        return ended.fileId?.let { it to CastHandover(ended.positionAt(clock()), ended.playing, ended.speed) }
+    }
 
-    // A finished file has left the receiver; playing it again sends it once more.
+    // A file that finished or failed has left the receiver; playing it again sends it once more.
     private fun replay(startMillis: Long) {
         val media = lastMedia ?: return
         if (gateway.status.value?.fileId != media.fileId) return
@@ -247,7 +289,10 @@ internal class CastRemotePlayer(
         }
     }
 
+    /** Keeps an item that reports positions over a bare one for the same file. */
     fun adopt(item: MediaItem) {
+        val current = this.item
+        if (current?.mediaId == item.mediaId && current.reportsPositions && !item.reportsPositions) return
         this.item = item
         invalidateState()
     }
@@ -309,7 +354,7 @@ internal class CastRemotePlayer(
         when {
             // Play after a finish seeks to the start first, which already sent the file again.
             playWhenReady && replaying -> Unit
-            playWhenReady && status?.state == CastRemoteState.Ended -> replayFrom(0L)
+            playWhenReady && status?.left == true -> replayFrom(0L)
             playWhenReady -> gateway.play()
             else -> gateway.pause()
         }
@@ -318,7 +363,7 @@ internal class CastRemotePlayer(
 
     override fun handleSeek(mediaItemIndex: Int, positionMs: Long, seekCommand: Int): ListenableFuture<*> {
         val position = if (positionMs == C.TIME_UNSET) 0L else positionMs.coerceAtLeast(0L)
-        if (status?.state == CastRemoteState.Ended && !replaying) replayFrom(position) else gateway.seekTo(position)
+        if (status?.left == true && !replaying) replayFrom(position) else gateway.seekTo(position)
         return awaitStatus()
     }
 
@@ -345,6 +390,12 @@ internal class CastRemotePlayer(
         pending.clear()
         settled.forEach { it.set(null) }
     }
+
+    private val CastRemoteStatus.left: Boolean
+        get() = state == CastRemoteState.Ended || state == CastRemoteState.Failed
+
+    private val MediaItem.reportsPositions: Boolean
+        get() = mediaMetadata.extras?.containsKey(PLAYBACK_REPORTING_LEASE_KEY) == true
 
     private companion object {
         const val MICROS_PER_MILLI = 1_000L

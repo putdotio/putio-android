@@ -25,6 +25,7 @@ import io.putdotio.android.auth.MobileOAuthRuntime
 import io.putdotio.android.auth.MobileSignedOutReason
 import io.putdotio.android.auth.OAuthBrowserLaunchResult
 import io.putdotio.android.auth.OAuthLaunchResult
+import io.putdotio.android.playback.MobileCast
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.downloads.MobileDownloadsViewModel
 import io.putdotio.android.downloads.mobileDownloadsViewModelFactory
@@ -120,7 +121,10 @@ private fun MobileAuthRoot(
     }
     PlaybackSessionBoundaryEffect(
         sessionId = (authState as? MobileAuthState.SignedIn)?.sessionId,
-        onSessionLeft = { MobilePlaybackService.stop(context.applicationContext) },
+        onSessionLeft = {
+            MobilePlaybackService.stop(context.applicationContext)
+            MobileCast.sessionLeft()
+        },
     )
     when (val state = authState) {
         MobileAuthState.Initializing,
