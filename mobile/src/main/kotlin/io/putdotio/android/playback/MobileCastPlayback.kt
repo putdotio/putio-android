@@ -242,10 +242,10 @@ private suspend fun MobileCastController.handOver(
         onSourceRequired(retained)
         return true
     }
-    // Attaching resolves the media too, for Play to send again once the file has finished there; a
-    // failed lookup leaves the receiver's controls up.
-    val media = castMedia(ready?.source)
-    val loaded = media as? PlaybackRepositoryResult.Success
+    // The controls attach at once; the media resolves after, for Play to send again once the file has
+    // finished there, and a failed lookup leaves the controls up.
+    if (holds) attach(item)
+    val loaded = castMedia(ready?.source) as? PlaybackRepositoryResult.Success
     when {
         holds -> attach(item, loaded?.value)
         loaded != null -> cast(

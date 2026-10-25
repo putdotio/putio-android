@@ -317,6 +317,9 @@ internal class GmsCastRemote : CastRemote {
     private var client: RemoteMediaClient? = null
     private var lastFileId: Long? = null
 
+    /** The file a load was sent for until the receiver reports on it, so a refusal is told for it. */
+    private var pendingLoad: Long? = null
+
     /** Whether play was last asked for, which a loading receiver's status does not say. */
     private var playIntent: Boolean? = null
 
@@ -355,10 +358,13 @@ internal class GmsCastRemote : CastRemote {
         client = remote?.also {
             it.registerCallback(callback)
             it.addProgressListener(progress, PROGRESS_INTERVAL_MILLIS)
-            // Answered or not, the first status request settles whether the receiver plays anything.
-            it.requestStatus().setResultCallback {
-                publish()
-                markStatusKnown()
+            // An answered first status request settles whether the receiver plays anything; without an
+            // answer the next status update does.
+            it.requestStatus().setResultCallback { result ->
+                if (client === it && result.status.isSuccess) {
+                    publish()
+                    markStatusKnown()
+                }
             }
         }
         publish()
@@ -369,6 +375,7 @@ internal class GmsCastRemote : CastRemote {
         publish()
         release()
         lastFileId = null
+        pendingLoad = null
         playIntent = null
         endedStatus = mutableStatus.value
         mutableStatus.value = null
@@ -386,11 +393,14 @@ internal class GmsCastRemote : CastRemote {
     fun publish() {
         val remote = client ?: return
         val media = remote.mediaStatus ?: return
-        // A finished file's status drops its media; it still belongs to the file it finished.
+        // A finished file's status drops its media; it still belongs to the file it finished, with the
+        // title and kind it was sent with.
         val info = remote.mediaInfo
         val fileId = info?.customData?.optLong(FILE_ID_KEY)?.takeIf { it > 0L }
             ?: lastFileId.takeIf { media.playerState == MediaStatus.PLAYER_STATE_IDLE }
+        val previous = mutableStatus.value?.takeIf { info == null && it.fileId == fileId }
         lastFileId = fileId
+        if (fileId != null && fileId == pendingLoad) pendingLoad = null
         val state = media.castRemoteState()
         if (state == CastRemoteState.Playing || state == CastRemoteState.Paused) {
             playIntent = state == CastRemoteState.Playing
@@ -405,14 +415,15 @@ internal class GmsCastRemote : CastRemote {
             seekable = media.isMediaCommandSupported(MediaStatus.COMMAND_SEEK),
             sampledAtMillis = SystemClock.elapsedRealtime(),
             playIntent = playIntent,
-            title = info?.metadata?.getString(MediaMetadata.KEY_TITLE),
-            audio = info?.metadata?.mediaType == MediaMetadata.MEDIA_TYPE_MUSIC_TRACK,
+            title = info?.metadata?.getString(MediaMetadata.KEY_TITLE) ?: previous?.title,
+            audio = previous?.audio ?: (info?.metadata?.mediaType == MediaMetadata.MEDIA_TYPE_MUSIC_TRACK),
         )
     }
 
     override fun load(media: PlaybackCastMedia, startMillis: Long, autoplay: Boolean, speed: Float) {
         val remote = client ?: return
         lastFileId = media.fileId
+        pendingLoad = media.fileId
         playIntent = autoplay
         remote.load(
             MediaLoadRequestData.Builder()
@@ -424,7 +435,8 @@ internal class GmsCastRemote : CastRemote {
                 .build(),
         ).setResultCallback { result ->
             // A refused or timed-out load says so for its file, unless another load followed it.
-            if (!result.status.isSuccess && client === remote && lastFileId == media.fileId) {
+            if (!result.status.isSuccess && client === remote && pendingLoad == media.fileId) {
+                pendingLoad = null
                 mutableStatus.value = CastRemoteStatus(
                     fileId = media.fileId,
                     state = CastRemoteState.Failed,

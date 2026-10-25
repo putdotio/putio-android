@@ -151,6 +151,9 @@ internal class MobileCastController(
     /** The ended session whose position has been handed back, so it is handed back once. */
     private var handedBack: CastRemoteStatus? = null
 
+    /** Set when signing out ends the session, whose position then goes nowhere. */
+    private var discardNextEnd = false
+
     init {
         scope.launch {
             gateway.status.collect { status ->
@@ -162,13 +165,11 @@ internal class MobileCastController(
     }
 
     /**
-     * Whether the receiver holds [fileId] now, so a screen opened on it attaches instead of loading.
-     * Media that failed there is sent again.
+     * Whether the receiver plays [fileId] now, so a screen opened on it attaches instead of loading.
+     * Media that finished or failed there is sent again.
      */
     fun holds(fileId: Long): Boolean =
-        gateway.status.value?.let {
-            it.fileId == fileId && it.state != CastRemoteState.Idle && it.state != CastRemoteState.Failed
-        } == true
+        gateway.status.value?.let { it.fileId == fileId && it.state in LIVE_STATES } == true
 
     /**
      * Sends [media] to the receiver from where local playback stood, unless the receiver already
@@ -214,6 +215,10 @@ internal class MobileCastController(
     fun end() {
         lastMedia = null
         handovers.clear()
+        // The session this ends hands nothing back: the next account must not resume the last one's.
+        discardNextEnd = gateway.availability.value.let {
+            it is CastAvailability.Connected || it is CastAvailability.Connecting
+        }
         gateway.stopCasting()
     }
 
@@ -230,7 +235,10 @@ internal class MobileCastController(
     private fun takeEnded(): Pair<Long, CastHandover>? {
         val ended = gateway.endedStatus?.takeIf { it !== handedBack } ?: return null
         handedBack = ended
-        return ended.fileId?.let { it to CastHandover(ended.positionAt(clock()), ended.playing, ended.speed) }
+        val discarded = discardNextEnd
+        discardNextEnd = false
+        return ended.fileId?.takeUnless { discarded }
+            ?.let { it to CastHandover(ended.positionAt(clock()), ended.playing, ended.speed) }
     }
 
     // A file that finished or failed has left the receiver; playing it again sends it once more.
@@ -240,6 +248,9 @@ internal class MobileCastController(
         gateway.load(media, startMillis, autoplay = true, speed = gateway.status.value?.speed ?: 1f)
     }
 }
+
+/** Receiver states with the file still playable there. */
+private val LIVE_STATES = setOf(CastRemoteState.Buffering, CastRemoteState.Playing, CastRemoteState.Paused)
 
 /**
  * The subtitle the receiver shows first, by the same rules as the local player: none when the

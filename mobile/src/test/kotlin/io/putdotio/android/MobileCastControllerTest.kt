@@ -144,6 +144,28 @@ class MobileCastControllerTest {
     }
 
     @Test
+    fun signingOutHandsNothingBackToTheNextAccount() {
+        gateway.connect()
+        cast.cast(Media, Item, CastHandover(positionMillis = 0L, playing = true))
+        gateway.report(CastRemoteState.Playing, positionMillis = 60_000L)
+
+        cast.end()
+        idle()
+
+        assertNull(cast.takeHandover(42L))
+    }
+
+    @Test
+    fun aFileThatFinishedOnTheReceiverIsSentAgainWhenReopened() {
+        gateway.connect()
+        cast.cast(Media, Item, CastHandover(positionMillis = 0L, playing = true))
+        gateway.report(CastRemoteState.Ended, positionMillis = 600_000L)
+
+        assertTrue(cast.cast(Media, Item, CastHandover(positionMillis = 120_000L, playing = true)))
+        assertEquals(Load(42L, 120_000L, autoplay = true, speed = 1f), gateway.loads.last())
+    }
+
+    @Test
     fun aFileThatFailedOnTheReceiverIsSentAgain() {
         gateway.connect()
         cast.cast(Media, Item, CastHandover(positionMillis = 0L, playing = true))
