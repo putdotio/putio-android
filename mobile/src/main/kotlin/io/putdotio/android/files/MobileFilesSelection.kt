@@ -358,25 +358,26 @@ internal fun MobileFilesSelectionToolbarSlot(
         SideEffect { onHeightChanged(0) }
         return
     }
+    // Each action ends the selection as it is sent; a second tap queued in the same frame finds none.
+    val sendOnce = { send: () -> Unit ->
+        if (selection.isActive(currentState)) {
+            send()
+            selection.end()
+        }
+    }
     val handlers = MobileFilesSelectionHandlers(
         onMove = actions.onMove,
         onDownload = actions.onDownload?.let { download ->
-            { chosen ->
-                chosen.forEach(download)
-                selection.end()
-            }
+            { chosen -> sendOnce { chosen.forEach(download) } }
         },
         onSetWatched = actions.onSetWatched?.let { setWatched ->
-            { chosen, watched ->
-                setWatched(chosen, watched)
-                selection.end()
-            }
+            { chosen, watched -> sendOnce { setWatched(chosen, watched) } }
         },
         onDelete = { chosen, mode ->
             // The reducer refuses a delete while another operation runs; the selection then stays.
             if (currentState.current.operation.canStartOperation) {
-                actions.onEvent(FilesBrowserEvent.Delete(currentState.current.folder.id, chosen.map { it.id }, mode))
-                selection.end()
+                val folderId = currentState.current.folder.id
+                sendOnce { actions.onEvent(FilesBrowserEvent.Delete(folderId, chosen.map { it.id }, mode)) }
             }
         },
     )
