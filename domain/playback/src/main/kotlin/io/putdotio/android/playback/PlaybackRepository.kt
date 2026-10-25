@@ -187,7 +187,7 @@ internal class SdkPlaybackRepository internal constructor(
             )
             val ready = resolution.toAppResolution(account.settings.useStartFrom, hideSubtitles)
             PlaybackRepositoryResult.Success(
-                if (ready is PlaybackResolution.Ready && ready.needsDuration(target)) {
+                if (ready is PlaybackResolution.Ready && target.needsDuration()) {
                     ready.copy(durationSeconds = videoDuration(target.fileId.value))
                 } else {
                     ready
@@ -201,9 +201,9 @@ internal class SdkPlaybackRepository internal constructor(
             PlaybackRepositoryResult.Failure(PlaybackFailure.Putio(PutioFailure.Unexpected(unexpected)))
         }
 
-    private fun PlaybackResolution.Ready.needsDuration(target: PlaybackTarget): Boolean =
-        useStartFrom && source.startFromSeconds > 0.0 && target.durationSeconds == null &&
-            target.mediaType == PlaybackMediaType.VIDEO
+    // The near-end rule needs a video's duration, and so does Continue watching, even for a video never started.
+    private fun PlaybackTarget.needsDuration(): Boolean =
+        durationSeconds == null && mediaType == PlaybackMediaType.VIDEO
 
     /**
      * Single-file reads omit `video_metadata`; listing the file returns it as the parent. A
