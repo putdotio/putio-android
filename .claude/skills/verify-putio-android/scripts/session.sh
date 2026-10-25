@@ -8,7 +8,8 @@
 #   session.sh up      <run> --fresh      create AVD <run> from putio-phone's image and boot it
 #                                         (signed out; sign in with scripts/sign-in-devs-auto.sh)
 #   session.sh install <run>              install the built production debug APK (adb install -r)
-#   session.sh relaunch <run>             force-stop and start the app, wait for Files or Welcome
+#   session.sh relaunch <run>             force-stop and start the app, wait for Files or Welcome;
+#                                         taps Try again on "Couldn’t check your session" (4 min bound)
 #   session.sh down    <run>              force-stop the app and stop the run's emulator; --fresh
 #                                         runs also delete AVD <run>. .evidence/<run>/ stays
 #
@@ -145,7 +146,20 @@ case "${cmd}" in
     owns_run_serial || die "no running emulator for run ${run}"
     "${ADB}" -s "${serial}" shell am force-stop "${PACKAGE}"
     "${ADB}" -s "${serial}" shell am start -W -n "${PACKAGE}/io.putdotio.android.MainActivity" >/dev/null
-    "$(dirname "${BASH_SOURCE[0]}")/ui.sh" wait "${serial}" --match '^(Search your files|Welcome!|Welcome back!)$' 60
+    ui="$(dirname "${BASH_SOURCE[0]}")/ui.sh"
+    # Right after a snapshot load the app can fail to check its session for a
+    # minute or two; its "Couldn’t check your session" screen keeps the session
+    # and offers Try again.
+    deadline=$((SECONDS + ${PUTIO_VERIFY_SESSION_TIMEOUT:-240}))
+    until "${ui}" find "${serial}" --match '^(Search your files|Welcome!|Welcome back!)$' >/dev/null 2>&1; do
+      ((SECONDS < deadline)) || die "the app showed neither Files nor Welcome; run ui.sh dump ${serial} to see why"
+      if "${ui}" find "${serial}" --text "Couldn’t check your session" >/dev/null 2>&1; then
+        log "session check unavailable; tapping Try again"
+        "${ui}" tap "${serial}" --text "Try again" || true
+        sleep 8
+      fi
+      sleep 2
+    done
     echo "relaunched ${PACKAGE} on ${serial}"
     ;;
   down)
