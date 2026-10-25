@@ -37,7 +37,6 @@ class MobileResumePlaybackDialogTest {
         compose.setContent {
             PutioTheme {
                 MobileResumePlaybackDialog(
-                    title = "A long episode filename 東京 été ".repeat(20),
                     startFromSeconds = 3723.0,
                     onResume = { resumed += 1 },
                     onRestart = { restarted += 1 },

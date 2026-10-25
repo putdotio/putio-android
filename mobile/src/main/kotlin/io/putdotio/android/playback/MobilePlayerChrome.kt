@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,7 +22,6 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.wrapContentHeight
@@ -51,6 +52,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -61,11 +63,14 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.constrainHeight
 import androidx.compose.ui.unit.dp
+import androidx.media3.common.C
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.compose.indicators.ProgressIndicator
@@ -75,7 +80,6 @@ import androidx.media3.ui.compose.state.rememberProgressStateWithTickInterval
 import io.putdotio.android.R
 import io.putdotio.android.design.putioMono
 import io.putdotio.android.design.R as DesignR
-import io.putdotio.android.downloads.description
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @Composable
@@ -90,11 +94,17 @@ internal fun MobilePlayerChrome(
     settings: @Composable () -> Unit,
     modifier: Modifier = Modifier,
     onBack: () -> Unit = {},
+    topActions: @Composable RowScope.() -> Unit = {},
+    trailingChip: @Composable () -> Unit = {},
+    onFooterHeight: (Dp) -> Unit = {},
 ) {
     if (isAudio) {
         MobileAudioLayout(player, title, seekEnabled, onSeek, onScrub, settings, modifier)
     } else if (visible) {
-        MobileVideoLayout(player, title, seekEnabled, onSeek, onScrub, settings, modifier, onBack)
+        MobileVideoLayout(
+            player, title, seekEnabled, onSeek, onScrub, settings, modifier, onBack, topActions, trailingChip,
+            onFooterHeight,
+        )
     }
 }
 
@@ -203,8 +213,11 @@ private fun MobileVideoLayout(
     settings: @Composable () -> Unit,
     modifier: Modifier,
     onBack: () -> Unit,
+    topActions: @Composable RowScope.() -> Unit,
+    trailingChip: @Composable () -> Unit,
+    onFooterHeight: (Dp) -> Unit,
 ) {
-    val scrim = MaterialTheme.colorScheme.background
+    val scrim = MaterialTheme.colorScheme.scrim
     val density = LocalDensity.current
     val direction = LocalLayoutDirection.current
     val safeDrawing = WindowInsets.safeDrawing
@@ -212,9 +225,8 @@ private fun MobileVideoLayout(
         maxOf(safeDrawing.getLeft(this, direction), safeDrawing.getRight(this, direction)).toDp() + 24.dp
     }
     BoxWithConstraints(
-        modifier.fillMaxSize().shareVideoPointerInputWithSiblings().background(scrim.copy(alpha = 0.4f)),
+        modifier.fillMaxSize().shareVideoPointerInputWithSiblings().background(videoShade(scrim)),
     ) {
-        val transportWidth = (maxWidth * 0.55f).coerceIn(288.dp.coerceAtMost(maxWidth), maxWidth)
         var contentHeight by remember { mutableIntStateOf(0) }
         val scrollState = rememberScrollState()
         val overflow = if (contentHeight > constraints.maxHeight) {
@@ -228,9 +240,8 @@ private fun MobileVideoLayout(
             content = {
                 Row(
                     Modifier.fillMaxWidth()
-                        .background(Brush.verticalGradient(listOf(scrim.copy(alpha = 0.9f), scrim.copy(alpha = 0f))))
-                        .windowInsetsPadding(safeDrawing.only(WindowInsetsSides.Vertical))
-                        .padding(horizontal = sidePadding, vertical = 8.dp),
+                        .windowInsetsPadding(safeDrawing.only(WindowInsetsSides.Top))
+                        .padding(horizontal = sidePadding, vertical = 16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
@@ -240,33 +251,39 @@ private fun MobileVideoLayout(
                             contentDescription = stringResource(R.string.mobile_action_back),
                         )
                     }
-                    Text(
-                        title,
-                        style = MaterialTheme.typography.bodyLarge,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f).padding(end = 16.dp),
-                    )
+                    MobilePlayerTitle(title, Modifier.weight(1f))
+                    topActions()
                 }
                 Box(Modifier.fillMaxWidth().heightIn(min = 80.dp), contentAlignment = Alignment.Center) {
-                    MobileTransport(
-                        player, seekEnabled, onSeek,
-                        Modifier.width(transportWidth),
-                        onVideo = true,
-                    )
+                    MobileVideoTransport(player, seekEnabled, onSeek)
                 }
-                Column(
-                    Modifier.fillMaxWidth()
-                        .background(Brush.verticalGradient(listOf(scrim.copy(alpha = 0f), scrim.copy(alpha = 0.95f))))
-                        .windowInsetsPadding(safeDrawing.only(WindowInsetsSides.Vertical))
-                        .padding(horizontal = sidePadding, vertical = 8.dp),
-                ) {
-                    MobileVideoTimeline(player, onScrub)
-                    FlowRow(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterHorizontally),
-                    ) { settings() }
-                }
+                MobileVideoFooter(
+                    modifier = Modifier.fillMaxWidth()
+                        .onSizeChanged { onFooterHeight(with(density) { it.height.toDp() }) }
+                        .windowInsetsPadding(safeDrawing.only(WindowInsetsSides.Bottom))
+                        .padding(start = sidePadding, end = sidePadding, bottom = 8.dp),
+                    times = { MobileVideoTimes(player) },
+                    timeline = {
+                        MobileProgressSlider(
+                            player,
+                            onScrub,
+                            inactiveTrackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = VIDEO_TRACK_ALPHA),
+                            thumbSize = VIDEO_THUMB_SIZE,
+                        )
+                    },
+                    chips = {
+                        // Narrow or large-text windows wrap the chips instead of squeezing them.
+                        FlowRow(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            itemVerticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            settings()
+                            Spacer(Modifier.weight(1f))
+                            trailingChip()
+                        }
+                    },
+                )
             },
         ) { measurables, limits ->
             val children = measurables.map {
@@ -287,6 +304,127 @@ private fun MobileVideoLayout(
     }
 }
 
+/** The filename on one line, cut in the middle so its start and extension stay. */
+@Composable
+internal fun MobilePlayerTitle(title: String, modifier: Modifier = Modifier) {
+    Text(
+        title,
+        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
+        maxLines = 1,
+        overflow = TextOverflow.MiddleEllipsis,
+        modifier = modifier,
+    )
+}
+
+/** Dark behind the top bar, nearly clear across the picture, darkest behind the controls. */
+internal fun videoShade(scrim: Color): Brush =
+    Brush.verticalGradient(
+        0f to scrim.copy(alpha = SHADE_TOP_ALPHA),
+        SHADE_CLEAR_FROM to scrim.copy(alpha = SHADE_CLEAR_ALPHA),
+        SHADE_CLEAR_TO to scrim.copy(alpha = SHADE_CLEAR_ALPHA),
+        1f to scrim.copy(alpha = SHADE_BOTTOM_ALPHA),
+    )
+
+private const val SHADE_TOP_ALPHA = 0.6f
+private const val SHADE_CLEAR_FROM = 0.3f
+private const val SHADE_CLEAR_TO = 0.6f
+private const val SHADE_CLEAR_ALPHA = 0.05f
+private const val SHADE_BOTTOM_ALPHA = 0.75f
+
+/**
+ * The times, the scrubber, then the chips. The times line overlaps the top of the scrubber's 48dp
+ * touch band, which nothing else there can take, so the yellow line sits close under the times.
+ */
+@Composable
+private fun MobileVideoFooter(
+    modifier: Modifier,
+    times: @Composable () -> Unit,
+    timeline: @Composable () -> Unit,
+    chips: @Composable () -> Unit,
+) {
+    Layout(modifier = modifier, content = { times(); timeline(); chips() }) { measurables, limits ->
+        val loose = limits.copy(minHeight = 0, maxHeight = Constraints.Infinity)
+        val (timesPlaceable, timelinePlaceable, chipsPlaceable) = measurables.map { it.measure(loose) }
+        val timelineTop = timesPlaceable.height - TIMES_OVER_TIMELINE.roundToPx().coerceAtMost(timesPlaceable.height)
+        val chipsTop = timelineTop + timelinePlaceable.height
+        layout(limits.maxWidth, chipsTop + chipsPlaceable.height) {
+            timesPlaceable.placeRelative(0, 0)
+            timelinePlaceable.placeRelative(0, timelineTop)
+            chipsPlaceable.placeRelative(0, chipsTop)
+        }
+    }
+}
+
+private val TIMES_OVER_TIMELINE = 12.dp
+private val VIDEO_THUMB_SIZE = 16.dp
+private const val VIDEO_TRACK_ALPHA = 0.3f
+
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+@Composable
+private fun MobileVideoTimes(player: Player) {
+    ProvideTextStyle(
+        MaterialTheme.typography.bodySmall.putioMono().copy(color = MaterialTheme.colorScheme.onSurface),
+    ) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            MobileTimeText(player, PlayerTime.Position)
+            MobileTimeText(player, PlayerTime.Remaining)
+        }
+    }
+}
+
+/** A 72dp translucent dark circle for play and pause, between 56dp circles for 10 seconds back and forward. */
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+@Composable
+private fun MobileVideoTransport(
+    player: Player,
+    seekEnabled: Boolean,
+    onSeek: (SeekDirection) -> Unit,
+) {
+    val playPause = rememberPlayPauseButtonState(player)
+    val buffering = rememberBuffering(player)
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(VIDEO_TRANSPORT_GAP),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        MobileSeekButton(SeekDirection.Backward, seekEnabled, { onSeek(SeekDirection.Backward) }, onVideo = true)
+        Box(Modifier.size(80.dp), contentAlignment = Alignment.Center) {
+            if (buffering) {
+                val loading = stringResource(R.string.mobile_state_loading)
+                CircularProgressIndicator(
+                    modifier = Modifier.size(80.dp).semantics { contentDescription = loading },
+                    strokeWidth = 2.dp,
+                )
+            }
+            val circle = MaterialTheme.colorScheme.scrim.copy(alpha = VIDEO_PLAY_CIRCLE_ALPHA)
+            FilledIconButton(
+                onClick = playPause::onClick,
+                enabled = playPause.isEnabled,
+                modifier = Modifier.size(72.dp),
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = circle,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                    disabledContainerColor = circle,
+                ),
+            ) {
+                Icon(
+                    painterResource(
+                        if (playPause.showPlay) DesignR.drawable.ic_ph_play_fill else DesignR.drawable.ic_ph_pause_fill,
+                    ),
+                    contentDescription = stringResource(
+                        if (playPause.showPlay) R.string.mobile_now_playing_play else R.string.mobile_now_playing_pause,
+                    ),
+                    modifier = Modifier.size(36.dp),
+                )
+            }
+        }
+        MobileSeekButton(SeekDirection.Forward, seekEnabled, { onSeek(SeekDirection.Forward) }, onVideo = true)
+    }
+}
+
+// The 80dp buffering ring holds the 72dp button, so the 56dp gap between circles loses 4dp each side.
+private val VIDEO_TRANSPORT_GAP = 52.dp
+private const val VIDEO_PLAY_CIRCLE_ALPHA = 0.42f
+
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @Composable
 private fun MobileTransport(
@@ -294,27 +432,15 @@ private fun MobileTransport(
     seekEnabled: Boolean,
     onSeek: (SeekDirection) -> Unit,
     modifier: Modifier = Modifier,
-    onVideo: Boolean = false,
 ) {
     val playPause = rememberPlayPauseButtonState(player)
-    var buffering by remember(player) { mutableStateOf(player.playbackState == Player.STATE_BUFFERING) }
-    DisposableEffect(player) {
-        val listener = object : Player.Listener {
-            override fun onPlaybackStateChanged(playbackState: Int) {
-                buffering = playbackState == Player.STATE_BUFFERING
-            }
-        }
-        player.addListener(listener)
-        onDispose { player.removeListener(listener) }
-    }
+    val buffering = rememberBuffering(player)
     Row(
         modifier,
-        horizontalArrangement = if (onVideo) Arrangement.SpaceBetween else {
-            Arrangement.spacedBy(32.dp, Alignment.CenterHorizontally)
-        },
+        horizontalArrangement = Arrangement.spacedBy(32.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        MobileSeekButton(SeekDirection.Backward, seekEnabled, { onSeek(SeekDirection.Backward) }, onVideo = onVideo)
+        MobileSeekButton(SeekDirection.Backward, seekEnabled, { onSeek(SeekDirection.Backward) })
         Box(Modifier.size(80.dp), contentAlignment = Alignment.Center) {
             if (buffering) {
                 val loading = stringResource(R.string.mobile_state_loading)
@@ -326,18 +452,10 @@ private fun MobileTransport(
             FilledIconButton(
                 onClick = playPause::onClick,
                 enabled = playPause.isEnabled,
-                modifier = Modifier.size(if (onVideo) 64.dp else 72.dp),
+                modifier = Modifier.size(72.dp),
                 colors = IconButtonDefaults.filledIconButtonColors(
-                    containerColor = if (onVideo) {
-                        MaterialTheme.colorScheme.background.copy(alpha = 0f)
-                    } else {
-                        MaterialTheme.colorScheme.onSurface
-                    },
-                    contentColor = if (onVideo) {
-                        MaterialTheme.colorScheme.onSurface
-                    } else {
-                        MaterialTheme.colorScheme.surface
-                    },
+                    containerColor = MaterialTheme.colorScheme.onSurface,
+                    contentColor = MaterialTheme.colorScheme.surface,
                 ),
             ) {
                 Icon(
@@ -347,30 +465,27 @@ private fun MobileTransport(
                     contentDescription = stringResource(
                         if (playPause.showPlay) R.string.mobile_now_playing_play else R.string.mobile_now_playing_pause,
                     ),
-                    modifier = Modifier.size(if (onVideo) 40.dp else 32.dp),
+                    modifier = Modifier.size(32.dp),
                 )
             }
         }
-        MobileSeekButton(SeekDirection.Forward, seekEnabled, { onSeek(SeekDirection.Forward) }, onVideo = onVideo)
+        MobileSeekButton(SeekDirection.Forward, seekEnabled, { onSeek(SeekDirection.Forward) })
     }
 }
 
-@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @Composable
-private fun MobileVideoTimeline(player: Player, onScrub: () -> Unit) {
-    ProvideTextStyle(
-        MaterialTheme.typography.labelMedium.putioMono().copy(color = MaterialTheme.colorScheme.onSurface),
-    ) {
-        Row(
-            Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            MobileTimeText(player, PlayerTime.Position)
-            Box(Modifier.weight(1f)) { MobileProgressSlider(player, onScrub) }
-            MobileTimeText(player, PlayerTime.Duration)
+private fun rememberBuffering(player: Player): Boolean {
+    var buffering by remember(player) { mutableStateOf(player.playbackState == Player.STATE_BUFFERING) }
+    DisposableEffect(player) {
+        val listener = object : Player.Listener {
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                buffering = playbackState == Player.STATE_BUFFERING
+            }
         }
+        player.addListener(listener)
+        onDispose { player.removeListener(listener) }
     }
+    return buffering
 }
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
@@ -389,27 +504,37 @@ private fun MobilePlayerTimeline(player: Player, onScrub: () -> Unit) {
     }
 }
 
-private enum class PlayerTime { Position, Duration }
+private enum class PlayerTime { Position, Duration, Remaining }
 
 /**
- * Elapsed or total time in the inherited style. Media3's PositionText and DurationText pass a
- * fresh style to Text, which drops the provided mono face.
+ * Elapsed, total or remaining time in the inherited style. Media3's PositionText and DurationText
+ * pass a fresh style to Text, which drops the provided mono face. Remaining reads "-31:07".
  */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @Composable
 private fun MobileTimeText(player: Player, time: PlayerTime) {
     val progress = rememberProgressStateWithTickInterval(player, tickIntervalMs = 1_000)
-    val milliseconds = when (time) {
-        PlayerTime.Position -> progress.currentPositionMs
-        PlayerTime.Duration -> progress.durationMs
+    val text = when (time) {
+        PlayerTime.Position -> Util.getStringForTime(progress.currentPositionMs)
+        PlayerTime.Duration -> Util.getStringForTime(progress.durationMs)
+        PlayerTime.Remaining -> if (progress.durationMs == C.TIME_UNSET) {
+            Util.getStringForTime(C.TIME_UNSET)
+        } else {
+            "-" + Util.getStringForTime((progress.durationMs - progress.currentPositionMs).coerceAtLeast(0L))
+        }
     }
-    Text(Util.getStringForTime(milliseconds))
+    Text(text)
 }
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun MobileProgressSlider(player: Player, onScrub: () -> Unit = {}) {
+internal fun MobileProgressSlider(
+    player: Player,
+    onScrub: () -> Unit = {},
+    inactiveTrackColor: Color = MaterialTheme.colorScheme.outlineVariant,
+    thumbSize: Dp = 12.dp,
+) {
     var width by remember { mutableIntStateOf(0) }
     var dragging by remember(player) { mutableStateOf(false) }
     var position by remember(player) { mutableFloatStateOf(0f) }
@@ -419,7 +544,7 @@ internal fun MobileProgressSlider(player: Player, onScrub: () -> Unit = {}) {
             if (interaction is DragInteraction.Cancel || interaction is PressInteraction.Cancel) dragging = false
         }
     }
-    val colors = SliderDefaults.colors(inactiveTrackColor = MaterialTheme.colorScheme.outlineVariant)
+    val colors = SliderDefaults.colors(inactiveTrackColor = inactiveTrackColor)
     val label = stringResource(R.string.mobile_playback_position)
     ProgressIndicator(player, totalTickCount = width) {
         LaunchedEffect(changingProgressEnabled, durationMs) { dragging = false }
@@ -455,7 +580,7 @@ internal fun MobileProgressSlider(player: Player, onScrub: () -> Unit = {}) {
                     interactionSource = interactions,
                     colors = colors,
                     enabled = changingProgressEnabled,
-                    thumbSize = DpSize(12.dp, 12.dp),
+                    thumbSize = DpSize(thumbSize, thumbSize),
                 )
             },
             track = { state ->

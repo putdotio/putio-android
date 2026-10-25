@@ -5,8 +5,18 @@ import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityManager
 import androidx.activity.compose.LocalActivity
-import androidx.annotation.StringRes
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.absoluteOffset
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpSize
+import androidx.media3.ui.compose.state.rememberProgressStateWithTickInterval
+import io.putdotio.sdk.files.PlaybackSubtitle
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -29,6 +39,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableIntState
 import androidx.compose.runtime.MutableLongState
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
@@ -66,9 +77,12 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player as Media3Player
+import androidx.media3.common.C
+import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.Tracks
 import androidx.media3.common.VideoSize
+import androidx.media3.common.text.Cue
 import androidx.media3.common.text.CueGroup
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.common.util.Util
@@ -79,12 +93,9 @@ import io.putdotio.android.MobileKeyCommand
 import io.putdotio.android.MobileShortcutScope
 import io.putdotio.android.mobileKeyCommand
 import io.putdotio.android.MobileLoadingState
-import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
-import io.putdotio.sdk.files.PlaybackConversionState
 import io.putdotio.sdk.files.PlaybackSource
 import java.io.Closeable
-import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 
 internal const val MOBILE_PLAYER_TAG = "mobile-player"
@@ -110,6 +121,8 @@ internal fun MobilePlayerScreen(
     onRestart: () -> Unit = {},
     onRefreshConversion: () -> Unit = {},
     onStartConversion: () -> Unit = {},
+    nextEpisode: PlaybackTarget? = null,
+    onNextEpisode: () -> Unit = {},
 ) {
     // Like iOS, the window turns only for a landscape video; the last shape holds across autoplay.
     var landscapeVideo by rememberSaveable { mutableStateOf(false) }
@@ -130,12 +143,12 @@ internal fun MobilePlayerScreen(
                 onKeyboardNavigation = { keyboardNavigationActive = true },
             ),
     ) {
+        val isVideo = state.target.mediaType == PlaybackMediaType.VIDEO
         when (val content = state.content) {
             is PlaybackContent.Loading ->
                 MobileLoadingState(stringResource(state.target.mediaType.loadingMessage()))
 
             is PlaybackContent.AwaitingResume -> MobileResumePlaybackDialog(
-                title = state.target.name,
                 startFromSeconds = content.source.startFromSeconds,
                 onResume = onResume,
                 onRestart = onRestart,
@@ -178,6 +191,9 @@ internal fun MobilePlayerScreen(
                     onBack = onBack,
                     onVideoAspectRatio = { landscapeVideo = it > 1f },
                     pictureInPicture = pictureInPicture,
+                    sidecarSubtitles = (content as? PlaybackContent.Ready)?.source?.subtitles.sidecarTracks(),
+                    nextEpisode = nextEpisode.takeIf { isVideo },
+                    onNextEpisode = onNextEpisode,
                 )
                 }
 
@@ -189,6 +205,7 @@ internal fun MobilePlayerScreen(
                     title = stringResource(R.string.mobile_playback_next_error_title),
                     failure = content.failure,
                     onRetry = onRetry,
+                    video = isVideo,
                 )
 
             PlaybackContent.Ended -> Unit
@@ -207,13 +224,25 @@ internal fun MobilePlayerScreen(
                     title = stringResource(state.target.mediaType.errorTitle()),
                     failure = content.failure,
                     onRetry = onRetry,
+                    video = isVideo,
                 )
         }
 
-        if (state.showsSeparateBack() && !pictureInPicture.value) IconButton(
+        if (state.showsSeparateBack() && !pictureInPicture.value) {
+            MobilePlayerSeparateBack(state, onBack, Modifier.align(Alignment.TopStart))
+        }
+    }
+}
+
+/** Back where the player's own controls are not up: with the filename for video, alone for audio. */
+@Composable
+private fun MobilePlayerSeparateBack(state: PlaybackState, onBack: () -> Unit, modifier: Modifier) {
+    if (state.target.mediaType == PlaybackMediaType.VIDEO) {
+        MobilePlayerFrameBar(title = state.target.name, onBack = onBack, modifier = modifier)
+    } else {
+        IconButton(
             onClick = onBack,
-            modifier = Modifier
-                .align(Alignment.TopStart)
+            modifier = modifier
                 .windowInsetsPadding(WindowInsets.safeDrawing)
                 .padding(8.dp),
         ) {
@@ -227,6 +256,30 @@ internal fun MobilePlayerScreen(
 
 private fun PlaybackState.showsSeparateBack(): Boolean =
     target.mediaType == PlaybackMediaType.AUDIO || content !is PlaybackContent.Ready
+
+/**
+ * Back and the filename over a video that is not playing yet or cannot: the resume prompt, the
+ * conversion, a failure. It sits where the player's own top bar does.
+ */
+@Composable
+private fun MobilePlayerFrameBar(title: String, onBack: () -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier
+            .fillMaxWidth()
+            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
+            .padding(horizontal = 24.dp, vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        IconButton(onClick = onBack) {
+            Icon(
+                painter = painterResource(R.drawable.ic_ph_arrow_left),
+                contentDescription = stringResource(R.string.mobile_action_back),
+            )
+        }
+        MobilePlayerTitle(title, Modifier.weight(1f))
+    }
+}
 
 @UnstableApi
 @Composable
@@ -259,6 +312,9 @@ private fun MobileReadyPlayer(
     onBack: () -> Unit,
     onVideoAspectRatio: (Float) -> Unit,
     pictureInPicture: State<Boolean>,
+    sidecarSubtitles: List<PlaybackSubtitle>,
+    nextEpisode: PlaybackTarget?,
+    onNextEpisode: () -> Unit,
 ) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -382,9 +438,11 @@ private fun MobileReadyPlayer(
         currentOnPositionChanged = currentOnPositionChanged,
         pictureInPicture = pictureInPicture,
     )
-    if (!isAudio) {
+    // The window's seek actions reach the screen's own seek, which owns the pending-seek bookkeeping.
+    val pictureInPictureSeeks = remember(player) { SeekRelay() }
+    val enterPictureInPicture = if (!isAudio) {
         // Whatever holds the screen on is playing; anything else shows Play, as Media3's button does.
-        MobilePictureInPictureEffect(
+        rememberMobilePictureInPicture(
             playing = playerState.keepScreenOn,
             videoSize = playerState.videoSize,
             videoFrame = playerState.videoFrame,
@@ -393,7 +451,12 @@ private fun MobileReadyPlayer(
                     if (playing) Util.handlePlayButtonAction(player) else Util.handlePauseButtonAction(player)
                 }
             },
+            onSeekRequested = { direction ->
+                if (!playerState.playerReleased) pictureInPictureSeeks.seek(direction)
+            },
         )
+    } else {
+        null
     }
 
     MobileReadyPlayerContent(
@@ -417,6 +480,11 @@ private fun MobileReadyPlayer(
         onPointerNavigation = onPointerNavigation,
         onBack = onBack,
         pictureInPicture = pictureInPicture.value,
+        sidecarSubtitles = sidecarSubtitles,
+        nextEpisode = nextEpisode,
+        onNextEpisode = onNextEpisode,
+        enterPictureInPicture = enterPictureInPicture,
+        pictureInPictureSeeks = pictureInPictureSeeks,
     )
 }
 
@@ -441,6 +509,10 @@ private class ReadyPlayerState(
     var activeFileId by mutableStateOf(player.sessionFileId(sessionHandled))
     var optionsInitialized by mutableStateOf(false)
     var cues by mutableStateOf(player.currentCues.cues)
+
+    /** What showed, by position, for subtitles the viewer delayed. */
+    val cueHistory = DelayedSubtitleCues()
+    var textChoice = player.trackSelectionParameters.textChoice()
     var videoSize by mutableStateOf(player.videoSize)
     var playbackState by mutableIntStateOf(player.playbackState)
     var keepScreenOn by mutableStateOf(keepScreenOn)
@@ -810,6 +882,23 @@ private fun PlayerListenerEffect(
 
                 override fun onCues(cueGroup: CueGroup) {
                     playerState.cues = cueGroup.cues
+                    playerState.cueHistory.record(player.currentPosition, cueGroup.cues)
+                }
+
+                override fun onTrackSelectionParametersChanged(parameters: TrackSelectionParameters) {
+                    // Off or another subtitle track: what showed before must not replay after a delay.
+                    val text = parameters.textChoice()
+                    if (text != playerState.textChoice) playerState.cueHistory.clear()
+                    playerState.textChoice = text
+                }
+
+                override fun onPositionDiscontinuity(
+                    oldPosition: Media3Player.PositionInfo,
+                    newPosition: Media3Player.PositionInfo,
+                    reason: Int,
+                ) {
+                    // What showed before a seek no longer lines up with the new position.
+                    if (reason == Media3Player.DISCONTINUITY_REASON_SEEK) playerState.cueHistory.clear()
                 }
 
                 override fun onVideoSizeChanged(size: VideoSize) {
@@ -928,6 +1017,11 @@ private fun MobileReadyPlayerContent(
     onPointerNavigation: () -> Unit,
     onBack: () -> Unit,
     pictureInPicture: Boolean,
+    sidecarSubtitles: List<PlaybackSubtitle>,
+    nextEpisode: PlaybackTarget?,
+    onNextEpisode: () -> Unit,
+    enterPictureInPicture: (() -> Unit)?,
+    pictureInPictureSeeks: SeekRelay,
 ) {
     val player = playerState.player
     fun seek(direction: SeekDirection) {
@@ -953,16 +1047,30 @@ private fun MobileReadyPlayerContent(
         currentOnPositionChanged.value(request.targetPositionMillis)
         player.seekTo(request.targetPositionMillis)
     }
+    SideEffect { pictureInPictureSeeks.seek = ::seek }
     // The player holds keyboard focus itself, so Space and the arrows reach it before any control is
     // focused; Tab still walks the controls, and a focused control keeps the keys it uses.
     val keyFocus = remember { FocusRequester() }
     LaunchedEffect(keyFocus) { keyFocus.requestFocus() }
 
+    val options = rememberPlayerOptionsSnapshot(player)
+    var footerHeight by remember { mutableStateOf(0.dp) }
+    val appearance = rememberSubtitleAppearanceStore()
+    // The window shows only the video, so a sheet open when it starts goes with the controls.
+    val sheetState = rememberSaveable(fileId) { mutableStateOf<MobileVideoSheet?>(null) }
+    var sheet by sheetState
+    SheetClosingEffect(sheetState, pictureInPicture, subtitlesHidden = subtitleStartupPolicy?.showSubtitles == false)
+    SheetFocusEffect(sheet != null, controlsMenuOpen, keyFocus)
+    SubtitleOffsetEffect(player, preferences.subtitleOffsetMillis)
+    val optionModifier = Modifier.observeControlNavigation(onPointerNavigation, onKeyboardNavigation)
+
     Box(
         Modifier
             .fillMaxSize()
             .onKeyEvent { event ->
-                playerKeyCommand(event.nativeKeyEvent) { command -> player.runKeyCommand(command, ::seek, onBack) }
+                videoKeyCommand(event.nativeKeyEvent, sheet, { sheet = sheet.parentSheet() }) { command ->
+                    player.runKeyCommand(command, ::seek, onBack)
+                }
             }
             .focusRequester(keyFocus)
             .focusTarget()
@@ -990,10 +1098,14 @@ private fun MobileReadyPlayerContent(
                 onSeek = ::seek,
                 onPointerNavigation = onPointerNavigation,
                 pictureInPicture = pictureInPicture,
+                subtitleTextScale = appearance.textSize.scale,
+                subtitlesBesideSheet = sheet != null,
+                subtitleClearance = footerHeight.takeIf { controlsVisible.value && sheet == null } ?: 0.dp,
+                subtitleDelayMillis = preferences.subtitleOffsetMillis,
             )
         }
         // The window shows only the video and its subtitles; its own menu carries the controls.
-        if (!pictureInPicture) {
+        if (!pictureInPicture && sheet == null) {
             MobilePlayerChrome(
                 player = player,
                 title = title,
@@ -1004,51 +1116,134 @@ private fun MobileReadyPlayerContent(
                 onScrub = { pendingSeek.value = null },
                 onBack = onBack,
                 modifier = Modifier.zIndex(2f),
+                topActions = { MobilePictureInPictureButton(enterPictureInPicture, optionModifier) },
                 settings = {
-                    MobilePlaybackOptions(
-                        player = player,
-                        onAudioSelectionChanged = { preferences.audioSelection = it },
-                        onMenuVisibilityChanged = { controlsMenuOpen.value = it },
-                        onKeyboardNavigation = onKeyboardNavigation,
-                        onPointerNavigation = onPointerNavigation,
-                        directControls = !isAudio,
-                    )
-                    // hide_subtitles hides subtitles entirely, as every reference player does.
-                    if (!isAudio && subtitleStartupPolicy?.showSubtitles != false) {
-                        MobileSubtitleControls(
+                    if (isAudio) {
+                        MobilePlaybackOptions(
                             player = player,
-                            defaultTrackSelection = playerState.defaultTrackSelection,
-                            onSubtitleSelectionChanged = onSubtitleSelectionChanged,
+                            onAudioSelectionChanged = { preferences.audioSelection = it },
                             onMenuVisibilityChanged = { controlsMenuOpen.value = it },
                             onKeyboardNavigation = onKeyboardNavigation,
                             onPointerNavigation = onPointerNavigation,
-                            showLabel = true,
                         )
+                    } else {
+                        MobileVideoChips(options, subtitleStartupPolicy, { sheet = it }, optionModifier)
                     }
                 },
+                trailingChip = { MobileNextEpisodeChip(nextEpisode, onNextEpisode, optionModifier) },
+                onFooterHeight = { footerHeight = it },
             )
-            pendingSeek.value?.let { request ->
-                // Identical text still needs a fresh accessibility event for each seek.
-                key(request.requestId) {
-                    MobileSeekFeedback(
-                        request = request,
-                        modifier =
-                            Modifier
-                                .align(
-                                    if (request.direction == SeekDirection.Backward) {
-                                        AbsoluteAlignment.CenterLeft
-                                    } else {
-                                        AbsoluteAlignment.CenterRight
-                                    },
-                                )
-                                .zIndex(3f)
-                                .windowInsetsPadding(WindowInsets.safeDrawing)
-                                .padding(horizontal = 32.dp, vertical = 88.dp),
-                    )
-                }
-            }
+            MobileSeekFeedbackLayer(pendingSeek.value)
+        }
+        if (!isAudio && !pictureInPicture) {
+            MobileVideoSheets(
+                sheet = sheet,
+                onSheet = { sheet = it },
+                player = player,
+                options = options,
+                defaultTrackSelection = playerState.defaultTrackSelection,
+                sidecarSubtitles = sidecarSubtitles,
+                appearance = appearance,
+                preferences = preferences,
+                onSubtitleSelectionChanged = onSubtitleSelectionChanged,
+                modifier = Modifier.zIndex(2.5f),
+                panelModifier = optionModifier,
+            )
         }
     }
+}
+
+/**
+ * Sooner subtitles: the text renderer reads ahead by the lead, and a playing player whose lead
+ * changed reads its subtitles again. Later subtitles wait in the cue history instead.
+ */
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+@Composable
+private fun SubtitleOffsetEffect(player: Media3Player, offsetMillis: Long) {
+    val lead = (-offsetMillis).coerceAtLeast(0L)
+    val applied = remember(player) { mutableStateOf<Long?>(null) }
+    LaunchedEffect(player, lead) {
+        player.setSubtitleLead(lead, reread = applied.value != null)
+        applied.value = lead
+    }
+}
+
+/** The cues on screen: as the player shows them, or what it showed [delayMillis] ago. */
+@Composable
+private fun rememberShownCues(playerState: ReadyPlayerState, delayMillis: Long): List<Cue> {
+    if (delayMillis <= 0L) return playerState.cues
+    var shown by remember(playerState) { mutableStateOf(emptyList<Cue>()) }
+    LaunchedEffect(playerState, delayMillis) {
+        while (true) {
+            val position = playerState.player.currentPosition
+            shown = playerState.cueHistory.at(position, delayMillis)
+            delay(DELAYED_CUE_TICK_MILLIS)
+        }
+    }
+    return shown
+}
+
+private const val DELAYED_CUE_TICK_MILLIS = 50L
+
+/**
+ * The window shows only the video, so a sheet open when it starts goes with the controls; hidden
+ * subtitles take their sheets with them.
+ */
+@Composable
+private fun SheetClosingEffect(
+    sheet: MutableState<MobileVideoSheet?>,
+    pictureInPicture: Boolean,
+    subtitlesHidden: Boolean,
+) {
+    LaunchedEffect(pictureInPicture, subtitlesHidden) {
+        val open = sheet.value
+        if (pictureInPicture || (subtitlesHidden && open?.isSubtitles == true)) sheet.value = null
+    }
+}
+
+/** The open sheet holds the controls up; closing it hands keyboard focus back to the player. */
+@Composable
+private fun SheetFocusEffect(open: Boolean, controlsMenuOpen: MutableState<Boolean>, keyFocus: FocusRequester) {
+    var wasOpen by remember { mutableStateOf(false) }
+    LaunchedEffect(open) {
+        controlsMenuOpen.value = open
+        // So Space and the arrows reach the player again.
+        if (!open && wasOpen) keyFocus.requestFocus()
+        wasOpen = open
+    }
+}
+
+/** The pending seek's feedback on the side it seeks toward. */
+@Composable
+private fun BoxScope.MobileSeekFeedbackLayer(request: PendingSeek?) {
+    if (request == null) return
+    // Identical text still needs a fresh accessibility event for each seek.
+    key(request.requestId) {
+        MobileSeekFeedback(
+            request = request,
+            modifier =
+                Modifier
+                    .align(
+                        if (request.direction == SeekDirection.Backward) {
+                            AbsoluteAlignment.CenterLeft
+                        } else {
+                            AbsoluteAlignment.CenterRight
+                        },
+                    )
+                    .zIndex(3f)
+                    .windowInsetsPadding(WindowInsets.safeDrawing)
+                    .padding(horizontal = 32.dp, vertical = 88.dp),
+        )
+    }
+}
+
+/** The subtitle part of a track selection: whether text is on, and which text track it pins. */
+private fun TrackSelectionParameters.textChoice(): Pair<Boolean, List<TrackSelectionOverride>> =
+    (C.TRACK_TYPE_TEXT in disabledTrackTypes) to overrides.values.filter { it.type == C.TRACK_TYPE_TEXT }
+
+/** Hands the window's seek actions to the composed screen's seek. */
+private class SeekRelay {
+    var seek: (SeekDirection) -> Unit = {}
 }
 
 /**
@@ -1084,6 +1279,10 @@ private fun BoxScope.MobileVideoLayers(
     onSeek: (SeekDirection) -> Unit,
     onPointerNavigation: () -> Unit,
     pictureInPicture: Boolean,
+    subtitleTextScale: Float,
+    subtitlesBesideSheet: Boolean,
+    subtitleClearance: Dp,
+    subtitleDelayMillis: Long,
 ) {
     val player = playerState.player
     val currentPictureInPicture by rememberUpdatedState(pictureInPicture)
@@ -1146,13 +1345,69 @@ private fun BoxScope.MobileVideoLayers(
             )
         }
     }
-    SubtitleCueOverlay(
-        cues = playerState.cues,
-        videoAspectRatio = playerState.videoSize.displayAspectRatioOrNull(),
-        modifier =
-            Modifier
-                .align(Alignment.Center)
-                .zIndex(3f),
+    MobileSubtitleLayer(
+        playerState = playerState,
+        textScale = subtitleTextScale,
+        besideSheet = subtitlesBesideSheet,
+        clearance = subtitleClearance.takeUnless { pictureInPicture } ?: 0.dp,
+        delayMillis = subtitleDelayMillis,
+    )
+    if (pictureInPicture) MobilePictureInPictureProgress(player, Modifier.align(Alignment.BottomStart).zIndex(3f))
+}
+
+/**
+ * Beside an open side sheet the subtitles stay clear of the dimming: they lay out in the video that
+ * still shows, at the video's height, so they wrap there at the size they play at and Size and
+ * timing previews them as they will look.
+ */
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+@Composable
+private fun MobileSubtitleLayer(
+    playerState: ReadyPlayerState,
+    textScale: Float,
+    besideSheet: Boolean,
+    clearance: Dp,
+    delayMillis: Long,
+) {
+    BoxWithConstraints(Modifier.fillMaxSize().zIndex(3f)) {
+        val frame = DpSize(maxWidth, maxHeight)
+        val aspectRatio = playerState.videoSize.displayAspectRatioOrNull()
+        val bottomPadding by animateFloatAsState(
+            subtitleBottomPadding(frame, aspectRatio, clearance),
+            label = "subtitle-clearance",
+        )
+        val sheetWidth = if (besideSheet) MOBILE_PLAYER_SIDE_SHEET_WIDTH.coerceAtMost(maxWidth) else 0.dp
+        val area = subtitleArea(frame, aspectRatio, sheetWidth)
+        // A sheet as wide as the window leaves no video to show subtitles in.
+        if (sheetWidth > 0.dp && area == null) return@BoxWithConstraints
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.CenterStart) {
+            SubtitleCueOverlay(
+                cues = rememberShownCues(playerState, delayMillis),
+                videoAspectRatio = area?.let { it.width / it.height } ?: aspectRatio,
+                modifier = area?.let { Modifier.absoluteOffset(x = it.left).size(it.width, it.height) }
+                    ?: Modifier.fillMaxSize(),
+                textScale = textScale,
+                bottomPaddingFraction = bottomPadding,
+            )
+        }
+    }
+}
+
+/** The window's thin yellow line of how far the video has played. */
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+@Composable
+private fun MobilePictureInPictureProgress(player: Media3Player, modifier: Modifier) {
+    val progress = rememberProgressStateWithTickInterval(player, tickIntervalMs = 1_000)
+    val fraction = if (progress.durationMs > 0) {
+        (progress.currentPositionMs.toFloat() / progress.durationMs).coerceIn(0f, 1f)
+    } else {
+        0f
+    }
+    Box(
+        modifier
+            .fillMaxWidth(fraction)
+            .height(3.dp)
+            .background(MaterialTheme.colorScheme.primary),
     )
 }
 
@@ -1231,107 +1486,3 @@ private fun rememberTouchExplorationEnabled(): Boolean {
     return enabled
 }
 
-/** Try again repeats the same request; it shows only where that can succeed. */
-@Composable
-private fun MobilePlaybackFailureState(
-    title: String,
-    failure: PlaybackFailure,
-    onRetry: () -> Unit,
-) {
-    val message = failure.apiReason ?: stringResource(failure.messageResource())
-    if (failure.retryable) {
-        MobileErrorState(
-            title = title,
-            message = message,
-            retryLabel = stringResource(R.string.mobile_action_retry),
-            onRetry = onRetry,
-        )
-    } else {
-        MobileEmptyState(title = title, message = message)
-    }
-}
-
-/**
- * Opening a video with no conversion requested starts one; queued and running conversions poll.
- * After a failure the viewer converts again, and checks again where the status waits.
- */
-@Composable
-private fun MobileConversionState(
-    conversion: PlaybackContent.Conversion,
-    onRefresh: () -> Unit,
-    onStart: () -> Unit,
-) {
-    PlaybackConversionPolling(conversion, onRefresh)
-    val title = stringResource(R.string.mobile_playback_conversion_title)
-    val message = if (conversion.starting) {
-        stringResource(R.string.mobile_playback_conversion_starting)
-    } else {
-        conversion.state.message()
-    }
-    val action = when (conversion.action) {
-        PlaybackConversionAction.ConvertAgain -> R.string.mobile_playback_convert_again to onStart
-        PlaybackConversionAction.CheckAgain -> R.string.mobile_playback_check_again to onRefresh
-        null -> null
-    }
-    if (action == null) {
-        MobileEmptyState(title = title, message = message)
-    } else {
-        MobileErrorState(
-            title = title,
-            message = message,
-            retryLabel = stringResource(action.first),
-            onRetry = action.second,
-            retryEnabled = conversion.refreshRequestId == null,
-        )
-    }
-}
-
-@Composable
-private fun PlaybackConversionState.message(): String =
-    when (this) {
-        PlaybackConversionState.Queued -> stringResource(R.string.mobile_playback_conversion_queued)
-        is PlaybackConversionState.Converting ->
-            percent?.roundToInt()?.let {
-                stringResource(R.string.mobile_playback_conversion_progress, "$it%")
-            } ?: stringResource(R.string.mobile_playback_conversion_working)
-
-        PlaybackConversionState.Completed -> stringResource(R.string.mobile_playback_conversion_completed)
-        PlaybackConversionState.Failed -> stringResource(R.string.mobile_playback_conversion_failed)
-        PlaybackConversionState.NotAvailable -> stringResource(R.string.mobile_playback_conversion_unavailable)
-        is PlaybackConversionState.Unknown -> stringResource(R.string.mobile_playback_conversion_unknown)
-    }
-
-@StringRes
-private fun PlaybackFailure.messageResource(): Int =
-    when (this) {
-        is PlaybackFailure.MediaCredentialUnavailable -> R.string.mobile_playback_error_credential
-        is PlaybackFailure.MediaUnsupported -> R.string.mobile_playback_error_media_unsupported
-        is PlaybackFailure.Putio -> when (failure) {
-            is PutioFailure.AuthenticationRequired -> R.string.mobile_state_error_session
-            is PutioFailure.AccessDenied -> R.string.mobile_playback_error_forbidden
-            is PutioFailure.RateLimited -> R.string.mobile_state_error_rate_limited
-            is PutioFailure.NetworkUnavailable -> R.string.mobile_state_error_message
-            is PutioFailure.ApiRejected,
-            is PutioFailure.InvalidResponse,
-            is PutioFailure.Misconfigured,
-            is PutioFailure.ServerUnavailable,
-            is PutioFailure.Unexpected,
-            -> R.string.mobile_state_error_unavailable
-        }
-    }
-
-@StringRes
-private fun PlaybackMediaType.loadingMessage(): Int =
-    if (this == PlaybackMediaType.AUDIO) {
-        R.string.mobile_playback_loading_audio
-    } else {
-        R.string.mobile_playback_loading
-    }
-
-@StringRes
-private fun PlaybackMediaType.errorTitle(): Int =
-    if (this == PlaybackMediaType.AUDIO) {
-        R.string.mobile_playback_error_title_audio
-    } else {
-        R.string.mobile_playback_error_title
-    }

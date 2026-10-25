@@ -143,6 +143,7 @@ private fun AccountSettings.toPreferences(): AccountSettingsPreferences =
         defaultSort = FilesSort.fromApiValue(sortBy),
         diagnosticsEnabled = diagnosticsEnabled,
         productAnalyticsEnabled = productAnalyticsEnabled,
+        nextEpisode = nextEpisode,
     )
 
 private fun AccountSettingsChange.toPatch(): AccountSettingsPatch =

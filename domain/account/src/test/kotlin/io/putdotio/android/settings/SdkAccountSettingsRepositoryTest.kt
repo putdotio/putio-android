@@ -23,7 +23,7 @@ class SdkAccountSettingsRepositoryTest {
     @Test
     fun loadsOnlyTheAccountWideSettingsOwnedByThisSlice() =
         runBlocking<Unit> {
-            val repository = repository(settings = Settings)
+            val repository = repository(settings = Settings.copy(nextEpisode = true))
 
             val result = repository.load() as AccountSettingsRepositoryResult.Success
 
@@ -35,6 +35,7 @@ class SdkAccountSettingsRepositoryTest {
                     autoSelectSubtitles = false,
                     resumePlayback = false,
                     defaultSort = FilesSort.NAME_ASCENDING,
+                    nextEpisode = true,
                 ),
                 result.value,
             )

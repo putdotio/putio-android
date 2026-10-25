@@ -54,6 +54,8 @@ import androidx.compose.ui.test.percentOffset
 import androidx.compose.ui.test.junit4.ComposeContentTestRule
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.isSelectable
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onAllNodesWithText
@@ -84,6 +86,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import io.putdotio.android.playback.MOBILE_PLAYER_SIDE_SHEET_TAG
 import io.putdotio.android.playback.PlaybackEvent
 import io.putdotio.android.playback.PlaybackReducer
 import io.putdotio.android.design.PutioTheme
@@ -377,7 +380,9 @@ class MobilePlayerScreenTest {
             }
         }
 
-        compose.onNodeWithText("Conversion is in progress. 42%").assertIsDisplayed()
+        compose.onNodeWithText("Converting to MP4").assertIsDisplayed()
+        compose.onNodeWithText(CONVERSION_MESSAGE).assertIsDisplayed()
+        compose.onNodeWithText("42%").assertIsDisplayed()
         compose.onNodeWithText("Check again").assertDoesNotExist()
         compose.mainClock.advanceTimeBy(PLAYBACK_CONVERSION_POLL_MILLIS + 100L)
         compose.runOnIdle { assertEquals(1, refreshes) }
@@ -403,10 +408,11 @@ class MobilePlayerScreenTest {
             }
         }
 
-        compose.onNodeWithText("This video can’t play here yet, so its conversion is starting.").assertIsDisplayed()
+        compose.onNodeWithText(CONVERSION_MESSAGE).assertIsDisplayed()
         compose.onNodeWithText("Convert again").assertDoesNotExist()
         content = PlaybackContent.Conversion(PlaybackConversionState.Queued)
-        compose.onNodeWithText("Conversion has started and is queued.").assertIsDisplayed()
+        compose.onNodeWithText(CONVERSION_MESSAGE).assertIsDisplayed()
+        compose.onNodeWithText("%", substring = true).assertDoesNotExist()
 
         content = PlaybackContent.Conversion(PlaybackConversionState.Failed)
         compose.onNodeWithText("Convert again").performClick()
@@ -430,7 +436,7 @@ class MobilePlayerScreenTest {
             ),
             FailureRow(
                 PlaybackContent.Failed(PlaybackFailure.MediaUnsupported(IllegalStateException("codec"))),
-                "This device can’t play this file’s format.",
+                "Can’t play this here.",
                 retry = false,
                 checkBack = true,
             ),
@@ -897,6 +903,21 @@ class MobilePlayerSubtitleTest {
     }
 
     @Test
+    fun theSpeedChipOpensItsSideSheetAndAPresetSetsThePlayer() {
+        lateinit var player: RecordingPlayer
+        compose.setPlayerScreen(
+            state = readyState(0.0),
+            playerFactory = MobilePlayerFactory { _, _ -> RecordingPlayer().also { player = it } },
+        )
+        compose.onNodeWithContentDescription("Playback speed 1×").performClick()
+        compose.onNodeWithTag(MOBILE_PLAYER_SIDE_SHEET_TAG).assertIsDisplayed()
+        compose.onNode(hasText("1.5×") and isSelectable()).performClick()
+        compose.runOnIdle { assertEquals(1.5f, player.playbackParameters.speed) }
+        compose.onNodeWithContentDescription("Close").performClick()
+        compose.onNodeWithContentDescription("Playback speed 1.5×").assertIsDisplayed()
+    }
+
+    @Test
     fun videoOffersDirectOptionsWithoutSubtitleMetadataAndHidesBackWithControls() {
         lateinit var player: RecordingPlayer
         compose.mainClock.autoAdvance = false
@@ -905,17 +926,16 @@ class MobilePlayerSubtitleTest {
             playerFactory = MobilePlayerFactory { _, _ -> RecordingPlayer().also { player = it } },
         )
         compose.mainClock.advanceTimeByFrame()
-        compose.onNodeWithText("Audio").assertIsDisplayed()
-        compose.onNodeWithText("Speed (1×)").assertIsDisplayed()
-        compose.onNodeWithText("Captions").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Playback speed 1×").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Subtitles: Off").assertIsDisplayed()
         compose.onNodeWithContentDescription("Back").assertIsDisplayed()
 
         compose.runOnIdle { player.updatePlaybackState(Media3Player.STATE_READY) }
         compose.mainClock.advanceTimeBy(5_000L)
         compose.mainClock.advanceTimeByFrame()
         compose.onNodeWithContentDescription("Back").assertDoesNotExist()
-        compose.onNodeWithText("Audio").assertDoesNotExist()
-        compose.onNodeWithText("Captions").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Playback speed 1×").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Subtitles: Off").assertDoesNotExist()
     }
 
     @Test
@@ -927,8 +947,8 @@ class MobilePlayerSubtitleTest {
             subtitleStartupPolicy = null,
         )
         compose.mainClock.advanceTimeByFrame()
-        compose.onNodeWithText("Audio").assertIsDisplayed()
-        compose.onNodeWithText("Captions").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Playback speed 1×").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Subtitles", substring = true).assertDoesNotExist()
     }
 
     @Test
@@ -949,8 +969,8 @@ class MobilePlayerSubtitleTest {
                 Tracks(listOf(Tracks.Group(text, false, intArrayOf(C.FORMAT_HANDLED), booleanArrayOf(false))))
         }
 
-        compose.onNodeWithText("Captions").performClick()
-        compose.onNodeWithText("Off").performClick()
+        compose.onNodeWithContentDescription("Subtitles", substring = true).performClick()
+        compose.onNode(hasText("Off") and isSelectable()).performClick()
         // Automatic must not come back from a track change that beat the pick's recomposition.
         compose.runOnIdle { assertTrue(C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes) }
     }
@@ -972,14 +992,21 @@ class MobilePlayerSubtitleTest {
             }
         }
         // Settings still loading: the viewer turns subtitles on.
-        compose.onNodeWithText("Captions").performClick()
-        compose.onNodeWithText("Automatic").performClick()
+        val text = TrackGroup(
+            Format.Builder().setId("en").setLanguage("en").setSampleMimeType(MimeTypes.TEXT_VTT).build(),
+        )
+        compose.runOnIdle {
+            val group = Tracks.Group(text, false, intArrayOf(C.FORMAT_HANDLED), booleanArrayOf(false))
+            player.updateTracks(Tracks(listOf(group)))
+        }
+        compose.onNodeWithContentDescription("Subtitles", substring = true).performClick()
+        compose.onNode(hasText("English") and isSelectable()).performClick()
         compose.runOnIdle { assertFalse(C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes) }
 
         compose.runOnIdle { policy = SubtitleStartupPolicy(showSubtitles = false, autoSelectSubtitles = true) }
         // hide_subtitles outranks the pick: no picker is left to turn them off with.
         compose.runOnIdle { assertTrue(C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes) }
-        compose.onNodeWithText("Captions").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Subtitles", substring = true).assertDoesNotExist()
     }
 }
 
@@ -1160,7 +1187,7 @@ class MobilePlayerDoubleTapTest {
             swipe(percentOffset(0.97f, 0.85f), percentOffset(0.97f, 0.15f), durationMillis = 500L)
         }
         compose.mainClock.advanceTimeBy(1_000L)
-        compose.onNodeWithText("Captions").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Subtitles", substring = true).assertIsDisplayed()
         compose.runOnIdle { assertEquals(listOf(30_000L, 20_000L), player.seekPositions) }
         compose.mainClock.autoAdvance = true
         compose.onNodeWithTag(MOBILE_SEEK_FORWARD_TAG).performScrollTo().performTouchInput { click() }
@@ -2854,3 +2881,6 @@ class MobilePlayerCodecTest {
         assertTrue(controlsVisibleAfterTap(false, Media3Player.STATE_READY, true))
     }
 }
+
+private const val CONVERSION_MESSAGE =
+    "This video can’t play in its original format, so put.io started a conversion. It keeps going if you leave."

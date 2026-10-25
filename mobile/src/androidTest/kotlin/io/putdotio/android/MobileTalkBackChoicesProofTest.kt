@@ -61,8 +61,6 @@ class MobileTalkBackChoicesProofTest {
                                     )
                                 } else {
                                     MobileResumePlaybackDialog(
-                                        title = if (surface == ChoiceSurface.Resume) "Rehearsal video.mp4"
-                                            else "Rehearsal audio.mp3",
                                         startFromSeconds = if (surface == ChoiceSurface.Resume) 83.0 else 42.0,
                                         onResume = { actions.add("resume") },
                                         onRestart = { actions.add("start-over") },

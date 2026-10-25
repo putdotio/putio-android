@@ -487,10 +487,10 @@ Behaviour: [Mobile video player](./behavior.md#mobile-video-player).
 plays local Media3 video in a debug-only Activity that handles orientation
 changes, so the production window policy rotates the real window: portrait with
 bars becomes landscape without them, and Back restores both. It opens the Audio,
-Captions and speed controls, picks the second track, 1.5× and captions, checks
-tracks and cue text survive saved-state recreation (`StateRestorationTester`,
-not Activity or process recreation), and that Off and Automatic clear and
-restore cues. The source declares `PlaybackSubtitles.None`, so captions must
+Subtitles and Speed side sheets, picks the second track, 1.5× and the caption
+track, checks tracks and cue text survive saved-state recreation
+(`StateRestorationTester`, not Activity or process recreation), and that Off and
+picking the track again clear and restore cues. The source declares `PlaybackSubtitles.None`, so captions must
 come from player-discovered tracks. Its player factory builds ExoPlayer with the
 production renderers, because the production player streams through the download
 cache's HTTP source, which cannot read a local file.

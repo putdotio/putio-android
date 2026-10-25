@@ -18,12 +18,16 @@ internal class RetainedPlayerPreferences(
     positionMillis: Long? = null,
     playbackSpeed: Float = 1f,
     audioSelection: AudioSelection = AudioSelection.Automatic,
+    subtitleOffsetMillis: Long = 0L,
 ) {
     var resumeAfterLifecyclePause by mutableStateOf(resumeAfterLifecyclePause)
     var subtitleSelection by mutableStateOf(subtitleSelection)
     var positionMillis by mutableStateOf(positionMillis)
     var playbackSpeed by mutableStateOf(playbackSpeed)
     var audioSelection by mutableStateOf(audioSelection)
+
+    /** How much later than the file says this video's subtitles show; negative is sooner. */
+    var subtitleOffsetMillis by mutableStateOf(subtitleOffsetMillis)
 
     // Set once this route has prepared or adopted the session's file, so a later
     // recomposition on the same route leaves an ended session ended instead of restarting it.
@@ -47,6 +51,7 @@ private val RetainedPlayerPreferencesSaver =
                 putBoolean("sessionHandled", preferences.sessionHandled)
                 putFloat("playbackSpeed", preferences.playbackSpeed)
                 putBundle("audioSelection", preferences.audioSelection.toBundle())
+                putLong("subtitleOffsetMillis", preferences.subtitleOffsetMillis)
                 preferences.subtitleSelection?.let { putBundle("subtitleSelection", it.toBundle()) }
                 preferences.positionMillis?.let { putLong("positionMillis", it) }
             }
@@ -61,6 +66,8 @@ internal fun Bundle.toRetainedPlayerPreferences(): RetainedPlayerPreferences =
         positionMillis = getLong("positionMillis").takeIf { containsKey("positionMillis") },
         playbackSpeed = getFloat("playbackSpeed", 1f).takeIf { it in MOBILE_PLAYBACK_SPEEDS } ?: 1f,
         audioSelection = getBundle("audioSelection")?.toAudioSelection() ?: AudioSelection.Automatic,
+        subtitleOffsetMillis = getLong("subtitleOffsetMillis")
+            .coerceIn(-SUBTITLE_OFFSET_LIMIT_MILLIS, SUBTITLE_OFFSET_LIMIT_MILLIS),
     ).apply { sessionHandled = getBoolean("sessionHandled", false) }
 
 @Composable

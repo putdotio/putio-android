@@ -15,7 +15,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.click
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isSelectable
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -36,6 +39,10 @@ import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.playback.AudioTrackIdentity
 import io.putdotio.android.playback.MOBILE_PLAYER_GESTURE_TAG
+import io.putdotio.android.playback.MOBILE_PLAYER_SIDE_SHEET_TAG
+import io.putdotio.android.playback.PlaybackAudioTrack
+import io.putdotio.android.playback.PlaybackSubtitleTrack
+import io.putdotio.android.playback.languageName
 import io.putdotio.android.playback.MobilePlayerFactory
 import io.putdotio.android.playback.MobilePlayerScreen
 import io.putdotio.android.playback.PlaybackContent
@@ -100,18 +107,21 @@ class MobileFullscreenVideoProofTest {
             awaitVideo(factory)
             awaitWindow(Configuration.ORIENTATION_LANDSCAPE, barsVisible = false)
             showControls()
-            compose.onNodeWithText("Speed (1×)").assertIsDisplayed()
+            compose.onNodeWithContentDescription("Playback speed 1×").assertIsDisplayed()
             screenshot("landscape-direct-controls")
-            compose.onNodeWithText("Speed (1×)").performTouchInput { click() }
+            compose.onNodeWithContentDescription("Playback speed 1×").performTouchInput { click() }
             screenshot("landscape-speed-sheet")
-            compose.onNodeWithText("1.5×").performScrollTo().performTouchInput { click() }
+            // The stepper walks the presets: 1×, then 1.25×, then 1.5×.
+            compose.onNodeWithContentDescription("Faster, 1.25×").performTouchInput { click() }
+            compose.onNodeWithContentDescription("Faster, 1.5×").performTouchInput { click() }
+            closeSheet()
             val audio = compose.runOnIdle { factory.current().currentTracks.playbackAudioTracks()[1] }
             showControls()
-            compose.onNodeWithText("Audio").performTouchInput { click() }
+            compose.onNodeWithContentDescription("Audio: ", substring = true).performTouchInput { click() }
             screenshot("landscape-audio-sheet")
-            compose.onNodeWithText(checkNotNull(audio.label)).performScrollTo().performTouchInput { click() }
+            compose.onNode(hasText(audio.rowName()) and isSelectable()).performScrollTo().performTouchInput { click() }
             val caption = compose.runOnIdle { factory.current().currentTracks.playbackSubtitleTracks().single() }
-            chooseCaption(checkNotNull(caption.label), captureSheet = true)
+            chooseCaption(caption.rowName(), captureSheet = true)
             awaitChoices(factory, audio.identity, caption.identity)
             showControls()
             screenshot("landscape-selected-caption")
@@ -141,9 +151,9 @@ class MobileFullscreenVideoProofTest {
             screenshot("landscape-restored")
             chooseCaption("Off")
             awaitPlayer(factory) { it.currentCues.cues.isEmpty() }
-            chooseCaption("Automatic")
+            chooseCaption(caption.rowName())
             awaitPlayer(factory) { it.currentCues.cues.any { cue -> cue.text?.contains(CAPTION_TEXT) == true } }
-            screenshot("landscape-automatic-caption")
+            screenshot("landscape-chosen-caption")
             showControls()
             compose.onNodeWithContentDescription("Back").performTouchInput { click() }
             compose.onNodeWithText("Local video proof").assertIsDisplayed()
@@ -229,22 +239,33 @@ class MobileFullscreenVideoProofTest {
 
     private fun chooseCaption(label: String, captureSheet: Boolean = false) {
         showControls()
-        compose.onNodeWithText("Captions").performTouchInput { click() }
+        compose.onNodeWithContentDescription("Subtitles: ", substring = true).performTouchInput { click() }
         if (captureSheet) screenshot("landscape-captions-sheet")
-        compose.onNodeWithText(label).performScrollTo().performTouchInput { click() }
+        compose.onNode(hasText(label) and isSelectable()).performScrollTo().performTouchInput { click() }
+    }
+
+    private fun closeSheet() {
+        compose.onNodeWithContentDescription("Close").performTouchInput { click() }
+        compose.waitUntil(5_000) {
+            compose.onAllNodesWithTag(MOBILE_PLAYER_SIDE_SHEET_TAG).fetchSemanticsNodes().isEmpty()
+        }
     }
 
     private fun showControls(captions: Boolean = true) {
-        val probe = if (captions) hasText("Audio") else hasText("Speed (", substring = true)
+        val probe = hasContentDescription("Playback speed ", substring = true)
         if (compose.onAllNodes(probe).fetchSemanticsNodes().isEmpty()) {
             compose.onNodeWithTag(MOBILE_PLAYER_GESTURE_TAG).performTouchInput { click() }
         }
         if (captions) {
-            compose.onNodeWithText("Audio").assertIsDisplayed()
-            compose.onNodeWithText("Captions").assertIsDisplayed()
+            compose.onNodeWithContentDescription("Audio: ", substring = true).assertIsDisplayed()
+            compose.onNodeWithContentDescription("Subtitles: ", substring = true).assertIsDisplayed()
         }
-        compose.onNodeWithText("Speed (", substring = true).assertIsDisplayed()
+        compose.onNode(probe).assertIsDisplayed()
     }
+
+    /** How the side sheet names a track: its language in its own words, else its label. */
+    private fun PlaybackAudioTrack.rowName(): String = languageName(identity.language) ?: checkNotNull(label)
+    private fun PlaybackSubtitleTrack.rowName(): String = languageName(identity.language) ?: checkNotNull(label)
 
     private fun awaitVideo(factory: FullscreenProofPlayerFactory) {
         awaitPlayer(factory) {

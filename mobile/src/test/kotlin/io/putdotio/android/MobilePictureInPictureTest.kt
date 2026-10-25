@@ -17,6 +17,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.performClick
 import androidx.media3.common.Player as Media3Player
 import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
@@ -82,13 +83,13 @@ class MobilePictureInPictureTest {
             assertEquals(activity.window.decorView.width, hint.width())
             assertEquals(activity.window.decorView.width * 1_080.0 / 1_920, hint.height().toDouble(), 1.0)
             assertEquals(activity.window.decorView.height / 2.0, hint.centerY().toDouble(), 1.0)
-            assertEquals("Pause", armed.actions.single().title)
+            assertEquals(listOf("Back 10 seconds", "Pause", "Forward 10 seconds"), armed.actions.map { it.title })
             player.pause()
         }
         compose.runOnIdle {
             val paused = activity.params.last()
             assertFalse(paused.isAutoEnterEnabled)
-            assertEquals("Play", paused.actions.single().title)
+            assertEquals(listOf("Back 10 seconds", "Play", "Forward 10 seconds"), paused.actions.map { it.title })
             player.play()
         }
         compose.runOnIdle {
@@ -170,6 +171,48 @@ class MobilePictureInPictureTest {
             activity.pictureInPicture(true)
         }
         compose.runOnIdle { assertTrue(player.playWhenReady) }
+        host.close()
+    }
+
+    @Test
+    fun theTopBarButtonOpensTheWindowAndItsSeekActionsMoveTenSeconds() {
+        val host = launchHost()
+        val activity = host.get()
+        val player = RecordingPlayer()
+        activity.setContent { PutioTheme { PlayerScreen(videoState(), MobilePlayerFactory { _, _ -> player }) } }
+        reportPlaying(player)
+        val before = compose.runOnIdle { activity.params.size }
+
+        compose.onNodeWithContentDescription("Picture in picture").performClick()
+        compose.runOnIdle {
+            // The entry, then the playback-derived parameters back.
+            assertEquals(before + 2, activity.params.size)
+            assertEquals("Pause", activity.params[before].actions[1].title)
+            player.movePositionTo(30_000L)
+        }
+        compose.runOnIdle { activity.sendPictureInPictureAction("Forward 10 seconds") }
+        // The video plays on in the window, so the seek starts a moment past where it was moved.
+        compose.runOnIdle { assertTrue(player.seekPositions.single() in 40_000L..41_000L) }
+        host.close()
+    }
+
+    @Test
+    fun aPausedVideoEntersByHandWithoutArmingAutoEntry() {
+        val host = launchHost()
+        val activity = host.get()
+        val player = RecordingPlayer()
+        activity.setContent { PutioTheme { PlayerScreen(videoState(), MobilePlayerFactory { _, _ -> player }) } }
+        reportPlaying(player)
+        compose.runOnIdle { player.pause() }
+        val before = compose.runOnIdle { activity.params.size }
+
+        compose.onNodeWithContentDescription("Picture in picture").performClick()
+        compose.runOnIdle {
+            val (entered, restored) = activity.params.drop(before)
+            assertTrue(entered.isAutoEnterEnabled)
+            assertEquals("Play", entered.actions[1].title)
+            assertFalse(restored.isAutoEnterEnabled)
+        }
         host.close()
     }
 

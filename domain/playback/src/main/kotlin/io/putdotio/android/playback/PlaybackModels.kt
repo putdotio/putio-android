@@ -116,6 +116,11 @@ public sealed interface PlaybackEvent {
 
     public data object PlayerEnded : PlaybackEvent
 
+    /** The viewer asked for [target], the next video the folder found, before this one ended. */
+    public data class NextChosen(
+        val target: PlaybackTarget,
+    ) : PlaybackEvent
+
     public data class SourceRequired(
         val resumePositionMillis: Long? = null,
     ) : PlaybackEvent
@@ -217,9 +222,11 @@ public object PlaybackReducer {
             is PlaybackEvent.PlayerFailed -> state.playerFailed(event)
             is PlaybackEvent.ResolveSucceeded -> state.resolveSucceeded(event)
             is PlaybackEvent.ResolveFailed -> state.resolveFailed(event)
-            is PlaybackEvent.NextFound -> state.nextFound(event)
-            is PlaybackEvent.NextEnded -> state.nextEnded(event)
-            is PlaybackEvent.NextFailed -> state.nextFailed(event)
+            is PlaybackEvent.NextChosen,
+            is PlaybackEvent.NextFound,
+            is PlaybackEvent.NextEnded,
+            is PlaybackEvent.NextFailed,
+            -> state.nextVideo(event)
         }
 }
 

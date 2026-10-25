@@ -1431,7 +1431,7 @@ class MobileShellExternalOpenTest {
         showSearch()
         open(externalItem(8L, "episode.mkv", PutioFileType.VIDEO), FilesOpenOrigin.SEARCH)
 
-        compose.onNodeWithText("Video is being prepared").assertIsDisplayed()
+        compose.onNodeWithText("Converting to MP4").assertIsDisplayed()
         compose.onAllNodesWithTag(MOBILE_NAV_BAR_TAG).assertCountEquals(0)
         compose.onNodeWithContentDescription("Back").performClick()
         assertSearchShown()
@@ -1444,7 +1444,7 @@ class MobileShellExternalOpenTest {
         open(externalItem(8L, "episode.mkv", PutioFileType.VIDEO), FilesOpenOrigin.SEARCH)
         open(externalItem(9L, "next.mkv", PutioFileType.VIDEO), FilesOpenOrigin.SEARCH)
 
-        compose.onNodeWithText("Video is being prepared").assertIsDisplayed()
+        compose.onNodeWithText("Converting to MP4").assertIsDisplayed()
         compose.onNodeWithContentDescription("Back").performClick()
         assertSearchShown()
     }
@@ -1550,7 +1550,7 @@ class MobileShellPlaybackTest {
 
         compose.onNodeWithText("episode.mkv").performClick()
 
-        compose.onNodeWithText("Video is being prepared").assertIsDisplayed()
+        compose.onNodeWithText("Converting to MP4").assertIsDisplayed()
         compose.onAllNodesWithTag(MOBILE_NAV_BAR_TAG).assertCountEquals(0)
         compose.runOnIdle {
             assertEquals(listOf(PlaybackTarget(FilesItemId(8L), "episode.mkv", durationSeconds = 1_200.5)), targets)
@@ -1905,12 +1905,12 @@ class MobileShellPlaybackTest {
             nowPlayingRequests = requests,
         )
         compose.onNodeWithText("episode.mkv").performClick()
-        compose.onNodeWithText("Video is being prepared").assertIsDisplayed()
+        compose.onNodeWithText("Converting to MP4").assertIsDisplayed()
 
         compose.runOnIdle { pending.value = true }
 
         compose.onNodeWithTag(MOBILE_AUDIO_COVER_TAG).assertIsDisplayed()
-        compose.onAllNodesWithText("Video is being prepared").assertCountEquals(0)
+        compose.onAllNodesWithText("Converting to MP4").assertCountEquals(0)
         compose.runOnIdle { assertEquals(1, session.prepareCalls) }
         // The video route was replaced, not stacked: one Back returns to the shell.
         compose.onNodeWithContentDescription("Back").performClick()

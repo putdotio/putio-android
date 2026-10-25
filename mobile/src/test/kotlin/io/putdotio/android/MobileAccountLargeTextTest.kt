@@ -114,6 +114,8 @@ class MobileAccountLargeTextTest {
         scrollTo("Video playback")
         compose.onNodeWithText("Video playback").performClick()
         compose.onNodeWithText("Direct MP4").performScrollTo().assertIsDisplayed().performClick()
+        assertTrue(events.isEmpty())
+        compose.onNodeWithText("Save").assertIsDisplayed().performClick()
         assertEquals(
             listOf(AndroidAppConfigEvent.ChangeRequested(AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Mp4))),
             events,

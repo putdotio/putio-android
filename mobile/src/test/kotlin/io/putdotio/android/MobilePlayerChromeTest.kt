@@ -35,7 +35,12 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
+import androidx.media3.common.C
+import androidx.media3.common.Format
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MimeTypes
+import androidx.media3.common.TrackGroup
+import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.design.PutioTheme
@@ -46,10 +51,14 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
-import io.putdotio.android.playback.MobilePlaybackOptions
+import io.putdotio.android.playback.MobileAudioChip
+import io.putdotio.android.playback.MobilePictureInPictureButton
+import io.putdotio.android.playback.MobilePlayerChip
 import io.putdotio.android.playback.MobilePlayerChrome
 import io.putdotio.android.playback.MobileProgressSlider
-import io.putdotio.android.playback.MobileSubtitleControls
+import io.putdotio.android.playback.MobileSpeedChip
+import io.putdotio.android.playback.MobileSubtitlesChip
+import io.putdotio.android.playback.rememberPlayerOptionsSnapshot
 
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -79,7 +88,7 @@ class MobilePlayerChromeTest {
 
     @Test
     fun shortVideoWindowKeepsAllControlsReachableAtDoubleFontScale() {
-        val player = readyPlayer()
+        val player = readyPlayer().apply { updateTracks(englishAudio()) }
         var pixelsPerDp = 1f
         compose.setContent {
             val density = LocalDensity.current.density
@@ -96,11 +105,13 @@ class MobilePlayerChromeTest {
                             onSeek = {},
                             onScrub = {},
                             settings = {
-                                MobilePlaybackOptions(player, {}, {}, {}, {}, directControls = true)
-                                MobileSubtitleControls(
-                                    player, player.trackSelectionParameters, {}, {}, {}, {}, showLabel = true,
-                                )
+                                val options = rememberPlayerOptionsSnapshot(player)
+                                MobileAudioChip(options, {})
+                                MobileSubtitlesChip(options, {})
+                                MobileSpeedChip(options, {})
                             },
+                            topActions = { MobilePictureInPictureButton({}, Modifier) },
+                            trailingChip = { MobilePlayerChip("Next episode", null, {}) },
                         )
                     }
                 }
@@ -112,9 +123,11 @@ class MobilePlayerChromeTest {
             compose.onNodeWithContentDescription("Play"),
             compose.onNodeWithContentDescription("Forward 10 seconds"),
             compose.onNodeWithTag(TIMELINE_TAG),
-            compose.onNodeWithText("Audio"),
-            compose.onNodeWithText("Speed (1×)"),
-            compose.onNodeWithText("Captions"),
+            compose.onNodeWithContentDescription("Picture in picture"),
+            compose.onNodeWithContentDescription("Audio: English"),
+            compose.onNodeWithContentDescription("Subtitles: Off"),
+            compose.onNodeWithContentDescription("Playback speed 1×"),
+            compose.onNodeWithText("Next episode"),
         )
         assertNoneOverlap(controls.map { it.getUnclippedBoundsInRoot() })
         controls.forEach { control ->
@@ -272,6 +285,11 @@ class MobilePlayerChromeTest {
             prepare()
             movePositionTo(30_000L)
         }
+
+    private fun englishAudio(): Tracks {
+        val audio = TrackGroup(Format.Builder().setLanguage("en").setSampleMimeType(MimeTypes.AUDIO_AAC).build())
+        return Tracks(listOf(Tracks.Group(audio, false, intArrayOf(C.FORMAT_HANDLED), booleanArrayOf(true))))
+    }
 
     private fun assertNoneOverlap(bounds: List<DpRect>) {
         bounds.forEachIndexed { index, first ->

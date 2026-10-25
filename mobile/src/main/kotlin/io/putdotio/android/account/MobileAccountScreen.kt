@@ -752,38 +752,22 @@ private fun MobilePlaybackTypeDialog(
     onSelect: (VideoPlaybackType) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.mobile_settings_video_playback_type)) },
-        text = {
-            Column(modifier = Modifier.selectableGroup().verticalScroll(rememberScrollState())) {
-                VideoPlaybackType.entries.forEach { playbackType ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .selectable(
-                                selected = playbackType == selected,
-                                role = Role.RadioButton,
-                                onClick = { onSelect(playbackType) },
-                            )
-                            .padding(vertical = 12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        RadioButton(
-                            selected = playbackType == selected,
-                            onClick = null,
-                        )
-                        Text(stringResource(playbackType.labelResource()))
-                    }
-                }
-            }
+    MobileChoiceDialog(
+        title = stringResource(R.string.mobile_settings_video_playback_type),
+        message = stringResource(R.string.mobile_settings_video_playback_type_description),
+        choices = VideoPlaybackType.entries,
+        label = { stringResource(it.labelResource()) },
+        description = {
+            stringResource(
+                when (it) {
+                    VideoPlaybackType.Hls -> R.string.mobile_settings_video_playback_hls_description
+                    VideoPlaybackType.Mp4 -> R.string.mobile_settings_video_playback_mp4_description
+                },
+            )
         },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.mobile_action_cancel))
-            }
-        },
+        selected = selected,
+        onSave = onSelect,
+        onDismiss = onDismiss,
     )
 }
 

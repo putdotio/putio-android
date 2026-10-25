@@ -24,6 +24,7 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.click
@@ -60,6 +61,19 @@ import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import io.putdotio.android.playback.SubtitleSelection
+import io.putdotio.android.playback.MobileSubtitleAppearanceContent
+import io.putdotio.android.playback.MobileSubtitlesChip
+import io.putdotio.android.playback.MobileSubtitlesSheetContent
+import io.putdotio.android.playback.SubtitleTextSize
+import io.putdotio.android.playback.formatSubtitleOffset
+import io.putdotio.android.playback.rememberPlayerOptionsSnapshot
+import io.putdotio.sdk.files.PlaybackSubtitle
+import io.putdotio.sdk.files.PutioCredentialUrl
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isSelectable
 import io.putdotio.android.playback.PlaybackSubtitleTrack
 import io.putdotio.android.playback.withSubtitleSelection
 import io.putdotio.android.playback.restoreSubtitleSelection
@@ -67,7 +81,6 @@ import io.putdotio.android.playback.SubtitleStartupPolicy
 import io.putdotio.android.playback.toSubtitleTrackIdentity
 import io.putdotio.android.playback.SubtitleCueOverlay
 import io.putdotio.android.playback.SUBTITLE_CUES_TAG
-import io.putdotio.android.playback.MobileSubtitleControls
 import io.putdotio.android.playback.MobileSubtitleTrackOption
 import io.putdotio.android.playback.observePlayerControlInteraction
 import io.putdotio.android.playback.observePlayerControlKeyActivity
@@ -91,27 +104,17 @@ class MobileSubtitleControlsTest {
 
     @Test
     @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-    fun labeledCaptionEntryExplainsEmptyTracksAndRetainsOffPreference() {
+    fun emptySubtitleSheetExplainsItselfAndRetainsOff() {
         val player = RecordingPlayer()
         var selection: SubtitleSelection? = null
         compose.setContent {
-            PutioTheme {
-                MobileSubtitleControls(
-                    player,
-                    TrackSelectionParameters.Builder().build(),
-                    { selection = it },
-                    {}, {}, {},
-                    showLabel = true,
-                )
-            }
+            SubtitleSheet(player, TrackSelectionParameters.Builder().build(), emptyList()) { selection = it }
         }
 
-        compose.onNodeWithText("Captions").assertIsDisplayed()
-        compose.onNodeWithContentDescription("Captions").assertDoesNotExist()
-        compose.onNodeWithText("Captions").performClick()
+        compose.onNodeWithContentDescription("Subtitles: Off").assertIsDisplayed()
         compose.onNodeWithText("No captions available").assertIsDisplayed()
-        compose.onNodeWithText("Automatic").assertIsDisplayed()
-        compose.onNodeWithText("Off").performClick()
+        compose.onNodeWithText("In this file").assertDoesNotExist()
+        compose.onNode(hasText("Off") and isSelectable()).assertIsSelected().performClick()
         compose.runOnIdle {
             assertEquals(SubtitleSelection.Off, selection)
             assertTrue(C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes)
@@ -120,101 +123,59 @@ class MobileSubtitleControlsTest {
 
     @Test
     @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-    fun labeledCaptionEntryUsesDiscoveredSupportedTracks() {
+    fun subtitleSheetGroupsTracksByWhereTheyComeFrom() {
         val player = CaptionControlPlayer()
-        var selection: SubtitleSelection? = null
-        compose.setContent {
-            PutioTheme {
-                MobileSubtitleControls(
-                    player,
-                    TrackSelectionParameters.Builder().build(),
-                    { selection = it },
-                    {}, {}, {},
-                    showLabel = true,
-                )
-            }
-        }
-        compose.onNodeWithText("Captions").performClick()
-        compose.onNodeWithText("No captions available").assertIsDisplayed()
-        val group = TrackGroup(
-            Format.Builder().setId("en").setLabel("English").setSampleMimeType(MimeTypes.TEXT_VTT).build(),
-            Format.Builder().setId("de").setLabel("Deutsch").setSampleMimeType(MimeTypes.TEXT_VTT).build(),
+        val sidecar = listOf(
+            subtitle(key = "mkv-en", language = "English", code = "en", source = "mkv", format = "srt"),
+            subtitle(key = "folder-de", language = "German", code = "de", source = "folder", format = "srt"),
+            subtitle(key = "os-tr", language = "Turkish", code = "tr", source = "opensubtitles", format = "srt"),
         )
-        compose.runOnIdle {
-            player.discover(
-                Tracks(
-                    listOf(
-                        Tracks.Group(
-                            group,
-                            false,
-                            intArrayOf(C.FORMAT_HANDLED, C.FORMAT_UNSUPPORTED_SUBTYPE),
-                            booleanArrayOf(false, false),
-                        ),
-                    ),
-                ),
-            )
-        }
-
+        var selection: SubtitleSelection? = null
+        val defaults = TrackSelectionParameters.Builder().setPreferredAudioLanguage("de").build()
+        compose.runOnIdle { player.trackSelectionParameters = defaults }
+        compose.setContent { SubtitleSheet(player, defaults, sidecar) { selection = it } }
+        compose.onNodeWithText("No captions available").assertIsDisplayed()
+        // Tracks arrive after the sheet is up.
+        val group = sourcedSubtitleGroup()
+        compose.runOnIdle { player.discover(group) }
         compose.onNodeWithText("No captions available").assertDoesNotExist()
-        compose.onNodeWithText("Deutsch").assertDoesNotExist()
-        compose.onNodeWithText("English").performClick()
+
+        val rows = listOf(
+            "English" to "SRT", "English · SDH" to "VTT", "Deutsch" to "This folder", "Türkçe" to "OpenSubtitles",
+        )
+        rows.forEach { (name, details) ->
+            compose.onNode(hasText(name) and hasText(details) and isSelectable())
+                .assertIsDisplayed()
+                .assertIsNotSelected()
+        }
+        val order = listOf("Off", "In this file", "English", "English · SDH", "Found by put.io", "Deutsch", "Türkçe")
+        val tops = order.map { text ->
+            compose.onAllNodes(hasText(text)).fetchSemanticsNodes().maxOf { it.boundsInRoot.top }
+        }
+        assertEquals(tops.sorted(), tops)
+        compose.onNodeWithText("Français").assertDoesNotExist()
+
+        compose.onNode(hasText("Türkçe") and isSelectable()).performClick()
         compose.runOnIdle {
             assertEquals(SubtitleSelection.Track(group.getFormat(0).toSubtitleTrackIdentity()), selection)
             assertEquals(listOf(0), player.trackSelectionParameters.overrides.getValue(group).trackIndices)
         }
-        compose.onNodeWithText("Captions").performClick()
-        compose.onNodeWithText("English").assertIsSelected()
-    }
-
-    @Test
-    @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-    fun subtitleSheetDisablesThenRestoresAutomaticDefaults() {
-        val player = RecordingPlayer()
-        val defaults = TrackSelectionParameters.Builder(
-            androidx.test.core.app.ApplicationProvider.getApplicationContext(),
-        )
-            .setPreferredTextLanguage("en").setPreferredAudioLanguage("de").build()
-        val selections = mutableListOf<SubtitleSelection>()
-        val visibility = mutableListOf<Boolean>()
-        compose.runOnUiThread {
-            player.trackSelectionParameters = defaults.withSubtitleSelection(SubtitleSelection.Automatic, emptyList())
-        }
-        compose.setContent {
-            PutioTheme {
-                MobileSubtitleControls(
-                    player = player,
-                    defaultTrackSelection = defaults,
-                    onSubtitleSelectionChanged = selections::add,
-                    onMenuVisibilityChanged = visibility::add,
-                    onKeyboardNavigation = {},
-                    onPointerNavigation = {},
-                )
-            }
-        }
-        compose.onNodeWithContentDescription("Choose subtitles").performClick()
-        compose.onNodeWithText("Automatic").assertIsSelected()
-        compose.onNodeWithText("Off").performClick()
+        compose.onNode(hasText("Türkçe") and isSelectable()).assertIsSelected()
+        compose.onNodeWithContentDescription("Subtitles: Türkçe").assertIsDisplayed()
+        compose.onNode(hasText("Off") and isSelectable()).assertIsNotSelected().performClick()
+        compose.runOnIdle { assertTrue(C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes) }
+        compose.onNode(hasText("English · SDH") and isSelectable()).performClick()
         compose.runOnIdle {
-            assertTrue(C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes)
-            assertEquals(listOf(SubtitleSelection.Off), selections)
-        }
-        compose.onNodeWithContentDescription("Choose subtitles")
-            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Subtitles off"))
-            .performClick()
-        compose.onNodeWithText("Off").assertIsSelected()
-        compose.onNodeWithText("Automatic").performClick()
-        compose.runOnIdle {
-            assertTrue(C.TRACK_TYPE_TEXT !in player.trackSelectionParameters.disabledTrackTypes)
-            assertEquals(listOf("en"), player.trackSelectionParameters.preferredTextLanguages)
+            // Subtitle choices leave the audio preference alone.
             assertEquals(listOf("de"), player.trackSelectionParameters.preferredAudioLanguages)
-            assertEquals(listOf(SubtitleSelection.Off, SubtitleSelection.Automatic), selections)
-            assertEquals(listOf(true, false, true, false), visibility)
+            assertTrue(C.TRACK_TYPE_TEXT !in player.trackSelectionParameters.disabledTrackTypes)
+            assertEquals(listOf(2), player.trackSelectionParameters.overrides.getValue(group).trackIndices)
         }
     }
 
     @Test
     @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-    fun forcedOnlyStartupDoesNotClaimAutomaticSelection() {
+    fun forcedOnlyStartupReadsAsOff() {
         val player = RecordingPlayer()
         val defaults = TrackSelectionParameters.Builder(
             androidx.test.core.app.ApplicationProvider.getApplicationContext(),
@@ -226,20 +187,101 @@ class MobileSubtitleControlsTest {
                 startupPolicy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = false),
             )
         }
+        compose.setContent { SubtitleSheet(player, defaults, emptyList()) {} }
+        compose.onNodeWithContentDescription("Subtitles: Off").assertIsDisplayed()
+        compose.onNode(hasText("Off") and isSelectable()).assertIsSelected()
+    }
+
+    @Test
+    fun sizeAndTimingStepsByATenthAndResets() {
+        var size by mutableStateOf(SubtitleTextSize.Medium)
+        var offset by mutableStateOf(500L)
         compose.setContent {
             PutioTheme {
-                MobileSubtitleControls(player, defaults, {}, {}, {}, {})
+                Column {
+                    MobileSubtitleAppearanceContent(size, offset, { size = it }, { offset = it })
+                }
             }
         }
-        compose.onNodeWithContentDescription("Choose subtitles")
-            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Subtitles off"))
-            .performClick()
-        compose.onNodeWithText("Off").assertIsNotSelected()
-        compose.onNodeWithText("Automatic").assertIsNotSelected().performClick()
-        compose.runOnIdle { assertTrue(player.trackSelectionParameters.selectTextByDefault) }
-        compose.onNodeWithContentDescription("Choose subtitles").performClick()
-        compose.onNodeWithText("Automatic").assertIsSelected()
+        compose.onNodeWithText("+0.5 s").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Medium").assertIsSelected()
+        compose.onNodeWithContentDescription("Extra large").performClick()
+        compose.onNodeWithContentDescription("Extra large").assertIsSelected()
+        compose.onNodeWithContentDescription("Medium").assertIsNotSelected()
+        repeat(7) { compose.onNodeWithContentDescription("Earlier by 0.1 seconds").performClick() }
+        compose.onNodeWithText("\u22120.2 s").assertIsDisplayed()
+        compose.runOnIdle {
+            assertEquals(SubtitleTextSize.ExtraLarge, size)
+            assertEquals(-200L, offset)
+        }
+        compose.onNodeWithText("Reset").performClick()
+        compose.onNodeWithText("0.0 s").assertIsDisplayed()
+        compose.onNodeWithText("Reset").assertIsNotEnabled()
+        compose.runOnIdle { assertEquals(0L, offset) }
+        assertEquals("0.0 s", formatSubtitleOffset(0L))
+        assertEquals("\u22121.3 s", formatSubtitleOffset(-1_300L))
+        assertEquals("+10.0 s", formatSubtitleOffset(10_000L))
     }
+
+    @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+    @androidx.compose.runtime.Composable
+    private fun SubtitleSheet(
+        player: androidx.media3.common.Player,
+        defaults: TrackSelectionParameters,
+        sidecar: List<PlaybackSubtitle>,
+        onSelection: (SubtitleSelection) -> Unit,
+    ) {
+        PutioTheme {
+            val options = rememberPlayerOptionsSnapshot(player)
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                MobileSubtitlesChip(options, {})
+                MobileSubtitlesSheetContent(
+                    player = player,
+                    snapshot = options,
+                    defaultTrackSelection = defaults,
+                    sidecar = sidecar,
+                    textSize = SubtitleTextSize.Medium,
+                    offsetMillis = 0L,
+                    onSubtitleSelectionChanged = onSelection,
+                    onAppearance = {},
+                    onDone = {},
+                )
+            }
+        }
+    }
+
+    /** Four supported tracks, one of them embedded in the stream, and one the device can't render. */
+    @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+    private fun sourcedSubtitleGroup(): TrackGroup = TrackGroup(
+        // Media3 prefixes a merged period's format ids with its index.
+        Format.Builder().setId("1:os-tr").setLanguage("tr").setLabel("Turkish")
+            .setSampleMimeType(MimeTypes.APPLICATION_SUBRIP).build(),
+        Format.Builder().setId("2:mkv-en").setLanguage("en").setLabel("English")
+            .setSampleMimeType(MimeTypes.APPLICATION_SUBRIP).build(),
+        Format.Builder().setId("embedded").setLanguage("en").setRoleFlags(C.ROLE_FLAG_DESCRIBES_MUSIC_AND_SOUND)
+            .setSampleMimeType(MimeTypes.TEXT_VTT).build(),
+        Format.Builder().setId("3:folder-de").setLanguage("de").setLabel("German")
+            .setSampleMimeType(MimeTypes.APPLICATION_SUBRIP).build(),
+        Format.Builder().setId("unsupported").setLanguage("fr").setSampleMimeType(MimeTypes.TEXT_VTT).build(),
+    )
+
+    private fun CaptionControlPlayer.discover(group: TrackGroup) {
+        val supported = IntArray(group.length) { C.FORMAT_HANDLED }
+        supported[group.length - 1] = C.FORMAT_UNSUPPORTED_SUBTYPE
+        discover(Tracks(listOf(Tracks.Group(group, false, supported, BooleanArray(group.length)))))
+    }
+
+    private fun subtitle(key: String, language: String, code: String, source: String, format: String) =
+        PlaybackSubtitle(
+            format = format,
+            key = key,
+            language = language,
+            languageCode = code,
+            name = language,
+            source = source,
+            url = PutioCredentialUrl::class.java.getDeclaredConstructor(String::class.java)
+                .newInstance("https://example.com/$key.srt"),
+        )
 
     @Test
     fun subtitleCuesWaitForVideoDimensionsAfterPlayerReplacement() {

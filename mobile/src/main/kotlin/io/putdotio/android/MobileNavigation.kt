@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
@@ -50,6 +51,7 @@ import io.putdotio.android.playback.PlaybackController
 import io.putdotio.android.playback.PlaybackEvent
 import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackMediaType
+import io.putdotio.android.playback.PlaybackNextResult
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.playback.SubtitleStartupPolicy
@@ -60,6 +62,7 @@ import io.putdotio.android.playback.playerFailureTelemetry
 import io.putdotio.android.playback.putioFailure
 import io.putdotio.android.playback.rememberPictureInPictureMode
 import io.putdotio.android.playback.subtitleStartupPolicy
+import io.putdotio.android.playback.nextEpisodeEnabled
 import io.putdotio.android.search.MobileHistoryScreen
 import io.putdotio.android.search.MobileSearchScreen
 import io.putdotio.android.settings.AccountSettingsEvent
@@ -304,6 +307,8 @@ internal fun MobileNavHost(
                             onAuthenticationRequired = onPlaybackAuthenticationRequired,
                             onBack = navController::popBackStack,
                             playerFactory = playbackPlayerFactory,
+                            findNextEpisode = playbackRepository::findNextVideo
+                                .takeIf { accountSettingsState.nextEpisodeEnabled() },
                         )
                     }
                 }
@@ -348,8 +353,16 @@ private fun MobilePlaybackRoute(
     onAuthenticationRequired: suspend () -> Unit,
     onBack: () -> Unit,
     playerFactory: MobilePlayerFactory,
+    findNextEpisode: (suspend (PlaybackTarget) -> PlaybackNextResult)? = null,
 ) {
     val state by controller.state.collectAsStateWithLifecycle()
+    // With the account's next_episode on, a playing video asks autoplay's folder walk for the one after it, once.
+    val ready = state.content is PlaybackContent.Ready && state.target.mediaType == PlaybackMediaType.VIDEO
+    val nextEpisode by produceState<PlaybackTarget?>(null, state.target.fileId, ready, findNextEpisode != null) {
+        value = null
+        val find = findNextEpisode ?: return@produceState
+        if (ready) value = (find(state.target) as? PlaybackNextResult.Found)?.target
+    }
     val authenticationFailure =
         when (val content = state.content) {
             is PlaybackContent.Failed -> content.failure
@@ -388,6 +401,8 @@ private fun MobilePlaybackRoute(
         onSourceRequired = { controller.dispatch(PlaybackEvent.SourceRequired(it)) },
         onResume = { controller.dispatch(PlaybackEvent.Resume) },
         onRestart = { controller.dispatch(PlaybackEvent.Restart) },
+        nextEpisode = nextEpisode,
+        onNextEpisode = { nextEpisode?.let { controller.dispatch(PlaybackEvent.NextChosen(it)) } },
     )
 }
 

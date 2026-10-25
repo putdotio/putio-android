@@ -42,17 +42,9 @@ import androidx.media3.common.Player as Media3Player
 import androidx.media3.common.util.UnstableApi
 import io.putdotio.android.R
 
-internal val MOBILE_PLAYBACK_SPEEDS = listOf(
-    THREE_QUARTERS_SPEED,
-    1f,
-    ONE_AND_A_QUARTER_SPEED,
-    ONE_AND_A_HALF_SPEED,
-    2f,
-)
-
-private const val THREE_QUARTERS_SPEED = 0.75f
-private const val ONE_AND_A_QUARTER_SPEED = 1.25f
-private const val ONE_AND_A_HALF_SPEED = 1.5f
+/** Audio's speed choices; the video player steps through [MOBILE_PLAYBACK_SPEEDS]. */
+@Suppress("MagicNumber") // The audio sheet's list from before the video redesign.
+private val AUDIO_PLAYBACK_SPEEDS = listOf(0.75f, 1f, 1.25f, 1.5f, 2f)
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal fun RetainedPlayerPreferences.adoptPlaybackOptions(player: Media3Player) {
@@ -77,7 +69,6 @@ internal fun MobilePlaybackOptions(
     onMenuVisibilityChanged: (Boolean) -> Unit,
     onKeyboardNavigation: () -> Unit,
     onPointerNavigation: () -> Unit,
-    directControls: Boolean = false,
 ) {
     var speed by remember(player) { mutableStateOf(player.playbackParameters.speed) }
     var tracks by remember(player) { mutableStateOf(player.currentTracks.playbackAudioTracks()) }
@@ -111,27 +102,11 @@ internal fun MobilePlaybackOptions(
         expanded = true
         onMenuVisibilityChanged(true)
     }
-    if (directControls) {
-        MobileVideoOptionButton(
-            label = stringResource(R.string.mobile_playback_audio_control),
-            icon = R.drawable.ic_ph_speaker_high,
-            onClick = { open(PlaybackOptionsPage.Audio) },
-            modifier = interactionModifier,
+    IconButton(onClick = { open(PlaybackOptionsPage.Root) }, modifier = interactionModifier) {
+        Icon(
+            painterResource(R.drawable.ic_ph_gear),
+            contentDescription = stringResource(R.string.mobile_playback_options),
         )
-        val speedLabel = playbackSpeedLabel(speed)
-        MobileVideoOptionButton(
-            label = stringResource(R.string.mobile_playback_speed_control, speedLabel),
-            icon = R.drawable.ic_ph_gauge,
-            onClick = { open(PlaybackOptionsPage.Speed) },
-            modifier = interactionModifier,
-        )
-    } else {
-        IconButton(onClick = { open(PlaybackOptionsPage.Root) }, modifier = interactionModifier) {
-            Icon(
-                painterResource(R.drawable.ic_ph_gear),
-                contentDescription = stringResource(R.string.mobile_playback_options),
-            )
-        }
     }
     if (!expanded) return
     val selectedAudio = tracks.singleOrNull { track ->
@@ -146,11 +121,7 @@ internal fun MobilePlaybackOptions(
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     ) {
         Column(modifier = interactionModifier.verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
-            PlaybackOptionsHeader(
-                page = page,
-                pagesNavigable = !directControls,
-                onBack = { page = PlaybackOptionsPage.Root },
-            )
+            PlaybackOptionsHeader(page = page, onBack = { page = PlaybackOptionsPage.Root })
             when (page) {
                 PlaybackOptionsPage.Root -> {
                     PlaybackSettingsRow(
@@ -170,7 +141,7 @@ internal fun MobilePlaybackOptions(
                     }
                 }
                 PlaybackOptionsPage.Speed -> Column(Modifier.selectableGroup()) {
-                    MOBILE_PLAYBACK_SPEEDS.forEach { choice ->
+                    AUDIO_PLAYBACK_SPEEDS.forEach { choice ->
                         PlaybackOption(
                             label = playbackSpeedLabel(choice),
                             selected = speed == choice,
@@ -238,9 +209,9 @@ private enum class PlaybackOptionsPage(@StringRes val title: Int) {
 }
 
 @Composable
-private fun PlaybackOptionsHeader(page: PlaybackOptionsPage, pagesNavigable: Boolean, onBack: () -> Unit) {
+private fun PlaybackOptionsHeader(page: PlaybackOptionsPage, onBack: () -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 16.dp)) {
-        if (pagesNavigable && page != PlaybackOptionsPage.Root) {
+        if (page != PlaybackOptionsPage.Root) {
             IconButton(onClick = onBack) {
                 Icon(
                     painterResource(R.drawable.ic_ph_arrow_left),

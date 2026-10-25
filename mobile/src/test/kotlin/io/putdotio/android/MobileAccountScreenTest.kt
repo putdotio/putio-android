@@ -433,6 +433,8 @@ class MobileAccountPlaybackSettingsTest {
                 ),
             )
             .performClick()
+        // A choice applies on Save.
+        compose.onNodeWithText("Save").performClick()
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Autoplay next video"))
         compose.onNodeWithText("Autoplay next video").performClick()
 

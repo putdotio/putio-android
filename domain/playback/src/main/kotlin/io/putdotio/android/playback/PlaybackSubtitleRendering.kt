@@ -2,6 +2,7 @@ package io.putdotio.android.playback
 
 import android.content.Context
 import android.view.View.MeasureSpec
+import android.view.accessibility.CaptioningManager
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -29,6 +30,8 @@ public fun SubtitleCueOverlay(
     cues: List<Cue>,
     videoAspectRatio: Float?,
     modifier: Modifier = Modifier,
+    textScale: Float = 1f,
+    bottomPaddingFraction: Float = SubtitleView.DEFAULT_BOTTOM_PADDING_FRACTION,
 ) {
     if (cues.isEmpty()) return
     // Replacement players can deliver retained cues before their video dimensions.
@@ -47,6 +50,7 @@ public fun SubtitleCueOverlay(
                     .testTag(SUBTITLE_CUES_TAG),
         ) {
             drawIntoCanvas { canvas ->
+                renderer.layOut(textScale, bottomPaddingFraction)
                 renderer.draw(
                     cues = cues,
                     width = size.width.roundToInt(),
@@ -67,9 +71,34 @@ internal class SubtitleCueRenderer(
             setUserDefaultStyle()
             setUserDefaultTextSize()
         }
+    private val captionScale =
+        (context.getSystemService(Context.CAPTIONING_SERVICE) as? CaptioningManager)
+            ?.takeIf { it.isEnabled }
+            ?.fontScale
+            ?: 1f
     private var renderedCues: List<Cue> = emptyList()
+    private var renderedScale = 1f
+    private var renderedBottomPadding = SubtitleView.DEFAULT_BOTTOM_PADDING_FRACTION
     private var renderedWidth = 0
     private var renderedHeight = 0
+
+    /**
+     * [textScale] multiplies Android's caption size, as the user's caption settings set it; any
+     * scale but 1 also overrides the sizes a styled subtitle file sets. [bottomPaddingFraction]
+     * raises cues placed at the bottom by default; positioned cues stay where the file puts them.
+     */
+    fun layOut(textScale: Float, bottomPaddingFraction: Float) {
+        if (renderedBottomPadding != bottomPaddingFraction) {
+            renderedBottomPadding = bottomPaddingFraction
+            subtitleView.setBottomPaddingFraction(bottomPaddingFraction)
+        }
+        if (renderedScale != textScale) {
+            renderedScale = textScale
+            subtitleView.setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * captionScale * textScale)
+            // A size the viewer picked wins over sizes the subtitle file sets.
+            subtitleView.setApplyEmbeddedFontSizes(textScale == 1f)
+        }
+    }
 
     fun draw(
         cues: List<Cue>,
