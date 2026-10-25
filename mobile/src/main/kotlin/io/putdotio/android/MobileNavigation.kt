@@ -29,6 +29,7 @@ import io.putdotio.android.account.MOBILE_PRIVACY_CONTROLS_ROUTE
 import io.putdotio.android.account.MobileAccountLibrary
 import io.putdotio.android.account.MobileAccountScreen
 import io.putdotio.android.account.MobileAppInfoScreen
+import io.putdotio.android.account.bytesOnDevice
 import io.putdotio.android.account.MobilePrivacyControlsScreen
 import io.putdotio.android.account.mobileAppDiagnostics
 import io.putdotio.android.auth.MobileAccount
@@ -266,8 +267,7 @@ internal fun MobileNavHost(
                                 (publicLinks?.state?.content as? PublicLinksContent.Ready)?.links?.size,
                             trashSizeBytes = (trashState?.content as? TrashContent.Loaded)?.trashSizeBytes,
                         ),
-                        downloadsOnDeviceBytes =
-                            downloadsState.storageBytes.takeIf { downloadsState.entries.isNotEmpty() },
+                        downloadsOnDeviceBytes = downloadsState.bytesOnDevice(),
                     )
                 }
                 composable(MOBILE_APP_INFO_ROUTE) {

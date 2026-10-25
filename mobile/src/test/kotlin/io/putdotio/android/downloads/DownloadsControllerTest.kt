@@ -132,17 +132,14 @@ class DownloadsControllerTest {
     fun signOutRemovalMarksAndDeletesEveryRowBeforeItReturns() = runBlocking<Unit> {
         DownloadsController(store, engine, this).use { controller ->
             for (request in listOf(video, audio)) assertTrue(controller.dispatch(DownloadsEvent.Start(request)))
-            store.await { it.size == 2 }
-            engine.await { it.started.size == 2 }
-            store.complete(video.fileId, 10L)
 
+            // The starts are still queued: removal must wait for them, or their rows outlive sign-out.
             controller.removeAll()
 
             // Sign-out ends the session right after, so nothing may be left for the controller's own queue.
             assertEquals(setOf(video.fileId, audio.fileId), engine.removed.toSet())
             assertTrue(store.entries.value.all { it.removing })
             assertEquals(setOf(video.fileId, audio.fileId), controller.state.value.removing)
-            assertFalse(controller.state.value.isAvailableOffline(video.fileId))
         }
     }
 

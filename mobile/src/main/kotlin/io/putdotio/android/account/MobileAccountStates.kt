@@ -1,5 +1,7 @@
 package io.putdotio.android.account
 
+import io.putdotio.android.downloads.DownloadStatus
+import io.putdotio.android.downloads.DownloadsState
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -250,5 +252,17 @@ private fun AccountSettingsFailure.messageResource(): Int =
             is PutioFailure.Misconfigured,
             is PutioFailure.Unexpected,
             -> R.string.mobile_state_error_unavailable
+        }
+    }
+
+/** What this account's downloads hold on the device, finished or not; null when it has none. */
+internal fun DownloadsState.bytesOnDevice(): Long? =
+    entries.takeIf { it.isNotEmpty() }?.sumOf { entry ->
+        when (val status = entry.status) {
+            is DownloadStatus.Completed -> status.bytes
+            is DownloadStatus.Downloading -> status.bytesDownloaded
+            is DownloadStatus.Paused -> status.bytesDownloaded
+            is DownloadStatus.Failed -> status.bytesDownloaded
+            DownloadStatus.Queued, DownloadStatus.Missing -> 0L
         }
     }

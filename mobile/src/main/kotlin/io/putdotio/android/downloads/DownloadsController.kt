@@ -177,14 +177,17 @@ internal class DownloadsController(
      * removal on this account's next sign-in, as a confirmed removal does after a process death.
      */
     suspend fun removeAll() {
-        val fileIds = synchronized(lock) {
-            if (closed) return
-            val current = mutableState.value
-            val ids = store.entries.value.mapTo(mutableSetOf()) { it.fileId }
-            mutableState.value = current.copy(removal = null, removing = current.removing + ids)
-            ids
-        }
-        mutations.withLock { markAndRemove(fileIds) }
+        if (synchronized(lock) { closed }) return
+        // Queued behind every write already dispatched, so a start from just before sign-out is removed too.
+        enqueue {
+            val fileIds = synchronized(lock) {
+                val current = mutableState.value
+                val ids = store.entries.value.mapTo(mutableSetOf()) { it.fileId }
+                mutableState.value = current.copy(removal = null, removing = current.removing + ids)
+                ids
+            }
+            markAndRemove(fileIds)
+        }.join()
     }
 
     private suspend fun markAndRemove(fileIds: Set<FilesItemId>) {
@@ -216,9 +219,7 @@ internal class DownloadsController(
     }
 
     /** Store writes and engine calls run one at a time, in dispatch order. */
-    private fun enqueue(block: suspend () -> Unit) {
-        scope.launch { mutations.withLock { block() } }
-    }
+    private fun enqueue(block: suspend () -> Unit): Job = scope.launch { mutations.withLock { block() } }
 
     private fun update(transform: (DownloadsState) -> DownloadsState): Boolean {
         synchronized(lock) {

@@ -43,6 +43,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
@@ -702,9 +703,11 @@ private fun MobileAccountAvatar(avatarUrl: String?, username: String) {
 @Composable
 private fun MobileAccountAvatarFallback(username: String, modifier: Modifier) {
     Box(modifier = modifier.testTag(MOBILE_ACCOUNT_AVATAR_FALLBACK_TAG), contentAlignment = Alignment.Center) {
+        // Decorative, as the picture is: the identity line already says the name.
         Text(
             text = username.firstOrNull()?.uppercase().orEmpty(),
             style = PutioTypeScale.bodyLg.copy(fontWeight = FontWeight.Medium),
+            modifier = Modifier.clearAndSetSemantics {},
         )
     }
 }

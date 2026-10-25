@@ -55,7 +55,9 @@ internal fun <T> MobileChoiceDialog(
     modifier: Modifier = Modifier,
     placeholder: @Composable () -> Unit = {},
 ) {
-    var pending by rememberSaveable(selected, choices) { mutableIntStateOf(choices?.indexOf(selected) ?: -1) }
+    // The viewer's pick survives recreation even while the choices load again; until then, the saved value.
+    var picked by rememberSaveable(selected) { mutableIntStateOf(NOT_PICKED) }
+    val pending = if (picked == NOT_PICKED) choices?.indexOf(selected) ?: -1 else picked
     AlertDialog(
         onDismissRequest = onDismiss,
         // Full width less 24dp margins, as wide as a description line needs, up to Material's 560dp.
@@ -75,7 +77,7 @@ internal fun <T> MobileChoiceDialog(
                                 label = label(choice),
                                 description = description(choice),
                                 selected = index == pending,
-                                onClick = { pending = index },
+                                onClick = { picked = index },
                             )
                         }
                     }
@@ -130,6 +132,8 @@ private fun MobileChoiceRow(label: String, description: String?, selected: Boole
         }
     }
 }
+
+private const val NOT_PICKED = -2
 
 // Material's widest dialog, plus the 24dp margins either side.
 private val CHOICE_DIALOG_MAX_WIDTH = 608.dp

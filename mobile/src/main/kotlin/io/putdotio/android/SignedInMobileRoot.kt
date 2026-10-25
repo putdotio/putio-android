@@ -83,6 +83,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 
 @Composable
@@ -365,7 +366,7 @@ private fun SignedInMobileSession(
         onDismissNavigationFailure = searchHistorySession::dismissNavigationFailure,
         onSignOut = { removeDownloads ->
             MobilePlaybackService.stop(appContext)
-            rootScope.launch { signOut(authController, downloadsController.takeIf { removeDownloads }) }
+            rootScope.launch { signOut(authController, sessionId, downloadsController.takeIf { removeDownloads }) }
         },
     )
 }
@@ -409,12 +410,20 @@ private fun SavedPositionEffects(
 }
 
 /**
- * Ends the session, first deleting [removeDownloadsFrom]'s downloads when the viewer asked. Deletes reach
+ * Ends [sessionId], first deleting [removeDownloadsFrom]'s downloads when the viewer asked. Deletes reach
  * Media3 before the session ends, so they run even though sign-out parks this account's transfers next.
+ * A confirmed sign-out finishes even if the screen is recreated meanwhile; removal is best effort, and
+ * rows it marked finish their removal at that account's next sign-in. A session that already ended, or
+ * was replaced, is left alone.
  */
-private suspend fun signOut(authController: MobileAuthController, removeDownloadsFrom: DownloadsController?) {
-    removeDownloadsFrom?.removeAll()
-    authController.logout()
+private suspend fun signOut(
+    authController: MobileAuthController,
+    sessionId: MobileAuthSessionId,
+    removeDownloadsFrom: DownloadsController?,
+) = withContext(NonCancellable) {
+    removeDownloadsFrom?.let { downloads -> runCatching { downloads.removeAll() } }
+    val current = authController.state.value
+    if (current is MobileAuthState.SignedIn && current.sessionId == sessionId) authController.logout()
 }
 
 /** Offline playback falls back to the resume setting this device last confirmed. */

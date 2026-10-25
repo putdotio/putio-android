@@ -41,8 +41,10 @@ The mobile confirm keeps downloads by default: they stay on the device and
 come back when the same account signs in again. When the account has
 downloads, a Remove downloads from this device checkbox, off by default, shows
 their size; ticked, every row is marked and its bytes handed to Media3 for
-deletion before the session ends. A row Media3 has not confirmed by then
-finishes its removal at that account's next sign-in.
+deletion before the session ends, including downloads started just before. A
+row Media3 has not confirmed by then finishes its removal at that account's
+next sign-in. A confirmed sign-out completes even if the screen is recreated
+meanwhile, and a failed removal still signs out.
 
 Tests: `PendingTokenRevocationsTest`, `KeystoreAuthTokenStoreTest`,
 `MobileAuthControllerSessionTest`, `TvAuthControllerTest`,
