@@ -38,6 +38,9 @@ public sealed interface FilesMoveDestinationEvent {
     public data object NavigateBack : FilesMoveDestinationEvent
     public data object LoadNextPage : FilesMoveDestinationEvent
     public data object Retry : FilesMoveDestinationEvent
+
+    /** The picker's New folder made [folder] in the folder on screen; the picker lists it and opens it. */
+    public data class FolderCreated(val folder: FilesItem) : FilesMoveDestinationEvent
 }
 
 public data class FilesMoveDestinationRequest(
@@ -58,6 +61,7 @@ public fun FilesMoveDestinationState.reduce(event: FilesMoveDestinationEvent): F
 private fun FilesMoveDestinationState.reduceEvent(event: FilesMoveDestinationEvent): FilesMoveDestinationTransition =
     when (event) {
         is FilesMoveDestinationEvent.OpenFolder -> openDestination(event.itemId)
+        is FilesMoveDestinationEvent.FolderCreated -> openCreatedFolder(event.folder)
         FilesMoveDestinationEvent.NavigateBack -> if (canNavigateBack) {
             copy(stack = stack.dropLast(1)).loadUnreadFolder()
         } else {
@@ -97,6 +101,26 @@ private fun FilesMoveDestinationState.openDestination(itemId: FilesItemId): File
         copy(stack = stack.replaceLast(parent) + child, nextRequestValue = nextRequestValue + 1),
         FilesMoveDestinationRequest(item.id, requestId),
     )
+}
+
+/** A folder made a moment ago holds nothing, so it opens without a read. */
+private fun FilesMoveDestinationState.openCreatedFolder(folder: FilesItem): FilesMoveDestinationTransition {
+    if (!acceptsCreatedFolder(folder)) return FilesMoveDestinationTransition(this, consumed = false)
+    val items = listOf(folder) + current.content.items().filterNot { it.id == folder.id }
+    val paging = current.content.paging() ?: FilesPaging.Complete
+    val parent = current.copy(content = contentFor(items, paging).withoutActivePagingRequest())
+    val child = FilesMoveDestinationFolder(
+        FilesFolder(folder.id, folder.name),
+        FilesContent.Empty(FilesPaging.Complete),
+    )
+    return FilesMoveDestinationTransition(copy(stack = stack.replaceLast(parent) + child))
+}
+
+/** A new folder of the listed folder on screen, not the item being moved and not already open. */
+private fun FilesMoveDestinationState.acceptsCreatedFolder(folder: FilesItem): Boolean {
+    val listed = current.content is FilesContent.Ready || current.content is FilesContent.Empty
+    val newChild = folder.isFolder && folder.id.value > 0L && folder.parentId == current.folder.id
+    return listed && newChild && folder.id != sourceItem?.id && stack.none { it.folder.id == folder.id }
 }
 
 private fun FilesMoveDestinationState.loadDestinationPage(retry: Boolean): FilesMoveDestinationTransition {

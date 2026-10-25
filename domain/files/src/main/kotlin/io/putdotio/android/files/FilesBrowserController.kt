@@ -71,6 +71,7 @@ public class FilesBrowserController(
             is FilesBrowserEvent.Move,
             is FilesBrowserEvent.Delete,
             is FilesBrowserEvent.DeleteOutcomeAnnounced,
+            is FilesBrowserEvent.TrashUndone,
             is FilesBrowserEvent.Rename,
             is FilesBrowserEvent.AbandonRename,
             is FilesBrowserEvent.LoadNextPage,

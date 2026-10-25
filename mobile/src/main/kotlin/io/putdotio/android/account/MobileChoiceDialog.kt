@@ -33,7 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioTypeScale
-import io.putdotio.android.transfers.neutralTextButtonColors
+import io.putdotio.android.neutralTextButtonColors
 
 internal const val MOBILE_CHOICE_SAVE_TAG = "mobile-choice-save"
 

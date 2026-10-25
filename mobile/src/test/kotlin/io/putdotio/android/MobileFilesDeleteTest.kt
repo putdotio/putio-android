@@ -29,6 +29,7 @@ import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.FilesRequestId
+import io.putdotio.android.files.MobileFilesItemActions
 import io.putdotio.android.files.MobileFilesScreen
 import io.putdotio.android.files.copyForTest
 import io.putdotio.sdk.files.PutioFileType
@@ -39,6 +40,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import io.putdotio.android.files.MOBILE_FILES_RENAME_CONFIRM_TAG
+import androidx.compose.ui.test.onNodeWithTag
 
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -54,7 +57,7 @@ class MobileFilesDeleteTest {
             PutioTheme { MobileFilesScreen(loadedRoot(), events::add, {}, confirmedTrashEnabled = true) }
         }
         openAction("Move to trash")
-        compose.onNodeWithText("Confirm").assertDoesNotExist()
+        compose.onNodeWithText("Delete").assertDoesNotExist()
         compose.onNodeWithText("Move to trash").assertDoesNotExist()
         compose.runOnIdle {
             assertEquals(
@@ -81,7 +84,7 @@ class MobileFilesDeleteTest {
         compose.runOnIdle {
             assertEquals(emptyList<FilesBrowserEvent>(), events.filterIsInstance<FilesBrowserEvent.Delete>())
         }
-        compose.onNodeWithText("Delete").assertIsDisplayed()
+        compose.onNodeWithText("Delete permanently").assertIsDisplayed()
     }
 
     @Test
@@ -90,9 +93,9 @@ class MobileFilesDeleteTest {
         compose.setContent {
             PutioTheme { MobileFilesScreen(loadedRoot(), events::add, {}, confirmedTrashEnabled = false) }
         }
-        openAction("Delete")
-        compose.onNodeWithText("Permanently delete “été 東京.mkv”? This cannot be undone.").assertIsDisplayed()
-        val confirm = checkNotNull(compose.onNodeWithText("Confirm")
+        openAction("Delete permanently")
+        compose.onNodeWithText("Trash is off for this account, so this can’t be undone.").assertIsDisplayed()
+        val confirm = checkNotNull(compose.onNodeWithText("Delete")
             .fetchSemanticsNode().config[SemanticsActions.OnClick].action)
         compose.runOnIdle {
             confirm()
@@ -102,8 +105,8 @@ class MobileFilesDeleteTest {
                 events.filterIsInstance<FilesBrowserEvent.Delete>(),
             )
         }
-        openAction("Delete")
-        compose.onNodeWithText("Confirm").performClick()
+        openAction("Delete permanently")
+        compose.onNodeWithText("Delete").performClick()
         compose.runOnIdle { assertEquals(2, events.filterIsInstance<FilesBrowserEvent.Delete>().size) }
     }
 
@@ -128,16 +131,16 @@ class MobileFilesDeleteTest {
                 }, {}, confirmedTrashEnabled = false)
             }
         }
-        openAction("Delete")
+        openAction("Delete permanently")
         compose.onNodeWithText("Cancel").performClick()
         compose.runOnIdle {
             assertEquals(FilesFolderOperation.Idle, state.current.operation)
             assertTrue(effects.isEmpty())
             state = failedRename
         }
-        openAction("Delete")
-        compose.onNodeWithText("Confirm").performClick()
-        compose.onNodeWithText("Confirm").assertDoesNotExist()
+        openAction("Delete permanently")
+        compose.onNodeWithText("Delete").performClick()
+        compose.onNodeWithText("Delete").assertDoesNotExist()
         compose.runOnIdle {
             val deletion = effects.single() as FilesBrowserEffect.Delete
             assertEquals(item.id, deletion.itemId)
@@ -159,9 +162,9 @@ class MobileFilesDeleteTest {
         }
         compose.onNodeWithContentDescription("Actions for été 東京.mkv").performClick()
         compose.onNodeWithText("Waiting for confirmed Trash settings.").assertIsDisplayed()
-        compose.onNodeWithText("Delete").assertIsNotEnabled()
+        compose.onNodeWithText("Move to trash").assertIsNotEnabled()
         compose.onNodeWithText("Rename").performClick()
-        compose.onNodeWithText("Save").assertIsDisplayed()
+        compose.onNodeWithTag(MOBILE_FILES_RENAME_CONFIRM_TAG).assertIsDisplayed()
     }
 
     @Test
@@ -171,10 +174,10 @@ class MobileFilesDeleteTest {
         compose.setContent {
             PutioTheme { MobileFilesScreen(loadedRoot(), events::add, {}, confirmedTrashEnabled = trash) }
         }
-        openAction("Delete")
-        compose.onNodeWithText("Permanently delete “été 東京.mkv”? This cannot be undone.").assertIsDisplayed()
+        openAction("Delete permanently")
+        compose.onNodeWithText("Trash is off for this account, so this can’t be undone.").assertIsDisplayed()
         compose.runOnIdle { trash = true }
-        compose.onNodeWithText("Confirm").assertDoesNotExist()
+        compose.onNodeWithText("Delete").assertDoesNotExist()
         compose.onNodeWithText("Move to trash").performClick()
         compose.runOnIdle {
             assertEquals(
@@ -191,11 +194,11 @@ class MobileFilesDeleteTest {
         compose.setContent {
             PutioTheme { MobileFilesScreen(loadedRoot(), events::add, {}, confirmedTrashEnabled = trash) }
         }
-        openAction("Delete")
+        openAction("Delete permanently")
         compose.runOnIdle { trash = null }
-        compose.onNodeWithText("Confirm").assertDoesNotExist()
+        compose.onNodeWithText("Delete").assertDoesNotExist()
         compose.runOnIdle { trash = false }
-        compose.onNodeWithText("Confirm").assertDoesNotExist()
+        compose.onNodeWithText("Delete").assertDoesNotExist()
         compose.runOnIdle {
             assertTrue(events.none { it is FilesBrowserEvent.Delete })
         }
@@ -245,7 +248,7 @@ class MobileFilesDeleteTest {
     }
 
     @Test
-    fun aConfirmedTrashMoveIsAnnouncedOnceWithViewTrashAndNoUndo() {
+    fun aConfirmedTrashMoveIsAnnouncedOnceWithUndo() {
         val remaining = item.copy(id = FilesItemId(8L), name = "Sample folder", type = PutioFileType.FOLDER)
         val intent = FilesFolderOperationIntent.Delete(FilesItemId(7L), FilesDeleteMode.TRASH)
         val outcome = FilesDeleteOutcome(
@@ -257,21 +260,23 @@ class MobileFilesDeleteTest {
             },
         )
         val events = mutableListOf<FilesBrowserEvent>()
-        var viewedTrash = 0
+        val undone = mutableListOf<FilesDeleteOutcome>()
         compose.setContent {
             PutioTheme {
                 MobileFilesScreen(
-                    state = state, onEvent = { events += it }, onPlayMedia = {}, onViewTrash = { viewedTrash++ },
+                    state = state,
+                    onEvent = { events += it },
+                    onPlayMedia = {},
+                    itemActions = MobileFilesItemActions(onUndoTrash = { undone += it }),
                 )
             }
         }
 
         compose.onNodeWithText("Moved to Trash").assertIsDisplayed()
-        compose.onAllNodesWithText("Undo").assertCountEquals(0)
         compose.onAllNodesWithText("“Harbor film.mp4” is no longer available in Files.").assertCountEquals(0)
-        compose.onNodeWithText("View Trash").performClick()
+        compose.onNodeWithText("Undo").performClick()
         compose.runOnIdle {
-            assertEquals(1, viewedTrash)
+            assertEquals(listOf(outcome), undone)
             assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.DeleteOutcomeAnnounced(outcome)), events)
         }
         compose.onAllNodesWithText("Moved to Trash").assertCountEquals(0)

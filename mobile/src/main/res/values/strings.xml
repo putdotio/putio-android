@@ -5,7 +5,6 @@
     <string name="mobile_playback_audio_track_number">Audio track %1$d</string>
     <string name="mobile_navigation_blocked">This item cannot be opened right now. Check Files, then try again.</string>
     <string name="mobile_files_move">Move</string>
-    <string name="mobile_files_move_here">Move here</string>
     <string name="mobile_files_move_loading">Loading folders…</string>
     <string name="mobile_files_move_empty">No folders here.</string>
     <string name="mobile_files_move_empty_page">No folders on this page.</string>
@@ -23,7 +22,6 @@
     <string name="mobile_files_move_collision">A file or folder named “%1$s” already exists there. Choose another folder.</string>
     <string name="mobile_files_move_into_itself">A folder can’t be moved into itself or a folder inside it.</string>
     <string name="mobile_files_make_copy">Make a copy</string>
-    <string name="mobile_files_copy_here">Copy here</string>
     <string name="mobile_files_copying">Copying “%1$s” to %2$s…</string>
     <string name="mobile_files_copied">Copied “%1$s” to %2$s.</string>
     <string name="mobile_files_copy_failed">Couldn’t copy “%1$s” to %2$s.</string>
@@ -32,10 +30,7 @@
     <string name="mobile_files_copy_too_many_files">That’s too many files to copy at once.</string>
     <string name="mobile_files_trash">Move to trash</string>
     <string name="mobile_files_delete">Delete</string>
-    <string name="mobile_files_confirm_action">Confirm</string>
     <string name="mobile_files_trash_done">Moved to Trash</string>
-    <string name="mobile_files_view_trash">View Trash</string>
-    <string name="mobile_files_delete_confirmation">Permanently delete “%1$s”? This cannot be undone.</string>
     <string name="mobile_files_delete_settings_unknown">Waiting for confirmed Trash settings.</string>
     <string name="mobile_files_deleting">Sending request…</string>
     <string name="mobile_files_delete_checking">Checking item status…</string>
@@ -90,11 +85,8 @@
     <string name="mobile_files_show_details">Show %1$s</string>
     <string name="mobile_files_detail_empty_title">No file selected.</string>
     <string name="mobile_files_detail_empty_message">Tap a file to see it here.</string>
-    <string name="mobile_files_detail_play">Play</string>
     <string name="mobile_files_detail_resume">Resume from %1$s</string>
     <string name="mobile_files_detail_open">Open</string>
-    <string name="mobile_files_detail_download">Download</string>
-    <string name="mobile_files_detail_share">Share</string>
     <string name="mobile_files_detail_size">Size</string>
     <string name="mobile_files_detail_added">Added</string>
     <string name="mobile_files_detail_length">Length</string>
@@ -475,7 +467,6 @@
     <string name="mobile_downloads_empty_message">Open a video or audio file’s actions and choose Download to this device.</string>
     <string name="mobile_downloads_actions_named">Download actions for %1$s</string>
     <string name="mobile_downloads_channel_name">Downloads</string>
-    <string name="mobile_files_download">Download to this device</string>
     <string name="mobile_files_share">Share file</string>
     <!-- System file picker: a folder or search page that failed to load. -->
     <string name="mobile_documents_load_failed">Couldn’t load from put.io. Open it again to retry.</string>
@@ -597,8 +588,6 @@
     </plurals>
     <string name="mobile_trash_title">Trash</string>
     <string name="mobile_trash_loading">Loading Trash…</string>
-    <string name="mobile_trash_storage">Trash uses %1$s</string>
-    <string name="mobile_trash_expiration_hint">Heads up: Files in trash have an expiry date of 14 days.</string>
     <string name="mobile_action_refresh">Refresh</string>
     <string name="mobile_trash_empty_title">Your trash is empty</string>
     <string name="mobile_trash_empty_message">When you send files to trash, we keep them here for 14 days.</string>
@@ -606,8 +595,6 @@
     <string name="mobile_trash_restore_message">Restoration may take a moment. You can check when this item is available again.</string>
     <string name="mobile_trash_restore_folder_message">Restore this folder and its contents. Restoration may take a moment.</string>
     <string name="mobile_trash_restore">Restore</string>
-    <string name="mobile_trash_deleted">Deleted %1$s</string>
-    <string name="mobile_trash_expires">Expires %1$s</string>
     <string name="mobile_trash_file_available">Available again: %1$s</string>
     <string name="mobile_trash_folder_available">Folder available again: %1$s</string>
     <string name="mobile_trash_submitting">Starting restore…</string>
@@ -698,20 +685,14 @@
     -->
     <!-- en.json files_menu_public_share_label, verbatim. -->
     <string name="mobile_public_links_action">Exclusive access</string>
-    <string name="mobile_public_links_action_description">A link anyone can open for 72 hours</string>
-    <string name="mobile_public_links_manage">Exclusive access</string>
     <!-- en.json files_public_share_abuse_message_title and files_public_share_abuse_message_details, verbatim. -->
-    <string name="mobile_public_links_warning_title">This is a public link, but it’s not for the whole world to enjoy.</string>
-    <string name="mobile_public_links_warning">The share will die if more than a certain number of IP addresses access the file or if more than a certain amount of data is downloaded. It will also vanish after 72 hours.</string>
     <string name="mobile_public_links_create">Create link</string>
     <string name="mobile_public_links_creating">Creating link…</string>
     <string name="mobile_public_links_created">Link created. Copy or share it below.</string>
     <string name="mobile_public_links_loading">Loading links…</string>
-    <string name="mobile_public_links_none_for_item">No links for this item yet.</string>
     <!-- en.json sharing_public_links_empty, verbatim. -->
     <string name="mobile_public_links_empty">You don’t have any shared links.</string>
     <!-- en.json sharing_public_links_expires_in. -->
-    <string name="mobile_public_links_expires">Expires at %1$s</string>
     <string name="mobile_public_links_expiry_unknown">Expires within 72 hours</string>
     <string name="mobile_public_links_copy">Copy link</string>
     <string name="mobile_public_links_copied">Copied</string>
@@ -755,4 +736,60 @@
     <string name="mobile_shortcut_play_pause">Play or pause</string>
     <string name="mobile_shortcut_seek_back">Seek back</string>
     <string name="mobile_shortcut_seek_forward">Seek forward</string>
+    <!-- Item actions and dialogs (#373) -->
+    <string name="mobile_action_dismiss">Dismiss</string>
+    <string name="mobile_files_play">Play</string>
+    <string name="mobile_files_resume">Resume</string>
+    <string name="mobile_files_download_action">Download</string>
+    <string name="mobile_files_share_action">Share</string>
+    <string name="mobile_files_open_in_vlc">Open in VLC</string>
+    <string name="mobile_files_select">Select</string>
+    <string name="mobile_files_mark_watched">Mark as watched</string>
+    <string name="mobile_files_mark_unwatched">Mark as unwatched</string>
+    <string name="mobile_files_exclusive_link">Exclusive link</string>
+    <string name="mobile_files_delete_permanently">Delete permanently</string>
+    <plurals name="mobile_files_delete_permanently_title">
+        <item quantity="one">Delete %1$d item permanently?</item>
+        <item quantity="other">Delete %1$d items permanently?</item>
+    </plurals>
+    <string name="mobile_files_delete_permanently_message">Trash is off for this account, so this can’t be undone.</string>
+    <string name="mobile_files_shared_by">Shared by %1$s</string>
+    <string name="mobile_files_undo">Undo</string>
+    <string name="mobile_files_undo_failed">Couldn’t restore “%1$s” from Trash. %2$s</string>
+    <string name="mobile_files_mark_watched_failed">Couldn’t mark “%1$s” as watched. %2$s</string>
+    <string name="mobile_files_mark_unwatched_failed">Couldn’t mark “%1$s” as unwatched. %2$s</string>
+    <string name="mobile_files_vlc_missing">Install VLC to open “%1$s”.</string>
+    <string name="mobile_files_vlc_unavailable">Couldn’t prepare “%1$s” for VLC. Sign in again.</string>
+    <string name="mobile_files_vlc_failed">Couldn’t prepare “%1$s” for VLC. %2$s</string>
+    <plurals name="mobile_files_move_title">
+        <item quantity="one">Move %1$d item</item>
+        <item quantity="other">Move %1$d items</item>
+    </plurals>
+    <plurals name="mobile_files_copy_title">
+        <item quantity="one">Copy %1$d item</item>
+        <item quantity="other">Copy %1$d items</item>
+    </plurals>
+    <string name="mobile_files_move_to">Move to %1$s</string>
+    <string name="mobile_files_copy_to">Copy to %1$s</string>
+    <string name="mobile_files_move_options">More options</string>
+    <string name="mobile_public_links_sheet_body">Anyone with a link can open %1$s. A link stops working after %2$s hours, or sooner when it hits its IP or data limit.</string>
+    <string name="mobile_public_links_summary">Anyone with a link can open the file for 72 hours</string>
+    <string name="mobile_public_links_share_link">Share link</string>
+    <string name="mobile_public_links_revoke_link">Revoke link</string>
+    <string name="mobile_public_links_expires_in">Expires in %1$s</string>
+    <string name="mobile_public_links_expired">Expired</string>
+    <string name="mobile_public_links_link_copied">Link copied</string>
+    <string name="mobile_public_links_more">Share or revoke the link to %1$s</string>
+    <string name="mobile_trash_retention">deleted items stay 14 days</string>
+    <string name="mobile_trash_gone_today">Gone today</string>
+    <string name="mobile_trash_gone_tomorrow">Gone tomorrow</string>
+    <plurals name="mobile_trash_gone_in">
+        <item quantity="one">Gone in %1$d day</item>
+        <item quantity="other">Gone in %1$d days</item>
+    </plurals>
+    <string name="mobile_trash_restore_named">Restore %1$s</string>
+    <string name="mobile_trash_more">Trash actions</string>
+    <string name="mobile_share_progress_title">Preparing to share</string>
+    <string name="mobile_share_progress_message">%1$s downloads first, then the share sheet opens.</string>
+    <string name="mobile_share_progress_bytes">%1$d%% · %2$s of %3$s</string>
 </resources>

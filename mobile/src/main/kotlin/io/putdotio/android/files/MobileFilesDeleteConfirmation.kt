@@ -16,39 +16,46 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import io.putdotio.android.MobileDialogDismissButton
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioDestructiveButton
+import androidx.compose.ui.window.DialogProperties
 
+/**
+ * Permanent deletion always confirms: the title names the count and the action, the body the
+ * consequence, and the confirm is the red filled button.
+ */
 @Composable
 internal fun MobileFilesDeleteConfirmation(
-    item: FilesItem,
     enabled: Boolean,
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
+    count: Int = 1,
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.mobile_files_delete)) },
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        modifier = Modifier.padding(horizontal = 24.dp),
+        title = { Text(pluralStringResource(R.plurals.mobile_files_delete_permanently_title, count, count)) },
         text = {
             Text(
-                text = stringResource(R.string.mobile_files_delete_confirmation, item.name),
+                text = stringResource(R.string.mobile_files_delete_permanently_message),
                 modifier = Modifier.verticalScroll(rememberScrollState()),
             )
         },
         confirmButton = {
             PutioDestructiveButton(onClick = onConfirm, enabled = enabled) {
-                Text(stringResource(R.string.mobile_files_confirm_action))
+                Text(stringResource(R.string.mobile_files_delete))
             }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.mobile_action_cancel)) }
-        },
+        dismissButton = { MobileDialogDismissButton(onClick = onDismiss) },
     )
 }
 
@@ -104,7 +111,7 @@ internal fun MobileFilesTrashLimitStatus(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { confirming = false }) { Text(stringResource(R.string.mobile_action_cancel)) }
+                MobileDialogDismissButton(onClick = { confirming = false })
             },
         )
     }

@@ -35,7 +35,7 @@ import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
-import io.putdotio.android.transfers.neutralTextButtonColors
+import io.putdotio.android.neutralTextButtonColors
 import kotlinx.coroutines.launch
 
 internal const val MOBILE_NEW_FOLDER_FIELD_TAG = "mobile-new-folder-field"

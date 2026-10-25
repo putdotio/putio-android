@@ -129,7 +129,7 @@ class MobileKeyboardShortcutsTest {
 
         compose.onNodeWithText("Rename").assertDoesNotExist()
         compose.runOnIdle { assertEquals(emptyList<FilesBrowserEvent>(), events) }
-        compose.onNodeWithText("Confirm").performClick()
+        compose.onNodeWithText("Delete").performClick()
         compose.runOnIdle {
             assertEquals(
                 listOf(FilesBrowserEvent.Delete(FilesFolder.Root.id, Notes.id, FilesDeleteMode.PERMANENT)),

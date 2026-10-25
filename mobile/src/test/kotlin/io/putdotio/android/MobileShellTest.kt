@@ -903,7 +903,7 @@ class MobileShellFilesTest {
                 ),
             )
         }
-        compose.onNodeWithText("Delete").assertIsNotEnabled()
+        compose.onNodeWithText("Move to trash").assertIsNotEnabled()
         compose.runOnIdle {
             settings = readyAccountSettingsState(
                 preferences = optimistic,
@@ -914,13 +914,13 @@ class MobileShellFilesTest {
                 ),
             )
         }
-        compose.onNodeWithText("Delete").assertIsNotEnabled()
+        compose.onNodeWithText("Move to trash").assertIsNotEnabled()
         compose.runOnIdle { settings = readyAccountSettingsState(preferences = optimistic) }
-        compose.onNodeWithText("Delete").assertIsEnabled().performClick()
-        compose.onNodeWithText("Permanently delete “episode.mkv”? This cannot be undone.").assertIsDisplayed()
+        compose.onNodeWithText("Delete permanently").assertIsEnabled().performClick()
+        compose.onNodeWithText("Trash is off for this account, so this can’t be undone.").assertIsDisplayed()
         // Trash turning back on withdraws the permanent confirmation instead of rewording it.
         compose.runOnIdle { settings = readyAccountSettingsState(preferences = original) }
-        compose.onNodeWithText("Confirm").assertDoesNotExist()
+        compose.onNodeWithText("Delete").assertDoesNotExist()
         compose.onNodeWithText("Move to trash").assertIsEnabled()
         compose.runOnIdle { assertTrue(events.none { it is FilesBrowserEvent.Delete }) }
     }

@@ -119,6 +119,26 @@ class FilesDeleteReducerTest {
     }
 
     @Test
+    fun anUndoneTrashMoveDropsItsOutcomeAndMarksTheFolderStale() {
+        val deleting = FilesBrowserReducer.reduce(loadedRoot(), event)
+        val pending = checkNotNull(deleting.state.current.deleteOutcome)
+        assertFalse(FilesBrowserReducer.reduce(deleting.state, FilesBrowserEvent.TrashUndone(pending)).consumed)
+        val finished = finishReload(checked(acknowledge(deleting), PutioResult.Failure(apiFailure(404))), emptyList())
+        val outcome = checkNotNull(finished.current.deleteOutcome)
+        val otherRequest = outcome.copy(requestId = FilesRequestId(outcome.requestId.value + 1))
+        assertFalse(FilesBrowserReducer.reduce(finished, FilesBrowserEvent.TrashUndone(otherRequest)).consumed)
+
+        val undone = FilesBrowserReducer.reduce(finished, FilesBrowserEvent.TrashUndone(outcome))
+
+        assertTrue(undone.consumed)
+        assertNull(undone.state.current.deleteOutcome)
+        assertTrue(undone.state.current.needsReload)
+        // The restored item listed again reads as back, not as a delete that failed.
+        val refreshed = finishReload(FilesBrowserReducer.reduce(undone.state, FilesBrowserEvent.Refresh), listOf(item))
+        assertNull(refreshed.current.deleteOutcome)
+    }
+
+    @Test
     fun anAnnouncedNotFoundResultIsStillCorrectedByALaterPage() {
         val checking = acknowledge(FilesBrowserReducer.reduce(loadedRoot(), event))
         val reloading = checked(checking, PutioResult.Failure(apiFailure(404)))

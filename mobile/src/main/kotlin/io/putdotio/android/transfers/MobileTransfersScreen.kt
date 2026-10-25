@@ -68,6 +68,7 @@ import io.putdotio.android.design.PutioEmptyGlyph
 import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.files.FilesRepository
 import io.putdotio.android.files.mobileMessage
+import io.putdotio.android.neutralTextButtonColors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 

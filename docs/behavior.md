@@ -210,13 +210,18 @@ shared files, as web and iOS keep Download. On TV, a shared media file offers
 only Open in VLC, as tv-native does, and Menu on any other shared item opens
 nothing.
 
-On mobile, a friend's shared file or folder, and anything inside one, offers
-Make a copy, as web and iOS do; the shared root and each friend's folder offer
+On mobile, the sheet of an item inside a friend's folder, reached through
+that folder, names the sharer in its meta ("Shared by sam"), read from the
+folder's name, because the API returns no sharer per item; an item opened from
+Search, History or a link shows its date. A friend's shared file or folder, and anything
+inside one, offers Make a copy, as web and iOS do; the shared root and each friend's folder offer
 nothing, so they have no actions button. The Files move picker chooses the
 destination among the viewer's own folders, root included, and opens where
 Move's does (see [Move and copy target folder](#move-and-copy-target-folder)).
-put.io copies in the background (`POST /v2/sharing/clone`), so a line under the
-folder shows the copy until it is dismissed and stays across folder navigation.
+put.io copies in the background (`POST /v2/sharing/clone`), so a card under
+the bar shows the copy and stays across folder navigation. A running copy keeps
+its card, which is what marks the destination stale when it lands; a settled
+one has a close button.
 The app checks the copy every 1.5 s, as web does, for up to 200 checks. A
 finished copy reloads the destination if it is already open in the stack. A
 failed copy shows put.io's reason under the [refused-request](#refused-requests)
@@ -230,13 +235,17 @@ offer Make a copy, because tv-native and tv-vite don't.
 
 Tests: `SdkFilesRepositoryTest`, `MobileFilesScreenTest`,
 `TvFilesRowActionsTest`, `FilesCopyTest`, `MobileFilesCopyTest`,
-`MobilePublicLinksTest`.
+`MobilePublicLinksTest`, `MobileFilesActionsSheetTest`.
 
 ## Move and copy target folder
 
-On mobile, the Move and Make a copy picker shows web's "Remember target
-folder" toggle, off by default. Off, the picker opens at root. On, Move here or
-Copy here records the chosen folder and its path, and the next Move or Make a
+On mobile, Move and Make a copy open a full-screen picker: the title counts the
+items, breadcrumb chips lead back to any folder above, and the confirm names the
+folder on screen ("Move to Series"). New folder makes a folder in the folder on
+screen through the same dialog as Files, then lists it and opens it without a
+read, since it is empty; cached listings of its parent go stale. The picker's
+overflow holds web's "Remember target folder" toggle, off by default. Off, the
+picker opens at root. On, confirming records the chosen folder and its path, and the next Move or Make a
 copy opens there; Back walks that path up to root, reading each folder as it
 is reached. Turning the toggle off keeps the last folder, as web does, and the
 toggle takes effect from the next picker. A remembered folder that can't be
@@ -257,7 +266,7 @@ SharedPreferences. Sign-out and an expired session clear them for every
 account.
 
 Tests: `FilesMoveTargetMemoryTest`, `FilesMoveDestinationControllerTest`,
-`MobileMoveTargetStoreTest`, `MobileAuthControllerSessionTest`, `MobileFilesMoveTest`,
+`MobileItemDialogsTest`, `MobileMoveTargetStoreTest`, `MobileAuthControllerSessionTest`, `MobileFilesMoveTest`,
 `MobileFilesCopyTest`, `MobileMoveTargetProofTest` (opt-in synthetic device
 proof; see [Harness](./harness.md#move-and-copy-target-folder-proof)).
 
@@ -267,10 +276,15 @@ With the account's `trash_enabled` confirmed on, Move to trash runs from the
 actions sheet without a confirmation on mobile and TV, as on web and iOS; only
 Delete permanently confirms. Either verifies the item with an exact-ID read
 before the folder reloads. On mobile, a Trash request that succeeded and that
-the read confirmed shows a "Moved to Trash" snackbar with View Trash, once per
-request; it has no Undo, because single-item Restore is queued server-side and
-needs its own check ([Trash](#trash)). Every other outcome, including one a
-later page corrects, stays as a line under the folder. The app never sends
+the read confirmed shows a "Moved to Trash" snackbar with Undo, once per
+request. Undo restores the item from Trash; once put.io accepts, the outcome
+leaves the folder, so a page that lists the item again isn't read as a failed
+delete, and the folder reads again; if another delete replaced that outcome
+meanwhile, every cached folder reads again instead. put.io queues the restore, so the item may
+appear only on a later read; a refused restore says so in a snackbar. Delete
+permanently confirms with "Delete 1 item permanently?", the consequence, and
+a red Delete. Every other outcome, including one a later page corrects, stays
+as a line under the folder. The app never sends
 `partial_delete`, so put.io refuses a folder with too many items for Trash
 (`FileDeleteChildrenLimitError`) and changes nothing. On mobile and TV that
 line shows web's "We couldn't send these files to trash" with Delete
@@ -289,7 +303,7 @@ at the end of the list, one node that keeps focus from Load more through
 loading to Retry.
 
 Tests: `FilesDeleteReducerTest`, `SdkFilesDeleteRepositoryTest`,
-`MobileFilesDeleteTest`, `MobileFilesListTest`,
+`MobileFilesDeleteTest`, `MobileFilesActionsControllerTest`, `MobileFilesListTest`,
 `MobileSearchScreensTest`, `MobileFilesMoveTest`, `TvFilesScreenTest`,
 `TvFilesPagingTest`, `TvFilesRowActionsTest`.
 
@@ -384,6 +398,44 @@ takes `.torrent` files as transfers, and says itself when no app fits.
 Tests: `MobileFilesListDetailTest`, `MobileViewerLimitsTest`,
 `SdkFilesSubtitleLanguagesTest`.
 
+## Item actions
+
+Mobile only. A row's overflow or long-press opens one sheet: the file's glyph,
+its whole name, wrapped and selectable, and its meta; then Play or Resume,
+Download and Share as tiles; then Open in VLC, Select, Make a copy, Mark as
+watched, Rename, Move and Exclusive link as rows; then Move to trash or Delete
+permanently, in red, after a divider. Each shows only when the item allows it.
+Resume replaces Play for a video or audio file saved more than 10 s before its
+end while the account's resume setting is on, as the player offers to resume. Select
+appears once selection mode exists.
+
+Rename selects the name up to its last dot, so typing keeps the extension; a
+folder, or a name whose only dot leads it, selects in full.
+
+Mark as watched saves the file's length as its position; Mark as unwatched,
+offered once a file is finished or played with no known length, drops the
+position. Both need the account's resume setting confirmed on, as TV's do,
+and Mark as watched needs a known length. A newer choice for the same file
+waits for one already sent, so put.io applies them in order, and the row
+follows each in that order. Once put.io accepts, the row's played mark
+follows and the video leaves Continue watching; a refused write says so in a
+snackbar and a 401 signs out.
+
+Open in VLC, for videos, hands VLC the original with the account's download
+token, as TV does (never the session's access token), by package. Without VLC,
+or without a download token, a snackbar says so. The video player's error
+for a file it can't play offers Open in VLC too.
+
+While put.io is out of reach, an on-device row's sheet offers what works
+offline: Play, and Download reading On this device.
+
+A Search result's overflow or long-press opens the same sheet. The result
+isn't in a loaded folder, so Rename, Move, Make a copy and the delete action,
+which act on a folder's listing, are left out; opening the result reaches them.
+
+Tests: `MobileFilesActionsSheetTest`, `MobileFilesActionsControllerTest`,
+`MobileFilesScreenTest`, `MobileFilesRenameTest`.
+
 ## Trash
 
 Every Trash action confirms, submits exactly once, then verifies with one fresh
@@ -409,10 +461,13 @@ survives tab navigation and activity recreation, and Check status repeats only
 the read. Persistence across process death is not claimed.
 
 Both surfaces state web's 14-day retention above the listing and in the empty
-state.
+state. On mobile, each row's meta gives the days left ("Gone in 13 days", "Gone
+tomorrow"), Restore sits on the row and confirms, and Refresh, Restore all and
+Empty Trash sit in the top bar's overflow.
 
 Tests: `TrashActionTest`, `TrashRestoreTest`, `TrashRepeatedRestoreTest`,
 `FilesRestoreInvalidationTest`, `MobileTrashViewModelTest`, `MobileTrashScreenTest`,
+`MobileTrashActionsScreenTest`, `MobileItemDialogsTest`,
 `TvTrashScreenTest`.
 
 ## Resume and position reporting
@@ -816,7 +871,10 @@ download endpoint with the session header, stores it under private
 `files/shares/<process>/<session>/<fileId>/<name>`, and opens the system chooser with a
 `FileProvider` content URI (`${applicationId}.share`) carrying a read grant.
 The payload is the stream only: no text, subject or URL, so no token reaches the
-chooser. Progress and failure use the foreground notification, which the drawer
+chooser. While the app is on screen, a "Preparing to share" dialog names the
+file and shows the download's progress in mono with Cancel, which cancels the
+export as the notification's Cancel does; it leaves when the chooser opens or
+the export ends. Progress and failure also use the foreground notification, which the drawer
 hides while the app holds no notification permission. A service cannot start an
 Activity from the background, so the chooser opens from the resumed Activity:
 immediately when one exists, otherwise a "ready" notification brings the app
@@ -844,6 +902,7 @@ to 200 UTF-8 bytes on a code-point boundary, keeping a short extension.
 Tests: `MobileFileShareServiceTest` (payload shape, ready notification, service
 stop rules, session exit, ready timeout, prior-export wipe, failure notification,
 name sanitizer, cancelling a download blocked on the network),
+`MobileItemDialogsTest` (the progress dialog and its Cancel),
 `MobileOAuthRuntimeTest` (session-exit cleanup that lags the next sign-in keeps
 the next session's export; signing out of a restored session deletes an earlier
 process's export), `MobileShellTest` (Share on file rows in the phone and rail
@@ -854,20 +913,22 @@ layouts).
 Mobile only. A file or folder the viewer owns offers Exclusive access, web's
 name for put.io's public links, in its action sheet; items shared with the
 viewer don't (see [Shared-with-me items](#shared-with-me-items)), as web hides
-it for `is_shared` files. The sheet shows web's warning (IP and data limits,
-gone after 72 hours), the item's existing links with their expiry, and Create
-link. put.io issues a new link on every create (two creates on one file returned
+it for `is_shared` files. The sheet, titled Exclusive access, says in one line
+what a link allows (anyone with it, 72 hours, sooner at its IP or data limit),
+then lists the item's live links, each in mono cut in the middle with the time
+left ("Expires in 2d 14h"), then Create link. put.io issues a new link on every create (two creates on one file returned
 two links on the live API) and counts each against daily and weekly limits, so
 Create link waits until the account's links have loaded: the viewer sees what
 exists first, and a failed read offers Try again before anything else. A new
 link joins the list, newest first. Each link offers Copy link, which puts only
 the address on the clipboard, flagged sensitive on Android 13 and later so the
-clipboard preview hides it; Share, a plain-text chooser with the address and the
-file's name; and Revoke, which confirms first and drops the link once put.io
-confirms. A failed revoke reads the links again, so a link already revoked
+clipboard preview hides it, then closes the sheet for Files to say "Link
+copied"; Share, a plain-text chooser with the address and the file's name; and
+Revoke, which confirms first and drops the link once put.io confirms. A failed revoke reads the links again, so a link already revoked
 elsewhere or expired leaves the list; if that read fails too, the links stay as
-they were. Account's Exclusive access lists every link the account holds with
-its item, type and expiry and the same actions, as web's Sharing page does. One
+they were. Account's Exclusive links lists every link the account holds with
+its item, type, address and expiry, Copy on the row and Share and Revoke in its
+overflow, as web's Sharing page does. One
 request runs at a time, so opening the sheet or the list reads the links again
 only when no other request is running; otherwise it shows that request's result.
 

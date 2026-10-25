@@ -26,12 +26,15 @@ internal class MobileShareExporter(
     private val context: Context,
     private val dependencies: MobileShareDependencies,
 ) {
-    /** [onProgress] receives each new whole percent on the IO dispatcher, only when the size is known. */
+    /**
+     * [onProgress] receives each new whole percent, with the bytes copied and the size, on the IO
+     * dispatcher, only when the size is known.
+     */
     suspend fun export(
         fileId: FilesItemId,
         name: String,
         session: MobileAuthSessionId,
-        onProgress: (Int) -> Unit,
+        onProgress: (percent: Int, copied: Long, total: Long) -> Unit,
     ): File = withContext(dependencies.io) {
         // Unlinking an open file is safe on Android; a recipient still reading keeps its descriptor.
         MobileFileShareService.shareRoot(context).deleteRecursively()
@@ -79,7 +82,11 @@ private suspend fun <T> Call.executeCancellable(block: suspend (Response) -> T):
     }
 }
 
-private suspend fun InputStream.streamTo(output: OutputStream, total: Long, onProgress: (Int) -> Unit) {
+private suspend fun InputStream.streamTo(
+    output: OutputStream,
+    total: Long,
+    onProgress: (percent: Int, copied: Long, total: Long) -> Unit,
+) {
     val buffer = ByteArray(BUFFER_SIZE)
     var copied = 0L
     var lastPercent = -1
@@ -92,7 +99,7 @@ private suspend fun InputStream.streamTo(output: OutputStream, total: Long, onPr
         if (percent != lastPercent) {
             lastPercent = percent
             currentCoroutineContext().ensureActive()
-            onProgress(percent)
+            onProgress(percent, copied, total)
         }
         read = readUnlessCancelled(buffer)
     }

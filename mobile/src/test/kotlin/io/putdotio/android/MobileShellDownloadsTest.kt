@@ -144,7 +144,7 @@ class MobileShellDownloadsTest {
         setShell(filesState = filesState(video), showSubtitles = false)
 
         compose.onNodeWithContentDescription("Actions for Sintel.mkv").performClick()
-        compose.onNodeWithText("Download to this device").performClick()
+        compose.onNodeWithText("Download").performClick()
 
         compose.waitUntil(TIMEOUT) { engine.started.isNotEmpty() }
         compose.runOnIdle {

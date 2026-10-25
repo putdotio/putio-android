@@ -73,7 +73,7 @@ import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.playbackContainer
-import io.putdotio.android.transfers.neutralTextButtonColors
+import io.putdotio.android.neutralTextButtonColors
 import kotlin.math.roundToInt
 
 internal const val MOBILE_DOWNLOADS_ROUTE = "downloads"

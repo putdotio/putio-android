@@ -34,7 +34,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -69,7 +68,8 @@ import io.putdotio.android.files.MobileFilesRow
 import io.putdotio.android.files.MobileFilesRowPlace
 import io.putdotio.android.files.MobileFilesSkeleton
 import io.putdotio.android.files.mobileMessage
-import io.putdotio.android.transfers.neutralTextButtonColors
+import io.putdotio.android.neutralTextButtonColors
+import androidx.compose.foundation.layout.heightIn
 
 internal const val MOBILE_SEARCH_RESULTS_TAG = "mobile-search-results"
 internal const val MOBILE_SEARCH_FILTERS_TAG = "mobile-search-filters"
@@ -284,43 +284,30 @@ private fun MobileRecentSearches(
 }
 
 /**
- * "Recent searches" and Clear on a line as tall as the label, and at least [RECENT_LINE_HEIGHT], so
- * the rows sit where the label's line ends rather than below Clear's full touch target.
+ * "Recent searches" and Clear on one line. Clear keeps its whole 48dp target inside the line, so it
+ * never overlaps the first row; DESIGN.md's minimum target wins over the board's tighter line.
  */
 @Composable
 private fun MobileRecentHeader(onClear: () -> Unit) {
-    Layout(
-        content = {
-            Text(
-                text = stringResource(R.string.mobile_search_recent),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.semantics { heading() },
-            )
-            TextButton(
-                onClick = onClear,
-                colors = neutralTextButtonColors(),
-                contentPadding = PaddingValues(horizontal = 12.dp),
-            ) {
-                // The label's face and size, so Clear always fits the line the label sets.
-                Text(stringResource(R.string.mobile_search_clear_recent), style = MaterialTheme.typography.titleSmall)
-            }
-        },
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 16.dp, top = 16.dp, end = 4.dp),
-    ) { measurables, constraints ->
-        val clearWidth = measurables[1].maxIntrinsicWidth(Constraints.Infinity).coerceAtMost(constraints.maxWidth)
-        val label = measurables[0].measure(
-            Constraints(maxWidth = (constraints.maxWidth - clearWidth).coerceAtLeast(0)),
+            .padding(start = 16.dp, top = 8.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(R.string.mobile_search_recent),
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f).semantics { heading() },
         )
-        val height = maxOf(RECENT_LINE_HEIGHT.roundToPx(), label.height)
-        // Held to the line, Clear's 48dp target extends past it through Compose's minimum touch target,
-        // which yields to the rows' own bounds instead of overlapping them.
-        val clear = measurables[1].measure(Constraints(maxWidth = clearWidth, maxHeight = height))
-        layout(constraints.maxWidth, height) {
-            label.placeRelative(0, (height - label.height) / 2)
-            clear.placeRelative(constraints.maxWidth - clear.width, (height - clear.height) / 2)
+        TextButton(
+            onClick = onClear,
+            colors = neutralTextButtonColors(),
+            contentPadding = PaddingValues(horizontal = 12.dp),
+            modifier = Modifier.heightIn(min = MIN_TARGET),
+        ) {
+            Text(stringResource(R.string.mobile_search_clear_recent), style = MaterialTheme.typography.titleSmall)
         }
     }
 }
@@ -485,4 +472,4 @@ private const val TERM_MARK = ""
 private val CHIP_CHECK_SIZE = 16.dp
 private val RECENT_GLYPH_SIZE = 24.dp
 /** The header line below its 16dp top padding, as tall as the section labels' text line. */
-private val RECENT_LINE_HEIGHT = 29.dp
+private val MIN_TARGET = 48.dp

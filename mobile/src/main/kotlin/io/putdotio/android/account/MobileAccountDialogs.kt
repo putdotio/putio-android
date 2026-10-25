@@ -51,7 +51,7 @@ import io.putdotio.android.settings.TunnelRouteName
 import io.putdotio.android.settings.TunnelRouteOption
 import io.putdotio.android.settings.VideoPlaybackType
 import io.putdotio.android.settings.putioFailure
-import io.putdotio.android.transfers.neutralTextButtonColors
+import io.putdotio.android.neutralTextButtonColors
 
 internal const val MOBILE_DEFAULT_SORT_ROW_TAG = "mobile-default-sort-row"
 internal const val MOBILE_DEFAULT_SORT_DIALOG_TAG = "mobile-default-sort-dialog"

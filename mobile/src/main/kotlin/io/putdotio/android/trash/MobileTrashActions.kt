@@ -2,15 +2,22 @@ package io.putdotio.android.trash
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
@@ -20,8 +27,13 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -29,10 +41,12 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import io.putdotio.android.MobileDialogDismissButton
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioDestructiveButton
+import io.putdotio.android.design.PutioRadius
 import io.putdotio.android.files.mobileMessage
 
 internal const val MOBILE_TRASH_ITEM_SHEET_TAG = "mobile-trash-item-sheet"
@@ -40,6 +54,7 @@ internal const val MOBILE_TRASH_ITEM_RESTORE_TAG = "mobile-trash-item-restore"
 internal const val MOBILE_TRASH_ITEM_DELETE_TAG = "mobile-trash-item-delete"
 internal const val MOBILE_TRASH_RESTORE_ALL_TAG = "mobile-trash-restore-all"
 internal const val MOBILE_TRASH_EMPTY_TAG = "mobile-trash-empty"
+internal const val MOBILE_TRASH_MORE_TAG = "mobile-trash-more"
 internal const val MOBILE_TRASH_ACTION_CONFIRM_TAG = "mobile-trash-action-confirm"
 internal const val MOBILE_TRASH_ACTION_CHECK_TAG = "mobile-trash-action-check"
 internal const val MOBILE_TRASH_ACTION_OUTCOME_TAG = "mobile-trash-action-outcome"
@@ -91,19 +106,62 @@ internal fun MobileTrashItemSheet(
     }
 }
 
+/** The overflow Trash's top bar carries, while Trash is the route on screen. */
+internal fun trashTopBarActions(
+    route: String?,
+    state: TrashState?,
+    controller: TrashController?,
+): (@Composable RowScope.() -> Unit)? =
+    if (route == MOBILE_TRASH_ROUTE && state != null && controller != null) {
+        { MobileTrashOverflow(state, controller::dispatch) }
+    } else {
+        null
+    }
+
+/** Refresh, Restore all and Empty Trash, from the overflow in Trash's top bar. */
 @Composable
-internal fun MobileTrashBulkActions(state: TrashState, onEvent: (TrashEvent) -> Boolean) {
-    FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedButton(
-            onClick = { onEvent(TrashEvent.SelectRestoreAll) },
-            enabled = state.canActOnAll,
-            modifier = Modifier.testTag(MOBILE_TRASH_RESTORE_ALL_TAG),
-        ) { Text(stringResource(R.string.mobile_trash_restore_all)) }
-        OutlinedButton(
-            onClick = { onEvent(TrashEvent.SelectEmpty) },
-            enabled = state.canActOnAll,
-            modifier = Modifier.testTag(MOBILE_TRASH_EMPTY_TAG),
-        ) { Text(stringResource(R.string.mobile_trash_empty_action), color = PutioDesignTokens.redTextSecondary) }
+internal fun MobileTrashOverflow(state: TrashState, onEvent: (TrashEvent) -> Boolean) {
+    val content = state.content as? TrashContent.Loaded
+    var expanded by remember { mutableStateOf(false) }
+    val choose = { event: TrashEvent ->
+        expanded = false
+        onEvent(event)
+        Unit
+    }
+    Box {
+        IconButton(
+            onClick = { expanded = true },
+            modifier = Modifier.testTag(MOBILE_TRASH_MORE_TAG),
+            colors = IconButtonDefaults.iconButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
+        ) {
+            Icon(painterResource(R.drawable.ic_ph_dots_three_vertical), stringResource(R.string.mobile_trash_more))
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            shape = RoundedCornerShape(PutioRadius.large),
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        ) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.mobile_action_refresh)) },
+                onClick = { choose(TrashEvent.Refresh) },
+                enabled = content != null && !content.isRefreshing && !content.isLoadingMore,
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.mobile_trash_restore_all)) },
+                onClick = { choose(TrashEvent.SelectRestoreAll) },
+                enabled = state.canActOnAll,
+                modifier = Modifier.testTag(MOBILE_TRASH_RESTORE_ALL_TAG),
+            )
+            DropdownMenuItem(
+                text = {
+                    Text(stringResource(R.string.mobile_trash_empty_action), color = PutioDesignTokens.redTextSecondary)
+                },
+                onClick = { choose(TrashEvent.SelectEmpty) },
+                enabled = state.canActOnAll,
+                modifier = Modifier.testTag(MOBILE_TRASH_EMPTY_TAG),
+            )
+        }
     }
 }
 
@@ -136,9 +194,7 @@ internal fun MobileTrashActionConfirmation(action: TrashAction, state: TrashStat
             }
         },
         dismissButton = {
-            TextButton(onClick = { onEvent(TrashEvent.CancelAction) }) {
-                Text(stringResource(R.string.mobile_action_cancel))
-            }
+            MobileDialogDismissButton(onClick = { onEvent(TrashEvent.CancelAction) })
         },
     )
 }

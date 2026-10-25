@@ -6,26 +6,34 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.PersistableBundle
-import android.text.format.DateUtils
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ListItem
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -33,6 +41,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -43,22 +52,42 @@ import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import io.putdotio.android.MobileDialogDismissButton
+import io.putdotio.android.MobileMiddleCutText
+import io.putdotio.android.MobileRow
+import io.putdotio.android.MobileSectionLabel
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.apiReason
 import io.putdotio.android.design.FileTypeIcon
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioDestructiveButton
+import io.putdotio.android.design.PutioRadius
+import io.putdotio.android.design.putioMono
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.mobileMessageResource
+import io.putdotio.android.neutralTextButtonColors
+import java.time.Duration
+import java.time.Instant
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import io.putdotio.android.MobileSheetHandle
+import androidx.compose.ui.window.DialogProperties
+import io.putdotio.android.MobileSnackbarHost
 
 internal const val MOBILE_PUBLIC_LINKS_ROUTE = "account/public-links"
 internal const val MOBILE_PUBLIC_LINK_SHEET_TAG = "mobile-public-link-sheet"
@@ -73,82 +102,84 @@ internal fun mobilePublicLinkShareTag(id: PublicLinkId): String = "mobile-public
 
 internal fun mobilePublicLinkRevokeTag(id: PublicLinkId): String = "mobile-public-link-revoke-${id.value}"
 
+internal fun mobilePublicLinkMoreTag(id: PublicLinkId): String = "mobile-public-link-more-${id.value}"
+
 /** The session's public links and how to change them, handed from the shell to Files and Account. */
 internal class MobilePublicLinks(
     val state: PublicLinksState,
     val onEvent: (PublicLinksEvent) -> Boolean,
 )
 
-/** Exclusive access for one of the viewer's own items: its links, a new one, copy, share and revoke. */
+/**
+ * Exclusive access for one of the viewer's own items: one line of what a link allows, the item's live
+ * links with copy, share and revoke, and a filled Create link.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun MobilePublicLinkSheet(
     item: FilesItem,
     publicLinks: MobilePublicLinks,
     onDismiss: () -> Unit,
+    /** Closes the sheet once a link is copied, for the screen under it to say so; null keeps it open. */
+    onCopied: (() -> Unit)? = null,
 ) {
     val state = publicLinks.state
     val onEvent = publicLinks.onEvent
     LaunchedEffect(item.id) { onEvent(PublicLinksEvent.Load) }
-    val actions = rememberPublicLinkActions(state)
+    val actions = rememberPublicLinkActions(state) { onCopied?.invoke() }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        dragHandle = { MobileSheetHandle() },
         modifier = Modifier.testTag(MOBILE_PUBLIC_LINK_SHEET_TAG),
     ) {
-        Column(
-            modifier = Modifier
-                .verticalScroll(rememberScrollState())
-                .padding(start = 24.dp, end = 24.dp, bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
+        // The sheet adds the navigation bar inset; over a gesture bar this makes the board's 28dp.
+        Column(modifier = Modifier.verticalScroll(rememberScrollState()).padding(bottom = 4.dp)) {
             Text(
                 text = stringResource(R.string.mobile_public_links_action),
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 8.dp, bottom = 4.dp)
+                    .semantics { heading() },
             )
             Text(
-                text = item.name,
-                style = MaterialTheme.typography.titleLarge,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.semantics { heading() },
+                text = sheetBody(item.name),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 4.dp, bottom = 12.dp),
             )
-            PublicLinksWarning()
-            val creating = (state.mutation as? PublicLinksMutation.Creating)?.fileId == item.id
-            Button(
-                onClick = { onEvent(PublicLinksEvent.Create(item.id)) },
-                enabled = state.canCreate,
-                modifier = Modifier.fillMaxWidth().testTag(MOBILE_PUBLIC_LINK_CREATE_TAG),
-            ) {
-                Text(
-                    stringResource(
-                        if (creating) R.string.mobile_public_links_creating else R.string.mobile_public_links_create,
-                    ),
-                )
-            }
             state.outcome?.takeIf { it.fileId == item.id }?.let { outcome ->
-                PublicLinksOutcomeLine(outcome, onDismiss = { onEvent(PublicLinksEvent.DismissOutcome) })
+                Column(Modifier.padding(horizontal = 24.dp)) {
+                    PublicLinksOutcomeLine(outcome, onDismiss = { onEvent(PublicLinksEvent.DismissOutcome) })
+                }
             }
             when (val content = state.content) {
-                PublicLinksContent.Idle, PublicLinksContent.Loading -> PublicLinksInlineLoading()
-                is PublicLinksContent.Failed -> PublicLinksInlineFailure(content.failure) {
-                    onEvent(PublicLinksEvent.Load)
+                PublicLinksContent.Idle, PublicLinksContent.Loading ->
+                    Column(Modifier.padding(horizontal = 24.dp, vertical = 8.dp)) { PublicLinksInlineLoading() }
+                is PublicLinksContent.Failed -> Column(Modifier.padding(horizontal = 24.dp)) {
+                    PublicLinksInlineFailure(content.failure) { onEvent(PublicLinksEvent.Load) }
                 }
-                is PublicLinksContent.Ready -> {
-                    val links = state.linksFor(item.id).orEmpty()
-                    if (links.isEmpty()) {
-                        Text(
-                            text = stringResource(R.string.mobile_public_links_none_for_item),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                is PublicLinksContent.Ready -> state.linksFor(item.id).orEmpty().forEach { link ->
+                    PublicLinkSheetRow(link, state, actions)
+                }
+            }
+            val creating = (state.mutation as? PublicLinksMutation.Creating)?.fileId == item.id
+            Row(
+                Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 16.dp),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                Button(
+                    onClick = { onEvent(PublicLinksEvent.Create(item.id)) },
+                    enabled = state.canCreate,
+                    modifier = Modifier.testTag(MOBILE_PUBLIC_LINK_CREATE_TAG),
+                ) {
+                    Icon(painterResource(R.drawable.ic_ph_link), contentDescription = null, Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    val label = if (creating) {
+                        R.string.mobile_public_links_creating
+                    } else {
+                        R.string.mobile_public_links_create
                     }
-                    links.forEach { link ->
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(expiryText(link), style = MaterialTheme.typography.bodyMedium)
-                            PublicLinkButtons(link, state, actions)
-                        }
-                    }
+                    Text(stringResource(label))
                 }
             }
         }
@@ -156,7 +187,140 @@ internal fun MobilePublicLinkSheet(
     PublicLinkRevokeDialog(actions, state, onEvent)
 }
 
-/** Account's list of every public link the account holds, as web's Sharing page shows them. */
+/** "Anyone with a link can open <name>…", the name in the text colour and the hours in mono. */
+@Composable
+private fun sheetBody(name: String): AnnotatedString {
+    val template = stringResource(R.string.mobile_public_links_sheet_body)
+    val nameStyle = SpanStyle(color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
+    val mono = MaterialTheme.typography.bodyMedium.putioMono().toSpanStyle()
+    return styledTemplate(template, listOf(name to nameStyle, PUBLIC_LINK_HOURS.toString() to mono))
+}
+
+/** [template] with each `%n$s` slot filled from [slots] in its style. */
+internal fun styledTemplate(template: String, slots: List<Pair<String, SpanStyle>>): AnnotatedString =
+    buildAnnotatedString {
+        var rest = template
+        while (rest.isNotEmpty()) {
+            val match = SLOT.find(rest)
+            if (match == null) {
+                append(rest)
+                break
+            }
+            append(rest.substring(0, match.range.first))
+            val slot = slots.getOrNull(match.groupValues[1].toInt() - 1)
+            if (slot != null) withStyle(slot.second) { append(slot.first) }
+            rest = rest.substring(match.range.last + 1)
+        }
+    }
+
+/** A live link: the full address in mono cut in the middle, its remaining time, then copy, share and revoke. */
+@Composable
+private fun PublicLinkSheetRow(link: PublicLink, state: PublicLinksState, actions: PublicLinkActions) {
+    val revoking = (state.mutation as? PublicLinksMutation.Revoking)?.link?.id == link.id
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 64.dp)
+            .padding(start = 24.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            MobileMiddleCutText(
+                text = link.displayAddress(),
+                style = MaterialTheme.typography.bodyMedium.putioMono(),
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            PublicLinkExpiry(link)
+        }
+        PublicLinkCopyButton(link, actions)
+        IconButton(onClick = { actions.share(link) }, modifier = Modifier.testTag(mobilePublicLinkShareTag(link.id))) {
+            Icon(
+                painterResource(R.drawable.ic_ph_share_network),
+                stringResource(R.string.mobile_public_links_share_link),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        IconButton(
+            onClick = { actions.confirmRevoke(link) },
+            enabled = state.canRevoke && !revoking,
+            modifier = Modifier.testTag(mobilePublicLinkRevokeTag(link.id)),
+        ) {
+            Icon(
+                painterResource(R.drawable.ic_ph_x_circle),
+                stringResource(
+                    if (revoking) R.string.mobile_public_links_revoking else R.string.mobile_public_links_revoke_link,
+                ),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun PublicLinkCopyButton(link: PublicLink, actions: PublicLinkActions) {
+    val copied = actions.copiedId == link.id
+    IconButton(onClick = { actions.copy(link) }, modifier = Modifier.testTag(mobilePublicLinkCopyTag(link.id))) {
+        Icon(
+            painterResource(if (copied) R.drawable.ic_ph_check else R.drawable.ic_ph_copy),
+            stringResource(if (copied) R.string.mobile_public_links_copied else R.string.mobile_public_links_copy),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+        )
+    }
+}
+
+/** "Expires in" with the remainder in mono, counted down each minute. */
+@Composable
+private fun PublicLinkExpiry(link: PublicLink, modifier: Modifier = Modifier) {
+    val style = MaterialTheme.typography.bodySmall
+    val color = MaterialTheme.colorScheme.onSurfaceVariant
+    val expiresAt = link.expiresAt
+    if (expiresAt == null) {
+        Text(
+            stringResource(R.string.mobile_public_links_expiry_unknown),
+            style = style,
+            color = color,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = modifier,
+        )
+        return
+    }
+    val now by produceState(Instant.now(), expiresAt) {
+        while (true) {
+            value = Instant.now()
+            delay(EXPIRY_TICK_MILLIS)
+        }
+    }
+    val remaining = Duration.between(now, expiresAt)
+    val text = if (remaining.isNegative || remaining.isZero) {
+        AnnotatedString(stringResource(R.string.mobile_public_links_expired))
+    } else {
+        styledTemplate(
+            stringResource(R.string.mobile_public_links_expires_in),
+            listOf(remaining.shortRemainder() to style.putioMono().toSpanStyle()),
+        )
+    }
+    Text(text, style = style, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = modifier)
+}
+
+/** "2d 14h", "5h", "12m": the two largest units left, so a glance says how long. */
+internal fun Duration.shortRemainder(): String {
+    val days = toDays()
+    val hours = toHours() % HOURS_PER_DAY
+    val minutes = toMinutes() % MINUTES_PER_HOUR
+    return when {
+        days > 0 && hours > 0 -> "${days}d ${hours}h"
+        days > 0 -> "${days}d"
+        hours > 0 -> "${hours}h"
+        else -> "${minutes.coerceAtLeast(1)}m"
+    }
+}
+
+/** The address without its scheme, which every link shares. */
+private fun PublicLink.displayAddress(): String = url.value.removePrefix("https://")
+
+/** Account's list of every public link the account holds: copy on the row, share and revoke in its menu. */
 @Composable
 internal fun MobilePublicLinksScreen(
     publicLinks: MobilePublicLinks,
@@ -165,67 +329,117 @@ internal fun MobilePublicLinksScreen(
     val state = publicLinks.state
     val onEvent = publicLinks.onEvent
     LaunchedEffect(Unit) { onEvent(PublicLinksEvent.Load) }
-    val actions = rememberPublicLinkActions(state)
-    LazyColumn(modifier.fillMaxSize().testTag(MOBILE_PUBLIC_LINKS_LIST_TAG)) {
-        item(key = "warning") {
-            Column(Modifier.fillMaxWidth().padding(16.dp)) { PublicLinksWarning() }
-        }
-        state.outcome?.let { outcome ->
-            item(key = "outcome") {
-                Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-                    PublicLinksOutcomeLine(outcome, onDismiss = { onEvent(PublicLinksEvent.DismissOutcome) })
-                }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val copiedMessage = stringResource(R.string.mobile_public_links_link_copied)
+    val actions = rememberPublicLinkActions(state) { snackbarHostState.showSnackbar(copiedMessage) }
+    Box(modifier.fillMaxSize()) {
+        LazyColumn(Modifier.fillMaxSize().testTag(MOBILE_PUBLIC_LINKS_LIST_TAG)) {
+            item(key = "summary") {
+                MobileSectionLabel(stringResource(R.string.mobile_public_links_summary), first = true)
             }
-        }
-        when (val content = state.content) {
-            PublicLinksContent.Idle, PublicLinksContent.Loading -> item(key = "loading") {
-                Column(Modifier.fillMaxWidth().padding(16.dp)) { PublicLinksInlineLoading() }
-            }
-            is PublicLinksContent.Failed -> item(key = "failed") {
-                Column(Modifier.fillMaxWidth().padding(16.dp)) {
-                    PublicLinksInlineFailure(content.failure) { onEvent(PublicLinksEvent.Load) }
-                }
-            }
-            is PublicLinksContent.Ready -> {
-                if (content.links.isEmpty()) {
-                    item(key = "empty") {
-                        Text(
-                            text = stringResource(R.string.mobile_public_links_empty),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(16.dp),
-                        )
+            state.outcome?.let { outcome ->
+                item(key = "outcome") {
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                        PublicLinksOutcomeLine(outcome, onDismiss = { onEvent(PublicLinksEvent.DismissOutcome) })
                     }
                 }
-                items(content.links, key = { it.id.value }) { link ->
-                    ListItem(
-                        headlineContent = { Text(link.fileName, maxLines = 2, overflow = TextOverflow.Ellipsis) },
-                        supportingContent = {
-                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text(expiryText(link))
-                                PublicLinkButtons(link, state, actions)
-                            }
-                        },
-                        leadingContent = { FileTypeIcon(link.fileType, Modifier.size(24.dp)) },
-                    )
+            }
+            when (val content = state.content) {
+                PublicLinksContent.Idle, PublicLinksContent.Loading -> item(key = "loading") {
+                    Column(Modifier.fillMaxWidth().padding(16.dp)) { PublicLinksInlineLoading() }
+                }
+                is PublicLinksContent.Failed -> item(key = "failed") {
+                    Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                        PublicLinksInlineFailure(content.failure) { onEvent(PublicLinksEvent.Load) }
+                    }
+                }
+                is PublicLinksContent.Ready -> {
+                    if (content.links.isEmpty()) {
+                        item(key = "empty") {
+                            Text(
+                                text = stringResource(R.string.mobile_public_links_empty),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(16.dp),
+                            )
+                        }
+                    }
+                    items(content.links, key = { it.id.value }) { link -> PublicLinkListRow(link, state, actions) }
                 }
             }
         }
+        MobileSnackbarHost(snackbarHostState, Modifier.align(Alignment.BottomCenter))
     }
     PublicLinkRevokeDialog(actions, state, onEvent)
 }
 
 @Composable
-private fun PublicLinksWarning() {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(
-            text = stringResource(R.string.mobile_public_links_warning_title),
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        Text(
-            text = stringResource(R.string.mobile_public_links_warning),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+private fun PublicLinkListRow(link: PublicLink, state: PublicLinksState, actions: PublicLinkActions) {
+    val revoking = (state.mutation as? PublicLinksMutation.Revoking)?.link?.id == link.id
+    val metaStyle = MaterialTheme.typography.bodySmall
+    MobileRow(
+        leading = { FileTypeIcon(link.fileType, Modifier.size(26.dp)) },
+        headline = { MobileMiddleCutText(link.fileName) },
+        meta = {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                MobileMiddleCutText(
+                    text = link.displayAddress().removePrefix(APP_HOST_PREFIX),
+                    style = metaStyle.putioMono(),
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                Text("·", style = metaStyle, modifier = Modifier.clearAndSetSemantics {})
+                PublicLinkExpiry(link, Modifier.weight(1f, fill = false))
+            }
+        },
+        trailing = {
+            Row {
+                PublicLinkCopyButton(link, actions)
+                PublicLinkMenu(link, state.canRevoke && !revoking, actions)
+            }
+        },
+    )
+}
+
+@Composable
+private fun PublicLinkMenu(link: PublicLink, canRevoke: Boolean, actions: PublicLinkActions) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { expanded = true }, modifier = Modifier.testTag(mobilePublicLinkMoreTag(link.id))) {
+            Icon(
+                painterResource(R.drawable.ic_ph_dots_three_vertical),
+                stringResource(R.string.mobile_public_links_more, link.fileName),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            shape = RoundedCornerShape(PutioRadius.large),
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        ) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.mobile_public_links_share)) },
+                onClick = {
+                    expanded = false
+                    actions.share(link)
+                },
+                modifier = Modifier.testTag(mobilePublicLinkShareTag(link.id)),
+            )
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        stringResource(R.string.mobile_public_links_revoke),
+                        color = PutioDesignTokens.redTextSecondary,
+                    )
+                },
+                onClick = {
+                    expanded = false
+                    actions.confirmRevoke(link)
+                },
+                enabled = canRevoke,
+                modifier = Modifier.testTag(mobilePublicLinkRevokeTag(link.id)),
+            )
+        }
     }
 }
 
@@ -249,38 +463,8 @@ private fun PublicLinksInlineFailure(failure: PutioFailure, onRetry: () -> Unit)
             color = PutioDesignTokens.redTextSecondary,
             modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
         )
-        TextButton(onClick = onRetry) { Text(stringResource(R.string.mobile_action_retry)) }
-    }
-}
-
-@Composable
-private fun PublicLinkButtons(link: PublicLink, state: PublicLinksState, actions: PublicLinkActions) {
-    val revoking = (state.mutation as? PublicLinksMutation.Revoking)?.link?.id == link.id
-    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        TextButton(onClick = { actions.copy(link) }, modifier = Modifier.testTag(mobilePublicLinkCopyTag(link.id))) {
-            Text(
-                stringResource(
-                    if (actions.copiedId == link.id) R.string.mobile_public_links_copied
-                    else R.string.mobile_public_links_copy,
-                ),
-                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-            )
-        }
-        TextButton(onClick = { actions.share(link) }, modifier = Modifier.testTag(mobilePublicLinkShareTag(link.id))) {
-            Text(stringResource(R.string.mobile_public_links_share))
-        }
-        TextButton(
-            onClick = { actions.confirmRevoke(link) },
-            enabled = state.canRevoke,
-            modifier = Modifier.testTag(mobilePublicLinkRevokeTag(link.id)),
-        ) {
-            Text(
-                stringResource(
-                    if (revoking) R.string.mobile_public_links_revoking else R.string.mobile_public_links_revoke,
-                ),
-                color = if (state.canRevoke) PutioDesignTokens.redTextSecondary
-                    else MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+        TextButton(onClick = onRetry, colors = neutralTextButtonColors()) {
+            Text(stringResource(R.string.mobile_action_retry))
         }
     }
 }
@@ -296,7 +480,10 @@ private class PublicLinkActions(
 )
 
 @Composable
-private fun rememberPublicLinkActions(state: PublicLinksState): PublicLinkActions {
+private fun rememberPublicLinkActions(
+    state: PublicLinksState,
+    onCopied: suspend () -> Unit = {},
+): PublicLinkActions {
     val context = LocalContext.current
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
@@ -310,6 +497,7 @@ private fun rememberPublicLinkActions(state: PublicLinksState): PublicLinkAction
             scope.launch {
                 clipboard.setClipEntry(ClipEntry(sensitiveClip(label, link.url.value)))
                 copiedId = link.id
+                onCopied()
             }
         },
         share = { link -> context.sharePublicLink(link) },
@@ -327,6 +515,8 @@ private fun PublicLinkRevokeDialog(
     val link = actions.confirming ?: return
     AlertDialog(
         onDismissRequest = actions.dismissRevoke,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        modifier = Modifier.padding(horizontal = 24.dp),
         title = { Text(stringResource(R.string.mobile_public_links_revoke_title)) },
         text = { Text(stringResource(R.string.mobile_public_links_revoke_message, link.fileName)) },
         confirmButton = {
@@ -341,9 +531,7 @@ private fun PublicLinkRevokeDialog(
                 Text(stringResource(R.string.mobile_public_links_revoke))
             }
         },
-        dismissButton = {
-            TextButton(onClick = actions.dismissRevoke) { Text(stringResource(R.string.mobile_action_cancel)) }
-        },
+        dismissButton = { MobileDialogDismissButton(onClick = actions.dismissRevoke) },
     )
 }
 
@@ -360,7 +548,9 @@ private fun PublicLinksOutcomeLine(outcome: PublicLinksOutcome, onDismiss: () ->
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.weight(1f).semantics { liveRegion = LiveRegionMode.Polite },
         )
-        TextButton(onClick = onDismiss) { Text(stringResource(R.string.mobile_action_ok)) }
+        TextButton(onClick = onDismiss, colors = neutralTextButtonColors()) {
+            Text(stringResource(R.string.mobile_action_ok))
+        }
     }
 }
 
@@ -394,20 +584,6 @@ private fun PublicLinkRefusal.messageResource(): Int =
         PublicLinkRefusal.WEEKLY_LIMIT -> R.string.mobile_public_links_refused_weekly
     }
 
-@Composable
-private fun expiryText(link: PublicLink): String {
-    val context = LocalContext.current
-    val expiresAt = link.expiresAt ?: return stringResource(R.string.mobile_public_links_expiry_unknown)
-    return stringResource(
-        R.string.mobile_public_links_expires,
-        DateUtils.formatDateTime(
-            context,
-            expiresAt.toEpochMilli(),
-            DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_ABBREV_MONTH,
-        ),
-    )
-}
-
 /**
  * The address is a bearer link to the file, so Android 13+ keeps it out of the clipboard preview.
  */
@@ -426,3 +602,11 @@ private fun Context.sharePublicLink(link: PublicLink) {
         .putExtra(Intent.EXTRA_TITLE, link.fileName)
     startActivity(Intent.createChooser(send, null))
 }
+
+/** put.io's hours before a link stops working, which its API does not return. */
+private const val PUBLIC_LINK_HOURS = 72
+private const val HOURS_PER_DAY = 24
+private const val MINUTES_PER_HOUR = 60
+private const val EXPIRY_TICK_MILLIS = 60_000L
+private const val APP_HOST_PREFIX = "app."
+private val SLOT = Regex("%(\\d)\\\$s")

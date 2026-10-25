@@ -9,6 +9,7 @@ internal fun FilesBrowserState.reduceDelete(event: FilesBrowserEvent.DeleteEvent
         is FilesBrowserEvent.DeleteFinished -> deleteFinished(event)
         is FilesBrowserEvent.DeleteChecked -> deleteChecked(event)
         is FilesBrowserEvent.DeleteOutcomeAnnounced -> deleteOutcomeAnnounced(event.outcome)
+        is FilesBrowserEvent.TrashUndone -> trashUndone(event.outcome)
     }
 
 private fun FilesBrowserState.delete(event: FilesBrowserEvent.Delete): FilesBrowserTransition {
@@ -98,6 +99,15 @@ private fun FilesBrowserState.deleteOutcomeAnnounced(outcome: FilesDeleteOutcome
     if (index < 0) return FilesBrowserTransition(this, consumed = false)
     val announced = stack[index].copy(deleteOutcome = outcome.copy(announced = true))
     return FilesBrowserTransition(copy(stack = stack.replaceAt(index, announced)))
+}
+
+private fun FilesBrowserState.trashUndone(outcome: FilesDeleteOutcome): FilesBrowserTransition {
+    val index = stack.indexOfFirst {
+        it.deleteOutcome?.requestId == outcome.requestId && it.operation.pendingDelete == null
+    }
+    if (index < 0 || outcome.intent.mode != FilesDeleteMode.TRASH) return FilesBrowserTransition(this, consumed = false)
+    val undone = stack[index].copy(deleteOutcome = null, needsReload = true)
+    return FilesBrowserTransition(copy(stack = stack.replaceAt(index, undone)))
 }
 
 private fun PutioResult<FilesItem>.deleteReadFailure(expectedId: FilesItemId): PutioFailure? = when (this) {

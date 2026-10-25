@@ -113,7 +113,7 @@ class MobilePublicLinksProofTest {
             compose.onNodeWithContentDescription("Actions for ${FRIENDS_FILE.name}").performClick()
             compose.onNodeWithTag(MOBILE_FILES_PUBLIC_LINK_ACTION_TAG).assertDoesNotExist()
             screenshot("01-shared-file-no-exclusive-access")
-            compose.onNodeWithText("Download to this device").performClick()
+            compose.onNodeWithText("Download").performClick()
 
             compose.onNodeWithContentDescription("Actions for ${VIDEO.name}").performClick()
             screenshot("02-owned-file-actions")
@@ -128,7 +128,7 @@ class MobilePublicLinksProofTest {
             screenshot("04-link-created")
 
             compose.onNodeWithTag(mobilePublicLinkCopyTag(created.id)).performClick()
-            compose.onNodeWithText("Copied").assertIsDisplayed()
+            compose.onNodeWithContentDescription("Copied").assertIsDisplayed()
             screenshot("05-copied")
 
             compose.onNodeWithTag(mobilePublicLinkShareTag(created.id)).performClick()

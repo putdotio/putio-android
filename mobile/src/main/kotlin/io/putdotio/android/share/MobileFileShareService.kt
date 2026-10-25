@@ -73,6 +73,7 @@ class MobileFileShareService : Service() {
             job = scope.launch {
                 // Join so no progress update from the cancelled export lands after this stop.
                 previous?.cancelAndJoin()
+                MobileShareProgress.end()
                 ServiceCompat.stopForeground(this@MobileFileShareService, ServiceCompat.STOP_FOREGROUND_REMOVE)
                 stopSelf(startId)
             }
@@ -83,9 +84,12 @@ class MobileFileShareService : Service() {
         val previous = job
         job = scope.launch {
             previous?.cancelAndJoin()
+            MobileShareProgress.start(name)
             try {
                 share(FilesItemId(fileId), name, session)
             } finally {
+                // The dialog leaves with the export, however it ended.
+                MobileShareProgress.end()
                 // A newer start keeps the service alive; only the latest startId stops it.
                 stopSelf(startId)
             }
@@ -99,9 +103,12 @@ class MobileFileShareService : Service() {
         try {
             if (session == null) throw IOException("No session")
             boundTo(session) {
-                val file = exporter.export(fileId, name, session) { percent ->
+                val file = exporter.export(fileId, name, session) { percent, copied, total ->
                     show(notifications.progress(name, indeterminate = false, progress = percent))
+                    MobileShareProgress.progress(MobileShareProgressState(name, copied, total))
                 }
+                // The share sheet opens next; the in-app dialog has nothing left to show.
+                MobileShareProgress.end()
                 deliver(name, session) { shareChooser(file) }
             }
         } catch (error: CancellationException) {
@@ -199,6 +206,11 @@ class MobileFileShareService : Service() {
         /** The network, session and clock the service and the drag provider share. */
         internal fun shareDependencies(context: Context): MobileShareDependencies =
             dependenciesForTest ?: MobileShareDependencies.from(context)
+
+        /** Cancels the running export, as the notification's Cancel does. */
+        fun cancel(context: Context) {
+            context.startForegroundService(Intent(context, MobileFileShareService::class.java).setAction(ACTION_CANCEL))
+        }
 
         fun start(context: Context, fileId: FilesItemId, name: String) {
             val intent = Intent(context, MobileFileShareService::class.java)

@@ -20,15 +20,21 @@ Mobile, on the emulator harness against the live API:
 - Five tabs (Files, History, Transfers, Downloads, Account) on a navigation bar,
   a rail from 600 dp, or a drawer at large font sizes; each tab keeps its own
   back stack, Back previews every pop, and Search opens over Files
-- Files: browse, paginate, sort per folder, rename, move, trash, delete, copy
-  items shared with you, create folders, search inside a folder, a played mark
-  on media rows, Continue watching for videos started on this device, and
-  downloads listed while put.io is unreachable
+- Files: browse, paginate, sort per folder, rename with the extension kept,
+  move through a full-screen picker that can create folders, trash with Undo,
+  delete permanently after a confirm, copy items shared with you, create
+  folders, search inside a folder, a played mark on media rows, Continue
+  watching for videos started on this device, and downloads listed while
+  put.io is unreachable
+- One actions sheet per item: Play or Resume, Download and Share tiles, Open in
+  VLC, Mark as watched or unwatched, Rename, Move, Exclusive link and the
+  delete action; the player offers Open in VLC for a video it can't play
 - Files on tablets from 840 dp: the list beside the selected file's preview,
   Play or Resume, Download, Share and facts
 - Images, PDFs and text open in an in-app viewer that swipes between the
   folder's files of the same kind; other types open with another app
-- Trash: browse, restore one or all, delete permanently, empty
+- Trash: browse with the days each item has left, restore one or all, delete
+  permanently, empty
 - Transfers in Active, Needs attention and Completed sections, each card
   filling with its progress; Transfer actions open the save folder, copy the
   source link, stop, retry, open the file or remove it from the list
@@ -79,8 +85,9 @@ Mobile, on the emulator harness against the live API:
   files, shared text and several pasted links open the Add transfer sheet,
   which checks each line, adds the good ones, and saves to the default
   download folder or one picked with the move picker
-- Share out: Share file exports the original through a scoped content URI; the
-  chooser never sees a token. Product deep links open Files, a folder,
+- Share out: Share file exports the original through a scoped content URI,
+  with a progress dialog and Cancel while it downloads; the chooser never sees
+  a token. Product deep links open Files, a folder,
   Transfers, Search, History, Trash and Downloads
 - Exclusive access: create, copy, share and revoke public links to your own
   files and folders from their action sheet; Account lists every link with

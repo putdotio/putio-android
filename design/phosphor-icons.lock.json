@@ -786,6 +786,55 @@
       "asset": "assets/regular/arrow-circle-down.svg",
       "sourceSha256": "023031c9c7858af9f614b5bc5e8f5f511d59dc4990cfab5ef5c6cd65d1b90f3b",
       "outputSha256": "68c2a0eb3a6f60a3632306fa772a6b8bd2b46d73a71b13052ee355c6be94e9fa"
+    },
+    {
+      "resDir": "mobile/src/main/res",
+      "resource": "ic_ph_traffic_cone",
+      "asset": "assets/regular/traffic-cone.svg",
+      "sourceSha256": "5c4428c1ed4a52cc1d30141a4e87bc39a77f71d806e91a1c22e4b6d7c1ffe242",
+      "outputSha256": "dd9c2a33569a2c48b3066f83a3beff866d25c779282d27864e560ea1cbc2d2ae"
+    },
+    {
+      "resDir": "mobile/src/main/res",
+      "resource": "ic_ph_check_square",
+      "asset": "assets/regular/check-square.svg",
+      "sourceSha256": "69fc9a39cab4af71874d4cc56eaa6d8943962f2619f5c9a7e2e38d01e232c928",
+      "outputSha256": "c5f45052aca86f1dac3b1ec2aa7a92b700b8160c37c146aa6f8ad2bd58f42516"
+    },
+    {
+      "resDir": "mobile/src/main/res",
+      "resource": "ic_ph_eye_slash",
+      "asset": "assets/regular/eye-slash.svg",
+      "sourceSha256": "070b0296a7df89ebf4cec12436e323b5531d458aa9aed3608924085889e1fd17",
+      "outputSha256": "3d531b346d99e28abce7774c1e475f1614045d56af5d5654ee32232aaff9a3a7"
+    },
+    {
+      "resDir": "mobile/src/main/res",
+      "resource": "ic_ph_pencil_simple",
+      "asset": "assets/regular/pencil-simple.svg",
+      "sourceSha256": "999530da442f44d8cf0054364373d16150f3e082c2ac294a4988a9c3a4295c28",
+      "outputSha256": "b1d07149d700401bd1fc85d6b19cb4b5f527512c2dddab6299616b1fe58ab2ee"
+    },
+    {
+      "resDir": "mobile/src/main/res",
+      "resource": "ic_ph_folder_simple_dashed",
+      "asset": "assets/regular/folder-simple-dashed.svg",
+      "sourceSha256": "d5f23b371a146a920a81947bb77d1d4a62a1836f469ff83d037751b44b873957",
+      "outputSha256": "35b31d7158e2db816aab718a48d0ac512909f60c26ed0beb432a2b3f4c4604df"
+    },
+    {
+      "resDir": "mobile/src/main/res",
+      "resource": "ic_ph_copy_simple",
+      "asset": "assets/regular/copy-simple.svg",
+      "sourceSha256": "65fe240918529da6e9208a4a053f0ac05b8a9a834933e97115f22b630e17f0e7",
+      "outputSha256": "8fe9278c303750a6da78a7b7b05bf7c244e7d002933552c01a2d6e859eb7b9e8"
+    },
+    {
+      "resDir": "mobile/src/main/res",
+      "resource": "ic_ph_x_circle",
+      "asset": "assets/regular/x-circle.svg",
+      "sourceSha256": "cff9cacbd83ab11a01585dc63af07d289479bdb332708b0de2ad4c953f67d223",
+      "outputSha256": "4cdaa2c5c11806b30172de56bcb5677197e2a2fbf28cd730e3d37a459e3ec840"
     }
   ]
 }

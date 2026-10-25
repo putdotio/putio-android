@@ -45,6 +45,7 @@ import io.putdotio.android.files.MOBILE_FILES_RENAME_FIELD_TAG
 import io.putdotio.android.files.MOBILE_FILES_SORT_TAG
 import io.putdotio.android.files.MobileFilesScreen
 import io.putdotio.android.files.MobileFilesSortMenu
+import io.putdotio.android.files.MOBILE_FILES_RENAME_CONFIRM_TAG
 
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -118,7 +119,7 @@ class MobileFilesRenameTest {
         compose.openRowActions("old.mkv")
         compose.onNodeWithText("Rename").assertIsButton().performClick()
         compose.onNodeWithTag(MOBILE_FILES_RENAME_FIELD_TAG).performTextReplacement("saved.mkv")
-        compose.onNodeWithText("Save").performClick()
+        compose.onNodeWithTag(MOBILE_FILES_RENAME_CONFIRM_TAG).performClick()
         compose.runOnIdle {
             val reload = FilesBrowserReducer.reduce(
                 flow.state,
@@ -212,7 +213,8 @@ class MobileFilesRenameTest {
         compose.onNodeWithText("Rename").performClick()
         compose.onNodeWithTag(MOBILE_FILES_RENAME_FIELD_TAG).performTextReplacement("unsaved.mkv")
         val queuedSave = checkNotNull(
-            compose.onNodeWithText("Save").fetchSemanticsNode().config[SemanticsActions.OnClick].action,
+            compose.onNodeWithTag(MOBILE_FILES_RENAME_CONFIRM_TAG)
+                .fetchSemanticsNode().config[SemanticsActions.OnClick].action,
         )
         compose.runOnIdle {
             // Dispatch a queued refresh before the Save callback from the last composition.
@@ -267,7 +269,7 @@ class MobileFilesRenameTest {
         compose.onNodeWithContentDescription("Actions for old.mkv").performClick()
         compose.onNodeWithText("Rename").performClick()
         compose.onNodeWithTag(MOBILE_FILES_RENAME_FIELD_TAG).performTextReplacement("old.mkv")
-        compose.onNodeWithText("Save").performClick()
+        compose.onNodeWithTag(MOBILE_FILES_RENAME_CONFIRM_TAG).performClick()
         compose.runOnIdle {
             assertEquals(FilesFolderOperation.Idle, state.current.operation)
             assertNull(FilesBrowserReducer.reduce(state, FilesBrowserEvent.Retry).effect)

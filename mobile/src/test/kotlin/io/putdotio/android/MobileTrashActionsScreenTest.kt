@@ -40,6 +40,12 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.SemanticsNodeInteractionsProvider
+import io.putdotio.android.trash.MOBILE_TRASH_MORE_TAG
+import androidx.compose.foundation.layout.Column
+import androidx.compose.runtime.Composable
+import io.putdotio.android.trash.MobileTrashOverflow
 
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -54,7 +60,7 @@ class MobileTrashActionsScreenTest {
     fun rowSheetOffersRestoreAndPermanentDeleteAndDeleteNeedsItsOwnConfirmation() {
         val events = mutableListOf<TrashEvent>()
         var state by mutableStateOf(TrashState(content = loaded))
-        compose.setContent { PutioTheme { MobileTrashScreen(state, { events += it; true }) } }
+        compose.setContent { PutioTheme { TrashWithOverflow(state) { events += it; true } } }
         compose.onNodeWithContentDescription("Actions for ${item.name}").performClick()
         compose.onNodeWithTag(MOBILE_TRASH_ITEM_DELETE_TAG).performClick()
         compose.runOnIdle { assertEquals(listOf<TrashEvent>(TrashEvent.SelectDelete(item.id)), events) }
@@ -78,9 +84,9 @@ class MobileTrashActionsScreenTest {
     fun bulkButtonsConfirmSeparatelyAndStayDisabledOnKnownEmptyTrash() {
         val events = mutableListOf<TrashEvent>()
         var state by mutableStateOf(TrashState(content = loaded))
-        compose.setContent { PutioTheme { MobileTrashScreen(state, { events += it; true }) } }
-        compose.onNodeWithTag(MOBILE_TRASH_RESTORE_ALL_TAG).performClick()
-        compose.onNodeWithTag(MOBILE_TRASH_EMPTY_TAG).performClick()
+        compose.setContent { PutioTheme { TrashWithOverflow(state) { events += it; true } } }
+        compose.trashMenuItem(MOBILE_TRASH_RESTORE_ALL_TAG).performClick()
+        compose.trashMenuItem(MOBILE_TRASH_EMPTY_TAG).performClick()
         compose.runOnIdle { assertEquals(listOf(TrashEvent.SelectRestoreAll, TrashEvent.SelectEmpty), events) }
         compose.runOnIdle { state = state.copy(actionConfirmation = TrashAction.Empty, actionConfirmationId = 5) }
         compose.onNodeWithText("Empty Trash?").assertIsDisplayed()
@@ -89,8 +95,8 @@ class MobileTrashActionsScreenTest {
             assertEquals(TrashEvent.ConfirmAction(5), events.last())
             state = TrashState(content = TrashContent.Loaded(emptyList(), null, 0, 0))
         }
-        compose.onNodeWithTag(MOBILE_TRASH_RESTORE_ALL_TAG).assertIsNotEnabled()
-        compose.onNodeWithTag(MOBILE_TRASH_EMPTY_TAG).assertIsNotEnabled()
+        compose.trashMenuItem(MOBILE_TRASH_RESTORE_ALL_TAG).assertIsNotEnabled()
+        compose.trashMenuItem(MOBILE_TRASH_EMPTY_TAG).assertIsNotEnabled()
     }
 
     @Test
@@ -98,12 +104,12 @@ class MobileTrashActionsScreenTest {
         val events = mutableListOf<TrashEvent>()
         val state = TrashState(content = loaded, actionOutcome = TrashActionOutcome(
             TrashAction.DeleteItem(item), TrashActionSubmission.UNCERTAIN, TrashActionCheck.FAILED))
-        compose.setContent { PutioTheme { MobileTrashScreen(state, { events += it; true }) } }
+        compose.setContent { PutioTheme { TrashWithOverflow(state) { events += it; true } } }
         compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_TRASH_ACTION_OUTCOME_TAG))
         compose.onNodeWithText("“${item.name}” is still in Trash.").assertIsDisplayed()
         compose.onNodeWithTag(MOBILE_TRASH_ACTION_CHECK_TAG).assertDoesNotExist()
-        compose.onNodeWithTag(MOBILE_TRASH_RESTORE_ALL_TAG).assertIsEnabled()
-        compose.onNodeWithTag(MOBILE_TRASH_EMPTY_TAG).assertIsEnabled()
+        compose.trashMenuItem(MOBILE_TRASH_RESTORE_ALL_TAG).assertIsEnabled()
+        compose.trashMenuItem(MOBILE_TRASH_EMPTY_TAG).assertIsEnabled()
         compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).performScrollToNode(hasText(item.name))
         compose.onNodeWithContentDescription("Actions for ${item.name}").assertIsEnabled()
         compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_TRASH_ACTION_OUTCOME_TAG))
@@ -116,7 +122,7 @@ class MobileTrashActionsScreenTest {
         val events = mutableListOf<TrashEvent>()
         var state by mutableStateOf(TrashState(content = loaded, actionOutcome = TrashActionOutcome(
             TrashAction.DeleteItem(item), TrashActionSubmission.UNCERTAIN, TrashActionCheck.INCONCLUSIVE)))
-        compose.setContent { PutioTheme { MobileTrashScreen(state, { events += it; true }) } }
+        compose.setContent { PutioTheme { TrashWithOverflow(state) { events += it; true } } }
         compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_TRASH_ACTION_OUTCOME_TAG))
         compose.onNodeWithText("“${item.name}” was not in the first page. Check Trash again in a moment.")
             .assertIsDisplayed()
@@ -126,8 +132,8 @@ class MobileTrashActionsScreenTest {
         }
         compose.onNodeWithText("We could not confirm the request. Check Trash before taking another action.")
             .assertIsDisplayed()
-        compose.onNodeWithTag(MOBILE_TRASH_RESTORE_ALL_TAG).assertIsNotEnabled()
-        compose.onNodeWithTag(MOBILE_TRASH_EMPTY_TAG).assertIsNotEnabled()
+        compose.trashMenuItem(MOBILE_TRASH_RESTORE_ALL_TAG).assertIsNotEnabled()
+        compose.trashMenuItem(MOBILE_TRASH_EMPTY_TAG).assertIsNotEnabled()
         compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).performScrollToNode(hasText(item.name))
         compose.onNodeWithContentDescription("Actions for ${item.name}").assertIsNotEnabled()
         compose.runOnIdle {
@@ -140,5 +146,22 @@ class MobileTrashActionsScreenTest {
         compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_TRASH_ACTION_OUTCOME_TAG))
         compose.onNodeWithText("OK").performClick()
         compose.runOnIdle { assertEquals(TrashEvent.DismissActionOutcome, events.last()) }
+    }
+
+    /** A Trash overflow item, opening the overflow first when it is closed. */
+    private fun SemanticsNodeInteractionsProvider.trashMenuItem(tag: String): SemanticsNodeInteraction {
+        if (onAllNodes(hasTestTag(tag)).fetchSemanticsNodes().isEmpty()) {
+            onNode(hasTestTag(MOBILE_TRASH_MORE_TAG)).performClick()
+        }
+        return onNode(hasTestTag(tag))
+    }
+
+    /** The screen under the overflow its top bar carries in the shell. */
+    @Composable
+    private fun TrashWithOverflow(state: TrashState, onEvent: (TrashEvent) -> Boolean) {
+        Column {
+            MobileTrashOverflow(state, onEvent)
+            MobileTrashScreen(state, onEvent)
+        }
     }
 }

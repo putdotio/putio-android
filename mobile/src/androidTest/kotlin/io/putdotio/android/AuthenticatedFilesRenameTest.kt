@@ -35,6 +35,7 @@ import io.putdotio.android.files.MOBILE_FILES_LIST_TAG
 import io.putdotio.android.files.MOBILE_FILES_RENAME_FIELD_TAG
 import io.putdotio.android.search.MOBILE_SEARCH_FIELD_TAG
 import io.putdotio.android.search.MOBILE_SEARCH_RESULTS_TAG
+import io.putdotio.android.files.MOBILE_FILES_RENAME_CONFIRM_TAG
 
 @RunWith(AndroidJUnit4::class)
 class AuthenticatedFilesRenameTest {
@@ -136,7 +137,7 @@ class AuthenticatedFilesRenameTest {
         requireEditorName(fixture.renameOriginalName)
         compose.onNodeWithTag(MOBILE_FILES_RENAME_FIELD_TAG).performTextReplacement(fixture.renameNewName)
         requireSession(runtime, session)
-        compose.onNodeWithText(compose.activity.getString(R.string.mobile_files_save)).performClick()
+        compose.onNodeWithTag(MOBILE_FILES_RENAME_CONFIRM_TAG).performClick()
         compose.waitUntil(TIMEOUT_MILLIS) {
             compose.onAllNodes(hasTestTag(MOBILE_FILES_RENAME_FIELD_TAG)).fetchSemanticsNodes().isEmpty()
         }

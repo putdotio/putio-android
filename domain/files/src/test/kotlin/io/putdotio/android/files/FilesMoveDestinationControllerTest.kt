@@ -73,6 +73,43 @@ class FilesMoveDestinationControllerTest {
     }
 
     @Test
+    fun aFolderMadeInThePickerIsListedAndOpensWithoutARead() = runBlocking {
+        var reads = 0
+        val repository = object : StubFilesRepository() {
+            override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> =
+                error("Source browser must not load")
+            override suspend fun loadMoveDestinations(
+                folderId: FilesItemId,
+                cursor: FilesCursor?,
+            ): PutioResult<FilesPage> {
+                reads++
+                return PutioResult.Success(FilesPage(listOf(target), null))
+            }
+        }
+        val controller = FilesMoveDestinationController(source, FilesFolder.Root.id, repository, this)
+        try {
+            controller.awaitState { it.current.content is FilesContent.Ready }
+            val created = folder(11L)
+            // A folder from elsewhere, a file, or one already open is not this picker's new folder.
+            val elsewhere = created.copy(parentId = target.id)
+            assertFalse(controller.dispatch(FilesMoveDestinationEvent.FolderCreated(elsewhere)))
+            assertFalse(
+                controller.dispatch(FilesMoveDestinationEvent.FolderCreated(created.copy(type = PutioFileType.VIDEO))),
+            )
+            assertTrue(controller.dispatch(FilesMoveDestinationEvent.FolderCreated(created)))
+            val opened = controller.state.value
+            assertEquals(listOf(FilesFolder.Root.id, created.id), opened.path.map { it.id })
+            assertEquals(FilesContent.Empty(FilesPaging.Complete), opened.current.content)
+            assertTrue(opened.canMoveHere)
+            assertTrue(controller.dispatch(FilesMoveDestinationEvent.NavigateBack))
+            assertEquals(listOf(created.id, target.id), controller.state.value.current.content.items().map { it.id })
+            assertEquals(1, reads)
+        } finally {
+            controller.close()
+        }
+    }
+
+    @Test
     fun aDestinationPickerWithoutASourceAcceptsRootAndEveryFolder() = runBlocking {
         val repository = object : StubFilesRepository() {
             override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> =
