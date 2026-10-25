@@ -202,7 +202,10 @@ internal class MobileFilesActionsController(
         }
     }
 
-    /** Reads each restored item until put.io serves it again, a few rounds at most; the folder reads after either way. */
+    /**
+     * Reads each restored item until put.io serves it again, a few rounds at most; the folder reads
+     * after either way.
+     */
     private suspend fun awaitRestored(itemIds: List<FilesItemId>) {
         var pending = itemIds
         repeat(RESTORE_READBACK_ROUNDS) { round ->
