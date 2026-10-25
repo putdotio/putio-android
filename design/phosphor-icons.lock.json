@@ -779,6 +779,13 @@
       "asset": "assets/regular/queue.svg",
       "sourceSha256": "afca8abc51d163ba1aa058888463146cceb0d131ad9654ed4f37253e19e429d6",
       "outputSha256": "167427e30f792396b307bddc0f6428c2f6a5d000a6d94af41e7f55ba95b7ac51"
+    },
+    {
+      "resDir": "mobile/src/main/res",
+      "resource": "ic_ph_arrow_circle_down",
+      "asset": "assets/regular/arrow-circle-down.svg",
+      "sourceSha256": "023031c9c7858af9f614b5bc5e8f5f511d59dc4990cfab5ef5c6cd65d1b90f3b",
+      "outputSha256": "68c2a0eb3a6f60a3632306fa772a6b8bd2b46d73a71b13052ee355c6be94e9fa"
     }
   ]
 }

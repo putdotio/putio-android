@@ -341,6 +341,39 @@ Tests: `FilesBrowserReducerTest`, `SdkFilesRepositoryTest`,
 `MobileContinueWatchingStoreTest`, `MobileMiddleCutTextTest`, `MobileFileSizeTest`,
 `MobileFilesScreenTest`, `MobileFilesBarsTest`, `MobileShellTest`.
 
+## Tablet list-detail and viewers
+
+Mobile only. In a window 840 dp or wider, Files is Material's list-detail
+(`ListDetailPaneScaffold`): the folder's bar and list on the left, 520 dp or
+half the width when that is less, and the selected file's detail on the right.
+Search and narrower windows keep the single list. A tap on a file selects it
+into the detail; folders still open in the list, and another folder starts
+with nothing selected. The detail shows a preview (a video's still, an image
+decoded at the preview's size, else the type glyph), the full name, a filled
+Play, "Resume from 18:42" or Open, Download for media, Share, and an overflow
+that opens the file's actions sheet. Its facts are Size, Added with the year,
+Length when put.io knows the duration, Subtitles for videos (each language put.io
+lists once), and Folder, the path from the root.
+
+Images, PDFs and text open in an in-app viewer on a black frame, from a row on
+a phone or from Open in the detail. A swipe moves between the folder's loaded
+files of the same kind, and the position shows in mono. Bytes come through the
+app's [Documents provider](#documents-provider), so a finished download reads
+from disk and anything else streams with the session in the request header;
+no URL with a token is built. Images decode at the frame's size. A PDF is
+copied once into a private cache file that closing the viewer deletes (the
+cache clears again when a viewer opens), renders one page at a time at the
+frame's width under 4 megapixels, and opens with another app from 200 MB. Text
+shows the first 250 kB as UTF-8 in mono and says when the file goes on. A file
+the viewer can't read offers Open with another app.
+
+Other types open with another app: `ACTION_VIEW` on the file's documents-provider
+URI with its extension's MIME type and a read grant only, which sign-out
+revokes. When no app takes the type, the Files snackbar says so.
+
+Tests: `MobileFilesListDetailTest`, `MobileViewerLimitsTest`,
+`SdkFilesSubtitleLanguagesTest`.
+
 ## Trash
 
 Every Trash action confirms, submits exactly once, then verifies with one fresh

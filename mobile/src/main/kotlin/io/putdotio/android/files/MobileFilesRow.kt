@@ -66,6 +66,8 @@ internal fun MobileFilesRow(
     highlighted: Boolean = false,
     /** A folder's listing dates the row; search names the folder it sits in instead. */
     place: MobileFilesRowPlace = MobileFilesRowPlace.Listing,
+    /** The file the tablet's detail pane shows, tinted more faintly than an outside open. */
+    selected: Boolean = false,
 ) {
     val actionsLabel = stringResource(R.string.mobile_files_actions, item.name)
     // Touch never focuses a row; a keyboard-focused one is outlined so it reads at a glance.
@@ -124,14 +126,18 @@ internal fun MobileFilesRow(
         headline = { MobileMiddleCutText(text = item.name) },
         meta = { MobileFilesMeta(item, onDevice = downloadStatus is DownloadStatus.Completed, place = place) },
         trailing = trailing,
-        containerColor = if (highlighted) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
+        containerColor = when {
+            highlighted -> MaterialTheme.colorScheme.secondaryContainer
+            selected -> PutioDesignTokens.yellowSolid.copy(alpha = SELECTED_ROW_ALPHA)
+            else -> Color.Transparent
+        },
         modifier = modifier
             // A playable row is the player's starting bounds.
             .playbackContainer(item.id.value, playable = item.isPlayable)
             .onFocusChanged { focused = it.isFocused }
             .focusOutline(focused, outline)
             .then(interaction)
-            .semantics(mergeDescendants = true) { if (highlighted) selected = true },
+            .semantics(mergeDescendants = true) { if (highlighted || selected) this.selected = true },
     )
 }
 
@@ -237,6 +243,7 @@ private fun String.toDisplayDate(context: Context): String? =
             DateUtils.formatDateTime(context, timestamp, DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_ABBREV_MONTH)
         }
 
+private const val SELECTED_ROW_ALPHA = 0.09f
 private val FILES_ICON_SIZE = 26.dp
 private val FILES_CHEVRON_SIZE = 20.dp
 private val FILES_META_GAP = 6.dp

@@ -48,6 +48,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.InputMode
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.platform.LocalView
@@ -75,8 +76,10 @@ import io.putdotio.android.design.PutioEmptyGlyph
 import io.putdotio.android.downloads.DownloadsState
 import io.putdotio.android.share.MobileFileDragOut
 import io.putdotio.android.share.MobileFileDragShadow
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.filterNotNull
 
 internal const val MOBILE_FILES_LIST_TAG = "mobile-files-list"
@@ -104,6 +107,8 @@ internal fun MobileFilesScreen(
     continueWatching: List<ContinueWatchingEntry> = emptyList(),
     /** Opens the New folder dialog; null where this screen can't create one. */
     onNewFolder: (() -> Unit)? = null,
+    /** How a tap opens a file beyond playing media; null leaves only media playable. */
+    fileOpening: MobileFilesOpening? = null,
 ) {
     val current = state.current
     val atRoot = current.folder.id == FilesFolder.Root.id
@@ -162,10 +167,25 @@ internal fun MobileFilesScreen(
                     summary = if (atRoot) null else current.summary,
                 ),
                 onNewFolder = onNewFolder,
+                fileOpening = fileOpening,
             )
         }
     }
 }
+
+/**
+ * How the list opens files beside a viewer or the tablet's detail pane: [onOpenFile] takes every
+ * file tap; with [showsDetail] that tap selects the file into the pane, which [selectedFileId] names.
+ * [actionsRequests] opens a listed file's sheet from outside the list, as the pane's overflow does.
+ */
+internal class MobileFilesOpening(
+    val onOpenFile: (FilesItem) -> Unit,
+    val showsDetail: Boolean = false,
+    val selectedFileId: FilesItemId? = null,
+    val actionsRequests: Flow<FilesItemId> = emptyFlow(),
+    /** Files no app on the device would open, for the snackbar. */
+    val openFailures: Flow<FilesItem> = emptyFlow(),
+)
 
 /** A copy outlives folder navigation, so its line stays while the folder loads or fails. */
 @Composable
@@ -201,6 +221,7 @@ private fun MobileRefreshableFilesContent(
     fileDragOut: MobileFileDragOut?,
     headers: MobileFilesHeaders,
     onNewFolder: (() -> Unit)?,
+    fileOpening: MobileFilesOpening?,
 ) {
     val operation = state.current.operation
     val currentOperation by rememberUpdatedState(operation)
@@ -212,6 +233,10 @@ private fun MobileRefreshableFilesContent(
     val selectedItem = items.firstOrNull { it.id.value == selectedItemId }
     LaunchedEffect(selectedItemId, selectedItem) {
         if (selectedItem == null) selectedItemId = null
+    }
+    MobileFilesActionsRequests(fileOpening, items) { id ->
+        keyDelete = null
+        selectedItemId = id.value
     }
     MobileFilesKeyboardEffect(
         selectionOpen = selectedItemId != null,
@@ -276,6 +301,7 @@ private fun MobileRefreshableFilesContent(
 
     val snackbarHostState = remember { SnackbarHostState() }
     MobileFilesTrashedAnnouncement(state.current, snackbarHostState, onEvent, onViewTrash)
+    MobileFilesOpenFailures(fileOpening, snackbarHostState)
 
     Box(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -342,6 +368,7 @@ private fun MobileRefreshableFilesContent(
                                 fileDragOut = fileDragOut,
                                 // A touch drag starts after the long press opened the sheet; the drag replaces it.
                                 onDragStarted = dismissSelection,
+                                fileOpening = fileOpening,
                             )
                         }
 
@@ -455,6 +482,34 @@ private fun MobileFilesTrashedAnnouncement(
             if (result == SnackbarResult.ActionPerformed) currentOnViewTrash?.invoke()
         } finally {
             currentOnEvent(FilesBrowserEvent.DeleteOutcomeAnnounced(outcome))
+        }
+    }
+}
+
+/** Opens the sheet for a listed file the detail pane or the viewer asks for. */
+@Composable
+private fun MobileFilesActionsRequests(
+    fileOpening: MobileFilesOpening?,
+    items: List<FilesItem>,
+    onOpenSheet: (FilesItemId) -> Unit,
+) {
+    val currentItems by rememberUpdatedState(items)
+    val currentOnOpenSheet by rememberUpdatedState(onOpenSheet)
+    val requests = fileOpening?.actionsRequests ?: return
+    LaunchedEffect(requests) {
+        requests.collect { id -> if (currentItems.any { it.id == id }) currentOnOpenSheet(id) }
+    }
+}
+
+/** A file no app on the device opens, said in one line. */
+@Composable
+private fun MobileFilesOpenFailures(fileOpening: MobileFilesOpening?, snackbarHostState: SnackbarHostState) {
+    val resources = LocalResources.current
+    val failures = fileOpening?.openFailures ?: return
+    LaunchedEffect(failures) {
+        failures.collect { item ->
+            snackbarHostState.currentSnackbarData?.dismiss()
+            snackbarHostState.showSnackbar(resources.getString(R.string.mobile_files_open_failed, item.name))
         }
     }
 }
@@ -657,6 +712,7 @@ private fun MobileFilesList(
     onItemFocusChanged: (FilesItemId, Boolean) -> Unit,
     fileDragOut: MobileFileDragOut?,
     onDragStarted: () -> Unit,
+    fileOpening: MobileFilesOpening?,
 ) {
     val viewport = content.viewport
     // The viewport counts rows; headers sit above them and show again when the list is back at its top.
@@ -725,26 +781,12 @@ private fun MobileFilesList(
                     item = item,
                     modifier = rowModifier,
                     highlighted = item.id == revealItemId,
+                    selected = item.id == fileOpening?.selectedFileId,
                     downloadStatus = downloads.rowStatus(item.id),
                     onActions = if (hasActions(item)) { { onActions(item) } } else null,
                     actionsEnabled = actionsEnabled,
-                    onClick = when {
-                        item.id == pendingItemId -> null
-                        item.isFolder -> {
-                            { onEvent(FilesBrowserEvent.OpenFolder(item.id)) }
-                        }
-
-                        item.isPlayable -> {
-                            { onPlayMedia(item) }
-                        }
-
-                        else -> null
-                    },
-                    onClickLabel = when {
-                        item.isFolder -> stringResource(R.string.mobile_files_open_folder, item.name)
-                        item.isPlayable -> stringResource(R.string.mobile_files_play_media, item.name)
-                        else -> null
-                    },
+                    onClick = if (item.id == pendingItemId) null else rowClick(item, fileOpening, onEvent, onPlayMedia),
+                    onClickLabel = rowClickLabel(item, fileOpening),
                 )
             }
         }
@@ -760,6 +802,36 @@ private fun MobileFilesList(
         }
     }
 }
+
+/** A folder opens; a file goes to [MobileFilesOpening] when there is one, else only media plays. */
+private fun rowClick(
+    item: FilesItem,
+    fileOpening: MobileFilesOpening?,
+    onEvent: (FilesBrowserEvent) -> Unit,
+    onPlayMedia: (FilesItem) -> Unit,
+): (() -> Unit)? =
+    when {
+        item.isFolder -> {
+            { onEvent(FilesBrowserEvent.OpenFolder(item.id)) }
+        }
+        fileOpening != null && item.id.value > 0L -> {
+            { fileOpening.onOpenFile(item) }
+        }
+        item.isPlayable -> {
+            { onPlayMedia(item) }
+        }
+        else -> null
+    }
+
+@Composable
+private fun rowClickLabel(item: FilesItem, fileOpening: MobileFilesOpening?): String? =
+    when {
+        item.isFolder -> stringResource(R.string.mobile_files_open_folder, item.name)
+        fileOpening?.showsDetail == true -> stringResource(R.string.mobile_files_show_details, item.name)
+        item.isPlayable -> stringResource(R.string.mobile_files_play_media, item.name)
+        fileOpening != null -> stringResource(R.string.mobile_files_open_folder, item.name)
+        else -> null
+    }
 
 /**
  * Where keyboard focus goes in a listing. A folder reached from the keyboard focuses the row last

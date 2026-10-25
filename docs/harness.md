@@ -546,6 +546,10 @@ Java against the framework only because it runs in the test package's process;
 its torrent provider sits outside the app's authority prefix, since put.io
 refuses torrents from providers named after its own package.
 
+Captures of the tablet layout need true scale, status bar included: create an
+AVD with `-d pixel_tablet` (2560x1600 at 320 dpi, 1280x800 dp) rather than
+resizing a phone.
+
 Use a phone AVD you created, with a hardware keyboard and a tablet-size
 display; restore with `wm size reset` and `wm density reset`:
 

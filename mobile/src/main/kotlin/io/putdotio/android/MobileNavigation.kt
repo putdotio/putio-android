@@ -47,6 +47,8 @@ import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesRepository
+import io.putdotio.android.files.FilesSubtitleLanguages
+import io.putdotio.android.files.MobileFileOpener
 import io.putdotio.android.files.MobileContinueWatching
 import io.putdotio.android.files.MobileFilesRoute
 import io.putdotio.android.files.MobileMoveTargetStore
@@ -144,6 +146,9 @@ internal fun MobileNavHost(
     fileDragOut: MobileFileDragOut? = null,
     continueWatching: MobileContinueWatching? = null,
     onNewFolder: (() -> Unit)? = null,
+    /** From 840dp, the Files bar over the list pane; Files then shows the selected file beside the list. */
+    filesListPaneTopBar: (@Composable () -> Unit)? = null,
+    subtitleLanguages: FilesSubtitleLanguages? = null,
 ) {
     val currentTransfersState by rememberUpdatedState(transfersState)
     val currentTransfersSessionId by rememberUpdatedState(transfersSessionId)
@@ -211,6 +216,9 @@ internal fun MobileNavHost(
                             fileDragOut = fileDragOut,
                             continueWatching = startedVideos.orEmpty(),
                             onNewFolder = onNewFolder,
+                            listPaneTopBar = filesListPaneTopBar,
+                            fileOpener = remember(account.userId) { MobileFileOpener(account.userId) },
+                            subtitleLanguages = subtitleLanguages,
                         )
                     }
                 }
