@@ -33,6 +33,7 @@ $S/devbox.sh run "$RUN" './gradlew --max-workers=6 :mobile:assembleProductionDeb
 $S/devbox.sh run "$RUN" '$V/session.sh up $RUN --snapshot'  # prints the serial, e.g. emulator-5556
 $S/devbox.sh run "$RUN" '$V/session.sh install $RUN'
 $S/devbox.sh run "$RUN" './scripts/sign-in-devs-auto.sh $SERIAL'
+$S/devbox.sh run "$RUN" '$V/session.sh relaunch $RUN'
 ```
 
 Single quotes matter: `devbox.sh run` sets `$RUN`, `$V` (this skill's
@@ -57,6 +58,10 @@ Two ways to boot:
 - Every `putio-phone` instance runs `-read-only`, ours included; boot that
   AVD only through `session.sh up --snapshot`. A snapshot loads only with the
   renderer that saved it (`-gpu swiftshader_indirect`).
+- After a snapshot load the app's window can composite black: the status bar
+  draws, the app does not, and `capture.sh` rejects the screenshot as
+  near-black. `session.sh relaunch` restarts the app, which draws it again;
+  it is the last Launch step for that reason.
 - Run one Gradle invocation at a time per run. Other agents share the devbox.
 - After a code change: `devbox.sh sync`, assemble, then `session.sh install`.
   `install -r` keeps the session, so skip sign-in; Doctor confirms it.
@@ -179,7 +184,7 @@ arguments.
 | Script       | Host   | Use                                                                                     |
 | ------------ | ------ | --------------------------------------------------------------------------------------- |
 | `devbox.sh`  | laptop | `sync`, `run '<cmd>'`, `pull`, `remove` for `<run>`; returns the remote exit status     |
-| `session.sh` | devbox | `up --snapshot` or `up --fresh`, `install`, `down`                                      |
+| `session.sh` | devbox | `up --snapshot` or `up --fresh`, `install`, `relaunch`, `down`                          |
 | `doctor.sh`  | devbox | read-only health check                                                                  |
 | `ui.sh`      | devbox | `dump`, `find`, `tap`, `long-press`, `wait`, `gone`, `scroll-to`, `type`, `link`, `key` |
 | `capture.sh` | devbox | screenshot, uiautomator XML and app logcat into `.evidence/<run>/`; secret scan         |

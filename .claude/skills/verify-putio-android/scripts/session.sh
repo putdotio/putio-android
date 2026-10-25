@@ -8,6 +8,7 @@
 #   session.sh up      <run> --fresh      create AVD <run> from putio-phone's image and boot it
 #                                         (signed out; sign in with scripts/sign-in-devs-auto.sh)
 #   session.sh install <run>              install the built production debug APK (adb install -r)
+#   session.sh relaunch <run>             force-stop and start the app, wait for Files or Welcome
 #   session.sh down    <run>              force-stop the app and stop the run's emulator; --fresh
 #                                         runs also delete AVD <run>. .evidence/<run>/ stays
 #
@@ -128,6 +129,14 @@ case "${cmd}" in
     [[ -f "${APK}" ]] || die "missing ${APK}; run ./gradlew --max-workers=6 :mobile:assembleProductionDebug"
     "${ADB}" -s "${serial}" install -r "${APK}" >&2
     echo "installed $(shasum -a 256 "${APK}" | cut -c1-12) on ${serial}"
+    ;;
+  relaunch)
+    serial="$(env_value SERIAL)"
+    owns_run_serial || die "no running emulator for run ${run}"
+    "${ADB}" -s "${serial}" shell am force-stop "${PACKAGE}"
+    "${ADB}" -s "${serial}" shell am start -W -n "${PACKAGE}/io.putdotio.android.MainActivity" >/dev/null
+    "$(dirname "${BASH_SOURCE[0]}")/ui.sh" wait "${serial}" --match '^(Search your files|Welcome!|Welcome back!)$' 60
+    echo "relaunched ${PACKAGE} on ${serial}"
     ;;
   down)
     serial="$(env_value SERIAL || true)"
