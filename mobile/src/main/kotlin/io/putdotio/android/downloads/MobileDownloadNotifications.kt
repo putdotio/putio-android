@@ -29,7 +29,7 @@ internal sealed interface DownloadOutcome {
  * Tells the viewer when a download finishes or fails, with or without the app open. The name
  * comes from the owner's index row; no URL or token reaches a notification. Each file has one
  * slot, replaced by its next outcome and cleared by a retry, a delete or the owner's sign-out; a
- * tap opens the row in Downloads, and its actions play a finished copy or retry a failed one.
+ * tap opens the row in Downloads; a finished copy offers Play, a failed one Try again and Open in Downloads.
  * Nothing is posted while the app's notifications are off, the channel is blocked, or, from
  * Android 13, POST_NOTIFICATIONS is not granted, nor for an account other than the one signed in now.
  */
@@ -140,6 +140,7 @@ internal class MobileDownloadNotifications(
             // The lock screen shows the outcome without the file name.
             val public = NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(icon)
+                .setColor(ContextCompat.getColor(context, DesignR.color.putio_yellow_solid))
                 .setContentTitle(title)
                 .build()
             val openRow = MobileDeepLink.Downloads(entry.fileId, userId = userId).pendingIntent(context)
@@ -155,8 +156,9 @@ internal class MobileDownloadNotifications(
                     MobileDownloadActionReceiver.retry(context, userId, entry.fileId),
                 )
             }
-            return NotificationCompat.Builder(context, CHANNEL_ID)
+            val builder = NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(icon)
+                .setColor(ContextCompat.getColor(context, DesignR.color.putio_yellow_solid))
                 .setContentTitle(title)
                 .setContentText(entry.name)
                 .setStyle(NotificationCompat.BigTextStyle().bigText(text))
@@ -167,11 +169,15 @@ internal class MobileDownloadNotifications(
                 .setAutoCancel(true)
                 .setContentIntent(openRow)
                 .addAction(primary)
-                .addAction(
+            // A finished copy's one action is Play; its tap already opens the row.
+            if (outcome is DownloadOutcome.Failed) {
+                builder.addAction(
                     R.drawable.ic_ph_download_simple,
                     context.getString(R.string.mobile_downloads_notification_open),
                     openRow,
                 )
+            }
+            return builder
         }
 
         private const val TAG_PREFIX = "download:"

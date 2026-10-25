@@ -353,6 +353,58 @@ class MobileDownloadEngineTest {
     }
 
     @Test
+    fun theRunningNotificationsPauseAndCancelHoldWhileTheEngineListens() {
+        index.putDownload(download("$ALICE:10", Download.STATE_QUEUED))
+        index.putDownload(download("$ALICE:11", Download.STATE_QUEUED))
+        val store = store(ALICE)
+        runBlocking {
+            store.upsert(entry(10L, accepted = true))
+            store.upsert(entry(11L, accepted = true))
+        }
+        val manager = manager(concurrency = 2)
+        engine(ALICE, store, manager)
+        downloaders.await("$ALICE:10").report(bytes = 250L)
+        downloaders.await("$ALICE:11").report(bytes = 100L)
+        awaitMain { manager.running() == listOf("$ALICE:10", "$ALICE:11") }
+        assertEquals(listOf(10L, 11L), manager.liveDownloadsOf(ALICE).map { it.value }.sorted())
+
+        // The engine holds Media3 to the index on every report, so a pause written only to Media3
+        // would be undone; the notification's pause goes through the same index first.
+        pauseFromNotification(store, manager, ALICE, FilesItemId(10L))
+        awaitMain { (store.status(10L) as? DownloadStatus.Paused)?.reason == DownloadPauseReason.USER }
+        assertEquals(MobileDownloadEngine.STOP_REASON_PAUSED, manager.stopReasonOf("$ALICE:10"))
+        assertEquals(listOf(11L), manager.liveDownloadsOf(ALICE).map { it.value })
+
+        // Production sends the remove through the download service; here it reaches the manager directly.
+        cancelFromNotification(store, ALICE, FilesItemId(11L), manager::removeDownload)
+        awaitMain { store.find(FilesItemId(11L)) == null && manager.stateOf("$ALICE:11") == null }
+        assertEquals(MobileDownloadEngine.STOP_REASON_PAUSED, manager.stopReasonOf("$ALICE:10"))
+        assertTrue(manager.liveDownloadsOf(ALICE).isEmpty())
+    }
+
+    @Test
+    fun theNotificationsPauseHoldsARowThatStillReadsFailedAfterABackgroundRetry() {
+        // Try again from a notification hands the download to Media3 with no engine to update the row.
+        index.putDownload(download("$ALICE:10", Download.STATE_QUEUED))
+        val store = store(ALICE)
+        val failed = DownloadStatus.Failed(DownloadFailureReason.NETWORK, 0L)
+        runBlocking { store.upsert(entry(10L, accepted = true, status = failed)) }
+        val manager = manager()
+        // The download service resumes the manager in a process without an engine.
+        manager.resumeDownloads()
+        awaitMain { manager.running() == listOf("$ALICE:10") }
+
+        pauseFromNotification(store, manager, ALICE, FilesItemId(10L))
+        awaitMain { manager.stopReasonOf("$ALICE:10") == MobileDownloadEngine.STOP_REASON_PAUSED }
+        assertTrue(store.find(FilesItemId(10L))?.pauseRequested == true)
+
+        // The next engine reads the viewer's pause and keeps it.
+        engine(ALICE, store, manager)
+        awaitMain { (store.status(10L) as? DownloadStatus.Paused)?.reason == DownloadPauseReason.USER }
+        assertEquals(MobileDownloadEngine.STOP_REASON_PAUSED, manager.stopReasonOf("$ALICE:10"))
+    }
+
+    @Test
     fun aPausedDownloadWhoseRowWasLostComesBackPaused() {
         index.putDownload(download("$ALICE:10", Download.STATE_STOPPED, stopReason = 2))
         val store = store(ALICE)

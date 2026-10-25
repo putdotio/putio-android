@@ -6,7 +6,12 @@
 production launcher icons `core/design/src/main/res/drawable-*/putio_icon.png`
 are downscaled from `system/assets/app-icon-prod-dark.png`, the nightly ones
 `{mobile,tv}/src/nightly/res/drawable-*/putio_icon.png`, which override them in
-nightly builds, from `system/assets/app-icon-nightly-stars.png`. The wordmark
+nightly builds, from `system/assets/app-icon-nightly-stars.png`, and mobile's dev
+ones `mobile/src/debug/res/drawable-*/putio_icon.png`, which override both in
+debug builds, from `system/assets/app-icon-dev-blueprint.png`. Each channel also
+gets `putio_launcher_art.png` at 72dp in the same mobile source set, which the
+adaptive `mobile/src/main/res/drawable/putio_launcher.xml` draws over the area
+every launcher masks. The wordmark
 `core/design/src/main/res/drawable/putio_wordmark.xml`, on the phone welcome
 screen and the TV banner (`tv/src/main/res/drawable/tv_banner.xml`, on
 `@color/putio_app_bg`), is converted from `system/assets/logo-retro-dark.svg`:
@@ -101,4 +106,6 @@ files. Regular weight is the default for chrome, fill marks selected or active
 states, and file-kind glyphs use fill. Saving to put.io (Transfers) and
 downloading to this device keep distinct glyphs: `cloud-arrow-down` and
 `download-simple`. Drawables stay black source art, tinted by Compose at the
-point of use.
+point of use. XML that Compose cannot reach, such as the launcher shortcut
+icons, uses a copy whose lock entry names a generated `@color/putio_*` token as
+its `tint`.

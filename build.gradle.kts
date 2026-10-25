@@ -74,7 +74,9 @@ val checkDesignAssets = tasks.register<Exec>("checkDesignAssets") {
         fileTree("design"),
         "core/design/src/main/res/drawable/putio_wordmark.xml",
         fileTree("core/design/src/main/res") { include("drawable-*/putio_icon.png") },
+        fileTree("mobile/src/main/res") { include("drawable-*/putio_launcher_art.png") },
         fileTree("mobile/src/nightly/res"),
+        fileTree("mobile/src/debug/res"),
         fileTree("tv/src/nightly/res"),
     )
     commandLine("bash", "scripts/sync-design-assets.sh", "--check")

@@ -25,7 +25,8 @@ class MobileShortcutsTest {
     fun eachShortcutOpensItsProductLinkInThisVariantsMainActivity() {
         val shortcuts = shortcutIntents()
 
-        assertEquals(listOf("search", "add-transfer", "downloads"), shortcuts.keys.toList())
+        // The launcher lists them in this order.
+        assertEquals(listOf("add-transfer", "search", "downloads"), shortcuts.keys.toList())
         for (intent in shortcuts.values) {
             assertEquals(Intent.ACTION_VIEW, intent.action)
             // Explicit: another installed channel answering putio:// never receives it.

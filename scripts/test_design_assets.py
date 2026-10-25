@@ -48,14 +48,10 @@ class DesignAssetLockTest(unittest.TestCase):
         self.tokens = b'{"tokens": true}\n'
         self.production_source = b"production art"
         self.icon_source = b"icon art"
-        self.production_outputs = {
-            density: f"{density} production icon".encode("ascii")
-            for density in design_assets.LAUNCHER_ICON_DENSITIES
-        }
-        self.icon_outputs = {
-            density: f"{density} icon".encode("ascii")
-            for density in design_assets.LAUNCHER_ICON_DENSITIES
-        }
+        self.dev_source = b"dev art"
+        self.production_outputs = self.channel_outputs("production")
+        self.icon_outputs = self.channel_outputs("nightly")
+        self.dev_outputs = self.channel_outputs("dev")
         self.wordmark = design_assets.render_wordmark(WORDMARK_SVG, WORDMARK_ASSET, "3.3.0")
         self.document: dict[str, object] = {
             "schemaVersion": 1,
@@ -70,26 +66,15 @@ class DesignAssetLockTest(unittest.TestCase):
                 "asset": "dist/tokens.dtcg.json",
                 "sourceSha256": hashlib.sha256(self.tokens).hexdigest(),
             },
-            "productionIcon": {
-                "asset": "system/assets/app-icon-prod-dark.png",
-                "sourceSha256": hashlib.sha256(self.production_source).hexdigest(),
-                "outputs": [
-                    {
-                        "density": density,
-                        "size": size,
-                        "sha256": hashlib.sha256(self.production_outputs[density]).hexdigest(),
-                    }
-                    for density, size in design_assets.LAUNCHER_ICON_DENSITIES.items()
-                ],
-            },
-            "nightlyIcon": {
-                "asset": "system/assets/app-icon-nightly-stars.png",
-                "sourceSha256": hashlib.sha256(self.icon_source).hexdigest(),
-                "outputs": [
-                    {"density": density, "size": size, "sha256": hashlib.sha256(self.icon_outputs[density]).hexdigest()}
-                    for density, size in design_assets.LAUNCHER_ICON_DENSITIES.items()
-                ],
-            },
+            "productionIcon": self.icon_lock(
+                "system/assets/app-icon-prod-dark.png", self.production_source, self.production_outputs,
+            ),
+            "nightlyIcon": self.icon_lock(
+                "system/assets/app-icon-nightly-stars.png", self.icon_source, self.icon_outputs,
+            ),
+            "devIcon": self.icon_lock(
+                "system/assets/app-icon-dev-blueprint.png", self.dev_source, self.dev_outputs,
+            ),
             "wordmark": {
                 "asset": WORDMARK_ASSET,
                 "sourceSha256": hashlib.sha256(WORDMARK_SVG).hexdigest(),
@@ -110,6 +95,33 @@ class DesignAssetLockTest(unittest.TestCase):
         )
         self.repo_patch.start()
         self.addCleanup(self.repo_patch.stop)
+
+    @staticmethod
+    def channel_outputs(channel: str) -> dict[str, dict[str, bytes]]:
+        return {
+            kind: {density: f"{density} {channel} {kind}".encode("ascii") for density in densities}
+            for kind, densities in (
+                ("outputs", design_assets.LAUNCHER_ICON_DENSITIES),
+                ("artOutputs", design_assets.LAUNCHER_ART_DENSITIES),
+            )
+        }
+
+    @staticmethod
+    def icon_lock(asset: str, source: bytes, outputs: dict[str, dict[str, bytes]]) -> dict[str, object]:
+        return {
+            "asset": asset,
+            "sourceSha256": hashlib.sha256(source).hexdigest(),
+            **{
+                kind: [
+                    {"density": density, "size": size, "sha256": hashlib.sha256(outputs[kind][density]).hexdigest()}
+                    for density, size in densities.items()
+                ]
+                for kind, densities in (
+                    ("outputs", design_assets.LAUNCHER_ICON_DENSITIES),
+                    ("artOutputs", design_assets.LAUNCHER_ART_DENSITIES),
+                )
+            },
+        }
 
     @property
     def wordmark_path(self) -> Path:
@@ -181,6 +193,28 @@ class DesignAssetLockTest(unittest.TestCase):
         self.assertIn("missing mobile/src/nightly/res/drawable-mdpi/putio_icon.png", str(raised.exception))
         self.assertIn("missing core/design/src/main/res/drawable-xxxhdpi/putio_icon.png", str(raised.exception))
 
+    def test_art_outputs_must_pair_each_density_with_its_art_size(self) -> None:
+        document = json.loads(json.dumps(self.document))
+        document["devIcon"]["artOutputs"][0]["size"] = 48
+        self.write_lock(document)
+        with self.assertRaisesRegex(SystemExit, r"devIcon.artOutputs\[0\] must pair a launcher density"):
+            self.check()
+
+    def test_drifted_art_and_dev_icons_are_rejected(self) -> None:
+        self.write_lock()
+        for relative in (
+            "mobile/src/main/res/drawable-xxhdpi/putio_launcher_art.png",
+            "mobile/src/debug/res/drawable-mdpi/putio_icon.png",
+            "mobile/src/debug/res/drawable-xxxhdpi/putio_launcher_art.png",
+        ):
+            with self.subTest(path=relative):
+                path = self.repo_root / relative
+                original = path.read_bytes()
+                path.write_bytes(b"edited")
+                with self.assertRaisesRegex(SystemExit, f"drifted {relative}"):
+                    self.check()
+                path.write_bytes(original)
+
     def test_production_icon_must_lock_every_density(self) -> None:
         document = json.loads(json.dumps(self.document))
         document["productionIcon"]["outputs"].pop()
@@ -244,6 +278,7 @@ class DesignAssetLockTest(unittest.TestCase):
             "dist/tokens.dtcg.json": self.tokens if tokens is None else tokens,
             "system/assets/app-icon-prod-dark.png": self.production_source,
             "system/assets/app-icon-nightly-stars.png": self.icon_source if icon_source is None else icon_source,
+            "system/assets/app-icon-dev-blueprint.png": self.dev_source,
             WORDMARK_ASSET: WORDMARK_SVG,
         })
         document = json.loads(json.dumps(self.document))
@@ -255,13 +290,18 @@ class DesignAssetLockTest(unittest.TestCase):
 
     def rendered_icons(self) -> dict[Path, bytes]:
         return {
-            res / f"drawable-{density}" / "putio_icon.png": data
-            for res_dirs, outputs in (
-                (design_assets.PRODUCTION_RES_DIRS, self.production_outputs),
-                (design_assets.NIGHTLY_RES_DIRS, self.icon_outputs),
+            res / f"drawable-{density}" / file_name: data
+            for res_dirs, art_res_dirs, outputs in (
+                (design_assets.PRODUCTION_RES_DIRS, design_assets.PRODUCTION_ART_RES_DIRS, self.production_outputs),
+                (design_assets.NIGHTLY_RES_DIRS, design_assets.NIGHTLY_ART_RES_DIRS, self.icon_outputs),
+                (design_assets.DEV_RES_DIRS, design_assets.DEV_ART_RES_DIRS, self.dev_outputs),
             )
-            for res in res_dirs
-            for density, data in outputs.items()
+            for kind, dirs, file_name in (
+                ("outputs", res_dirs, design_assets.LAUNCHER_ICON_FILE),
+                ("artOutputs", art_res_dirs, design_assets.LAUNCHER_ART_FILE),
+            )
+            for res in dirs
+            for density, data in outputs[kind].items()
         }
 
     def render(self, rendered: dict[Path, bytes]) -> object:

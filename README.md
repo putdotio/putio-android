@@ -62,8 +62,9 @@ Mobile, on the emulator harness against the live API:
   storage used and free, unfinished rows with a progress ring that pauses,
   resumes, or cancels a queued row, each row's place in line, a 1–4
   concurrency limit, failed and missing rows with retry, and multi-select
-  pause, resume and removal of local copies. Finished and failed downloads notify with Play or Try again, acting
-  only for the account that downloaded them. Downloads play offline and resume
+  pause, resume and removal of local copies. Running downloads notify with
+  progress, Pause and Cancel; finished and failed ones with Play or Try again,
+  acting only for the account that downloaded them. Downloads play offline and resume
   where this device left off; offline positions reach put.io once it answers
 - Transfer intake: tapped magnet links, opened, shared or picked `.torrent`
   files, shared text and several pasted links open the Add transfer sheet,
@@ -75,8 +76,10 @@ Mobile, on the emulator harness against the live API:
 - Exclusive access: create, copy, share and revoke public links to your own
   files and folders from their action sheet; Account lists every link with
   revoke
-- Launcher shortcuts: Search, Add transfer (an empty sheet; nothing is added
-  until Add) and Downloads, each waiting for sign-in when signed out
+- Launcher shortcuts: Add transfer (an empty sheet; nothing is added until
+  Add), Search files and Downloads, each waiting for sign-in when signed out
+- The putio-design launcher icon for each channel (production, nightly and
+  debug builds' dev icon), masked to each launcher's own shape
 - A Transfers home-screen widget, proven on the emulator with a faked account so
   far: active transfers with progress, refreshed every 30 minutes, on sign-in,
   from the Transfers screen and on demand; sign-out clears it at once

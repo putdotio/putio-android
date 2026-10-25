@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import androidx.core.content.edit
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.sdk.files.PutioFileType
+import java.util.WeakHashMap
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -123,6 +124,21 @@ internal class MobileDownloadStore internal constructor(
         }
 
     companion object {
+        // Keyed by the application too: a process has one, and each JVM test gets a fresh one.
+        private val shared = WeakHashMap<Context, MutableMap<Long, MobileDownloadStore>>()
+
+        /**
+         * The process's one store for [userId]. Downloads and a notification's actions write through
+         * it, so a pause or cancel from the notification is the row the screen and engine read.
+         */
+        fun shared(context: Context, userId: Long): MobileDownloadStore {
+            val application = context.applicationContext
+            return synchronized(shared) {
+                shared.getOrPut(application) { mutableMapOf() }
+                    .getOrPut(userId) { MobileDownloadStore(application, userId) }
+            }
+        }
+
         /**
          * One row as last written, for process-wide readers such as notifications that run
          * without this user's store. Never writes.

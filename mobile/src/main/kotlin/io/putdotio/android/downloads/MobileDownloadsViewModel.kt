@@ -31,7 +31,7 @@ internal class MobileDownloadsViewModel(
 
     fun controllerFor(context: Context, userId: Long, sessionId: MobileAuthSessionId): DownloadsController? =
         session.valueFor(MobileSessionKey(userId, sessionId)) {
-            val store = MobileDownloadStore(context.applicationContext, userId)
+            val store = MobileDownloadStore.shared(context, userId)
             val engine = MobileDownloadEngine(context.applicationContext, store, userId, viewModelScope)
             ActiveDownloads(DownloadsController(store, engine, viewModelScope), engine)
         }?.controller
