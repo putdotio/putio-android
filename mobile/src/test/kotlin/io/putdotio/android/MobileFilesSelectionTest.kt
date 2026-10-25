@@ -3,6 +3,7 @@ package io.putdotio.android
 import androidx.activity.OnBackPressedDispatcherOwner
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.saveable.SaverScope
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isDialog
@@ -182,6 +183,33 @@ class MobileFilesSelectionTest {
         selection.reconcile(root)
         assertFalse(selection.isActive(folder))
         assertTrue(selection.selected(folder).isEmpty())
+    }
+
+    @Test
+    fun theSelectionSurvivesASavedStateRestore() {
+        val folder = folderState()
+        val selection = FilesSelection()
+        selection.start(folder, SINTEL)
+        selection.toggle(folder, FINISHED)
+
+        val saved = with(FilesSelection.Saver) { SaverScope { true }.save(selection) }
+        val restored = FilesSelection.Saver.restore(checkNotNull(saved))
+
+        assertEquals(listOf(SINTEL, FINISHED), restored?.selected(folder))
+        assertTrue(restored?.isActive(folder) == true)
+    }
+
+    @Test
+    @Config(qualifiers = "en-rUS-w1280dp-h800dp")
+    fun onATabletTheDetailPaneShowsNoFileWhileRowsAreSelected() {
+        setShell()
+
+        compose.onNodeWithText(SINTEL.name).performClick()
+        compose.onNodeWithText("No file selected.").assertDoesNotExist()
+        selectFromTheSheet(FINISHED)
+
+        compose.onNodeWithText("1 selected").assertExists()
+        compose.onNodeWithText("No file selected.").assertExists()
     }
 
     private fun selectFromTheSheet(item: FilesItem) {

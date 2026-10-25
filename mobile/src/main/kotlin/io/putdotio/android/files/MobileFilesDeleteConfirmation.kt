@@ -106,7 +106,15 @@ internal fun MobileFilesTrashLimitStatus(
                     modifier = Modifier.verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Text(stringResource(R.string.mobile_files_trash_limit_message))
+                    Text(
+                        stringResource(
+                            if (listed.size > 1) {
+                                R.string.mobile_files_trash_limit_message_many
+                            } else {
+                                R.string.mobile_files_trash_limit_message
+                            },
+                        ),
+                    )
                     listed.forEach { Text(it.name, style = MaterialTheme.typography.titleSmall) }
                 }
             },
