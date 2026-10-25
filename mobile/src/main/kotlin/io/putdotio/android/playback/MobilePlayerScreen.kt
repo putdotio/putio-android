@@ -5,7 +5,6 @@ import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityManager
 import androidx.activity.compose.LocalActivity
-import androidx.annotation.StringRes
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -15,12 +14,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
-import androidx.media3.ui.SubtitleView
 import androidx.media3.ui.compose.state.rememberProgressStateWithTickInterval
 import io.putdotio.sdk.files.PlaybackSubtitle
-import io.putdotio.sdk.files.PlaybackSubtitles
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -124,7 +120,6 @@ internal fun MobilePlayerScreen(
     onStartConversion: () -> Unit = {},
     nextEpisode: PlaybackTarget? = null,
     onNextEpisode: () -> Unit = {},
-    onDownload: (() -> Unit)? = null,
 ) {
     // Like iOS, the window turns only for a landscape video; the last shape holds across autoplay.
     var landscapeVideo by rememberSaveable { mutableStateOf(false) }
@@ -226,37 +221,38 @@ internal fun MobilePlayerScreen(
                     title = stringResource(state.target.mediaType.errorTitle()),
                     failure = content.failure,
                     onRetry = onRetry,
-                    onDownload = onDownload.takeIf { isVideo },
                     video = isVideo,
                 )
         }
 
         if (state.showsSeparateBack() && !pictureInPicture.value) {
-            if (isVideo) {
-                MobilePlayerFrameBar(title = state.target.name, onBack = onBack, modifier = Modifier.align(Alignment.TopStart))
-            } else {
-                IconButton(
-                    onClick = onBack,
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .windowInsetsPadding(WindowInsets.safeDrawing)
-                        .padding(8.dp),
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_ph_arrow_left),
-                        contentDescription = stringResource(R.string.mobile_action_back),
-                    )
-                }
-            }
+            MobilePlayerSeparateBack(state, onBack, Modifier.align(Alignment.TopStart))
+        }
+    }
+}
+
+/** Back where the player's own controls are not up: with the filename for video, alone for audio. */
+@Composable
+private fun MobilePlayerSeparateBack(state: PlaybackState, onBack: () -> Unit, modifier: Modifier) {
+    if (state.target.mediaType == PlaybackMediaType.VIDEO) {
+        MobilePlayerFrameBar(title = state.target.name, onBack = onBack, modifier = modifier)
+    } else {
+        IconButton(
+            onClick = onBack,
+            modifier = modifier
+                .windowInsetsPadding(WindowInsets.safeDrawing)
+                .padding(8.dp),
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_ph_arrow_left),
+                contentDescription = stringResource(R.string.mobile_action_back),
+            )
         }
     }
 }
 
 private fun PlaybackState.showsSeparateBack(): Boolean =
     target.mediaType == PlaybackMediaType.AUDIO || content !is PlaybackContent.Ready
-
-private fun PlaybackSubtitles?.sidecarTracks(): List<PlaybackSubtitle> =
-    (this as? PlaybackSubtitles.Sidecar)?.tracks.orEmpty()
 
 /**
  * Back and the filename over a video that is not playing yet or cannot: the resume prompt, the
@@ -443,7 +439,7 @@ private fun MobileReadyPlayer(
     val pictureInPictureSeeks = remember(player) { SeekRelay() }
     val enterPictureInPicture = if (!isAudio) {
         // Whatever holds the screen on is playing; anything else shows Play, as Media3's button does.
-        MobilePictureInPictureEffect(
+        rememberMobilePictureInPicture(
             playing = playerState.keepScreenOn,
             videoSize = playerState.videoSize,
             videoFrame = playerState.videoFrame,
@@ -1036,34 +1032,19 @@ private fun MobileReadyPlayerContent(
     val options = rememberPlayerOptionsSnapshot(player)
     val appearance = rememberSubtitleAppearanceStore()
     // The window shows only the video, so a sheet open when it starts goes with the controls.
-    var sheet by rememberSaveable(fileId) { mutableStateOf<MobileVideoSheet?>(null) }
-    LaunchedEffect(pictureInPicture) { if (pictureInPicture) sheet = null }
-    var sheetWasOpen by remember { mutableStateOf(false) }
-    LaunchedEffect(sheet) {
-        controlsMenuOpen.value = sheet != null
-        // Closing a sheet hands keyboard focus back to the player, so Space and the arrows work again.
-        if (sheet == null && sheetWasOpen) keyFocus.requestFocus()
-        sheetWasOpen = sheet != null
-    }
-    LaunchedEffect(player, preferences.subtitleOffsetMillis) {
-        player.setSubtitleOffset(preferences.subtitleOffsetMillis)
-    }
+    val sheetState = rememberSaveable(fileId) { mutableStateOf<MobileVideoSheet?>(null) }
+    var sheet by sheetState
+    SheetClosingEffect(sheetState, pictureInPicture, subtitlesHidden = subtitleStartupPolicy?.showSubtitles == false)
+    SheetFocusEffect(sheet != null, controlsMenuOpen, keyFocus)
+    SubtitleOffsetEffect(player, preferences.subtitleOffsetMillis)
     val optionModifier = Modifier.observeControlNavigation(onPointerNavigation, onKeyboardNavigation)
 
     Box(
         Modifier
             .fillMaxSize()
             .onKeyEvent { event ->
-                val native = event.nativeKeyEvent
-                if (sheet == null) {
-                    playerKeyCommand(native) { command -> player.runKeyCommand(command, ::seek, onBack) }
-                } else if (mobileKeyCommand(MobileShortcutScope.Player, native.keyCode, native.metaState) ==
-                    MobileKeyCommand.Back
-                ) {
-                    // With a sheet open the keys move through it; leaving closes the sheet, not the player.
-                    playerKeyCommand(native) { sheet = sheet.parentSheet() }
-                } else {
-                    false
+                videoKeyCommand(event.nativeKeyEvent, sheet, { sheet = sheet.parentSheet() }) { command ->
+                    player.runKeyCommand(command, ::seek, onBack)
                 }
             }
             .focusRequester(keyFocus)
@@ -1109,16 +1090,7 @@ private fun MobileReadyPlayerContent(
                 onScrub = { pendingSeek.value = null },
                 onBack = onBack,
                 modifier = Modifier.zIndex(2f),
-                topActions = {
-                    if (enterPictureInPicture != null) {
-                        IconButton(onClick = enterPictureInPicture, modifier = optionModifier) {
-                            Icon(
-                                painterResource(R.drawable.ic_ph_picture_in_picture),
-                                contentDescription = stringResource(R.string.mobile_playback_picture_in_picture),
-                            )
-                        }
-                    }
-                },
+                topActions = { MobilePictureInPictureButton(enterPictureInPicture, optionModifier) },
                 settings = {
                     if (isAudio) {
                         MobilePlaybackOptions(
@@ -1129,46 +1101,12 @@ private fun MobileReadyPlayerContent(
                             onPointerNavigation = onPointerNavigation,
                         )
                     } else {
-                        MobileAudioChip(options, { sheet = MobileVideoSheet.Audio }, optionModifier)
-                        // hide_subtitles hides subtitles entirely, as every reference player does.
-                        if (subtitleStartupPolicy?.showSubtitles != false) {
-                            MobileSubtitlesChip(options, { sheet = MobileVideoSheet.Subtitles }, optionModifier)
-                        }
-                        MobileSpeedChip(options, { sheet = MobileVideoSheet.Speed }, optionModifier)
+                        MobileVideoChips(options, subtitleStartupPolicy, { sheet = it }, optionModifier)
                     }
                 },
-                trailingChip = {
-                    if (nextEpisode != null) {
-                        MobilePlayerChip(
-                            label = stringResource(R.string.mobile_playback_next_episode),
-                            description = null,
-                            onClick = onNextEpisode,
-                            trailingIcon = R.drawable.ic_ph_skip_forward,
-                            modifier = optionModifier,
-                        )
-                    }
-                },
+                trailingChip = { MobileNextEpisodeChip(nextEpisode, onNextEpisode, optionModifier) },
             )
-            pendingSeek.value?.let { request ->
-                // Identical text still needs a fresh accessibility event for each seek.
-                key(request.requestId) {
-                    MobileSeekFeedback(
-                        request = request,
-                        modifier =
-                            Modifier
-                                .align(
-                                    if (request.direction == SeekDirection.Backward) {
-                                        AbsoluteAlignment.CenterLeft
-                                    } else {
-                                        AbsoluteAlignment.CenterRight
-                                    },
-                                )
-                                .zIndex(3f)
-                                .windowInsetsPadding(WindowInsets.safeDrawing)
-                                .padding(horizontal = 32.dp, vertical = 88.dp),
-                    )
-                }
-            }
+            MobileSeekFeedbackLayer(pendingSeek.value)
         }
         if (!isAudio) {
             MobileVideoSheets(
@@ -1188,86 +1126,76 @@ private fun MobileReadyPlayerContent(
     }
 }
 
+/**
+ * Gives a new player the video's timing, and a changed timing to the playing one, which then reads
+ * its subtitles again from where it is.
+ */
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+@Composable
+private fun SubtitleOffsetEffect(player: Media3Player, offsetMillis: Long) {
+    val applied = remember(player) { mutableStateOf<Long?>(null) }
+    LaunchedEffect(player, offsetMillis) {
+        player.setSubtitleOffset(offsetMillis, reread = applied.value != null)
+        applied.value = offsetMillis
+    }
+}
+
+/**
+ * The window shows only the video, so a sheet open when it starts goes with the controls; hidden
+ * subtitles take their sheets with them.
+ */
+@Composable
+private fun SheetClosingEffect(
+    sheet: MutableState<MobileVideoSheet?>,
+    pictureInPicture: Boolean,
+    subtitlesHidden: Boolean,
+) {
+    LaunchedEffect(pictureInPicture, subtitlesHidden) {
+        val open = sheet.value
+        if (pictureInPicture || (subtitlesHidden && open?.isSubtitles == true)) sheet.value = null
+    }
+}
+
+/** The open sheet holds the controls up; closing it hands keyboard focus back to the player. */
+@Composable
+private fun SheetFocusEffect(open: Boolean, controlsMenuOpen: MutableState<Boolean>, keyFocus: FocusRequester) {
+    var wasOpen by remember { mutableStateOf(false) }
+    LaunchedEffect(open) {
+        controlsMenuOpen.value = open
+        // So Space and the arrows reach the player again.
+        if (!open && wasOpen) keyFocus.requestFocus()
+        wasOpen = open
+    }
+}
+
+/** The pending seek's feedback on the side it seeks toward. */
+@Composable
+private fun BoxScope.MobileSeekFeedbackLayer(request: PendingSeek?) {
+    if (request == null) return
+    // Identical text still needs a fresh accessibility event for each seek.
+    key(request.requestId) {
+        MobileSeekFeedback(
+            request = request,
+            modifier =
+                Modifier
+                    .align(
+                        if (request.direction == SeekDirection.Backward) {
+                            AbsoluteAlignment.CenterLeft
+                        } else {
+                            AbsoluteAlignment.CenterRight
+                        },
+                    )
+                    .zIndex(3f)
+                    .windowInsetsPadding(WindowInsets.safeDrawing)
+                    .padding(horizontal = 32.dp, vertical = 88.dp),
+        )
+    }
+}
+
 /** Hands the window's seek actions to the composed screen's seek. */
 private class SeekRelay {
     var seek: (SeekDirection) -> Unit = {}
 }
-
-/** Where Back goes from a sheet: Size and timing returns to Subtitles, the rest close. */
-private fun MobileVideoSheet?.parentSheet(): MobileVideoSheet? =
-    if (this == MobileVideoSheet.SubtitleAppearance) MobileVideoSheet.Subtitles else null
-
-@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-@Composable
-private fun MobileVideoSheets(
-    sheet: MobileVideoSheet?,
-    onSheet: (MobileVideoSheet?) -> Unit,
-    player: Media3Player,
-    options: PlayerOptionsSnapshot,
-    defaultTrackSelection: TrackSelectionParameters,
-    sidecarSubtitles: List<PlaybackSubtitle>,
-    appearance: SubtitleAppearanceStore,
-    preferences: RetainedPlayerPreferences,
-    onSubtitleSelectionChanged: (SubtitleSelection) -> Unit,
-    modifier: Modifier,
-    panelModifier: Modifier,
-) {
-    // The last sheet stays composed while it slides out.
-    var shown by remember { mutableStateOf(sheet ?: MobileVideoSheet.Audio) }
-    if (sheet != null) shown = sheet
-    val close = { onSheet(null) }
-    MobilePlayerSideSheet(
-        visible = sheet != null,
-        title = stringResource(shown.title()),
-        onClose = close,
-        onBack = if (shown == MobileVideoSheet.SubtitleAppearance) {
-            { onSheet(MobileVideoSheet.Subtitles) }
-        } else {
-            null
-        },
-        modifier = modifier,
-        panelModifier = panelModifier,
-    ) {
-        when (shown) {
-            MobileVideoSheet.Audio -> MobileAudioSheetContent(
-                player = player,
-                snapshot = options,
-                onAudioSelectionChanged = { preferences.audioSelection = it },
-                onDone = close,
-            )
-            MobileVideoSheet.Subtitles -> MobileSubtitlesSheetContent(
-                player = player,
-                snapshot = options,
-                defaultTrackSelection = defaultTrackSelection,
-                sidecar = sidecarSubtitles,
-                textSize = appearance.textSize,
-                offsetMillis = preferences.subtitleOffsetMillis,
-                onSubtitleSelectionChanged = onSubtitleSelectionChanged,
-                onAppearance = { onSheet(MobileVideoSheet.SubtitleAppearance) },
-                onDone = close,
-            )
-            MobileVideoSheet.SubtitleAppearance -> MobileSubtitleAppearanceContent(
-                textSize = appearance.textSize,
-                offsetMillis = preferences.subtitleOffsetMillis,
-                onTextSize = appearance::update,
-                onOffset = {
-                    preferences.subtitleOffsetMillis =
-                        it.coerceIn(-SUBTITLE_OFFSET_LIMIT_MILLIS, SUBTITLE_OFFSET_LIMIT_MILLIS)
-                },
-            )
-            MobileVideoSheet.Speed -> MobileSpeedSheetContent(player, options)
-        }
-    }
-}
-
-@StringRes
-private fun MobileVideoSheet.title(): Int =
-    when (this) {
-        MobileVideoSheet.Audio -> R.string.mobile_playback_audio_control
-        MobileVideoSheet.Subtitles -> R.string.mobile_playback_subtitles_title
-        MobileVideoSheet.SubtitleAppearance -> R.string.mobile_playback_subtitle_appearance
-        MobileVideoSheet.Speed -> R.string.mobile_playback_speed
-    }
 
 /**
  * Space plays or pauses, Left and Right seek like the 10-second buttons, and Escape or Backspace
@@ -1375,10 +1303,11 @@ private fun BoxScope.MobileVideoLayers(
             if (subtitlesClearControls) subtitleLift(frame, playerState.videoSize.displayAspectRatioOrNull()) else 0.dp,
             label = "subtitle-lift",
         )
+        val sheetWidth = if (subtitlesBesideSheet) MOBILE_PLAYER_SIDE_SHEET_WIDTH.coerceAtMost(maxWidth) else 0.dp
         Box(
             Modifier
                 .fillMaxSize()
-                .padding(end = if (subtitlesBesideSheet) MOBILE_PLAYER_SIDE_SHEET_WIDTH.coerceAtMost(maxWidth) else 0.dp)
+                .padding(end = sheetWidth)
                 .clipToBounds(),
             contentAlignment = Alignment.Center,
         ) {
@@ -1392,21 +1321,6 @@ private fun BoxScope.MobileVideoLayers(
     }
     if (pictureInPicture) MobilePictureInPictureProgress(player, Modifier.align(Alignment.BottomStart).zIndex(3f))
 }
-
-/**
- * How far to raise the subtitles so they clear the times, scrubber and chips: the controls' height
- * less what already lies below the cues, the letterbox and Android's caption margin.
- */
-private fun subtitleLift(frame: DpSize, aspectRatio: Float?): Dp {
-    if (aspectRatio == null || !aspectRatio.isFinite() || aspectRatio <= 0f) return 0.dp
-    val videoHeight = minOf(frame.height, frame.width / aspectRatio)
-    val letterbox = (frame.height - videoHeight) / 2
-    val captionMargin = videoHeight * SubtitleView.DEFAULT_BOTTOM_PADDING_FRACTION
-    return (VIDEO_CONTROLS_HEIGHT - letterbox - captionMargin).coerceAtLeast(0.dp)
-}
-
-// The footer's times, scrubber and chips, plus a little air above them.
-private val VIDEO_CONTROLS_HEIGHT = 118.dp
 
 /** The window's thin yellow line of how far the video has played. */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])

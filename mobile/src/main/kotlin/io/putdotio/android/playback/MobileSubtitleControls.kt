@@ -1,6 +1,7 @@
 package io.putdotio.android.playback
 
 import android.content.Context
+import androidx.core.content.edit
 import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -52,7 +53,11 @@ import androidx.media3.common.util.UnstableApi
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.design.putioMono
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpSize
+import androidx.media3.ui.SubtitleView
 import io.putdotio.sdk.files.PlaybackSubtitle
+import io.putdotio.sdk.files.PlaybackSubtitles
 import java.util.Locale
 import kotlin.math.abs
 
@@ -107,8 +112,9 @@ internal class SubtitleAppearanceStore(private val context: Context?) {
 
     fun update(size: SubtitleTextSize) {
         textSize = size
-        context?.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
-            ?.edit()?.putString(TEXT_SIZE_KEY, size.name)?.apply()
+        context?.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)?.edit {
+            putString(TEXT_SIZE_KEY, size.name)
+        }
     }
 
     private fun read(): SubtitleTextSize {
@@ -196,7 +202,9 @@ internal fun MobileSubtitlesSheetContent(
     }
     val current = snapshot.currentSubtitle()
     val enabled = snapshot.canSelectTracks
-    val tracks = snapshot.subtitleTracks.mapIndexed { index, track -> Triple(index, track, track.putioSubtitle(sidecar)) }
+    val tracks = snapshot.subtitleTracks.mapIndexed { index, track ->
+        Triple(index, track, track.putioSubtitle(sidecar))
+    }
     Column(Modifier.selectableGroup()) {
         MobileSideSheetOption(
             label = stringResource(R.string.mobile_playback_subtitles_disabled),
@@ -212,7 +220,8 @@ internal fun MobileSubtitlesSheetContent(
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
             )
         }
-        val inFile = tracks.filter { it.third.origin() == SubtitleOrigin.File }
+        val names = subtitleRowNames(tracks.map { (_, track, subtitle) -> track to subtitle }, tracks.map { it.first })
+    val inFile = tracks.filter { it.third.origin() == SubtitleOrigin.File }
         val found = tracks.filter { it.third.origin() != SubtitleOrigin.File }.sortedBy { it.third.origin() }
         listOf(R.string.mobile_playback_subtitles_in_file to inFile, R.string.mobile_playback_subtitles_found to found)
             .filter { it.second.isNotEmpty() }
@@ -220,7 +229,7 @@ internal fun MobileSubtitlesSheetContent(
                 MobileSideSheetLabel(stringResource(heading))
                 group.forEach { (index, track, subtitle) ->
                     MobileSideSheetOption(
-                        label = subtitleTrackName(track, index),
+                        label = names[index],
                         selected = track == current,
                         enabled = enabled,
                         supporting = subtitleTrackDetails(track, subtitle)?.let { { Text(it) } },
@@ -246,6 +255,24 @@ internal fun MobileSubtitleTrackOption(
         onClick = onClick,
         modifier = modifier,
     )
+}
+
+/** Row names, numbered only where two rows would otherwise read the same. */
+@Composable
+private fun subtitleRowNames(
+    rows: List<Pair<PlaybackSubtitleTrack, PlaybackSubtitle?>>,
+    indices: List<Int>,
+): List<String> {
+    val names = rows.mapIndexed { position, (track, _) -> subtitleTrackName(track, indices[position]) }
+    val details = rows.map { (track, subtitle) -> subtitleTrackDetails(track, subtitle) }
+    val keyed = names.zip(details)
+    return names.mapIndexed { position, name ->
+        if (keyed.count { it == keyed[position] } > 1) {
+            stringResource(R.string.mobile_playback_audio_track_disambiguated, name, indices[position] + 1)
+        } else {
+            name
+        }
+    }
 }
 
 /** A track's language in its own words, marked SDH where the format says so. */
@@ -350,10 +377,11 @@ internal fun MobileSubtitleAppearanceContent(
                     .selectable(selected = selected, role = Role.RadioButton, onClick = { onTextSize(size) })
                     .semantics { contentDescription = name },
             ) {
+                val colors = MaterialTheme.colorScheme
                 Surface(
                     shape = MaterialTheme.shapes.medium,
-                    color = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.surfaceContainerHigh,
-                    contentColor = if (selected) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.onSurface,
+                    color = if (selected) colors.onSurface else colors.surfaceContainerHigh,
+                    contentColor = if (selected) colors.surface else colors.onSurface,
                     modifier = Modifier.fillMaxWidth().height(40.dp),
                 ) {
                     Box(contentAlignment = Alignment.Center) { Text(size.short, style = PutioTypeScale.mono) }
@@ -403,6 +431,14 @@ internal fun MobileSubtitleAppearanceContent(
 
 @Composable
 private fun OffsetStep(label: String, description: String, enabled: Boolean, onClick: () -> Unit) {
+    // The 48dp band holds the 32dp button, so its touch target overlaps nothing below.
+    Box(Modifier.height(48.dp), contentAlignment = Alignment.Center) {
+        OffsetStepButton(label, description, enabled, onClick)
+    }
+}
+
+@Composable
+private fun OffsetStepButton(label: String, description: String, enabled: Boolean, onClick: () -> Unit) {
     FilledTonalButton(
         onClick = onClick,
         enabled = enabled,
@@ -419,3 +455,22 @@ private fun OffsetStep(label: String, description: String, enabled: Boolean, onC
 
 private val OFFSET_VALUE_SIZE = 20.sp
 private val OFFSET_VALUE_LINE = 28.sp
+
+internal fun PlaybackSubtitles?.sidecarTracks(): List<PlaybackSubtitle> =
+    (this as? PlaybackSubtitles.Sidecar)?.tracks.orEmpty()
+
+/**
+ * How far to raise the subtitles so they clear the times, scrubber and chips: the controls' height
+ * less what already lies below the cues, the letterbox and Android's caption margin.
+ */
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+internal fun subtitleLift(frame: DpSize, aspectRatio: Float?): Dp {
+    if (aspectRatio == null || !aspectRatio.isFinite() || aspectRatio <= 0f) return 0.dp
+    val videoHeight = minOf(frame.height, frame.width / aspectRatio)
+    val letterbox = (frame.height - videoHeight) / 2
+    val captionMargin = videoHeight * SubtitleView.DEFAULT_BOTTOM_PADDING_FRACTION
+    return (VIDEO_CONTROLS_HEIGHT - letterbox - captionMargin).coerceAtLeast(0.dp)
+}
+
+// The footer's times, scrubber and chips, plus a little air above them.
+private val VIDEO_CONTROLS_HEIGHT = 118.dp

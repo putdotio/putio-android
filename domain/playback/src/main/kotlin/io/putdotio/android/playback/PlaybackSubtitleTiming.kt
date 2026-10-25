@@ -63,17 +63,22 @@ internal class SubtitleOffsetRenderer(renderer: Renderer) : ForwardingRenderer(r
 }
 
 /**
- * Shows this player's subtitles [offsetMillis] later (negative: sooner). Players built without the
- * app's renderers, such as test fakes and media controllers, keep their timing.
+ * Shows this player's subtitles [offsetMillis] later (negative: sooner). The text renderer drops
+ * cues behind where it has read, so with [reread] the player seeks to where it is and reads its
+ * subtitles again. Players built without the app's renderers, such as test fakes and media
+ * controllers, keep their timing.
  */
 @UnstableApi
-public fun Player.setSubtitleOffset(offsetMillis: Long) {
+public fun Player.setSubtitleOffset(offsetMillis: Long, reread: Boolean = false) {
     val player = this as? ExoPlayer ?: return
-    for (index in 0 until player.rendererCount) {
-        val renderer = player.getRenderer(index) as? SubtitleOffsetRenderer ?: continue
+    val renderers = (0 until player.rendererCount).mapNotNull { player.getRenderer(it) as? SubtitleOffsetRenderer }
+    renderers.forEach { renderer ->
         player.createMessage(renderer)
             .setType(SubtitleOffsetRenderer.MSG_SET_SUBTITLE_OFFSET)
             .setPayload(offsetMillis * MICROS_PER_MILLI)
             .send()
+    }
+    if (reread && renderers.isNotEmpty() && player.playbackState != Player.STATE_IDLE) {
+        player.seekTo(player.currentPosition)
     }
 }

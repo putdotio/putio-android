@@ -33,8 +33,6 @@ import androidx.compose.ui.window.DialogProperties
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioTypeScale
 
-/** One radio row of a choice dialog: a label and its one-line description. */
-internal data class MobileChoice<T>(val value: T, val label: String, val description: String)
 
 /**
  * A choice: the title, one line on what it changes, radio rows with a description each, then
@@ -44,12 +42,14 @@ internal data class MobileChoice<T>(val value: T, val label: String, val descrip
 internal fun <T> MobileChoiceDialog(
     title: String,
     message: String,
-    choices: List<MobileChoice<T>>,
+    choices: List<T>,
+    label: @Composable (T) -> String,
+    description: @Composable (T) -> String,
     selected: T,
     onSave: (T) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var pending by rememberSaveable(selected) { mutableStateOf(choices.indexOfFirst { it.value == selected }) }
+    var pending by rememberSaveable(selected) { mutableStateOf(choices.indexOf(selected)) }
     AlertDialog(
         onDismissRequest = onDismiss,
         // Full width less 24dp margins, as wide as a description line needs, up to Material's 560dp.
@@ -61,14 +61,19 @@ internal fun <T> MobileChoiceDialog(
                 Text(message, modifier = Modifier.padding(bottom = 12.dp))
                 Column(Modifier.selectableGroup()) {
                     choices.forEachIndexed { index, choice ->
-                        MobileChoiceRow(choice, selected = index == pending, onClick = { pending = index })
+                        MobileChoiceRow(
+                            label = label(choice),
+                            description = description(choice),
+                            selected = index == pending,
+                            onClick = { pending = index },
+                        )
                     }
                 }
             }
         },
         confirmButton = {
             Button(
-                onClick = { choices.getOrNull(pending)?.let { onSave(it.value) } ?: onDismiss() },
+                onClick = { choices.getOrNull(pending)?.let(onSave) ?: onDismiss() },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary,
@@ -85,7 +90,7 @@ internal fun <T> MobileChoiceDialog(
 }
 
 @Composable
-private fun <T> MobileChoiceRow(choice: MobileChoice<T>, selected: Boolean, onClick: () -> Unit) {
+private fun MobileChoiceRow(label: String, description: String, selected: Boolean, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -101,9 +106,9 @@ private fun <T> MobileChoiceRow(choice: MobileChoice<T>, selected: Boolean, onCl
             colors = RadioButtonDefaults.colors(unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant),
         )
         Column {
-            Text(choice.label, style = PutioTypeScale.bodyMd, color = MaterialTheme.colorScheme.onSurface)
+            Text(label, style = PutioTypeScale.bodyMd, color = MaterialTheme.colorScheme.onSurface)
             Text(
-                choice.description,
+                description,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

@@ -110,7 +110,9 @@ internal fun MobilePlayerSideSheet(
                     )
                     // A tap inside the panel never reaches the scrim behind it.
                     .pointerInput(Unit) { detectTapGestures {} }
-                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Vertical + WindowInsetsSides.End))
+                    .windowInsetsPadding(
+                        WindowInsets.safeDrawing.only(WindowInsetsSides.Vertical + WindowInsetsSides.End),
+                    )
                     .padding(top = 16.dp, bottom = 16.dp)
                     .semantics {
                         paneTitle = title

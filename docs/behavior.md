@@ -377,7 +377,7 @@ The top bar has back, the file name cut in the middle, and picture-in-picture
 where the device has it. A 72dp play/pause sits between 56dp ten-second seek
 buttons. Under the elapsed and remaining times and the scrubber, chips name the
 current audio track, subtitle and speed; each opens a 340dp side sheet from the
-right, which the player draws in its own window so the system bars stay hidden.
+right, drawn inside the player's window so the system bars stay hidden.
 Back or a tap on the dimmed video closes it. Controls keep 48dp touch targets.
 
 - Audio lists the supported tracks by language in its own words, with channels,
@@ -387,20 +387,28 @@ Back or a tap on the dimmed video closes it. Controls keep 48dp touch targets.
   the API does not list, such as one embedded in the stream, counts as in the
   file. Subtitles are offered unless the account hides them (`hide_subtitles`).
 - Size and timing scales Android's caption size by S, M, L or XL, kept on the
-  device for every video, and shifts this video's subtitles in 0.1 s steps up
-  to 10 s either way. The text renderer reads its cues at the shifted position,
-  so subtitles show sooner from the buffered samples. While a sheet is open the
-  subtitles stay centred in the uncovered video, at full size.
+  device for every video; a size other than M also overrides sizes a styled
+  subtitle file sets. It shifts this video's subtitles in 0.1 s steps up to
+  10 s either way: the text renderer reads its cues at the shifted position, so
+  subtitles show sooner from the buffered samples, and each change seeks to
+  where the video is so the cues are read again. While a sheet is open the
+  subtitles stay centred in the uncovered video, at full size; while the
+  controls show, they rise above them. A stream that does not name a subtitle's
+  source, as HLS does not, lists it under the file.
+- Hiding subtitles on the account closes an open Subtitles or Size and timing
+  sheet.
 - Speed steps through 0.5×, 0.75×, 1×, 1.25×, 1.5×, 2×, 2.5× and 3× with −
   and +, a stepped track and quick choices; every control snaps to a preset.
+  Audio keeps its 0.75× to 2× choices.
 
-With the account's `next_episode` on, a playing video asks put.io's next-file
-for the next video in its folder once, and a Next episode chip plays it at once,
-even one this opening already played. Speed, audio, subtitle choices and the
+With the account's `next_episode` on, a playing video asks for the next video
+in its folder once, by autoplay's own walk of the folder in name order, and a
+Next episode chip plays it at once, even one this opening already played. Speed, audio, subtitle choices and the
 timing survive player recreation.
 
-A video that needs another player shows "Can’t play this here." with Download,
-which queues it for this device. Failures a retry can fix offer Try again.
+A video that needs another player shows "Can’t play this here." with no action:
+a download keeps the same HLS rendition, so it would not help. Failures a retry
+can fix offer Try again.
 
 Tests: `MobileVideoWindowTest`, `MobilePlayerScreenTest`,
 `MobilePlaybackOptionsTest`, `MobileSubtitleControlsTest`,

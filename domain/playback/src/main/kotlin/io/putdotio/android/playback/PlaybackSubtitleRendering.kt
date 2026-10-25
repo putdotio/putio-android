@@ -80,7 +80,10 @@ internal class SubtitleCueRenderer(
     private var renderedWidth = 0
     private var renderedHeight = 0
 
-    /** [textScale] multiplies Android's caption size, as the user's caption settings set it. */
+    /**
+     * [textScale] multiplies Android's caption size, as the user's caption settings set it; any
+     * scale but 1 also overrides the sizes a styled subtitle file sets.
+     */
     fun draw(
         cues: List<Cue>,
         width: Int,
@@ -91,6 +94,8 @@ internal class SubtitleCueRenderer(
         if (renderedScale != textScale) {
             renderedScale = textScale
             subtitleView.setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * captionScale * textScale)
+            // A size the viewer picked wins over sizes the subtitle file sets.
+            subtitleView.setApplyEmbeddedFontSizes(textScale == 1f)
         }
         val safeWidth = width.coerceAtLeast(1)
         val safeHeight = height.coerceAtLeast(1)

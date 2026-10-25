@@ -755,11 +755,14 @@ private fun MobilePlaybackTypeDialog(
     MobileChoiceDialog(
         title = stringResource(R.string.mobile_settings_video_playback_type),
         message = stringResource(R.string.mobile_settings_video_playback_type_description),
-        choices = VideoPlaybackType.entries.map { playbackType ->
-            MobileChoice(
-                value = playbackType,
-                label = stringResource(playbackType.labelResource()),
-                description = stringResource(playbackType.descriptionResource()),
+        choices = VideoPlaybackType.entries,
+        label = { stringResource(it.labelResource()) },
+        description = {
+            stringResource(
+                when (it) {
+                    VideoPlaybackType.Hls -> R.string.mobile_settings_video_playback_hls_description
+                    VideoPlaybackType.Mp4 -> R.string.mobile_settings_video_playback_mp4_description
+                },
             )
         },
         selected = selected,
@@ -767,13 +770,6 @@ private fun MobilePlaybackTypeDialog(
         onDismiss = onDismiss,
     )
 }
-
-@StringRes
-private fun VideoPlaybackType.descriptionResource(): Int =
-    when (this) {
-        VideoPlaybackType.Hls -> R.string.mobile_settings_video_playback_hls_description
-        VideoPlaybackType.Mp4 -> R.string.mobile_settings_video_playback_mp4_description
-    }
 
 @StringRes
 private fun VideoPlaybackType.labelResource(): Int =

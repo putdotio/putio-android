@@ -380,7 +380,7 @@ class MobilePlayerScreenTest {
         }
 
         compose.onNodeWithText("Converting to MP4").assertIsDisplayed()
-        compose.onNodeWithText("This video can’t play in its original format, so put.io started a conversion. It keeps going if you leave.").assertIsDisplayed()
+        compose.onNodeWithText(CONVERSION_MESSAGE).assertIsDisplayed()
         compose.onNodeWithText("42%").assertIsDisplayed()
         compose.onNodeWithText("Check again").assertDoesNotExist()
         compose.mainClock.advanceTimeBy(PLAYBACK_CONVERSION_POLL_MILLIS + 100L)
@@ -407,10 +407,10 @@ class MobilePlayerScreenTest {
             }
         }
 
-        compose.onNodeWithText("This video can’t play in its original format, so put.io started a conversion. It keeps going if you leave.").assertIsDisplayed()
+        compose.onNodeWithText(CONVERSION_MESSAGE).assertIsDisplayed()
         compose.onNodeWithText("Convert again").assertDoesNotExist()
         content = PlaybackContent.Conversion(PlaybackConversionState.Queued)
-        compose.onNodeWithText("This video can’t play in its original format, so put.io started a conversion. It keeps going if you leave.").assertIsDisplayed()
+        compose.onNodeWithText(CONVERSION_MESSAGE).assertIsDisplayed()
         compose.onNodeWithText("%", substring = true).assertDoesNotExist()
 
         content = PlaybackContent.Conversion(PlaybackConversionState.Failed)
@@ -980,7 +980,8 @@ class MobilePlayerSubtitleTest {
             Format.Builder().setId("en").setLanguage("en").setSampleMimeType(MimeTypes.TEXT_VTT).build(),
         )
         compose.runOnIdle {
-            player.updateTracks(Tracks(listOf(Tracks.Group(text, false, intArrayOf(C.FORMAT_HANDLED), booleanArrayOf(false)))))
+            val group = Tracks.Group(text, false, intArrayOf(C.FORMAT_HANDLED), booleanArrayOf(false))
+            player.updateTracks(Tracks(listOf(group)))
         }
         compose.onNodeWithContentDescription("Subtitles", substring = true).performClick()
         compose.onNode(hasText("English") and isSelectable()).performClick()
@@ -2864,3 +2865,6 @@ class MobilePlayerCodecTest {
         assertTrue(controlsVisibleAfterTap(false, Media3Player.STATE_READY, true))
     }
 }
+
+private const val CONVERSION_MESSAGE =
+    "This video can’t play in its original format, so put.io started a conversion. It keeps going if you leave."

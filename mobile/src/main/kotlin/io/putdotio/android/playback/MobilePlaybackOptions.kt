@@ -42,6 +42,10 @@ import androidx.media3.common.Player as Media3Player
 import androidx.media3.common.util.UnstableApi
 import io.putdotio.android.R
 
+/** Audio's speed choices; the video player steps through [MOBILE_PLAYBACK_SPEEDS]. */
+@Suppress("MagicNumber") // The audio sheet's list from before the video redesign.
+private val AUDIO_PLAYBACK_SPEEDS = listOf(0.75f, 1f, 1.25f, 1.5f, 2f)
+
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal fun RetainedPlayerPreferences.adoptPlaybackOptions(player: Media3Player) {
     playbackSpeed = player.playbackParameters.speed
@@ -137,7 +141,7 @@ internal fun MobilePlaybackOptions(
                     }
                 }
                 PlaybackOptionsPage.Speed -> Column(Modifier.selectableGroup()) {
-                    MOBILE_PLAYBACK_SPEEDS.forEach { choice ->
+                    AUDIO_PLAYBACK_SPEEDS.forEach { choice ->
                         PlaybackOption(
                             label = playbackSpeedLabel(choice),
                             selected = speed == choice,

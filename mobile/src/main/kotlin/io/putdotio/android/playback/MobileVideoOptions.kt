@@ -3,6 +3,8 @@ package io.putdotio.android.playback
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -40,6 +42,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -51,6 +54,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
@@ -66,9 +70,11 @@ import io.putdotio.android.design.putioMono
 import java.util.Locale
 
 /** The preset speeds; every speed control snaps to one. */
+@Suppress("MagicNumber") // The presets are the contract's own list (DESIGN.md Player).
 internal val MOBILE_PLAYBACK_SPEEDS = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f, 2.5f, 3f)
 
 /** The speed sheet's quick choices. */
+@Suppress("MagicNumber") // DESIGN.md Player names these four.
 private val QUICK_SPEEDS = listOf(1f, 1.25f, 1.5f, 2f)
 
 /** A speed as the app writes it: "1", "1.25", "0.5". */
@@ -144,7 +150,7 @@ internal fun MobilePlayerChip(
                 label,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                style = if (mono) MaterialTheme.typography.labelLarge.putioMono() else MaterialTheme.typography.labelLarge,
+                style = MaterialTheme.typography.labelLarge.let { if (mono) it.putioMono() else it },
             )
         },
         leadingIcon = leadingIcon?.let { { Icon(painterResource(it), null, Modifier.size(CHIP_ICON_SIZE)) } },
@@ -252,7 +258,11 @@ private fun audioTrackDetails(track: PlaybackAudioTrack): String? {
             2 -> stringResource(R.string.mobile_playback_audio_stereo)
             SURROUND_5_1 -> "5.1"
             SURROUND_7_1 -> "7.1"
-            else -> stringResource(R.string.mobile_playback_audio_channels, identity.channelCount)
+            else -> pluralStringResource(
+                R.plurals.mobile_playback_audio_channels,
+                identity.channelCount,
+                identity.channelCount,
+            )
         },
         audioCodecName(identity.sampleMimeType),
         stringResource(R.string.mobile_playback_audio_commentary)
@@ -261,31 +271,34 @@ private fun audioTrackDetails(track: PlaybackAudioTrack): String? {
     return parts.takeIf { it.isNotEmpty() }?.joinToString(DETAIL_SEPARATOR)
 }
 
-internal fun audioCodecName(mimeType: String?): String? =
-    when (mimeType) {
-        MimeTypes.AUDIO_AC3 -> "AC3"
-        MimeTypes.AUDIO_E_AC3, MimeTypes.AUDIO_E_AC3_JOC -> "E-AC3"
-        MimeTypes.AUDIO_AC4 -> "AC4"
-        MimeTypes.AUDIO_AAC -> "AAC"
-        MimeTypes.AUDIO_MPEG, MimeTypes.AUDIO_MPEG_L2 -> "MP3"
-        MimeTypes.AUDIO_OPUS -> "Opus"
-        MimeTypes.AUDIO_VORBIS -> "Vorbis"
-        MimeTypes.AUDIO_FLAC -> "FLAC"
-        MimeTypes.AUDIO_ALAC -> "ALAC"
-        MimeTypes.AUDIO_DTS, MimeTypes.AUDIO_DTS_EXPRESS -> "DTS"
-        MimeTypes.AUDIO_DTS_HD -> "DTS-HD"
-        MimeTypes.AUDIO_TRUEHD -> "TrueHD"
-        MimeTypes.AUDIO_RAW -> "PCM"
-        else -> null
-    }
+internal fun audioCodecName(mimeType: String?): String? = AUDIO_CODEC_NAMES[mimeType]
+
+private val AUDIO_CODEC_NAMES = mapOf(
+    MimeTypes.AUDIO_AC3 to "AC3",
+    MimeTypes.AUDIO_E_AC3 to "E-AC3",
+    MimeTypes.AUDIO_E_AC3_JOC to "E-AC3",
+    MimeTypes.AUDIO_AC4 to "AC4",
+    MimeTypes.AUDIO_AAC to "AAC",
+    MimeTypes.AUDIO_MPEG to "MP3",
+    MimeTypes.AUDIO_MPEG_L2 to "MP2",
+    MimeTypes.AUDIO_OPUS to "Opus",
+    MimeTypes.AUDIO_VORBIS to "Vorbis",
+    MimeTypes.AUDIO_FLAC to "FLAC",
+    MimeTypes.AUDIO_ALAC to "ALAC",
+    MimeTypes.AUDIO_DTS to "DTS",
+    MimeTypes.AUDIO_DTS_EXPRESS to "DTS",
+    MimeTypes.AUDIO_DTS_HD to "DTS-HD",
+    MimeTypes.AUDIO_TRUEHD to "TrueHD",
+    MimeTypes.AUDIO_RAW to "PCM",
+)
 
 /** A language tag in its own language, capitalised as that language does; null when unknown. */
 internal fun languageName(tag: String?): String? {
-    if (tag.isNullOrBlank() || tag == C.LANGUAGE_UNDETERMINED) return null
-    val locale = Locale.forLanguageTag(tag)
-    val name = locale.getDisplayLanguage(locale)
-    if (name.isBlank() || name.equals(locale.language, ignoreCase = true)) return null
-    return name.replaceFirstChar { it.titlecase(locale) }
+    val locale = tag?.takeUnless { it.isBlank() || it == C.LANGUAGE_UNDETERMINED }?.let(Locale::forLanguageTag)
+        ?: return null
+    return locale.getDisplayLanguage(locale)
+        .takeUnless { it.isBlank() || it.equals(locale.language, ignoreCase = true) }
+        ?.replaceFirstChar { it.titlecase(locale) }
 }
 
 internal const val DETAIL_SEPARATOR = " · "
@@ -318,15 +331,23 @@ internal fun MobileSpeedSheetContent(player: Media3Player, snapshot: PlayerOptio
             enabled = enabled && slower != null,
             onClick = { slower?.let(player::setPlaybackSpeed) },
         )
-        Text(
+        // The buttons keep their 56dp; the value takes what is left and shrinks to fit large text.
+        BasicText(
             buildAnnotatedString {
                 append(formatPlaybackSpeed(speed))
                 withStyle(SpanStyle(fontSize = SPEED_UNIT_SIZE, color = MaterialTheme.colorScheme.onSurfaceVariant)) {
                     append("×")
                 }
             },
-            style = PutioTypeScale.mono.copy(fontSize = SPEED_VALUE_SIZE, lineHeight = SPEED_VALUE_LINE),
-            modifier = Modifier.semantics {
+            style = PutioTypeScale.mono.copy(
+                fontSize = SPEED_VALUE_SIZE,
+                lineHeight = SPEED_VALUE_LINE,
+                color = MaterialTheme.colorScheme.onSurface,
+                textAlign = TextAlign.Center,
+            ),
+            maxLines = 1,
+            autoSize = TextAutoSize.StepBased(maxFontSize = SPEED_VALUE_SIZE),
+            modifier = Modifier.weight(1f).semantics {
                 contentDescription = value
                 liveRegion = LiveRegionMode.Polite
             },
@@ -348,8 +369,9 @@ internal fun MobileSpeedSheetContent(player: Media3Player, snapshot: PlayerOptio
     ) {
         val rangeStyle = MaterialTheme.typography.bodySmall.putioMono()
             .copy(fontSize = PutioTypeScale.labelSm.fontSize, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(stringResource(R.string.mobile_playback_speed_value, formatPlaybackSpeed(MOBILE_PLAYBACK_SPEEDS.first())), style = rangeStyle)
-        Text(stringResource(R.string.mobile_playback_speed_value, formatPlaybackSpeed(MOBILE_PLAYBACK_SPEEDS.last())), style = rangeStyle)
+        listOf(MOBILE_PLAYBACK_SPEEDS.first(), MOBILE_PLAYBACK_SPEEDS.last()).forEach { end ->
+            Text(stringResource(R.string.mobile_playback_speed_value, formatPlaybackSpeed(end)), style = rangeStyle)
+        }
     }
     Row(
         Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 20.dp).selectableGroup(),

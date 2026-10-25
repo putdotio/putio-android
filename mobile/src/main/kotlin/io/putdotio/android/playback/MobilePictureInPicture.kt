@@ -68,18 +68,17 @@ internal fun Lifecycle.State.withPictureInPicture(pictureInPicture: Boolean): Li
  * the device has none.
  */
 @Composable
-internal fun MobilePictureInPictureEffect(
+internal fun rememberMobilePictureInPicture(
     playing: Boolean,
     videoSize: VideoSize,
     videoFrame: Rect?,
     onPlayingRequested: (Boolean) -> Unit,
     onSeekRequested: (SeekDirection) -> Unit = {},
 ): (() -> Unit)? {
-    val host = LocalActivity.current ?: return null
+    val host = LocalActivity.current
     // The platform throws for an Activity that does not declare the window.
-    val declared = remember(host) { host.declaresPictureInPicture() }
-    val activity = host as? PictureInPictureProvider
-    if (!declared || activity == null) return null
+    val declared = remember(host) { host?.declaresPictureInPicture() == true }
+    val activity = (host as? PictureInPictureProvider)?.takeIf { declared } ?: return null
     val context = LocalContext.current
     val actions = remember(context) { PictureInPictureActions(context) }
     val params = remember(playing, videoSize, videoFrame, actions) {
@@ -126,15 +125,13 @@ internal fun MobilePictureInPictureEffect(
     val supported = remember(context) {
         context.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
     }
-    if (!supported) return null
-    return {
-        // Asked for, the window opens even for a paused video, which then shows Play.
-        pictureInPictureCall {
-            activity.enterPictureInPictureMode(
-                pictureInPictureParams(true, videoSize, videoFrame, actions.forState(playing)),
-            )
-        }
+    // Asked for, the window opens even for a paused video, which then shows Play. The parameters
+    // keep auto-entry as playback set it, so a paused video never enters on its own afterwards.
+    val enter = {
+        pictureInPictureCall { activity.enterPictureInPictureMode(currentParams) }
+        Unit
     }
+    return enter.takeIf { supported }
 }
 
 /**
@@ -249,7 +246,7 @@ internal fun Rect.fittedVideoBounds(aspectRatio: Rational): android.graphics.Rec
 
 /** The window's actions, in the player's order: 10 seconds back, play or pause, 10 seconds forward. */
 private class PictureInPictureActions(context: Context) {
-    private val seconds = (MOBILE_SEEK_INTERVAL_MILLIS / 1_000L).toInt()
+    private val seconds = (MOBILE_SEEK_INTERVAL_MILLIS / MILLIS_PER_SECOND).toInt()
     private val back = remoteAction(
         context,
         ACTION_PICTURE_IN_PICTURE_SEEK_BACK,
@@ -296,6 +293,7 @@ private fun remoteAction(
 // ActivityInfo.FLAG_SUPPORTS_PICTURE_IN_PICTURE, which the SDK hides; set from the manifest's
 // supportsPictureInPicture since Android 7.
 private const val FLAG_SUPPORTS_PICTURE_IN_PICTURE = 0x400000
+private const val MILLIS_PER_SECOND = 1_000L
 
 // Inside the platform's 2.39:1 limits, so a rounding difference can never make the shape invalid.
 private const val WIDEST_HUNDREDTHS = 238

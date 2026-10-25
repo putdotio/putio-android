@@ -87,7 +87,6 @@ import io.putdotio.android.trash.MOBILE_TRASH_ROUTE
 import io.putdotio.android.trash.MobileTrashScreen
 import io.putdotio.android.trash.TrashController
 import io.putdotio.android.trash.TrashEvent
-import io.putdotio.sdk.files.PutioFileType
 
 internal const val MOBILE_PLAYBACK_ROUTE = "playback/{fileId}?name={name}&media={media}&duration={duration}"
 
@@ -290,8 +289,6 @@ internal fun MobileNavHost(
                     val mediaType =
                         PlaybackMediaType.entries.firstOrNull { it.name == media } ?: PlaybackMediaType.VIDEO
                     val subtitleStartupPolicy = accountSettingsState.subtitleStartupPolicy()
-                    val askForDownloadNotifications = rememberFirstDownloadNotificationPrompt()
-                    val showSubtitles = accountSettingsState.confirmedShowSubtitles()
                     // The listing's duration spares resolution a lookup for the near-end rule.
                     val durationSeconds = backStackEntry.arguments?.getString("duration")?.toDoubleOrNull()
                         ?.takeIf { it.isFinite() && it > 0.0 }
@@ -312,12 +309,6 @@ internal fun MobileNavHost(
                             playerFactory = playbackPlayerFactory,
                             findNextEpisode = playbackRepository::findNextVideo
                                 .takeIf { accountSettingsState.nextEpisodeEnabled() },
-                            onDownloadVideo = downloadsController?.let { controller ->
-                                { video ->
-                                    val start = DownloadsEvent.Start(video.toDownloadRequest(showSubtitles))
-                                    if (controller.dispatch(start)) askForDownloadNotifications()
-                                }
-                            },
                         )
                     }
                 }
@@ -363,10 +354,9 @@ private fun MobilePlaybackRoute(
     onBack: () -> Unit,
     playerFactory: MobilePlayerFactory,
     findNextEpisode: (suspend (PlaybackTarget) -> PlaybackNextResult)? = null,
-    onDownloadVideo: ((PlaybackTarget) -> Unit)? = null,
 ) {
     val state by controller.state.collectAsStateWithLifecycle()
-    // With the account's next_episode on, a playing video asks the folder for the one after it once.
+    // With the account's next_episode on, a playing video asks autoplay's folder walk for the one after it, once.
     val ready = state.content is PlaybackContent.Ready && state.target.mediaType == PlaybackMediaType.VIDEO
     val nextEpisode by produceState<PlaybackTarget?>(null, state.target.fileId, ready, findNextEpisode != null) {
         value = null
@@ -413,7 +403,6 @@ private fun MobilePlaybackRoute(
         onRestart = { controller.dispatch(PlaybackEvent.Restart) },
         nextEpisode = nextEpisode,
         onNextEpisode = { nextEpisode?.let { controller.dispatch(PlaybackEvent.NextChosen(it)) } },
-        onDownload = onDownloadVideo?.let { download -> { download(state.target) } },
     )
 }
 
@@ -461,16 +450,6 @@ internal fun NavHostController.navigateToPlayback(
         if (replaceCurrentPlayback) popUpTo(MOBILE_PLAYBACK_ROUTE) { inclusive = true }
     }
 }
-
-/** A video the player can't play downloads as itself; the player knows no size, which the download learns. */
-private fun PlaybackTarget.toDownloadRequest(showSubtitles: Boolean?): DownloadRequest = DownloadRequest(
-    fileId = fileId,
-    name = name,
-    type = PutioFileType.VIDEO,
-    sizeBytes = 0L,
-    subtitlesHidden = showSubtitles?.not(),
-    durationSeconds = durationSeconds,
-)
 
 /** The confirmed subtitle setting travels with the download, which skips subtitles for it. */
 private fun FilesItem.toDownloadRequest(showSubtitles: Boolean?): DownloadRequest = DownloadRequest(

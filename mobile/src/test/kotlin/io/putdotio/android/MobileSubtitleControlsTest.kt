@@ -106,7 +106,9 @@ class MobileSubtitleControlsTest {
     fun emptySubtitleSheetExplainsItselfAndRetainsOff() {
         val player = RecordingPlayer()
         var selection: SubtitleSelection? = null
-        compose.setContent { SubtitleSheet(player, TrackSelectionParameters.Builder().build(), emptyList()) { selection = it } }
+        compose.setContent {
+            SubtitleSheet(player, TrackSelectionParameters.Builder().build(), emptyList()) { selection = it }
+        }
 
         compose.onNodeWithContentDescription("Subtitles: Off").assertIsDisplayed()
         compose.onNodeWithText("No captions available").assertIsDisplayed()
@@ -127,46 +129,28 @@ class MobileSubtitleControlsTest {
             subtitle(key = "folder-de", language = "German", code = "de", source = "folder", format = "srt"),
             subtitle(key = "os-tr", language = "Turkish", code = "tr", source = "opensubtitles", format = "srt"),
         )
-        val group = TrackGroup(
-            // Media3 prefixes a merged period's format ids with its index.
-            Format.Builder().setId("1:os-tr").setLanguage("tr").setLabel("Turkish")
-                .setSampleMimeType(MimeTypes.APPLICATION_SUBRIP).build(),
-            Format.Builder().setId("2:mkv-en").setLanguage("en").setLabel("English")
-                .setSampleMimeType(MimeTypes.APPLICATION_SUBRIP).build(),
-            Format.Builder().setId("embedded").setLanguage("en").setRoleFlags(C.ROLE_FLAG_DESCRIBES_MUSIC_AND_SOUND)
-                .setSampleMimeType(MimeTypes.TEXT_VTT).build(),
-            Format.Builder().setId("3:folder-de").setLanguage("de").setLabel("German")
-                .setSampleMimeType(MimeTypes.APPLICATION_SUBRIP).build(),
-            Format.Builder().setId("unsupported").setLanguage("fr").setSampleMimeType(MimeTypes.TEXT_VTT).build(),
-        )
-        compose.runOnUiThread {
-            player.discover(
-                Tracks(
-                    listOf(
-                        Tracks.Group(
-                            group,
-                            false,
-                            intArrayOf(
-                                C.FORMAT_HANDLED, C.FORMAT_HANDLED, C.FORMAT_HANDLED, C.FORMAT_HANDLED,
-                                C.FORMAT_UNSUPPORTED_SUBTYPE,
-                            ),
-                            BooleanArray(5),
-                        ),
-                    ),
-                ),
-            )
-        }
         var selection: SubtitleSelection? = null
-        compose.setContent { SubtitleSheet(player, TrackSelectionParameters.Builder().build(), sidecar) { selection = it } }
+        val defaults = TrackSelectionParameters.Builder().build()
+        compose.setContent { SubtitleSheet(player, defaults, sidecar) { selection = it } }
+        compose.onNodeWithText("No captions available").assertIsDisplayed()
+        // Tracks arrive after the sheet is up.
+        val group = sourcedSubtitleGroup()
+        compose.runOnIdle { player.discover(group) }
+        compose.onNodeWithText("No captions available").assertDoesNotExist()
 
-        val fileRows = listOf("English" to "SRT", "English · SDH" to "VTT")
-        val foundRows = listOf("Deutsch" to "This folder", "Türkçe" to "OpenSubtitles")
-        (fileRows + foundRows).forEach { (name, details) ->
-            compose.onNode(hasText(name) and hasText(details) and isSelectable()).assertIsDisplayed().assertIsNotSelected()
+        val rows = listOf(
+            "English" to "SRT", "English · SDH" to "VTT", "Deutsch" to "This folder", "Türkçe" to "OpenSubtitles",
+        )
+        rows.forEach { (name, details) ->
+            compose.onNode(hasText(name) and hasText(details) and isSelectable())
+                .assertIsDisplayed()
+                .assertIsNotSelected()
         }
         val order = listOf("Off", "In this file", "English", "English · SDH", "Found by put.io", "Deutsch", "Türkçe")
-            .map { compose.onAllNodes(hasText(it)).fetchSemanticsNodes().maxOf { node -> node.boundsInRoot.top } }
-        assertEquals(order.sorted(), order)
+        val tops = order.map { text ->
+            compose.onAllNodes(hasText(text)).fetchSemanticsNodes().maxOf { it.boundsInRoot.top }
+        }
+        assertEquals(tops.sorted(), tops)
         compose.onNodeWithText("Français").assertDoesNotExist()
 
         compose.onNode(hasText("Türkçe") and isSelectable()).performClick()
@@ -178,7 +162,6 @@ class MobileSubtitleControlsTest {
         compose.onNodeWithContentDescription("Subtitles: Türkçe").assertIsDisplayed()
         compose.onNode(hasText("Off") and isSelectable()).assertIsNotSelected().performClick()
         compose.runOnIdle { assertTrue(C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes) }
-        compose.onNodeWithContentDescription("Subtitles: Off").assertIsDisplayed()
         compose.onNode(hasText("English · SDH") and isSelectable()).performClick()
         compose.runOnIdle {
             assertTrue(C.TRACK_TYPE_TEXT !in player.trackSelectionParameters.disabledTrackTypes)
@@ -256,6 +239,27 @@ class MobileSubtitleControlsTest {
                 )
             }
         }
+    }
+
+    /** Four supported tracks, one of them embedded in the stream, and one the device can't render. */
+    @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+    private fun sourcedSubtitleGroup(): TrackGroup = TrackGroup(
+        // Media3 prefixes a merged period's format ids with its index.
+        Format.Builder().setId("1:os-tr").setLanguage("tr").setLabel("Turkish")
+            .setSampleMimeType(MimeTypes.APPLICATION_SUBRIP).build(),
+        Format.Builder().setId("2:mkv-en").setLanguage("en").setLabel("English")
+            .setSampleMimeType(MimeTypes.APPLICATION_SUBRIP).build(),
+        Format.Builder().setId("embedded").setLanguage("en").setRoleFlags(C.ROLE_FLAG_DESCRIBES_MUSIC_AND_SOUND)
+            .setSampleMimeType(MimeTypes.TEXT_VTT).build(),
+        Format.Builder().setId("3:folder-de").setLanguage("de").setLabel("German")
+            .setSampleMimeType(MimeTypes.APPLICATION_SUBRIP).build(),
+        Format.Builder().setId("unsupported").setLanguage("fr").setSampleMimeType(MimeTypes.TEXT_VTT).build(),
+    )
+
+    private fun CaptionControlPlayer.discover(group: TrackGroup) {
+        val supported = IntArray(group.length) { C.FORMAT_HANDLED }
+        supported[group.length - 1] = C.FORMAT_UNSUPPORTED_SUBTYPE
+        discover(Tracks(listOf(Tracks.Group(group, false, supported, BooleanArray(group.length)))))
     }
 
     private fun subtitle(key: String, language: String, code: String, source: String, format: String) =

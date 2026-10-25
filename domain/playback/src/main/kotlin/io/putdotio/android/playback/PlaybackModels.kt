@@ -218,14 +218,15 @@ public object PlaybackReducer {
             PlaybackEvent.RefreshConversion -> state.refreshConversion(start = false)
             PlaybackEvent.StartConversion -> state.refreshConversion(start = true)
             PlaybackEvent.PlayerEnded -> state.playerEnded()
-            is PlaybackEvent.NextChosen -> state.nextChosen(event)
             is PlaybackEvent.SourceRequired -> state.sourceRequired(event)
             is PlaybackEvent.PlayerFailed -> state.playerFailed(event)
             is PlaybackEvent.ResolveSucceeded -> state.resolveSucceeded(event)
             is PlaybackEvent.ResolveFailed -> state.resolveFailed(event)
-            is PlaybackEvent.NextFound -> state.nextFound(event)
-            is PlaybackEvent.NextEnded -> state.nextEnded(event)
-            is PlaybackEvent.NextFailed -> state.nextFailed(event)
+            is PlaybackEvent.NextChosen,
+            is PlaybackEvent.NextFound,
+            is PlaybackEvent.NextEnded,
+            is PlaybackEvent.NextFailed,
+            -> state.nextVideo(event)
         }
 }
 

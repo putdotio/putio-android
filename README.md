@@ -40,9 +40,9 @@ Mobile, on the emulator harness against the live API:
   video where it was
 - Resume or start over from a saved position, with throttled position updates
   while video or background audio plays
-- Playback speed from 0.5× to 3× in eight presets and audio-track selection;
-  choices survive player recreation, and an unavailable track falls back to
-  automatic selection
+- Video playback speed from 0.5× to 3× in eight presets (audio keeps 0.75× to
+  2×) and audio-track selection; choices survive player recreation, and an
+  unavailable track falls back to automatic selection
 - Account settings: subtitles, history, Trash, resume playback, proxy route,
   and default sort order, each saved to the account and shared across devices
 - A Privacy controls page under Account for diagnostics (on by default) and
