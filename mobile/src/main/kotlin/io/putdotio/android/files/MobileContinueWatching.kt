@@ -73,6 +73,7 @@ internal class MobileContinueWatching(
     /** Videos the player resolved this session, for positions put.io accepts later. */
     private val media = mutableMapOf<FilesItemId, Media>()
     private val mutableEntries = MutableStateFlow(store.read())
+    private val handledDeletes = mutableSetOf<FilesRequestId>()
     private var reconciled = false
     private var closed = false
 
@@ -125,17 +126,23 @@ internal class MobileContinueWatching(
     }
 
     /**
-     * put.io confirmed [fileIds] gone. An entry among them leaves at once. Any other id may be a
-     * folder holding entries, which only a fresh read of each entry finds, as [reconcile] reads them.
+     * Deletes Files confirmed, each handled once per session however often the screen replays it.
+     * An entry deleted leaves at once. Any other item may be a folder holding entries, which only a
+     * fresh read of each entry finds, as [reconcile] reads them.
      */
     suspend fun removed(
-        fileIds: List<FilesItemId>,
+        deletes: List<FilesDeleteOutcome>,
         resolve: suspend (FilesItemId) -> PutioResult<FilesItem>,
     ): PutioFailure.AuthenticationRequired? {
+        val fresh = deletes.filterNot { it.requestId in handledDeletes }
+        val fileIds = fresh.map { it.intent.itemId }
         val entryIds = mutableEntries.value.mapTo(mutableSetOf()) { it.fileId }
         fileIds.forEach { removed(it) }
         val elsewhere = fileIds.any { it !in entryIds }
-        return if (elsewhere && !closed && mutableEntries.value.isNotEmpty()) readEntries(resolve) else null
+        val rejected = if (elsewhere && !closed && mutableEntries.value.isNotEmpty()) readEntries(resolve) else null
+        // Only once the pass ends, so a pass cancelled with its screen runs again.
+        fresh.mapTo(handledDeletes) { it.requestId }
+        return rejected
     }
 
     private suspend fun readEntries(
@@ -152,6 +159,8 @@ internal class MobileContinueWatching(
             if (unchanged && result is PutioResult.Success) {
                 refresh(read, result.value)
             } else if (unchanged && failure?.isNotFound == true) {
+                // As in removed(fileId): a save answered later must not bring the card back.
+                media.remove(read.fileId)
                 update(mutableEntries.value.filterNot { it == read })
             }
         }

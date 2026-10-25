@@ -457,7 +457,7 @@ private fun SavedPositionEffects(
         filesController.state
             .map { state ->
                 state.stack.mapNotNull { folder ->
-                    folder.deleteOutcome?.takeIf { it.status == FilesDeleteStatus.NO_LONGER_AVAILABLE }?.intent?.itemId
+                    folder.deleteOutcome?.takeIf { it.status == FilesDeleteStatus.NO_LONGER_AVAILABLE }
                 }
             }
             .distinctUntilChanged()

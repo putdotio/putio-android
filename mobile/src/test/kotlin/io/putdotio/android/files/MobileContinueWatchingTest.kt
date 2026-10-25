@@ -124,15 +124,24 @@ class MobileContinueWatchingTest {
         }
 
         // An entry deleted on its own leaves without reading the others.
-        assertEquals(null, row.removed(listOf(Flaky), resolve))
+        val video = deleted(1L, Flaky)
+        assertEquals(null, row.removed(listOf(video), resolve))
         assertTrue(reads.isEmpty())
 
         // A folder's id is no entry: every entry is read, and the one inside it is gone.
-        assertEquals(null, row.removed(listOf(Folder), resolve))
+        val folder = deleted(2L, Folder)
+        assertEquals(null, row.removed(listOf(video, folder), resolve))
         assertEquals(listOf(Tears, Sintel), reads.sortedBy { it.value })
         assertEquals(listOf(Sintel), row.entries.value.map { it.fileId })
+        // A save answered after the folder went can't bring its video back.
+        row.positionSaved(Tears, 90.0)
+        assertEquals(listOf(Sintel), row.entries.value.map { it.fileId })
 
-        val rejected = row.removed(listOf(Folder)) {
+        // The screen replays deletes it still shows, after a rotation say; they read nothing again.
+        assertEquals(null, row.removed(listOf(video, folder), resolve))
+        assertEquals(2, reads.size)
+
+        val rejected = row.removed(listOf(deleted(3L, Folder))) {
             PutioResult.Failure(PutioFailure.AuthenticationRequired(apiException(401)))
         }
         assertTrue(rejected is PutioFailure.AuthenticationRequired)
@@ -177,6 +186,13 @@ class MobileContinueWatchingTest {
         sizeBytes = 1L,
         createdAt = "2026-10-20T00:00:00",
         playback = FilesPlaybackProgress(startFrom, null),
+    )
+
+    private fun deleted(request: Long, id: FilesItemId) = FilesDeleteOutcome(
+        requestId = FilesRequestId(request),
+        intent = FilesFolderOperationIntent.Delete(id, FilesDeleteMode.TRASH),
+        itemName = "item-${id.value}",
+        status = FilesDeleteStatus.NO_LONGER_AVAILABLE,
     )
 
     private fun notFound(): PutioFailure =
