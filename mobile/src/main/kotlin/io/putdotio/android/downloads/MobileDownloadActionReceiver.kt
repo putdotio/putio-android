@@ -143,7 +143,9 @@ internal fun DownloadManager.liveDownloadsOf(userId: Long): List<FilesItemId> =
 
 /**
  * The viewer's pause, written to the index before Media3's stop reason as the engine's own Pause
- * does, so a live engine holds Media3 to it and Downloads shows the row paused.
+ * does, so a live engine holds Media3 to it and Downloads shows the row paused. Media3 decides what
+ * is live: a row can still read failed after a background Try again until an engine reconciles it.
+ * Without a row, Media3's stop reason alone stands until reconcile rebuilds the row from it.
  */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal fun pauseFromNotification(
@@ -152,7 +154,7 @@ internal fun pauseFromNotification(
     userId: Long,
     fileId: FilesItemId,
 ) {
-    if (store.find(fileId)?.let { it.canPause && !it.removing } != true) return
+    if (store.find(fileId)?.removing == true) return
     store.updateStatusBlocking(fileId, commit = true) { it.copy(pauseRequested = true) }
     manager.setStopReason(downloadContentId(userId, fileId), MobileDownloadEngine.STOP_REASON_PAUSED)
 }

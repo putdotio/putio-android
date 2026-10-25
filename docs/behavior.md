@@ -1327,10 +1327,13 @@ not on their way), names the first running file with the overall percentage
 over a bar, or says what they wait for, and opens Downloads. The lock screen
 shows the count without the name. Its Pause and Cancel act on every live
 download of the account the notification was built for, only while that account
-is signed in: Pause holds each as the viewer's pause, written to the app's index
-before Media3's stop reason, so Downloads shows the rows paused and they stay
-paused until Resume; Cancel marks each row for removal and has Media3 delete its
-partial bytes, as Remove does. Once nothing is live, the notification goes.
+is signed in, as Media3 reports them: Pause holds each as the viewer's pause,
+written to the app's index before Media3's stop reason, so Downloads shows the
+rows paused and they stay paused until Resume, even a row that still reads
+failed after a background Try again; Cancel marks each row for removal and has
+Media3 delete its partial bytes, as Remove does. While those bytes go and
+nothing else is live, it reads "Removing from this device…" without actions;
+then it goes.
 
 When a download finishes or fails, with or without the app
 open, a notification names the file and opens its row in Downloads; the lock

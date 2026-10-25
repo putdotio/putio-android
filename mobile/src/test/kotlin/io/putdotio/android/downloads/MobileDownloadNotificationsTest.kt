@@ -251,6 +251,24 @@ class MobileDownloadNotificationsTest {
         assertEquals(0, waiting.extras.getInt(Notification.EXTRA_PROGRESS_MAX))
     }
 
+    @Test
+    fun afterTheLastCancelTheNotificationSaysItIsRemovingWithoutActions() {
+        // Media3 keeps the service in the foreground while it deletes a cancelled download's bytes.
+        val removing = downloadProgressNotification(
+            context,
+            "downloads",
+            listOf(
+                download(14L, Download.STATE_REMOVING, name = "Sintel.mkv"),
+                download(13L, Download.STATE_STOPPED, stopReason = MobileDownloadEngine.STOP_REASON_PAUSED),
+            ),
+            0,
+        )
+
+        assertEquals("Removing from this device…", removing.extras.getString(Notification.EXTRA_TITLE))
+        assertEquals(null, removing.extras.getCharSequence(Notification.EXTRA_TEXT))
+        assertTrue(removing.actions.isNullOrEmpty())
+    }
+
     private fun MobileDownloadNotifications.changed(download: Download, error: Exception? = null) =
         onDownloadChanged(downloadManager, download, error)
 
