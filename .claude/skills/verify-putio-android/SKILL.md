@@ -46,7 +46,7 @@ call of its own.
 
 Two ways to boot:
 
-- `--snapshot`, the default: a `-read-only` instance of the shared
+- `--snapshot`, for most runs: a `-read-only` instance of the shared
   `putio-phone` AVD, loaded from its `devs-auto-signed-in` snapshot on a free
   port. It starts signed in, so the sign-in script passes with no approval.
   Every instance shares that one grant: never sign out in a snapshot run.
@@ -204,9 +204,16 @@ Proof standards:
 
 In this order, also after a failed attempt. A `--fresh` run first signs out
 under Account ([Account and sign-out](features/account-and-sign-out.md)) while
-online, and waits a few seconds: revocation runs in the background after
-Welcome shows, and deleting the AVD drops a pending retry. A `--snapshot` run
-never signs out.
+online. Revocation runs in the background after Welcome shows and retries
+after 15 s, then a minute; deleting the AVD drops a pending retry. Before
+`session.sh down`, wait until the app holds no pending revocation:
+
+```bash
+$S/devbox.sh run "$RUN" 'until ! $ANDROID_HOME/platform-tools/adb -s $SERIAL shell run-as io.put.putio.mobile.debug cat shared_prefs/putio_auth.xml | grep -q pending_revocation_token; do sleep 5; done'
+```
+
+If it stays pending for several minutes, keep the run up and report the
+grant. A `--snapshot` run never signs out.
 
 ```bash
 $S/devbox.sh run "$RUN" '$V/session.sh down $RUN'     # force-stop the app, stop this instance (and delete AVD <run> if --fresh)

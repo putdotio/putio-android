@@ -51,7 +51,9 @@ Preconditions:
 - **Magnet.** Open the link. Run
   `$V/ui.sh link $SERIAL "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567&dn=Harbor%20film"`.
   The sheet shows that link and adds nothing until `Add 1`. Press Back.
-- **Actions.** Tap the run's card's `Transfer actions` and
+- **Actions.** Long-press the run's card by its file name (`Transfer actions`
+  is only an action label, and a tap on a completed card opens its file).
+  Run `$V/ui.sh long-press $SERIAL --text "<file name>"`, then tap
   `Remove from list`. The card leaves and `putio transfers list` no longer
   holds its id.
 

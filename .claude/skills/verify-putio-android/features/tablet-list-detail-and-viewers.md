@@ -36,9 +36,10 @@ Preconditions:
   `adb -s $SERIAL shell wm size 2560x1600` and
   `adb -s $SERIAL shell wm density 320` (1280x800 dp).
 
-- **Phone viewer.** At the default size, tap `verify-1.png`. The viewer shows
-  the image and `1 of 2`. Swipe left; it reads `2 of 2`. Capture
-  `viewer-image`. Press Back.
+- **Phone viewer.** The pager follows the folder's listing order, so read
+  it first: the image listed first is `1 of 2`. Tap it; the viewer shows the
+  image and `1 of 2`. Swipe left; it reads `2 of 2`. Capture `viewer-image`.
+  Press Back.
 - **Text viewer.** Tap the text file. Its content shows in mono.
 - **Widen.** Run the two `wm` commands, then
   `$V/ui.sh link $SERIAL putio://files` and open the run's folder. The

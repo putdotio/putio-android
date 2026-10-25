@@ -51,8 +51,9 @@ Preconditions:
   `On this device` and shows its size and date.
 - **Offline play.** Run
   `adb -s $SERIAL shell cmd connectivity airplane-mode enable`, open
-  Downloads and tap the row's Play. The player shows the clip. Capture with
-  `--allow-dark`.
+  Downloads, open `Download actions for verify-clip.mp4` and tap `Play` in
+  that sheet (the row's own Play is only an action label). The player shows
+  the clip. Capture with `--allow-dark`.
 - **Offline root.** Open Files. The root reads `Can’t reach put.io.` and
   lists the clip under `Offline. Showing what’s on this device.`
 - **Back online.** Run `adb -s $SERIAL shell cmd connectivity airplane-mode disable`.
