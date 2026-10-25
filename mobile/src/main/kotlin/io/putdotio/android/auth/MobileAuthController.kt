@@ -68,6 +68,9 @@ sealed interface MobileSignedOutReason {
 enum class SessionValidationSource {
     RESTORE,
     OAUTH_CALLBACK,
+
+    /** A token from a device-code grant; only debug builds sign in this way. */
+    DEVICE_LINK,
     RETRY,
 }
 
@@ -194,11 +197,31 @@ class MobileAuthController internal constructor(
                 }
 
                 is OAuthCallbackParseResult.Success -> {
-                    persistAndValidateCallbackToken(callback.accessToken)
+                    persistAndValidateToken(callback.accessToken, SessionValidationSource.OAUTH_CALLBACK)
                     OAuthCallbackHandlingResult.ACCEPTED
                 }
             }
         }
+
+    /**
+     * Signs in with a token a device-code grant produced, through the same storage and validation as
+     * an OAuth callback. Only the debug build's device-code sign-in calls this. False unless signed out
+     * with no browser sign-in pending, including one an earlier process started.
+     */
+    internal suspend fun completeDeviceLink(accessToken: AccessToken): Boolean = operationMutex.withLock {
+        val signedOutState = mutableState.value as? MobileAuthState.SignedOut ?: return@withLock false
+        val browserPending = try {
+            oauthAttempts.readUnexpired() != null
+        } catch (_: PendingOAuthAttemptStorageException) {
+            true
+        }
+        if (browserPending) return@withLock false
+        withContext(NonCancellable) {
+            if (signedOutState.reason == MobileSignedOutReason.SecureStorageUnavailable) clearLocalSession()
+            persistAndValidateToken(accessToken, SessionValidationSource.DEVICE_LINK)
+        }
+        true
+    }
 
     suspend fun retryValidation(): Boolean = operationMutex.withLock {
         val unavailableState = mutableState.value as? MobileAuthState.ValidationUnavailable
@@ -238,7 +261,7 @@ class MobileAuthController internal constructor(
         }
     }
 
-    private suspend fun persistAndValidateCallbackToken(accessToken: AccessToken) {
+    private suspend fun persistAndValidateToken(accessToken: AccessToken, source: SessionValidationSource) {
         try {
             tokenStore.write(accessToken)
         } catch (_: AuthTokenStorageException) {
@@ -252,7 +275,7 @@ class MobileAuthController internal constructor(
             return
         }
         configureSession(accessToken)
-        validateConfiguredSession(SessionValidationSource.OAUTH_CALLBACK)
+        validateConfiguredSession(source)
     }
 
     // Gateway implementations are process boundaries; cancellation remains control flow.
