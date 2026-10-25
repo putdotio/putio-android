@@ -83,6 +83,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 
@@ -233,6 +234,9 @@ private fun SignedInMobileSession(
     val account = signedIn.account
     val sessionId = signedIn.sessionId
     val appContext = LocalContext.current.applicationContext
+    val signOut = remember(authController, sessionId, downloadsController) {
+        MobileSignOut(authController, sessionId, downloadsController)
+    }
     val playbackRepository = remember(
         runtime,
         appConfigController,
@@ -366,7 +370,7 @@ private fun SignedInMobileSession(
         onDismissNavigationFailure = searchHistorySession::dismissNavigationFailure,
         onSignOut = { removeDownloads ->
             MobilePlaybackService.stop(appContext)
-            rootScope.launch { signOut(authController, sessionId, downloadsController.takeIf { removeDownloads }) }
+            signOut.start(rootScope, removeDownloads)
         },
     )
 }
@@ -410,20 +414,28 @@ private fun SavedPositionEffects(
 }
 
 /**
- * Ends [sessionId], first deleting [removeDownloadsFrom]'s downloads when the viewer asked. Deletes reach
- * Media3 before the session ends, so they run even though sign-out parks this account's transfers next.
- * A confirmed sign-out finishes even if the screen is recreated meanwhile; removal is best effort, and
- * rows it marked finish their removal at that account's next sign-in. A session that already ended, or
- * was replaced, is left alone.
+ * One confirmed sign-out per session; a second confirmation while the first runs is ignored. It first
+ * deletes [downloads] when the viewer asked: deletes reach Media3 before the session ends, so they run
+ * even though sign-out parks this account's transfers next. It finishes even if the screen is recreated
+ * meanwhile, and leaves a session that already ended, or was replaced, alone.
  */
-private suspend fun signOut(
-    authController: MobileAuthController,
-    sessionId: MobileAuthSessionId,
-    removeDownloadsFrom: DownloadsController?,
-) = withContext(NonCancellable) {
-    removeDownloadsFrom?.let { downloads -> runCatching { downloads.removeAll() } }
-    val current = authController.state.value
-    if (current is MobileAuthState.SignedIn && current.sessionId == sessionId) authController.logout()
+private class MobileSignOut(
+    private val authController: MobileAuthController,
+    private val sessionId: MobileAuthSessionId,
+    private val downloads: DownloadsController?,
+) {
+    private val started = AtomicBoolean(false)
+
+    fun start(scope: CoroutineScope, removeDownloads: Boolean) {
+        if (!started.compareAndSet(false, true)) return
+        scope.launch {
+            withContext(NonCancellable) {
+                if (removeDownloads) downloads?.removeAll()
+                val current = authController.state.value
+                if (current is MobileAuthState.SignedIn && current.sessionId == sessionId) authController.logout()
+            }
+        }
+    }
 }
 
 /** Offline playback falls back to the resume setting this device last confirmed. */

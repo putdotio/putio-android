@@ -383,10 +383,12 @@ private fun MobileAccountDialogs(
     }
     when (dialog) {
         AccountDialog.None -> Unit
-        AccountDialog.TrashOff -> MobileTrashOffDialog(
-            onDismiss = onDismiss,
-            onConfirm = { change(AccountSettingsChange(AccountSettingsKey.Trash, enabled = false)) },
-        )
+        AccountDialog.TrashOff -> if (settings != null) {
+            MobileTrashOffDialog(
+                onDismiss = onDismiss,
+                onConfirm = { change(AccountSettingsChange(AccountSettingsKey.Trash, enabled = false)) },
+            )
+        }
         AccountDialog.SignOut -> MobileSignOutDialog(
             downloadsOnDeviceBytes = downloadsOnDeviceBytes,
             onDismiss = onDismiss,

@@ -186,7 +186,9 @@ internal class DownloadsController(
                 mutableState.value = current.copy(removal = null, removing = current.removing + ids)
                 ids
             }
-            markAndRemove(fileIds)
+            // Best effort: a failed delete must not cost the sign-out it precedes. Marked rows finish their
+            // removal at the next sign-in.
+            runCatching { markAndRemove(fileIds) }
         }.join()
     }
 
