@@ -28,7 +28,7 @@ import kotlinx.coroutines.withContext
 
 /**
  * Debug builds only: signs the app in with a device code, for harnesses that approve it with the
- * `putio` CLI instead of a browser (docs/harness.md#mobile-device-code-sign-in). The token goes
+ * `putio` CLI instead of a browser. The token goes
  * through [MobileAuthController.completeDeviceLink], so the session is the one a browser sign-in
  * stores. The screen shows the code, then the signed-in account's ID, as plain text nodes.
  */
@@ -65,7 +65,7 @@ internal sealed interface DebugDeviceSignInState {
     ) : DebugDeviceSignInState
 }
 
-// The harness reads these with uiautomator; docs/harness.md and scripts/sign-in-devs-auto.sh match them.
+// The harness reads these with uiautomator; scripts/sign-in-devs-auto.sh matches them.
 private fun DebugDeviceSignInState.label(): String =
     when (this) {
         DebugDeviceSignInState.Starting -> "Device sign-in: starting"

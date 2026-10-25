@@ -303,8 +303,7 @@ America, where mono would fit fewer characters on the line.
 Five destinations: **Files, History, Transfers, Downloads, Account**, in that
 order. `NavigationSuiteScaffold`'s layout and suite with an explicit layout type:
 a navigation bar below 600dp width and the collapsed wide navigation rail from
-600dp, following the window
-([Multi-window](docs/behavior.md#multi-window)). When five destinations don't
+600dp, following the window. When five destinations don't
 fit, in short windows or at large font scales, a scrollable drawer takes over.
 The selected item uses the stock indicator with a filled Phosphor
 glyph in `on-secondary-container`; unselected items use the regular glyph.
@@ -366,8 +365,7 @@ clear. Type chips (All, Folders, Videos, Audio, Subtitles) sit under the field;
 they map to the API's type filter, and Subtitles filters by extension on the
 device. Results group into Folders and Files, each with a mono count; a file's
 meta names its parent folder once its name is known (results carry only its
-id). Recent searches show while the query is empty
-([Recent searches](docs/behavior.md#recent-searches)).
+id). Recent searches show while the query is empty.
 
 ### File rows
 
@@ -387,11 +385,9 @@ start padding:
 - Trailing: a chevron for folders, an overflow button for files.
 - No progress bars or percentages in file rows.
 
-Tap opens the item
-([Timestamps and History opens](docs/behavior.md#timestamps-and-history-opens)).
+Tap opens the item.
 Long-press opens the same actions sheet as the overflow button. Downloads is
-the exception: long-press starts selection with that row selected
-([Downloads and offline playback](docs/behavior.md#downloads-and-offline-playback)).
+the exception: long-press starts selection with that row selected.
 
 ### Item actions
 
@@ -401,13 +397,11 @@ common actions are action tiles (Play or Resume, Download, Share); the rest are
 56dp icon rows: Open in VLC (videos), Select, Mark as watched, Rename, Move,
 Exclusive link. The
 delete action comes last, in red, after a divider: Move to trash, or Delete
-permanently when the account turns Trash off
-([Files delete and paging](docs/behavior.md#files-delete-and-paging)). The
+permanently when the account turns Trash off. The
 sheet shows only what the item allows: Play and Download follow the file type.
 
 Shared items keep the tiles, add **Make a copy** to the rows, and drop the
-owner actions without explaining why
-([Shared-with-me items](docs/behavior.md#shared-with-me-items)). Their meta
+owner actions without explaining why. Their meta
 names the sharer.
 
 ### Selection
@@ -453,8 +447,7 @@ A sheet titled **Exclusive access**. One body line names the file and the
 limits in prose: a link stops working after 72 hours, or sooner at its IP or
 data limit (the API returns no limit numbers). Each live link is a row: the full
 link in mono, cut in the middle, "Expires in" with a mono remainder, then copy,
-share and revoke icon buttons; revoke confirms. A filled **Create link** ends the sheet
-([Public links](docs/behavior.md#public-links)).
+share and revoke icon buttons; revoke confirms. A filled **Create link** ends the sheet.
 
 ### Notices and snackbars
 
@@ -462,8 +455,7 @@ share and revoke icon buttons; revoke confirms. A filled **Create link** ends th
   screen, never a dialog, with nothing to tap. A red warning glyph leads; the
   card and its text stay neutral. A medium first line states the
   account's state, either deactivated or a family plan no longer active; a
-  deactivated account adds the deletion countdown with the days in mono
-  ([Inactive account](docs/behavior.md#inactive-account)).
+  deactivated account adds the deletion countdown with the days in mono.
 - **Snackbar:** one short line confirming a finished action ("Link copied"),
   above the nav bar, with at most one text action.
 
@@ -565,8 +557,7 @@ Add counts the lines that will go ("Add 1").
 **Widget:** the home-screen widget is a `background` card titled Transfers
 with a yellow glyph and a refresh button. Up to three running transfers follow,
 each with its name on one line, its state and mono percentage, and a progress
-bar; the footer gives the mono update time and how many more are running
-([Transfers widget](docs/behavior.md#transfers-widget)).
+bar; the footer gives the mono update time and how many more are running.
 
 ## Downloads
 
@@ -592,8 +583,7 @@ and acts on those rows. Remove cancels unfinished downloads and deletes local
 copies.
 
 Actions here act on the local copy only: Remove from this device, with a
-confirm. They never trash or delete the file on put.io
-([Downloads and offline playback](docs/behavior.md#downloads-and-offline-playback)).
+confirm. They never trash or delete the file on put.io.
 
 ## History
 
@@ -617,8 +607,7 @@ Privacy, About, then Sign out alone, in red, behind its
 tab. Library rows show the link count and Trash's size in mono once the app
 has loaded them; App info opens its own page.
 
-**Privacy controls** opens its own screen, in the order
-[Privacy controls](docs/behavior.md#privacy-controls) fixes: Strictly necessary
+**Privacy controls** opens its own screen, in this order: Strictly necessary
 as Always on, with no switch; Diagnostics and Product analytics, each a
 two-line row with its explanation; the footer saying neither sends filenames,
 media titles, URLs, search text or tokens; then the privacy policy and the
@@ -627,7 +616,7 @@ services list.
 ## Player
 
 Video plays immersive full screen; orientation follows
-[Mobile video player](docs/behavior.md#mobile-video-player): a landscape video
+the video: a landscape video
 turns a phone to landscape, a portrait video keeps the window's orientation,
 and tablets and multi-window use the window they have. Controls fade in on tap
 over a top and bottom scrim:
@@ -654,8 +643,7 @@ video dimmed behind:
 
 A video that needs **MP4 conversion** keeps the player's frame with the video
 dimmed: "Converting to MP4", one line saying it keeps going if you leave, and a
-progress bar with a mono percentage. The one tonal action follows the state
-([MP4 conversion](docs/behavior.md#mp4-conversion)): Check again while it
+progress bar with a mono percentage. The one tonal action follows the state: Check again while it
 waits for the viewer, Convert again after a failure, and only Back for a video
 that can't be converted.
 
@@ -729,8 +717,7 @@ the navigation bar: **Welcome!** as a 40sp medium title on a 48sp line, then
 ## Other screens
 
 - **Recent searches:** while the query is empty, a list of past queries with a
-  clock glyph and a remove button, and **Clear** on the section line
-  ([Recent searches](docs/behavior.md#recent-searches)).
+  clock glyph and a remove button, and **Clear** on the section line.
 - **Background copy:** Make a copy shows one line under the bar, "Copying
   “name” to Folder…", with a small yellow spinner. It survives folder changes
   and can be dismissed; a failure swaps the spinner for a red dot and the
@@ -762,8 +749,7 @@ the navigation bar: **Welcome!** as a 40sp medium title on a 48sp line, then
   percentage, a bar, **Pause** and **Cancel**; **Download finished** with
   **Play**; and **Download failed** with the reason, **Try again** and **Open
   in Downloads**. Notification text stays in the system face. Playback keeps its media notification and
-  share-out its progress, failure and ready notifications
-  ([Share-out](docs/behavior.md#share-out)).
+  share-out its progress, failure and ready notifications.
 - **Launcher icon and shortcuts:** the putio-design app icons (production,
   nightly, and dev for debug builds) as an adaptive icon, so each launcher
   masks the full art to its own shape. Long-press offers Add transfer, Search

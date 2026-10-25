@@ -67,7 +67,7 @@ kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutine
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
 okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
 putio-sdk-kotlin = { module = "io.put:putio-sdk-kotlin", version.ref = "putioSdkKotlin" }
-# Core only: JVM crashes and ANRs. No NDK, replay or performance modules (docs/behavior.md#diagnostics).
+# Core only: JVM crashes and ANRs. No NDK, replay or performance modules.
 sentry-android-core = { module = "io.sentry:sentry-android-core", version.ref = "sentry" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 # The SDK 35 runtime every Robolectric test pins with @Config(sdk = [35]); its version is the one

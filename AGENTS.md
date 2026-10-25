@@ -3,10 +3,9 @@
 Ground-up native rewrite of the put.io Android app: Kotlin and Compose for
 phones and tablets (`mobile`) and Android TV / Fire TV (`tv`) from one
 codebase. It is not on Google Play yet; [#14](https://github.com/putdotio/putio-android/issues/14)
-tracks the rollout. The [README](README.md) lists what works,
-[Behaviour](docs/behavior.md) the product rules and the tests that pin them,
-[Harness](docs/harness.md) the emulator lanes, evidence, and live proof, and
-[Design](DESIGN.md) the Android design contract.
+tracks the rollout. The [README](README.md) lists what works and
+[Design](DESIGN.md) the Android design contract. Tests pin the product rules;
+script headers and `--help` own the harness.
 
 ## Where code lives
 
@@ -14,7 +13,7 @@ tracks the rollout. The [README](README.md) lists what works,
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `core/common`    | The put.io failure and result kernel (`PutioFailure`, `PutioResult`, `putioRequest`, API rejection reasons), Files ids, cursors and sort order, the download-token account read, timestamps, avatar URLs, account storage keys, `SessionScopedHolder`                                 |
 | `core/design`    | `PutioTheme`, generated design tokens, font families and type and corner scales, the compact switch, destructive button and empty state, the production launcher icon and wordmark, file-type and shared Phosphor drawables, `BasePutioActivity`, the inactive-account notice's words |
-| `core/telemetry` | Sentry behind the account's `diagnostics_enabled`: the consent gate, the event allowlist, `TelemetryFailure` and `PutioDiagnostics`, the apps' only way to report ([Diagnostics](docs/behavior.md#diagnostics))                                                                       |
+| `core/telemetry` | Sentry behind the account's `diagnostics_enabled`: the consent gate, the event allowlist, `TelemetryFailure` and `PutioDiagnostics`, the apps' only way to report                                                                                                                     |
 | `domain/<name>`  | One domain's models, SDK repository, reducer and controller, shared by both surfaces: `account` (account settings, app config, inactive-account notice), `auth`, `files`, `history`, `playback`, `search`, `sharing` (public links; mobile only so far), `transfers`, `trash`         |
 | `mobile`         | Phone and tablet app: touch UI, shell, navigation, offline downloads, the system file picker's documents provider, launcher shortcuts, the home-screen widget, services and session wiring, and the Google Play listing and publisher both apps share                                 |
 | `tv`             | Android TV app: D-pad UI, shell and session wiring                                                                                                                                                                                                                                    |
@@ -55,17 +54,24 @@ tracks the rollout. The [README](README.md) lists what works,
 
 - **The app id is live on Google Play.** `mobile` and `tv` both build
   `io.put.putio` in production, the id of the put.io TV app users run today, so
-  a release replaces it in place and TV imports its session
-  ([Upgrade from tv-native](docs/behavior.md#upgrade-from-tv-native)). Keep the
+  a release replaces it in place and TV imports its session. Keep the
   id unless product owners choose a new listing. Only the
   [Google Play delivery](#google-play-delivery) workflows upload.
 - **Shared test account.** Live proof uses the `devs-auto` put.io CLI profile
   that the web, iOS, and TV harnesses share. Create uniquely named fixtures,
-  record their ids, and remove only those. Never use a personal profile or put
-  tokens in the repo; app tokens belong in Android secure storage.
+  record their ids, and remove only those. Never empty Trash, use ID zero, or
+  repeat a mutation whose outcome is unknown; `POST /files/delete` reads
+  `skip_trash` from the query only, so a form value deletes permanently when
+  Trash is off. Restore any account setting you change. Never use a personal
+  profile or put tokens in the repo; app tokens belong in Android secure
+  storage. Sign the mobile debug app in as `devs-auto` with
+  `./scripts/sign-in-devs-auto.sh <serial>`; each approval adds a grant until
+  you sign out in the app.
 - **Shared emulators.** The machine may be running other emulators. The scripts
   reuse preexisting ones and stop only the serial they booted; never kill
-  emulators by name or delete AVDs the harness did not create.
+  emulators by name or delete AVDs the harness did not create. A lane that
+  drives Home, the launcher, or system settings acts on the whole device: run
+  it only on an emulator you booted, and restore every setting it changes.
 - **Authenticated installs.** `connectedAndroidTest` and `scripts/prove.sh`
   uninstall the tested app and its session; don't run them between
   authenticated proof steps.
@@ -74,7 +80,12 @@ tracks the rollout. The [README](README.md) lists what works,
   the apps embed them.
 - **Evidence.** Captures land in ignored `.evidence/`. Never commit them or
   upload a quarantined `*.corrupt`, `*.black.*`, or `*.mp4.idle` file, and look
-  at each capture before attaching it.
+  at each capture before attaching it. Captures of the Blender Foundation's
+  Sintel trailer need the attribution "© copyright Blender Foundation |
+  durian.blender.org" ([CC BY 3.0](https://durian.blender.org/sharing/)).
+- **Legal copy.** The Privacy controls page uses the legal-approved text from
+  [support#135](https://github.com/putdotio/support/issues/135); don't reword
+  it without a new approval.
 
 ## Setup
 
@@ -135,16 +146,13 @@ that matches. Report skipped or unavailable proof.
 | Docs only                           | `./gradlew markdownCheck`; check web links and commands. CI skips builds for docs-only pull requests and checks relative links                                      |
 | Domain or core logic                | `./gradlew :domain:<name>:testDebugUnitTest` or `:core:<name>:testDebugUnitTest`; tests live in the owning module                                                   |
 | App view models or services         | `./gradlew :mobile:testProductionDebugUnitTest` or `:tv:testProductionDebugUnitTest`                                                                                |
-| UI, navigation, playback, or launch | The affected flow on the emulator: `./scripts/prove.sh <mobile\|tv>` or its lane in [Harness](docs/harness.md)                                                      |
+| UI, navigation, playback, or launch | The affected flow on the emulator: `./scripts/prove.sh <mobile\|tv>` or its opt-in `*ProofTest` lane                                                                |
 | Google Play delivery                | `./gradlew -PputioVersionName=3.0.1 :mobile:bundleProductionRelease :tv:bundleProductionRelease`, then a `dry_run` of [Google Play delivery](#google-play-delivery) |
-| Live API behavior                   | The lane's `devs-auto` steps in [Harness](docs/harness.md#live-api-proof-putio-cli)                                                                                 |
+| Live API behavior                   | The lane's `devs-auto` steps, with fixtures from the `putio` CLI                                                                                                    |
 | Design tokens or icons              | The sync in [design/README.md](design/README.md), then `./gradlew verify`                                                                                           |
 | Visible change                      | Reviewed captures from `.evidence/`, attached with `gh pr comment <n> --attach <file>`                                                                              |
 
-A changed product rule updates its [Behaviour](docs/behavior.md) section and
-names the tests that pin it; a new device lane gets a row in
-[Harness](docs/harness.md); shipped user-facing behavior updates the README's
-"What works today".
+Shipped user-facing behavior updates the README's "What works today".
 
 ## Delivery and CI
 
