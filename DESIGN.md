@@ -306,13 +306,16 @@ America, where mono would fit fewer characters on the line.
 
 Five destinations: **Files, History, Transfers, Downloads, Account**, in that
 order. `NavigationSuiteScaffold`'s layout and suite with an explicit layout type:
-a navigation bar below 600dp width and the collapsed wide navigation rail from
-600dp, following the window. When five destinations don't
-fit, in short windows or at large font scales, a scrollable drawer takes over.
+a navigation bar below 600dp width or 480dp height, and the collapsed wide
+navigation rail otherwise, following the window. A phone in landscape is compact
+in height, so it keeps the bar, as Material's navigation suite does. When five
+destinations don't fit, in short windows or at large font scales, a scrollable
+drawer takes over. Changing layout never rebuilds the content under it.
 The selected item uses the stock indicator with a filled Phosphor
 glyph in `on-secondary-container`; unselected items use the regular glyph.
 
-From 840dp, Files is list-detail: the folder's bar and list on the left (520dp,
+From 840dp wide and 480dp tall, Files is list-detail, so a phone in landscape
+keeps one pane: the folder's bar and list on the left (520dp,
 or half the space beside the rail when that is less), the selected file's detail on the right
 with its preview, primary actions and facts (size, added, length, subtitles,
 folder). Here a tap on a file selects it into

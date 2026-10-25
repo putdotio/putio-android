@@ -40,6 +40,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
@@ -1577,14 +1578,54 @@ class MobileShellPlaybackTest {
     }
 
     @Test
+    fun anOpenVideoKeepsItsPlayerAcrossNavigationLayouts() {
+        var created = 0
+        val factory = object : MobilePlayerFactory by NoAudioSessionFactory {
+            override fun create(context: Context, mediaType: PlaybackMediaType): Media3Player {
+                created += 1
+                return NoAudioSessionFactory.create(context, mediaType)
+            }
+        }
+        var size by mutableStateOf(DpSize(411.dp, 914.dp))
+        compose.setContent {
+            PutioTheme {
+                Box(modifier = Modifier.requiredSize(size)) {
+                    MobileShell(
+                        filesState = videoFilesState(),
+                        accountSettingsState = readyAccountSettingsState(),
+                        appConfigState = readyAndroidAppConfigState(),
+                        account = Account,
+                        playbackRepository = EndingPlaybackRepository,
+                        playbackPlayerFactory = factory,
+                        sessionId = Session,
+                        onFilesEvent = { true },
+                        onAccountSettingsEvent = {},
+                        onPlaybackAuthenticationRequired = {},
+                        onSignOut = {},
+                    )
+                }
+            }
+        }
+        compose.onNodeWithText("episode.mkv").performClick()
+        compose.runOnIdle { assertEquals(1, created) }
+        // Bar, then the drawer in a window past the 840dp list-detail width, then the rail beside
+        // list-detail, then a phone in landscape: the player behind each must be the same one.
+        for (next in listOf(DpSize(914.dp, 260.dp), DpSize(1280.dp, 800.dp), DpSize(914.dp, 411.dp))) {
+            compose.runOnIdle { size = next }
+            compose.waitForIdle()
+        }
+        compose.runOnIdle { assertEquals("A layout change must not rebuild the open player", 1, created) }
+    }
+
+    @Test
     fun phoneDestinationStateSurvivesPlayback() =
         assertDestinationStateSurvivesPlayback(width = 360.dp, navigationTag = MOBILE_NAV_BAR_TAG)
 
     @Test
     fun tabletDestinationStateSurvivesPlayback() =
-        assertDestinationStateSurvivesPlayback(width = 700.dp, navigationTag = MOBILE_NAV_RAIL_TAG)
+        assertDestinationStateSurvivesPlayback(width = 700.dp, navigationTag = MOBILE_NAV_RAIL_TAG, height = 480.dp)
 
-    private fun assertDestinationStateSurvivesPlayback(width: Dp, navigationTag: String) {
+    private fun assertDestinationStateSurvivesPlayback(width: Dp, navigationTag: String, height: Dp = 460.dp) {
         val pending = MutableStateFlow(false)
         val requests = NowPlayingRequests(pending) { pending.value = false }
         val factory = object : MobilePlayerFactory by NoAudioSessionFactory {
@@ -1593,7 +1634,7 @@ class MobileShellPlaybackTest {
         }
         compose.setContent {
             PutioTheme {
-                Box(modifier = Modifier.requiredSize(width = width, height = 460.dp)) {
+                Box(modifier = Modifier.requiredSize(width = width, height = height)) {
                     MobileShell(
                         nowPlayingRequests = requests,
                         playbackPlayerFactory = factory,
