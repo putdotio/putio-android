@@ -235,13 +235,17 @@ internal fun MobilePlayerScreen(
 /**
  * What the screen shows: a receiver already playing the file takes the place of a resume prompt,
  * which is answered with the saved position so a session that ends hands back as from any ready
- * file, and of a local failure, which leaves that receiver in reach.
+ * file, and of a local failure, which leaves that receiver in reach. A session that already ended
+ * answers the prompt too: the file resumes where the receiver stopped.
  */
 @Composable
 private fun PlaybackState.shownContent(playerCast: PlayerCast, onResume: () -> Unit): PlaybackContent {
     val prompt = content as? PlaybackContent.AwaitingResume
     val attached = playerCast.attaches(target.fileId.value) && content.attachable
-    if (attached && prompt != null) LaunchedEffect(prompt) { onResume() }
+    // Where a receiver stopped is the answer the prompt would ask for, so it is not asked.
+    if (prompt != null && (attached || playerCast.handsBack(target.fileId.value))) {
+        LaunchedEffect(prompt) { onResume() }
+    }
     return if (attached) PlaybackContent.Session else content
 }
 
@@ -298,12 +302,7 @@ private fun MobileReadyContent(
         )
         return
     }
-    val handover = rememberCastHandover(
-        playerCast,
-        state.target.fileId.value,
-        preferences,
-        restarted = state.resumePositionMillis == 0L,
-    )
+    val handover = rememberCastHandover(playerCast, state.target.fileId.value, preferences)
     val ready = state.content as? PlaybackContent.Ready
     MobileSessionPlayerHost(
         mediaType = state.target.mediaType,

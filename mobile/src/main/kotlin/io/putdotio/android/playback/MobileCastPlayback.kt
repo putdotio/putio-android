@@ -67,6 +67,9 @@ internal class PlayerCast(
 ) {
     /** Whether a session's receiver plays [fileId], so the player attaches instead of asking to resume. */
     fun attaches(fileId: Long): Boolean = casting?.controller?.holds(fileId) == true
+
+    /** Whether a session that ended left [fileId] a place to resume, which answers the resume prompt. */
+    fun handsBack(fileId: Long): Boolean = controller?.hasHandover(fileId) == true
 }
 
 internal class CastingTarget(
@@ -109,12 +112,8 @@ internal fun rememberCastHandover(
     playerCast: PlayerCast,
     fileId: Long,
     preferences: RetainedPlayerPreferences,
-    restarted: Boolean,
 ): CastHandover? {
-    // Start over is the viewer's own word: the receiver's position is dropped for it.
-    var handover by remember(fileId) {
-        mutableStateOf(playerCast.controller?.takeHandover(fileId)?.takeUnless { restarted })
-    }
+    var handover by remember(fileId) { mutableStateOf(playerCast.controller?.takeHandover(fileId)) }
     LaunchedEffect(handover) {
         handover?.let {
             preferences.retainPlayback(RetainedPlayback(it.positionMillis, it.playing))

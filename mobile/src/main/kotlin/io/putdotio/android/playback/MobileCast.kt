@@ -227,6 +227,13 @@ internal class MobileCastController(
         gateway.endForSignOut()
     }
 
+    /** Whether [takeHandover] has a place for [fileId]; it takes nothing. */
+    fun hasHandover(fileId: Long): Boolean {
+        val unclaimed = gateway.endedStatus?.takeIf { it !== handedBack && gateway.status.value == null }
+        return gateway.availability.value !is CastAvailability.Connected &&
+            (fileId in handovers || unclaimed?.fileId == fileId)
+    }
+
     /** Where the local player picks [fileId] up after a session ended; taken once, null while casting. */
     fun takeHandover(fileId: Long): CastHandover? {
         if (gateway.availability.value is CastAvailability.Connected) return null
