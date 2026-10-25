@@ -668,8 +668,10 @@ has no queue.
 The signed-out screen is shared with iOS. The retro wordmark sits centred in
 a 64dp top bar, 88dp wide. 96dp below the bar, a 220dp stage centres a kaomoji
 over a caption, 24dp apart. The kaomoji is set in GT America medium at 48dp on
-a 56dp line, as art that ignores the font scale; the caption is 15sp mono in
-`primary`:
+a 56dp line, as art that ignores the font scale and shrinks only to fit a
+narrow window; the caption is 15sp mono in `primary`. When less than 600dp sits
+below the bar, as in landscape or split screen, the gap above the stage drops
+to 24dp and the screen scrolls.
 
 | Kaomoji        | Caption               |
 | -------------- | --------------------- |
@@ -700,8 +702,9 @@ the navigation bar: **Welcome!** as a 40sp medium title on a 48sp line, then
   notice is a 16dp-corner card on `surface-container-high`, padded 14dp by
   16dp, in `body-sm`: a medium first line, "Sign-in didn’t finish.", then
   "Nothing was saved, so you can try again." When the saved session can't be
-  read, the notice says "Secure storage is unavailable." and the action is
-  **Reset and sign in**.
+  read, the notice reads "Secure storage is unavailable." then "Your session
+  couldn’t be read or saved safely on this device. Reset clears it so you can
+  sign in again.", and the action is **Reset and sign in**.
 
 ## Other screens
 

@@ -25,9 +25,12 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -177,6 +180,10 @@ internal fun welcomeSequencePosition(elapsedMs: Long, frameCount: Int): Float {
 private val TOP_BAR_HEIGHT = 64.dp
 private val WORDMARK_WIDTH = 88.dp
 private val STAGE_TOP = 96.dp
+private val STAGE_TOP_SHORT = 24.dp
+
+/** Below the bar, the height the stage and the copy need with the full gap above the stage. */
+private val SHORT_WINDOW = 600.dp
 private val STAGE_HEIGHT = 220.dp
 private val KAOMOJI_SIZE = 48.dp
 private val KAOMOJI_LINE = 56.dp
@@ -206,8 +213,8 @@ internal fun MobileWelcomeScreen(
             )
         }
         BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxWidth()) {
-            // A phone leaves 96dp above the stage; short windows (landscape, split screen) shrink it.
-            val stageTop = (maxHeight * 0.12f).coerceAtMost(STAGE_TOP)
+            // Short windows (landscape, split screen) drop the gap so the copy rises; the rest scrolls.
+            val stageTop = if (maxHeight < SHORT_WINDOW) STAGE_TOP_SHORT else STAGE_TOP
             Column(
                 modifier = Modifier
                     .verticalScroll(rememberScrollState())
@@ -320,8 +327,15 @@ private fun WelcomeFrame(
     modifier: Modifier = Modifier,
 ) {
     // The kaomoji is drawn art at a fixed size; the caption scales with the system font size.
-    val kaomojiStyle = with(LocalDensity.current) {
+    val density = LocalDensity.current
+    val kaomojiSize = remember(density) {
+        with(density) {
+            TextAutoSize.StepBased(minFontSize = (KAOMOJI_SIZE / 2).toSp(), maxFontSize = KAOMOJI_SIZE.toSp())
+        }
+    }
+    val kaomojiStyle = with(density) {
         MaterialTheme.typography.headlineLarge.copy(
+            color = LocalContentColor.current,
             fontSize = KAOMOJI_SIZE.toSp(),
             lineHeight = KAOMOJI_LINE.toSp(),
             fontWeight = FontWeight.Medium,
@@ -334,12 +348,13 @@ private fun WelcomeFrame(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         // Fallback fonts for glyphs GT America lacks (ಠ, ᕕ, づ) grow the line past its height, so the
-        // kaomoji is centred in a box of exactly one line.
-        Text(
+        // kaomoji is centred in a box of exactly one line. A window too narrow for it shrinks it to fit.
+        BasicText(
             text = stringResource(frame.kaomoji),
             style = kaomojiStyle,
             maxLines = 1,
             softWrap = false,
+            autoSize = kaomojiSize,
             modifier = Modifier.height(KAOMOJI_LINE).wrapContentHeight(unbounded = true),
         )
         Text(

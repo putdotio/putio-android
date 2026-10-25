@@ -20,7 +20,6 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.auth.MobileSignedOutReason
 import io.putdotio.android.design.PutioTheme
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -74,6 +73,9 @@ class MobileWelcomeScreenTest {
 
         compose.runOnIdle { reason = MobileSignedOutReason.SecureStorageUnavailable }
         compose.onNodeWithText("Secure storage is unavailable.").assertIsDisplayed()
+        compose.onNodeWithText(
+            "Your session couldn’t be read or saved safely on this device. Reset clears it so you can sign in again.",
+        ).assertIsDisplayed()
         compose.onAllNodesWithText("Try again").assertCountEquals(0)
         compose.onNodeWithText("Reset and sign in").performScrollTo().performClick()
         assertEquals(4, actions)
@@ -109,10 +111,24 @@ class MobileWelcomeScreenTest {
         // DESIGN.md Welcome: each of the four frames holds 1.9 s, then the next rolls in over 0.6 s.
         assertEquals(0f, welcomeSequencePosition(0L, frameCount = 4))
         assertEquals(0f, welcomeSequencePosition(1_900L, frameCount = 4))
-        assertTrue(welcomeSequencePosition(2_200L, frameCount = 4) in 0.01f..0.99f)
+        // The roll eases on cubic-bezier(0.7, 0, 0.2, 1): slow out, fast through the middle.
+        assertEquals(0.066f, welcomeSequencePosition(2_050L, frameCount = 4), EASING_TOLERANCE)
+        assertEquals(0.636f, welcomeSequencePosition(2_200L, frameCount = 4), EASING_TOLERANCE)
+        assertEquals(0.954f, welcomeSequencePosition(2_350L, frameCount = 4), EASING_TOLERANCE)
         assertEquals(1f, welcomeSequencePosition(2_500L, frameCount = 4))
         assertEquals(3f, welcomeSequencePosition(7_500L, frameCount = 4))
-        assertTrue(welcomeSequencePosition(9_999L, frameCount = 4) > 3.99f)
+        // The last roll brings the first frame back in.
+        assertEquals(3.636f, welcomeSequencePosition(9_700L, frameCount = 4), EASING_TOLERANCE)
         assertEquals(0f, welcomeSequencePosition(10_000L, frameCount = 4))
     }
+
+    @Test
+    @Config(qualifiers = "w412dp-h915dp")
+    fun aPhoneShowsTheActionWithoutScrolling() {
+        setSignedOut()
+
+        compose.onNodeWithText("Sign in").assertIsDisplayed()
+    }
 }
+
+private const val EASING_TOLERANCE = 0.005f
