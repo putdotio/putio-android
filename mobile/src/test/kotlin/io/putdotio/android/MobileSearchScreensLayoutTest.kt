@@ -62,6 +62,9 @@ class MobileSearchScreensLayoutTest {
         val edits = mutableListOf<RecentSearchEdit>()
         setScreen(actions = MobileSearchHistoryActions(onRecentSearch = searches::add, onRecentEdit = edits::add))
 
+        // The header's line grows with the text rather than crop it.
+        assertFalse("The label is not cropped", textLayout("Recent searches").didOverflowHeight)
+        assertFalse("Clear is not cropped", textLayout("Clear").didOverflowHeight)
         val termLayout = textLayout(TERM)
         assertEquals(2, termLayout.lineCount)
         assertFalse(termLayout.isLineEllipsized(1))
@@ -69,7 +72,8 @@ class MobileSearchScreensLayoutTest {
         val remove = compose.onNodeWithContentDescription("Remove $TERM from recent searches")
             .fetchSemanticsNode().boundsInRoot
         val viewport = compose.onNodeWithTag(VIEWPORT).fetchSemanticsNode().boundsInRoot
-        assertTrue("Term keeps most of the row width", term.width >= viewport.width * 0.7f)
+        // The row's clock glyph and removal take their fixed slots; the term keeps the rest.
+        assertTrue("Term keeps most of the row width", term.width >= viewport.width * 0.6f)
         assertTrue("Removal does not crowd the term", remove.width <= viewport.width * 0.18f)
         val minimumTarget = 48f * termLayout.layoutInput.density.density
         val touch = compose.onNodeWithContentDescription("Remove $TERM from recent searches")
@@ -166,7 +170,7 @@ class MobileSearchScreensLayoutTest {
                         MobileSearchScreen(
                             searchState = searchState("", SearchContent.Idle, listOf(SearchTerm(TERM)), 1),
                             recentSearchFailure = recentFailure,
-                            onSearchQueryChanged = {}, onSearchSubmit = {}, onSearchResult = actions.onResult,
+                            onSearchResult = actions.onResult,
                             onSearchNextPage = {}, onSearchRetry = {}, onRecentSearch = actions.onRecentSearch,
                             onRecentEdit = actions.onRecentEdit, onRecentRetry = actions.onRecentRetry,
                         )

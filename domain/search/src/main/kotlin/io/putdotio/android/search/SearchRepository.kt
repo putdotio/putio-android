@@ -11,6 +11,12 @@ import io.putdotio.sdk.files.FilesSearchQuery
 public interface SearchRepository {
     public suspend fun search(term: SearchTerm): PutioResult<SearchPage>
 
+    /** A search limited to [filter]'s put.io types; a repository that can't filter searches everything. */
+    public suspend fun search(
+        term: SearchTerm,
+        filter: SearchFilter,
+    ): PutioResult<SearchPage> = search(term)
+
     public suspend fun loadNextPage(cursor: FilesCursor): PutioResult<SearchPage>
 }
 
@@ -23,8 +29,13 @@ public class SdkSearchRepository internal constructor(
         continueSearch = { cursor -> client.files.continueSearch(cursor) },
     )
 
-    override suspend fun search(term: SearchTerm): PutioResult<SearchPage> =
-        putioRequest { searchFiles(FilesSearchQuery(keyword = term.value)).toSearchPage() }
+    override suspend fun search(term: SearchTerm): PutioResult<SearchPage> = search(term, SearchFilter.All)
+
+    override suspend fun search(
+        term: SearchTerm,
+        filter: SearchFilter,
+    ): PutioResult<SearchPage> =
+        putioRequest { searchFiles(FilesSearchQuery(keyword = term.value, type = filter.apiTypes)).toSearchPage() }
 
     override suspend fun loadNextPage(cursor: FilesCursor): PutioResult<SearchPage> =
         putioRequest { continueSearch(cursor.value).toSearchPage() }

@@ -4,6 +4,8 @@ import io.putdotio.android.PutioFailure
 import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.sdk.files.PutioFileType
+import java.util.Locale
 import kotlinx.coroutines.flow.StateFlow
 
 @JvmInline
@@ -33,6 +35,42 @@ public data class SearchScope(
 /** The query put.io receives: the term, then the folder scope when there is one. */
 internal fun SearchTerm.within(scope: SearchScope?): SearchTerm =
     if (scope == null) this else SearchTerm("$value in:${scope.folderId.value}")
+
+/**
+ * The type chips under the search field. put.io filters Folders, Videos and Audio by its `type`; it
+ * has no subtitle type, so Subtitles searches every type and keeps subtitle extensions on the device.
+ */
+public enum class SearchFilter {
+    All,
+    Folders,
+    Videos,
+    Audio,
+    Subtitles,
+    ;
+
+    /** The API's `type` filter; empty asks for every type. */
+    internal val apiTypes: List<PutioFileType>
+        get() =
+            when (this) {
+                Folders -> listOf(PutioFileType.FOLDER)
+                Videos -> listOf(PutioFileType.VIDEO)
+                Audio -> listOf(PutioFileType.AUDIO)
+                All, Subtitles -> emptyList()
+            }
+
+    public fun accepts(item: FilesItem): Boolean =
+        when (this) {
+            All -> true
+            Folders -> item.isFolder
+            Videos -> item.type == PutioFileType.VIDEO
+            Audio -> item.type == PutioFileType.AUDIO
+            Subtitles -> !item.isFolder && item.extension() in SUBTITLE_EXTENSIONS
+        }
+}
+
+private fun FilesItem.extension(): String = name.substringAfterLast('.', "").lowercase(Locale.ROOT)
+
+private val SUBTITLE_EXTENSIONS = setOf("srt", "vtt", "ass", "ssa", "sub", "smi")
 
 @JvmInline
 public value class SearchRequestId(
@@ -108,6 +146,8 @@ public data class SearchState internal constructor(
     val recentSearchesEnabled: Boolean? = null,
     /** The folder this search stays inside; null searches the whole account. */
     val scope: SearchScope? = null,
+    /** The type chip in force: put.io filters by it, and Subtitles filters on the device. */
+    val filter: SearchFilter = SearchFilter.All,
 )
 
 public object SearchReducer {

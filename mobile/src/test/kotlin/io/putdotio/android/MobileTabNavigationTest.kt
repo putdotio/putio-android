@@ -1,6 +1,7 @@
 package io.putdotio.android
 
 import androidx.activity.BackEventCompat
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasAnyAncestor
@@ -80,7 +81,8 @@ class MobileTabNavigationTest : NavigationShellFixture(1f) {
     fun searchOpensOverFilesStaysOpenAcrossTabsAndBackClosesIt() {
         mount(nested = true)
         compose.onNodeWithTag(MOBILE_FILES_SEARCH_TAG).performClick()
-        compose.onNodeWithTag(MOBILE_SEARCH_FIELD_TAG).assertExists()
+        // The pill hands its cursor to the expanded field.
+        compose.onNodeWithTag(MOBILE_SEARCH_FIELD_TAG).assertIsFocused()
         tab("Files").assertIsSelected()
 
         tab("History").performClick()

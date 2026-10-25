@@ -92,6 +92,9 @@ internal class ActiveSearchHistorySession(
         scope,
     )
 
+    /** The folders results sit in, read once per session; a row names its folder once it is known. */
+    val folderNames = SearchFolderNames(filesItemResolver, search.state, scope)
+
     val navigation: Flow<FilesExternalOpen> = navigationChannel.receiveAsFlow()
     val navigationFailure: StateFlow<PutioFailure?> = historyOpener.failure
     val recentSearchFailure: StateFlow<PutioFailure?> = recentSearchStore.failure
@@ -117,6 +120,7 @@ internal class ActiveSearchHistorySession(
     }
 
     fun close() {
+        folderNames.close()
         scope.cancel()
         historyOpener.close()
         navigationChannel.close()

@@ -1212,6 +1212,30 @@ Tests: `SentryBoundaryTest`, `PutioDiagnosticsTest`, `SentryConfigurationTest`,
 `MobileDiagnosticsTest`, `TvDiagnosticsTest`, `PutioAuthSessionGatewayTest`,
 `PutioTvSessionGatewayTest`.
 
+## Search results
+
+Mobile only. Search opens over Files with the cursor in its field when the
+root's pill, a folder's search button or Ctrl+F opens it; a link, or Back from
+a result, opens it without the keyboard. Type chips sit under the field, one
+chosen at a time. Folders, Videos and Audio send put.io's `type` filter; All
+sends none; Subtitles sends none and keeps names ending in `.srt`, `.vtt`,
+`.ass`, `.ssa`, `.sub` or `.smi`, so a page that keeps nothing asks for the
+next at once. A chip chosen with a query in the field searches again at once,
+and that search is not kept in recent searches. A new folder scope starts over
+on All.
+
+Results group into Folders, then Files, each labelled with the count loaded so
+far. A result's meta names the folder it sits in, Files for the root, once that
+name is known: the scope and folders among the results name themselves, and
+each other folder is read once per session, four at a time. A failed read is
+tried again when the next page or search lands. A search that finds nothing of
+any type shows `¯\_(ツ)_/¯` "Nothing matches." with the term, and no chips;
+under another chip the chips stay.
+
+Tests: `SearchControllerTest`, `SdkSearchRepositoryTest`,
+`SearchFolderNamesTest`, `MobileSearchScreensTest`, `MobileTabNavigationTest`,
+`MobileKeyboardShortcutsTest`.
+
 ## Recent searches
 
 Recent searches are the account's `/config` `searchHistory` list, newest first

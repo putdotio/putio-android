@@ -256,8 +256,10 @@ internal fun formatRemaining(seconds: Long): String {
 
 /** Skeleton rows in the row's slots, pulsing on surface-container-high; held still when motion is off. */
 @Composable
-internal fun MobileFilesSkeleton(modifier: Modifier = Modifier) {
-    val description = stringResource(R.string.mobile_files_loading)
+internal fun MobileFilesSkeleton(
+    modifier: Modifier = Modifier,
+    description: String = stringResource(R.string.mobile_files_loading),
+) {
     val still = rememberMobileMotion().reducedMotion
     val transition = rememberInfiniteTransition(label = "skeleton")
     Column(

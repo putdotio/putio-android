@@ -64,6 +64,8 @@ internal fun MobileFilesRow(
     downloadStatus: DownloadStatus? = null,
     /** The file an outside open came for; it has no screen of its own, so its row stands out. */
     highlighted: Boolean = false,
+    /** A folder's listing dates the row; search names the folder it sits in instead. */
+    place: MobileFilesRowPlace = MobileFilesRowPlace.Listing,
 ) {
     val actionsLabel = stringResource(R.string.mobile_files_actions, item.name)
     // Touch never focuses a row; a keyboard-focused one is outlined so it reads at a glance.
@@ -120,7 +122,7 @@ internal fun MobileFilesRow(
     MobileRow(
         leading = { FileTypeIcon(type = item.type, modifier = Modifier.size(FILES_ICON_SIZE)) },
         headline = { MobileMiddleCutText(text = item.name) },
-        meta = { MobileFilesMeta(item, onDevice = downloadStatus is DownloadStatus.Completed) },
+        meta = { MobileFilesMeta(item, onDevice = downloadStatus is DownloadStatus.Completed, place = place) },
         trailing = trailing,
         containerColor = if (highlighted) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
         modifier = modifier
@@ -133,18 +135,31 @@ internal fun MobileFilesRow(
     )
 }
 
-/** Size in mono, the date, then a grey eye when played and a yellow mark when on this device. */
+/** Where a row is listed: in a folder, which dates it, or in search results, which name its folder. */
+internal sealed interface MobileFilesRowPlace {
+    data object Listing : MobileFilesRowPlace
+
+    data class SearchResult(val folderName: String?) : MobileFilesRowPlace
+}
+
+/**
+ * Size in mono, then the date in a folder or the containing folder's name in search, then a grey
+ * eye when played and a yellow mark when on this device.
+ */
 @Composable
-private fun MobileFilesMeta(item: FilesItem, onDevice: Boolean) {
+private fun MobileFilesMeta(item: FilesItem, onDevice: Boolean, place: MobileFilesRowPlace) {
     val context = LocalContext.current
     val size = if (item.isFolder) null else formatFileSize(item.sizeBytes)
-    val date = item.createdAt.toDisplayDate(context)
+    val date = when (place) {
+        MobileFilesRowPlace.Listing -> item.createdAt.toDisplayDate(context)
+        is MobileFilesRowPlace.SearchResult -> place.folderName
+    }
     val watched = item.playback?.isWatched == true
     val style = MaterialTheme.typography.bodySmall
     val color = MaterialTheme.colorScheme.onSurfaceVariant
     val parts = buildList<@Composable RowScope.() -> Unit> {
         size?.let { add { Text(it, style = style.putioMono(), color = color, maxLines = 1) } }
-        // The date gives way first, so the glyphs after it keep their room at large text sizes.
+        // The date or folder gives way first, so the glyphs after it keep their room at large text sizes.
         date?.let {
             add {
                 Text(

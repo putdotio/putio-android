@@ -767,21 +767,21 @@ the navigation bar: **Welcome!** as a 40sp medium title on a 48sp line, then
 
 3.0.0 still differs from this contract:
 
-- Search opens over Files with an outlined text field, not
-  `ExpandedFullScreenSearchBar`.
+- Expanded search is M3's search input field in the pill's place, not
+  `ExpandedFullScreenSearchBar`, and the navigation bar stays under it.
 - The item actions sheet has rows only, no action tiles.
 - Names outside Files, Transfers, Downloads and History wrap instead of being
   cut in the middle on one line.
 - Rename does not preselect the name up to the extension.
-- Empty states outside Files and Transfers keep 3.0.0's words and offer no
-  action.
-- Search has no type chips; results are one flat list.
+- Empty states outside Files, Transfers and Search keep 3.0.0's words and offer
+  no action.
+- Search results have no overflow and no long-press actions.
 - The actions sheet has no Play or Resume and no Mark as watched.
 - The Move picker can't create a folder.
 - Moving to Trash offers View Trash in its snackbar, not Undo.
 - Only the player's timestamps, the tab-title summaries, Transfers, Files,
-  Account, and Downloads and History rows set numbers in mono; sizes, speeds
-  and counts elsewhere use the UI face.
+  Account, Search, and Downloads and History rows set numbers in mono; sizes,
+  speeds and counts elsewhere use the UI face.
 - Transfer cards and Transfer actions show no peer count: the Kotlin SDK's
   `Transfer` has no peers field.
 - The mini player (`MobileNowPlayingBar`) exists in another form; Files has no

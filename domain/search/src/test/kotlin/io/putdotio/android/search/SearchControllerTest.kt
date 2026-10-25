@@ -269,6 +269,83 @@ class SearchControllerTest {
             }
         }
 
+    @Test
+    fun aTypeChipSearchesAgainAtOnceUnderItsTypeWithoutKeepingTheTerm() =
+        runBlocking<Unit> {
+            val searched = mutableListOf<Pair<SearchTerm, SearchFilter>>()
+            val store = FakeRecentSearchStore()
+            val repository = filteringRepository { term, filter ->
+                searched += term to filter
+                success(item(1L, "movie.mkv"))
+            }
+            val controller = controller(repository, store)
+
+            controller.use {
+                // With an empty field a chip only waits for the query.
+                controller.filter = SearchFilter.Folders
+                assertEquals(SearchFilter.Folders, controller.state.value.filter)
+                assertTrue(controller.state.value.content is SearchContent.Idle)
+                assertEquals(emptyList<Pair<SearchTerm, SearchFilter>>(), searched)
+
+                controller.updateQuery("movie")
+                assertTrue(controller.submit())
+                // The only result is a video, so Folders finds nothing.
+                controller.awaitContent<SearchContent.Empty>()
+                controller.filter = SearchFilter.Videos
+                // The chip in force is no change, so it searches no third time.
+                controller.filter = SearchFilter.Videos
+                controller.awaitContent<SearchContent.Ready>()
+
+                assertEquals(
+                    listOf(SearchTerm("movie") to SearchFilter.Folders, SearchTerm("movie") to SearchFilter.Videos),
+                    searched,
+                )
+                assertEquals(listOf(SearchTerm("movie")), store.recorded)
+            }
+        }
+
+    @Test
+    fun subtitlesKeepOnlySubtitleExtensionsAndAnEmptyPageAsksForTheNext() =
+        runBlocking<Unit> {
+            val repository =
+                object : SearchRepository {
+                    override suspend fun search(term: SearchTerm): PutioResult<SearchPage> =
+                        error("A filtered search names its filter")
+
+                    override suspend fun search(term: SearchTerm, filter: SearchFilter): PutioResult<SearchPage> =
+                        success(item(1L, "Sintel.mkv"), folder(2L, "Sintel.srt"), cursor = "next")
+
+                    override suspend fun loadNextPage(cursor: FilesCursor): PutioResult<SearchPage> =
+                        success(item(3L, "Sintel.en.SRT"), item(4L, "Sintel.vtt"), item(5L, "Sintel.nfo"))
+                }
+            val controller = controller(repository)
+
+            controller.use {
+                controller.filter = SearchFilter.Subtitles
+                controller.updateQuery("sintel")
+                controller.submit()
+                // Nothing on the first page is a subtitle, so it reads as empty with a next page.
+                assertTrue(controller.awaitContent<SearchContent.Empty>().paging is SearchPaging.Available)
+                yield()
+                assertTrue(controller.loadNextPage())
+
+                val ready = controller.awaitContent<SearchContent.Ready>()
+                assertEquals(listOf("Sintel.en.SRT", "Sintel.vtt"), ready.items.map(FilesItem::name))
+            }
+        }
+
+    @Test
+    fun anotherScopeStartsOverOnEveryType() =
+        runBlocking<Unit> {
+            val controller = controller(repository { success(item(1L, "movie.mkv")) })
+
+            controller.use {
+                controller.filter = SearchFilter.Audio
+                controller.scope = SearchScope(FilesItemId(42L), "Music")
+                assertEquals(SearchFilter.All, controller.state.value.filter)
+            }
+        }
+
     private fun CoroutineScope.controller(
         repository: SearchRepository,
         store: RecentSearchStore = FakeRecentSearchStore(),
@@ -282,6 +359,22 @@ class SearchControllerTest {
             override suspend fun loadNextPage(cursor: FilesCursor): PutioResult<SearchPage> =
                 error("Unexpected continuation")
         }
+
+    private fun filteringRepository(
+        search: suspend (SearchTerm, SearchFilter) -> PutioResult<SearchPage>,
+    ): SearchRepository =
+        object : SearchRepository {
+            override suspend fun search(term: SearchTerm): PutioResult<SearchPage> =
+                error("A filtered search names its filter")
+
+            override suspend fun search(term: SearchTerm, filter: SearchFilter): PutioResult<SearchPage> =
+                search(term, filter)
+
+            override suspend fun loadNextPage(cursor: FilesCursor): PutioResult<SearchPage> =
+                error("Unexpected continuation")
+        }
+
+    private fun folder(id: Long, name: String): FilesItem = item(id, name).copy(type = PutioFileType.FOLDER)
 
     private suspend inline fun <reified T : SearchContent> SearchController.awaitContent(
         noinline predicate: (T) -> Boolean = { true },
