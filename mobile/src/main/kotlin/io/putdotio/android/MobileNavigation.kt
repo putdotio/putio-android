@@ -59,6 +59,7 @@ import io.putdotio.android.files.MobileMoveTargetStore
 import io.putdotio.android.playback.MobileCast
 import io.putdotio.android.playback.MobileCastController
 import io.putdotio.android.playback.MobileCastMediaLoader
+import io.putdotio.android.playback.castMediaFor
 import io.putdotio.android.playback.MobilePlaybackViewModel
 import io.putdotio.android.playback.MobilePlayerFactory
 import io.putdotio.android.playback.MobilePlayerScreen
@@ -403,7 +404,7 @@ internal fun MobileNavHost(
                                 { target -> actions.openInVlc(target.fileId, target.name) }
                             },
                             cast = cast,
-                            castMedia = playbackRepository::castMedia,
+                            castMedia = playbackRepository::castMediaFor,
                         )
                         // Over the player, which paints its own background.
                         filesActions?.let { MobileFilesNoticeHost(it.notices, Modifier.align(Alignment.BottomCenter)) }
@@ -455,7 +456,7 @@ private fun MobilePlaybackRoute(
     onPlay: (PlaybackTarget) -> Unit = {},
     onOpenInVlc: ((PlaybackTarget) -> Unit)? = null,
     cast: MobileCastController? = null,
-    castMedia: (suspend (PlaybackTarget, PlaybackSource, String?) -> PlaybackRepositoryResult<PlaybackCastMedia>)? =
+    castMedia: (suspend (PlaybackTarget, PlaybackSource?, String?) -> PlaybackRepositoryResult<PlaybackCastMedia>)? =
         null,
 ) {
     val state by controller.state.collectAsStateWithLifecycle()
@@ -517,7 +518,7 @@ private fun MobilePlaybackRoute(
 
 /** [load] for the file on screen, or no Cast without it. */
 private fun castMediaFor(
-    load: (suspend (PlaybackTarget, PlaybackSource, String?) -> PlaybackRepositoryResult<PlaybackCastMedia>)?,
+    load: (suspend (PlaybackTarget, PlaybackSource?, String?) -> PlaybackRepositoryResult<PlaybackCastMedia>)?,
     target: PlaybackTarget,
 ): MobileCastMediaLoader? =
     if (load == null) null else { source, subtitleKey -> load(target, source, subtitleKey) }

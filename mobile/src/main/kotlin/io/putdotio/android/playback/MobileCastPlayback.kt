@@ -24,9 +24,30 @@ import io.putdotio.sdk.files.PlaybackSource
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
-/** Hands a resolved source to the receiver: the source and the subtitle to show first. */
+/**
+ * The receiver's form of the file on screen: from its resolved source, or, given none, from a fresh
+ * resolution that leaves the screen's own state alone; then the subtitle to show first.
+ */
 internal typealias MobileCastMediaLoader =
-    suspend (PlaybackSource, String?) -> PlaybackRepositoryResult<PlaybackCastMedia>
+    suspend (PlaybackSource?, String?) -> PlaybackRepositoryResult<PlaybackCastMedia>
+
+/** [MobileCastMediaLoader] for [target], resolving it again when no source is at hand. */
+internal suspend fun PlaybackRepository.castMediaFor(
+    target: PlaybackTarget,
+    source: PlaybackSource?,
+    subtitleKey: String?,
+): PlaybackRepositoryResult<PlaybackCastMedia> {
+    val resolved = source?.let { PlaybackRepositoryResult.Success(PlaybackResolution.Ready(it)) } ?: resolve(target)
+    val ready = (resolved as? PlaybackRepositoryResult.Success)?.value as? PlaybackResolution.Ready
+    return when {
+        ready != null -> castMedia(target, ready.source, subtitleKey)
+        resolved is PlaybackRepositoryResult.Failure -> resolved
+        else -> PlaybackRepositoryResult.Failure(PlaybackFailure.MediaUnsupported(UncastableResolution()))
+    }
+}
+
+/** A file that resolved to a conversion or an unsupported type has nothing a receiver can play yet. */
+private class UncastableResolution : IllegalStateException("The file resolved to nothing a receiver plays")
 
 /** The player screen's Cast: its top-bar button, and the session it casts to while one runs. */
 internal class PlayerCast(
@@ -128,8 +149,8 @@ internal fun MobileCastPlayback(
         failed = false
         // One player at a time: session audio stops once the receiver takes over.
         if (target.mediaType == PlaybackMediaType.AUDIO) playerFactory.stopAudio(context)
-        val load: suspend (PlaybackSource) -> PlaybackRepositoryResult<PlaybackCastMedia> = { source ->
-            castMedia(source, castSubtitleKey(source, preferences.subtitleSelection, currentPolicy))
+        val load: suspend (PlaybackSource?) -> PlaybackRepositoryResult<PlaybackCastMedia> = { source ->
+            castMedia(source, source?.let { castSubtitleKey(it, preferences.subtitleSelection, currentPolicy) })
         }
         failed = !cast.handOver(state, load, preferences, playerFactory, currentOnSourceRequired)
     }
@@ -201,7 +222,7 @@ internal fun MobileCastPlayback(
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 private suspend fun MobileCastController.handOver(
     state: PlaybackState,
-    castMedia: suspend (PlaybackSource) -> PlaybackRepositoryResult<PlaybackCastMedia>,
+    castMedia: suspend (PlaybackSource?) -> PlaybackRepositoryResult<PlaybackCastMedia>,
     preferences: RetainedPlayerPreferences,
     playerFactory: MobilePlayerFactory,
     onSourceRequired: (Long?) -> Unit,
@@ -209,28 +230,35 @@ private suspend fun MobileCastController.handOver(
     val target = state.target
     val fileId = target.fileId.value
     val ready = state.content as? PlaybackContent.Ready
-    val source = ready?.source
-    val local = CastHandover(
-        positionMillis = preferences.positionMillis ?: state.resumePositionMillis
-            ?: source?.startFromSeconds?.toPlaybackMillis() ?: 0L,
-        playing = preferences.resumeAfterLifecyclePause,
-        speed = preferences.playbackSpeed,
+    // Unknown stays unknown, so resolving a source still finds put.io's saved position.
+    val retained = preferences.positionMillis ?: state.resumePositionMillis
+    // Session audio reopens without a source; its lease rests on the account's resume setting alone.
+    val item = playerFactory.reportableItem(
+        ready?.source?.toMediaItem(target.name, target.mediaType) ?: bareItem(fileId, target.name),
+        ready?.useStartFrom ?: true,
     )
-    val item = ready?.let {
-        playerFactory.reportableItem(it.source.toMediaItem(target.name, target.mediaType), it.useStartFrom)
-    } ?: bareItem(fileId, target.name)
-    val media = source?.let { castMedia(it) }
-    when {
-        // The receiver plays it already: what Play sends again after it finishes, if it resolved. Session
-        // audio opens without a source; resolving one brings the reporting lease and that media.
-        holds(fileId) -> {
-            attach(item, (media as? PlaybackRepositoryResult.Success)?.value)
-            if (source == null) onSourceRequired(local.positionMillis)
-        }
-        media == null -> onSourceRequired(local.positionMillis)
-        media is PlaybackRepositoryResult.Success -> cast(media.value, item, local)
+    val holds = holds(fileId)
+    if (!holds && ready == null) {
+        onSourceRequired(retained)
+        return true
     }
-    return media !is PlaybackRepositoryResult.Failure || holds(fileId)
+    // Attaching resolves the media too, for Play to send again once the file has finished there; a
+    // failed lookup leaves the receiver's controls up.
+    val media = castMedia(ready?.source)
+    val loaded = media as? PlaybackRepositoryResult.Success
+    when {
+        holds -> attach(item, loaded?.value)
+        loaded != null -> cast(
+            loaded.value,
+            item,
+            CastHandover(
+                positionMillis = retained ?: ready?.source?.startFromSeconds?.toPlaybackMillis() ?: 0L,
+                playing = preferences.resumeAfterLifecyclePause,
+                speed = preferences.playbackSpeed,
+            ),
+        )
+    }
+    return holds || loaded != null
 }
 
 /** [intervals]' step from where the receiver is, within the file. */
