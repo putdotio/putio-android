@@ -54,7 +54,10 @@ internal class PlayerCast(
     val controller: MobileCastController?,
     val button: @Composable (Modifier) -> Unit,
     val casting: CastingTarget?,
-)
+) {
+    /** Whether a session's receiver plays [fileId], so the player attaches instead of asking to resume. */
+    fun attaches(fileId: Long): Boolean = casting?.controller?.holds(fileId) == true
+}
 
 internal class CastingTarget(
     val controller: MobileCastController,

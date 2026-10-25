@@ -67,11 +67,10 @@ internal object MobileCast {
 
     /**
      * The signed-in session left: the receiver plays with the account's download token, so the Cast
-     * session ends with it. A process that never cast has nothing to end.
+     * session ends with it, a session the Cast SDK resumes for a fresh process included.
      */
-    fun sessionLeft() {
-        val cast = controller ?: return
-        Handler(Looper.getMainLooper()).post { cast.end() }
+    fun sessionLeft(context: Context) {
+        Handler(Looper.getMainLooper()).post { controller(context)?.end() }
     }
 
     /**
@@ -188,6 +187,7 @@ internal class GmsCastGateway private constructor(
 
     private fun bind(cast: CastContext) {
         castContext = cast
+        if (stopOnBind) cast.sessionManager.endCurrentSession(true)
         routes.selector = cast.mergedSelector
         cast.addCastStateListener { updateAvailability() }
         cast.sessionManager.addSessionManagerListener(sessions, CastSession::class.java)
@@ -242,9 +242,13 @@ internal class GmsCastGateway private constructor(
         updateAvailability()
     }
 
+    /** Ends the session; before Cast has started, it ends the session Cast resumes once it does. */
     override fun stopCasting() {
-        castContext?.sessionManager?.endCurrentSession(true)
+        val cast = castContext
+        if (cast == null) stopOnBind = true else cast.sessionManager.endCurrentSession(true)
     }
+
+    private var stopOnBind = false
 }
 
 /** The receivers MediaRouter finds for the Cast framework's selector, while the picker asks. */
@@ -377,7 +381,7 @@ internal class GmsCastRemote : CastRemote {
         lastFileId = null
         pendingLoad = null
         playIntent = null
-        endedStatus = mutableStatus.value
+        endedStatus = mutableStatus.value?.copy(endedAtMillis = SystemClock.elapsedRealtime())
         mutableStatus.value = null
     }
 

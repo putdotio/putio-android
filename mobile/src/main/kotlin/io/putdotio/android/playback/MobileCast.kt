@@ -56,12 +56,15 @@ internal data class CastRemoteStatus(
     /** The title and kind the media was sent with, so the app can reopen it without a screen's help. */
     val title: String? = null,
     val audio: Boolean = false,
+    /** When the session ended, for a last status: the position moves on no further than this. */
+    val endedAtMillis: Long? = null,
 ) {
     val playing: Boolean
         get() = state == CastRemoteState.Playing || (state == CastRemoteState.Buffering && playIntent != false)
 
     fun positionAt(nowMillis: Long): Long {
-        val moved = if (state == CastRemoteState.Playing) ((nowMillis - sampledAtMillis) * speed).toLong() else 0L
+        val until = endedAtMillis?.coerceAtMost(nowMillis) ?: nowMillis
+        val moved = if (state == CastRemoteState.Playing) ((until - sampledAtMillis) * speed).toLong() else 0L
         val position = (positionMillis + moved.coerceAtLeast(0L)).coerceAtLeast(0L)
         return durationMillis?.let(position::coerceAtMost) ?: position
     }
@@ -215,7 +218,9 @@ internal class MobileCastController(
     fun end() {
         lastMedia = null
         handovers.clear()
-        // The session this ends hands nothing back: the next account must not resume the last one's.
+        // The session this ends hands nothing back: the next account must not resume the last one's,
+        // nor one that ended a moment ago and is not handed back yet.
+        handedBack = gateway.endedStatus
         discardNextEnd = gateway.availability.value.let {
             it is CastAvailability.Connected || it is CastAvailability.Connecting
         }

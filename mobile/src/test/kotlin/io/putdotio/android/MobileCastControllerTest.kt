@@ -144,6 +144,31 @@ class MobileCastControllerTest {
     }
 
     @Test
+    fun theHandbackStopsWhereTheSessionEndedHoweverLateItIsTaken() {
+        gateway.connect()
+        cast.cast(Media, Item, CastHandover(positionMillis = 0L, playing = true))
+        gateway.report(CastRemoteState.Playing, positionMillis = 60_000L)
+        gateway.end()
+        // The screen asks half a minute later; the receiver stopped at the end.
+        now += 30_000L
+
+        assertEquals(CastHandover(positionMillis = 60_000L, playing = true), cast.takeHandover(42L))
+    }
+
+    @Test
+    fun signingOutRightAfterASessionEndedHandsNothingBack() {
+        gateway.connect()
+        cast.cast(Media, Item, CastHandover(positionMillis = 0L, playing = true))
+        gateway.report(CastRemoteState.Playing, positionMillis = 60_000L)
+        gateway.end()
+
+        cast.end()
+        idle()
+
+        assertNull(cast.takeHandover(42L))
+    }
+
+    @Test
     fun signingOutHandsNothingBackToTheNextAccount() {
         gateway.connect()
         cast.cast(Media, Item, CastHandover(positionMillis = 0L, playing = true))
@@ -291,7 +316,7 @@ class MobileCastControllerTest {
 
         /** As the SDK ends a session: the last status kept, then cleared, all before any collector runs. */
         fun end() {
-            endedStatus = status.value
+            endedStatus = status.value?.copy(endedAtMillis = now)
             availability.value = CastAvailability.Available
             status.value = null
         }

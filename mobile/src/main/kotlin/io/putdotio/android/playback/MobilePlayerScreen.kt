@@ -145,6 +145,28 @@ internal fun MobilePlayerScreen(
     var keyboardNavigationActive by keyboardNavigation
     val castPicker = rememberSaveable { mutableStateOf(false) }
     val playerCast = rememberPlayerCast(cast, castMedia) { castPicker.value = true }
+    val readyContent: @Composable () -> Unit = {
+        MobileReadyContent(
+            state = state,
+            playerCast = playerCast,
+            preferences = preferences,
+            playerFactory = playerFactory,
+            subtitleStartupPolicy = subtitleStartupPolicy,
+            keyboardNavigation = keyboardNavigation,
+            onPlayerFailure = onPlayerFailure,
+            autoplayNextVideo = autoplayNextVideo,
+            onPlaybackEnded = onPlaybackEnded,
+            seekClock = seekClock,
+            onSourceRequired = onSourceRequired,
+            onBack = onBack,
+            onVideoAspectRatio = { landscapeVideo = it > 1f },
+            pictureInPicture = pictureInPicture,
+            nextEpisode = nextEpisode.takeIf { state.target.mediaType == PlaybackMediaType.VIDEO },
+            onNextEpisode = onNextEpisode,
+            neighbours = neighbours,
+            onPlay = onPlay,
+        )
+    }
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -161,6 +183,9 @@ internal fun MobilePlayerScreen(
                 is PlaybackContent.Loading ->
                     MobileLoadingState(stringResource(state.target.mediaType.loadingMessage()))
 
+                // A receiver already playing the file needs no local resume decision.
+                is PlaybackContent.AwaitingResume if playerCast.attaches(state.target.fileId.value) -> readyContent()
+
                 is PlaybackContent.AwaitingResume -> MobileResumePlaybackDialog(
                     startFromSeconds = content.source.startFromSeconds,
                     onResume = onResume,
@@ -168,26 +193,7 @@ internal fun MobilePlayerScreen(
                     onDismiss = onBack,
                 )
 
-                is PlaybackContent.Ready, PlaybackContent.Session -> MobileReadyContent(
-                    state = state,
-                    playerCast = playerCast,
-                    preferences = preferences,
-                    playerFactory = playerFactory,
-                    subtitleStartupPolicy = subtitleStartupPolicy,
-                    keyboardNavigation = keyboardNavigation,
-                    onPlayerFailure = onPlayerFailure,
-                    autoplayNextVideo = autoplayNextVideo,
-                    onPlaybackEnded = onPlaybackEnded,
-                    seekClock = seekClock,
-                    onSourceRequired = onSourceRequired,
-                    onBack = onBack,
-                    onVideoAspectRatio = { landscapeVideo = it > 1f },
-                    pictureInPicture = pictureInPicture,
-                    nextEpisode = nextEpisode.takeIf { isVideo },
-                    onNextEpisode = onNextEpisode,
-                    neighbours = neighbours,
-                    onPlay = onPlay,
-                )
+                is PlaybackContent.Ready, PlaybackContent.Session -> readyContent()
 
                 is PlaybackContent.FindingNext ->
                     MobileLoadingState(stringResource(R.string.mobile_playback_finding_next))

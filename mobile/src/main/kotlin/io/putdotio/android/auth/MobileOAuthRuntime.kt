@@ -234,7 +234,7 @@ class MobileOAuthRuntime internal constructor(
             )
             MobileWidgets.sessionLeft(context)
             // The receiver plays with the account's download token.
-            MobileCast.sessionLeft()
+            MobileCast.sessionLeft(context)
         }
 
         /** What sign-out removes from this device for every account: move targets and Continue watching. */

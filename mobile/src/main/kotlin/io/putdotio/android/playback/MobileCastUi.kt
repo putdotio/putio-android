@@ -21,6 +21,7 @@ import io.putdotio.android.design.PutioRadius
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -129,6 +130,8 @@ internal fun MobileCastPicker(gateway: CastGateway, onDismiss: () -> Unit, modif
                 .focusRequester(focus)
                 // Focus stays in the picker until it closes.
                 .focusProperties { onExit = { cancelFocusChange() } }
+                // Focusable itself, so it takes focus before any receiver row exists.
+                .focusable()
                 .focusGroup()
                 .testTag(MOBILE_CAST_PICKER_TAG),
             horizontalAlignment = Alignment.CenterHorizontally,
