@@ -12,7 +12,8 @@ trap 'rm -rf "${tmpdir}"' EXIT
 SECRET="fake-ambient-token-value"
 ACCOUNT=306077
 mkdir -p "${tmpdir}/sdk/platform-tools" "${tmpdir}/cli" "${tmpdir}/nocli" "${tmpdir}/tools"
-ln -s "$(command -v python3)" "${tmpdir}/tools/python3"
+# The interpreter itself, not a version-manager shim that needs the real HOME.
+ln -s "$(python3 -c 'import sys; print(sys.executable)')" "${tmpdir}/tools/python3"
 
 cat > "${tmpdir}/cli/putio" <<'EOF'
 #!/usr/bin/env bash
@@ -27,7 +28,7 @@ case "$*" in
     fi ;;
   "whoami --fields info --output json") echo '{"info":{"user_id":306077,"username":"devs-auto"}}' ;;
   "auth approve --json "*" --dry-run --output json")
-    printf '{"command":"auth approve","dryRun":true,"request":%s}\n' "$3" ;;
+    printf '{"command":"auth approve","dryRun":true,"request":%s}\n' "$4" ;;
   "auth approve --json "*" --output json") touch "${FAKE_STATE}/approved"; echo '{}' ;;
   *) echo "unexpected putio call: $*" >&2; exit 2 ;;
 esac

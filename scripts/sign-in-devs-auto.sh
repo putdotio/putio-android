@@ -68,11 +68,14 @@ package="${2:-io.put.putio.mobile.debug}"
 # The profile alone decides the identity; an ambient token would override it.
 cli() { env -u PUTIO_CLI_TOKEN PUTIO_CLI_PROFILE="${PROFILE}" putio "$@"; }
 
-# Prints the value at a dotted path of the JSON on stdin; empty when absent.
+# Prints the value at a dotted path of the JSON on stdin; empty when absent or not JSON.
 json_path() {
   python3 -I -c '
 import json, sys
-value = json.load(sys.stdin)
+try:
+    value = json.load(sys.stdin)
+except ValueError:
+    value = None
 for key in sys.argv[1].split("."):
     value = value.get(key) if isinstance(value, dict) else None
 print("" if value is None else json.dumps(value) if isinstance(value, bool) else value)

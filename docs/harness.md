@@ -234,6 +234,19 @@ Release builds never declare the screen:
 `verifyProductionReleaseDebugSignInManifest` fails if they do. Each approval
 adds a grant; sign out in the app to revoke it.
 
+Parallel lanes can share one sign-in through a `putio-phone` snapshot. Every
+instance of the AVD must then run `-read-only`, and a snapshot loads only with
+the renderer that saved it:
+
+```bash
+adb -s <serial> emu avd snapshot save devs-auto-signed-in   # signed in, booted with the flags below
+emulator -avd putio-phone -read-only -snapshot devs-auto-signed-in -no-snapshot-save \
+  -port <free even port> -no-window -gpu swiftshader_indirect -no-audio -no-boot-anim
+```
+
+Each copy restores the same session; check it with the script, which passes
+without a new approval. Signing out in one copy revokes the grant for all.
+
 ### Mobile accessibility proof
 
 Unless a selector says otherwise, accessibility lanes run on the API 37
