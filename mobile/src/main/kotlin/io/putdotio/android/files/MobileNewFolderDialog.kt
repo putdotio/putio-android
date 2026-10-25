@@ -155,6 +155,8 @@ internal fun MobileNewFolderDialog(
                     },
                     enabled = !creating,
                     singleLine = true,
+                    // Names the empty field for TalkBack too; the typed name replaces it, as the board shows.
+                    placeholder = { Text(stringResource(R.string.mobile_files_new_folder_name)) },
                     isError = failure != null,
                     supportingText = failure?.let { refused ->
                         { Text(refused.mobileMessage(), color = PutioDesignTokens.redTextSecondary) }
