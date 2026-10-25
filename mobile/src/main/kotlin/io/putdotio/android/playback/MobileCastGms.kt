@@ -324,6 +324,9 @@ internal class GmsCastRemote : CastRemote {
     /** The file a load was sent for until the receiver reports on it, so a refusal is told for it. */
     private var pendingLoad: Long? = null
 
+    /** A refused load, which stands over the receiver's reports on older media until the next load. */
+    private var failedLoad: CastRemoteStatus? = null
+
     /** Whether play was last asked for, which a loading receiver's status does not say. */
     private var playIntent: Boolean? = null
 
@@ -380,6 +383,7 @@ internal class GmsCastRemote : CastRemote {
         release()
         lastFileId = null
         pendingLoad = null
+        failedLoad = null
         playIntent = null
         endedStatus = mutableStatus.value?.copy(endedAtMillis = SystemClock.elapsedRealtime())
         mutableStatus.value = null
@@ -403,13 +407,9 @@ internal class GmsCastRemote : CastRemote {
         val fileId = info?.customData?.optLong(FILE_ID_KEY)?.takeIf { it > 0L }
             ?: lastFileId.takeIf { media.playerState == MediaStatus.PLAYER_STATE_IDLE }
         val previous = mutableStatus.value?.takeIf { info == null && it.fileId == fileId }
-        lastFileId = fileId
-        if (fileId != null && fileId == pendingLoad) pendingLoad = null
         val state = media.castRemoteState()
-        if (state == CastRemoteState.Playing || state == CastRemoteState.Paused) {
-            playIntent = state == CastRemoteState.Playing
-        }
-        mutableStatus.value = CastRemoteStatus(
+        noteReport(fileId, state)
+        mutableStatus.value = failedLoad ?: CastRemoteStatus(
             fileId = fileId,
             state = state,
             positionMillis = remote.approximateStreamPosition.coerceAtLeast(0L),
@@ -424,10 +424,21 @@ internal class GmsCastRemote : CastRemote {
         )
     }
 
+    /** The receiver reported [state] for [fileId]: a pending or refused load for it is settled. */
+    private fun noteReport(fileId: Long?, state: CastRemoteState) {
+        lastFileId = fileId
+        if (fileId != null && fileId == pendingLoad) pendingLoad = null
+        if (fileId != null && fileId == failedLoad?.fileId) failedLoad = null
+        if (state == CastRemoteState.Playing || state == CastRemoteState.Paused) {
+            playIntent = state == CastRemoteState.Playing
+        }
+    }
+
     override fun load(media: PlaybackCastMedia, startMillis: Long, autoplay: Boolean, speed: Float) {
         val remote = client ?: return
         lastFileId = media.fileId
         pendingLoad = media.fileId
+        failedLoad = null
         playIntent = autoplay
         remote.load(
             MediaLoadRequestData.Builder()
@@ -441,7 +452,7 @@ internal class GmsCastRemote : CastRemote {
             // A refused or timed-out load says so for its file, unless another load followed it.
             if (!result.status.isSuccess && client === remote && pendingLoad == media.fileId) {
                 pendingLoad = null
-                mutableStatus.value = CastRemoteStatus(
+                failedLoad = CastRemoteStatus(
                     fileId = media.fileId,
                     state = CastRemoteState.Failed,
                     positionMillis = startMillis,
@@ -450,6 +461,7 @@ internal class GmsCastRemote : CastRemote {
                     title = media.title,
                     audio = media.mediaType == PlaybackMediaType.AUDIO,
                 )
+                mutableStatus.value = failedLoad
             }
         }
     }

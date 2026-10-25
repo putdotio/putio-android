@@ -73,8 +73,11 @@ internal fun rememberPlayerCast(
     onOpenPicker: () -> Unit,
 ): PlayerCast {
     val availability by (cast?.availability ?: NoCast).collectAsState()
+    val status by (cast?.status ?: NoStatus).collectAsState()
     if (cast == null || castMedia == null) return NoPlayerCast
+    // A session reconnecting still owns playback while the receiver's last status stands.
     val device = availability.connectedDevice
+        ?: (availability as? CastAvailability.Connecting)?.takeIf { status != null }?.let { it.deviceName.orEmpty() }
     return PlayerCast(
         controller = cast,
         button = { modifier -> MobileCastButton(availability, onOpenPicker, modifier) },
@@ -83,6 +86,7 @@ internal fun rememberPlayerCast(
 }
 
 private val NoCast: StateFlow<CastAvailability> = MutableStateFlow(CastAvailability.Unsupported)
+private val NoStatus: StateFlow<CastRemoteStatus?> = MutableStateFlow(null)
 private val NoPlayerCast = PlayerCast(controller = null, button = {}, casting = null)
 
 /**
@@ -150,8 +154,8 @@ internal fun MobileCastPlayback(
     val currentOnSourceRequired by rememberUpdatedState(onSourceRequired)
     LaunchedEffect(fileId, source) {
         failed = false
-        // One player at a time: session audio stops once the receiver takes over.
-        if (target.mediaType == PlaybackMediaType.AUDIO) playerFactory.stopAudio(context)
+        // One player at a time: session audio stops once the receiver takes over, for a video too.
+        playerFactory.stopAudio(context)
         val load: suspend (PlaybackSource?) -> PlaybackRepositoryResult<PlaybackCastMedia> = { source ->
             castMedia(source, source?.let { castSubtitleKey(it, preferences.subtitleSelection, currentPolicy) })
         }

@@ -221,9 +221,7 @@ internal class MobileCastController(
         // The session this ends hands nothing back: the next account must not resume the last one's,
         // nor one that ended a moment ago and is not handed back yet.
         handedBack = gateway.endedStatus
-        discardNextEnd = gateway.availability.value.let {
-            it is CastAvailability.Connected || it is CastAvailability.Connecting
-        }
+        discardNextEnd = gateway.status.value != null
         gateway.stopCasting()
     }
 

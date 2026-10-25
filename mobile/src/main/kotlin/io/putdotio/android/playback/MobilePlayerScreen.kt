@@ -179,12 +179,9 @@ internal fun MobilePlayerScreen(
         // The open device picker is modal: TalkBack reaches only it.
         Box(Modifier.fillMaxSize().hiddenFromAccessibility(castPicker.value)) {
             val isVideo = state.target.mediaType == PlaybackMediaType.VIDEO
-            when (val content = state.content) {
+            when (val content = state.shownContent(playerCast, onResume)) {
                 is PlaybackContent.Loading ->
                     MobileLoadingState(stringResource(state.target.mediaType.loadingMessage()))
-
-                // A receiver already playing the file needs no local resume decision.
-                is PlaybackContent.AwaitingResume if playerCast.attaches(state.target.fileId.value) -> readyContent()
 
                 is PlaybackContent.AwaitingResume -> MobileResumePlaybackDialog(
                     startFromSeconds = content.source.startFromSeconds,
@@ -233,6 +230,19 @@ internal fun MobilePlayerScreen(
         }
         MobileCastPickerHost(cast, castPicker, pictureInPicture.value, Modifier.zIndex(4f))
     }
+}
+
+/**
+ * What the screen shows: a receiver already playing the file takes the place of a resume prompt,
+ * which is answered with the saved position so a session that ends hands back as from any ready
+ * file, and of a local failure, which leaves that receiver in reach.
+ */
+@Composable
+private fun PlaybackState.shownContent(playerCast: PlayerCast, onResume: () -> Unit): PlaybackContent {
+    val prompt = content as? PlaybackContent.AwaitingResume
+    val attached = playerCast.attaches(target.fileId.value) && (prompt != null || content is PlaybackContent.Failed)
+    if (attached && prompt != null) LaunchedEffect(prompt) { onResume() }
+    return if (attached) PlaybackContent.Session else content
 }
 
 /** Leaves this content out of accessibility while something modal covers it. */
