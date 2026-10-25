@@ -107,9 +107,25 @@ internal fun MobileFilesScreen(
 ) {
     val current = state.current
     val atRoot = current.folder.id == FilesFolder.Root.id
-    when (val content = current.content) {
+    // A retry from the offline state keeps the downloads on screen until put.io answers.
+    var offline by remember(state.stack.size, current.folder.id.value) { mutableStateOf(false) }
+    val content = current.content
+    LaunchedEffect(content) {
+        if (content !is FilesContent.Loading) {
+            offline = (content as? FilesContent.Failed)?.failure is PutioFailure.NetworkUnavailable
+        }
+    }
+    when (content) {
         is FilesContent.Loading -> MobileFilesStateWithCopy(state, onEvent, modifier) {
-            MobileFilesSkeleton()
+            if (offline) {
+                MobileFilesOffline(
+                    onDevice = if (atRoot) downloads.onDeviceItems() else emptyList(),
+                    onRetry = null,
+                    onPlayMedia = onPlayMedia,
+                )
+            } else {
+                MobileFilesSkeleton()
+            }
         }
 
         is FilesContent.Failed -> MobileFilesStateWithCopy(state, onEvent, modifier) {

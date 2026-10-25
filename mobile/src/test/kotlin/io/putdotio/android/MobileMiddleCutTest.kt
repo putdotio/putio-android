@@ -26,5 +26,8 @@ class MobileMiddleCutTest {
             "ab…😀abcdef.mkv",
             middleCut("ab😀xyz😀abcdef.mkv") { it.length <= 16 },
         )
+        // The kept end counts characters, not UTF-16 units.
+        val emoji = "😀".repeat(7)
+        assertEquals("a-lo…$emoji.mkv", middleCut("a-long-prefix$emoji.mkv") { it.length <= 23 })
     }
 }

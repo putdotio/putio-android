@@ -329,11 +329,12 @@ private fun SkeletonBlock(color: Color, modifier: Modifier, radius: Dp = 6.dp) {
 @Composable
 internal fun MobileFilesOffline(
     onDevice: List<FilesItem>,
-    onRetry: () -> Unit,
+    /** Null while a retry runs: Try now waits and no other retry starts. */
+    onRetry: (() -> Unit)?,
     onPlayMedia: (FilesItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    RetryWhenOnline(onRetry)
+    onRetry?.let { RetryWhenOnline(it) }
     LazyColumn(modifier = modifier.fillMaxSize().testTag(MOBILE_FILES_OFFLINE_TAG)) {
         if (onDevice.isNotEmpty()) {
             item(key = "offline-banner") { MobileOfflineBanner() }
@@ -357,7 +358,8 @@ internal fun MobileFilesOffline(
                 action = {
                     // DESIGN.md's button-tonal: neutral, so the screen keeps no yellow action.
                     FilledTonalButton(
-                        onClick = onRetry,
+                        onClick = { onRetry?.invoke() },
+                        enabled = onRetry != null,
                         colors = ButtonDefaults.filledTonalButtonColors(
                             containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
                             contentColor = MaterialTheme.colorScheme.onSurface,

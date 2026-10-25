@@ -321,8 +321,9 @@ offers to resume.
 `(x_x)` "Can't reach put.io." with Try now. It retries by itself 30 s after
 each failure, and at once when a missing or unvalidated network validates. At
 the root, finished downloads list above it under "Offline. Showing what's on
-this device." and play from the device. A refresh or a page that fails after
-the folder loaded keeps the rows and offers Retry on its line.
+this device." and play from the device; they stay while a retry runs. A
+refresh or a page that fails after the folder loaded keeps the rows and offers
+Retry on its line.
 
 Tests: `FilesBrowserReducerTest`, `SdkFilesRepositoryTest`,
 `SearchControllerTest`, `MobileContinueWatchingTest`,

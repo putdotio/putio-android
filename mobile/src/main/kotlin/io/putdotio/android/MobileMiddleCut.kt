@@ -60,8 +60,11 @@ internal fun middleCut(name: String, fits: (String) -> Boolean): String {
         .takeIf { name.lastIndexOf('.') > 0 && it.isNotEmpty() && it.length <= MAX_EXTENSION }
     val stem = if (extension == null) name else name.dropLast(extension.length + 1)
     // Cuts fall between code points, so an emoji is kept or dropped whole.
-    var tailStart = (stem.length - MIDDLE_CUT_TAIL).coerceAtLeast(0)
-    if (tailStart > 0 && stem[tailStart].isLowSurrogate()) tailStart--
+    val tailStart = if (stem.codePointCount(0, stem.length) > MIDDLE_CUT_TAIL) {
+        stem.offsetByCodePoints(stem.length, -MIDDLE_CUT_TAIL)
+    } else {
+        0
+    }
     val tail = stem.substring(tailStart) + extension?.let { ".$it" }.orEmpty()
     val head = name.dropLast(tail.length)
     fun start(length: Int): String =
