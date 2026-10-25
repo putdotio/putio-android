@@ -562,8 +562,9 @@ Arguments: `putio.tablet.enabled`, `.runId` and `.video` (a landscape MP4 from
 the fixture recipe). One `OK (1 test)` per selector:
 
 - `keyboardDrivesFilesSearchTrashAndThePlayer`: Tab, Enter, Backspace, Ctrl+F,
-  Escape, F5, Delete with focus kept, the Keyboard Shortcuts Helper, then
-  Space, Right and Escape in the player.
+  Escape, F5, Delete with focus kept, the Keyboard Shortcuts Helper, Enter
+  selecting the video into the detail pane and its Play, then Space, Right and
+  Escape in the player.
 - `dragAndDropWithAnotherAppInSplitScreenKeepsTheVideoAndShell`: the video
   keeps playing in a split beside the probe; `poster.jpg` drags out, readable
   only while the drop's permissions are held and never writable; the probe's

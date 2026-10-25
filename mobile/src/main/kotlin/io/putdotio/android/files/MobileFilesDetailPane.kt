@@ -50,6 +50,8 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import coil3.compose.SubcomposeAsyncImage
@@ -252,7 +254,7 @@ private fun MobileFilesDetailButtons(
 }
 
 @Composable
-private fun primaryAction(item: FilesItem, resumePlayback: Boolean): Pair<Int, String> {
+private fun primaryAction(item: FilesItem, resumePlayback: Boolean): Pair<Int, AnnotatedString> {
     // The player's rule: a saved position resumes unless it is within 10 s of a known end.
     val playback = item.playback
     val resumeAt = playback?.startFromSeconds?.takeIf { position ->
@@ -260,11 +262,31 @@ private fun primaryAction(item: FilesItem, resumePlayback: Boolean): Pair<Int, S
         resumePlayback && position > 0.0 && (duration == null || position < duration - FINISHED_WITHIN_SECONDS)
     }
     return when {
-        resumeAt != null -> DesignR.drawable.ic_ph_play_fill to
-            stringResource(R.string.mobile_files_detail_resume, DateUtils.formatElapsedTime(resumeAt.toLong()))
-        item.isPlayable -> DesignR.drawable.ic_ph_play_fill to stringResource(R.string.mobile_files_detail_play)
-        else -> R.drawable.ic_ph_arrow_square_out to stringResource(R.string.mobile_files_detail_open)
+        resumeAt != null -> DesignR.drawable.ic_ph_play_fill to resumeLabel(resumeAt)
+        item.isPlayable ->
+            DesignR.drawable.ic_ph_play_fill to AnnotatedString(stringResource(R.string.mobile_files_detail_play))
+        else -> R.drawable.ic_ph_arrow_square_out to AnnotatedString(stringResource(R.string.mobile_files_detail_open))
     }
+}
+
+/** "Resume from 18:42" with the time in mono, as every time is. */
+@Composable
+private fun resumeLabel(seconds: Double): AnnotatedString {
+    val time = DateUtils.formatElapsedTime(seconds.toLong())
+    val label = stringResource(R.string.mobile_files_detail_resume, time)
+    val start = label.lastIndexOf(time)
+    return AnnotatedString.Builder(label).apply {
+        if (start >= 0) {
+            addStyle(
+                SpanStyle(
+                    fontFamily = PutioTypeScale.mono.fontFamily,
+                    fontFeatureSettings = PutioTypeScale.mono.fontFeatureSettings,
+                ),
+                start,
+                start + time.length,
+            )
+        }
+    }.toAnnotatedString()
 }
 
 private data class DetailDownload(@param:DrawableRes val icon: Int, val label: String, val enabled: Boolean)
@@ -301,12 +323,12 @@ private fun MobileFilesDetailTonalButton(
         contentPadding = DETAIL_BUTTON_PADDING,
         modifier = Modifier.testTag(tag),
     ) {
-        MobileFilesDetailButtonContent(icon, label)
+        MobileFilesDetailButtonContent(icon, AnnotatedString(label))
     }
 }
 
 @Composable
-private fun MobileFilesDetailButtonContent(@DrawableRes icon: Int, label: String) {
+private fun MobileFilesDetailButtonContent(@DrawableRes icon: Int, label: AnnotatedString) {
     Icon(
         painter = painterResource(icon),
         contentDescription = null,

@@ -50,6 +50,8 @@ import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.FilesRepository
 import io.putdotio.android.files.FilesSort
+import io.putdotio.android.files.MOBILE_FILES_DETAIL_PRIMARY_TAG
+import io.putdotio.android.files.MOBILE_FILES_DETAIL_TAG
 import io.putdotio.android.files.MOBILE_FILES_LIST_TAG
 import io.putdotio.android.playback.MobilePlayerFactory
 import io.putdotio.android.playback.PlaybackMediaType
@@ -182,11 +184,10 @@ class MobileTabletPowerProofTest {
         compose.activity.dismissKeyboardShortcutsHelper()
         SystemClock.sleep(SETTLE_MS)
 
-        focusRow("Harbor film.mp4")
-        press(KeyEvent.KEYCODE_ENTER)
+        playFromTheDetailPane("Harbor film.mp4")
         awaitCondition("video playing") { player { it.isPlaying } == true }
         dismissFullScreenHint()
-        screenshot("keys-09-enter-played-the-video")
+        screenshot("keys-09-detail-play-played-the-video")
         press(KeyEvent.KEYCODE_SPACE)
         awaitCondition("space paused") { player { it.playWhenReady } == false }
         val paused = requireNotNull(player { it.currentPosition })
@@ -205,8 +206,7 @@ class MobileTabletPowerProofTest {
     @Test
     fun dragAndDropWithAnotherAppInSplitScreenKeepsTheVideoAndShell() = withShell {
         val host = compose.activity
-        focusRow("Harbor film.mp4")
-        press(KeyEvent.KEYCODE_ENTER)
+        playFromTheDetailPane("Harbor film.mp4")
         awaitCondition("video playing") { player { it.isPlaying } == true }
         dismissFullScreenHint()
         screenshot("drag-01-video-full-screen")
@@ -342,6 +342,17 @@ class MobileTabletPowerProofTest {
     private fun rowFocused(name: String): Boolean = rowExists(name) && runCatching { row(name).assertIsFocused() }.isSuccess
 
     private fun tagExists(tag: String): Boolean = compose.onAllNodes(hasTestTag(tag)).fetchSemanticsNodes().isNotEmpty()
+
+    /** At 1280dp Enter selects the file into the detail pane; its Play starts it. */
+    private fun playFromTheDetailPane(name: String) {
+        focusRow(name)
+        press(KeyEvent.KEYCODE_ENTER)
+        awaitCondition("$name selected") {
+            compose.onAllNodes(hasText(name) and hasAnyAncestor(hasTestTag(MOBILE_FILES_DETAIL_TAG)))
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithTag(MOBILE_FILES_DETAIL_PRIMARY_TAG).performClick()
+    }
 
     /** Arrows walk the listing to [name]; the order is Shows, Harbor film.mp4, poster.jpg, notes.txt. */
     private fun focusRow(name: String) {

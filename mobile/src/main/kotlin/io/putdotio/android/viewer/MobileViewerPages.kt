@@ -50,6 +50,7 @@ import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.formatFileSize
 import java.io.IOException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 
 /**
@@ -187,7 +188,9 @@ internal fun MobileTextPage(uri: Uri, onOpenWithAnotherApp: () -> Unit) {
     val state by produceState<TextState>(TextState.Loading, uri) {
         value = withContext(Dispatchers.IO) {
             try {
-                context.contentResolver.openInputStream(uri)?.use { TextState.Ready(it.readTextPreview()) }
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    TextState.Ready(input.readTextPreview { isActive })
+                }
                     ?: TextState.Failed
             } catch (_: IOException) {
                 TextState.Failed

@@ -4,6 +4,7 @@ import java.io.InputStream
 import java.nio.ByteBuffer
 import java.nio.CharBuffer
 import java.nio.charset.CodingErrorAction
+import kotlinx.coroutines.CancellationException
 
 /** The start of a text file as the viewer shows it; [truncated] when the file goes on past it. */
 internal data class MobileTextPreview(
@@ -16,10 +17,15 @@ internal data class MobileTextPreview(
  * bytes read as the replacement character; a character the limit cuts in half is dropped rather
  * than shown as one. A byte-order mark is skipped and line endings of every platform split lines.
  */
-internal fun InputStream.readTextPreview(limitBytes: Int = TEXT_PREVIEW_LIMIT_BYTES): MobileTextPreview {
+internal fun InputStream.readTextPreview(
+    limitBytes: Int = TEXT_PREVIEW_LIMIT_BYTES,
+    /** Checked between reads, so a closed viewer stops a slow stream at the next chunk. */
+    keepReading: () -> Boolean = { true },
+): MobileTextPreview {
     val bytes = ByteArray(limitBytes)
     var count = 0
     while (count < limitBytes) {
+        if (!keepReading()) throw CancellationException("The viewer closed")
         val read = read(bytes, count, limitBytes - count)
         if (read < 0) break
         count += read

@@ -994,8 +994,9 @@ then out, Search over Files, cancelled and committed Back gestures), `MobileMoti
 
 Mobile only; TV keeps its D-pad rules. With a hardware keyboard, Tab and the
 arrow keys walk focus through Files, which outlines the focused row, and Enter
-opens the row as a tap would: a folder opens, media plays, any other file opens
-its actions. A folder reached from the keyboard puts focus on the row last
+opens the row as a tap would: a folder opens; below 840 dp media plays and other
+files open in the viewer or another app, and from 840 dp a file selects into
+the detail pane. A folder reached from the keyboard puts focus on the row last
 focused there, such as the video that just played, else on its first visible
 row. When the row that last held focus leaves the listing (moved to Trash,
 say) and no row holds focus, focus goes to the row now in its place; focus the
