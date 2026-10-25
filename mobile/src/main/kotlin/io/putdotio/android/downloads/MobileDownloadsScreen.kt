@@ -20,8 +20,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -64,6 +62,10 @@ import io.putdotio.android.MobileEmptyState
 import io.putdotio.android.MobileMiddleCutText
 import io.putdotio.android.MobileRow
 import io.putdotio.android.MobileSectionLabel
+import io.putdotio.android.MobileSelectedRowTint
+import io.putdotio.android.MobileSelectionCheckbox
+import io.putdotio.android.MobileSelectionToolbarClearance
+import io.putdotio.android.MobileSelectionToolbarOffset
 import io.putdotio.android.R
 import io.putdotio.android.design.FileTypeIcon
 import io.putdotio.android.design.PutioDesignTokens
@@ -100,7 +102,7 @@ internal fun MobileDownloadsScreen(
     val sheetEntry = state.entries.firstOrNull { it.fileId.value == sheetFileId }
     val inSelection = selection.isActive(state)
     var toolbarHeight by remember { mutableIntStateOf(0) }
-    val toolbarClearance = with(LocalDensity.current) { toolbarHeight.toDp() } + TOOLBAR_CLEARANCE
+    val toolbarClearance = with(LocalDensity.current) { toolbarHeight.toDp() } + MobileSelectionToolbarClearance
     val selected = selection.selected(state)
     LifecycleStartEffect(onEvent) {
         onEvent(DownloadsEvent.Shown)
@@ -154,7 +156,7 @@ internal fun MobileDownloadsScreen(
                 onEvent = onEvent,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = TOOLBAR_OFFSET)
+                    .padding(bottom = MobileSelectionToolbarOffset)
                     .onSizeChanged { toolbarHeight = it.height },
             )
         }
@@ -258,11 +260,7 @@ private fun MobileDownloadRow(
     MobileRow(
         leading = {
             if (selected != null) {
-                Checkbox(
-                    checked = selected,
-                    onCheckedChange = null,
-                    colors = CheckboxDefaults.colors(uncheckedColor = PutioDesignTokens.solid),
-                )
+                MobileSelectionCheckbox(checked = selected)
             } else {
                 FileTypeIcon(entry.type, Modifier.size(FILE_ICON_SIZE))
             }
@@ -274,7 +272,7 @@ private fun MobileDownloadRow(
         } else {
             null
         },
-        containerColor = if (selected == true) SELECTED_TINT else Color.Transparent,
+        containerColor = if (selected == true) MobileSelectedRowTint else Color.Transparent,
         // A completed copy plays from its row, so the row is the player's starting bounds.
         modifier = Modifier.playbackContainer(entry.fileId.value, playable = entry.isCompleted)
             .downloadRowInteraction(
@@ -634,7 +632,3 @@ private const val SEPARATOR = " · "
 private const val VALUE_ONE = "\u0001"
 private const val VALUE_TWO = "\u0002"
 private val FILE_ICON_SIZE = 26.dp
-private val SELECTED_TINT = PutioDesignTokens.yellowSolid.copy(alpha = 0.09f)
-private val TOOLBAR_OFFSET = 24.dp
-/** Space under the toolbar's own height, so the last row ends above it with a gap. */
-private val TOOLBAR_CLEARANCE = TOOLBAR_OFFSET + 16.dp

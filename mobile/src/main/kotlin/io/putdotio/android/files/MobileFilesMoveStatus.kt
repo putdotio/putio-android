@@ -8,6 +8,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
@@ -21,23 +22,11 @@ internal const val MOBILE_FILES_MOVE_OUTCOME_TAG = "mobile-files-move-outcome"
 
 @Composable
 internal fun MobileFilesMoveStatus(outcome: FilesMoveOutcome) {
-    val collision = outcome.errors?.singleOrNull()?.takeIf {
-        it.id == outcome.intent.itemId.value && it.errorType == "NAME_ALREADY_EXIST"
-    }
-    val message = when (outcome.status) {
-        FilesMoveStatus.MOVED -> R.string.mobile_files_move_moved
-        FilesMoveStatus.STILL_PRESENT -> R.string.mobile_files_move_still_present
-        FilesMoveStatus.REJECTED -> if (collision == null) R.string.mobile_files_move_rejected
-            else R.string.mobile_files_move_collision
-        FilesMoveStatus.CHECKING, FilesMoveStatus.UNKNOWN -> null
-    }
+    val message = outcome.statusMessage()
     if (message != null) {
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
             .testTag(MOBILE_FILES_MOVE_OUTCOME_TAG).semantics { liveRegion = LiveRegionMode.Polite }) {
-            Text(
-                stringResource(message, collision?.name ?: outcome.itemName),
-                style = MaterialTheme.typography.bodyMedium,
-            )
+            Text(message, style = MaterialTheme.typography.bodyMedium)
             if (outcome.status != FilesMoveStatus.MOVED) {
                 outcome.failure?.let {
                     Text(it.moveFailureMessage(), color = PutioDesignTokens.redTextSecondary,
@@ -45,6 +34,33 @@ internal fun MobileFilesMoveStatus(outcome: FilesMoveOutcome) {
                 }
             }
         }
+    }
+}
+
+/** The settled move's line: the item by name, or several by count; a lone name clash names it. */
+@Composable
+private fun FilesMoveOutcome.statusMessage(): String? {
+    val collision = errors?.singleOrNull()?.takeIf { error ->
+        intent.itemIds.any { it.value == error.id } && error.errorType == "NAME_ALREADY_EXIST"
+    }
+    val many = itemCount > 1
+    return when (status) {
+        FilesMoveStatus.MOVED -> if (many) {
+            pluralStringResource(R.plurals.mobile_files_move_moved_many, itemCount, itemCount)
+        } else {
+            stringResource(R.string.mobile_files_move_moved, itemName)
+        }
+        FilesMoveStatus.STILL_PRESENT -> if (many) {
+            pluralStringResource(R.plurals.mobile_files_move_still_present_many, remainingCount, remainingCount)
+        } else {
+            stringResource(R.string.mobile_files_move_still_present, itemName)
+        }
+        FilesMoveStatus.REJECTED -> when {
+            collision != null -> stringResource(R.string.mobile_files_move_collision, collision.name ?: itemName)
+            many -> pluralStringResource(R.plurals.mobile_files_move_rejected_many, itemCount, itemCount)
+            else -> stringResource(R.string.mobile_files_move_rejected, itemName)
+        }
+        FilesMoveStatus.CHECKING, FilesMoveStatus.UNKNOWN -> null
     }
 }
 

@@ -528,9 +528,9 @@
     <!-- Stands in for the name of a download whose row the app had to rebuild. -->
     <string name="mobile_downloads_recovered_name">Downloaded file</string>
     <string name="mobile_downloads_select">Select</string>
-    <string name="mobile_downloads_select_all">Select all</string>
-    <string name="mobile_downloads_selection_clear">Cancel selection</string>
-    <plurals name="mobile_downloads_selected">
+    <string name="mobile_selection_select_all">Select all</string>
+    <string name="mobile_selection_clear">Cancel selection</string>
+    <plurals name="mobile_selection_count">
         <item quantity="one">%1$d selected</item>
         <item quantity="other">%1$d selected</item>
     </plurals>
@@ -744,6 +744,53 @@
     <string name="mobile_files_share_action">Share</string>
     <string name="mobile_files_open_in_vlc">Open in VLC</string>
     <string name="mobile_files_select">Select</string>
+    <!-- Selection toolbar words; each tile's spoken label is the full action. -->
+    <string name="mobile_files_unwatched">Unwatched</string>
+    <string name="mobile_files_trash_short">Trash</string>
+    <plurals name="mobile_files_selection_actions">
+        <item quantity="one">Actions for %1$d item</item>
+        <item quantity="other">Actions for %1$d items</item>
+    </plurals>
+    <plurals name="mobile_files_trash_done_many">
+        <item quantity="one">Moved %1$d item to Trash</item>
+        <item quantity="other">Moved %1$d items to Trash</item>
+    </plurals>
+    <plurals name="mobile_files_undo_failed_many">
+        <item quantity="one">Couldn’t restore %1$d item from Trash. %2$s</item>
+        <item quantity="other">Couldn’t restore %1$d items from Trash. %2$s</item>
+    </plurals>
+    <plurals name="mobile_files_mark_watched_failed_many">
+        <item quantity="one">Couldn’t mark %1$d item as watched. %2$s</item>
+        <item quantity="other">Couldn’t mark %1$d items as watched. %2$s</item>
+    </plurals>
+    <plurals name="mobile_files_mark_unwatched_failed_many">
+        <item quantity="one">Couldn’t mark %1$d item as unwatched. %2$s</item>
+        <item quantity="other">Couldn’t mark %1$d items as unwatched. %2$s</item>
+    </plurals>
+    <plurals name="mobile_files_delete_unavailable_many">
+        <item quantity="one">%1$d item is no longer available in Files.</item>
+        <item quantity="other">%1$d items are no longer available in Files.</item>
+    </plurals>
+    <plurals name="mobile_files_delete_still_present_many">
+        <item quantity="one">%1$d item is still in Files. Select it to try again.</item>
+        <item quantity="other">%1$d items are still in Files. Select them to try again.</item>
+    </plurals>
+    <plurals name="mobile_files_delete_skipped_many">
+        <item quantity="one">The request was incomplete. %1$d item was not confirmed removed.</item>
+        <item quantity="other">The request was incomplete. %1$d items were not confirmed removed.</item>
+    </plurals>
+    <plurals name="mobile_files_move_moved_many">
+        <item quantity="one">%1$d item is in the selected folder.</item>
+        <item quantity="other">%1$d items are in the selected folder.</item>
+    </plurals>
+    <plurals name="mobile_files_move_still_present_many">
+        <item quantity="one">%1$d item is not in the selected folder. You can choose a destination again.</item>
+        <item quantity="other">%1$d items are not in the selected folder. You can choose a destination again.</item>
+    </plurals>
+    <plurals name="mobile_files_move_rejected_many">
+        <item quantity="one">Couldn’t move %1$d item. Choose another folder and try again.</item>
+        <item quantity="other">Couldn’t move %1$d items. Choose another folder and try again.</item>
+    </plurals>
     <string name="mobile_files_mark_watched">Mark as watched</string>
     <string name="mobile_files_mark_unwatched">Mark as unwatched</string>
     <string name="mobile_files_exclusive_link">Exclusive link</string>

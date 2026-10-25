@@ -414,12 +414,15 @@ names the sharer.
 ### Selection
 
 **Select** starts selection mode: the top bar turns `surface-container-high`
-with close, "_n_ selected", select all and overflow. Checkboxes replace the
-file icons and selected rows take a 9% yellow tint. A floating toolbar above
-the nav bar holds Move, Download, Watched and the delete action. Each action
-shows only when every selected item allows it, under the same rules as the
-sheet; delete reads Delete permanently, and confirms, when the account turns
-Trash off.
+with close, "_n_ selected" and select all. Checkboxes replace the file icons,
+the trailing chevron and overflow leave, and selected rows take a 9% yellow
+tint. A floating toolbar above the nav bar holds Move, Download, Watched and
+the delete action. Each action shows only when every selected item allows it,
+under the same rules as the sheet; Watched reads Unwatched when every file is
+finished, and delete reads Delete, and confirms with the count, when the
+account turns Trash off. Back ends selection before it leaves the folder. In
+list-detail, the detail pane shows no file while rows are selected. Downloads
+uses the same bar, checkboxes, tint and toolbar tiles.
 
 ### Menus
 
@@ -796,7 +799,6 @@ the navigation bar: **Welcome!** as a 40sp medium title on a 48sp line, then
   counts elsewhere use the UI face.
 - Transfer cards and Transfer actions show no peer count: the Kotlin SDK's
   `Transfer` has no peers field.
-- Files has no selection mode, so the actions sheet has no Select.
 - The player has no cast button, and its error has no Download: downloads keep
   the HLS rendition.
 - The viewers have no Download: Downloads hold video and audio only.

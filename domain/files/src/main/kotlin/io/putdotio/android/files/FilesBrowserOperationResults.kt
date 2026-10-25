@@ -1,5 +1,8 @@
 package io.putdotio.android.files
 
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.PutioResult
+
 internal fun FilesBrowserState.mutationSucceeded(
     requestId: FilesRequestId,
 ): FilesBrowserTransition {
@@ -64,9 +67,21 @@ internal fun FilesFolderState.replaceFirstPage(
     )
 }
 
-internal fun FilesDeleteOutcome.afterFolderPage(page: FilesPage): FilesDeleteOutcome =
-    if (status == FilesDeleteStatus.NO_LONGER_AVAILABLE && page.items.any { it.id == intent.itemId }) {
-        copy(status = FilesDeleteStatus.STILL_PRESENT)
+internal fun FilesDeleteOutcome.afterFolderPage(page: FilesPage): FilesDeleteOutcome {
+    val listed = page.items.count { it.id in intent.itemIds }
+    return if (status == FilesDeleteStatus.NO_LONGER_AVAILABLE && listed > 0) {
+        copy(status = FilesDeleteStatus.STILL_PRESENT, remainingCount = listed)
     } else {
         this
+    }
+}
+
+/** One read per item, in order; a check that read some other number of items read nothing. */
+internal fun List<FilesItemId>.zipReads(
+    results: List<PutioResult<FilesItem>>,
+): List<Pair<FilesItemId, PutioResult<FilesItem>>> =
+    if (results.size == size) {
+        zip(results)
+    } else {
+        map { it to PutioResult.Failure(PutioFailure.Unexpected(IllegalStateException("Item reads did not match"))) }
     }

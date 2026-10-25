@@ -22,14 +22,14 @@ class FilesMoveReducerTest {
     fun guardsInvalidSelectionsAndDuplicateSubmissionWithoutReplacingSourceState() {
         val root = loadedRoot(listOf(item, file(0L), file(-1L)))
         val invalid = listOf(
-            move.copy(itemId = FilesItemId(0L)), move.copy(itemId = FilesItemId(-1L)),
-            move.copy(itemId = FilesItemId(99L)), move.copy(folderId = FilesItemId(8L)),
+            move.copy(itemIds = listOf(FilesItemId(0L))), move.copy(itemIds = listOf(FilesItemId(-1L))),
+            move.copy(itemIds = listOf(FilesItemId(99L))), move.copy(folderId = FilesItemId(8L)),
             move.copy(destinationId = FilesItemId(-1L)), move.copy(destinationId = FilesFolder.Root.id),
             move.copy(destinationId = item.id),
         )
         invalid.forEach { assertFalse(FilesBrowserReducer.reduce(root, it).consumed) }
         val moving = FilesBrowserReducer.reduce(root, move)
-        assertEquals(item.id, (moving.effect as FilesBrowserEffect.Move).itemId)
+        assertEquals(listOf(item.id), (moving.effect as FilesBrowserEffect.Move).itemIds)
         assertEquals(root.path, moving.state.path)
         assertFalse(FilesBrowserReducer.reduce(moving.state, move).consumed)
         assertFalse(FilesBrowserReducer.reduce(moving.state, FilesBrowserEvent.Refresh).consumed)
@@ -76,7 +76,7 @@ class FilesMoveReducerTest {
             assertEquals(listOf(item), failed.current.content.items())
             assertFalse(FilesBrowserReducer.reduce(failed, move).consumed)
             val retry = FilesBrowserReducer.reduce(failed, FilesBrowserEvent.Retry)
-            assertEquals(item.id, (retry.effect as FilesBrowserEffect.CheckMove).itemId)
+            assertEquals(listOf(item.id), (retry.effect as FilesBrowserEffect.CheckMove).itemIds)
             val recovered = check(retry, PutioResult.Success(item.copy(parentId = move.destinationId)))
             assertEquals(
                 FilesMoveStatus.MOVED,

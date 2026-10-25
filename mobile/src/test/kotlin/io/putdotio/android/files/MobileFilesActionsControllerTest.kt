@@ -13,6 +13,7 @@ import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
@@ -85,6 +86,36 @@ class MobileFilesActionsControllerTest {
         assertEquals(1, rejected)
         assertEquals(1, notices.size)
         assertTrue(events.isEmpty())
+    }
+
+    @Test
+    fun aSelectionMarksEachFileAFewAtATimeAndNamesItsFailuresOnce() = runTest {
+        val controller = controller()
+        val notices = mutableListOf<MobileFilesNotice>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { controller.notices.toList(notices) }
+        val videos = (1L..6L).map { video.copy(id = FilesItemId(100L + it), name = "Episode $it.mkv") }
+        var inFlight = 0
+        var mostInFlight = 0
+        watched.next = {
+            inFlight += 1
+            mostInFlight = maxOf(mostInFlight, inFlight)
+            delay(10)
+            inFlight -= 1
+            PutioResult.Success(Unit)
+        }
+        watched.failing = setOf(videos[1].id, videos[4].id)
+        controller.setWatched(videos, watched = true)
+        advanceUntilIdle()
+
+        assertEquals(videos.map { it.id }, watched.positions.map { it.first })
+        // The Kotlin SDK has no bulk write yet: at most four writes are in flight at once.
+        assertEquals(4, mostInFlight)
+        // Every write put.io took settles its row and Continue watching; the two it refused do not.
+        val settled = videos.map { it.id } - watched.failing
+        assertEquals(settled.map { FilesBrowserEvent.PlaybackPositionReported(it, 3_000.0) }, events)
+        val notice = notices.single()
+        assertEquals(R.plurals.mobile_files_mark_watched_failed_many, notice.message)
+        assertEquals(2, notice.count)
     }
 
     @Test
@@ -178,6 +209,22 @@ class MobileFilesActionsControllerTest {
     }
 
     @Test
+    fun undoOfSeveralRestoresThemAllInOneRequest() = runTest {
+        val controller = controller()
+        val ids = listOf(video.id, FilesItemId(8L))
+        val outcome = FilesDeleteOutcome(
+            FilesRequestId(4L),
+            FilesFolderOperationIntent.Delete(ids, FilesDeleteMode.TRASH),
+            video.name,
+            status = FilesDeleteStatus.NO_LONGER_AVAILABLE,
+        )
+        controller.undoTrash(outcome)
+        advanceUntilIdle()
+        assertEquals(listOf(TrashBulkSelection(cursor = null, itemIds = ids)), trash.restoredAll)
+        assertEquals(listOf(FilesBrowserEvent.TrashUndone(outcome), FilesBrowserEvent.ReloadIfStale), events)
+    }
+
+    @Test
     fun undoRestoresTheTrashMoveAndReadsTheFolderAgain() = runTest {
         val controller = controller()
         val notices = mutableListOf<MobileFilesNotice>()
@@ -219,6 +266,7 @@ class MobileFilesActionsControllerTest {
         val cleared = mutableListOf<FilesItemId>()
         var result: PutioResult<Unit> = PutioResult.Success(Unit)
         var next: (suspend () -> PutioResult<Unit>)? = null
+        var failing: Set<FilesItemId> = emptySet()
 
         /** Calls in the order they were sent. */
         val answered = mutableListOf<String>()
@@ -227,7 +275,8 @@ class MobileFilesActionsControllerTest {
             positions += itemId to seconds
             answered += "set"
             // Like a blocking network call, a scripted answer returns even after cancellation.
-            return next?.let { answer -> withContext(NonCancellable) { answer() } } ?: result
+            val answer = next?.let { answer -> withContext(NonCancellable) { answer() } } ?: result
+            return if (itemId in failing) PutioResult.Failure(PutioFailure.NetworkUnavailable(Exception())) else answer
         }
 
         override suspend fun clearPosition(itemId: FilesItemId): PutioResult<Unit> {
@@ -239,6 +288,7 @@ class MobileFilesActionsControllerTest {
 
     private class RecordingTrash : TrashRepository {
         val restored = mutableListOf<FilesItemId>()
+        val restoredAll = mutableListOf<TrashBulkSelection>()
         var result: PutioResult<Unit> = PutioResult.Success(Unit)
 
         override suspend fun restore(itemId: FilesItemId): PutioResult<Unit> = result.also { restored += itemId }
@@ -246,7 +296,8 @@ class MobileFilesActionsControllerTest {
         override suspend fun loadNextPage(cursor: FilesCursor): PutioResult<TrashPage> = error("unused")
         override suspend fun resolveItem(itemId: FilesItemId): PutioResult<FilesItem> = error("unused")
         override suspend fun deleteItem(itemId: FilesItemId): PutioResult<Unit> = error("unused")
-        override suspend fun restoreAll(selection: TrashBulkSelection): PutioResult<Unit> = error("unused")
+        override suspend fun restoreAll(selection: TrashBulkSelection): PutioResult<Unit> =
+            result.also { restoredAll += selection }
         override suspend fun empty(): PutioResult<Unit> = error("unused")
     }
 

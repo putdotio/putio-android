@@ -126,12 +126,12 @@ class FilesDeleteControllerTest {
             }
         }
         override suspend fun delete(
-            itemId: FilesItemId,
+            itemIds: List<FilesItemId>,
             mode: FilesDeleteMode,
         ): PutioResult<FileDeleteResult> {
-            assertEquals(item.id, itemId)
+            assertEquals(listOf(item.id), itemIds)
             assertEquals(FilesDeleteMode.TRASH, mode)
-            posts += itemId
+            posts += itemIds
             postStarted.complete(Unit)
             return postResult.await()
         }
@@ -163,7 +163,7 @@ class FilesDeleteControllerTest {
             return if (reads.size == 1) failure("read offline") else PutioResult.Success(item)
         }
         override suspend fun delete(
-            itemId: FilesItemId,
+            itemIds: List<FilesItemId>,
             mode: FilesDeleteMode,
         ): PutioResult<FileDeleteResult> {
             deletes += 1

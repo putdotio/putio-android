@@ -550,9 +550,9 @@ class MobileTabletPowerProofTest {
             return PutioResult.Success(FilesPage(if (folderId == SHOWS.id) listOf(EPISODE) else root.toList(), null))
         }
 
-        override suspend fun delete(itemId: FilesItemId, mode: FilesDeleteMode): PutioResult<FileDeleteResult> {
-            deleted = deleted + (itemId to mode)
-            root.removeAll { it.id == itemId }
+        override suspend fun delete(itemIds: List<FilesItemId>, mode: FilesDeleteMode): PutioResult<FileDeleteResult> {
+            deleted = deleted + itemIds.map { it to mode }
+            root.removeAll { it.id in itemIds }
             return PutioResult.Success(FileDeleteResult(status = "OK"))
         }
 
@@ -564,7 +564,10 @@ class MobileTabletPowerProofTest {
         override suspend fun loadMoveDestinations(folderId: FilesItemId, cursor: FilesCursor?) = error("No move")
         override suspend fun persistSort(folderId: FilesItemId, sort: FilesSort) = error("No sort")
         override suspend fun rename(itemId: FilesItemId, name: String) = error("No rename")
-        override suspend fun move(itemId: FilesItemId, destinationId: FilesItemId): PutioResult<List<FileMoveError>> =
+        override suspend fun move(
+            itemIds: List<FilesItemId>,
+            destinationId: FilesItemId,
+        ): PutioResult<List<FileMoveError>> =
             error("No move")
         override suspend fun startCopy(itemId: FilesItemId, destinationId: FilesItemId) = error("No copy")
         override suspend fun checkCopy(copyId: FilesCopyId) = error("No copy")

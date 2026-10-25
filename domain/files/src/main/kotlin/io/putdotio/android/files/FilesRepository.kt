@@ -26,7 +26,8 @@ public interface FilesRepository : FilesCopyRepository {
         cursor: FilesCursor? = null,
     ): PutioResult<FilesPage>
 
-    public suspend fun move(itemId: FilesItemId, destinationId: FilesItemId): PutioResult<List<FileMoveError>>
+    /** Moves [itemIds] into [destinationId] in one request; put.io answers with the items it refused. */
+    public suspend fun move(itemIds: List<FilesItemId>, destinationId: FilesItemId): PutioResult<List<FileMoveError>>
 
     public suspend fun persistSort(
         folderId: FilesItemId,
@@ -35,7 +36,8 @@ public interface FilesRepository : FilesCopyRepository {
 
     public suspend fun rename(itemId: FilesItemId, name: String): PutioResult<Unit>
 
-    public suspend fun delete(itemId: FilesItemId, mode: FilesDeleteMode): PutioResult<FileDeleteResult>
+    /** Deletes [itemIds] in one request. */
+    public suspend fun delete(itemIds: List<FilesItemId>, mode: FilesDeleteMode): PutioResult<FileDeleteResult>
 
     public suspend fun resolveItem(itemId: FilesItemId): PutioResult<FilesItem>
 }
@@ -59,8 +61,8 @@ public interface FilesItemResolver {
 
 internal class SdkFilesMutations(
     val rename: suspend (Long, String) -> Unit,
-    val delete: suspend (Long, Boolean) -> FileDeleteResult,
-    val move: suspend (Long, Long) -> List<FileMoveError>,
+    val delete: suspend (List<Long>, Boolean) -> FileDeleteResult,
+    val move: suspend (List<Long>, Long) -> List<FileMoveError>,
     val createFolder: suspend (String, Long) -> PutioFile = { _, _ -> error("Folder creation is not wired") },
 )
 
@@ -114,10 +116,8 @@ public class SdkFilesRepository internal constructor(
                 client.files.rename(fileId, name)
                 Unit
             },
-            delete = { fileId, skipTrash ->
-                client.files.delete(fileIds = listOf(fileId), skipTrash = skipTrash)
-            },
-            move = { fileId, destinationId -> client.files.move(listOf(fileId), destinationId) },
+            delete = { fileIds, skipTrash -> client.files.delete(fileIds = fileIds, skipTrash = skipTrash) },
+            move = { fileIds, destinationId -> client.files.move(fileIds, destinationId) },
             createFolder = { name, parentId -> client.files.createFolder(name = name, parentId = parentId) },
         ),
         copies = SdkFilesCopies(
@@ -158,14 +158,17 @@ public class SdkFilesRepository internal constructor(
     }
 
     override suspend fun move(
-        itemId: FilesItemId,
+        itemIds: List<FilesItemId>,
         destinationId: FilesItemId,
     ): PutioResult<List<FileMoveError>> = putioRequest {
-        // A lone zero is a bulk selector, never a single source item.
-        require(itemId.value > 0L && destinationId.value >= 0L && itemId != destinationId) {
-            "Move requires one positive source ID and a different nonnegative destination ID"
+        // A zero is a bulk selector, never a source item.
+        require(
+            itemIds.isNotEmpty() && itemIds.all { it.value > 0L } && destinationId.value >= 0L &&
+                destinationId !in itemIds,
+        ) {
+            "Move requires positive source IDs and a different nonnegative destination ID"
         }
-        mutations.move(itemId.value, destinationId.value)
+        mutations.move(itemIds.map(FilesItemId::value), destinationId.value)
     }
 
     override suspend fun persistSort(
@@ -188,11 +191,11 @@ public class SdkFilesRepository internal constructor(
             mutations.createFolder(trimmed, parentId.value).toFilesItem()
         }
 
-    override suspend fun delete(itemId: FilesItemId, mode: FilesDeleteMode): PutioResult<FileDeleteResult> =
+    override suspend fun delete(itemIds: List<FilesItemId>, mode: FilesDeleteMode): PutioResult<FileDeleteResult> =
         putioRequest {
-            // A lone zero means every root item at the API boundary.
-            require(itemId.value > 0L) { "Delete requires one positive file ID" }
-            mutations.delete(itemId.value, mode == FilesDeleteMode.PERMANENT)
+            // A zero means every root item at the API boundary.
+            require(itemIds.isNotEmpty() && itemIds.all { it.value > 0L }) { "Delete requires positive file IDs" }
+            mutations.delete(itemIds.map(FilesItemId::value), mode == FilesDeleteMode.PERMANENT)
         }
 }
 

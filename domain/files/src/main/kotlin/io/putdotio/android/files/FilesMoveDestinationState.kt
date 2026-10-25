@@ -11,10 +11,13 @@ public data class FilesMoveDestinationFolder internal constructor(
     internal val remembered: Boolean = false,
 )
 
-/** A folder picker; without a [sourceItem] it picks a destination for new content, such as a transfer. */
+/**
+ * A folder picker for [sourceItems], all listed in [sourceFolderId]; without source items it picks a
+ * destination for new content, such as a transfer.
+ */
 @ConsistentCopyVisibility
 public data class FilesMoveDestinationState internal constructor(
-    val sourceItem: FilesItem?,
+    val sourceItems: List<FilesItem>,
     val sourceFolderId: FilesItemId?,
     internal val stack: List<FilesMoveDestinationFolder>,
     internal val nextRequestValue: Long,
@@ -25,12 +28,15 @@ public data class FilesMoveDestinationState internal constructor(
     val path: List<FilesFolder> get() = stack.map { it.folder }
     val canNavigateBack: Boolean get() = stack.size > 1
     val canMoveHere: Boolean get() = current.folder.id.value >= 0L &&
-        (sourceItem == null || sourceItem.id.value > 0L && current.folder.id != sourceFolderId &&
-            current.folder.id != sourceItem.parentId && current.folder.id != sourceItem.id) &&
+        (sourceItems.isEmpty() || current.folder.id != sourceFolderId && sourceItems.all {
+            it.id.value > 0L && current.folder.id != it.parentId && current.folder.id != it.id
+        }) &&
         (current.content is FilesContent.Ready || current.content is FilesContent.Empty)
 
-    public fun canOpenFolder(itemId: FilesItemId): Boolean = itemId.value > 0L && itemId != sourceItem?.id &&
+    public fun canOpenFolder(itemId: FilesItemId): Boolean = itemId.value > 0L && !isSource(itemId) &&
         stack.none { it.folder.id == itemId } && current.content.items().any { it.id == itemId && it.isFolder }
+
+    internal fun isSource(itemId: FilesItemId): Boolean = sourceItems.any { it.id == itemId }
 }
 
 public sealed interface FilesMoveDestinationEvent {
@@ -120,7 +126,7 @@ private fun FilesMoveDestinationState.openCreatedFolder(folder: FilesItem): File
 private fun FilesMoveDestinationState.acceptsCreatedFolder(folder: FilesItem): Boolean {
     val listed = current.content is FilesContent.Ready || current.content is FilesContent.Empty
     val newChild = folder.isFolder && folder.id.value > 0L && folder.parentId == current.folder.id
-    return listed && newChild && folder.id != sourceItem?.id && stack.none { it.folder.id == folder.id }
+    return listed && newChild && !isSource(folder.id) && stack.none { it.folder.id == folder.id }
 }
 
 private fun FilesMoveDestinationState.loadDestinationPage(retry: Boolean): FilesMoveDestinationTransition {

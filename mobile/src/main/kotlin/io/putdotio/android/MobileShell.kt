@@ -81,9 +81,12 @@ import io.putdotio.android.files.isFilesListDetail
 import io.putdotio.android.files.showsFilesListDetail
 import io.putdotio.android.files.MobileContinueWatching
 import io.putdotio.android.files.MobileFilesActionsController
+import io.putdotio.android.files.FilesSelection
+import io.putdotio.android.files.MOBILE_FILES_SELECTION_BAR_TAG
 import io.putdotio.android.files.MobileFilesBarActions
 import io.putdotio.android.files.MobileFilesSearchBar
 import io.putdotio.android.files.MobileFolderTopBar
+import io.putdotio.android.files.rememberFilesSelection
 import io.putdotio.android.files.MobileNewFolderHost
 import io.putdotio.android.files.rememberNewFolderRequest
 import io.putdotio.android.files.mobileMessage
@@ -258,6 +261,13 @@ internal fun MobileShell(
     val downloadsState = downloadsController?.state?.collectAsStateWithLifecycle()?.value ?: DownloadsState()
     // The Downloads top bar and list share one selection: in selection its bar replaces the title.
     val downloadsSelection = rememberDownloadsSelection()
+    // So do Files' bar and folder; its selection belongs to the folder it started in.
+    val filesSelection = rememberFilesSelection(sessionId)
+    val filesSelecting = filesSelection.isShown(
+        filesState,
+        onFiles = selectedDestination == MobileDestination.Files,
+        searchOpen = searchOpen,
+    )
     val trashState = trashController?.state?.collectAsStateWithLifecycle()?.value
     TrashRestoreEffects(trashState, onFilesEvent)
     val shareNavigationBlocked = shareNavigationBlocked(filesState, trashState, transfersState, nowPlayingPending)
@@ -330,7 +340,7 @@ internal fun MobileShell(
                 searchForward = false
             }
         },
-    )
+    ).endingSelection(filesSelecting, filesSelection::end)
     val onFilesBack = filesBack.onBack
     val filesBackPreview = rememberMobileBackPreview()
     MobilePredictiveBackHandler(
@@ -419,6 +429,7 @@ internal fun MobileShell(
                             downloads = downloadsController?.let {
                                 MobileDownloadsBar(downloadsState, downloadsSelection, it::dispatch)
                             },
+                            filesSelection = filesSelection.takeIf { filesSelecting },
                         )
                     }
                     val paneTopBar: @Composable () -> Unit = {
@@ -476,6 +487,7 @@ internal fun MobileShell(
                             subtitleLanguages = subtitleLanguages,
                             filesActions = filesActions,
                             folderCreator = folderCreator,
+                            filesSelection = filesSelection,
                         )
                     }
                 }
@@ -793,7 +805,14 @@ private fun TransferFileNavigationEffect(
 }
 
 /** Who takes Back on Files, whether the gesture may preview it, and what it does. */
-private class FilesBack(val ownsBack: Boolean, val previewable: Boolean, val onBack: () -> Unit)
+private class FilesBack(val ownsBack: Boolean, val previewable: Boolean, val onBack: () -> Unit) {
+    /**
+     * A Files selection on screen takes Back first and ends; the folder stays, so nothing previews.
+     * Search covers the selection, so it is not on screen then.
+     */
+    fun endingSelection(selecting: Boolean, end: () -> Unit): FilesBack =
+        if (selecting) FilesBack(ownsBack = true, previewable = false, onBack = end) else this
+}
 
 /**
  * Back closes Search, then leaves a folder; a folder opened from Search, History or Transfers
@@ -1043,6 +1062,8 @@ private fun MobileTopBar(
     tabActions: (@Composable RowScope.() -> Unit)? = null,
     downloads: MobileDownloadsBar? = null,
     subpageActions: (@Composable RowScope.() -> Unit)? = null,
+    /** Set while Files is selecting; its bar then replaces the folder's or the root's. */
+    filesSelection: FilesSelection? = null,
 ) {
     val subpageTitle = accountSubpageTitle(route)
     when {
@@ -1070,6 +1091,12 @@ private fun MobileTopBar(
             tabActions?.invoke(this)
         }
         searchOpen -> searchBar(openNavigation?.let { { MobileNavigationMenuButton(it) } })
+        filesSelection != null -> MobileSelectionBar(
+            count = filesSelection.selected(filesState).size,
+            onSelectAll = { filesSelection.selectAll(filesState) },
+            onClear = filesSelection::end,
+            modifier = Modifier.testTag(MOBILE_FILES_SELECTION_BAR_TAG),
+        )
         else -> MobileFilesTopBar(filesState, onFilesBack, onFilesEvent, onOpenSearch, onNewFolder, openNavigation)
     }
 }

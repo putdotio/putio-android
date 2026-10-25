@@ -70,9 +70,9 @@ internal fun MobileFilesTrashLimitStatus(
     onEvent: (FilesBrowserEvent) -> Unit,
 ) {
     var confirming by rememberSaveable(outcome.requestId.value) { mutableStateOf(false) }
-    // A refresh that no longer lists the folder leaves nothing for the reducer to delete; a
-    // rename keeps the outcome, so the dialog names the folder as it is listed now.
-    val listed = folder.content.items().firstOrNull { it.id == outcome.intent.itemId }
+    // A refresh that no longer lists an item leaves nothing for the reducer to delete; a rename
+    // keeps the outcome, so the dialog names the items as they are listed now.
+    val listed = folder.content.items().filter { it.id in outcome.intent.itemIds }.takeIf { it.isNotEmpty() }
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
         Text(
             text = stringResource(R.string.mobile_files_trash_limit_title),
@@ -89,7 +89,7 @@ internal fun MobileFilesTrashLimitStatus(
         }
     }
     if (confirming && listed != null) {
-        val delete = FilesBrowserEvent.Delete(folder.folder.id, listed.id, FilesDeleteMode.PERMANENT)
+        val delete = FilesBrowserEvent.Delete(folder.folder.id, listed.map { it.id }, FilesDeleteMode.PERMANENT)
         AlertDialog(
             onDismissRequest = { confirming = false },
             title = { Text(stringResource(R.string.mobile_files_trash_limit_title)) },
@@ -99,7 +99,7 @@ internal fun MobileFilesTrashLimitStatus(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     Text(stringResource(R.string.mobile_files_trash_limit_message))
-                    Text(listed.name, style = MaterialTheme.typography.titleSmall)
+                    listed.forEach { Text(it.name, style = MaterialTheme.typography.titleSmall) }
                 }
             },
             confirmButton = {

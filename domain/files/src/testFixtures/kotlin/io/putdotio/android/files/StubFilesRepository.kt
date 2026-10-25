@@ -16,10 +16,10 @@ public abstract class StubFilesRepository : FilesRepository {
         error("Unexpected sort")
     override suspend fun rename(itemId: FilesItemId, name: String): PutioResult<Unit> =
         error("Unexpected rename")
-    override suspend fun delete(itemId: FilesItemId, mode: FilesDeleteMode): PutioResult<FileDeleteResult> =
+    override suspend fun delete(itemIds: List<FilesItemId>, mode: FilesDeleteMode): PutioResult<FileDeleteResult> =
         error("Unexpected delete")
     override suspend fun move(
-        itemId: FilesItemId,
+        itemIds: List<FilesItemId>,
         destinationId: FilesItemId,
     ): PutioResult<List<FileMoveError>> =
         error("Unexpected move")
