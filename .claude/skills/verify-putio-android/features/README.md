@@ -2,8 +2,8 @@
 
 This directory is the maintained source for verifying the user-facing
 behaviour of the put.io mobile app. Read this index, then use the matching
-feature file as the recipe. [Behaviour](../../../../docs/behavior.md) owns the
-product rules; these files say how to see them on a device.
+feature file as the recipe. Each file states the end state a user sees; a run
+passes only when the device shows it.
 
 ## Baseline preconditions
 

@@ -105,8 +105,11 @@ $S/devbox.sh run "$RUN" '$V/ui.sh link $SERIAL putio://transfers'
 Handles, most stable first:
 
 1. Deep links: `putio://{files,transfers,search,history,trash,downloads}`,
-   `putio://transfers/add`, and `https://app.put.io/files/<id>`.
-   [Deep links](../../../docs/behavior.md#deep-links) owns the list.
+   `putio://transfers/add` (an empty Add transfer sheet),
+   `putio://downloads/<id>` and `putio://downloads/<id>/play`, and
+   `https://app.put.io/{files,files/<id>,transfers,search,history,trash}`.
+   `ui.sh link` passes the package, so the https links skip the app chooser.
+   A link opened while signed out waits for sign-in.
 2. Content descriptions: `Actions for <name>` on a row's overflow,
    `More options`, `Open player`, `Stop playback`, `Back`.
 3. Visible text: tab labels (`Files`, `History`, `Transfers`, `Downloads`,
