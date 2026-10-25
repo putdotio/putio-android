@@ -77,7 +77,7 @@ import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesOpenOrigin
 import io.putdotio.android.files.FilesRepository
 import io.putdotio.android.files.FilesSubtitleLanguages
-import io.putdotio.android.files.isFilesListDetailWidth
+import io.putdotio.android.files.isFilesListDetail
 import io.putdotio.android.files.showsFilesListDetail
 import io.putdotio.android.files.MobileContinueWatching
 import io.putdotio.android.files.MobileFilesActionsController
@@ -353,9 +353,10 @@ internal fun MobileShell(
             BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
                 val navigationLayout = mobileNavigationLayout(maxWidth, maxHeight)
                 // Files keeps its panes while Search covers it, so nothing under Search is rebuilt.
-                val filesListDetail = isFilesListDetailWidth(maxWidth)
+                val filesListDetail = isFilesListDetail(maxWidth, maxHeight)
                 val topBarInFilesPane = showsFilesListDetail(
                     width = maxWidth,
+                    height = maxHeight,
                     onFiles = selectedDestination == MobileDestination.Files,
                     searchOpen = searchOpen,
                     isPlayback = isPlayback,
@@ -901,8 +902,8 @@ private fun MobileNavigationAlerts(
 
 /**
  * The navigation suite, top bar and now-playing bar around one content slot; hiding them never
- * moves it. Below 600dp the suite is a navigation bar, from 600dp a rail, and in the drawer layout
- * none, since the modal drawer outside this slot takes its place.
+ * moves it. Below 600dp wide or 480dp tall the suite is a navigation bar, otherwise a rail, and in
+ * the drawer layout none, since the modal drawer outside this slot takes its place.
  */
 @Composable
 private fun MobileChrome(

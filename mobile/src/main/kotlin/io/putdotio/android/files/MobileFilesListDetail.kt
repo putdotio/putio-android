@@ -20,15 +20,25 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import io.putdotio.android.isCompactHeight
 
 internal const val MOBILE_FILES_LIST_PANE_TAG = "mobile-files-list-pane"
 
-/** Files shows list and detail side by side in a window 840dp or wider. */
-internal fun isFilesListDetailWidth(width: Dp): Boolean = width >= FILES_LIST_DETAIL_MIN_WIDTH
+/**
+ * Files shows list and detail side by side in a window 840dp or wider that is not compact in height:
+ * a phone in landscape keeps one pane.
+ */
+internal fun isFilesListDetail(width: Dp, height: Dp): Boolean =
+    width >= FILES_LIST_DETAIL_MIN_WIDTH && !isCompactHeight(height)
 
 /** Whether Files' bar sits over its list pane: the panes are on screen, not under Search or the player. */
-internal fun showsFilesListDetail(width: Dp, onFiles: Boolean, searchOpen: Boolean, isPlayback: Boolean): Boolean =
-    isFilesListDetailWidth(width) && onFiles && !searchOpen && !isPlayback
+internal fun showsFilesListDetail(
+    width: Dp,
+    height: Dp,
+    onFiles: Boolean,
+    searchOpen: Boolean,
+    isPlayback: Boolean,
+): Boolean = isFilesListDetail(width, height) && onFiles && !searchOpen && !isPlayback
 
 private val FILES_LIST_DETAIL_MIN_WIDTH: Dp = 840.dp
 

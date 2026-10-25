@@ -6,6 +6,10 @@ import androidx.activity.OnBackPressedDispatcherOwner
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.ime
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.SemanticsActions
@@ -43,6 +47,7 @@ import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPage
+import io.putdotio.android.files.MOBILE_FILES_LIST_PANE_TAG
 import io.putdotio.android.files.MOBILE_FILES_LIST_TAG
 import io.putdotio.android.playback.ActiveAudio
 import io.putdotio.android.playback.MobilePlayerFactory
@@ -202,6 +207,17 @@ class MobileOrdinaryNavigationTest : NavigationShellFixture(1f) {
     }
 
     @Test
+    @Config(qualifiers = "en-rUS-w914dp-h411dp-land")
+    fun phoneLandscapeKeepsItsBarAndOneFilesPane() {
+        mount()
+        compose.onNodeWithTag(MOBILE_NAV_MENU_TAG).assertDoesNotExist()
+        compose.onNodeWithTag(MOBILE_NAV_RAIL_TAG).assertDoesNotExist()
+        compose.onNodeWithTag(MOBILE_NAV_BAR_TAG).assertIsDisplayed()
+        compose.onNodeWithTag(MOBILE_FILES_LIST_PANE_TAG).assertDoesNotExist()
+        compose.onNodeWithTag(MOBILE_FILES_LIST_TAG).assertIsDisplayed()
+    }
+
+    @Test
     fun openingAndClosingTheKeyboardPreservesPhoneNavigationAndTheFocusedTransferDraft() {
         assertKeyboardKeepsTransferDraft(MOBILE_NAV_BAR_TAG)
     }
@@ -236,6 +252,37 @@ class MobileOrdinaryNavigationTest : NavigationShellFixture(1f) {
             compose.onNode(hasText(label) and hasAnyAncestor(hasTestTag(tag))).assertIsDisplayed()
                 .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
             assertCompleteLabel(label, layouts.single())
+        }
+    }
+}
+
+@RunWith(AndroidJUnit4::class)
+@Config(sdk = [35])
+class MobileNavigationContainerTest {
+    @get:Rule val compose = createComposeRule()
+
+    @Test
+    fun changingLayoutKeepsTheContentItHolds() {
+        var layout by mutableStateOf(MobileNavigationLayout.Bar)
+        var created = 0
+        var disposed = 0
+        compose.setContent {
+            PutioTheme {
+                MobileNavigationContainer(layout, MobileDestination.Files, onDestination = {}) {
+                    DisposableEffect(Unit) {
+                        created++
+                        onDispose { disposed++ }
+                    }
+                }
+            }
+        }
+        for (next in listOf(MobileNavigationLayout.Modal, MobileNavigationLayout.Rail, MobileNavigationLayout.Bar)) {
+            compose.runOnIdle { layout = next }
+            compose.waitForIdle()
+        }
+        compose.runOnIdle {
+            assertEquals("A layout change must not rebuild the content, an open player included", 1, created)
+            assertEquals(0, disposed)
         }
     }
 }

@@ -22,6 +22,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.movableContentOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
@@ -39,6 +43,9 @@ internal const val MOBILE_NAV_MENU_TAG = "mobile-navigation-menu"
 internal const val MOBILE_NAV_DRAWER_TAG = "mobile-navigation-drawer"
 
 internal enum class MobileNavigationLayout { Bar, Rail, Modal }
+
+/** Material's compact window height, a phone in landscape: below 480dp. */
+internal fun isCompactHeight(height: Dp): Boolean = height < 480.dp
 
 @Composable
 internal fun mobileNavigationLayout(width: Dp, height: Dp): MobileNavigationLayout {
@@ -58,8 +65,8 @@ internal fun mobileNavigationLayout(width: Dp, height: Dp): MobileNavigationLayo
     val tallest = with(density) { labels.maxOf { it.height }.toDp() }
     // Reserve the stock components' icon, label spacing and padding. A bar item grows to an equal
     // share of the bar and its label may fill it; a label on the 96dp rail takes its width less the
-    // item padding.
-    return if (width >= 600.dp) {
+    // item padding. A compact-height window, such as a phone in landscape, keeps the phone's bar.
+    return if (width >= 600.dp && !isCompactHeight(height)) {
         val railHeight = (24.dp + 12.dp + tallest + 24.dp) * MobileDestination.entries.size + 16.dp
         if (widest <= 80.dp && availableHeight >= railHeight) {
             MobileNavigationLayout.Rail
@@ -85,8 +92,11 @@ internal fun MobileNavigationContainer(
     enabled: Boolean = true,
     content: @Composable ((() -> Unit)?) -> Unit,
 ) {
+    // Moving between layouts must keep the content, the open player included, rather than rebuild it.
+    val currentContent by rememberUpdatedState(content)
+    val slot = remember { movableContentOf<(() -> Unit)?> { currentContent(it) } }
     if (layout != MobileNavigationLayout.Modal) {
-        content(null)
+        slot(null)
         return
     }
     val drawer = rememberDrawerState(DrawerValue.Closed)
@@ -129,7 +139,7 @@ internal fun MobileNavigationContainer(
             }
         },
     ) {
-        content { scope.launch(start = CoroutineStart.UNDISPATCHED) { drawer.open() } }
+        slot { scope.launch(start = CoroutineStart.UNDISPATCHED) { drawer.open() } }
     }
     // Register with the overlay so NavHost callbacks added after route changes remain underneath it.
     if (visible) BackHandler(onBack = close)
