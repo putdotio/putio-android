@@ -184,7 +184,7 @@ class MobileTabletPowerProofTest {
         compose.activity.dismissKeyboardShortcutsHelper()
         SystemClock.sleep(SETTLE_MS)
 
-        playFromTheDetailPane("Harbor film.mp4")
+        playVideo("Harbor film.mp4")
         awaitCondition("video playing") { player { it.isPlaying } == true }
         dismissFullScreenHint()
         screenshot("keys-09-detail-play-played-the-video")
@@ -206,7 +206,7 @@ class MobileTabletPowerProofTest {
     @Test
     fun dragAndDropWithAnotherAppInSplitScreenKeepsTheVideoAndShell() = withShell {
         val host = compose.activity
-        playFromTheDetailPane("Harbor film.mp4")
+        playVideo("Harbor film.mp4")
         awaitCondition("video playing") { player { it.isPlaying } == true }
         dismissFullScreenHint()
         screenshot("drag-01-video-full-screen")
@@ -343,15 +343,19 @@ class MobileTabletPowerProofTest {
 
     private fun tagExists(tag: String): Boolean = compose.onAllNodes(hasTestTag(tag)).fetchSemanticsNodes().isNotEmpty()
 
-    /** At 1280dp Enter selects the file into the detail pane; its Play starts it. */
-    private fun playFromTheDetailPane(name: String) {
+    /**
+     * Enter plays a video below 840dp; from 840dp it selects the file into the detail pane, whose Play
+     * starts it.
+     */
+    private fun playVideo(name: String) {
         focusRow(name)
         press(KeyEvent.KEYCODE_ENTER)
-        awaitCondition("$name selected") {
+        val inDetail = {
             compose.onAllNodes(hasText(name) and hasAnyAncestor(hasTestTag(MOBILE_FILES_DETAIL_TAG)))
                 .fetchSemanticsNodes().isNotEmpty()
         }
-        compose.onNodeWithTag(MOBILE_FILES_DETAIL_PRIMARY_TAG).performClick()
+        awaitCondition("$name playing or selected") { player { it.isPlaying } == true || inDetail() }
+        if (inDetail()) compose.onNodeWithTag(MOBILE_FILES_DETAIL_PRIMARY_TAG).performClick()
     }
 
     /** Arrows walk the listing to [name]; the order is Shows, Harbor film.mp4, poster.jpg, notes.txt. */
