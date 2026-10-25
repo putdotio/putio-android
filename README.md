@@ -74,7 +74,7 @@ TV:
 
 Both apps report crashes and player failures to Sentry only while the
 account's Diagnostics control is on, and send only exception types, stack
-frames, device facts and failure codes ([Diagnostics](docs/behavior.md#diagnostics)).
+frames, device facts and failure codes.
 
 ## Build and verify
 
@@ -92,9 +92,6 @@ The [Agent guide](./AGENTS.md#build-and-verify) covers what the gate runs and
 
 ## Docs
 
-- [Behaviour](./docs/behavior.md): product rules and the tests that pin them
-- [Harness](./docs/harness.md): emulators, evidence, device lanes and live API
-  proof
 - [Design](./DESIGN.md): the Android design contract
 - [Design system binding](./design/README.md): tokens, brand fonts and icon
   generation

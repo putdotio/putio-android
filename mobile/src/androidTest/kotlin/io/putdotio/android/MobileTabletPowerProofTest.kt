@@ -127,7 +127,7 @@ class MobileTabletPowerProofTest {
                 assumeTrue("Tablet proof requires opt-in", arguments.getString("putio.tablet.enabled") == "true")
                 require(Build.VERSION.SDK_INT == 37) { "Tablet proof requires API 37" }
                 require(context.resources.configuration.smallestScreenWidthDp >= 600) {
-                    "Tablet proof requires a large screen; see docs/harness.md"
+                    "Tablet proof requires a large screen"
                 }
                 runId()
                 base.evaluate()
