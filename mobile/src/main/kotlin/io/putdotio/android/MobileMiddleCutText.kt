@@ -19,12 +19,13 @@ import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import java.text.BreakIterator
 
 /**
- * A name on one line, cut in the middle when it does not fit: it keeps its start and the last
- * [MIDDLE_CUT_TAIL] characters, so the extension and what comes just before it stay readable
- * ("Blue.Lights.S04E01…ORGANiC.mkv"). Accessibility reads the full name.
+ * A name on one line, or up to [maxLines], cut in the middle when it does not fit: it keeps its
+ * start and the last [MIDDLE_CUT_TAIL] characters, so the extension and what comes just before it
+ * stay readable ("Blue.Lights.S04E01…ORGANiC.mkv"). Accessibility reads the full name.
  */
 @Composable
 internal fun MobileMiddleCutText(
@@ -32,6 +33,7 @@ internal fun MobileMiddleCutText(
     modifier: Modifier = Modifier,
     style: TextStyle = LocalTextStyle.current,
     color: Color = Color.Unspecified,
+    maxLines: Int = 1,
 ) {
     val measurer = rememberTextMeasurer()
     // A hard line break would end the single line early, so the name shows on one line of spaces.
@@ -40,19 +42,26 @@ internal fun MobileMiddleCutText(
     var drawn by remember { mutableStateOf("") }
     BoxWithConstraints(modifier) {
         val maxWidth = constraints.maxWidth
-        val shown = remember(line, style, maxWidth) { middleCut(line, maxWidth) { measurer.width(it, style) } }
+        val shown = remember(line, style, maxWidth, maxLines) {
+            if (maxLines == 1) {
+                middleCut(line, maxWidth) { measurer.width(it, style) }
+            } else {
+                middleCutWhere(line, maxWidth) { measurer.fits(it, style, maxWidth, maxLines) }
+            }
+        }
         Text(
             text = shown,
             style = style,
             color = color,
-            maxLines = 1,
-            softWrap = false,
+            maxLines = maxLines,
+            softWrap = maxLines > 1,
             overflow = TextOverflow.Ellipsis,
             onTextLayout = { layout ->
                 val laidOut = layout.layoutInput.text.text
+                val last = layout.lineCount - 1
                 // What shows: a clipped end reads as cut there, so a lost extension cannot pass for a cut.
-                drawn = if (layout.isLineEllipsized(0)) {
-                    laidOut.substring(0, layout.getLineEnd(0, visibleEnd = true)) + ELLIPSIS
+                drawn = if (layout.isLineEllipsized(last)) {
+                    laidOut.substring(0, layout.getLineEnd(last, visibleEnd = true)) + ELLIPSIS
                 } else {
                     laidOut
                 }
@@ -74,22 +83,30 @@ internal fun MobileMiddleCutText(
 private fun TextMeasurer.width(text: String, style: TextStyle): Int =
     measure(text, style, maxLines = 1, softWrap = false).size.width
 
+/** Whether [text] wraps into [maxLines] lines of [maxWidth] without losing any of it. */
+private fun TextMeasurer.fits(text: String, style: TextStyle, maxWidth: Int, maxLines: Int): Boolean =
+    !measure(text, style, maxLines = maxLines, constraints = Constraints(maxWidth = maxWidth)).hasVisualOverflow
+
 /**
  * The longest start of [text] that fits [maxWidth] with an ellipsis and the last [MIDDLE_CUT_TAIL]
  * characters; [text] itself when it fits. A width too narrow for that tail keeps fewer of its last
  * characters; one too narrow for an ellipsis and a single character leaves the end cut to the
  * text's own ellipsis.
  */
-internal fun middleCut(text: String, maxWidth: Int, widthOf: (String) -> Int): String {
-    if (maxWidth !in 1 until Int.MAX_VALUE || widthOf(text) <= maxWidth) return text
+internal fun middleCut(text: String, maxWidth: Int, widthOf: (String) -> Int): String =
+    middleCutWhere(text, maxWidth) { widthOf(it) <= maxWidth }
+
+/** [middleCut] for any room: the longest cut that [fits], or [text] itself when it fits. */
+private fun middleCutWhere(text: String, maxWidth: Int, fits: (String) -> Boolean): String {
+    if (maxWidth !in 1 until Int.MAX_VALUE || fits(text)) return text
     // Cuts fall between characters as the user sees them, never inside an emoji or a surrogate pair.
     val boundaries = BreakIterator.getCharacterInstance().apply { setText(text) }
         .let { breaks -> generateSequence(breaks.first()) { breaks.next().takeIf { it != BreakIterator.DONE } } }
         .toList()
     // The tail keeps the last [MIDDLE_CUT_TAIL] characters, fewer when even those don't fit.
     val tails = boundaries.filter { it in 1 until text.length && text.length - it <= MIDDLE_CUT_TAIL }
-    val tailStart = tails.firstOrNull { widthOf(ELLIPSIS + text.substring(it)) <= maxWidth }
-    return tailStart?.let { longestFit(text, boundaries.filter { start -> start < it }, it, maxWidth, widthOf) }
+    val tailStart = tails.firstOrNull { fits(ELLIPSIS + text.substring(it)) }
+    return tailStart?.let { longestFit(text, boundaries.filter { start -> start < it }, it, fits) }
         ?: text
 }
 
@@ -98,15 +115,14 @@ private fun longestFit(
     text: String,
     starts: List<Int>,
     tailStart: Int,
-    maxWidth: Int,
-    widthOf: (String) -> Int,
+    fits: (String) -> Boolean,
 ): String {
     fun cut(startEnd: Int) = text.substring(0, startEnd).trimEnd() + ELLIPSIS + text.substring(tailStart)
     var low = 0
     var high = starts.lastIndex
     while (low < high) {
         val middle = (low + high + 1) / 2
-        if (widthOf(cut(starts[middle])) <= maxWidth) low = middle else high = middle - 1
+        if (fits(cut(starts[middle]))) low = middle else high = middle - 1
     }
     return cut(starts[low])
 }

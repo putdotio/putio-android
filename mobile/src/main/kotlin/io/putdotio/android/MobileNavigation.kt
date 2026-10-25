@@ -12,6 +12,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -57,8 +58,11 @@ import io.putdotio.android.playback.PlaybackController
 import io.putdotio.android.playback.PlaybackEvent
 import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackMediaType
+import io.putdotio.android.playback.PlaybackNeighbours
 import io.putdotio.android.playback.PlaybackNextResult
 import io.putdotio.android.playback.PlaybackRepository
+import io.putdotio.android.playback.PlaybackRepositoryResult
+import io.putdotio.android.playback.PlaybackState
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.playback.SubtitleStartupPolicy
 import io.putdotio.android.playback.confirmedAutoplayNextVideo
@@ -97,6 +101,7 @@ import io.putdotio.android.trash.TrashContent
 import io.putdotio.android.trash.TrashController
 import io.putdotio.android.trash.TrashEvent
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 internal const val MOBILE_PLAYBACK_ROUTE = "playback/{fileId}?name={name}&media={media}&duration={duration}"
@@ -333,6 +338,17 @@ internal fun MobileNavHost(
                             playerFactory = playbackPlayerFactory,
                             findNextEpisode = playbackRepository::findNextVideo
                                 .takeIf { accountSettingsState.nextEpisodeEnabled() },
+                            findNeighbours = playbackRepository::findNeighbours,
+                            // Another file replaces this route, so Back still returns to the screen below.
+                            onPlay = { next ->
+                                navController.navigateToPlayback(
+                                    next.fileId,
+                                    next.name,
+                                    next.mediaType,
+                                    replaceCurrentPlayback = true,
+                                    durationSeconds = next.durationSeconds,
+                                )
+                            },
                         )
                     }
                 }
@@ -378,6 +394,8 @@ private fun MobilePlaybackRoute(
     onBack: () -> Unit,
     playerFactory: MobilePlayerFactory,
     findNextEpisode: (suspend (PlaybackTarget) -> PlaybackNextResult)? = null,
+    findNeighbours: (suspend (PlaybackTarget) -> PlaybackRepositoryResult<PlaybackNeighbours>)? = null,
+    onPlay: (PlaybackTarget) -> Unit = {},
 ) {
     val state by controller.state.collectAsStateWithLifecycle()
     // With the account's next_episode on, a playing video asks autoplay's folder walk for the one after it, once.
@@ -387,6 +405,7 @@ private fun MobilePlaybackRoute(
         val find = findNextEpisode ?: return@produceState
         if (ready) value = (find(state.target) as? PlaybackNextResult.Found)?.target
     }
+    val neighbours = rememberFolderNeighbours(state, findNeighbours)
     val authenticationFailure =
         when (val content = state.content) {
             is PlaybackContent.Failed -> content.failure
@@ -427,7 +446,35 @@ private fun MobilePlaybackRoute(
         onRestart = { controller.dispatch(PlaybackEvent.Restart) },
         nextEpisode = nextEpisode,
         onNextEpisode = { nextEpisode?.let { controller.dispatch(PlaybackEvent.NextChosen(it)) } },
+        neighbours = neighbours,
+        onPlay = onPlay,
     )
+}
+
+/**
+ * Playing audio asks for its folder once: the files around it for the skip buttons and Up next, and
+ * the folder's name. A failed read leaves them off; playback does not depend on it.
+ */
+@Composable
+private fun rememberFolderNeighbours(
+    state: PlaybackState,
+    findNeighbours: (suspend (PlaybackTarget) -> PlaybackRepositoryResult<PlaybackNeighbours>)?,
+): PlaybackNeighbours {
+    val audioReady by rememberUpdatedState(
+        state.target.mediaType == PlaybackMediaType.AUDIO &&
+            (state.content is PlaybackContent.Ready || state.content == PlaybackContent.Session),
+    )
+    val target by rememberUpdatedState(state.target)
+    // Startup passes through Loading between Session and Ready; the walk still runs once per file.
+    val neighbours by produceState(PlaybackNeighbours(), state.target.fileId, findNeighbours != null) {
+        val find = findNeighbours ?: return@produceState
+        snapshotFlow { audioReady }.first { it }
+        value = when (val result = find(target)) {
+            is PlaybackRepositoryResult.Success -> result.value
+            is PlaybackRepositoryResult.Failure -> PlaybackNeighbours()
+        }
+    }
+    return neighbours
 }
 
 @Composable

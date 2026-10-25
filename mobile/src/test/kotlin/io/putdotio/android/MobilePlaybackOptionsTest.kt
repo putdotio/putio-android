@@ -3,15 +3,22 @@ package io.putdotio.android
 import android.os.Bundle
 import android.os.Looper
 import androidx.compose.foundation.layout.Column
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.input.InputModeManager
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.assertContentDescriptionEquals
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
@@ -19,10 +26,13 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isSelectable
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.media3.common.C
 import androidx.media3.common.Format
@@ -41,6 +51,7 @@ import com.google.common.util.concurrent.ListenableFuture
 import io.putdotio.android.design.PutioTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotSame
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -59,7 +70,16 @@ import io.putdotio.android.playback.toAudioSelection
 import io.putdotio.android.playback.toBundle
 import io.putdotio.android.playback.MobileAudioChip
 import io.putdotio.android.playback.MobileAudioSheetContent
-import io.putdotio.android.playback.MobilePlaybackOptions
+import io.putdotio.android.playback.MOBILE_AUDIO_NEXT_TAG
+import io.putdotio.android.playback.MOBILE_AUDIO_PREVIOUS_TAG
+import io.putdotio.android.playback.MOBILE_NOW_PLAYING_SHEET_TAG
+import io.putdotio.android.playback.MOBILE_UP_NEXT_CHIP_TAG
+import io.putdotio.android.playback.MobileNowPlayingScreen
+import io.putdotio.android.playback.MobileSleepTimer
+import io.putdotio.android.playback.PlaybackMediaType.AUDIO
+import io.putdotio.android.playback.PlaybackNeighbours
+import io.putdotio.android.playback.PlaybackTarget
+import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.playback.MobileSpeedChip
 import io.putdotio.android.playback.MobileSpeedSheetContent
 import io.putdotio.android.playback.rememberPlayerOptionsSnapshot
@@ -138,95 +158,124 @@ class MobilePlaybackOptionsTest {
     }
 
     @Test
-    fun speedMenuChangesPlayerAndExposesSelectedSpeed() {
+    fun nowPlayingSpeedChipOpensTheSameSpeedPresetsAsVideo() {
         val player = OptionsPlayer()
-        val visibility = mutableListOf<Boolean>()
-        compose.setContent {
-            PutioTheme {
-                MobilePlaybackOptions(player, {}, { visibility += it }, {}, {})
-            }
-        }
+        compose.setContent { PutioTheme { NowPlaying(player) } }
 
-        compose.onNodeWithContentDescription("Playback options").performClick()
-        compose.onNodeWithText("Playback speed").performClick()
-        compose.onNodeWithText("1×").assertIsSelected()
-        compose.onNodeWithText("1.5×").assertIsNotSelected().performClick()
-        compose.runOnIdle { assertEquals(1.5f, player.playbackParameters.speed) }
-        assertEquals(listOf(true, false), visibility)
-        compose.onNodeWithContentDescription("Playback options").performClick()
-        compose.onNodeWithText("Playback speed").performClick()
-        compose.onNodeWithText("1.5×").assertIsSelected()
-        compose.onNodeWithText("1×").assertIsNotSelected()
+        compose.onNodeWithContentDescription("Playback speed 1×").performScrollTo().performClick()
+        compose.onNodeWithTag(MOBILE_NOW_PLAYING_SHEET_TAG).assertIsDisplayed()
+        compose.onNodeWithContentDescription("Faster, 1.25×").performClick()
+        compose.runOnIdle { assertEquals(1.25f, player.playbackParameters.speed) }
+        compose.onNodeWithContentDescription("Playback speed", substring = false)
+            .performSemanticsAction(SemanticsActions.SetProgress) { assertTrue(it(7f)) }
+        compose.runOnIdle { assertEquals(3f, player.playbackParameters.speed) }
+        compose.onNodeWithContentDescription("Playback speed 3×").assertExists()
     }
 
     @Test
-    fun audioMenuSelectsTrackAndAutomaticWithoutChangingSubtitles() {
-        val player = OptionsPlayer()
+    fun nowPlayingOffersAudioTracksUnderMoreOnlyWhenThereIsAChoice() {
+        var player by mutableStateOf(OptionsPlayer(singleAudioTrack = true))
         val selections = mutableListOf<AudioSelection>()
+        compose.setContent { PutioTheme { NowPlaying(player, onAudioSelectionChanged = { selections += it }) } }
+
+        compose.onNodeWithContentDescription("More options").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Playback speed 1×").performScrollTo().assertIsEnabled()
+        val twoTracks = OptionsPlayer()
+        compose.runOnIdle { player = twoTracks }
+        compose.onNodeWithContentDescription("More options").performClick()
+        compose.onNodeWithText("Audio track").performClick()
+        compose.onNode(hasText("Deutsch") and isSelectable()).assertIsNotSelected().performClick()
+        compose.runOnIdle {
+            assertEquals(listOf(1), twoTracks.trackSelectionParameters.overrides.getValue(twoTracks.audio).trackIndices)
+            assertEquals(twoTracks.subtitleOverride, twoTracks.trackSelectionParameters.overrides[twoTracks.text])
+            assertEquals(
+                AudioSelection.Track(twoTracks.audio.getFormat(1).toAudioTrackIdentity()),
+                selections.single(),
+            )
+        }
+        compose.onAllNodesWithTag(MOBILE_NOW_PLAYING_SHEET_TAG).assertCountEquals(0)
+    }
+
+    @Test
+    fun sleepTimerChipStartsShowsAndCancelsTheTimer() {
+        val timer = MobileSleepTimer(clock = { 0L })
+        compose.setContent { PutioTheme { NowPlaying(OptionsPlayer(), sleepTimer = timer) } }
+
+        compose.onNodeWithText("Sleep timer").performScrollTo().performClick()
+        compose.onNode(hasText("Off") and isSelectable()).assertIsSelected()
+        compose.onNode(hasText("30 minutes") and isSelectable()).assertIsNotSelected().performClick()
+        compose.runOnIdle { assertEquals(30, timer.run.value?.minutes) }
+        compose.onNodeWithContentDescription("Sleep timer, 30:00 left").performScrollTo().performClick()
+        compose.onNode(hasText("30 minutes") and isSelectable()).assertIsSelected()
+        compose.onNode(hasText("1 hour") and isSelectable()).assertIsNotSelected()
+        compose.onNode(hasText("Off") and isSelectable()).performClick()
+        compose.runOnIdle { assertNull(timer.run.value) }
+        compose.onNodeWithText("Sleep timer").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun skipButtonsAndUpNextPlayTheFilesAroundThisOneInItsFolder() {
+        val previous = PlaybackTarget(FilesItemId(40L), "FFTT Full Report October 20, 2026.mp3", AUDIO)
+        val next = PlaybackTarget(FilesItemId(43L), "FFTT Tree Rings October 30, 2026.mp3", AUDIO)
+        var neighbours by mutableStateOf(PlaybackNeighbours())
+        val played = mutableListOf<PlaybackTarget>()
+        compose.setContent { PutioTheme { NowPlaying(OptionsPlayer(), neighbours, onPlay = { played += it }) } }
+
+        compose.onNodeWithTag(MOBILE_AUDIO_PREVIOUS_TAG).assertIsNotEnabled()
+        compose.onNodeWithTag(MOBILE_AUDIO_NEXT_TAG).assertIsNotEnabled()
+        compose.onNodeWithTag(MOBILE_UP_NEXT_CHIP_TAG).assertIsNotEnabled()
+        compose.runOnIdle { neighbours = PlaybackNeighbours(previous, next, folderName = "FFTT") }
+        compose.onNodeWithText("FFTT").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag(MOBILE_AUDIO_PREVIOUS_TAG).assertContentDescriptionEquals("Previous file")
+            .performScrollTo().performClick()
+        compose.onNodeWithTag(MOBILE_AUDIO_NEXT_TAG).assertContentDescriptionEquals("Next file")
+            .performScrollTo().performClick()
+        compose.onNodeWithTag(MOBILE_UP_NEXT_CHIP_TAG).performScrollTo().performClick()
+        compose.onNodeWithText(next.name).performClick()
+        compose.runOnIdle { assertEquals(listOf(previous, next, next), played) }
+        compose.onAllNodesWithTag(MOBILE_NOW_PLAYING_SHEET_TAG).assertCountEquals(0)
+    }
+
+    @Test
+    fun aNumberedTrackNeverMeetsOneAlreadyLabelledThatWay() {
+        val format = { id: String, label: String ->
+            Format.Builder().setId(id).setLabel(label).setSampleMimeType(MimeTypes.AUDIO_AAC).build()
+        }
+        val player = OptionsPlayer(
+            audioGroup = TrackGroup(format("a", "English"), format("b", "English"), format("c", "English (track 1)")),
+        )
         compose.setContent {
             PutioTheme {
-                MobilePlaybackOptions(player, { selections += it }, {}, {}, {})
+                val options = rememberPlayerOptionsSnapshot(player)
+                MobileAudioSheetContent(player, options, {}, {})
             }
         }
 
-        compose.onNodeWithContentDescription("Playback options").performClick()
-        compose.onNodeWithText("Audio track").performClick()
-        compose.onNodeWithText("Automatic").assertIsSelected()
-        compose.onNodeWithText("English").assertIsNotSelected()
-        compose.onNodeWithText("Deutsch").assertIsNotSelected().performClick()
-        compose.runOnIdle {
-            assertEquals(listOf(1), player.trackSelectionParameters.overrides.getValue(player.audio).trackIndices)
-            assertEquals(player.subtitleOverride, player.trackSelectionParameters.overrides[player.text])
-            assertEquals(AudioSelection.Track(player.audio.getFormat(1).toAudioTrackIdentity()), selections.single())
-        }
-        compose.onNodeWithContentDescription("Playback options").performClick()
-        compose.onNodeWithText("Audio track").performClick()
-        compose.onNodeWithText("Deutsch").assertIsSelected()
-        compose.onNodeWithText("English").assertIsNotSelected()
-        compose.onNodeWithText("Automatic").assertIsNotSelected().performClick()
-        compose.runOnIdle {
-            assertEquals(AudioSelection.Automatic, selections.last())
-            assertEquals(mapOf(player.text to player.subtitleOverride), player.trackSelectionParameters.overrides)
+        listOf("English (track 1)", "English (track 2)", "English (track 1) (track 3)").forEach { label ->
+            compose.onNode(hasText(label) and isSelectable()).assertExists()
         }
     }
 
     @Test
-    fun duplicateAudioLabelsRemainDistinctInChoicesAndSummary() {
-        assertDuplicateAudioChoices(useLanguage = false)
-    }
-
-    @Test
-    fun duplicateAudioLanguagesRemainDistinctInChoicesAndSummary() {
-        assertDuplicateAudioChoices(useLanguage = true)
-    }
-
-    private fun assertDuplicateAudioChoices(useLanguage: Boolean) {
-        val label = if (useLanguage) "en" else "English"
-        fun audioFormat(id: String, displayLabel: String? = if (useLanguage) null else label): Format = Format.Builder()
-            .setId(id)
-            .setLanguage("en")
-            .setLabel(displayLabel)
-            .setSampleMimeType(MimeTypes.AUDIO_AAC)
-            .build()
-        val first = audioFormat("first")
-        val second = audioFormat("second")
-        val third = audioFormat("third", "$label (track 1)")
-        val player = OptionsPlayer(audioGroup = TrackGroup(first, second, third))
+    fun duplicateTracksStayDistinctAndTheChoiceSurvivesRecreation() {
+        val format = { id: String ->
+            Format.Builder().setId(id).setLanguage("en").setSampleMimeType(MimeTypes.AUDIO_AAC).build()
+        }
+        val first = format("first")
+        val second = format("second")
+        val player = OptionsPlayer(audioGroup = TrackGroup(first, second, format("third")))
         var selection: AudioSelection = AudioSelection.Automatic
         compose.setContent {
-            PutioTheme { MobilePlaybackOptions(player, { selection = it }, {}, {}, {}) }
+            PutioTheme {
+                val options = rememberPlayerOptionsSnapshot(player)
+                MobileAudioSheetContent(player, options, { selection = it }, {})
+            }
         }
 
-        compose.onNodeWithContentDescription("Playback options").performClick()
-        compose.onNodeWithText("Audio track").performClick()
-        compose.onNodeWithText("$label (track 1)").assertIsNotSelected()
-        compose.onNodeWithText("$label (track 1) (track 3)").assertIsNotSelected()
-        compose.onNodeWithText("$label (track 2)").assertIsNotSelected().performClick()
-        compose.onNodeWithContentDescription("Playback options").performClick()
-        compose.onNodeWithText("$label (track 2)").assertIsDisplayed()
-        compose.onNodeWithText("Audio track").performClick()
-        compose.onNodeWithText("$label (track 2)").assertIsSelected()
-        compose.onNodeWithText("$label (track 1)").assertIsNotSelected()
+        compose.onNode(hasText("English (track 1)") and isSelectable()).assertIsSelected()
+        compose.onNode(hasText("English (track 3)") and isSelectable()).assertIsNotSelected()
+        compose.onNode(hasText("English (track 2)") and isSelectable()).assertIsNotSelected().performClick()
+        compose.onNode(hasText("English (track 2)") and isSelectable()).assertIsSelected()
         compose.runOnIdle {
             assertEquals(AudioSelection.Track(second.toAudioTrackIdentity()), selection)
             assertEquals(player.subtitleOverride, player.trackSelectionParameters.overrides[player.text])
@@ -235,8 +284,8 @@ class MobilePlaybackOptionsTest {
             val restored = player.trackSelectionParameters.withAudioSelection(
                 retained,
                 listOf(
-                    PlaybackAudioTrack(recreated, 0, label = label, selected = false),
-                    PlaybackAudioTrack(recreated, 1, label = label, selected = false),
+                    PlaybackAudioTrack(recreated, 0, label = null, selected = false),
+                    PlaybackAudioTrack(recreated, 1, label = null, selected = false),
                 ),
             )
             assertEquals(listOf(0), restored.overrides.getValue(recreated).trackIndices)
@@ -254,11 +303,12 @@ class MobilePlaybackOptionsTest {
         val player = OptionsPlayer(audioGroup = TrackGroup(format, format))
         var selection: AudioSelection = AudioSelection.Automatic
         compose.setContent {
-            PutioTheme { MobilePlaybackOptions(player, { selection = it }, {}, {}, {}) }
+            PutioTheme {
+                val options = rememberPlayerOptionsSnapshot(player)
+                MobileAudioSheetContent(player, options, { selection = it }, {})
+            }
         }
 
-        compose.onNodeWithContentDescription("Playback options").performClick()
-        compose.onNodeWithText("Audio track").performClick()
         compose.onNodeWithText("English (track 2)").performClick()
         compose.runOnIdle {
             player.trackSelectionParameters = player.trackSelectionParameters.withRetainedAudioSelection(
@@ -268,12 +318,8 @@ class MobilePlaybackOptionsTest {
             assertEquals(listOf(1), player.trackSelectionParameters.overrides.getValue(player.audio).trackIndices)
             assertEquals(player.subtitleOverride, player.trackSelectionParameters.overrides[player.text])
         }
-        compose.onNodeWithContentDescription("Playback options").performClick()
-        compose.onNodeWithText("English (track 2)").assertIsDisplayed()
-        compose.onNodeWithText("Audio track").performClick()
-        compose.onNodeWithText("English (track 2)").assertIsSelected()
-        compose.onNodeWithText("English (track 1)").assertIsNotSelected()
-        compose.onNodeWithText("English (track 1)").performClick()
+        compose.onNode(hasText("English (track 2)") and isSelectable()).assertIsSelected()
+        compose.onNode(hasText("English (track 1)") and isSelectable()).assertIsNotSelected().performClick()
         compose.runOnIdle {
             assertEquals(listOf(0), player.trackSelectionParameters.overrides.getValue(player.audio).trackIndices)
             assertEquals(player.subtitleOverride, player.trackSelectionParameters.overrides[player.text])
@@ -284,48 +330,41 @@ class MobilePlaybackOptionsTest {
     fun unavailableCommandsDisableSpeedAndAudioChoices() {
         val player = OptionsPlayer(canChangeOptions = false)
         compose.setContent {
-            PutioTheme { MobilePlaybackOptions(player, {}, {}, {}, {}) }
+            PutioTheme {
+                val options = rememberPlayerOptionsSnapshot(player)
+                Column {
+                    MobileSpeedSheetContent(player, options)
+                    MobileAudioSheetContent(player, options, {}, {})
+                }
+            }
         }
 
-        compose.onNodeWithContentDescription("Playback options").performClick()
-        listOf("Playback speed", "Audio track").forEach { label ->
-            compose.onNodeWithText(label).assertIsNotEnabled()
+        compose.onNodeWithContentDescription("Faster", substring = true).assertIsNotEnabled()
+        compose.onNodeWithContentDescription("Slower", substring = true).assertIsNotEnabled()
+        listOf("English", "Deutsch").forEach { label ->
+            compose.onNode(hasText(label) and isSelectable()).assertIsNotEnabled()
         }
     }
 
-    @Test
-    fun singleAudioTrackOffersSpeedWithoutAnAudioChooser() {
-        val player = OptionsPlayer(singleAudioTrack = true)
-        compose.setContent {
-            PutioTheme { MobilePlaybackOptions(player, {}, {}, {}, {}) }
-        }
-
-        compose.onNodeWithContentDescription("Playback options").performClick()
-        compose.onNodeWithText("Playback speed").assertIsEnabled()
-        compose.onNodeWithText("Automatic").assertDoesNotExist()
-        compose.onNodeWithText("English").assertDoesNotExist()
-        compose.onNodeWithText("Deutsch").assertDoesNotExist()
-        compose.onNodeWithText("Audio track").assertDoesNotExist()
-    }
-
-    @Test
-    fun subpageBackReturnsToSettingsWithoutChangingPlayback() {
-        val player = OptionsPlayer()
-        val visibility = mutableListOf<Boolean>()
-        compose.setContent {
-            PutioTheme { MobilePlaybackOptions(player, {}, { visibility += it }, {}, {}) }
-        }
-
-        compose.onNodeWithContentDescription("Playback options").performClick()
-        compose.onNodeWithText("Playback speed").performClick()
-        compose.onNodeWithText("1.5×").assertIsNotSelected()
-        compose.onNodeWithContentDescription("Back").performClick()
-        compose.onNodeWithText("Audio track").assertIsEnabled()
-        compose.onNodeWithText("1.5×").assertDoesNotExist()
-        compose.runOnIdle {
-            assertEquals(1f, player.playbackParameters.speed)
-            assertEquals(listOf(true), visibility)
-        }
+    @Composable
+    private fun NowPlaying(
+        player: Media3Player,
+        neighbours: PlaybackNeighbours = PlaybackNeighbours(),
+        onPlay: (PlaybackTarget) -> Unit = {},
+        onAudioSelectionChanged: (AudioSelection) -> Unit = {},
+        sleepTimer: MobileSleepTimer = MobileSleepTimer(clock = { 0L }),
+    ) {
+        MobileNowPlayingScreen(
+            player = player,
+            title = "song.mp3",
+            neighbours = neighbours,
+            seekEnabled = true,
+            onSeek = {},
+            onScrub = {},
+            onPlay = onPlay,
+            onAudioSelectionChanged = onAudioSelectionChanged,
+            sleepTimer = sleepTimer,
+        )
     }
 
     @Test
@@ -337,7 +376,7 @@ class MobilePlaybackOptionsTest {
             inputMode = LocalInputModeManager.current
             PutioTheme {
                 PlaybackOption(
-                    label = "1.25×",
+                    label = AnnotatedString("1.25×"),
                     selected = false,
                     enabled = true,
                     onClick = { player.setPlaybackSpeed(1.25f) },

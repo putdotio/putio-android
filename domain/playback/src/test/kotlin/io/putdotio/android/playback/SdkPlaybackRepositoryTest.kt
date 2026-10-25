@@ -478,6 +478,71 @@ class SdkPlaybackRepositoryTest {
         }
     }
 
+    @Test
+    fun neighboursAreTheFolderAudioOnEitherSideInNameOrder() =
+        runBlocking {
+            val repository = nextRepository(
+                current = audio(42L),
+                listFolder = { parentId, query ->
+                    assertEquals(7L, parentId)
+                    assertEquals(PutioFileType.AUDIO, query.fileType)
+                    assertEquals("NAME_ASC", query.sortBy)
+                    assertFalse("Audio carries no video metadata", query.videoMetadata)
+                    FilesListResponse(
+                        parent = audio(7L, parentId = 3L).copy(name = "FFTT", fileType = PutioFileType.FOLDER),
+                        files = listOf(audio(40L), video(41L), audio(42L)),
+                        cursor = "page-two",
+                        status = "OK",
+                    )
+                },
+                continueListing = { cursor, _ ->
+                    assertEquals("page-two", cursor)
+                    filePage(audio(99L, parentId = 8L), audio(43L), audio(44L), cursor = "unused-page")
+                },
+            )
+
+            assertEquals(
+                PlaybackRepositoryResult.Success(
+                    PlaybackNeighbours(
+                        previous = audioTarget(40L),
+                        next = audioTarget(43L),
+                        folderName = "FFTT",
+                    ),
+                ),
+                repository.findNeighbours(AudioTarget),
+            )
+        }
+
+    @Test
+    fun neighboursEndAtTheFolderEdgesAndAFileMissingFromItHasNone() =
+        runBlocking {
+            suspend fun neighbours(vararg files: PutioFile) =
+                nextRepository(current = audio(42L), listFolder = { _, _ -> filePage(*files) })
+                    .findNeighbours(AudioTarget)
+
+            assertEquals(
+                PlaybackRepositoryResult.Success(PlaybackNeighbours(next = audioTarget(43L))),
+                neighbours(audio(42L), audio(43L)),
+            )
+            assertEquals(
+                PlaybackRepositoryResult.Success(PlaybackNeighbours(previous = audioTarget(40L))),
+                neighbours(audio(40L), audio(42L)),
+            )
+            assertEquals(PlaybackRepositoryResult.Success(PlaybackNeighbours()), neighbours(audio(40L), audio(41L)))
+        }
+
+    @Test
+    fun neighboursOfAGoneFileAreEmptyAndFailuresKeepTheirCause() =
+        runBlocking {
+            assertEquals(
+                PlaybackRepositoryResult.Success(PlaybackNeighbours()),
+                nextFailureRepository(apiFailure(404)).findNeighbours(AudioTarget),
+            )
+            val failure = apiFailure(503)
+            val failed = nextFailureRepository(failure).findNeighbours(AudioTarget) as PlaybackRepositoryResult.Failure
+            assertSame(failure, failed.failure.cause)
+        }
+
     private fun nextFailureRepository(error: Throwable): SdkPlaybackRepository =
         SdkPlaybackRepository(
             playbackPreference = { PlaybackPreference.HLS },
@@ -513,6 +578,12 @@ class SdkPlaybackRepositoryTest {
             createdAt = "2026-09-05",
             fileType = PutioFileType.VIDEO,
         )
+
+    private fun audio(id: Long, parentId: Long = 7L): PutioFile =
+        video(id, parentId).copy(name = "audio-$id.mp3", fileType = PutioFileType.AUDIO)
+
+    private fun audioTarget(id: Long): PlaybackTarget =
+        PlaybackTarget(FilesItemId(id), "audio-$id.mp3", PlaybackMediaType.AUDIO)
 
     private fun filePage(vararg files: PutioFile, cursor: String? = null): FilesListResponse =
         FilesListResponse(files = files.toList(), cursor = cursor, status = "OK")
@@ -566,6 +637,7 @@ class SdkPlaybackRepositoryTest {
 
     private companion object {
         val Target = PlaybackTarget(FilesItemId(42L), "episode.mkv")
+        val AudioTarget = PlaybackTarget(FilesItemId(42L), "audio-42.mp3", PlaybackMediaType.AUDIO)
         val Token = AccountDownloadToken("download-secret")
     }
 }

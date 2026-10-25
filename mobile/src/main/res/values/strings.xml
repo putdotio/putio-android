@@ -1,9 +1,7 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="mobile_playback_options">Playback options</string>
     <string name="mobile_playback_speed">Playback speed</string>
     <string name="mobile_playback_speed_value">%1$s×</string>
     <string name="mobile_playback_audio_track">Audio track</string>
-    <string name="mobile_playback_audio_automatic">Automatic</string>
     <string name="mobile_playback_audio_track_number">Audio track %1$d</string>
     <string name="mobile_navigation_blocked">This item cannot be opened right now. Check Files, then try again.</string>
     <string name="mobile_files_move">Move</string>
@@ -140,6 +138,20 @@
     <string name="mobile_now_playing_play">Play</string>
     <string name="mobile_now_playing_pause">Pause</string>
     <string name="mobile_now_playing_dismiss">Stop playback</string>
+    <string name="mobile_now_playing_previous">Previous file</string>
+    <string name="mobile_now_playing_next">Next file</string>
+    <string name="mobile_now_playing_sleep_timer">Sleep timer</string>
+    <string name="mobile_now_playing_sleep_timer_left">Sleep timer, %1$s left</string>
+    <string name="mobile_now_playing_sleep_off">Off</string>
+    <plurals name="mobile_now_playing_sleep_minutes">
+        <item quantity="one">%1$d minute</item>
+        <item quantity="other">%1$d minutes</item>
+    </plurals>
+    <plurals name="mobile_now_playing_sleep_hours">
+        <item quantity="one">%1$d hour</item>
+        <item quantity="other">%1$d hours</item>
+    </plurals>
+    <string name="mobile_now_playing_up_next">Up next</string>
     <string name="mobile_playback_subtitle_track">Subtitle %1$d</string>
     <plurals name="mobile_playback_seek_back">
         <item quantity="one">Back %1$d second</item>
@@ -616,8 +628,6 @@
     <string name="mobile_trash_check_trash">Check Trash</string>
     <string name="mobile_playback_subtitles_title">Subtitles</string>
     <string name="mobile_playback_subtitles_disabled">Off</string>
-    <string name="mobile_playback_now_playing">Now playing</string>
-    <string name="mobile_playback_audio_file">Audio file</string>
     <string name="mobile_playback_audio_track_disambiguated">%1$s (track %2$d)</string>
     <string name="mobile_playback_position">Playback position</string>
     <string name="mobile_playback_position_value">%1$s of %2$s</string>
@@ -725,6 +735,6 @@
     <string name="mobile_shortcut_refresh">Refresh</string>
     <string name="mobile_shortcut_delete">Move the focused item to trash, or delete it</string>
     <string name="mobile_shortcut_play_pause">Play or pause</string>
-    <string name="mobile_shortcut_seek_back">Back 10 seconds</string>
-    <string name="mobile_shortcut_seek_forward">Forward 10 seconds</string>
+    <string name="mobile_shortcut_seek_back">Seek back</string>
+    <string name="mobile_shortcut_seek_forward">Seek forward</string>
 </resources>

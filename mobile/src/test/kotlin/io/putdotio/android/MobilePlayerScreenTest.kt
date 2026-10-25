@@ -1934,9 +1934,11 @@ class MobilePlayerAudioTest {
             player.pause()
             player.movePositionTo(30_000L)
         }
-        compose.onNodeWithTag(MOBILE_SEEK_BACK_TAG).performClick()
+        // Now Playing goes back 15 seconds and forward 30.
+        compose.onNodeWithContentDescription("Forward 30 seconds").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Back 15 seconds").performClick()
         compose.mainClock.advanceTimeByFrame()
-        compose.runOnIdle { assertEquals(listOf(20_000L), player.seekPositions) }
+        compose.runOnIdle { assertEquals(listOf(15_000L), player.seekPositions) }
     }
 
     @Test

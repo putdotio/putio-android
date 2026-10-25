@@ -107,7 +107,21 @@ public interface PlaybackRepository {
         )
 
     public suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult
+
+    /**
+     * The files of [target]'s media type on either side of it in its folder, in name order, and
+     * the folder's name. The API has no queue, so audio's skip buttons and Up next read this.
+     */
+    public suspend fun findNeighbours(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackNeighbours> =
+        PlaybackRepositoryResult.Success(PlaybackNeighbours())
 }
+
+/** What sits around a playing file in its folder; null where there is nothing, or nothing known. */
+public data class PlaybackNeighbours(
+    val previous: PlaybackTarget? = null,
+    val next: PlaybackTarget? = null,
+    val folderName: String? = null,
+)
 
 public sealed interface PlaybackNextResult {
     public data class Found(
@@ -211,12 +225,7 @@ internal class SdkPlaybackRepository internal constructor(
     @Suppress("TooGenericExceptionCaught")
     override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult =
         try {
-            val current = try {
-                loadFile(target.fileId.value)
-            } catch (error: PutioException) {
-                if (!error.hasHttpStatusCode(HTTP_NOT_FOUND)) throw error
-                null
-            }
+            val current = currentFile(target)
             if (current == null) {
                 PlaybackNextResult.Ended
             } else {
@@ -230,20 +239,86 @@ internal class SdkPlaybackRepository internal constructor(
             PlaybackNextResult.Failure(PlaybackFailure.Putio(PutioFailure.Unexpected(unexpected)))
         }
 
+    @Suppress("TooGenericExceptionCaught")
+    override suspend fun findNeighbours(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackNeighbours> =
+        try {
+            val parentId = currentFile(target)?.parentId
+            PlaybackRepositoryResult.Success(parentId?.let { neighboursInFolder(target, it) } ?: PlaybackNeighbours())
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: PutioException) {
+            PlaybackRepositoryResult.Failure(error.toPlaybackFailure())
+        } catch (unexpected: Exception) {
+            PlaybackRepositoryResult.Failure(PlaybackFailure.Putio(PutioFailure.Unexpected(unexpected)))
+        }
+
+    /** The playing file as put.io holds it now; null once it is gone. */
+    private suspend fun currentFile(target: PlaybackTarget): PutioFile? =
+        try {
+            loadFile(target.fileId.value)
+        } catch (error: PutioException) {
+            if (!error.hasHttpStatusCode(HTTP_NOT_FOUND)) throw error
+            null
+        }
+
     private suspend fun findNextInFolder(target: PlaybackTarget, parentId: Long): PlaybackNextResult {
-        // The next-file endpoint can cross folders and fall back to a random account video.
-        // Walk the server's explicit name ordering instead, stopping at this folder's end.
+        var foundCurrent = false
+        var next: PutioFile? = null
+        walkFolder(parentId, PlaybackMediaType.VIDEO) { file ->
+            if (file.id == target.fileId.value) {
+                foundCurrent = true
+            } else if (foundCurrent) {
+                next = file
+            }
+            next != null
+        }
+        return next?.let { PlaybackNextResult.Found(it.toPlaybackTarget(PlaybackMediaType.VIDEO)) }
+            ?: PlaybackNextResult.Ended
+    }
+
+    private suspend fun neighboursInFolder(target: PlaybackTarget, parentId: Long): PlaybackNeighbours {
+        var previous: PutioFile? = null
+        var foundCurrent = false
+        var next: PutioFile? = null
+        val folder = walkFolder(parentId, target.mediaType) { file ->
+            when {
+                file.id == target.fileId.value -> foundCurrent = true
+                foundCurrent -> next = file
+                else -> previous = file
+            }
+            next != null
+        }
+        // A file the listing no longer holds has no place in it, so nothing sits on either side.
+        return PlaybackNeighbours(
+            previous = previous?.takeIf { foundCurrent }?.toPlaybackTarget(target.mediaType),
+            next = next?.toPlaybackTarget(target.mediaType),
+            folderName = folder?.name,
+        )
+    }
+
+    /**
+     * Walks [parentId]'s files of [mediaType] page by page until [visit] returns true or the
+     * folder ends, and returns the folder as its first page names it. The next-file endpoint can
+     * cross folders and fall back to a random account video, so this walks the server's explicit
+     * name ordering instead, stopping at this folder's end.
+     */
+    private suspend fun walkFolder(
+        parentId: Long,
+        mediaType: PlaybackMediaType,
+        visit: (PutioFile) -> Boolean,
+    ): PutioFile? {
+        val fileType = mediaType.fileType()
         var page = listFolder(
             parentId,
             // Video metadata carries the duration TV needs to offer resume for the next video.
             FilesListQuery(
                 perPage = AUTOPLAY_PAGE_SIZE,
-                fileType = PutioFileType.VIDEO,
+                fileType = fileType,
                 sortBy = "NAME_ASC",
-                videoMetadata = true,
+                videoMetadata = mediaType == PlaybackMediaType.VIDEO,
             ),
         )
-        var foundCurrent = false
+        val folder = page.parent?.takeIf { it.id == parentId }
         val cursors = mutableSetOf<String>()
         val seenFileIds = mutableSetOf<Long>()
         while (true) {
@@ -251,29 +326,33 @@ internal class SdkPlaybackRepository internal constructor(
             val cursor = page.cursor?.takeIf(String::isNotBlank)
             check(cursor == null || cursors.add(cursor)) { "Folder listing repeated its cursor" }
             for (file in page.files) {
-                if (file.fileType != PutioFileType.VIDEO ||
+                if (file.fileType != fileType ||
                     file.parentId != parentId ||
                     !seenFileIds.add(file.id)
                 ) continue
-                if (file.id == target.fileId.value) {
-                    foundCurrent = true
-                } else if (foundCurrent) {
-                    return PlaybackNextResult.Found(
-                        PlaybackTarget(
-                            fileId = FilesItemId(file.id),
-                            name = file.name,
-                            durationSeconds = file.videoMetadata?.duration?.takeIf { it.isFinite() && it > 0.0 },
-                            posterUrl = file.screenshot?.takeIf(String::isNotBlank),
-                        ),
-                    )
-                }
+                if (visit(file)) return folder
             }
             if (cursor == null) break
             page = continueListing(cursor, FilesContinueQuery(perPage = AUTOPLAY_PAGE_SIZE))
         }
-        return PlaybackNextResult.Ended
+        return folder
     }
 }
+
+private fun PlaybackMediaType.fileType(): PutioFileType =
+    when (this) {
+        PlaybackMediaType.VIDEO -> PutioFileType.VIDEO
+        PlaybackMediaType.AUDIO -> PutioFileType.AUDIO
+    }
+
+private fun PutioFile.toPlaybackTarget(mediaType: PlaybackMediaType): PlaybackTarget =
+    PlaybackTarget(
+        fileId = FilesItemId(id),
+        name = name,
+        mediaType = mediaType,
+        durationSeconds = videoMetadata?.duration?.takeIf { it.isFinite() && it > 0.0 },
+        posterUrl = screenshot?.takeIf(String::isNotBlank),
+    )
 
 /**
  * [delegate] plus the SDK's MP4 conversion start. The player starts one when a video it opens

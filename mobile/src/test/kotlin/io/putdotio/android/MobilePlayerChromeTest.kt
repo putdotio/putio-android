@@ -99,7 +99,6 @@ class MobilePlayerChromeTest {
                         MobilePlayerChrome(
                             player = player,
                             title = "Video with a long filename.mp4",
-                            isAudio = false,
                             visible = true,
                             seekEnabled = true,
                             onSeek = {},

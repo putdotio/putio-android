@@ -42,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -130,7 +131,11 @@ internal fun rememberPlayerOptionsSnapshot(player: Media3Player): PlayerOptionsS
     return snapshot
 }
 
-/** An outlined chip on the video, at least 48dp tall to touch, named for what it changes. */
+/**
+ * An outlined chip on the video, at least 48dp tall to touch, named for what it changes. On a page
+ * rather than over video, [onPage] gives it the page's outline; [selected] fills it while its
+ * setting is on.
+ */
 @Composable
 internal fun MobilePlayerChip(
     label: String,
@@ -141,8 +146,15 @@ internal fun MobilePlayerChip(
     @DrawableRes trailingIcon: Int? = null,
     mono: Boolean = false,
     enabled: Boolean = true,
+    onPage: Boolean = false,
+    selected: Boolean = false,
 ) {
     val content = MaterialTheme.colorScheme.onSurface
+    val border = when {
+        selected -> Color.Transparent
+        onPage -> MaterialTheme.colorScheme.outline
+        else -> content.copy(alpha = CHIP_BORDER_ALPHA)
+    }
     AssistChip(
         onClick = onClick,
         enabled = enabled,
@@ -157,11 +169,12 @@ internal fun MobilePlayerChip(
         leadingIcon = leadingIcon?.let { { Icon(painterResource(it), null, Modifier.size(CHIP_ICON_SIZE)) } },
         trailingIcon = trailingIcon?.let { { Icon(painterResource(it), null, Modifier.size(CHIP_ICON_SIZE)) } },
         colors = AssistChipDefaults.assistChipColors(
+            containerColor = if (selected) MaterialTheme.colorScheme.surfaceContainerHighest else Color.Transparent,
             labelColor = content,
             leadingIconContentColor = content,
             trailingIconContentColor = content,
         ),
-        border = BorderStroke(1.dp, content.copy(alpha = CHIP_BORDER_ALPHA)),
+        border = BorderStroke(1.dp, border),
         modifier = modifier.semantics { if (description != null) contentDescription = description },
     )
 }
@@ -185,7 +198,12 @@ internal fun MobileAudioChip(snapshot: PlayerOptionsSnapshot, onClick: () -> Uni
 }
 
 @Composable
-internal fun MobileSpeedChip(snapshot: PlayerOptionsSnapshot, onClick: () -> Unit, modifier: Modifier = Modifier) {
+internal fun MobileSpeedChip(
+    snapshot: PlayerOptionsSnapshot,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    onPage: Boolean = false,
+) {
     val value = stringResource(R.string.mobile_playback_speed_value, formatPlaybackSpeed(snapshot.speed))
     MobilePlayerChip(
         label = value,
@@ -194,6 +212,7 @@ internal fun MobileSpeedChip(snapshot: PlayerOptionsSnapshot, onClick: () -> Uni
         leadingIcon = R.drawable.ic_ph_gauge,
         mono = true,
         modifier = modifier,
+        onPage = onPage,
     )
 }
 
@@ -239,14 +258,19 @@ internal fun audioTrackLabels(tracks: List<PlaybackAudioTrack>): List<String> {
     }
     val details = tracks.map { audioTrackDetails(it) }
     val rows = names.zip(details)
-    return names.mapIndexed { index, name ->
-        if (rows.count { it == rows[index] } > 1) {
-            stringResource(R.string.mobile_playback_audio_track_disambiguated, name, index + 1)
-        } else {
-            name
-        }
+    val numbered = names.mapIndexed { index, name ->
+        if (rows.count { it == rows[index] } > 1) numberedTrack(name, index) else name
     }
+    // A numbered row can meet a track already labelled that way; then every row takes its number,
+    // and distinct numbers keep the rows distinct.
+    val numberedRows = numbered.zip(details)
+    if (numberedRows.distinct().size == numberedRows.size) return numbered
+    return names.mapIndexed { index, name -> numberedTrack(name, index) }
 }
+
+@Composable
+private fun numberedTrack(name: String, index: Int): String =
+    stringResource(R.string.mobile_playback_audio_track_disambiguated, name, index + 1)
 
 /** "5.1 · AC3 · Commentary": what the format says about channels, codec and role. */
 @Composable

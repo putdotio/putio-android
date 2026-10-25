@@ -38,17 +38,20 @@ Mobile, on the emulator harness against the live API:
   configurable HLS or MP4
 - A video player with Audio, Subtitles and Speed chips that open side sheets,
   Next episode when the account's next-episode setting is on, and subtitle size
-  (S to XL) and timing in 0.1 s steps; audio keeps its own layout
-- Audio playback in the background with system media controls and a now-playing bar
+  (S to XL) and timing in 0.1 s steps
+- Audio playback in the background with system media controls, a mini player
+  above the navigation bar on every tab, and Now Playing with 15-second back and
+  30-second forward, previous and next file in the folder, speed, a sleep timer
+  and Up next
 - Picture-in-picture from the player's top bar or by leaving the app mid-video:
   the window keeps playing with 10-second back, Pause or Play and 10-second
   forward; Expand returns to the full-screen player, and closing it stops the
   video where it was
 - Resume or start over from a saved position, with throttled position updates
   while video or background audio plays
-- Video playback speed from 0.5× to 3× in eight presets (audio keeps 0.75× to
-  2×) and audio-track selection; choices survive player recreation, and an
-  unavailable track falls back to automatic selection
+- Playback speed from 0.5× to 3× in eight presets, for video and audio, and
+  audio-track selection; choices survive player recreation, and an unavailable
+  track falls back to automatic selection
 - Account: the identity line, a storage card whose bar turns red when storage
   is full, and settings in segmented groups of one-line rows (Library, Files,
   Playback, Subtitles, Privacy, About); proxy, video playback and default sort

@@ -198,8 +198,8 @@ class MobileKeyboardShortcutsTest {
             assertEquals(
                 listOf(
                     "Play or pause:${KeyEvent.KEYCODE_SPACE}:0",
-                    "Back 10 seconds:${KeyEvent.KEYCODE_DPAD_LEFT}:0",
-                    "Forward 10 seconds:${KeyEvent.KEYCODE_DPAD_RIGHT}:0",
+                    "Seek back:${KeyEvent.KEYCODE_DPAD_LEFT}:0",
+                    "Seek forward:${KeyEvent.KEYCODE_DPAD_RIGHT}:0",
                     "Go up a folder or back:${KeyEvent.KEYCODE_ESCAPE}:0",
                     "Go up a folder or back:${KeyEvent.KEYCODE_DEL}:0",
                 ),

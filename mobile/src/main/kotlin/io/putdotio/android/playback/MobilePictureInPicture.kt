@@ -252,7 +252,7 @@ internal fun Rect.fittedVideoBounds(aspectRatio: Rational): android.graphics.Rec
 
 /** The window's actions, in the player's order: 10 seconds back, play or pause, 10 seconds forward. */
 private class PictureInPictureActions(context: Context) {
-    private val seconds = (MOBILE_SEEK_INTERVAL_MILLIS / MILLIS_PER_SECOND).toInt()
+    private val seconds = (VideoSeekIntervals.backMillis / MILLIS_PER_SECOND).toInt()
     private val back = remoteAction(
         context,
         ACTION_PICTURE_IN_PICTURE_SEEK_BACK,

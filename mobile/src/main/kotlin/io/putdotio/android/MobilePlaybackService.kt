@@ -18,10 +18,14 @@ import androidx.media3.session.SessionToken
 import io.putdotio.android.auth.MobileOAuthRuntime
 import io.putdotio.android.design.R as DesignR
 import io.putdotio.android.playback.DefaultMobilePlayerFactory
+import io.putdotio.android.playback.MobileSleepTimer
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackPositionObserver
 import io.putdotio.android.playback.playerFailureTelemetry
 import io.putdotio.android.telemetry.PutioDiagnostics
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 /**
  * Owns the audio player so playback outlives the player screen: the session
@@ -32,6 +36,7 @@ class MobilePlaybackService : MediaSessionService() {
     private var session: MediaSession? = null
     private var taskRemoved = false
     private var positionObserver: PlaybackPositionObserver? = null
+    private val scope = MainScope()
 
     @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
     override fun onCreate() {
@@ -66,6 +71,8 @@ class MobilePlaybackService : MediaSessionService() {
         setMediaNotificationProvider(
             DefaultMediaNotificationProvider(this).apply { setSmallIcon(DesignR.drawable.ic_ph_file_audio_fill) },
         )
+        // The sleep timer outlives Now Playing, so the service that owns the player carries it out.
+        scope.launch { MobileSleepTimer.Shared.pauseWhenDue { session?.player?.pause() } }
     }
 
     // The app reconnecting means a task exists again; pausing inside it must not stop us.
@@ -97,6 +104,8 @@ class MobilePlaybackService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        scope.cancel()
+        MobileSleepTimer.Shared.cancel()
         positionObserver?.close()
         positionObserver = null
         session?.let {
@@ -116,6 +125,8 @@ class MobilePlaybackService : MediaSessionService() {
             SessionToken(context, ComponentName(context, MobilePlaybackService::class.java))
 
         fun stop(context: Context) {
+            // Both stop paths below end playback, so neither may leave a timer to pause the next audio.
+            MobileSleepTimer.Shared.cancel()
             val intent = Intent(context, MobilePlaybackService::class.java).setAction(ACTION_STOP)
             // In the background a start command may be refused; a bind-only controller can
             // still stop the player, and stopService then lets the unbound service die.
