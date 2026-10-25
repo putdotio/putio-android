@@ -8,7 +8,9 @@
 #   ui.sh long-press <serial> <selector>            hold the first match for 1.2 s
 #   ui.sh wait       <serial> <selector> [seconds]  poll until a match shows (default 30 s)
 #   ui.sh gone       <serial> <selector> [seconds]  poll until no match shows (default 30 s)
-#   ui.sh scroll-to  <serial> <selector> [swipes]   swipe the list up until a match shows (default 12)
+#   ui.sh scroll-to  <serial> <selector> [swipes]   swipe the list up until a match shows (default 12);
+#                                                   it starts where the list is, so refresh first
+#   ui.sh refresh    <serial>                       scroll the list to its top and pull to refresh
 #   ui.sh type       <serial> <text>                type into the focused field
 #   ui.sh link       <serial> <uri>                 open a deep link in the app (am start -W -p <package>)
 #   ui.sh key        <serial> <BACK|ENTER|...>      press a key
@@ -116,6 +118,15 @@ case "${cmd}" in
       sleep 1
     done
     die "no node for $1 '$2' after ${swipes} swipes"
+    ;;
+  refresh)
+    read -r width height < <(adb_ shell wm size | sed -n 's/.*: \([0-9]*\)x\([0-9]*\).*/\1 \2/p' | tail -1)
+    # Scroll back to the top, then pull past the threshold once more.
+    for _ in 1 2 3 4 5; do
+      adb_ shell input swipe $((width / 2)) $((height * 3 / 10)) $((width / 2)) $((height * 8 / 10)) 150
+    done
+    sleep 1
+    adb_ shell input swipe $((width / 2)) $((height * 3 / 10)) $((width / 2)) $((height * 8 / 10)) 700
     ;;
   type)
     [[ -n "${1:-}" ]] || usage

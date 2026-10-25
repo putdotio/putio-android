@@ -44,9 +44,10 @@ Preconditions:
   folders remain and the search runs again at once.
 - **Open result.** Tap the run's folder. The folder opens in Files; Back
   returns to the results with their scroll.
-- **Folder scope.** In `android-verify-<run>`, tap
-  `Search in android-verify-<run>` and type `Inner`. Only `Inner folder`
-  shows. Back leaves Search first, then the folder.
+- **Folder scope.** In `android-verify-<run>`, tap the bar's search button.
+  Run `$V/ui.sh tap $SERIAL --desc "Search in android-verify-$RUN"` and
+  `$V/ui.sh type $SERIAL "Inner"`. Only `Inner folder` shows. Back leaves
+  Search first, then the folder.
 - **Recent.** Clear the field with `Clear search`. Run
   `$V/ui.sh tap $SERIAL --desc "Clear search"`. `Recent searches` lists the
   submitted run name; tapping it searches again.

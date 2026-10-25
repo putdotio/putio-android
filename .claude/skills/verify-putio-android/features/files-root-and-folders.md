@@ -34,16 +34,18 @@ Preconditions:
 
 - **Root listing.** Open Files. Run `$V/ui.sh link $SERIAL putio://files`,
   then `$V/ui.sh wait $SERIAL --text "Search your files"`. The pill and the
-  five tabs show.
+  five tabs show. Capture `files-root-before`.
+- **Refresh.** Pull to refresh. Run `$V/ui.sh refresh $SERIAL`. The listing
+  reloads from put.io and now holds fixtures made after launch.
 - **Find the fixture.** Scroll the root. Run
   `$V/ui.sh scroll-to $SERIAL --text "android-verify-$RUN"`, then
-  `$V/capture.sh $RUN files-root`. The row shows with
-  `Actions for android-verify-<run>` beside it.
+  `$V/capture.sh $RUN files-root`. The folder row shows its name, its date
+  and a chevron.
 - **Open folder.** Tap the row. Run
   `$V/ui.sh tap $SERIAL --text "android-verify-$RUN"` and
-  `$V/ui.sh wait $SERIAL --text "Inner folder"`. The bar names the folder and
-  the line under it reads `2 items`; the search pill reads
-  `Search in android-verify-<run>`.
+  `$V/ui.sh wait $SERIAL --text "Inner folder"`. The bar names the folder
+  beside `Back`, the line under it reads `2 items` and `6 B`, and the bar's
+  search button is `Search in android-verify-<run>` (a content description).
 - **Proof.** Run `$V/capture.sh $RUN files-open-folder`. The XML holds
   `Inner folder` and the text file's full name.
 - **Back.** Press Back. Run `$V/ui.sh key $SERIAL BACK` and
@@ -68,6 +70,11 @@ Preconditions:
 
 - The root is the shared account's root: other runs' and other harnesses'
   items sit beside yours. Match your container by its full name.
+- Files keeps the listing it loaded. A fixture created after the app opened
+  the folder stays missing until `ui.sh refresh`; `scroll-to` alone swipes
+  past where it would be.
+- A folder row has a chevron and no overflow button; its actions open with
+  a long-press. Files rows carry `Actions for <name>`.
 - A row's name is cut in the middle on screen; the XML holds the full name,
   so `--text` matches it.
 - Count and size come from put.io's total for the folder, not the rows on

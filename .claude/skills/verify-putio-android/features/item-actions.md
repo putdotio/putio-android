@@ -19,8 +19,9 @@ only when the item allows it.
 
 ## How to get to it (user POV)
 
-- Tap `Actions for <name>` at the end of a Files row.
-- Long-press a Files row.
+- Tap `Actions for <name>` at the end of a file's row; folder rows have a
+  chevron instead.
+- Long-press a file or folder row.
 - Tap the overflow or long-press a Search result.
 - On a tablet, tap the detail pane's overflow.
 
@@ -50,7 +51,9 @@ Preconditions:
   it. Adopt the id.
 - **Copy.** Open the sheet, tap `Make a copy`, pick the run's root. The
   snackbar reads `Copied "<name>" to <folder>.` Adopt the copy's id.
-- **Trash.** Open the sheet on `Inner folder`, tap `Move to trash`. The
+- **Trash.** Long-press `Inner folder` to open its sheet. Run
+  `$V/ui.sh long-press $SERIAL --text "Inner folder"`, then tap
+  `Move to trash`. The
   snackbar reads `Moved to Trash` and the row leaves. Remove that one id
   from Trash:
   `PUTIO_CLI_PROFILE=devs-auto putio sdk call --operation trash.delete --args '[{"file_ids":[<id>]}]' --execute`,

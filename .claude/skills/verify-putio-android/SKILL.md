@@ -92,6 +92,7 @@ tree; they serve instrumentation tests only.
 
 ```bash
 $S/devbox.sh run "$RUN" '$V/ui.sh wait $SERIAL --text "Search your files"'
+$S/devbox.sh run "$RUN" '$V/ui.sh refresh $SERIAL'      # pull to refresh after creating fixtures
 $S/devbox.sh run "$RUN" '$V/ui.sh scroll-to $SERIAL --text "android-verify-$RUN"'
 $S/devbox.sh run "$RUN" '$V/ui.sh tap $SERIAL --text "android-verify-$RUN"'
 $S/devbox.sh run "$RUN" '$V/ui.sh long-press $SERIAL --text "<name>"'
@@ -181,14 +182,14 @@ ls .evidence/"$RUN"/                                  # the proof survives here
 All in [`scripts/`](scripts/); each prints its usage when run without
 arguments.
 
-| Script       | Host   | Use                                                                                     |
-| ------------ | ------ | --------------------------------------------------------------------------------------- |
-| `devbox.sh`  | laptop | `sync`, `run '<cmd>'`, `pull`, `remove` for `<run>`; returns the remote exit status     |
-| `session.sh` | devbox | `up --snapshot` or `up --fresh`, `install`, `relaunch`, `down`                          |
-| `doctor.sh`  | devbox | read-only health check                                                                  |
-| `ui.sh`      | devbox | `dump`, `find`, `tap`, `long-press`, `wait`, `gone`, `scroll-to`, `type`, `link`, `key` |
-| `capture.sh` | devbox | screenshot, uiautomator XML and app logcat into `.evidence/<run>/`; secret scan         |
-| `fixture.sh` | devbox | `root`, `mkdir`, `upload`, `adopt`, `owned`, `cleanup` on devs-auto, with the ledger    |
+| Script       | Host   | Use                                                                                                |
+| ------------ | ------ | -------------------------------------------------------------------------------------------------- |
+| `devbox.sh`  | laptop | `sync`, `run '<cmd>'`, `pull`, `remove` for `<run>`; returns the remote exit status                |
+| `session.sh` | devbox | `up --snapshot` or `up --fresh`, `install`, `relaunch`, `down`                                     |
+| `doctor.sh`  | devbox | read-only health check                                                                             |
+| `ui.sh`      | devbox | `dump`, `find`, `tap`, `long-press`, `wait`, `gone`, `scroll-to`, `refresh`, `type`, `link`, `key` |
+| `capture.sh` | devbox | screenshot, uiautomator XML and app logcat into `.evidence/<run>/`; secret scan                    |
+| `fixture.sh` | devbox | `root`, `mkdir`, `upload`, `adopt`, `owned`, `cleanup` on devs-auto, with the ledger               |
 
 `devbox.sh` carries the status in-band because Tailscale SSH to a Mac always
 exits 0: a bare `ssh zebroid-devbox` reports success for a failed command.
