@@ -157,6 +157,9 @@ internal class MobileCastController(
     private val handovers = mutableMapOf<Long, CastHandover>()
     private var lastMedia: PlaybackCastMedia? = null
 
+    /** Set while a session that sign-out ended winds down. */
+    private var ending = false
+
     /** The ended session whose position has been handed back, so it is handed back once. */
     private var handedBack: CastRemoteStatus? = null
 
@@ -167,6 +170,12 @@ internal class MobileCastController(
                 // The status clears only as the session ends: freeze where the receiver stood, for
                 // the file's next local start. A file that finished hands back stopped.
                 if (status == null) takeEnded()?.let { (fileId, handover) -> handovers[fileId] = handover }
+            }
+        }
+        scope.launch {
+            // The departing session is gone once no session is connected or connecting.
+            gateway.availability.collect {
+                if (it !is CastAvailability.Connected && it !is CastAvailability.Connecting) ending = false
             }
         }
     }
@@ -184,7 +193,7 @@ internal class MobileCastController(
      * reach put.io. Does nothing without a session.
      */
     fun cast(media: PlaybackCastMedia, item: MediaItem, local: CastHandover): Boolean {
-        if (gateway.availability.value !is CastAvailability.Connected) return false
+        if (gateway.availability.value !is CastAvailability.Connected || ending) return false
         remotePlayer.adopt(item)
         val loads = !holds(media.fileId)
         if (loads) {
@@ -200,6 +209,7 @@ internal class MobileCastController(
      * [media], when known, is what Play sends again once the file has finished there.
      */
     fun attach(item: MediaItem, media: PlaybackCastMedia? = null) {
+        if (ending) return
         remotePlayer.adopt(item)
         if (media != null) lastMedia = media
     }
@@ -220,6 +230,10 @@ internal class MobileCastController(
 
     /** Signing out ends the session: the receiver holds the account's download token. */
     fun end() {
+        // Nothing goes to the departing session while it winds down.
+        ending = gateway.availability.value.let {
+            it is CastAvailability.Connected || it is CastAvailability.Connecting
+        }
         lastMedia = null
         handovers.clear()
         // Nor does one that ended a moment ago and is not handed back yet.

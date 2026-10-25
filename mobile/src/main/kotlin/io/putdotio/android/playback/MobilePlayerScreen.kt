@@ -179,7 +179,8 @@ internal fun MobilePlayerScreen(
         // The open device picker is modal: TalkBack reaches only it.
         Box(Modifier.fillMaxSize().hiddenFromAccessibility(castPicker.value)) {
             val isVideo = state.target.mediaType == PlaybackMediaType.VIDEO
-            when (val content = state.shownContent(playerCast, onResume)) {
+            val shown = state.shownContent(playerCast, onResume)
+            when (val content = shown) {
                 is PlaybackContent.Loading ->
                     MobileLoadingState(stringResource(state.target.mediaType.loadingMessage()))
 
@@ -224,7 +225,7 @@ internal fun MobilePlayerScreen(
                     )
             }
 
-            if (state.showsSeparateBack() && !pictureInPicture.value) {
+            if (state.showsSeparateBack(shown) && !pictureInPicture.value) {
                 MobilePlayerSeparateBack(state, onBack, Modifier.align(Alignment.TopStart))
             }
         }
@@ -371,8 +372,9 @@ private fun MobilePlayerSeparateBack(state: PlaybackState, onBack: () -> Unit, m
     }
 }
 
-private fun PlaybackState.showsSeparateBack(): Boolean =
-    target.mediaType == PlaybackMediaType.AUDIO || content !is PlaybackContent.Ready
+// The receiver's controls draw the video's own top bar, as the ready player does.
+private fun PlaybackState.showsSeparateBack(shown: PlaybackContent): Boolean =
+    target.mediaType == PlaybackMediaType.AUDIO || (shown !is PlaybackContent.Ready && shown != PlaybackContent.Session)
 
 /**
  * Back and the filename over a video that is not playing yet or cannot: the resume prompt, the

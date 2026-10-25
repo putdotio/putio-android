@@ -332,6 +332,7 @@ internal class GmsCastRemote : CastRemote {
 
     /** The latest load request, so only its own result settles it; an older one for the same file does not. */
     private var loadRequest = 0L
+    private var loadSettled = true
 
     /** A refused load, which stands over the receiver's reports until the next load. */
     private var failedLoad: CastRemoteStatus? = null
@@ -445,7 +446,8 @@ internal class GmsCastRemote : CastRemote {
      */
     private fun noteReport(fileId: Long?, state: CastRemoteState) {
         lastFileId = fileId
-        if (state == CastRemoteState.Playing || state == CastRemoteState.Paused) {
+        // A load's own intent stands until its result: reports on the media before it say nothing of it.
+        if (loadSettled && (state == CastRemoteState.Playing || state == CastRemoteState.Paused)) {
             playIntent = state == CastRemoteState.Playing
         }
     }
@@ -454,6 +456,7 @@ internal class GmsCastRemote : CastRemote {
         val remote = client ?: return
         lastFileId = media.fileId
         val request = ++loadRequest
+        loadSettled = false
         failedLoad = null
         playIntent = autoplay
         remote.load(
@@ -466,6 +469,7 @@ internal class GmsCastRemote : CastRemote {
                 .build(),
         ).setResultCallback { result ->
             // A refused or timed-out load says so for its file, unless another load followed it.
+            if (loadRequest == request) loadSettled = true
             if (client === remote && loadRequest == request && !result.status.isSuccess) {
                 failedLoad = CastRemoteStatus(
                     fileId = media.fileId,
