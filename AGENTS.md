@@ -81,8 +81,7 @@ tracks the rollout. The [README](README.md) lists what works,
 
 ## Setup
 
-The machine provides JDK 21 (pinned in `.java-version`), Node 24 (pinned in
-`.node-version`),
+The machine provides JDK 21 (`.java-version`), Node 24 (`.node-version`),
 `python3`, and, on macOS, Homebrew. Then run:
 
 ```bash
@@ -114,15 +113,11 @@ built that way records the SDK checkout's SHA and `git status --short`.
 ./gradlew :mobile:assembleProductionDebug :tv:assembleProductionDebug
 ```
 
-The root [`verify` task](build.gradle.kts) is the gate: every module's `check`
-(lint with warnings as errors, detekt, JVM unit tests, launcher-manifest
-checks), unsigned minified release builds, the instrumentation APKs, the design
-and icon lock checks, the script and `build-logic` tests, and `markdownCheck`;
-its `dependsOn` list is the inventory. The script checks need `bash` 3.2+,
-`python3`, `node`, `ffprobe`, and `ffmpeg` with the `freezedetect` filter and `libx264`
-encoder on PATH. `markdownCheck` runs oxfmt at the version
-[package.json](package.json) pins; `npx --yes oxfmt@<version> '**/*.md'` fixes
-its findings.
+The root [`verify` task](build.gradle.kts)'s `dependsOn` list is the gate's
+inventory. Its script checks need `bash` 3.2+, `python3`, `node`, `ffprobe`,
+and `ffmpeg` with the `freezedetect` filter and `libx264` encoder on PATH.
+`markdownCheck` runs oxfmt at the version [package.json](package.json) pins;
+`npx --yes oxfmt@<version> '**/*.md'` fixes its findings.
 
 - Fix lint and detekt findings at the source; suppress only the narrowest
   declaration, with a comment naming the constraint. No module has a detekt
@@ -140,7 +135,7 @@ that matches. Report skipped or unavailable proof.
 
 | Change                              | Proof                                                                                                                                                               |
 | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Docs only                           | `./gradlew markdownCheck`; check web links and commands. Pull-request CI checks relative links, skips builds                                                        |
+| Docs only                           | `./gradlew markdownCheck`; check web links and commands. CI skips builds for docs-only pull requests and checks relative links                                      |
 | Domain or core logic                | `./gradlew :domain:<name>:testDebugUnitTest` or `:core:<name>:testDebugUnitTest`; tests live in the owning module                                                   |
 | App view models or services         | `./gradlew :mobile:testProductionDebugUnitTest` or `:tv:testProductionDebugUnitTest`                                                                                |
 | UI, navigation, playback, or launch | The affected flow on the emulator: `./scripts/prove.sh <mobile\|tv>` or its lane in [Harness](docs/harness.md)                                                      |
@@ -150,7 +145,7 @@ that matches. Report skipped or unavailable proof.
 | Visible change                      | Reviewed captures from `.evidence/`, attached with `gh pr comment <n> --attach <file>`                                                                              |
 
 A changed product rule updates its [Behaviour](docs/behavior.md) section and
-names the tests that pin it; a new device lane gets a section in
+names the tests that pin it; a new device lane gets a row in
 [Harness](docs/harness.md); shipped user-facing behavior updates the README's
 "What works today".
 
@@ -162,14 +157,10 @@ triggers and path filters; CI holds no secrets. Google Play delivery is
 dispatch-only, with secrets in the `release` Environment
 ([Distribution](docs/distribution.md)).
 
-- Docs-only pull requests (Markdown, `docs/`, issue templates, `LICENSE`) skip
-  the build jobs and still run `Check Markdown` and the offline relative-link
-  check.
 - `Build release` and `Verify Android app` split `verify` plus the four debug
   assembles between them. When either command changes, compare their
   `--dry-run` task lists with the full command's; together they must run
   exactly the same tasks.
-- Failed unit-test XML is kept as the `failed-unit-test-reports` artifact.
 
 [Emulator smoke](.github/workflows/emulator-smoke.yml) runs `LaunchSmokeTest`
 and `StaleOAuthCallbackTest` on a Gradle Managed Device weekly and on dispatch.

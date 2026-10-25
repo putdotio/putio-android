@@ -305,8 +305,8 @@ order. `NavigationSuiteScaffold`'s layout and suite with an explicit layout type
 a navigation bar below 600dp width and the collapsed wide navigation rail from
 600dp, following the window
 ([Multi-window](docs/behavior.md#multi-window)). When five destinations don't
-fit, in short windows or at large font scales, a scrollable drawer takes over,
-as today. The selected item uses the stock indicator with a filled Phosphor
+fit, in short windows or at large font scales, a scrollable drawer takes over.
+The selected item uses the stock indicator with a filled Phosphor
 glyph in `on-secondary-container`; unselected items use the regular glyph.
 
 From 840dp, Files is list-detail: the folder's bar and list on the left (520dp,
