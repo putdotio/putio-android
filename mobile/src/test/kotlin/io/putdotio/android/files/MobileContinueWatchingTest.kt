@@ -112,6 +112,33 @@ class MobileContinueWatchingTest {
     }
 
     @Test
+    fun aDeletedFolderTakesTheVideosPutioNoLongerHas() = runBlocking {
+        listOf(Tears, Sintel, Flaky).forEach { id ->
+            row.opened(id, "video-${id.value}.mkv", 600.0)
+            row.positionSaved(id, 60.0)
+        }
+        val reads = mutableListOf<FilesItemId>()
+        val resolve: suspend (FilesItemId) -> PutioResult<FilesItem> = { id ->
+            reads += id
+            if (id == Tears) PutioResult.Failure(notFound()) else PutioResult.Success(video(id, "kept.mkv", 60.0))
+        }
+
+        // An entry deleted on its own leaves without reading the others.
+        assertEquals(null, row.removed(listOf(Flaky), resolve))
+        assertTrue(reads.isEmpty())
+
+        // A folder's id is no entry: every entry is read, and the one inside it is gone.
+        assertEquals(null, row.removed(listOf(Folder), resolve))
+        assertEquals(listOf(Tears, Sintel), reads.sortedBy { it.value })
+        assertEquals(listOf(Sintel), row.entries.value.map { it.fileId })
+
+        val rejected = row.removed(listOf(Folder)) {
+            PutioResult.Failure(PutioFailure.AuthenticationRequired(apiException(401)))
+        }
+        assertTrue(rejected is PutioFailure.AuthenticationRequired)
+    }
+
+    @Test
     fun aClosedRowWritesNothing() {
         row.opened(Tears, "Tears.of.Steel.mkv", 600.0)
         row.close()
@@ -170,5 +197,6 @@ class MobileContinueWatchingTest {
         val Sintel = FilesItemId(2L)
         val Gone = FilesItemId(3L)
         val Flaky = FilesItemId(4L)
+        val Folder = FilesItemId(5L)
     }
 }

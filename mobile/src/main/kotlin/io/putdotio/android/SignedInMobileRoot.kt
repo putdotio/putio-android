@@ -442,8 +442,8 @@ private fun SavedPositionEffects(
             authController.rejectAuthoritativeSession()
         }
     }
-    // A delete the fresh read confirmed takes the video out of Continue watching too.
-    LaunchedEffect(filesController, continueWatching) {
+    // A delete the fresh read confirmed takes the video, or a deleted folder's videos, out of Continue watching.
+    LaunchedEffect(filesController, continueWatching, filesRepository) {
         val row = continueWatching ?: return@LaunchedEffect
         filesController.state
             .map { state ->
@@ -452,7 +452,9 @@ private fun SavedPositionEffects(
                 }
             }
             .distinctUntilChanged()
-            .collect { gone -> gone.forEach(row::removed) }
+            .collect { gone ->
+                if (row.removed(gone, filesRepository::resolveItem) != null) authController.rejectAuthoritativeSession()
+            }
     }
 }
 

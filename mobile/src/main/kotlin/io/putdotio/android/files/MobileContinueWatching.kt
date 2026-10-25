@@ -110,25 +110,10 @@ internal class MobileContinueWatching(
     suspend fun reconcile(
         resolve: suspend (FilesItemId) -> PutioResult<FilesItem>,
     ): PutioFailure.AuthenticationRequired? {
-        var rejected: PutioFailure.AuthenticationRequired? = null
-        if (!reconciled && !closed) {
-            for (read in mutableEntries.value) {
-                val result = resolve(read.fileId)
-                val failure = (result as? PutioResult.Failure)?.failure
-                // A session already closed answers for nobody, so its 401 rejects nothing.
-                rejected = (failure as? PutioFailure.AuthenticationRequired)?.takeUnless { closed }
-                if (rejected != null) break
-                // A position saved while the read was out is newer than what it brought back.
-                val unchanged = !closed && mutableEntries.value.any { it == read }
-                if (unchanged && result is PutioResult.Success) {
-                    refresh(read, result.value)
-                } else if (unchanged && failure?.isNotFound == true) {
-                    update(mutableEntries.value.filterNot { it == read })
-                }
-            }
-            // Set only once the pass ends, so a pass cancelled with its screen runs again.
-            reconciled = true
-        }
+        if (reconciled || closed) return null
+        val rejected = readEntries(resolve)
+        // Set only once the pass ends, so a pass cancelled with its screen runs again.
+        reconciled = true
         return rejected
     }
 
@@ -137,6 +122,40 @@ internal class MobileContinueWatching(
         // Forget the media too, so a save answered after the delete can't bring the card back.
         media.remove(fileId)
         update(mutableEntries.value.filterNot { it.fileId == fileId })
+    }
+
+    /**
+     * put.io confirmed [fileIds] gone. An entry among them leaves at once. Any other id may be a
+     * folder holding entries, which only a fresh read of each entry finds, as [reconcile] reads them.
+     */
+    suspend fun removed(
+        fileIds: List<FilesItemId>,
+        resolve: suspend (FilesItemId) -> PutioResult<FilesItem>,
+    ): PutioFailure.AuthenticationRequired? {
+        val entryIds = mutableEntries.value.mapTo(mutableSetOf()) { it.fileId }
+        fileIds.forEach { removed(it) }
+        val elsewhere = fileIds.any { it !in entryIds }
+        return if (elsewhere && !closed && mutableEntries.value.isNotEmpty()) readEntries(resolve) else null
+    }
+
+    private suspend fun readEntries(
+        resolve: suspend (FilesItemId) -> PutioResult<FilesItem>,
+    ): PutioFailure.AuthenticationRequired? {
+        for (read in mutableEntries.value) {
+            val result = resolve(read.fileId)
+            val failure = (result as? PutioResult.Failure)?.failure
+            // A session already closed answers for nobody, so its 401 rejects nothing.
+            val rejected = (failure as? PutioFailure.AuthenticationRequired)?.takeUnless { closed }
+            if (rejected != null) return rejected
+            // A position saved while the read was out is newer than what it brought back.
+            val unchanged = !closed && mutableEntries.value.any { it == read }
+            if (unchanged && result is PutioResult.Success) {
+                refresh(read, result.value)
+            } else if (unchanged && failure?.isNotFound == true) {
+                update(mutableEntries.value.filterNot { it == read })
+            }
+        }
+        return null
     }
 
     /** The session ended; nothing it still has in flight writes the row again. */
