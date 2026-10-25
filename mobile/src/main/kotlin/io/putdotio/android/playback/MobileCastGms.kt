@@ -330,10 +330,10 @@ internal class GmsCastRemote : CastRemote {
     private var client: RemoteMediaClient? = null
     private var lastFileId: Long? = null
 
-    /** The file a load was sent for until the receiver reports on it, so a refusal is told for it. */
+    /** The file a load was sent for until its result arrives, so a refusal is told for it. */
     private var pendingLoad: Long? = null
 
-    /** A refused load, which stands over the receiver's reports on older media until the next load. */
+    /** A refused load, which stands over the receiver's reports until the next load. */
     private var failedLoad: CastRemoteStatus? = null
 
     /** Whether play was last asked for, which a loading receiver's status does not say. */
@@ -438,11 +438,12 @@ internal class GmsCastRemote : CastRemote {
         )
     }
 
-    /** The receiver reported [state] for [fileId]: a pending or refused load for it is settled. */
+    /**
+     * The receiver reported [state] for [fileId]. A report never settles a load: one for the same file
+     * sent again can be about the media before it, so only the load's own result does.
+     */
     private fun noteReport(fileId: Long?, state: CastRemoteState) {
         lastFileId = fileId
-        if (fileId != null && fileId == pendingLoad) pendingLoad = null
-        if (fileId != null && fileId == failedLoad?.fileId) failedLoad = null
         if (state == CastRemoteState.Playing || state == CastRemoteState.Paused) {
             playIntent = state == CastRemoteState.Playing
         }
@@ -464,8 +465,9 @@ internal class GmsCastRemote : CastRemote {
                 .build(),
         ).setResultCallback { result ->
             // A refused or timed-out load says so for its file, unless another load followed it.
-            if (!result.status.isSuccess && client === remote && pendingLoad == media.fileId) {
-                pendingLoad = null
+            val current = client === remote && pendingLoad == media.fileId
+            if (current) pendingLoad = null
+            if (current && !result.status.isSuccess) {
                 failedLoad = CastRemoteStatus(
                     fileId = media.fileId,
                     state = CastRemoteState.Failed,
