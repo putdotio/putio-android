@@ -16,6 +16,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.zIndex
+import androidx.compose.foundation.focusGroup
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusTarget
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.media3.common.util.Util
+import io.putdotio.android.MobileKeyCommand
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.util.UnstableApi
@@ -177,6 +184,14 @@ internal fun MobileCastPlayback(
     val intervals = if (target.mediaType == PlaybackMediaType.AUDIO) AudioSeekIntervals else VideoSeekIntervals
     val seek = { direction: SeekDirection -> player.seekBy(intervals, direction) }
 
+    // Space and the arrows drive the receiver as they drive the local player.
+    val keyFocus = remember { FocusRequester() }
+    LaunchedEffect(keyFocus) { keyFocus.requestFocus() }
+    val keys = Modifier
+        .onKeyEvent { event -> playerKeyCommand(event.nativeKeyEvent) { player.runCastKey(it, seek, onBack) } }
+        .focusRequester(keyFocus)
+        .focusTarget()
+        .focusGroup()
     if (target.mediaType == PlaybackMediaType.AUDIO) {
         MobileNowPlayingScreen(
             player = player,
@@ -189,17 +204,32 @@ internal fun MobileCastPlayback(
             onAudioSelectionChanged = {},
             castButton = castButton,
             castLabel = label,
-            modifier = Modifier.zIndex(2f),
+            modifier = Modifier.zIndex(2f).then(keys),
         )
-        return
+    } else {
+        MobileCastVideo(player, target.name, label, seekEnabled, seek, onBack, castButton, keys)
     }
+}
+
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+@Composable
+private fun MobileCastVideo(
+    player: CastRemotePlayer,
+    title: String,
+    label: String,
+    seekEnabled: Boolean,
+    seek: (SeekDirection) -> Unit,
+    onBack: () -> Unit,
+    castButton: @Composable (Modifier) -> Unit,
+    modifier: Modifier,
+) {
     val options = rememberPlayerOptionsSnapshot(player)
-    var speedSheet by rememberSaveable(fileId) { mutableStateOf(false) }
-    Box(Modifier.fillMaxSize()) {
+    var speedSheet by rememberSaveable { mutableStateOf(false) }
+    Box(modifier.fillMaxSize()) {
         MobileCastFrameLabel(label)
         MobilePlayerChrome(
             player = player,
-            title = target.name,
+            title = title,
             visible = !speedSheet,
             seekEnabled = seekEnabled,
             onSeek = seek,
@@ -219,6 +249,21 @@ internal fun MobileCastPlayback(
         ) {
             MobileSpeedSheetContent(player, options)
         }
+    }
+}
+
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+private fun androidx.media3.common.Player.runCastKey(
+    command: MobileKeyCommand,
+    seek: (SeekDirection) -> Unit,
+    onBack: () -> Unit,
+) {
+    when (command) {
+        MobileKeyCommand.PlayPause -> Util.handlePlayPauseButtonAction(this)
+        MobileKeyCommand.SeekBack -> seek(SeekDirection.Backward)
+        MobileKeyCommand.SeekForward -> seek(SeekDirection.Forward)
+        MobileKeyCommand.Back -> onBack()
+        else -> Unit
     }
 }
 

@@ -357,6 +357,15 @@ class MobileCastControllerTest {
 
         override fun stopCasting() = disconnect()
 
+        override fun endForSignOut() {
+            // As the SDK may: the receiver's status lands before the session's end does.
+            report(CastRemoteState.Playing, positionMillis = 90_000L)
+            availability.value = CastAvailability.Available
+            endedStatus = null
+            status.value = null
+            idle()
+        }
+
         override fun load(media: PlaybackCastMedia, startMillis: Long, autoplay: Boolean, speed: Float) {
             loads += Load(media.fileId, startMillis, autoplay, speed)
         }

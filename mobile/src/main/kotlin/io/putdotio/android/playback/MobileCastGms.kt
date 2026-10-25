@@ -214,7 +214,11 @@ internal class GmsCastGateway private constructor(
     private val sessions = object : SessionManagerListener<CastSession> {
         override fun onSessionStarting(session: CastSession) = updateAvailability()
 
-        override fun onSessionStarted(session: CastSession, sessionId: String) = attach(session)
+        override fun onSessionStarted(session: CastSession, sessionId: String) {
+            // A new session is not the one a sign-out ended.
+            remote.discardHandback = false
+            attach(session)
+        }
 
         override fun onSessionStartFailed(session: CastSession, error: Int) = updateAvailability()
 
@@ -243,6 +247,11 @@ internal class GmsCastGateway private constructor(
     }
 
     /** Ends the session; before Cast has started, it ends the session Cast resumes once it does. */
+    override fun endForSignOut() {
+        remote.discardHandback = true
+        stopCasting()
+    }
+
     override fun stopCasting() {
         val cast = castContext
         if (cast == null) stopOnBind = true else cast.sessionManager.endCurrentSession(true)
@@ -337,6 +346,9 @@ internal class GmsCastRemote : CastRemote {
      */
     private var statusKnown = false
 
+    /** Set when signing out ends the session: its end hands nothing back. */
+    var discardHandback = false
+
     /** Runs when [attached] changes, so availability follows it. */
     var onAttachedChanged: () -> Unit = {}
 
@@ -385,7 +397,9 @@ internal class GmsCastRemote : CastRemote {
         pendingLoad = null
         failedLoad = null
         playIntent = null
-        endedStatus = mutableStatus.value?.copy(endedAtMillis = SystemClock.elapsedRealtime())
+        endedStatus = mutableStatus.value?.takeUnless { discardHandback }
+            ?.copy(endedAtMillis = SystemClock.elapsedRealtime())
+        discardHandback = false
         mutableStatus.value = null
     }
 

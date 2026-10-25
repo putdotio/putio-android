@@ -95,6 +95,12 @@ internal interface CastGateway : CastRoutes, CastRemote {
 
     /** Ends the session and stops the receiver's playback. */
     fun stopCasting()
+
+    /**
+     * Ends the session for signing out: it hands nothing back, whenever it ends and whatever the
+     * receiver reported by then, so the next account never resumes the last one's.
+     */
+    fun endForSignOut()
 }
 
 /** The receivers the picker lists. */
@@ -154,8 +160,6 @@ internal class MobileCastController(
     /** The ended session whose position has been handed back, so it is handed back once. */
     private var handedBack: CastRemoteStatus? = null
 
-    /** Set when signing out ends the session, whose position then goes nowhere. */
-    private var discardNextEnd = false
 
     init {
         scope.launch {
@@ -218,11 +222,9 @@ internal class MobileCastController(
     fun end() {
         lastMedia = null
         handovers.clear()
-        // The session this ends hands nothing back: the next account must not resume the last one's,
-        // nor one that ended a moment ago and is not handed back yet.
+        // Nor does one that ended a moment ago and is not handed back yet.
         handedBack = gateway.endedStatus
-        discardNextEnd = gateway.status.value != null
-        gateway.stopCasting()
+        gateway.endForSignOut()
     }
 
     /** Where the local player picks [fileId] up after a session ended; taken once, null while casting. */
@@ -238,10 +240,7 @@ internal class MobileCastController(
     private fun takeEnded(): Pair<Long, CastHandover>? {
         val ended = gateway.endedStatus?.takeIf { it !== handedBack } ?: return null
         handedBack = ended
-        val discarded = discardNextEnd
-        discardNextEnd = false
-        return ended.fileId?.takeUnless { discarded }
-            ?.let { it to CastHandover(ended.positionAt(clock()), ended.playing, ended.speed) }
+        return ended.fileId?.let { it to CastHandover(ended.positionAt(clock()), ended.playing, ended.speed) }
     }
 
     // A file that finished or failed has left the receiver; playing it again sends it once more.

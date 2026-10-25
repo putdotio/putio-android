@@ -240,10 +240,15 @@ internal fun MobilePlayerScreen(
 @Composable
 private fun PlaybackState.shownContent(playerCast: PlayerCast, onResume: () -> Unit): PlaybackContent {
     val prompt = content as? PlaybackContent.AwaitingResume
-    val attached = playerCast.attaches(target.fileId.value) && (prompt != null || content is PlaybackContent.Failed)
+    val attached = playerCast.attaches(target.fileId.value) && content.attachable
     if (attached && prompt != null) LaunchedEffect(prompt) { onResume() }
     return if (attached) PlaybackContent.Session else content
 }
+
+/** States a receiver that already plays the file stands in for: none needs the viewer first. */
+private val PlaybackContent.attachable: Boolean
+    get() = this is PlaybackContent.Loading || this is PlaybackContent.AwaitingResume ||
+        this is PlaybackContent.Conversion || this is PlaybackContent.Failed
 
 /** Leaves this content out of accessibility while something modal covers it. */
 private fun Modifier.hiddenFromAccessibility(hidden: Boolean): Modifier =
