@@ -85,6 +85,7 @@ import io.putdotio.android.settings.AndroidAppConfigEvent
 import io.putdotio.android.settings.AndroidAppConfigState
 import io.putdotio.android.settings.AppDiagnostics
 import io.putdotio.android.settings.TunnelRouteOption
+import io.putdotio.android.settings.confirmedResumePlayback
 import io.putdotio.android.settings.confirmedShowSubtitles
 import io.putdotio.android.settings.confirmedTrashEnabled
 import io.putdotio.android.share.MobileFileDragOut
@@ -219,6 +220,7 @@ internal fun MobileNavHost(
                             listPaneTopBar = filesListPaneTopBar,
                             fileOpener = remember(account.userId) { MobileFileOpener(account.userId) },
                             subtitleLanguages = subtitleLanguages,
+                            resumePlayback = accountSettingsState.confirmedResumePlayback() != false,
                         )
                     }
                 }

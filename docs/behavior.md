@@ -352,8 +352,8 @@ Search and narrower windows keep the single list. A tap on a file selects it
 into the detail; folders still open in the list, and another folder starts
 with nothing selected. The detail shows a preview (a video's still, an image
 decoded at the preview's size, else the type glyph), the full name, a filled
-Play, "Resume from 18:42" (a saved position short of the end, or any position
-when the duration is unknown) or Open, Download for media, Share, and an
+Play, "Resume from 18:42" (the player's rule: a saved position more than 10 s
+from a known end, while the account resumes playback) or Open, Download for media, Share, and an
 overflow that opens the file's actions sheet. Its facts are Size, Added with
 the year, Length when put.io knows the duration, Subtitles for videos (each
 language put.io lists once; a 401 there signs out), and Folder: the path from
@@ -367,7 +367,8 @@ app's [Documents provider](#documents-provider), so a finished download reads
 from disk and anything else streams with the session in the request header;
 no URL with a token is built. Images decode at the frame's size. A PDF is
 copied once into a private cache file that closing the viewer deletes (the
-cache also clears on a fresh launch, when a viewer opens and at sign-out),
+cache also clears when the process starts, when a viewer opens and at
+sign-out),
 renders one page at a time at the frame's width under 4 megapixels, and opens
 with another app from 200 MB; a page that won't render, or one more than 20
 times taller than wide, says so in its place. TalkBack reads each page's number

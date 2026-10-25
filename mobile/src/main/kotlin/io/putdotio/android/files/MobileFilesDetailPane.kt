@@ -83,6 +83,8 @@ internal class MobileFilesDetailActions(
     val onMore: ((FilesItem) -> Unit)? = null,
     /** The image's bytes for its preview; null leaves the type glyph. */
     val imageUri: ((Context, FilesItem) -> Uri)? = null,
+    /** The account's confirmed resume setting; off, the player always starts over. */
+    val resumePlayback: Boolean = true,
 )
 
 /**
@@ -216,7 +218,7 @@ private fun MobileFilesDetailButtons(
             contentPadding = DETAIL_BUTTON_PADDING,
             modifier = Modifier.testTag(MOBILE_FILES_DETAIL_PRIMARY_TAG),
         ) {
-            val (icon, label) = primaryAction(item)
+            val (icon, label) = primaryAction(item, actions.resumePlayback)
             MobileFilesDetailButtonContent(icon, label)
         }
         val download = actions.onDownload?.takeIf { item.isPlayable }
@@ -250,11 +252,12 @@ private fun MobileFilesDetailButtons(
 }
 
 @Composable
-private fun primaryAction(item: FilesItem): Pair<Int, String> {
-    // A position with no known duration still resumes, as the player offers it.
+private fun primaryAction(item: FilesItem, resumePlayback: Boolean): Pair<Int, String> {
+    // The player's rule: a saved position resumes unless it is within 10 s of a known end.
     val playback = item.playback
     val resumeAt = playback?.startFromSeconds?.takeIf { position ->
-        position > 0.0 && (playback.durationSeconds == null || isInProgress(position, playback.durationSeconds))
+        val duration = playback.durationSeconds
+        resumePlayback && position > 0.0 && (duration == null || position < duration - FINISHED_WITHIN_SECONDS)
     }
     return when {
         resumeAt != null -> DesignR.drawable.ic_ph_play_fill to
@@ -402,6 +405,7 @@ internal fun FilesBrowserState.folderPath(): String? {
         ?.joinToString(" / ")
 }
 
+private const val FINISHED_WITHIN_SECONDS = 10.0
 private const val PREVIEW_ASPECT_RATIO = 2f
 private const val PREVIEW_PLAY_ALPHA = 0.45f
 private val PREVIEW_PLAY_SIZE = 72.dp

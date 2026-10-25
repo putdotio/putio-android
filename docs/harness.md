@@ -546,12 +546,12 @@ Java against the framework only because it runs in the test package's process;
 its torrent provider sits outside the app's authority prefix, since put.io
 refuses torrents from providers named after its own package.
 
-Captures of the tablet layout need true scale, status bar included: create an
-AVD with `-d pixel_tablet` (2560x1600 at 320 dpi, 1280x800 dp) rather than
-resizing a phone.
+The resized phone below proves keyboard, drag and window behaviour only. Captures
+of the tablet layout need true scale, status bar included: use an AVD created
+with `-d pixel_tablet` (2560x1600 at 320 dpi, 1280x800 dp).
 
-Use a phone AVD you created, with a hardware keyboard and a tablet-size
-display; restore with `wm size reset` and `wm density reset`:
+For this proof, use a phone AVD you created, with a hardware keyboard and a
+tablet-size display; restore with `wm size reset` and `wm density reset`:
 
 ```bash
 sed -i '' 's/^hw.keyboard=no$/hw.keyboard=yes/' ~/.android/avd/<name>.avd/config.ini   # before booting

@@ -50,6 +50,8 @@ internal fun MobileFilesRoute(
     /** Reaches files for the viewers and other apps; null leaves only media playable. */
     fileOpener: MobileFileOpener? = null,
     subtitleLanguages: FilesSubtitleLanguages? = null,
+    /** The account's confirmed resume setting, which the detail's Resume label follows. */
+    resumePlayback: Boolean = true,
 ) {
     val context = LocalContext.current
     // Opening a folder pushes along the shared axis and Back pops; the leaving folder keeps its own state.
@@ -119,6 +121,7 @@ internal fun MobileFilesRoute(
                         onShare = onShareItem,
                         onMore = openActions,
                         imageUri = fileOpener?.documentUris(),
+                        resumePlayback = resumePlayback,
                     ),
                 )
             },
