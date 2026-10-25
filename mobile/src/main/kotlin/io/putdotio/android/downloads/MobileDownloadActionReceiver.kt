@@ -7,6 +7,7 @@ import android.content.Intent
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.offline.Download
 import androidx.media3.exoplayer.offline.DownloadManager
+import androidx.media3.exoplayer.offline.DownloadService
 import io.putdotio.android.MobileDeepLink
 import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.auth.MobileOAuthRuntime
@@ -127,7 +128,15 @@ internal class MobileDownloadActionReceiver : BroadcastReceiver() {
                     pauseFromNotification(MobileDownloadStore.shared(context, userId), manager, userId, fileId)
                 },
                 cancel = { userId, fileId ->
-                    cancelFromNotification(MobileDownloadStore.shared(context, userId), manager, userId, fileId)
+                    cancelFromNotification(MobileDownloadStore.shared(context, userId), userId, fileId) {
+                        // The service that posted this notification runs, so the start is allowed; were
+                        // it refused, the manager removes the download directly.
+                        try {
+                            DownloadService.sendRemoveDownload(context, MobileDownloadService::class.java, it, false)
+                        } catch (_: IllegalStateException) {
+                            manager.removeDownload(it)
+                        }
+                    }
                 },
             )
         }
@@ -161,17 +170,17 @@ internal fun pauseFromNotification(
 
 /**
  * Cancels as a confirmed Remove does: the row is marked first, so a process death before Media3
- * deletes the bytes still ends with the row gone on the next start.
+ * deletes the bytes still ends with the row gone on the next start. [remove] takes the request id;
+ * production sends it through the download service, whose queue runs it after any add already sent.
  */
-@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal fun cancelFromNotification(
     store: MobileDownloadStore,
-    manager: DownloadManager,
     userId: Long,
     fileId: FilesItemId,
+    remove: (contentId: String) -> Unit,
 ) {
     store.updateStatusBlocking(fileId, commit = true) { it.copy(removing = true) }
-    manager.removeDownload(downloadContentId(userId, fileId))
+    remove(downloadContentId(userId, fileId))
 }
 
 /** Who is signed in once the session settles; unknown while put.io cannot confirm a stored session. */

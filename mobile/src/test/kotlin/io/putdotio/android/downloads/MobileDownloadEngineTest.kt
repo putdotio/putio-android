@@ -375,7 +375,8 @@ class MobileDownloadEngineTest {
         assertEquals(MobileDownloadEngine.STOP_REASON_PAUSED, manager.stopReasonOf("$ALICE:10"))
         assertEquals(listOf(11L), manager.liveDownloadsOf(ALICE).map { it.value })
 
-        cancelFromNotification(store, manager, ALICE, FilesItemId(11L))
+        // Production sends the remove through the download service; here it reaches the manager directly.
+        cancelFromNotification(store, ALICE, FilesItemId(11L), manager::removeDownload)
         awaitMain { store.find(FilesItemId(11L)) == null && manager.stateOf("$ALICE:11") == null }
         assertEquals(MobileDownloadEngine.STOP_REASON_PAUSED, manager.stopReasonOf("$ALICE:10"))
         assertTrue(manager.liveDownloadsOf(ALICE).isEmpty())
