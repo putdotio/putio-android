@@ -869,8 +869,9 @@ private fun MobileFilesList(
         modifier = Modifier
             .fillMaxSize()
             .testTag(MOBILE_FILES_LIST_TAG),
-        // In selection the last row scrolls clear of the floating toolbar, however tall large fonts make it.
-        contentPadding = PaddingValues(bottom = selection?.bottomClearance ?: 0.dp),
+        // In selection the rows start 8dp under the bar, and the last one scrolls clear of the floating
+        // toolbar, however tall large fonts make it.
+        contentPadding = selection?.let { PaddingValues(top = 8.dp, bottom = it.bottomClearance) } ?: PaddingValues(),
     ) {
         mobileFilesHeaderItems(headers, onPlayEntry)
         itemsIndexed(

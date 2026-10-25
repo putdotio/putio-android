@@ -126,6 +126,8 @@ internal fun MobileSelectionBar(
             windowInsets = WindowInsets(0),
             colors = TopAppBarDefaults.topAppBarColors(
                 containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
+                actionIconContentColor = MaterialTheme.colorScheme.onSurface,
             ),
         )
     }
@@ -212,7 +214,7 @@ internal fun MobileToolbarTile(
 }
 
 /** How far the floating toolbar sits above the bottom of its list. */
-internal val MobileSelectionToolbarOffset = 24.dp
+internal val MobileSelectionToolbarOffset = 8.dp
 
 /** Space under the toolbar's own height, so a list's last row ends above it with a gap. */
 internal val MobileSelectionToolbarClearance = MobileSelectionToolbarOffset + 16.dp
