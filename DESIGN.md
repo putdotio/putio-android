@@ -769,12 +769,6 @@ opens put.io OAuth in the browser.
   in-app.
 - The production launcher icon is a placeholder; nightly uses its generated
   stars icon.
-<<<<<<< HEAD
-- The player has no picture-in-picture or Next episode button; picture-in-
-  picture starts when you leave playback.
-=======
-- History has no event glyphs and keeps Clear history above the list.
->>>>>>> 42937ab (feat(mobile): redesign the video player)
 
 ## Android TV
 
