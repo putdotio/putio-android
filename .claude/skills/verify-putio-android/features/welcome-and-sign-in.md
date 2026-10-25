@@ -1,0 +1,64 @@
+# Welcome and sign-in
+
+Signed out, the app shows Welcome: the put.io animation, `Welcome!` (or
+`Welcome back!` after a sign-out) and `Sign in`, which opens put.io's sign-in
+in a browser Auth Tab. Debug builds add a device-code screen for harnesses.
+A stored session restores at launch without showing Welcome.
+
+## Sub-features
+
+- `welcome-screen` shows the title, lede and `Sign in`.
+- `welcome-browser` opens the Auth Tab and waits with `Almost there`.
+- `welcome-cancel` returns from a cancelled browser sign-in with
+  `Sign-in didn't finish.`
+- `sign-in-device-code` signs in through the debug-only device-code screen
+  and the CLI.
+- `session-restore` reopens straight into Files after a force-stop.
+- `welcome-link-waits` keeps a deep link opened while signed out until
+  sign-in.
+
+## How to get to it (user POV)
+
+- Install and launch the app.
+- Sign out under Account.
+- Open any put.io link while signed out.
+
+## Driving it with verify-putio-android
+
+Preconditions:
+
+- A run whose app has no session: after `session.sh install` on a fresh
+  AVD, or after `adb -s $SERIAL shell pm clear io.put.putio.mobile.debug`.
+
+- **Welcome.** Launch. Run
+  `adb -s $SERIAL shell am start -n io.put.putio.mobile.debug/io.putdotio.android.MainActivity`
+  and `$V/ui.sh wait $SERIAL --text "Welcome!"`. `Sign in` shows. Capture
+  `welcome-screen`.
+- **Browser.** Tap `Sign in`. Run `$V/ui.sh tap $SERIAL --text "Sign in"`
+  and `$V/ui.sh gone $SERIAL --text "Welcome!"`. Chrome takes the screen.
+  Press Back; the app returns to Welcome. Stop here: the browser path needs
+  a password, which this skill never types.
+- **Device code.** Run `./scripts/sign-in-devs-auto.sh $SERIAL`. It prints
+  `SIGNED IN <account id>` and `PROOF PASS sign-in-devs-auto`, and Files
+  shows. Capture `sign-in-device-code`.
+- **Restore.** Force-stop and relaunch. Run
+  `adb -s $SERIAL shell am force-stop io.put.putio.mobile.debug`, the
+  `am start` above, and `$V/ui.sh wait $SERIAL --text "Search your files"`.
+  Files shows with no Welcome in between.
+- **Link waits.** Clear data, open `putio://transfers`, sign in with the
+  script. Transfers opens after sign-in.
+
+## Gotchas
+
+- The device-code screen exists only in debug builds; a release build fails
+  the script with a named error.
+- `pm clear` drops the session but not the server's grant. Sign out in the
+  app first when you want the grant revoked.
+- The browser path cannot be completed without the account's password. Prove
+  only that Chrome opens and that Back returns to Welcome.
+- On a fresh AVD, Chrome shows its own first-run screen
+  (`com.android.chrome/...FirstRunActivity` in
+  `dumpsys activity activities`) instead of put.io's page. That still proves
+  the hand-off; leave Chrome's setup alone.
+- Every boot checks that Chrome holds the browser role with the Auth Tab
+  service; without it the emulator boot fails before install.
