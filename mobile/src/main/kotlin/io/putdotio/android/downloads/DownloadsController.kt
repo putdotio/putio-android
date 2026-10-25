@@ -167,7 +167,12 @@ internal class DownloadsController(
             mutableState.value = current.copy(removal = removal, removing = current.removing + chosen)
             chosen
         }
-        enqueue { markAndRemove(fileIds) }
+        enqueue {
+            for (fileId in fileIds) {
+                store.find(fileId)?.let { store.upsert(it.copy(removing = true)) }
+                engine.remove(fileId)
+            }
+        }
         return true
     }
 
@@ -186,17 +191,13 @@ internal class DownloadsController(
                 mutableState.value = current.copy(removal = null, removing = current.removing + ids)
                 ids
             }
-            // Best effort: a failed delete must not cost the sign-out it precedes. Marked rows finish their
-            // removal at the next sign-in.
-            runCatching { markAndRemove(fileIds) }
+            // Best effort, row by row: a failed delete must not cost the sign-out it precedes or the rows after
+            // it. Every row is marked first, so one the engine misses finishes its removal at the next sign-in.
+            for (fileId in fileIds) {
+                runCatching { store.find(fileId)?.let { store.upsert(it.copy(removing = true)) } }
+            }
+            for (fileId in fileIds) runCatching { engine.remove(fileId) }
         }.join()
-    }
-
-    private suspend fun markAndRemove(fileIds: Set<FilesItemId>) {
-        for (fileId in fileIds) {
-            store.find(fileId)?.let { store.upsert(it.copy(removing = true)) }
-            engine.remove(fileId)
-        }
     }
 
     /** Pause holds the rows that can pause, Resume releases the viewer's paused ones; deleting rows take neither. */

@@ -47,8 +47,8 @@ Mobile, on the emulator harness against the live API:
 - Video playback speed from 0.5× to 3× in eight presets (audio keeps 0.75× to
   2×) and audio-track selection; choices survive player recreation, and an
   unavailable track falls back to automatic selection
-- Account: the identity line, a storage card that turns red when storage is
-  full, and settings in segmented groups of one-line rows (Library, Files,
+- Account: the identity line, a storage card whose bar turns red when storage
+  is full, and settings in segmented groups of one-line rows (Library, Files,
   Playback, Subtitles, Privacy, About); proxy, video playback and default sort
   open radio dialogs with Save, and each setting is saved to the account and
   shared across devices
