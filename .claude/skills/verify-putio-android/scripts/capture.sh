@@ -5,10 +5,11 @@
 #   capture.sh <run> <label> [--allow-dark]
 #
 # Writes .evidence/<run>/<UTC stamp>-<label>.png (validated by scripts/evidence.sh),
-# .xml next to it, and .logcat.txt (logcat -d for the app's uid only). Every
-# file is scanned for session secrets before it is kept; a hit, a failure or an
-# interruption deletes every file of this capture. Prints EVIDENCE <path> per
-# file kept.
+# .xml next to it, and .logcat.txt (logcat -d for the app's uid only). Each
+# capture is staged in its own directory and scanned for session secrets; only
+# a clean capture moves into .evidence/<run>/. A hit, a failure, a rejected
+# screenshot or an interruption removes the whole stage. Prints EVIDENCE <path>
+# per file kept.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
@@ -24,16 +25,12 @@ ENV_FILE="${DIR}/run.env"
 serial="$(sed -n 's/^SERIAL=//p' "${ENV_FILE}" | tail -1)"
 package="$(sed -n 's/^PACKAGE=//p' "${ENV_FILE}" | tail -1)"
 
-# Until the scan passes, every file of this capture is provisional.
-files=()
-kept=0
-discard() { ((kept)) || rm -f ${files[@]+"${files[@]}"}; }
-trap discard EXIT
+STAGE="$(mktemp -d "${DIR}/.capture-XXXXXX")"
+trap 'rm -rf "${STAGE}"' EXIT
 
-png="$(EVIDENCE_DIR="${DIR}" "${ROOT}/scripts/evidence.sh" screenshot --serial "${serial}" --label "${label}" ${allow_dark:+--allow-dark})" ||
-  die "screenshot rejected (black or corrupt); see ${DIR}"
+png="$(EVIDENCE_DIR="${STAGE}" "${ROOT}/scripts/evidence.sh" screenshot --serial "${serial}" --label "${label}" ${allow_dark:+--allow-dark})" ||
+  die "screenshot rejected as black or corrupt; nothing kept"
 stem="${png%.png}"
-files=("${png}" "${stem}.xml" "${stem}.logcat.txt")
 
 "$(dirname "${BASH_SOURCE[0]}")/ui.sh" dump "${serial}" "${stem}.xml" >/dev/null
 
@@ -41,18 +38,23 @@ uid="$("${ADB}" -s "${serial}" shell pm list packages -U "${package}" | sed -n "
 [[ -n "${uid}" ]] || die "${package} is not installed on ${serial}"
 "${ADB}" -s "${serial}" logcat -d --uid="${uid}" > "${stem}.logcat.txt"
 
-# Token-shaped values in query, header, JSON and entity-encoded forms; the match is never printed.
-python3 -I - "${files[@]}" <<'PY' || die "a capture held a session secret; all of its files were deleted"
-import html, re, sys
+# Token-shaped values in query, header, JSON, escaped-JSON and entity-encoded
+# forms; the match is never printed.
+python3 -I - "${STAGE}" <<'PY' || die "a capture held a session secret; nothing kept"
+import html, os, re, sys
 pattern = re.compile(
     rb"(oauth_token|access_token|refresh_token|download_token)[\"'\s]*[=:][\"'\s]*[A-Za-z0-9_.~+/-]"
     rb"|authorization[\"'\s]*[=:][\"'\s]*(bearer|token)\s+[A-Za-z0-9_.~+/-]",
     re.IGNORECASE,
 )
-for path in sys.argv[1:]:
-    data = open(path, "rb").read()
-    if pattern.search(data) or pattern.search(html.unescape(data.decode("utf-8", "replace")).encode()):
-        sys.exit(1)
+for name in os.listdir(sys.argv[1]):
+    data = open(os.path.join(sys.argv[1], name), "rb").read()
+    unescaped = html.unescape(data.decode("utf-8", "replace")).encode()
+    for form in (data, unescaped, data.replace(b"\\", b""), unescaped.replace(b"\\", b"")):
+        if pattern.search(form):
+            sys.exit(1)
 PY
-kept=1
-for file in "${files[@]}"; do echo "EVIDENCE ${file#"${ROOT}/"}"; done
+for file in "${STAGE}"/*; do
+  mv "${file}" "${DIR}/"
+  echo "EVIDENCE .evidence/${run}/$(basename "${file}")"
+done

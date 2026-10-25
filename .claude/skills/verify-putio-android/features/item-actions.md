@@ -38,7 +38,7 @@ Preconditions:
 - **Open from overflow.** In the run's folder, tap the file's overflow. Run
   `$V/ui.sh tap $SERIAL --desc "Actions for note-$RUN.txt"`. The sheet shows
   the full name, `Rename`, `Move`, `Make a copy` and `Move to trash` (or
-  `Delete` with Trash off). Capture `actions-open`.
+  `Delete permanently` with Trash off). Capture `actions-open`.
 - **Open from long-press.** Press Back, then run
   `$V/ui.sh long-press $SERIAL --text "note-$RUN.txt"`. The same sheet opens.
 - **Rename.** Run `$V/fixture.sh intend $RUN "rename <file id>"`. Tap
@@ -56,13 +56,18 @@ Preconditions:
 - **Copy.** Intend `copy <file id>`, open the sheet, tap `Make a copy`, pick
   the run's root. The snackbar reads `Copied “<name>” to <folder>.` Adopt
   the copy's id and settle.
-- **Trash.** Intend `trash <folder id>`. Long-press `Inner folder` to open its
+- **Trash.** With `trash_enabled` true: intend `trash <folder id>`. Long-press `Inner folder` to open its
   sheet. Run `$V/ui.sh long-press $SERIAL --text "Inner folder"`, then tap
   `Move to trash`. The snackbar reads `Moved to Trash` and the row leaves.
   Remove that one id from Trash:
   `PUTIO_CLI_PROFILE=devs-auto putio sdk call --operation trash.delete --args '[{"file_ids":[<id>]}]' --execute`,
   check `trash.list` no longer holds it, then
   `$V/fixture.sh settle $RUN "trashed <id>, removed from Trash"`.
+- **Delete permanently.** With `trash_enabled` false the sheet offers
+  `Delete permanently` instead. Intend `delete <folder id>`, tap it, confirm.
+  The row leaves and `files.get` answers 404; settle with
+  `"deleted <id> permanently"`. Never change the account's Trash setting to
+  reach the other branch.
 - **Proof.** Capture before and after each step, plus each CLI read-back.
 
 ## Gotchas

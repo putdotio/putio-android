@@ -37,6 +37,14 @@ LEDGER="${ROOT}/.evidence/${run}/fixtures.jsonl"
 mkdir -p "$(dirname "${LEDGER}")"
 touch "${LEDGER}"
 
+# One fixture command per run at a time, so two writes cannot both pass the
+# settled check before either records its intent.
+LOCK="${LEDGER}.lock"
+for _ in $(seq 30); do mkdir "${LOCK}" 2>/dev/null && break; sleep 1; done
+[[ -d "${LOCK}" && ! -e "${LOCK}/held" ]] || die "another fixture.sh holds ${LOCK}; if none runs, remove that directory"
+touch "${LOCK}/held"
+trap 'rm -rf "${LOCK}"' EXIT
+
 # The profile alone decides the identity; an ambient token would override it.
 cli() { env -u PUTIO_CLI_TOKEN PUTIO_CLI_PROFILE="${PROFILE}" putio "$@"; }
 

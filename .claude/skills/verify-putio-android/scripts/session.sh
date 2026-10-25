@@ -77,6 +77,15 @@ write_env() {
   } > "${ENV_FILE}"
 }
 
+# Succeeds when <pid>, or a process it started, listens on console <port>.
+listens() {
+  local pid="$1" port="$2" listener
+  for listener in $(lsof -nP -iTCP:"${port}" -sTCP:LISTEN -t 2>/dev/null); do
+    [[ "${listener}" == "${pid}" || "$(ps -o ppid= -p "${listener}" | tr -d ' ')" == "${pid}" ]] && return 0
+  done
+  return 1
+}
+
 boot_snapshot() {
   [[ -d "${HOME}/.android/avd/${SHARED_AVD}.avd/snapshots/${SNAPSHOT}" ]] ||
     die "no ${SNAPSHOT} snapshot on ${SHARED_AVD}; use --fresh and sign in with scripts/sign-in-devs-auto.sh"
@@ -98,8 +107,13 @@ boot_snapshot() {
     sleep 2
   done
   is_ours "${serial}" "${SHARED_AVD}" "${pid}" || die "${serial} is not the instance this run started"
+  # Two boots can pick the same free port; the console port's listener names the winner.
+  listens "${pid}" "${port}" || { kill "${pid}"; sed -i '' 's/^STATE=up$/STATE=failed/' "${ENV_FILE}"; die "port ${port} belongs to another emulator; retry"; }
   # The restored app checks its session at once; give it a validated network first.
-  until "${ADB}" -s "${serial}" shell dumpsys connectivity 2>/dev/null | grep -q 'NetworkAgentInfo.*IS_VALIDATED'; do
+  local connectivity
+  while :; do
+    connectivity="$("${ADB}" -s "${serial}" shell dumpsys connectivity 2>/dev/null || true)"
+    [[ "${connectivity}" == *NetworkAgentInfo*IS_VALIDATED* ]] && break
     ((SECONDS < deadline)) || die "no validated network on ${serial} after ${BOOT_TIMEOUT}s"
     sleep 2
   done
@@ -113,14 +127,20 @@ boot_fresh() {
   local serial
   # emulator.sh reuses an existing AVD and its running instance; a fresh run must own both.
   case "${run}" in putio-phone | putio-tv | putio-google-tv) die "${run} is a shared AVD name; pick another run name" ;; esac
-  [[ ! -e "${HOME}/.android/avd/${run}.avd" && ! -e "${HOME}/.android/avd/${run}.ini" ]] ||
+  # The emulator's own list follows ANDROID_AVD_HOME and ANDROID_USER_HOME.
+  ! "${EMULATOR}" -list-avds 2>/dev/null | grep -qx "${run}" ||
     die "AVD ${run} already exists and this run did not create it; pick another run name"
   "${ROOT}/scripts/emulator.sh" create phone --name "${run}" >&2
   # Record the AVD before booting, so down deletes it even when the boot fails.
   write_env fresh "${run}" "" ""
-  serial="$("${ROOT}/scripts/emulator.sh" boot phone --headless --name "${run}")" || die "boot failed; see .evidence/logs/ and run session.sh down ${run}"
-  is_ours "${serial}" "${run}" || die "${serial} is not AVD ${run}; leaving it alone"
-  write_env fresh "${run}" "${serial}" ""
+  local boot_log pid
+  boot_log="${DIR}/boot-fresh.log"
+  serial="$("${ROOT}/scripts/emulator.sh" boot phone --headless --name "${run}" 2>"${boot_log}")" ||
+    { cat "${boot_log}" >&2; die "boot failed; run session.sh down ${run}"; }
+  cat "${boot_log}" >&2
+  pid="$(sed -n 's/.*booted .* on .* (pid \([0-9]*\)).*/\1/p' "${boot_log}" | tail -1)"
+  is_ours "${serial}" "${run}" "${pid}" || die "${serial} is not AVD ${run}; leaving it alone"
+  write_env fresh "${run}" "${serial}" "${pid}"
   echo "${serial}"
 }
 
@@ -171,9 +191,16 @@ case "${cmd}" in
     serial="$(env_value SERIAL || true)"
     mode="$(env_value MODE || true)"
     pid="$(env_value PID || true)"
-    # A snapshot instance is ours while its recorded pid still serves the recorded port,
-    # even when adb lists it offline.
-    pid_ours() { [[ -n "${pid}" ]] && ps -o command= -p "${pid}" 2>/dev/null | grep -q -- "-port ${serial#emulator-}"; }
+    avd="$(env_value AVD || true)"
+    # The recorded pid is still ours while it runs this AVD (and, for a shared
+    # snapshot AVD, this port), even when adb lists the serial offline.
+    pid_ours() {
+      local command
+      [[ -n "${pid}" ]] || return 1
+      command="$(ps -o command= -p "${pid}" 2>/dev/null)" || return 1
+      [[ "${command}" == *"-avd ${avd}"* ]] || return 1
+      [[ "${mode}" != "snapshot" || "${command}" == *"-port ${serial#emulator-}"* ]]
+    }
     if owns_run_serial; then
       "${ADB}" -s "${serial}" shell am force-stop "${PACKAGE}" || true
       if [[ "${mode}" == "fresh" ]]; then
@@ -182,14 +209,14 @@ case "${cmd}" in
         "${ADB}" -s "${serial}" emu kill >/dev/null 2>&1 || true
       fi
     fi
-    if [[ "${mode}" == "snapshot" ]] && pid_ours; then
+    if pid_ours; then
       for _ in $(seq 30); do pid_ours || break; sleep 1; done
       pid_ours && { log "pid ${pid} still serves ${serial}; stopping it"; kill "${pid}"; sleep 3; }
       pid_ours && die "pid ${pid} still serves ${serial}; run.env stays up"
     fi
     if [[ -n "${serial}" ]]; then
       for _ in $(seq 15); do "${ADB}" devices | grep -q "^${serial}[[:space:]]" || break; sleep 1; done
-      if "${ADB}" devices | grep -q "^${serial}[[:space:]]" && { [[ "${mode}" == "fresh" ]] && owns_run_serial || pid_ours; }; then
+      if "${ADB}" devices | grep -q "^${serial}[[:space:]]" && { owns_run_serial || pid_ours; }; then
         die "${serial} is still up; run.env stays up"
       fi
     fi

@@ -32,22 +32,23 @@ Preconditions:
   `fixture.sh upload`, made on the devbox with
   `ffmpeg -f lavfi -i testsrc2=size=640x360:rate=30:duration=120 -f lavfi -i sine=frequency=440:duration=120 -c:v libx264 -pix_fmt yuv420p -c:a aac -shortest build/verify-clip.mp4`.
 - `putio files list --parent-id <root id>` lists the clip with
-  `file_type` `VIDEO`. Note its size as the app prints it (decimal units,
-  one decimal below 100, such as `2.9 MB`).
+  `file_type` `VIDEO`.
+- Notifications are allowed, so the first download's permission prompt does
+  not cover the screen:
+  `adb -s $SERIAL shell pm grant io.put.putio.mobile.debug android.permission.POST_NOTIFICATIONS`.
 
 - **Start.** Open the clip's actions and tap `Download`. Run
   `$V/ui.sh tap $SERIAL --desc "Actions for verify-clip.mp4"` and
   `$V/ui.sh tap $SERIAL --text "Download"`.
-- **Progress.** Open Downloads. Run
-  `$V/ui.sh link $SERIAL putio://downloads`, capture `downloads-progress`,
-  then wait for the progress line to go:
-  `$V/ui.sh gone $SERIAL --match "^Downloading · " 120`. Open the row's
-  actions: `$V/ui.sh tap $SERIAL --desc "Download actions for verify-clip.mp4"`.
-  The sheet reads `On this device · <size>`:
-  `$V/ui.sh wait $SERIAL --match "^On this device · "`. Capture
-  `downloads-complete`, then press Back.
-- **Files mark.** Back in the run's folder, the clip's row carries
-  `On this device`.
+- **Progress.** Open Downloads. Run `$V/ui.sh link $SERIAL putio://downloads`
+  and capture `downloads-progress`: the clip's row shows its progress under
+  `Downloading`.
+- **Done.** Back in the run's folder, the clip is the folder's only video, so
+  its row's `On this device` glyph proves this download finished. Run
+  `$V/ui.sh link $SERIAL "https://app.put.io/files/<root id>"` and
+  `$V/ui.sh wait $SERIAL --desc "On this device" 180`, then capture
+  `downloads-complete`. In Downloads the row now sits under
+  `On this device` and shows its size and date.
 - **Offline play.** Run
   `adb -s $SERIAL shell cmd connectivity airplane-mode enable`, open
   Downloads and tap the row's Play. The player shows the clip. Capture with
@@ -64,15 +65,15 @@ Preconditions:
 
 - Airplane mode acts on the whole emulator: turn it off before any other
   recipe.
-- A snapshot run may restore downloads from earlier runs. Check this clip's
-  state in its own actions sheet; a finished row shows only its size and
-  date, and `On this device` alone is also the section heading.
+- A snapshot run may restore downloads from earlier runs, and
+  `On this device` is also the Downloads section heading. Prove completion in
+  the run's own folder, where the clip is the only row that can carry the
+  glyph.
 - Strings use typographic apostrophes (`’`), and selectors match them
   exactly.
-- POST_NOTIFICATIONS is not granted on a fresh AVD, so no notification posts
-  and Downloads shows `Download notifications are off`. Grant it with
-  `adb -s $SERIAL shell pm grant io.put.putio.mobile.debug android.permission.POST_NOTIFICATIONS`
-  for the notification path.
+- Without POST_NOTIFICATIONS the first download opens Android's permission
+  prompt over the app, and later Downloads shows
+  `Download notifications are off`. The precondition grants it.
 - Between runs clear only `databases/exoplayer_internal.db*`,
   `shared_prefs/io.putdotio.android.downloads.xml` and `files/downloads/`;
   never app data or the session.

@@ -67,9 +67,11 @@ fi
 # shellcheck disable=SC2329  # invoked through check
 cli_ok() {
   env -u PUTIO_CLI_TOKEN putio auth status --profile devs-auto --output json 2>/dev/null |
-    python3 -I -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if d.get("authenticated") and d.get("profile")=="devs-auto" and d.get("source")=="profile" and d.get("apiBaseUrl")=="https://api.put.io" else 1)' 2>/dev/null
+    python3 -I -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if d.get("authenticated") and d.get("profile")=="devs-auto" and d.get("source")=="profile" and d.get("apiBaseUrl")=="https://api.put.io" else 1)' 2>/dev/null &&
+    env -u PUTIO_CLI_TOKEN PUTIO_CLI_PROFILE=devs-auto putio whoami --fields info --output json 2>/dev/null |
+    python3 -I -c 'import json,sys; sys.exit(0 if json.load(sys.stdin)["info"].get("username")=="devs-auto" else 1)' 2>/dev/null
 }
-check "cli: devs-auto signed in" "cli: devs-auto not signed in; run putio auth login --profile devs-auto" cli_ok
+check "cli: profile devs-auto is the devs-auto account" "cli: profile devs-auto is not the devs-auto account; run putio auth login --profile devs-auto" cli_ok
 
 pid="$(adb_ shell pidof "${package}")"
 if [[ -z "${pid}" ]]; then
