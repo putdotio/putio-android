@@ -479,8 +479,11 @@ internal fun subtitleBottomPadding(frame: DpSize, aspectRatio: Float?, clearance
         ?: return default
     val letterbox = (frame.height - videoHeight) / 2
     val needed = (clearance + SUBTITLE_AIR - letterbox) / videoHeight
-    return if (clearance > 0.dp) maxOf(default, needed) else default
+    // In a short window the controls can cover most of the picture; the cues stop at its middle.
+    return if (clearance > 0.dp) needed.coerceIn(default, MAX_SUBTITLE_BOTTOM_PADDING) else default
 }
+
+private const val MAX_SUBTITLE_BOTTOM_PADDING = 0.5f
 
 /** The uncovered part of the video: from [left], [width] wide and the video's full height. */
 internal data class SubtitleArea(val left: Dp, val width: Dp, val height: Dp)
