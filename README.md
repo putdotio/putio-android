@@ -22,7 +22,9 @@ Mobile, on the emulator harness against the live API:
   create folders, trash with Undo, delete permanently, search inside a folder,
   played marks, and Continue watching for videos started on this device
 - One actions sheet per item: Play or Resume, Download, Share, Open in VLC,
-  Mark as watched, Rename, Move, Exclusive link and delete
+  Select, Mark as watched, Rename, Move, Exclusive link and delete
+- Files selection: move, download, mark watched or unwatched, and trash or
+  delete several items at once
 - Tablets from 840 dp: the list beside the selected file's preview and facts
 - Images, PDFs and text in an in-app viewer; other types open with another app
 - Trash: days left per item, restore one or all, delete permanently, empty

@@ -22,14 +22,14 @@ internal fun FilesMoveDestinationState.completeRememberedRead(
 
 /**
  * Each remembered folder is checked when first read: it takes its current name, one moved elsewhere
- * keeps only root above it, and one now directly inside the item being moved restarts at root.
+ * keeps only root above it, and one now directly inside an item being moved restarts at root.
  */
 private fun FilesMoveDestinationState.reconcileRemembered(
     request: FilesMoveDestinationRequest,
     result: PutioResult.Success<FilesPage>,
 ): FilesMoveDestinationTransition {
     val listed = result.value.parent?.takeIf { it.id == current.folder.id }
-    if (sourceItem != null && listed?.parentId == sourceItem.id) return restartAtRoot()
+    if (listed?.parentId?.let(::isSource) == true) return restartAtRoot()
     val read = current.copy(
         folder = current.folder.copy(name = listed?.name ?: current.folder.name),
         remembered = false,

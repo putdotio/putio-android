@@ -24,14 +24,14 @@ class FilesDeleteReducerTest {
     fun rejectsSentinelsMissingItemsStaleFoldersAndDuplicateSubmission() {
         val root = loadedRoot(listOf(item, file(0L), file(-1L)))
         val invalid = listOf(
-            event.copy(itemId = FilesItemId(0L)), event.copy(itemId = FilesItemId(-1L)),
-            event.copy(itemId = FilesItemId(99L)), event.copy(folderId = FilesItemId(99L)),
+            event.copy(itemIds = listOf(FilesItemId(0L))), event.copy(itemIds = listOf(FilesItemId(-1L))),
+            event.copy(itemIds = listOf(FilesItemId(99L))), event.copy(folderId = FilesItemId(99L)),
         )
         invalid.forEach { assertFalse(FilesBrowserReducer.reduce(root, it).consumed) }
         for (mode in FilesDeleteMode.entries) {
             val deleting = FilesBrowserReducer.reduce(root, event.copy(mode = mode))
             val effect = deleting.effect as FilesBrowserEffect.Delete
-            assertEquals(item.id, effect.itemId)
+            assertEquals(listOf(item.id), effect.itemIds)
             assertEquals(mode, effect.mode)
             val conflicts = listOf(
                 event, FilesBrowserEvent.Refresh, FilesBrowserEvent.SelectSort(FilesSort.SIZE_ASCENDING),
@@ -58,7 +58,7 @@ class FilesDeleteReducerTest {
         val deleting = FilesBrowserReducer.reduce(paging.state, event)
         val checking = acknowledge(deleting)
         val check = checking.effect as FilesBrowserEffect.CheckDelete
-        assertEquals(item.id, check.itemId)
+        assertEquals(listOf(item.id), check.itemIds)
         assertEquals(listOf(item), checking.state.current.content.items())
         assertFalse(FilesBrowserReducer.reduce(checking.state, FilesBrowserEvent.LoadSucceeded(
             checkNotNull(paging.effect).requestId, FilesPage(listOf(file(8L)), null),
@@ -154,7 +154,7 @@ class FilesDeleteReducerTest {
         ))
 
         assertEquals(
-            outcome.copy(status = FilesDeleteStatus.STILL_PRESENT, announced = true),
+            outcome.copy(status = FilesDeleteStatus.STILL_PRESENT, announced = true, remainingIds = setOf(item.id)),
             appended.state.current.deleteOutcome,
         )
     }
@@ -188,7 +188,7 @@ class FilesDeleteReducerTest {
             checkNotNull(paging.effect).requestId, FilesPage(listOf(item), null),
         ))
         assertEquals(
-            previousOutcome.copy(status = FilesDeleteStatus.STILL_PRESENT),
+            previousOutcome.copy(status = FilesDeleteStatus.STILL_PRESENT, remainingIds = setOf(item.id)),
             appended.state.current.deleteOutcome,
         )
         assertEquals(listOf(file(8L), item), appended.state.current.content.items())
@@ -332,7 +332,9 @@ class FilesDeleteReducerTest {
         val child = FilesBrowserReducer.reduce(opening.state, FilesBrowserEvent.LoadSucceeded(
             checkNotNull(opening.effect).requestId, FilesPage(listOf(file(8L)), null),
         )).state
-        val childDelete = FilesBrowserReducer.reduce(child, event.copy(folderId = item.id, itemId = FilesItemId(8L)))
+        val childDelete = FilesBrowserReducer.reduce(
+            child, event.copy(folderId = item.id, itemIds = listOf(FilesItemId(8L))),
+        )
         val checking = acknowledge(childDelete)
         val checkFailed = checked(checking, PutioResult.Failure(unexpected("offline")))
         val reloading = checked(checking, PutioResult.Success(file(8L)))

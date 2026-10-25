@@ -274,7 +274,7 @@ private class RootMoveBackPreview(startMove: Boolean = true) {
 
     fun finishReadback() {
         val checking = effects.last() as FilesBrowserEffect.CheckMove
-        assertEquals(item.id, checking.itemId)
+        assertEquals(listOf(item.id), checking.itemIds)
         dispatch(FilesBrowserEvent.MoveChecked(checking.requestId,
             PutioResult.Success(item.copy(parentId = FilesItemId(8)))))
         val loading = effects.last() as FilesBrowserEffect.LoadFolder

@@ -22,13 +22,19 @@ public enum class FilesDeleteStatus {
 public data class FilesDeleteOutcome(
     val requestId: FilesRequestId,
     val intent: FilesFolderOperationIntent.Delete,
+    /** The first item's name; a delete of several names them by count. */
     val itemName: String,
     val response: FileDeleteResult? = null,
     val failure: PutioFailure? = null,
     val status: FilesDeleteStatus = FilesDeleteStatus.CHECKING,
     /** The screen announced it on its own; it stays for a later page to correct. */
     val announced: Boolean = false,
-)
+    /** The items the check still found, and those a later page lists again. */
+    val remainingIds: Set<FilesItemId> = emptySet(),
+) {
+    val itemCount: Int get() = intent.itemIds.size
+    val remainingCount: Int get() = remainingIds.size
+}
 
 /** put.io refuses a Trash move of a folder over its item limit with this error type, before changing anything. */
 internal val PutioFailure?.isTrashChildrenLimit: Boolean

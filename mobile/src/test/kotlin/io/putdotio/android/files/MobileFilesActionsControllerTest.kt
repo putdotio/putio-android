@@ -13,6 +13,7 @@ import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
@@ -85,6 +86,36 @@ class MobileFilesActionsControllerTest {
         assertEquals(1, rejected)
         assertEquals(1, notices.size)
         assertTrue(events.isEmpty())
+    }
+
+    @Test
+    fun aSelectionMarksEachFileAFewAtATimeAndNamesItsFailuresOnce() = runTest {
+        val controller = controller()
+        val notices = mutableListOf<MobileFilesNotice>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { controller.notices.toList(notices) }
+        val videos = (1L..6L).map { video.copy(id = FilesItemId(100L + it), name = "Episode $it.mkv") }
+        var inFlight = 0
+        var mostInFlight = 0
+        watched.next = {
+            inFlight += 1
+            mostInFlight = maxOf(mostInFlight, inFlight)
+            delay(10)
+            inFlight -= 1
+            PutioResult.Success(Unit)
+        }
+        watched.failing = setOf(videos[1].id, videos[4].id)
+        controller.setWatched(videos, watched = true)
+        advanceUntilIdle()
+
+        assertEquals(videos.map { it.id }, watched.positions.map { it.first })
+        // The Kotlin SDK has no bulk write yet: at most four writes are in flight at once.
+        assertEquals(4, mostInFlight)
+        // Every write put.io took settles its row and Continue watching; the two it refused do not.
+        val settled = videos.map { it.id } - watched.failing
+        assertEquals(settled.map { FilesBrowserEvent.PlaybackPositionReported(it, 3_000.0) }, events)
+        val notice = notices.single()
+        assertEquals(R.plurals.mobile_files_mark_watched_failed_many, notice.message)
+        assertEquals(2, notice.count)
     }
 
     @Test
@@ -178,6 +209,73 @@ class MobileFilesActionsControllerTest {
     }
 
     @Test
+    fun undoOfSeveralRestoresThemAllInOneRequest() = runTest {
+        val controller = controller()
+        val ids = listOf(video.id, FilesItemId(8L))
+        val outcome = FilesDeleteOutcome(
+            FilesRequestId(4L),
+            FilesFolderOperationIntent.Delete(ids, FilesDeleteMode.TRASH),
+            video.name,
+            status = FilesDeleteStatus.NO_LONGER_AVAILABLE,
+        )
+        controller.undoTrash(outcome)
+        advanceUntilIdle()
+        assertEquals(listOf(TrashBulkSelection(cursor = null, itemIds = ids)), trash.restoredAll)
+        assertEquals(listOf(FilesBrowserEvent.TrashUndone(outcome), FilesBrowserEvent.ReloadIfStale), events)
+    }
+
+    @Test
+    fun undoReadsTheFolderOnlyOnceEveryRestoredItemIsBack() = runTest {
+        val controller = controller()
+        val late = FilesItemId(8L)
+        val ids = listOf(video.id, late)
+        // put.io answered the restore before it had put the second item back; a read that answers for
+        // another item proves nothing either.
+        trash.notYetBack[late] = 1
+        trash.answeredAs[video.id] = FilesItemId(9L)
+        val outcome = FilesDeleteOutcome(
+            FilesRequestId(4L),
+            FilesFolderOperationIntent.Delete(ids, FilesDeleteMode.TRASH),
+            video.name,
+            status = FilesDeleteStatus.NO_LONGER_AVAILABLE,
+        )
+        controller.undoTrash(outcome)
+        runCurrent()
+        assertEquals(emptyList<FilesBrowserEvent>(), events)
+        advanceUntilIdle()
+        assertEquals(listOf(video.id, late, video.id, late), trash.resolved)
+        assertEquals(listOf(FilesBrowserEvent.TrashUndone(outcome), FilesBrowserEvent.ReloadIfStale), events)
+    }
+
+    @Test
+    fun undoReadsAFewRoundsAtMostAndStopsAtA401() = runTest {
+        val controller = controller()
+        val late = FilesItemId(8L)
+        val outcome = FilesDeleteOutcome(
+            FilesRequestId(4L),
+            FilesFolderOperationIntent.Delete(listOf(video.id, late), FilesDeleteMode.TRASH),
+            video.name,
+            status = FilesDeleteStatus.NO_LONGER_AVAILABLE,
+        )
+        // An item put.io never serves again: the reads stop and the folder reads anyway.
+        trash.notYetBack[late] = Int.MAX_VALUE
+        controller.undoTrash(outcome)
+        advanceUntilIdle()
+        assertEquals(listOf(video.id) + List(5) { late }, trash.resolved)
+        assertEquals(listOf(FilesBrowserEvent.TrashUndone(outcome), FilesBrowserEvent.ReloadIfStale), events)
+
+        // A rejected session ends the reads at once; the shell signs out instead of reloading.
+        events.clear()
+        trash.resolved.clear()
+        trash.rejecting = true
+        controller.undoTrash(outcome)
+        advanceUntilIdle()
+        assertEquals(listOf(video.id), trash.resolved)
+        assertEquals(emptyList<FilesBrowserEvent>(), events)
+        assertEquals(1, rejected)
+    }
+
+    @Test
     fun undoRestoresTheTrashMoveAndReadsTheFolderAgain() = runTest {
         val controller = controller()
         val notices = mutableListOf<MobileFilesNotice>()
@@ -219,6 +317,7 @@ class MobileFilesActionsControllerTest {
         val cleared = mutableListOf<FilesItemId>()
         var result: PutioResult<Unit> = PutioResult.Success(Unit)
         var next: (suspend () -> PutioResult<Unit>)? = null
+        var failing: Set<FilesItemId> = emptySet()
 
         /** Calls in the order they were sent. */
         val answered = mutableListOf<String>()
@@ -227,7 +326,8 @@ class MobileFilesActionsControllerTest {
             positions += itemId to seconds
             answered += "set"
             // Like a blocking network call, a scripted answer returns even after cancellation.
-            return next?.let { answer -> withContext(NonCancellable) { answer() } } ?: result
+            val answer = next?.let { answer -> withContext(NonCancellable) { answer() } } ?: result
+            return if (itemId in failing) PutioResult.Failure(PutioFailure.NetworkUnavailable(Exception())) else answer
         }
 
         override suspend fun clearPosition(itemId: FilesItemId): PutioResult<Unit> {
@@ -239,14 +339,41 @@ class MobileFilesActionsControllerTest {
 
     private class RecordingTrash : TrashRepository {
         val restored = mutableListOf<FilesItemId>()
+        val restoredAll = mutableListOf<TrashBulkSelection>()
         var result: PutioResult<Unit> = PutioResult.Success(Unit)
+        val resolved = mutableListOf<FilesItemId>()
+
+        /** How many more reads of an item still find it in Trash. */
+        val notYetBack = mutableMapOf<FilesItemId, Int>()
+
+        /** Every read answers that the session was rejected. */
+        var rejecting = false
+
+        /** Items whose first read answers with another item's id. */
+        val answeredAs = mutableMapOf<FilesItemId, FilesItemId>()
 
         override suspend fun restore(itemId: FilesItemId): PutioResult<Unit> = result.also { restored += itemId }
         override suspend fun load(): PutioResult<TrashPage> = error("unused")
         override suspend fun loadNextPage(cursor: FilesCursor): PutioResult<TrashPage> = error("unused")
-        override suspend fun resolveItem(itemId: FilesItemId): PutioResult<FilesItem> = error("unused")
+        override suspend fun resolveItem(itemId: FilesItemId): PutioResult<FilesItem> {
+            resolved += itemId
+            val left = notYetBack[itemId] ?: 0
+            if (left > 0) notYetBack[itemId] = left - 1
+            return when {
+                rejecting ->
+                    PutioResult.Failure(PutioFailure.AuthenticationRequired(PutioConfigurationException("401")))
+                left > 0 -> PutioResult.Failure(PutioFailure.Unexpected(IllegalStateException("still in Trash")))
+                else -> {
+                    val answered = answeredAs.remove(itemId) ?: itemId
+                    PutioResult.Success(
+                        FilesItem(answered, FilesItemId(0L), "item", PutioFileType.TEXT, 1L, "2026-10-25"),
+                    )
+                }
+            }
+        }
         override suspend fun deleteItem(itemId: FilesItemId): PutioResult<Unit> = error("unused")
-        override suspend fun restoreAll(selection: TrashBulkSelection): PutioResult<Unit> = error("unused")
+        override suspend fun restoreAll(selection: TrashBulkSelection): PutioResult<Unit> =
+            result.also { restoredAll += selection }
         override suspend fun empty(): PutioResult<Unit> = error("unused")
     }
 

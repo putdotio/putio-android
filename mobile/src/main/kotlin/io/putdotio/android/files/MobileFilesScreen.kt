@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -52,6 +53,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -110,6 +112,10 @@ internal fun MobileFilesScreen(
     /** How a tap opens a file beyond playing media; null leaves only media playable. */
     fileOpening: MobileFilesOpening? = null,
     itemActions: MobileFilesItemActions = MobileFilesItemActions(),
+    /** The folder's selection, which the shell's top bar shares; null leaves Select out of the sheet. */
+    selection: FilesSelection? = null,
+    /** Opens the Move picker for the selected items; null hides the toolbar's Move. */
+    onMoveItems: ((List<FilesItem>) -> Unit)? = null,
 ) {
     val current = state.current
     val atRoot = current.folder.id == FilesFolder.Root.id
@@ -169,6 +175,8 @@ internal fun MobileFilesScreen(
                 onNewFolder = onNewFolder,
                 fileOpening = fileOpening,
                 itemActions = itemActions,
+                selection = selection,
+                onMoveItems = onMoveItems,
             )
         }
     }
@@ -252,9 +260,14 @@ private fun MobileRefreshableFilesContent(
     onNewFolder: (() -> Unit)?,
     fileOpening: MobileFilesOpening?,
     itemActions: MobileFilesItemActions,
+    selection: FilesSelection?,
+    onMoveItems: ((List<FilesItem>) -> Unit)?,
 ) {
     val operation = state.current.operation
     val currentOperation by rememberUpdatedState(operation)
+    val selecting = selection.isActiveIn(state)
+    val currentState by rememberUpdatedState(state)
+    val sheetActions = itemActions.selectingIn(selection) { currentState }
     var selectedItemId by rememberSaveable { mutableStateOf<Long?>(null) }
     // Delete on a focused row goes straight to the sheet's delete step, in the mode the setting had then.
     var keyDelete by rememberSaveable { mutableStateOf<FilesDeleteMode?>(null) }
@@ -264,12 +277,14 @@ private fun MobileRefreshableFilesContent(
     LaunchedEffect(selectedItemId, selectedItem) {
         if (selectedItem == null) selectedItemId = null
     }
-    MobileFilesActionsRequests(fileOpening, items) { id ->
+    // While rows are selected, the detail pane and the viewer open no sheet.
+    MobileFilesActionsRequests(fileOpening, items, enabled = !selecting) { id ->
         keyDelete = null
         selectedItemId = id.value
     }
     MobileFilesKeyboardEffect(
         selectionOpen = selectedItemId != null,
+        selecting = selecting,
         operation = operation,
         focusedItem = items.firstOrNull { it.id.value == focusedItemId },
         confirmedTrashEnabled = confirmedTrashEnabled,
@@ -313,12 +328,13 @@ private fun MobileRefreshableFilesContent(
                     canStartCopy = state.canStartCopy,
                     onPublicLinkItem = onPublicLinkItem,
                     onPlayItem = onPlayMedia,
-                    itemActions = itemActions,
+                    itemActions = sheetActions,
                     sharedBy = state.sharedByName(),
                 )
             }
         }
     }
+    val listHeaders = headers.unlessSelecting(selecting)
     val isRefreshing =
         operation is FilesFolderOperation.Loading &&
             operation.intent == FilesFolderOperationIntent.Refresh
@@ -332,6 +348,8 @@ private fun MobileRefreshableFilesContent(
         }
     }
 
+    var toolbarHeight by remember { mutableIntStateOf(0) }
+    val toolbarClearance = selectionToolbarClearance(toolbarHeight)
     val snackbarHostState = remember { SnackbarHostState() }
     MobileFilesTrashedAnnouncement(state.current, snackbarHostState, onEvent, itemActions.onUndoTrash)
     MobileFilesNotices(itemActions.notices, snackbarHostState)
@@ -380,11 +398,11 @@ private fun MobileRefreshableFilesContent(
                             state.stack.size,
                             state.current.folder.id.value,
                             state.current.viewportGeneration,
-                            headers.itemCount,
+                            listHeaders.itemCount,
                         ) {
                             MobileFilesList(
                                 content = content,
-                                headers = headers,
+                                headers = listHeaders,
                                 onPlayEntry = { onPlayMedia(it.toFilesItem()) },
                                 revealItemId = state.current.revealItemId,
                                 pagingEnabled = operation == FilesFolderOperation.Idle,
@@ -403,6 +421,7 @@ private fun MobileRefreshableFilesContent(
                                 // A touch drag starts after the long press opened the sheet; the drag replaces it.
                                 onDragStarted = dismissSelection,
                                 fileOpening = fileOpening,
+                                selection = selection.listSelection(state, toolbarClearance),
                             )
                         }
 
@@ -413,6 +432,20 @@ private fun MobileRefreshableFilesContent(
             }
             MobileFilesFolderStatus(state, onEvent)
         }
+        MobileFilesSelectionToolbarSlot(
+            state = state,
+            selection = selection,
+            downloads = downloads,
+            confirmedTrashEnabled = confirmedTrashEnabled,
+            actions = MobileFilesSelectionSources(
+                onMove = onMoveItems,
+                onDownload = onDownloadItem,
+                onSetWatched = itemActions.onSetWatched,
+                onEvent = onEvent,
+            ),
+            onHeightChanged = { toolbarHeight = it },
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
         MobileSnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier
@@ -430,13 +463,14 @@ private fun MobileRefreshableFilesContent(
 @Composable
 private fun MobileFilesKeyboardEffect(
     selectionOpen: Boolean,
+    selecting: Boolean,
     operation: FilesFolderOperation,
     focusedItem: FilesItem?,
     confirmedTrashEnabled: Boolean?,
     onRefresh: () -> Unit,
     onDelete: (FilesItem, FilesDeleteMode?) -> Unit,
 ) {
-    val idle = !selectionOpen && operation.canStartOperation
+    val idle = !selectionOpen && !selecting && operation.canStartOperation
     MobileUnhandledKeyEffect(MobileShortcutScope.Files) { command ->
         when (command) {
             MobileKeyCommand.Refresh -> true.also { if (idle) onRefresh() }
@@ -496,7 +530,12 @@ private fun MobileFilesTrashedAnnouncement(
     val trashed = current.deleteOutcome?.takeIf {
         current.operation == FilesFolderOperation.Idle && it.isConfirmedTrash && !it.announced
     }
-    val message = stringResource(R.string.mobile_files_trash_done)
+    val count = trashed?.itemCount ?: 1
+    val message = if (count > 1) {
+        pluralStringResource(R.plurals.mobile_files_trash_done_many, count, count)
+    } else {
+        stringResource(R.string.mobile_files_trash_done)
+    }
     val undo = stringResource(R.string.mobile_files_undo)
     val currentOnEvent by rememberUpdatedState(onEvent)
     val currentOnUndo by rememberUpdatedState(onUndoTrash)
@@ -516,18 +555,20 @@ private fun MobileFilesTrashedAnnouncement(
     }
 }
 
-/** Opens the sheet for a listed file the detail pane or the viewer asks for. */
+/** Opens the sheet for a listed file the detail pane or the viewer asks for, while [enabled]. */
 @Composable
 private fun MobileFilesActionsRequests(
     fileOpening: MobileFilesOpening?,
     items: List<FilesItem>,
+    enabled: Boolean,
     onOpenSheet: (FilesItemId) -> Unit,
 ) {
     val currentItems by rememberUpdatedState(items)
+    val currentEnabled by rememberUpdatedState(enabled)
     val currentOnOpenSheet by rememberUpdatedState(onOpenSheet)
     val requests = fileOpening?.actionsRequests ?: return
     LaunchedEffect(requests) {
-        requests.collect { id -> if (currentItems.any { it.id == id }) currentOnOpenSheet(id) }
+        requests.collect { id -> if (currentEnabled && currentItems.any { it.id == id }) currentOnOpenSheet(id) }
     }
 }
 
@@ -717,12 +758,7 @@ private fun FilesFolderOperation.Failed.retryLabel(): Int =
 
 @Composable
 private fun MobileFilesDeleteStatus(outcome: FilesDeleteOutcome) {
-    val message = when (outcome.status) {
-        FilesDeleteStatus.NO_LONGER_AVAILABLE -> R.string.mobile_files_delete_unavailable
-        FilesDeleteStatus.STILL_PRESENT -> R.string.mobile_files_delete_still_present
-        FilesDeleteStatus.SKIPPED -> R.string.mobile_files_delete_skipped
-        FilesDeleteStatus.CHECKING, FilesDeleteStatus.UNKNOWN, FilesDeleteStatus.TOO_LARGE_FOR_TRASH -> null
-    }
+    val message = outcome.statusMessage()
     if (message != null) {
         Column(
             modifier = Modifier
@@ -730,7 +766,7 @@ private fun MobileFilesDeleteStatus(outcome: FilesDeleteOutcome) {
                 .padding(horizontal = 16.dp, vertical = 8.dp)
                 .semantics { liveRegion = LiveRegionMode.Polite },
         ) {
-            Text(stringResource(message, outcome.itemName), style = MaterialTheme.typography.bodyMedium)
+            Text(message, style = MaterialTheme.typography.bodyMedium)
             if (outcome.status != FilesDeleteStatus.NO_LONGER_AVAILABLE) {
                 outcome.failure?.let {
                     Text(
@@ -741,6 +777,35 @@ private fun MobileFilesDeleteStatus(outcome: FilesDeleteOutcome) {
                 }
             }
         }
+    }
+}
+
+/** The settled delete's line: the item by name, or several by count. */
+@Composable
+private fun FilesDeleteOutcome.statusMessage(): String? {
+    val many = itemCount > 1
+    return when (status) {
+        FilesDeleteStatus.NO_LONGER_AVAILABLE -> if (many) {
+            pluralStringResource(R.plurals.mobile_files_delete_unavailable_many, itemCount, itemCount)
+        } else {
+            stringResource(R.string.mobile_files_delete_unavailable, itemName)
+        }
+        FilesDeleteStatus.STILL_PRESENT -> if (many) {
+            pluralStringResource(R.plurals.mobile_files_delete_still_present_many, remainingCount, remainingCount)
+        } else {
+            stringResource(R.string.mobile_files_delete_still_present, itemName)
+        }
+        FilesDeleteStatus.SKIPPED -> if (many) {
+            // put.io left the request incomplete; the read-back says which items stayed, if any did.
+            if (remainingCount > 0) {
+                pluralStringResource(R.plurals.mobile_files_delete_skipped_many, remainingCount, remainingCount)
+            } else {
+                pluralStringResource(R.plurals.mobile_files_delete_unavailable_many, itemCount, itemCount)
+            }
+        } else {
+            stringResource(R.string.mobile_files_delete_skipped, itemName)
+        }
+        FilesDeleteStatus.CHECKING, FilesDeleteStatus.UNKNOWN, FilesDeleteStatus.TOO_LARGE_FOR_TRASH -> null
     }
 }
 
@@ -761,6 +826,7 @@ private fun MobileFilesList(
     fileDragOut: MobileFileDragOut?,
     onDragStarted: () -> Unit,
     fileOpening: MobileFilesOpening?,
+    selection: MobileFilesListSelection? = null,
 ) {
     val viewport = content.viewport
     // The viewport counts rows; headers sit above them and show again when the list is back at its top.
@@ -774,7 +840,7 @@ private fun MobileFilesList(
     val currentHeaderCount by rememberUpdatedState(headerCount)
     val keyboardFocus = rememberFilesKeyboardFocus(content.items, viewport.firstVisibleItemIndex)
     val currentOnEvent by rememberUpdatedState(onEvent)
-    val pendingItemId = operation.pendingItemId()
+    val pendingItemIds = operation.pendingItemIds()
     val actionsEnabled = operation.canStartOperation
 
     LaunchedEffect(listState) {
@@ -808,6 +874,9 @@ private fun MobileFilesList(
         modifier = Modifier
             .fillMaxSize()
             .testTag(MOBILE_FILES_LIST_TAG),
+        // In selection the rows start 8dp under the bar, and the last one scrolls clear of the floating
+        // toolbar, however tall large fonts make it.
+        contentPadding = selection?.let { PaddingValues(top = 8.dp, bottom = it.bottomClearance) } ?: PaddingValues(),
     ) {
         mobileFilesHeaderItems(headers, onPlayEntry)
         itemsIndexed(
@@ -833,8 +902,11 @@ private fun MobileFilesList(
                     downloadStatus = downloads.rowStatus(item.id),
                     onActions = if (hasActions(item)) { { onActions(item) } } else null,
                     actionsEnabled = actionsEnabled,
-                    onClick = if (item.id == pendingItemId) null else rowClick(item, fileOpening, onEvent, onPlayMedia),
+                    onClick = rowClick(item, fileOpening, onEvent, onPlayMedia)
+                        .takeUnless { item.id in pendingItemIds },
                     onClickLabel = rowClickLabel(item, fileOpening),
+                    checked = selection?.let { item.id in it.checked },
+                    onCheckedChange = selection?.takeIf { item.id.value > 0L }?.let { { it.onToggle(item) } },
                 )
             }
         }
@@ -979,17 +1051,18 @@ private fun MobileFilesListRow(
     )
 }
 
-private fun FilesFolderOperation.pendingItemId(): FilesItemId? {
+private fun FilesFolderOperation.pendingItemIds(): Set<FilesItemId> {
     val (intent, phase) = when (this) {
         is FilesFolderOperation.Loading -> intent to phase
         is FilesFolderOperation.Failed -> intent to phase
-        FilesFolderOperation.Idle -> return null
+        FilesFolderOperation.Idle -> return emptySet()
     }
     return when (intent) {
-        is FilesFolderOperationIntent.Rename -> intent.itemId.takeIf { phase == FilesFolderOperationPhase.RELOADING }
-        is FilesFolderOperationIntent.Delete -> intent.itemId
-        is FilesFolderOperationIntent.Move -> intent.itemId
-        else -> null
+        is FilesFolderOperationIntent.Rename ->
+            setOfNotNull(intent.itemId.takeIf { phase == FilesFolderOperationPhase.RELOADING })
+        is FilesFolderOperationIntent.Delete -> intent.itemIds.toSet()
+        is FilesFolderOperationIntent.Move -> intent.itemIds.toSet()
+        else -> emptySet()
     }
 }
 

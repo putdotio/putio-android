@@ -8,6 +8,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
@@ -16,28 +17,17 @@ import androidx.compose.ui.unit.dp
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
+import io.putdotio.sdk.files.FileMoveError
 
 internal const val MOBILE_FILES_MOVE_OUTCOME_TAG = "mobile-files-move-outcome"
 
 @Composable
 internal fun MobileFilesMoveStatus(outcome: FilesMoveOutcome) {
-    val collision = outcome.errors?.singleOrNull()?.takeIf {
-        it.id == outcome.intent.itemId.value && it.errorType == "NAME_ALREADY_EXIST"
-    }
-    val message = when (outcome.status) {
-        FilesMoveStatus.MOVED -> R.string.mobile_files_move_moved
-        FilesMoveStatus.STILL_PRESENT -> R.string.mobile_files_move_still_present
-        FilesMoveStatus.REJECTED -> if (collision == null) R.string.mobile_files_move_rejected
-            else R.string.mobile_files_move_collision
-        FilesMoveStatus.CHECKING, FilesMoveStatus.UNKNOWN -> null
-    }
+    val message = outcome.statusMessage()
     if (message != null) {
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
             .testTag(MOBILE_FILES_MOVE_OUTCOME_TAG).semantics { liveRegion = LiveRegionMode.Polite }) {
-            Text(
-                stringResource(message, collision?.name ?: outcome.itemName),
-                style = MaterialTheme.typography.bodyMedium,
-            )
+            Text(message, style = MaterialTheme.typography.bodyMedium)
             if (outcome.status != FilesMoveStatus.MOVED) {
                 outcome.failure?.let {
                     Text(it.moveFailureMessage(), color = PutioDesignTokens.redTextSecondary,
@@ -47,6 +37,52 @@ internal fun MobileFilesMoveStatus(outcome: FilesMoveOutcome) {
         }
     }
 }
+
+/** The settled move's line: the item by name, or several by count; a lone name clash names it. */
+@Composable
+private fun FilesMoveOutcome.statusMessage(): String? {
+    val collision = errors?.singleOrNull()?.takeIf { error ->
+        intent.itemIds.any { it.value == error.id } && error.errorType == "NAME_ALREADY_EXIST"
+    }
+    val many = itemCount > 1
+    return when (status) {
+        FilesMoveStatus.MOVED -> if (many) {
+            pluralStringResource(R.plurals.mobile_files_move_moved_many, itemCount, itemCount)
+        } else {
+            stringResource(R.string.mobile_files_move_moved, itemName)
+        }
+        FilesMoveStatus.STILL_PRESENT -> if (many) {
+            pluralStringResource(R.plurals.mobile_files_move_still_present_many, remainingCount, remainingCount)
+        } else {
+            stringResource(R.string.mobile_files_move_still_present, itemName)
+        }
+        FilesMoveStatus.REJECTED -> rejectedMessage(collision, many)
+        FilesMoveStatus.CHECKING, FilesMoveStatus.UNKNOWN -> null
+    }
+}
+
+/** A refused move: a clash names its item when it is the one refusal; several count. */
+@Composable
+private fun FilesMoveOutcome.rejectedMessage(collision: FileMoveError?, many: Boolean): String {
+    // An unnamed clash among several items can't be named: the first item's name may not be its.
+    val clashName = collision?.name ?: itemName.takeUnless { many }
+    return when {
+        collision != null && clashName != null && (!many || refusedCount == 1) ->
+            stringResource(R.string.mobile_files_move_collision, clashName)
+        many -> pluralStringResource(R.plurals.mobile_files_move_rejected_many, refusedCount, refusedCount)
+        else -> stringResource(R.string.mobile_files_move_rejected, itemName)
+    }
+}
+
+/**
+ * The items put.io's answer refused, by ID, and any the check or a later page found outside the
+ * destination; when neither names one, every item counts.
+ */
+private val FilesMoveOutcome.refusedCount: Int
+    get() {
+        val refused = intent.itemIds.filter { id -> errors.orEmpty().any { it.id == id.value } }.toSet()
+        return (refused + remainingIds).size.takeIf { it > 0 } ?: itemCount
+    }
 
 // put.io answers a move with a bare 403 only when the destination is the item or a folder inside
 // it; the app never sends the negative IDs that also get one.

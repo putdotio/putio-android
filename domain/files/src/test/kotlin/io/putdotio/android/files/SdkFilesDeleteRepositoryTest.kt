@@ -16,23 +16,25 @@ import io.putdotio.android.PutioResult
 
 class SdkFilesDeleteRepositoryTest {
     @Test
-    fun sendsOnlyOnePositiveIdWithExplicitTrashModeAndRetainsSkippedResult() = runBlocking {
-        val calls = mutableListOf<Pair<Long, Boolean>>()
+    fun sendsOnlyPositiveIdsInOneRequestWithExplicitTrashModeAndRetainsSkippedResult() = runBlocking {
+        val calls = mutableListOf<Pair<List<Long>, Boolean>>()
         val result = FileDeleteResult(cursor = "skipped-folder", skipped = 1, status = "OK")
-        val repository = repository { id, skipTrash ->
-            calls += id to skipTrash
+        val repository = repository { ids, skipTrash ->
+            calls += ids to skipTrash
             result
         }
         for (mode in FilesDeleteMode.entries) {
-            val response = repository.delete(FilesItemId(7L), mode) as PutioResult.Success
+            val response = repository.delete(listOf(FilesItemId(7L)), mode) as PutioResult.Success
             assertSame(result, response.value)
         }
-        assertEquals(listOf(7L to false, 7L to true), calls)
-        for (id in listOf(0L, -1L)) {
-            val response = repository.delete(FilesItemId(id), FilesDeleteMode.TRASH) as PutioResult.Failure
+        repository.delete(listOf(FilesItemId(7L), FilesItemId(8L)), FilesDeleteMode.TRASH)
+        assertEquals(listOf(listOf(7L) to false, listOf(7L) to true, listOf(7L, 8L) to false), calls)
+        // A zero or negative ID is a bulk selector at the API boundary, and an empty list deletes nothing.
+        for (ids in listOf(listOf(0L), listOf(-1L), listOf(7L, 0L), emptyList())) {
+            val response = repository.delete(ids.map(::FilesItemId), FilesDeleteMode.TRASH) as PutioResult.Failure
             assertTrue(response.failure.cause is IllegalArgumentException)
         }
-        assertEquals(2, calls.size)
+        assertEquals(3, calls.size)
     }
 
     @Test
@@ -46,7 +48,7 @@ class SdkFilesDeleteRepositoryTest {
             )
             val wrapped = PutioOperationException("files", "delete", null, null, error)
             val failure = (repository { _, _ -> throw wrapped }.delete(
-                FilesItemId(7L), FilesDeleteMode.TRASH,
+                listOf(FilesItemId(7L)), FilesDeleteMode.TRASH,
             ) as PutioResult.Failure).failure
             assertSame(wrapped, failure.cause)
             when (code) {
@@ -60,13 +62,13 @@ class SdkFilesDeleteRepositoryTest {
         )
         val wrapped = PutioOperationException("files", "delete", null, null, invalid)
         val failure = (repository { _, _ -> throw wrapped }.delete(
-            FilesItemId(7L), FilesDeleteMode.TRASH,
+            listOf(FilesItemId(7L)), FilesDeleteMode.TRASH,
         ) as PutioResult.Failure).failure
         assertTrue(failure is PutioFailure.InvalidResponse)
         assertSame(wrapped, failure.cause)
     }
 
-    private fun repository(deleteFile: suspend (Long, Boolean) -> FileDeleteResult) = SdkFilesRepository(
+    private fun repository(deleteFile: suspend (List<Long>, Boolean) -> FileDeleteResult) = SdkFilesRepository(
         listFolder = { _, _ -> error("Unexpected folder load") },
         continueListing = { _, _ -> error("Unexpected page") },
         setSort = { _, _ -> error("Unexpected sort") },

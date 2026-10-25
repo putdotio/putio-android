@@ -97,8 +97,10 @@ internal const val MOBILE_FILES_DELETE_ACTION_TAG = "mobile-files-delete-action"
  */
 internal class MobileFilesItemActions(
     val onOpenInVlc: ((FilesItem) -> Unit)? = null,
+    /** Starts selection with the item; only a sheet opened from the item's own listing offers it. */
     val onSelect: ((FilesItem) -> Unit)? = null,
-    val onSetWatched: ((FilesItem, Boolean) -> Unit)? = null,
+    /** Marks one file from the sheet, or the selection's files, watched or unwatched. */
+    val onSetWatched: ((List<FilesItem>, Boolean) -> Unit)? = null,
     /** Restores a confirmed Trash move from the snackbar's Undo. */
     val onUndoTrash: ((FilesDeleteOutcome) -> Unit)? = null,
     /** Actions that did not go through, and a copied link, for the Files snackbar. */
@@ -108,6 +110,15 @@ internal class MobileFilesItemActions(
 ) {
     /** The resume setting [onSetWatched] needs is also what makes playback start from a saved position. */
     val resumes: Boolean get() = onSetWatched != null
+
+    fun withSelect(onSelect: ((FilesItem) -> Unit)?): MobileFilesItemActions = MobileFilesItemActions(
+        onOpenInVlc = onOpenInVlc,
+        onSelect = onSelect,
+        onSetWatched = onSetWatched,
+        onUndoTrash = onUndoTrash,
+        notices = notices,
+        onLinkCopied = onLinkCopied,
+    )
 }
 
 /**
@@ -562,7 +573,7 @@ private fun MobileFilesActionRows(
         MobileFilesActionRow(R.drawable.ic_ph_traffic_cone, R.string.mobile_files_open_in_vlc,
             MOBILE_FILES_VLC_ACTION_TAG, onClick = then(it))
     }
-    itemActions.onSelect?.takeIf { listed }?.let {
+    itemActions.onSelect?.takeIf { listed && listingActions }?.let {
         MobileFilesActionRow(R.drawable.ic_ph_check_square, R.string.mobile_files_select,
             MOBILE_FILES_SELECT_ACTION_TAG, onClick = then(it))
     }
@@ -579,20 +590,22 @@ private fun MobileFilesActionRows(
  * Mark as unwatched once it is finished, or played with no known length, which drops the position.
  */
 @Composable
-private fun MobileFilesWatchedRow(item: FilesItem, setWatched: (FilesItem, Boolean) -> Unit, onDismiss: () -> Unit) {
-    if (!item.isPlayable) return
-    val progress = item.playback
-    val duration = progress?.durationSeconds
-    // Played with no known length can only be cleared, since watched is a position at the end.
-    val finished = progress != null && progress.isWatched && (duration == null || !progress.resumesPlayback())
-    // Watched is the position at the file's end, so it needs a known length.
-    if (!finished && duration == null) return
+private fun MobileFilesWatchedRow(
+    item: FilesItem,
+    setWatched: (List<FilesItem>, Boolean) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val finished = when (item.watchedChoice()) {
+        true -> false
+        false -> true
+        null -> return
+    }
     MobileFilesActionRow(
         if (finished) R.drawable.ic_ph_eye_slash else R.drawable.ic_ph_eye,
         if (finished) R.string.mobile_files_mark_unwatched else R.string.mobile_files_mark_watched,
         MOBILE_FILES_WATCHED_ACTION_TAG,
     ) {
-        setWatched(item, !finished)
+        setWatched(listOf(item), !finished)
         onDismiss()
     }
 }
@@ -740,6 +753,23 @@ internal fun MobileFilesKeyDelete(
         )
     } else {
         SideEffect(submit)
+    }
+}
+
+/**
+ * True when a video or audio file can be marked watched, false when it can be marked unwatched,
+ * null when neither: watched is the saved position at the end, so it needs a known length, and a
+ * file played with no known length can only be cleared.
+ */
+internal fun FilesItem.watchedChoice(): Boolean? {
+    if (!isPlayable) return null
+    val progress = playback
+    val duration = progress?.durationSeconds
+    val finished = progress != null && progress.isWatched && (duration == null || !progress.resumesPlayback())
+    return when {
+        finished -> false
+        duration == null -> null
+        else -> true
     }
 }
 

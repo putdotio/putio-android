@@ -1,5 +1,8 @@
 package io.putdotio.android.files
 
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.PutioResult
+
 internal fun FilesBrowserState.mutationSucceeded(
     requestId: FilesRequestId,
 ): FilesBrowserTransition {
@@ -64,9 +67,32 @@ internal fun FilesFolderState.replaceFirstPage(
     )
 }
 
-internal fun FilesDeleteOutcome.afterFolderPage(page: FilesPage): FilesDeleteOutcome =
-    if (status == FilesDeleteStatus.NO_LONGER_AVAILABLE && page.items.any { it.id == intent.itemId }) {
-        copy(status = FilesDeleteStatus.STILL_PRESENT)
+/**
+ * A page that lists a deleted item again: it is still here, whatever the check said. An incomplete
+ * request keeps its status and counts the item too.
+ */
+internal fun FilesDeleteOutcome.afterFolderPage(page: FilesPage): FilesDeleteOutcome {
+    val listed = page.items.mapNotNullTo(mutableSetOf()) { item -> item.id.takeIf { it in intent.itemIds } }
+    return when {
+        remainingIds.containsAll(listed) -> this
+        status == FilesDeleteStatus.NO_LONGER_AVAILABLE || status == FilesDeleteStatus.STILL_PRESENT ->
+            copy(status = FilesDeleteStatus.STILL_PRESENT, remainingIds = remainingIds + listed)
+        status == FilesDeleteStatus.SKIPPED || status == FilesDeleteStatus.TOO_LARGE_FOR_TRASH ->
+            copy(remainingIds = remainingIds + listed)
+        else -> this
+    }
+}
+
+/** The failure a check reports: a rejected session first, since it decides whether the session stays. */
+internal fun List<PutioFailure>.verdict(): PutioFailure? =
+    firstOrNull { it is PutioFailure.AuthenticationRequired } ?: firstOrNull()
+
+/** One read per item, in order; a check that read some other number of items read nothing. */
+internal fun List<FilesItemId>.zipReads(
+    results: List<PutioResult<FilesItem>>,
+): List<Pair<FilesItemId, PutioResult<FilesItem>>> =
+    if (results.size == size) {
+        zip(results)
     } else {
-        this
+        map { it to PutioResult.Failure(PutioFailure.Unexpected(IllegalStateException("Item reads did not match"))) }
     }

@@ -2,6 +2,7 @@ package io.putdotio.android.files
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
@@ -55,6 +56,8 @@ internal fun MobileFilesRoute(
     itemActions: MobileFilesItemActions = MobileFilesItemActions(),
     /** Lets the Move and Make a copy pickers create a folder; null hides their New folder. */
     folderCreator: FilesFolderCreator? = null,
+    /** The current folder's selection, shared with the shell's top bar; null leaves Select out. */
+    selection: FilesSelection? = null,
 ) {
     val context = LocalContext.current
     // Opening a folder pushes along the shared axis and Back pops; the leaving folder keeps its own state.
@@ -62,9 +65,13 @@ internal fun MobileFilesRoute(
     val currentKey = folderKey(state)
     val items = state.current.content.items()
     val showsDetail = listPaneTopBar != null
+    // While rows are being selected the detail pane shows no file: a tap checks a row, not opens it.
+    val selecting = selection?.isActive(state) == true
     // The file the detail pane shows; another folder starts with none.
     var detailId by rememberSaveable(currentKey.first, currentKey.second) { mutableStateOf<Long?>(null) }
     var viewerId by rememberSaveable { mutableStateOf<Long?>(null) }
+    // Select from a viewer's actions closes the viewer, so the selection shows.
+    LaunchedEffect(selecting) { if (selecting) viewerId = null }
     val actionsRequests = remember { MutableSharedFlow<FilesItemId>(extraBufferCapacity = 1) }
     val openWithAnotherApp: (FilesItem) -> Unit = { item -> fileOpener?.openWithAnotherApp(context, item) }
     val openFile = fileOpenAction(onPlayMedia, onView = { viewerId = it.id.value }, onOther = openWithAnotherApp)
@@ -72,7 +79,7 @@ internal fun MobileFilesRoute(
         MobileFilesOpening(
             onOpenFile = if (showsDetail) { item -> detailId = item.id.value } else openFile,
             showsDetail = showsDetail,
-            selectedFileId = detailId?.takeIf { showsDetail }?.let(::FilesItemId),
+            selectedFileId = detailId?.takeIf { showsDetail && !selecting }?.let(::FilesItemId),
             actionsRequests = actionsRequests,
         )
     }
@@ -104,6 +111,7 @@ internal fun MobileFilesRoute(
             fileOpening = fileOpening,
             itemActions = itemActions,
             folderCreator = folderCreator,
+            selection = selection,
         )
     if (listPaneTopBar == null) {
         folders(foldersArgs)
@@ -112,7 +120,7 @@ internal fun MobileFilesRoute(
             topBar = listPaneTopBar,
             list = { folders(foldersArgs) },
             detail = {
-                val shown = items.firstOrNull { it.id.value == detailId && !it.isFolder }
+                val shown = items.firstOrNull { it.id.value == detailId && !it.isFolder }?.takeUnless { selecting }
                 MobileFilesDetailPane(
                     item = shown,
                     folderPath = state.folderPath() ?: stringResource(R.string.mobile_destination_files),
@@ -210,6 +218,7 @@ private data class MobileFilesFoldersArgs(
     val fileOpening: MobileFilesOpening?,
     val itemActions: MobileFilesItemActions,
     val folderCreator: FilesFolderCreator?,
+    val selection: FilesSelection?,
 )
 
 @Composable
@@ -242,6 +251,8 @@ private fun MobileFilesFolders(args: MobileFilesFoldersArgs) = with(args) {
             fileOpening = fileOpening?.takeUnless { leaving },
             itemActions = itemActions,
             folderCreator = folderCreator,
+            // The leaving folder's rows show no selection; the selection belongs to the folder on screen.
+            selection = selection?.takeUnless { leaving },
         )
     }
 }
@@ -265,11 +276,13 @@ private fun MobileFilesFolder(
     fileOpening: MobileFilesOpening?,
     itemActions: MobileFilesItemActions,
     folderCreator: FilesFolderCreator?,
+    selection: FilesSelection?,
 ) {
     key(repository, state.current.folder.id.value) {
-        var movingItemId by rememberSaveable { mutableStateOf<Long?>(null) }
-        val movingItem = (state.current.content as? FilesContent.Ready)?.items
-            ?.firstOrNull { it.id.value == movingItemId }
+        // One item from its sheet, or the selection from the toolbar; the picker moves them together.
+        var movingItemIds by rememberSaveable { mutableStateOf(emptyList<Long>()) }
+        val movingItems = state.listedAll(movingItemIds)
+        val startMove = movePicker(repository, state) { items -> movingItemIds = items.map { it.id.value } }
         var copyingItemId by rememberSaveable { mutableStateOf<Long?>(null) }
         val copyingItem = (state.current.content as? FilesContent.Ready)?.items
             ?.firstOrNull { it.id.value == copyingItemId && it.canMakeCopy }
@@ -281,8 +294,7 @@ private fun MobileFilesFolder(
             onEvent = { onEvent(it) },
             onPlayMedia = onPlayMedia,
             confirmedTrashEnabled = confirmedTrashEnabled,
-            onMoveItem =
-                if (repository == null || !state.canStartMove) null else { item -> movingItemId = item.id.value },
+            onMoveItem = startMove?.let { start -> { item -> start(listOf(item)) } },
             downloads = downloads,
             onDownloadItem = onDownloadItem,
             onShareItem = onShareItem,
@@ -293,15 +305,17 @@ private fun MobileFilesFolder(
             onNewFolder = onNewFolder,
             fileOpening = fileOpening,
             itemActions = itemActions,
+            selection = selection,
+            onMoveItems = startMove,
         )
         // A folder made in the picker is new to every cached listing of its parent. Those listings
         // read again once the picker closes: a reload now could drop the item it is moving or copying.
         val createdInPicker = remember { PickerCreatedFolders() }
         val pickerFolders = MobileMovePickerFolders(folderCreator, onAuthenticationRequired, createdInPicker::add)
         val closePicker = { createdInPicker.invalidate(onEvent) }
-        if (movingItem != null && repository != null) {
+        if (movingItems != null && repository != null) {
             MobileFilesMoveSession(
-                item = movingItem,
+                items = movingItems,
                 sourceFolderId = state.current.folder.id,
                 repository = repository,
                 canSubmit = state.canStartMove,
@@ -309,9 +323,11 @@ private fun MobileFilesFolder(
                 onAuthenticationRequired = onAuthenticationRequired,
                 onEvent = onEvent,
                 onDismiss = {
-                    movingItemId = null
+                    movingItemIds = emptyList()
                     closePicker()
                 },
+                // Moved items leave the folder, so their selection ends with the move.
+                onMoved = { selection?.end() },
                 folders = pickerFolders,
             )
         }
@@ -347,6 +363,19 @@ private fun MobileFilesFolder(
     }
 }
 
+/** Opens the Move picker for one item or several, while this folder can start a move. */
+private fun movePicker(
+    repository: FilesRepository?,
+    state: FilesBrowserState,
+    open: (List<FilesItem>) -> Unit,
+): ((List<FilesItem>) -> Unit)? = open.takeIf { repository != null && state.canStartMove }
+
+/** Every item of [ids] in the current listing, or null: the picker never moves fewer than it says. */
+private fun FilesBrowserState.listedAll(ids: List<Long>): List<FilesItem>? {
+    val listed = (current.content as? FilesContent.Ready)?.items.orEmpty().filter { it.id.value in ids }
+    return listed.takeIf { it.isNotEmpty() && it.size == ids.size }
+}
+
 /**
  * The move picker without a source item, so every folder of the viewer's own, root included, is a
  * destination. Like Move, it opens at root unless "Remember target folder" is on.
@@ -364,7 +393,7 @@ private fun MobileFilesCopySession(
     folders: MobileMovePickerFolders,
 ) {
     val scope = rememberCoroutineScope()
-    val memory = rememberMoveTargetMemory(targetStore, item.id)
+    val memory = rememberMoveTargetMemory(targetStore, listOf(item.id))
     val controller = remember(item.id, repository) {
         FilesMoveDestinationController(repository, scope, memory.value.startPath(sourceItem = null))
     }
@@ -408,7 +437,7 @@ private fun MobileFilesCopySession(
 
 @Composable
 private fun MobileFilesMoveSession(
-    item: FilesItem,
+    items: List<FilesItem>,
     sourceFolderId: FilesItemId,
     repository: FilesRepository,
     canSubmit: Boolean,
@@ -416,12 +445,14 @@ private fun MobileFilesMoveSession(
     onAuthenticationRequired: suspend () -> Unit,
     onEvent: (FilesBrowserEvent) -> Boolean,
     onDismiss: () -> Unit,
+    onMoved: () -> Unit,
     folders: MobileMovePickerFolders,
 ) {
     val scope = rememberCoroutineScope()
-    val memory = rememberMoveTargetMemory(targetStore, item.id)
-    val controller = remember(item.id, sourceFolderId, repository) {
-        FilesMoveDestinationController(item, sourceFolderId, repository, scope, memory.value.startPath(item))
+    val itemIds = items.map { it.id }
+    val memory = rememberMoveTargetMemory(targetStore, itemIds)
+    val controller = remember(itemIds, sourceFolderId, repository) {
+        FilesMoveDestinationController(items, sourceFolderId, repository, scope, memory.value.startPath(items))
     }
     var finished by remember(controller) { mutableStateOf(false) }
     DisposableEffect(controller) {
@@ -445,8 +476,9 @@ private fun MobileFilesMoveSession(
             val current = controller.state.value
             if (!finished && canSubmit && current.confirmable) {
                 finished = true
-                if (onEvent(FilesBrowserEvent.Move(sourceFolderId, item.id, current.current.folder.id))) {
+                if (onEvent(FilesBrowserEvent.Move(sourceFolderId, itemIds, current.current.folder.id))) {
                     memory.choose(targetStore, current.path)
+                    onMoved()
                     // The session-owned browser retains the submitted operation after the picker closes.
                     onDismiss()
                 } else {
@@ -454,6 +486,7 @@ private fun MobileFilesMoveSession(
                 }
             }
         },
+        title = pluralStringResource(R.plurals.mobile_files_move_title, items.size, items.size),
         rememberTarget = targetStore?.let { memory.value.remember },
         onRememberTargetChange = { memory.setRemember(targetStore, it) },
         folders = folders,
@@ -467,9 +500,9 @@ private val FilesMoveDestinationState.confirmable: Boolean
 @Composable
 private fun rememberMoveTargetMemory(
     store: FilesMoveTargetStore?,
-    itemId: FilesItemId,
+    itemIds: List<FilesItemId>,
 ): MutableState<FilesMoveTargetMemory> =
-    remember(store, itemId) { mutableStateOf(store?.read() ?: FilesMoveTargetMemory()) }
+    remember(store, itemIds) { mutableStateOf(store?.read() ?: FilesMoveTargetMemory()) }
 
 private fun MutableState<FilesMoveTargetMemory>.setRemember(store: FilesMoveTargetStore?, enabled: Boolean) {
     value = value.copy(remember = enabled)

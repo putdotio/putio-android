@@ -185,14 +185,14 @@ internal class ProofFilesRepository(
 
     override suspend fun loadMoveDestinations(folderId: FilesItemId, cursor: FilesCursor?) = error("No moves")
 
-    override suspend fun move(itemId: FilesItemId, destinationId: FilesItemId):
+    override suspend fun move(itemIds: List<FilesItemId>, destinationId: FilesItemId):
         PutioResult<List<FileMoveError>> = error("No moves")
 
     override suspend fun persistSort(folderId: FilesItemId, sort: FilesSort) = error("No sorting")
 
     override suspend fun rename(itemId: FilesItemId, name: String) = error("No renames")
 
-    override suspend fun delete(itemId: FilesItemId, mode: FilesDeleteMode):
+    override suspend fun delete(itemIds: List<FilesItemId>, mode: FilesDeleteMode):
         PutioResult<FileDeleteResult> = error("No deletes")
 
     override suspend fun resolveItem(itemId: FilesItemId) = error("No checks")

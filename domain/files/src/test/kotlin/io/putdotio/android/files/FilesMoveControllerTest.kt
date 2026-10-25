@@ -38,7 +38,7 @@ class FilesMoveControllerTest {
                 try { awaitCancellation() } finally { pagingCancelled.complete(Unit) }
             }
             override suspend fun move(
-                itemId: FilesItemId,
+                itemIds: List<FilesItemId>,
                 destinationId: FilesItemId,
             ): PutioResult<List<FileMoveError>> {
                 moves += 1

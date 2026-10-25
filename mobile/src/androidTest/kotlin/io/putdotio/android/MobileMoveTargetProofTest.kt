@@ -263,10 +263,10 @@ private class MoveTargetRepository : FilesRepository {
     }
 
     override suspend fun move(
-        itemId: FilesItemId,
+        itemIds: List<FilesItemId>,
         destinationId: FilesItemId,
     ): PutioResult<List<FileMoveError>> {
-        moves += itemId to destinationId
+        moves += itemIds.single() to destinationId
         return if (destinationId == NESTED.id) {
             PutioResult.Failure(intoItselfRefusal().toPutioFailure())
         } else {
@@ -288,7 +288,7 @@ private class MoveTargetRepository : FilesRepository {
     override suspend fun loadNextPage(cursor: FilesCursor) = error("No paging")
     override suspend fun persistSort(folderId: FilesItemId, sort: FilesSort) = error("No sort")
     override suspend fun rename(itemId: FilesItemId, name: String) = error("No rename")
-    override suspend fun delete(itemId: FilesItemId, mode: FilesDeleteMode) = error("No delete")
+    override suspend fun delete(itemIds: List<FilesItemId>, mode: FilesDeleteMode) = error("No delete")
 }
 
 private const val DIALOG_EXIT_MILLIS = 1_000L

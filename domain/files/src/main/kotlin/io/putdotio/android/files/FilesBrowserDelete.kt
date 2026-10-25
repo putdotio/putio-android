@@ -13,18 +13,18 @@ internal fun FilesBrowserState.reduceDelete(event: FilesBrowserEvent.DeleteEvent
     }
 
 private fun FilesBrowserState.delete(event: FilesBrowserEvent.Delete): FilesBrowserTransition {
-    val item = current.content.items().firstOrNull { it.id == event.itemId && it.id.value > 0L }
-    if (event.folderId != current.folder.id || item == null) {
+    val items = current.content.listedItems(event.itemIds)
+    if (event.folderId != current.folder.id || items == null) {
         return FilesBrowserTransition(this, consumed = false)
     }
-    val intent = FilesFolderOperationIntent.Delete(item.id, event.mode)
+    val intent = FilesFolderOperationIntent.Delete(items.map { it.id }, event.mode)
     val started = startOperation(intent, FilesFolderOperationPhase.DELETING)
     val effect = started.effect
     return if (effect == null) {
         started
     } else {
         val updated = started.state.current.copy(
-            deleteOutcome = FilesDeleteOutcome(effect.requestId, intent, item.name),
+            deleteOutcome = FilesDeleteOutcome(effect.requestId, intent, items.first().name),
             moveOutcome = null,
         )
         started.copy(state = started.state.copy(stack = started.state.stack.replaceLast(updated)))
@@ -60,7 +60,7 @@ internal fun FilesBrowserState.deleteFinished(event: FilesBrowserEvent.DeleteFin
         )
         FilesBrowserTransition(
             state = copy(stack = stack.replaceAt(index, updated), nextRequestValue = nextRequestValue + 1),
-            effect = FilesBrowserEffect.CheckDelete(outcome.intent.itemId, requestId),
+            effect = FilesBrowserEffect.CheckDelete(outcome.intent.itemIds, requestId),
         )
     }
 }
@@ -73,15 +73,19 @@ private fun FilesBrowserState.deleteChecked(event: FilesBrowserEvent.DeleteCheck
     val folder = stack.getOrNull(index)
     val outcome = folder?.deleteOutcome
     if (folder == null || outcome == null) return FilesBrowserTransition(this, consumed = false)
-    val failure = event.result.deleteReadFailure(outcome.intent.itemId)
-    val unavailable = failure is PutioFailure.ApiRejected &&
-        failure.statusCode == HTTP_NOT_FOUND && failure.httpStatusCode == HTTP_NOT_FOUND
-    return if (failure != null && !unavailable) {
+    val reads = outcome.intent.itemIds.zipReads(event.results)
+        .map { (id, result) -> id to result.deleteReadFailure(id) }
+    val remaining = reads.filterNot { (_, failure) -> failure.isNotFound }.mapTo(mutableSetOf()) { it.first }
+    val failure = reads.mapNotNull { (_, failure) -> failure?.takeUnless { it.isNotFound } }.verdict()
+    return if (failure != null) {
         loadFailed(FilesBrowserEvent.LoadFailed(event.requestId, failure))
     } else {
         val requestId = FilesRequestId(nextRequestValue)
         val updated = folder.copy(
-            deleteOutcome = outcome.copy(status = outcome.checkedStatus(unavailable)),
+            deleteOutcome = outcome.copy(
+                status = outcome.checkedStatus(unavailable = remaining.isEmpty()),
+                remainingIds = remaining,
+            ),
             operation = FilesFolderOperation.Loading(requestId, outcome.intent, FilesFolderOperationPhase.RELOADING),
             needsReload = false,
         )
@@ -110,6 +114,9 @@ private fun FilesBrowserState.trashUndone(outcome: FilesDeleteOutcome): FilesBro
     return FilesBrowserTransition(copy(stack = stack.replaceAt(index, undone)))
 }
 
+private val PutioFailure?.isNotFound: Boolean
+    get() = this is PutioFailure.ApiRejected && statusCode == HTTP_NOT_FOUND && httpStatusCode == HTTP_NOT_FOUND
+
 private fun PutioResult<FilesItem>.deleteReadFailure(expectedId: FilesItemId): PutioFailure? = when (this) {
     is PutioResult.Failure -> failure
     is PutioResult.Success -> if (value.id == expectedId) null else
@@ -127,7 +134,7 @@ public val FilesFolderOperation.pendingDelete: FilesFolderOperationIntent.Delete
     get() = pendingIntent()
 
 internal fun FilesBrowserState.isDeleteTargetBlocked(itemId: FilesItemId): Boolean = stack.any {
-    it.operation.pendingDelete?.itemId == itemId
+    it.operation.pendingDelete?.itemIds?.contains(itemId) == true
 }
 
 private const val HTTP_NOT_FOUND = 404

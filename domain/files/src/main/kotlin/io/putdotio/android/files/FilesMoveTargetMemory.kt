@@ -9,10 +9,12 @@ public data class FilesMoveTargetMemory(
     val remember: Boolean = false,
     val lastTarget: List<FilesFolder> = emptyList(),
 ) {
-    /** Where the picker opens, below root; a move never opens inside the item it moves. */
-    public fun startPath(sourceItem: FilesItem?): List<FilesFolder> = when {
+    /** Where the picker opens, below root; a move never opens inside an item it moves. */
+    public fun startPath(sourceItem: FilesItem?): List<FilesFolder> = startPath(listOfNotNull(sourceItem))
+
+    public fun startPath(sourceItems: List<FilesItem>): List<FilesFolder> = when {
         !remember -> emptyList()
-        sourceItem != null && lastTarget.any { it.id == sourceItem.id } -> emptyList()
+        lastTarget.any { target -> sourceItems.any { it.id == target.id } } -> emptyList()
         else -> lastTarget
     }
 

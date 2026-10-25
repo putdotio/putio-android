@@ -74,9 +74,9 @@ class MobileShellDownloadsTest {
     private val repository = object : StubFilesRepository() {
         override suspend fun loadFolder(folderId: FilesItemId) = error("Unexpected folder load")
 
-        override suspend fun delete(itemId: FilesItemId, mode: FilesDeleteMode): PutioResult<FileDeleteResult> {
-            remoteDeletes += itemId
-            return super.delete(itemId, mode)
+        override suspend fun delete(itemIds: List<FilesItemId>, mode: FilesDeleteMode): PutioResult<FileDeleteResult> {
+            remoteDeletes += itemIds
+            return super.delete(itemIds, mode)
         }
     }
 

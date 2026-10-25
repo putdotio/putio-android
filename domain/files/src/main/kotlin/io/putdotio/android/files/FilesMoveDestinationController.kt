@@ -15,7 +15,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 public class FilesMoveDestinationController private constructor(
-    sourceItem: FilesItem?,
+    sourceItems: List<FilesItem>,
     sourceFolderId: FilesItemId?,
     private val repository: FilesRepository,
     parentScope: CoroutineScope,
@@ -29,20 +29,30 @@ public class FilesMoveDestinationController private constructor(
         repository: FilesRepository,
         parentScope: CoroutineScope,
         startPath: List<FilesFolder> = emptyList(),
-    ) : this(sourceItem, sourceFolderId, repository, parentScope, startPath, Unit)
+    ) : this(listOf(sourceItem), sourceFolderId, repository, parentScope, startPath, Unit)
+
+    /** Moves several items of [sourceFolderId] together; none of them is a destination. */
+    public constructor(
+        sourceItems: List<FilesItem>,
+        sourceFolderId: FilesItemId,
+        repository: FilesRepository,
+        parentScope: CoroutineScope,
+        startPath: List<FilesFolder> = emptyList(),
+    ) : this(sourceItems, sourceFolderId, repository, parentScope, startPath, Unit)
 
     /** Picks a folder for new content; every folder, root included, is a valid destination. */
     public constructor(
         repository: FilesRepository,
         parentScope: CoroutineScope,
         startPath: List<FilesFolder> = emptyList(),
-    ) : this(null, null, repository, parentScope, startPath, Unit)
+    ) : this(emptyList(), null, repository, parentScope, startPath, Unit)
 
     init {
         require(
-            sourceItem == null && sourceFolderId == null ||
-                sourceItem != null && sourceItem.id.value > 0L && sourceFolderId != null && sourceFolderId.value >= 0L,
-        ) { "Move picker requires a non-root source" }
+            sourceItems.isEmpty() && sourceFolderId == null ||
+                sourceItems.isNotEmpty() && sourceItems.all { it.id.value > 0L } &&
+                sourceFolderId != null && sourceFolderId.value >= 0L,
+        ) { "Move picker requires non-root sources" }
         require(startPath.all { it.id.value > 0L }) { "A start path lies below root" }
     }
 
@@ -53,7 +63,7 @@ public class FilesMoveDestinationController private constructor(
         FilesRequestId(1L),
     )
     private val mutableState = MutableStateFlow(FilesMoveDestinationState(
-        sourceItem, sourceFolderId,
+        sourceItems, sourceFolderId,
         (listOf(FilesFolder.Root) + startPath).dropLast(1).map(::unreadFolder) +
             FilesMoveDestinationFolder(
                 startPath.lastOrNull() ?: FilesFolder.Root,

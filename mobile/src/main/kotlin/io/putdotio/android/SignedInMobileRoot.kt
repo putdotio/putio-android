@@ -25,7 +25,7 @@ import io.putdotio.android.downloads.OfflinePositionsResume
 import io.putdotio.android.downloads.OfflineResume
 import io.putdotio.android.files.FilesBrowserController
 import io.putdotio.android.files.FilesBrowserEvent
-import io.putdotio.android.files.FilesDeleteStatus
+import io.putdotio.android.files.FilesDeleteOutcome
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.MobileContinueWatching
 import io.putdotio.android.files.MobileContinueWatchingStore
@@ -38,6 +38,7 @@ import io.putdotio.android.files.SdkFilesSubtitleLanguages
 import io.putdotio.android.files.SdkFilesStreamUrls
 import io.putdotio.android.files.SdkFilesWatchedRepository
 import io.putdotio.android.files.authoritativeSessionFailure
+import io.putdotio.android.files.confirmedGone
 import io.putdotio.android.history.HistoryEvent
 import io.putdotio.android.history.SdkHistoryRepository
 import io.putdotio.android.history.authoritativeSessionFailure
@@ -457,7 +458,7 @@ private fun SavedPositionEffects(
         filesController.state
             .map { state ->
                 state.stack.mapNotNull { folder ->
-                    folder.deleteOutcome?.takeIf { it.status == FilesDeleteStatus.NO_LONGER_AVAILABLE }
+                    folder.deleteOutcome?.takeIf { it.confirmedGone().isNotEmpty() }
                 }
             }
             .distinctUntilChanged()

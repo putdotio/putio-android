@@ -131,15 +131,22 @@ private fun effectFor(
             is FilesFolderOperationIntent.Rename -> FilesBrowserEffect.Rename(intent.itemId, intent.name, requestId)
             is FilesFolderOperationIntent.Move ->
                 if (phase == FilesFolderOperationPhase.MOVING) {
-                    FilesBrowserEffect.Move(intent.itemId, intent.destinationId, requestId)
+                    FilesBrowserEffect.Move(intent.itemIds, intent.destinationId, requestId)
                 } else {
-                    FilesBrowserEffect.CheckMove(intent.itemId, requestId)
+                    FilesBrowserEffect.CheckMove(intent.itemIds, requestId)
                 }
             is FilesFolderOperationIntent.Delete ->
                 if (phase == FilesFolderOperationPhase.DELETING) {
-                    FilesBrowserEffect.Delete(intent.itemId, intent.mode, requestId)
+                    FilesBrowserEffect.Delete(intent.itemIds, intent.mode, requestId)
                 } else {
-                    FilesBrowserEffect.CheckDelete(intent.itemId, requestId)
+                    FilesBrowserEffect.CheckDelete(intent.itemIds, requestId)
                 }
         }
     }
+
+/** Each of [itemIds], once, as the listing has it; null unless every one is listed and real. */
+internal fun FilesContent.listedItems(itemIds: List<FilesItemId>): List<FilesItem>? {
+    val listed = items().filter { it.id.value > 0L }.associateBy { it.id }
+    val found = itemIds.mapNotNull(listed::get)
+    return found.takeIf { it.isNotEmpty() && it.size == itemIds.size && itemIds.toSet().size == itemIds.size }
+}

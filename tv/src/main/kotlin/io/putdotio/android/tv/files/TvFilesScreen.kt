@@ -407,7 +407,7 @@ private fun TvFilesTrashLimitStatus(
     var confirming by rememberSaveable(outcome.requestId.value) { mutableStateOf(false) }
     // A refresh that no longer lists the folder leaves nothing for the reducer to delete; a
     // rename keeps the outcome, so the dialog names the folder as it is listed now.
-    val listed = current.content.items().firstOrNull { it.id == outcome.intent.itemId }
+    val listed = current.content.items().firstOrNull { it.id in outcome.intent.itemIds }
     TvFilesNotice(
         text = stringResource(R.string.tv_files_trash_limit_title),
         action = stringResource(R.string.tv_files_action_delete).takeIf { listed != null },

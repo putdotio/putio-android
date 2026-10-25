@@ -134,7 +134,7 @@ internal class MobileContinueWatching(
      * fresh read of each entry finds: [recheckAfterDeletes] runs it.
      */
     fun removed(deletes: List<FilesDeleteOutcome>) {
-        val fresh = deletes.filter { handledDeletes.add(it.requestId) }.map { it.intent.itemId }
+        val fresh = deletes.filter { handledDeletes.add(it.requestId) }.flatMap { it.confirmedGone() }
         val entryIds = mutableEntries.value.mapTo(mutableSetOf()) { it.fileId }
         fresh.forEach { removed(it) }
         if (fresh.any { it !in entryIds }) recheckRequests.value += 1
@@ -289,3 +289,13 @@ private val PutioFailure.isNotFound: Boolean
 private const val HTTP_NOT_FOUND = 404
 private const val COMPLETED_FRACTION = 0.95
 private const val FINISHED_WITHIN_SECONDS = 10.0
+
+/** The items a settled delete's read-back found gone, a partial delete's included. */
+internal fun FilesDeleteOutcome.confirmedGone(): List<FilesItemId> = when (status) {
+    FilesDeleteStatus.NO_LONGER_AVAILABLE,
+    FilesDeleteStatus.STILL_PRESENT,
+    FilesDeleteStatus.SKIPPED,
+    FilesDeleteStatus.TOO_LARGE_FOR_TRASH,
+    -> intent.itemIds - remainingIds
+    FilesDeleteStatus.CHECKING, FilesDeleteStatus.UNKNOWN -> emptyList()
+}

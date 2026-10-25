@@ -16,17 +16,23 @@ import io.putdotio.android.PutioResult
 
 class SdkFilesMoveRepositoryTest {
     @Test
-    fun moveSendsOneSourceIdAndPreservesEveryPerItemError() = runBlocking {
+    fun moveSendsTheSourceIdsInOneRequestAndPreservesEveryPerItemError() = runBlocking {
         val errors = listOf(FileMoveError("FUTURE_ERROR", 999L, null, 409))
-        val calls = mutableListOf<Pair<Long, Long>>()
-        val repository = repository(move = { source, destination -> calls += source to destination; errors })
-        val result = repository.move(FilesItemId(7L), FilesFolder.Root.id) as PutioResult.Success
+        val calls = mutableListOf<Pair<List<Long>, Long>>()
+        val repository = repository(move = { sources, destination -> calls += sources to destination; errors })
+        val result = repository.move(listOf(FilesItemId(7L)), FilesFolder.Root.id) as PutioResult.Success
         assertSame(errors, result.value)
-        assertEquals(listOf(7L to 0L), calls)
-        for ((source, destination) in listOf(0L to 9L, -1L to 9L, 7L to -1L, 7L to 7L)) {
-            assertTrue(repository.move(FilesItemId(source), FilesItemId(destination)) is PutioResult.Failure)
+        repository.move(listOf(FilesItemId(7L), FilesItemId(8L)), FilesItemId(9L))
+        assertEquals(listOf(listOf(7L) to 0L, listOf(7L, 8L) to 9L), calls)
+        val refused = listOf(
+            listOf(0L) to 9L, listOf(-1L) to 9L, listOf(7L) to -1L, listOf(7L) to 7L,
+            listOf(7L, 9L) to 9L, listOf(7L, 0L) to 9L, emptyList<Long>() to 9L,
+        )
+        for ((sources, destination) in refused) {
+            val moved = repository.move(sources.map(::FilesItemId), FilesItemId(destination))
+            assertTrue(moved is PutioResult.Failure)
         }
-        assertEquals(1, calls.size)
+        assertEquals(2, calls.size)
     }
 
     @Test
@@ -62,7 +68,7 @@ class SdkFilesMoveRepositoryTest {
     }
 
     private fun repository(
-        move: suspend (Long, Long) -> List<FileMoveError> = { _, _ -> error("Unexpected move") },
+        move: suspend (List<Long>, Long) -> List<FileMoveError> = { _, _ -> error("Unexpected move") },
         list: suspend (Long, FilesListQuery) -> FilesListResponse = { _, _ -> error("Unexpected listing") },
         continueList: suspend (String, FilesContinueQuery) -> FilesListResponse = { _, _ ->
             error("Unexpected continuation")

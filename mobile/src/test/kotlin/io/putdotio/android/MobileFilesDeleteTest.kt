@@ -143,7 +143,7 @@ class MobileFilesDeleteTest {
         compose.onNodeWithText("Delete").assertDoesNotExist()
         compose.runOnIdle {
             val deletion = effects.single() as FilesBrowserEffect.Delete
-            assertEquals(item.id, deletion.itemId)
+            assertEquals(listOf(item.id), deletion.itemIds)
             assertEquals(FilesDeleteMode.PERMANENT, deletion.mode)
             assertEquals(
                 FilesFolderOperation.Loading(

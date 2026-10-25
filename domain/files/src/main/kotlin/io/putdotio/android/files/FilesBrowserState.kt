@@ -4,6 +4,11 @@ import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
 import io.putdotio.sdk.files.FileDeleteResult
 import io.putdotio.sdk.files.FileMoveError
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 
 @JvmInline
 public value class FilesRequestId(
@@ -70,12 +75,29 @@ public sealed interface FilesFolderOperationIntent {
         val name: String,
     ) : FilesFolderOperationIntent
 
-    public data class Move(val itemId: FilesItemId, val destinationId: FilesItemId) : FilesFolderOperationIntent
+    /** Moves [itemIds], all listed in the folder, into [destinationId] in one request. */
+    public data class Move(
+        val itemIds: List<FilesItemId>,
+        val destinationId: FilesItemId,
+    ) : FilesFolderOperationIntent {
+        public constructor(itemId: FilesItemId, destinationId: FilesItemId) : this(listOf(itemId), destinationId)
 
+        init {
+            require(itemIds.isNotEmpty()) { "A move needs at least one item" }
+        }
+    }
+
+    /** Deletes [itemIds], all listed in the folder, in one request. */
     public data class Delete(
-        val itemId: FilesItemId,
+        val itemIds: List<FilesItemId>,
         val mode: FilesDeleteMode,
-    ) : FilesFolderOperationIntent
+    ) : FilesFolderOperationIntent {
+        public constructor(itemId: FilesItemId, mode: FilesDeleteMode) : this(listOf(itemId), mode)
+
+        init {
+            require(itemIds.isNotEmpty()) { "A delete needs at least one item" }
+        }
+    }
 }
 
 public enum class FilesFolderOperationPhase {
@@ -209,21 +231,29 @@ public sealed interface FilesBrowserEvent {
 
     public sealed interface DeleteEvent : ItemMutationEvent
 
+    /** Deletes [itemIds] from [folderId], which must be the current folder and list each of them. */
     public data class Delete(
         val folderId: FilesItemId,
-        val itemId: FilesItemId,
+        val itemIds: List<FilesItemId>,
         val mode: FilesDeleteMode,
-    ) : DeleteEvent
+    ) : DeleteEvent {
+        public constructor(folderId: FilesItemId, itemId: FilesItemId, mode: FilesDeleteMode) :
+            this(folderId, listOf(itemId), mode)
+    }
 
     public data class DeleteFinished(
         val requestId: FilesRequestId,
         val result: PutioResult<FileDeleteResult>,
     ) : DeleteEvent
 
+    /** One read per deleted item, in the delete's order. */
     public data class DeleteChecked(
         val requestId: FilesRequestId,
-        val result: PutioResult<FilesItem>,
-    ) : DeleteEvent
+        val results: List<PutioResult<FilesItem>>,
+    ) : DeleteEvent {
+        public constructor(requestId: FilesRequestId, result: PutioResult<FilesItem>) :
+            this(requestId, listOf(result))
+    }
 
     /**
      * The screen announced this settled outcome on its own, so it is not announced again. An
@@ -243,21 +273,29 @@ public sealed interface FilesBrowserEvent {
 
     public sealed interface MoveEvent : ItemMutationEvent
 
+    /** Moves [itemIds] from [folderId], which must be the current folder and list each of them. */
     public data class Move(
         val folderId: FilesItemId,
-        val itemId: FilesItemId,
+        val itemIds: List<FilesItemId>,
         val destinationId: FilesItemId,
-    ) : MoveEvent
+    ) : MoveEvent {
+        public constructor(folderId: FilesItemId, itemId: FilesItemId, destinationId: FilesItemId) :
+            this(folderId, listOf(itemId), destinationId)
+    }
 
     public data class MoveFinished(
         val requestId: FilesRequestId,
         val result: PutioResult<List<FileMoveError>>,
     ) : MoveEvent
 
+    /** One read per moved item, in the move's order. */
     public data class MoveChecked(
         val requestId: FilesRequestId,
-        val result: PutioResult<FilesItem>,
-    ) : MoveEvent
+        val results: List<PutioResult<FilesItem>>,
+    ) : MoveEvent {
+        public constructor(requestId: FilesRequestId, result: PutioResult<FilesItem>) :
+            this(requestId, listOf(result))
+    }
 
     /** Copies are put.io's background work, so they live beside the folder stack, not on a folder. */
     public sealed interface CopyEvent : ItemMutationEvent
@@ -333,24 +371,26 @@ public sealed interface FilesBrowserEffect {
     ) : FilesBrowserEffect
 
     public data class Delete(
-        val itemId: FilesItemId,
+        val itemIds: List<FilesItemId>,
         val mode: FilesDeleteMode,
         override val requestId: FilesRequestId,
     ) : FilesBrowserEffect
 
     public data class Move(
-        val itemId: FilesItemId,
+        val itemIds: List<FilesItemId>,
         val destinationId: FilesItemId,
         override val requestId: FilesRequestId,
     ) : FilesBrowserEffect
 
+    /** Reads each moved item back, to learn where it is now. */
     public data class CheckMove(
-        val itemId: FilesItemId,
+        val itemIds: List<FilesItemId>,
         override val requestId: FilesRequestId,
     ) : FilesBrowserEffect
 
+    /** Reads each deleted item back, to learn whether it is gone. */
     public data class CheckDelete(
-        val itemId: FilesItemId,
+        val itemIds: List<FilesItemId>,
         override val requestId: FilesRequestId,
     ) : FilesBrowserEffect
 
@@ -446,13 +486,13 @@ internal suspend fun FilesRepository.execute(effect: FilesBrowserEffect): FilesB
         is FilesBrowserEffect.LoadFolder -> loadFolder(effect.folderId).toLoadEvent(effect.requestId)
         is FilesBrowserEffect.LoadNextPage -> loadNextPage(effect.cursor).toLoadEvent(effect.requestId)
         is FilesBrowserEffect.Move ->
-            FilesBrowserEvent.MoveFinished(effect.requestId, move(effect.itemId, effect.destinationId))
+            FilesBrowserEvent.MoveFinished(effect.requestId, move(effect.itemIds, effect.destinationId))
         is FilesBrowserEffect.CheckMove ->
-            FilesBrowserEvent.MoveChecked(effect.requestId, resolveItem(effect.itemId))
+            FilesBrowserEvent.MoveChecked(effect.requestId, resolveItems(effect.itemIds))
         is FilesBrowserEffect.Delete ->
-            FilesBrowserEvent.DeleteFinished(effect.requestId, delete(effect.itemId, effect.mode))
+            FilesBrowserEvent.DeleteFinished(effect.requestId, delete(effect.itemIds, effect.mode))
         is FilesBrowserEffect.CheckDelete ->
-            FilesBrowserEvent.DeleteChecked(effect.requestId, resolveItem(effect.itemId))
+            FilesBrowserEvent.DeleteChecked(effect.requestId, resolveItems(effect.itemIds))
         is FilesBrowserEffect.CopyEffect -> executeCopy(effect)
         is FilesBrowserEffect.Rename ->
             when (val renamed = rename(effect.itemId, effect.name)) {
@@ -466,6 +506,17 @@ internal suspend fun FilesRepository.execute(effect: FilesBrowserEffect): FilesB
             }
     }
 
+/**
+ * put.io has no batch read, so each item is read on its own, a few at a time; the results keep the
+ * items' order.
+ */
+private suspend fun FilesRepository.resolveItems(itemIds: List<FilesItemId>): List<PutioResult<FilesItem>> {
+    val permits = Semaphore(CHECK_CONCURRENCY)
+    return coroutineScope {
+        itemIds.map { id -> async { permits.withPermit { resolveItem(id) } } }.awaitAll()
+    }
+}
+
 private fun PutioResult<FilesPage>.toLoadEvent(requestId: FilesRequestId): FilesBrowserEvent =
     when (this) {
         is PutioResult.Success -> FilesBrowserEvent.LoadSucceeded(requestId, value)
@@ -473,3 +524,4 @@ private fun PutioResult<FilesPage>.toLoadEvent(requestId: FilesRequestId): Files
     }
 
 private const val INITIAL_REQUEST_VALUE = 1L
+private const val CHECK_CONCURRENCY = 4

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -36,6 +37,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.MobileMiddleCutText
 import io.putdotio.android.MobileRow
+import io.putdotio.android.MobileSelectedRowTint
+import io.putdotio.android.MobileSelectionCheckbox
 import io.putdotio.android.R
 import io.putdotio.android.design.FileTypeIcon
 import io.putdotio.android.design.PutioDesignTokens
@@ -51,7 +54,8 @@ internal const val MOBILE_FILES_DOWNLOAD_TAG = "mobile-files-download"
 /**
  * A file row: a fixed 64dp line with the type glyph, the name cut in the middle on one line, and
  * meta (size in mono, date, then the played eye and the on-device mark when true). Folders end in
- * a chevron and files in an overflow button; long-press opens the same actions either way.
+ * a chevron and files in an overflow button; long-press opens the same actions either way. In
+ * selection a checkbox takes the glyph's place, the trailing slot empties, and a tap toggles the row.
  */
 @Composable
 internal fun MobileFilesRow(
@@ -68,7 +72,14 @@ internal fun MobileFilesRow(
     place: MobileFilesRowPlace = MobileFilesRowPlace.Listing,
     /** The file the tablet's detail pane shows, tinted more faintly than an outside open. */
     selected: Boolean = false,
+    /** Null outside selection; otherwise whether the row is checked. */
+    checked: Boolean? = null,
+    onCheckedChange: (() -> Unit)? = null,
 ) {
+    if (checked != null) {
+        MobileFilesSelectableRow(item, checked, onCheckedChange, downloadStatus, place, modifier)
+        return
+    }
     val actionsLabel = stringResource(R.string.mobile_files_actions, item.name)
     // Touch never focuses a row; a keyboard-focused one is outlined so it reads at a glance.
     var focused by remember { mutableStateOf(false) }
@@ -138,6 +149,38 @@ internal fun MobileFilesRow(
             .focusOutline(focused, outline)
             .then(interaction)
             .semantics(mergeDescendants = true) { if (highlighted || selected) this.selected = true },
+    )
+}
+
+/**
+ * A row in selection: a checkbox in the glyph's place, nothing trailing, the 9% yellow tint when
+ * checked, and a tap that checks or clears it.
+ */
+@Composable
+private fun MobileFilesSelectableRow(
+    item: FilesItem,
+    checked: Boolean,
+    onCheckedChange: (() -> Unit)?,
+    downloadStatus: DownloadStatus?,
+    place: MobileFilesRowPlace,
+    modifier: Modifier,
+) {
+    var focused by remember { mutableStateOf(false) }
+    val outline = MaterialTheme.colorScheme.primary
+    MobileRow(
+        leading = { MobileSelectionCheckbox(checked) },
+        headline = { MobileMiddleCutText(text = item.name) },
+        meta = { MobileFilesMeta(item, onDevice = downloadStatus is DownloadStatus.Completed, place = place) },
+        containerColor = if (checked) MobileSelectedRowTint else Color.Transparent,
+        modifier = modifier
+            .playbackContainer(item.id.value, playable = item.isPlayable)
+            .onFocusChanged { focused = it.isFocused }
+            .focusOutline(focused, outline)
+            .then(
+                onCheckedChange?.let { toggle ->
+                    Modifier.toggleable(value = checked, role = Role.Checkbox, onValueChange = { toggle() })
+                } ?: Modifier,
+            ),
     )
 }
 

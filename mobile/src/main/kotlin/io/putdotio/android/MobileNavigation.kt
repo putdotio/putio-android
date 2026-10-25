@@ -53,6 +53,7 @@ import io.putdotio.android.files.MobileFileOpener
 import io.putdotio.android.files.MobileContinueWatching
 import io.putdotio.android.files.MobileFilesActionsController
 import io.putdotio.android.files.MobileFilesItemActions
+import io.putdotio.android.files.FilesSelection
 import io.putdotio.android.files.MobileFilesRoute
 import io.putdotio.android.files.MobileMoveTargetStore
 import io.putdotio.android.playback.MobilePlaybackViewModel
@@ -160,6 +161,7 @@ internal fun MobileNavHost(
     subtitleLanguages: FilesSubtitleLanguages? = null,
     filesActions: MobileFilesActionsController? = null,
     folderCreator: FilesFolderCreator? = null,
+    filesSelection: FilesSelection? = null,
 ) {
     val currentTransfersState by rememberUpdatedState(transfersState)
     val currentTransfersSessionId by rememberUpdatedState(transfersSessionId)
@@ -251,6 +253,7 @@ internal fun MobileNavHost(
                             resumePlayback = accountSettingsState.confirmedResumePlayback() != false,
                             itemActions = filesItemActions,
                             folderCreator = folderCreator,
+                            selection = filesSelection,
                         )
                     }
                 }
