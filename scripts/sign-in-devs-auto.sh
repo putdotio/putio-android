@@ -16,6 +16,7 @@ the app's normal Keystore-backed one, as after a browser sign-in.
   package   default io.put.putio.mobile.debug (the production debug build)
 
 Prerequisites:
+  - python3 on PATH
   - putio CLI on PATH, signed in: putio auth login --profile devs-auto
   - the device running, e.g. scripts/emulator.sh boot phone --headless
   - a debug build of this revision installed:
@@ -30,7 +31,8 @@ wait for Files. An app already signed in as devs-auto passes with no approval.
 
 Stdout: SIGNED IN <account id>, then PROOF PASS sign-in-devs-auto.
 Stderr: progress, and on failure one ERROR line naming the fix:
-  - putio missing, its profile signed out, or not on https://api.put.io
+  - python3 or putio missing, the profile signed out, or not on https://api.put.io
+  - the dry run not previewing the app's code (nothing is approved)
   - device not running, or the package not installed
   - no device-code screen: a release build, or a debug build older than it
   - "Device sign-in stopped: <reason>": the app's code expired or put.io failed
@@ -82,6 +84,7 @@ print("" if value is None else json.dumps(value) if isinstance(value, bool) else
 ' "$1"
 }
 
+command -v python3 >/dev/null 2>&1 || die "python3 not on PATH; install Python 3"
 command -v putio >/dev/null 2>&1 ||
   die "putio CLI not on PATH; install it (https://github.com/putdotio/putio-cli), then run: putio auth login --profile ${PROFILE}"
 
@@ -107,10 +110,31 @@ adb_() { "${ADB}" -s "${serial}" "$@"; }
 adb_ shell pm path "${package}" 2>/dev/null | grep -q '^package:' ||
   die "${package} is not installed on ${serial}; run ./gradlew :mobile:assembleProductionDebug, then adb -s ${serial} install -r mobile/build/outputs/apk/production/debug/mobile-production-debug.apk"
 
-# Visible text and content descriptions, one per line.
+# Text and content descriptions of the app's own nodes, one per line, so another
+# app's text can never be approved. The dump gets at most $1 seconds.
 screen_texts() {
-  adb_ exec-out uiautomator dump /dev/tty 2>/dev/null |
-    grep -oE '(text|content-desc)="[^"]*"' | sed -E 's/^[a-z-]+="(.*)"$/\1/' || true
+  python3 -I - "${ADB}" "${serial}" "${package}" "$1" <<'PY'
+import re, subprocess, sys
+
+adb, serial, package, budget = sys.argv[1], sys.argv[2], sys.argv[3], max(float(sys.argv[4]), 1)
+try:
+    xml = subprocess.run([adb, "-s", serial, "exec-out", "uiautomator", "dump", "/dev/tty"],
+                         capture_output=True, text=True, timeout=budget).stdout
+except subprocess.TimeoutExpired:
+    sys.exit(0)
+
+
+def attribute(node, name):
+    found = re.search(r'\s%s="([^"]*)"' % re.escape(name), node)
+    return found.group(1) if found else ""
+
+
+for node in re.findall(r"<node\b[^>]*>", xml):
+    if attribute(node, "package") == package:
+        for name in ("text", "content-desc"):
+            if attribute(node, name):
+                print(attribute(node, name))
+PY
 }
 
 # Waits until a screen line matches $1 (an ERE); prints the first match. A line
@@ -118,7 +142,7 @@ screen_texts() {
 await_text() {
   local pattern="$1" what="$2" deadline=$((SECONDS + TIMEOUT)) texts match
   while ((SECONDS < deadline)); do
-    texts="$(screen_texts)"
+    texts="$(screen_texts $((deadline - SECONDS)))"
     match="$(grep -m1 -E "${pattern}" <<<"${texts}" || true)"
     [[ -n "${match}" ]] && { printf '%s\n' "${match}"; return 0; }
     match="$(grep -m1 -E '^Device sign-in stopped: ' <<<"${texts}" || true)"

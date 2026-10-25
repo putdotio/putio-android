@@ -28,7 +28,11 @@ case "$*" in
     fi ;;
   "whoami --fields info --output json") echo '{"info":{"user_id":306077,"username":"devs-auto"}}' ;;
   "auth approve --json "*" --dry-run --output json")
-    printf '{"command":"auth approve","dryRun":true,"request":%s}\n' "$4" ;;
+    if [[ -e "${FAKE_STATE}/bad-preview" ]]; then
+      echo '{"command":"auth approve","dryRun":true,"request":{"code":"OTHER1"}}'
+    else
+      printf '{"command":"auth approve","dryRun":true,"request":%s}\n' "$4"
+    fi ;;
   "auth approve --json "*" --output json") touch "${FAKE_STATE}/approved"; echo '{}' ;;
   *) echo "unexpected putio call: $*" >&2; exit 2 ;;
 esac
@@ -39,7 +43,7 @@ cat > "${tmpdir}/sdk/platform-tools/adb" <<'EOF'
 set -euo pipefail
 echo "$*" >> "${FAKE_STATE}/adb-calls"
 shift 2
-node() { printf '<node text="%s" content-desc="" />' "$1"; }
+node() { printf '<node index="0" text="%s" package="%s" content-desc="" />' "$1" "${2:-io.put.putio.mobile.debug}"; }
 case "$*" in
   get-state) echo device ;;
   "shell pm path io.put.putio.mobile.debug") echo "package:/data/app/base.apk" ;;
@@ -58,6 +62,8 @@ case "$*" in
     elif [[ -e "${FAKE_STATE}/expired" ]]; then
       node "Device sign-in stopped: code expired (BUDGET_ELAPSED)"
     else
+      # Another app's text comes first in the hierarchy; it must never be approved.
+      [[ -e "${FAKE_STATE}/foreign-code" ]] && node "Activation code EVIL99" com.example.other
       node "Activation code ABC123"
     fi
     printf '</hierarchy>UI hierchary dumped to: /dev/tty\n' ;;
@@ -130,6 +136,14 @@ expect_failure "putio CLI not on PATH"
 
 run_case release-build release-build
 expect_failure "has no device-code sign-in"
+
+run_case foreign-code foreign-code
+[[ "${status}" == 0 ]] || fail "exit ${status}: ${err}"
+! grep -q 'EVIL99' "${state}/putio-calls" || fail "approved another app's code"
+
+run_case bad-preview bad-preview
+expect_failure "dry run did not preview this code"
+[[ "$(grep -c '^auth approve' "${state}/putio-calls")" == 1 ]] || fail "approved after a mismatched preview"
 
 run_case code-expired expired
 expect_failure "Device sign-in stopped: code expired"
