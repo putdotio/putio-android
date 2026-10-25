@@ -333,8 +333,10 @@ internal fun MobileFilesOffline(
     onRetry: (() -> Unit)?,
     onPlayMedia: (FilesItem) -> Unit,
     modifier: Modifier = Modifier,
+    /** The failure on screen; each new one restarts the retry clock. */
+    failure: Any? = null,
 ) {
-    onRetry?.let { RetryWhenOnline(it) }
+    onRetry?.let { RetryWhenOnline(failure, it) }
     LazyColumn(modifier = modifier.fillMaxSize().testTag(MOBILE_FILES_OFFLINE_TAG)) {
         if (onDevice.isNotEmpty()) {
             item(key = "offline-banner") { MobileOfflineBanner() }
@@ -401,12 +403,13 @@ private fun MobileOfflineBanner() {
 
 /** Calls [onRetry] once the default network is validated again, while this is on screen. */
 @Composable
-private fun RetryWhenOnline(onRetry: () -> Unit) {
+private fun RetryWhenOnline(failure: Any?, onRetry: () -> Unit) {
     val context = LocalContext.current
     val retry by rememberUpdatedState(onRetry)
     // Also try again on a slow clock: the network may have returned before this was on screen,
     // or put.io itself was down. The try replaces this screen, so it runs once per failure.
-    LaunchedEffect(Unit) {
+    // Keyed on the failure: a retry that fails again before a frame draws still restarts the clock.
+    LaunchedEffect(failure) {
         delay(OFFLINE_RETRY_MILLIS)
         retry()
     }

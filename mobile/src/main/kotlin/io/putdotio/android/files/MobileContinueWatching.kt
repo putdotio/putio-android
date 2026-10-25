@@ -115,7 +115,8 @@ internal class MobileContinueWatching(
             for (read in mutableEntries.value) {
                 val result = resolve(read.fileId)
                 val failure = (result as? PutioResult.Failure)?.failure
-                rejected = failure as? PutioFailure.AuthenticationRequired
+                // A session already closed answers for nobody, so its 401 rejects nothing.
+                rejected = (failure as? PutioFailure.AuthenticationRequired)?.takeUnless { closed }
                 if (rejected != null) break
                 // A position saved while the read was out is newer than what it brought back.
                 val unchanged = !closed && mutableEntries.value.any { it == read }

@@ -82,7 +82,7 @@ public data class FilesPage(
 public data class FilesFolderSummary(
     val itemCount: Int,
     val sizeBytes: Long?,
-    /** False for shared folders, which take no new items from the viewer. */
+    /** False for shared folders, which take no new items from the viewer, and when the page names no parent. */
     val acceptsNewItems: Boolean = true,
 )
 
@@ -91,7 +91,7 @@ internal fun FilesPage.summary(): FilesFolderSummary? =
         FilesFolderSummary(
             itemCount = count,
             sizeBytes = parent?.sizeBytes?.takeIf { it >= 0L },
-            acceptsNewItems = parent?.acceptsOwnerActions ?: true,
+            acceptsNewItems = parent?.acceptsOwnerActions ?: false,
         )
     }
 

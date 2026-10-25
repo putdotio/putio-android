@@ -3,7 +3,9 @@ package io.putdotio.android.files
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -26,8 +28,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
@@ -133,7 +133,6 @@ internal fun MobileNewFolderDialog(
             }
         }
     }
-    val fieldLabel = stringResource(R.string.mobile_files_new_folder_name)
     AlertDialog(
         onDismissRequest = { if (!creating) onDismiss() },
         // Full width less the 24dp margins, as the board sets it, rather than the platform's narrower default.
@@ -141,7 +140,8 @@ internal fun MobileNewFolderDialog(
         modifier = Modifier.padding(horizontal = 24.dp),
         title = { Text(stringResource(R.string.mobile_files_new_folder)) },
         text = {
-            Column {
+            // Scrolls in short windows and at large text, so the field stays reachable.
+            Column(Modifier.verticalScroll(rememberScrollState())) {
                 Text(
                     text = stringResource(R.string.mobile_files_new_folder_in, parentName),
                     style = MaterialTheme.typography.bodyMedium,
@@ -165,8 +165,7 @@ internal fun MobileNewFolderDialog(
                         .fillMaxWidth()
                         .padding(top = 16.dp)
                         .focusRequester(focus)
-                        .testTag(MOBILE_NEW_FOLDER_FIELD_TAG)
-                        .semantics { contentDescription = fieldLabel },
+                        .testTag(MOBILE_NEW_FOLDER_FIELD_TAG),
                 )
             }
         },

@@ -102,7 +102,6 @@
     <string name="mobile_files_more">More options</string>
     <string name="mobile_files_new_folder">New folder</string>
     <string name="mobile_files_new_folder_in">In %1$s</string>
-    <string name="mobile_files_new_folder_name">Folder name</string>
     <string name="mobile_files_new_folder_create">Create</string>
     <string name="mobile_files_sort_by">Sort by</string>
     <string name="mobile_files_sort_order">Order</string>

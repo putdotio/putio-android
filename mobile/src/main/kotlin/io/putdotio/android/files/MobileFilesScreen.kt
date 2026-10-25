@@ -134,6 +134,7 @@ internal fun MobileFilesScreen(
                     onDevice = if (atRoot) downloads.onDeviceItems() else emptyList(),
                     onRetry = { onEvent(FilesBrowserEvent.Retry) },
                     onPlayMedia = onPlayMedia,
+                    failure = content.failure,
                 )
             } else {
                 MobileErrorState(
@@ -660,7 +661,8 @@ private fun MobileFilesList(
     val viewport = content.viewport
     // The viewport counts rows; headers sit above them and show again when the list is back at its top.
     val headerCount = headers.itemCount
-    val atTop = viewport == FilesViewportPosition()
+    // A revealed row, the first included, scrolls past the headers to sit at the top.
+    val atTop = viewport == FilesViewportPosition() && revealItemId == null
     val listState = rememberLazyListState(
         initialFirstVisibleItemIndex = if (atTop) 0 else viewport.firstVisibleItemIndex + headerCount,
         initialFirstVisibleItemScrollOffset = viewport.firstVisibleItemScrollOffset,

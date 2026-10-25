@@ -142,7 +142,12 @@ class MobileFilesBarsTest {
         fun folderState(): FilesBrowserState {
             val opened = FilesBrowserReducer.reduce(rootState(folder), FilesBrowserEvent.OpenFolder(folder.id))
             val request = (opened.effect as FilesBrowserEffect.LoadFolder).requestId
-            val page = FilesPage(listOf(file(8L, "Blue.Lights.S04E01.mkv", PutioFileType.VIDEO)), null, total = 1)
+            val page = FilesPage(
+                listOf(file(8L, "Blue.Lights.S04E01.mkv", PutioFileType.VIDEO)),
+                null,
+                parent = folder,
+                total = 1,
+            )
             return FilesBrowserReducer.reduce(opened.state, FilesBrowserEvent.LoadSucceeded(request, page)).state
         }
 
