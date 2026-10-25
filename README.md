@@ -47,12 +47,16 @@ Mobile, on the emulator harness against the live API:
 - Video playback speed from 0.5× to 3× in eight presets (audio keeps 0.75× to
   2×) and audio-track selection; choices survive player recreation, and an
   unavailable track falls back to automatic selection
-- Account settings: subtitles, history, Trash, resume playback, proxy route,
-  and default sort order, each saved to the account and shared across devices
+- Account: the identity line, a storage card whose bar turns red when storage
+  is full, and settings in segmented groups of one-line rows (Library, Files,
+  Playback, Subtitles, Privacy, About); proxy, video playback and default sort
+  open radio dialogs with Save, and each setting is saved to the account and
+  shared across devices
+- Sign out confirms, and can remove this account's downloads from the device
 - A Privacy controls page under Account for diagnostics (on by default) and
   product analytics (opt-in), shared across put.io apps, with a
   strictly-necessary storage disclosure and the privacy policy links
-- About section with copyable app, Android, device, and player info
+- App info page with copyable app, Android, device, and player info
 - Downloads: video saves the HLS rendition it streams (without subtitles for
   accounts that hide them), audio the original. The Downloads tab shows
   storage used and free, unfinished rows with a progress ring that pauses,

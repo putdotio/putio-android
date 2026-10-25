@@ -24,9 +24,14 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import io.putdotio.android.account.MOBILE_APP_INFO_ROUTE
 import io.putdotio.android.account.MOBILE_PRIVACY_CONTROLS_ROUTE
+import io.putdotio.android.account.MobileAccountLibrary
 import io.putdotio.android.account.MobileAccountScreen
+import io.putdotio.android.account.MobileAppInfoScreen
+import io.putdotio.android.account.bytesOnDevice
 import io.putdotio.android.account.MobilePrivacyControlsScreen
+import io.putdotio.android.account.mobileAppDiagnostics
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.downloads.DownloadRequest
@@ -59,6 +64,7 @@ import io.putdotio.android.playback.SubtitleStartupPolicy
 import io.putdotio.android.playback.confirmedAutoplayNextVideo
 import io.putdotio.android.playback.dispatch
 import io.putdotio.android.playback.mobilePlaybackViewModelFactory
+import io.putdotio.android.playback.playbackPreference
 import io.putdotio.android.playback.playerFailureTelemetry
 import io.putdotio.android.playback.putioFailure
 import io.putdotio.android.playback.rememberPictureInPictureMode
@@ -79,6 +85,7 @@ import io.putdotio.android.share.MobileFileDragOut
 import io.putdotio.android.sharing.MOBILE_PUBLIC_LINKS_ROUTE
 import io.putdotio.android.sharing.MobilePublicLinks
 import io.putdotio.android.sharing.MobilePublicLinksScreen
+import io.putdotio.android.sharing.PublicLinksContent
 import io.putdotio.android.telemetry.PutioDiagnostics
 import io.putdotio.android.transfers.MobileTransferDraft
 import io.putdotio.android.transfers.MobileTransfersScreen
@@ -86,6 +93,7 @@ import io.putdotio.android.transfers.TransfersEvent
 import io.putdotio.android.transfers.TransfersState
 import io.putdotio.android.trash.MOBILE_TRASH_ROUTE
 import io.putdotio.android.trash.MobileTrashScreen
+import io.putdotio.android.trash.TrashContent
 import io.putdotio.android.trash.TrashController
 import io.putdotio.android.trash.TrashEvent
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -116,7 +124,7 @@ internal fun MobileNavHost(
     onFilesAuthenticationRequired: suspend () -> Unit,
     searchHistoryActions: MobileSearchHistoryActions,
     onTransfersEvent: (TransfersEvent) -> Unit,
-    onSignOut: () -> Unit,
+    onSignOut: (removeDownloads: Boolean) -> Unit,
     downloadsController: DownloadsController?,
     downloadsState: DownloadsState,
     downloadsSelection: DownloadsSelection,
@@ -236,6 +244,7 @@ internal fun MobileNavHost(
                     }
                 }
                 composable(MobileDestination.Account.route) {
+                    val trashState = trashController?.state?.collectAsStateWithLifecycle()?.value
                     MobileAccountScreen(
                         account = account,
                         sessionId = sessionId,
@@ -244,7 +253,6 @@ internal fun MobileNavHost(
                         onSettingsEvent = onAccountSettingsEvent,
                         onAppConfigEvent = onAppConfigEvent,
                         loadTunnelRoutes = loadTunnelRoutes,
-                        deviceClass = deviceClass,
                         onSignOut = onSignOut,
                         onManageTrash = { navController.navigate(MOBILE_TRASH_ROUTE) { launchSingleTop = true } },
                         onManagePublicLinks = publicLinks?.let {
@@ -253,7 +261,17 @@ internal fun MobileNavHost(
                         onPrivacyControls = {
                             navController.navigate(MOBILE_PRIVACY_CONTROLS_ROUTE) { launchSingleTop = true }
                         },
+                        onAppInfo = { navController.navigate(MOBILE_APP_INFO_ROUTE) { launchSingleTop = true } },
+                        library = MobileAccountLibrary(
+                            exclusiveLinkCount =
+                                (publicLinks?.state?.content as? PublicLinksContent.Ready)?.links?.size,
+                            trashSizeBytes = (trashState?.content as? TrashContent.Loaded)?.trashSizeBytes,
+                        ),
+                        downloadsOnDeviceBytes = downloadsState.bytesOnDevice(),
                     )
+                }
+                composable(MOBILE_APP_INFO_ROUTE) {
+                    MobileAppInfoScreen(mobileAppDiagnostics(appConfigState.playbackPreference(), deviceClass))
                 }
                 composable(MOBILE_PRIVACY_CONTROLS_ROUTE) {
                     MobilePrivacyControlsScreen(

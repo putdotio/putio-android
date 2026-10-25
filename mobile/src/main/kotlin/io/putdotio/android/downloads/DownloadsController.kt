@@ -176,6 +176,30 @@ internal class DownloadsController(
         return true
     }
 
+    /**
+     * Sign-out's Remove downloads: marks every row and hands its bytes to the engine before it returns,
+     * so the caller can end the session after. A row the engine has not confirmed by then finishes its
+     * removal on this account's next sign-in, as a confirmed removal does after a process death.
+     */
+    suspend fun removeAll() {
+        if (synchronized(lock) { closed }) return
+        // Queued behind every write already dispatched, so a start from just before sign-out is removed too.
+        enqueue {
+            val fileIds = synchronized(lock) {
+                val current = mutableState.value
+                val ids = store.entries.value.mapTo(mutableSetOf()) { it.fileId }
+                mutableState.value = current.copy(removal = null, removing = current.removing + ids)
+                ids
+            }
+            // Best effort, row by row: a failed delete must not cost the sign-out it precedes or the rows after
+            // it. Every row is marked first, so one the engine misses finishes its removal at the next sign-in.
+            for (fileId in fileIds) {
+                runCatching { store.find(fileId)?.let { store.upsert(it.copy(removing = true)) } }
+            }
+            for (fileId in fileIds) runCatching { engine.remove(fileId) }
+        }.join()
+    }
+
     /** Pause holds the rows that can pause, Resume releases the viewer's paused ones; deleting rows take neither. */
     private fun setPaused(event: DownloadsEvent): Boolean {
         val paused = event is DownloadsEvent.Pause
@@ -198,9 +222,7 @@ internal class DownloadsController(
     }
 
     /** Store writes and engine calls run one at a time, in dispatch order. */
-    private fun enqueue(block: suspend () -> Unit) {
-        scope.launch { mutations.withLock { block() } }
-    }
+    private fun enqueue(block: suspend () -> Unit): Job = scope.launch { mutations.withLock { block() } }
 
     private fun update(transform: (DownloadsState) -> DownloadsState): Boolean {
         synchronized(lock) {

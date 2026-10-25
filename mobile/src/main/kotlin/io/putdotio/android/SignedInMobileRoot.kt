@@ -83,6 +83,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 
 @Composable
@@ -232,6 +234,9 @@ private fun SignedInMobileSession(
     val account = signedIn.account
     val sessionId = signedIn.sessionId
     val appContext = LocalContext.current.applicationContext
+    val signOut = remember(authController, sessionId, downloadsController) {
+        MobileSignOut(authController, sessionId, downloadsController)
+    }
     val playbackRepository = remember(
         runtime,
         appConfigController,
@@ -363,9 +368,9 @@ private fun SignedInMobileSession(
         contentNavigation = searchHistorySession.navigation,
         navigationFailure = navigationFailure,
         onDismissNavigationFailure = searchHistorySession::dismissNavigationFailure,
-        onSignOut = {
+        onSignOut = { removeDownloads ->
             MobilePlaybackService.stop(appContext)
-            rootScope.launch { authController.logout() }
+            signOut.start(rootScope, removeDownloads)
         },
     )
 }
@@ -405,6 +410,31 @@ private fun SavedPositionEffects(
             }
             .distinctUntilChanged()
             .collect { gone -> gone.forEach(row::removed) }
+    }
+}
+
+/**
+ * One confirmed sign-out per session; a second confirmation while the first runs is ignored. It first
+ * deletes [downloads] when the viewer asked: deletes reach Media3 before the session ends, so they run
+ * even though sign-out parks this account's transfers next. It finishes even if the screen is recreated
+ * meanwhile, and leaves a session that already ended, or was replaced, alone.
+ */
+private class MobileSignOut(
+    private val authController: MobileAuthController,
+    private val sessionId: MobileAuthSessionId,
+    private val downloads: DownloadsController?,
+) {
+    private val started = AtomicBoolean(false)
+
+    fun start(scope: CoroutineScope, removeDownloads: Boolean) {
+        if (!started.compareAndSet(false, true)) return
+        scope.launch {
+            withContext(NonCancellable) {
+                if (removeDownloads) downloads?.removeAll()
+                val current = authController.state.value
+                if (current is MobileAuthState.SignedIn && current.sessionId == sessionId) authController.logout()
+            }
+        }
     }
 }
 

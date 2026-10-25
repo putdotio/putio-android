@@ -53,6 +53,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import io.putdotio.android.account.InactiveAccountNotice
+import io.putdotio.android.account.MOBILE_APP_INFO_ROUTE
 import io.putdotio.android.account.MOBILE_PRIVACY_CONTROLS_ROUTE
 import io.putdotio.android.account.MobileInactiveAccountNotice
 import io.putdotio.android.auth.MobileAccount
@@ -179,7 +180,7 @@ internal fun MobileShell(
     onShareItem: ((FilesItem) -> Unit)? = null,
     navigationFailure: FilesFailure? = null,
     onDismissNavigationFailure: () -> Unit = {},
-    onSignOut: () -> Unit,
+    onSignOut: (removeDownloads: Boolean) -> Unit,
     transferDraft: MobileTransferDraft = remember { MobileTransferDraft() },
     fileDragOut: MobileFileDragOut? = null,
     folderCreator: FilesFolderCreator? = null,
@@ -1102,6 +1103,7 @@ private fun accountSubpageTitle(route: String?): Int? =
         MOBILE_TRASH_ROUTE -> R.string.mobile_trash_title
         MOBILE_PUBLIC_LINKS_ROUTE -> R.string.mobile_public_links_manage
         MOBILE_PRIVACY_CONTROLS_ROUTE -> R.string.mobile_settings_privacy_controls
+        MOBILE_APP_INFO_ROUTE -> R.string.mobile_settings_about
         else -> null
     }
 

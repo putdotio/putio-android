@@ -5,8 +5,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
@@ -26,59 +26,74 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import io.putdotio.android.R
-import io.putdotio.android.transfers.neutralTextButtonColors
 import io.putdotio.android.design.PutioTypeScale
+import io.putdotio.android.transfers.neutralTextButtonColors
 
+internal const val MOBILE_CHOICE_SAVE_TAG = "mobile-choice-save"
 
 /**
- * A choice: the title, one line on what it changes, radio rows with a description each, then
- * Cancel and a filled Save. Picking a row only marks it; Save applies it.
+ * A choice: the title, an optional line on what it changes, radio rows with an optional description
+ * each, then Cancel and a filled Save. Picking a row only marks it; Save applies it. [choices] is null
+ * while they load, and [placeholder] shows in their place. A choice's `toString` identifies it.
  */
 @Composable
 internal fun <T> MobileChoiceDialog(
     title: String,
-    message: String,
-    choices: List<T>,
+    message: String?,
+    choices: List<T>?,
     label: @Composable (T) -> String,
-    description: @Composable (T) -> String,
+    description: @Composable (T) -> String?,
     selected: T,
     onSave: (T) -> Unit,
     onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+    placeholder: @Composable () -> Unit = {},
 ) {
-    var pending by rememberSaveable(selected) { mutableStateOf(choices.indexOf(selected)) }
+    // The viewer's pick survives recreation even while the choices load again, by identity rather than
+    // position, since a reload may reorder them. Until there is one, the saved value is marked.
+    var picked by rememberSaveable(selected) { mutableStateOf<String?>(null) }
+    val pending = choices?.indexOfFirst { it.toString() == (picked ?: selected.toString()) } ?: -1
     AlertDialog(
         onDismissRequest = onDismiss,
         // Full width less 24dp margins, as wide as a description line needs, up to Material's 560dp.
-        modifier = Modifier.widthIn(max = CHOICE_DIALOG_MAX_WIDTH).fillMaxWidth().padding(horizontal = 24.dp),
+        modifier = modifier.widthIn(max = CHOICE_DIALOG_MAX_WIDTH).fillMaxWidth().padding(horizontal = 24.dp),
         properties = DialogProperties(usePlatformDefaultWidth = false),
         title = { Text(title) },
         text = {
+            // Choice counts and font scale vary; keep every option reachable inside the dialog.
             Column(Modifier.verticalScroll(rememberScrollState())) {
-                Text(message, modifier = Modifier.padding(bottom = 12.dp))
-                Column(Modifier.selectableGroup()) {
-                    choices.forEachIndexed { index, choice ->
-                        MobileChoiceRow(
-                            label = label(choice),
-                            description = description(choice),
-                            selected = index == pending,
-                            onClick = { pending = index },
-                        )
+                message?.let { Text(it, modifier = Modifier.padding(bottom = 12.dp)) }
+                if (choices == null) {
+                    placeholder()
+                } else {
+                    Column(Modifier.selectableGroup()) {
+                        choices.forEachIndexed { index, choice ->
+                            MobileChoiceRow(
+                                label = label(choice),
+                                description = description(choice),
+                                selected = index == pending,
+                                onClick = { picked = choice.toString() },
+                            )
+                        }
                     }
                 }
             }
         },
         confirmButton = {
             Button(
-                onClick = { choices.getOrNull(pending)?.let(onSave) ?: onDismiss() },
+                onClick = { choices?.getOrNull(pending)?.let(onSave) ?: onDismiss() },
+                enabled = choices != null,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary,
                 ),
+                modifier = Modifier.testTag(MOBILE_CHOICE_SAVE_TAG),
             ) { Text(stringResource(R.string.mobile_files_save)) }
         },
         dismissButton = {
@@ -91,7 +106,7 @@ internal fun <T> MobileChoiceDialog(
 }
 
 @Composable
-private fun MobileChoiceRow(label: String, description: String, selected: Boolean, onClick: () -> Unit) {
+private fun MobileChoiceRow(label: String, description: String?, selected: Boolean, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -108,11 +123,13 @@ private fun MobileChoiceRow(label: String, description: String, selected: Boolea
         )
         Column {
             Text(label, style = PutioTypeScale.bodyMd, color = MaterialTheme.colorScheme.onSurface)
-            Text(
-                description,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            description?.let {
+                Text(
+                    it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
