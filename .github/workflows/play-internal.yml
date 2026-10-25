@@ -84,7 +84,7 @@ jobs:
           echo "base=$base" >> "$GITHUB_OUTPUT"
       - name: Write release notes
         id: notes
-        uses: putdotio/.github/.github/actions/beta-notes@32b9f2f9ac2b6b17b2be6b111ec495e079384b4c # v2.3.1
+        uses: putdotio/.github/.github/actions/beta-notes@0299a68cb84725497b4349c6131aeec45c9611a5 # v2.3.2
         with:
           app: put.io for Android
           base: ${{ steps.base.outputs.base }}
