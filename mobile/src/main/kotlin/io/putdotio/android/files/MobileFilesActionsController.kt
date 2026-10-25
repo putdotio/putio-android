@@ -16,6 +16,7 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.channels.BufferOverflow
@@ -168,8 +169,8 @@ internal class MobileFilesActionsController(
     }
 
     /**
-     * Restores a Trash move the snackbar announced, every item of it in one request. put.io queues
-     * the restore, so the folder reads again now and lists the items once put.io has put them back.
+     * Restores a Trash move the snackbar announced, every item of it in one request. put.io can answer
+     * before it has put every item back, so each is read until it is, and only then the folder.
      */
     fun undoTrash(outcome: FilesDeleteOutcome) {
         if (outcome.intent.mode != FilesDeleteMode.TRASH) return
@@ -183,6 +184,7 @@ internal class MobileFilesActionsController(
             ensureActive()
             when (result) {
                 is PutioResult.Success -> {
+                    awaitRestored(itemIds)
                     // Another delete may have replaced the outcome meanwhile; the item still comes back somewhere.
                     if (!onFilesEvent(FilesBrowserEvent.TrashUndone(outcome))) {
                         onFilesEvent(FilesBrowserEvent.InvalidateAllFolders)
@@ -197,6 +199,16 @@ internal class MobileFilesActionsController(
                     },
                 )
             }
+        }
+    }
+
+    /** Reads each restored item until put.io serves it again, a few rounds at most; the folder reads after either way. */
+    private suspend fun awaitRestored(itemIds: List<FilesItemId>) {
+        var pending = itemIds
+        repeat(RESTORE_READBACK_ROUNDS) { round ->
+            if (round > 0) delay(RESTORE_READBACK_DELAY_MS)
+            pending = pending.filterNot { sources.trash.resolveItem(it) is PutioResult.Success }
+            if (pending.isEmpty()) return
         }
     }
 
@@ -253,3 +265,5 @@ internal const val VLC_PACKAGE = "org.videolan.vlc"
 
 /** Watched writes in flight at once for a selection; the rest wait their turn. */
 private const val WATCHED_CONCURRENCY = 4
+private const val RESTORE_READBACK_ROUNDS = 5
+private const val RESTORE_READBACK_DELAY_MS = 400L

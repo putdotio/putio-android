@@ -225,6 +225,27 @@ class MobileFilesActionsControllerTest {
     }
 
     @Test
+    fun undoReadsTheFolderOnlyOnceEveryRestoredItemIsBack() = runTest {
+        val controller = controller()
+        val late = FilesItemId(8L)
+        val ids = listOf(video.id, late)
+        // put.io answered the restore before it had put the second item back.
+        trash.notYetBack[late] = 1
+        val outcome = FilesDeleteOutcome(
+            FilesRequestId(4L),
+            FilesFolderOperationIntent.Delete(ids, FilesDeleteMode.TRASH),
+            video.name,
+            status = FilesDeleteStatus.NO_LONGER_AVAILABLE,
+        )
+        controller.undoTrash(outcome)
+        runCurrent()
+        assertEquals(emptyList<FilesBrowserEvent>(), events)
+        advanceUntilIdle()
+        assertEquals(listOf(video.id, late, late), trash.resolved)
+        assertEquals(listOf(FilesBrowserEvent.TrashUndone(outcome), FilesBrowserEvent.ReloadIfStale), events)
+    }
+
+    @Test
     fun undoRestoresTheTrashMoveAndReadsTheFolderAgain() = runTest {
         val controller = controller()
         val notices = mutableListOf<MobileFilesNotice>()
@@ -290,11 +311,23 @@ class MobileFilesActionsControllerTest {
         val restored = mutableListOf<FilesItemId>()
         val restoredAll = mutableListOf<TrashBulkSelection>()
         var result: PutioResult<Unit> = PutioResult.Success(Unit)
+        val resolved = mutableListOf<FilesItemId>()
+
+        /** How many more reads of an item still find it in Trash. */
+        val notYetBack = mutableMapOf<FilesItemId, Int>()
 
         override suspend fun restore(itemId: FilesItemId): PutioResult<Unit> = result.also { restored += itemId }
         override suspend fun load(): PutioResult<TrashPage> = error("unused")
         override suspend fun loadNextPage(cursor: FilesCursor): PutioResult<TrashPage> = error("unused")
-        override suspend fun resolveItem(itemId: FilesItemId): PutioResult<FilesItem> = error("unused")
+        override suspend fun resolveItem(itemId: FilesItemId): PutioResult<FilesItem> {
+            resolved += itemId
+            val left = notYetBack[itemId] ?: 0
+            if (left > 0) {
+                notYetBack[itemId] = left - 1
+                return PutioResult.Failure(PutioFailure.Unexpected(IllegalStateException("still in Trash")))
+            }
+            return PutioResult.Success(FilesItem(itemId, FilesItemId(0L), "item", PutioFileType.TEXT, 1L, "2026-10-25"))
+        }
         override suspend fun deleteItem(itemId: FilesItemId): PutioResult<Unit> = error("unused")
         override suspend fun restoreAll(selection: TrashBulkSelection): PutioResult<Unit> =
             result.also { restoredAll += selection }
