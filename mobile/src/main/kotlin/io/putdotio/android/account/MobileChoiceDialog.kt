@@ -31,6 +31,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import io.putdotio.android.R
+import io.putdotio.android.transfers.neutralTextButtonColors
 import io.putdotio.android.design.PutioTypeScale
 
 
@@ -83,7 +84,7 @@ internal fun <T> MobileChoiceDialog(
         dismissButton = {
             TextButton(
                 onClick = onDismiss,
-                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurface),
+                colors = neutralTextButtonColors(),
             ) { Text(stringResource(R.string.mobile_action_cancel)) }
         },
     )
