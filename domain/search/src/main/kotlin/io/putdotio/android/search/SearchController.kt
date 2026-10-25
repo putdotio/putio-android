@@ -22,6 +22,8 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 
+// One entry point per change the viewer or the session makes to Search.
+@Suppress("TooManyFunctions")
 public class SearchController internal constructor(
     private val repository: SearchRepository,
     private val recentSearchStore: RecentSearchStore,
@@ -211,6 +213,20 @@ public class SearchController internal constructor(
         val sent = outputChannel.trySend(SearchOutput.OpenResult(item)).isSuccess
         if (sent) recentSearchStore.record(term)
         return sent
+    }
+
+    /**
+     * put.io accepted [seconds] as [itemId]'s position, from a watched change or playback. A result
+     * showing that media file takes it, so its row and actions read the new state without a search.
+     */
+    public fun positionSaved(itemId: FilesItemId, seconds: Double): Boolean {
+        val valid = itemId.value > 0L && seconds.isFinite() && seconds >= 0.0
+        return valid && synchronized(lock) {
+            val content = (mutableState.value.content as? SearchContent.Ready)?.takeUnless { closed }
+            val updated = content?.withPosition(itemId, seconds)
+            updated?.let { mutableState.value = mutableState.value.copy(content = it) }
+            updated != null
+        }
     }
 
     public fun editRecentSearches(edit: RecentSearchEdit): Boolean {

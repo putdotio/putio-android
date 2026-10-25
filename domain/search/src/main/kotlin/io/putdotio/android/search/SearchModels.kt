@@ -4,6 +4,7 @@ import io.putdotio.android.PutioFailure
 import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.sdk.files.PutioFileType
 import java.util.Locale
 import kotlinx.coroutines.flow.StateFlow
@@ -207,4 +208,20 @@ internal fun SearchContent.pagingOrNull(): SearchPaging? =
         is SearchContent.Empty -> paging
         is SearchContent.Ready -> paging
         SearchContent.Idle, is SearchContent.Debouncing, is SearchContent.Loading, is SearchContent.Failed -> null
+    }
+
+/** These results with [itemId]'s position replaced, keeping a known duration; null when no media result is it. */
+internal fun SearchContent.Ready.withPosition(itemId: FilesItemId, seconds: Double): SearchContent.Ready? =
+    if (items.none { it.id == itemId && it.isPlayable }) {
+        null
+    } else {
+        copy(
+            items = items.map { item ->
+                if (item.id == itemId && item.isPlayable) {
+                    item.copy(playback = FilesPlaybackProgress(seconds, item.playback?.durationSeconds))
+                } else {
+                    item
+                }
+            },
+        )
     }
