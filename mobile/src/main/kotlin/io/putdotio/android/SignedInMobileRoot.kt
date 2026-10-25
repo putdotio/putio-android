@@ -269,20 +269,24 @@ private fun SignedInMobileSession(
     val appConfigState by appConfigController.state.collectAsStateWithLifecycle()
     val searchState by searchHistorySession.search.state.collectAsStateWithLifecycle()
     val historyState by searchHistorySession.history.state.collectAsStateWithLifecycle()
+    val searchFolderNames by searchHistorySession.folderNames.names.collectAsStateWithLifecycle()
+    val folderNameFailure by searchHistorySession.folderNames.authenticationFailure.collectAsStateWithLifecycle()
     val transfersState by transfersController.state.collectAsStateWithLifecycle()
     TransfersWidgetEffect(transfersState.content, MobileSessionKey(account.userId, sessionId))
     val publicLinksState = publicLinksController?.state?.collectAsStateWithLifecycle()?.value
     val navigationFailure by searchHistorySession.navigationFailure.collectAsStateWithLifecycle()
     val recentSearchFailure by searchHistorySession.recentSearchFailure.collectAsStateWithLifecycle()
     val confirmedHistoryEnabled = accountSettingsState.confirmedHistoryEnabled()
-    val authoritativeFailure =
-        filesState.authoritativeSessionFailure()
-            ?: searchState.authoritativeSessionFailure()
-            ?: historyState.authoritativeSessionFailure()
-            ?: transfersState.authoritativeSessionFailure()
-            ?: publicLinksState?.authenticationFailure
-            ?: recentSearchFailure?.takeIf { it is PutioFailure.AuthenticationRequired }
-            ?: navigationFailure?.takeIf { it is PutioFailure.AuthenticationRequired }
+    val authoritativeFailure = listOfNotNull(
+        filesState.authoritativeSessionFailure(),
+        searchState.authoritativeSessionFailure(),
+        historyState.authoritativeSessionFailure(),
+        transfersState.authoritativeSessionFailure(),
+        publicLinksState?.authenticationFailure,
+        recentSearchFailure?.takeIf { it is PutioFailure.AuthenticationRequired },
+        navigationFailure?.takeIf { it is PutioFailure.AuthenticationRequired },
+        folderNameFailure,
+    ).firstOrNull()
 
     AuthoritativeSessionFailureEffect(
         shouldReject = trashState.authenticationFailure != null ||
@@ -313,6 +317,7 @@ private fun SignedInMobileSession(
                 history = historyState,
                 recentSearchFailure =
                     recentSearchFailure?.takeUnless { it is PutioFailure.AuthenticationRequired },
+                folderNames = searchFolderNames,
             ),
         transfersState = transfersState,
         transfersSessionId = sessionId,
@@ -361,6 +366,7 @@ private fun SignedInMobileSession(
                 onRecentRetry = searchHistorySession::retryRecentSearches,
                 onHistoryEvent = { searchHistorySession.history.dispatch(it) },
                 onScopeChanged = { searchHistorySession.search.scope = it },
+                onFilterSelected = { searchHistorySession.search.filter = it },
             ),
         onTransfersEvent = transfersController::dispatch,
         resolveTransferFile = { fileId -> filesRepository.resolveItem(FilesItemId(fileId.value)) },

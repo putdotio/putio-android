@@ -5,7 +5,6 @@ import androidx.annotation.DrawableRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,18 +14,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -38,21 +32,16 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import io.putdotio.android.LoadNextPageNearEnd
-import io.putdotio.android.LoadNextPageNow
 import io.putdotio.android.MobileEmptyState
 import io.putdotio.android.MobileErrorState
 import io.putdotio.android.MobileLoadingState
@@ -60,12 +49,8 @@ import io.putdotio.android.MobileMiddleCutText
 import io.putdotio.android.MobileRow
 import io.putdotio.android.MobileSectionLabel
 import io.putdotio.android.R
-import io.putdotio.android.PutioFailure
 import io.putdotio.android.design.PutioDestructiveButton
-import io.putdotio.android.design.PutioEmptyGlyph
 import io.putdotio.android.design.putioMono
-import io.putdotio.android.files.FilesItem
-import io.putdotio.android.files.MobileFilesRow
 import io.putdotio.android.files.mobileMessage
 import io.putdotio.android.history.HistoryClearing
 import io.putdotio.android.history.HistoryContent
@@ -82,44 +67,8 @@ import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.delay
 
-internal const val MOBILE_SEARCH_FIELD_TAG = "mobile-search-field"
-internal const val MOBILE_SEARCH_RESULTS_TAG = "mobile-search-results"
 internal const val MOBILE_HISTORY_LIST_TAG = "mobile-history-list"
 internal const val MOBILE_HISTORY_OVERFLOW_TAG = "mobile-history-overflow"
-
-/** Search, which opens over Files from its top bar, Ctrl+F or a link. */
-@Composable
-internal fun MobileSearchScreen(
-    searchState: SearchState,
-    recentSearchFailure: PutioFailure?,
-    onSearchQueryChanged: (String) -> Unit,
-    onSearchSubmit: () -> Unit,
-    onSearchResult: (FilesItem) -> Unit,
-    onSearchNextPage: () -> Unit,
-    onSearchRetry: () -> Unit,
-    onRecentSearch: (SearchTerm) -> Unit,
-    onRecentEdit: (RecentSearchEdit) -> Unit,
-    onRecentRetry: () -> Unit,
-    modifier: Modifier = Modifier,
-    focusSearch: Boolean = false,
-    onSearchFocused: () -> Unit = {},
-) {
-    MobileSearchContent(
-        state = searchState,
-        onQueryChanged = onSearchQueryChanged,
-        onSubmit = onSearchSubmit,
-        onResult = onSearchResult,
-        onNextPage = onSearchNextPage,
-        onRetry = onSearchRetry,
-        onRecentSearch = onRecentSearch,
-        onRecentEdit = onRecentEdit,
-        recentSearchFailure = recentSearchFailure,
-        onRecentRetry = onRecentRetry,
-        modifier = modifier.fillMaxSize(),
-        focusField = focusSearch,
-        onFieldFocused = onSearchFocused,
-    )
-}
 
 /** The History tab. */
 @Composable
@@ -148,279 +97,6 @@ private fun rememberToday(): LocalDate {
         }
     }
     return today
-}
-
-@Composable
-private fun MobileSearchContent(
-    state: SearchState,
-    onQueryChanged: (String) -> Unit,
-    onSubmit: () -> Unit,
-    onResult: (FilesItem) -> Unit,
-    onNextPage: () -> Unit,
-    onRetry: () -> Unit,
-    onRecentSearch: (SearchTerm) -> Unit,
-    onRecentEdit: (RecentSearchEdit) -> Unit,
-    recentSearchFailure: PutioFailure?,
-    onRecentRetry: () -> Unit,
-    modifier: Modifier,
-    focusField: Boolean,
-    onFieldFocused: () -> Unit,
-) {
-    val fieldFocus = remember { FocusRequester() }
-    LaunchedEffect(focusField) {
-        if (focusField) {
-            fieldFocus.requestFocus()
-            onFieldFocused()
-        }
-    }
-    Column(modifier = modifier.fillMaxSize()) {
-        OutlinedTextField(
-            value = state.query,
-            onValueChange = onQueryChanged,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-                .focusRequester(fieldFocus)
-                .testTag(MOBILE_SEARCH_FIELD_TAG),
-            label = { Text(stringResource(R.string.mobile_search_label)) },
-            placeholder = { Text(stringResource(R.string.mobile_search_placeholder)) },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-            keyboardActions = KeyboardActions(onSearch = { onSubmit() }),
-        )
-
-        if (recentSearchFailure != null) {
-            MobileRecentSearchFailure(
-                failure = recentSearchFailure,
-                onRetry = onRecentRetry,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-            )
-        }
-
-        when (val content = state.content) {
-            SearchContent.Idle ->
-                MobileRecentSearches(
-                    terms = state.recentTerms,
-                    onSearch = onRecentSearch,
-                    onEdit = onRecentEdit,
-                    modifier = Modifier.weight(1f),
-                )
-
-            is SearchContent.Debouncing,
-            is SearchContent.Loading,
-            ->
-                MobileLoadingState(
-                    message = stringResource(R.string.mobile_search_loading),
-                    modifier = Modifier.weight(1f),
-                )
-
-            is SearchContent.Empty ->
-                MobileSearchEmpty(
-                    term = content.term,
-                    paging = content.paging,
-                    onNextPage = onNextPage,
-                    onRetry = onRetry,
-                    modifier = Modifier.weight(1f),
-                )
-
-            is SearchContent.Ready ->
-                MobileSearchResults(
-                    items = content.items,
-                    paging = content.paging,
-                    onResult = onResult,
-                    onNextPage = onNextPage,
-                    onRetry = onRetry,
-                    modifier = Modifier.weight(1f),
-                )
-
-            is SearchContent.Failed ->
-                MobileErrorState(
-                    title = stringResource(R.string.mobile_search_error_title),
-                    message = content.failure.mobileMessage(),
-                    retryLabel = stringResource(R.string.mobile_action_retry),
-                    onRetry = onRetry,
-                    modifier = Modifier.weight(1f),
-                )
-        }
-    }
-}
-
-@Composable
-private fun MobileRecentSearchFailure(
-    failure: PutioFailure,
-    onRetry: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Surface(
-        modifier = modifier,
-        color = MaterialTheme.colorScheme.errorContainer,
-        contentColor = MaterialTheme.colorScheme.onErrorContainer,
-        shape = MaterialTheme.shapes.medium,
-    ) {
-        BoxWithConstraints(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-            if (maxWidth / LocalDensity.current.fontScale < 320.dp) {
-                Column {
-                    MobileRecentSearchFailureText(failure)
-                    TextButton(onClick = onRetry) { Text(stringResource(R.string.mobile_action_retry)) }
-                }
-            } else {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    MobileRecentSearchFailureText(failure, Modifier.weight(1f))
-                    TextButton(onClick = onRetry) { Text(stringResource(R.string.mobile_action_retry)) }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun MobileRecentSearchFailureText(failure: PutioFailure, modifier: Modifier = Modifier) {
-    Column(modifier = modifier) {
-        Text(
-            text = stringResource(R.string.mobile_search_recent_error_title),
-            style = MaterialTheme.typography.titleSmall,
-        )
-        Text(
-            text = failure.mobileMessage(),
-            style = MaterialTheme.typography.bodySmall,
-        )
-    }
-}
-
-@Composable
-private fun MobileRecentSearches(
-    terms: List<SearchTerm>,
-    onSearch: (SearchTerm) -> Unit,
-    onEdit: (RecentSearchEdit) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    if (terms.isEmpty()) {
-        MobileEmptyState(
-            title = stringResource(R.string.mobile_search_start_title),
-            message = stringResource(R.string.mobile_search_start_message),
-            modifier = modifier,
-        )
-        return
-    }
-    LazyColumn(modifier = modifier.fillMaxWidth()) {
-        item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = stringResource(R.string.mobile_search_recent),
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                TextButton(onClick = { onEdit(RecentSearchEdit.Clear) }) {
-                    Text(stringResource(R.string.mobile_search_clear_recent))
-                }
-            }
-        }
-        items(terms, key = SearchTerm::value) { term ->
-            ListItem(
-                headlineContent = { Text(term.value, maxLines = 2, overflow = TextOverflow.Ellipsis) },
-                modifier = Modifier.clickable(role = Role.Button) { onSearch(term) },
-                trailingContent = {
-                    val removeLabel = stringResource(R.string.mobile_search_remove_named, term.value)
-                    IconButton(onClick = { onEdit(RecentSearchEdit.Remove(term)) }) {
-                        Icon(painterResource(R.drawable.ic_ph_x), contentDescription = removeLabel)
-                    }
-                },
-            )
-        }
-    }
-}
-
-@Composable
-private fun MobileSearchEmpty(
-    term: SearchTerm,
-    paging: SearchPaging,
-    onNextPage: () -> Unit,
-    onRetry: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    LoadNextPageNow(nextPage = paging as? SearchPaging.Available, onLoadNextPage = onNextPage)
-    Box(modifier = modifier.fillMaxSize()) {
-        MobileEmptyState(
-            title = stringResource(R.string.mobile_search_no_results_title),
-            message = stringResource(R.string.mobile_search_no_results_message, term.value),
-            glyph = PutioEmptyGlyph.NoResults,
-        )
-        MobileSearchPaging(
-            paging = paging,
-            onNextPage = onNextPage,
-            onRetry = onRetry,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth(),
-        )
-    }
-}
-
-@Composable
-private fun MobileSearchResults(
-    items: List<FilesItem>,
-    paging: SearchPaging,
-    onResult: (FilesItem) -> Unit,
-    onNextPage: () -> Unit,
-    onRetry: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val listState = rememberLazyListState()
-    LoadNextPageNearEnd(listState, nextPage = paging as? SearchPaging.Available, onLoadNextPage = onNextPage)
-    LazyColumn(state = listState, modifier = modifier.testTag(MOBILE_SEARCH_RESULTS_TAG)) {
-        items(items, key = { it.id.value }) { item ->
-            MobileFilesRow(
-                item = item,
-                onClick = { onResult(item) },
-                onClickLabel = stringResource(
-                    if (item.isPlayable) R.string.mobile_files_play_media else R.string.mobile_search_open_result,
-                    item.name,
-                ),
-            )
-        }
-        if (paging != SearchPaging.Complete) {
-            item(key = "search-paging") {
-                MobileSearchPaging(paging, onNextPage, onRetry, Modifier.fillMaxWidth())
-            }
-        }
-    }
-}
-
-@Composable
-private fun MobileSearchPaging(
-    paging: SearchPaging,
-    onNextPage: () -> Unit,
-    onRetry: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    when (paging) {
-        is SearchPaging.Available ->
-            TextButton(onClick = onNextPage, modifier = modifier) {
-                Text(stringResource(R.string.mobile_files_load_more))
-            }
-        is SearchPaging.Loading ->
-            Row(
-                modifier = modifier.padding(16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                Text(stringResource(R.string.mobile_search_loading_more))
-            }
-        is SearchPaging.Failed ->
-            Column(modifier = modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(stringResource(R.string.mobile_search_paging_error))
-                TextButton(onClick = onRetry) { Text(stringResource(R.string.mobile_action_retry)) }
-            }
-        SearchPaging.Complete -> Unit
-    }
 }
 
 @Composable

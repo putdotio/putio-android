@@ -95,7 +95,10 @@ import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.rememberNowPlaying
 import io.putdotio.android.search.MobileHistoryOverflow
+import io.putdotio.android.search.MobileSearchBar
+import io.putdotio.android.search.MobileSearchFieldText
 import io.putdotio.android.search.RecentSearchEdit
+import io.putdotio.android.search.SearchFilter
 import io.putdotio.android.search.SearchReducer
 import io.putdotio.android.search.SearchScope
 import io.putdotio.android.search.SearchState
@@ -208,6 +211,16 @@ internal fun MobileShell(
     // Which way Search last moved: forward when opened or left for a result, back on a Back.
     var searchForward by remember { mutableStateOf(true) }
     val currentSearchActions by rememberUpdatedState(searchHistoryActions)
+    // The search field owns its text; a recent search is the one thing besides typing that sets it.
+    var searchFieldText by remember(sessionId) { mutableStateOf<MobileSearchFieldText?>(null) }
+    val searchActions = remember(searchHistoryActions) {
+        searchHistoryActions.copy(
+            onRecentSearch = { term ->
+                searchFieldText = MobileSearchFieldText(term.value)
+                searchHistoryActions.onRecentSearch(term)
+            },
+        )
+    }
     // A folder's search stays inside it; the root's pill, Ctrl+F and links search everything.
     val showSearch = {
         navController.navigateTo(MobileDestination.Files)
@@ -347,8 +360,28 @@ internal fun MobileShell(
                                 destination = selectedDestination,
                                 route = backStackEntry?.destination?.route,
                                 searchOpen = searchOpen,
-                                searchScope = searchHistoryState.search.scope,
-                                onOpenSearch = openScopedSearch,
+                                // A new scope clears the query, so it gets a fresh field, not a reconciled one.
+                                searchBar = { navigation ->
+                                    key(searchHistoryState.search.scope) {
+                                        MobileSearchBar(
+                                            query = searchHistoryState.search.query,
+                                            scope = searchHistoryState.search.scope,
+                                            onQueryChanged = searchHistoryActions.onQueryChanged,
+                                            onSubmit = searchHistoryActions.onSubmit,
+                                            onBack = onFilesBack,
+                                            focusRequested = searchFocusPending,
+                                            onFocused = { searchFocusPending = false },
+                                            replacement = searchFieldText,
+                                            onReplaced = { searchFieldText = null },
+                                            navigation = navigation,
+                                        )
+                                    }
+                                },
+                                // Search opened from its pill or a folder's bar takes the cursor at once.
+                                onOpenSearch = { scope ->
+                                    openScopedSearch(scope)
+                                    searchFocusPending = true
+                                },
                                 onSubpageBack = { navController.popBackStack() },
                                 filesState = filesState,
                                 onFilesBack = onFilesBack,
@@ -399,7 +432,7 @@ internal fun MobileShell(
                             onAppConfigEvent = onAppConfigEvent,
                             onPlaybackAuthenticationRequired = onPlaybackAuthenticationRequired,
                             onFilesAuthenticationRequired = onFilesAuthenticationRequired,
-                            searchHistoryActions = searchHistoryActions,
+                            searchHistoryActions = searchActions,
                             onTransfersEvent = onTransfersEvent,
                             onSignOut = onSignOut,
                             modifier = contentModifier,
@@ -407,8 +440,6 @@ internal fun MobileShell(
                             searchOpen = searchOpen,
                             searchForward = searchForward,
                             filesBackPreview = filesBackPreview,
-                            focusSearch = searchFocusPending,
-                            onSearchFocused = { searchFocusPending = false },
                             fileDragOut = fileDragOut,
                             continueWatching = continueWatching,
                             onNewFolder = requestNewFolder,
@@ -935,15 +966,15 @@ private fun navigationSuiteInsets(type: NavigationSuiteType): WindowInsets =
 
 /**
  * The Files root has a search app bar and a folder a small top app bar with back, its name,
- * search in it, sort and overflow. Search over Files has back and its title. The other tabs open
- * on a [MobileTabTitle]; their subpages keep a small bar with back.
+ * search in it, sort and overflow. Search over Files has its expanded search bar. The other tabs
+ * open on a [MobileTabTitle]; their subpages keep a small bar with back.
  */
 @Composable
 private fun MobileTopBar(
     destination: MobileDestination,
     route: String?,
     searchOpen: Boolean,
-    searchScope: SearchScope?,
+    searchBar: @Composable (navigation: (@Composable () -> Unit)?) -> Unit,
     onOpenSearch: (SearchScope?) -> Unit,
     onSubpageBack: () -> Unit,
     filesState: FilesBrowserState,
@@ -979,12 +1010,7 @@ private fun MobileTopBar(
             openNavigation?.let { MobileNavigationMenuButton(it) }
             tabActions?.invoke(this)
         }
-        searchOpen -> MobileSmallTopBar(
-            title = searchScope?.folderName?.let { stringResource(R.string.mobile_files_search_in, it) }
-                ?: stringResource(R.string.mobile_search_title),
-            onBack = onFilesBack,
-            openNavigation = openNavigation,
-        )
+        searchOpen -> searchBar(openNavigation?.let { { MobileNavigationMenuButton(it) } })
         else -> MobileFilesTopBar(filesState, onFilesBack, onFilesEvent, onOpenSearch, onNewFolder, openNavigation)
     }
 }
@@ -1139,6 +1165,8 @@ internal data class MobileSearchHistoryState(
     val search: SearchState,
     val history: HistoryState,
     val recentSearchFailure: PutioFailure?,
+    /** The folders search results sit in, by id, as far as their names are known. */
+    val folderNames: Map<FilesItemId, String> = emptyMap(),
 )
 
 internal data class MobileSearchHistoryActions(
@@ -1152,6 +1180,7 @@ internal data class MobileSearchHistoryActions(
     val onRecentRetry: () -> Unit = {},
     val onHistoryEvent: (HistoryEvent) -> Unit = {},
     val onScopeChanged: (SearchScope?) -> Unit = {},
+    val onFilterSelected: (SearchFilter) -> Unit = {},
 )
 
 private fun emptySearchHistoryState(): MobileSearchHistoryState =

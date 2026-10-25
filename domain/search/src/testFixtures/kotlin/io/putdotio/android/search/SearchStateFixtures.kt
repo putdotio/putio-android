@@ -7,6 +7,8 @@ public fun searchState(
     recentTerms: List<SearchTerm>,
     nextRequestValue: Long,
     recentSearchesEnabled: Boolean? = null,
+    scope: SearchScope? = null,
+    filter: SearchFilter = SearchFilter.All,
 ): SearchState =
     SearchState(
         query = query,
@@ -15,4 +17,6 @@ public fun searchState(
         consumedCursors = emptySet(),
         nextRequestValue = nextRequestValue,
         recentSearchesEnabled = recentSearchesEnabled,
+        scope = scope,
+        filter = filter,
     )

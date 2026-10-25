@@ -91,8 +91,35 @@ public class SearchController internal constructor(
     }
 
     /**
+     * The type chip in force. Choosing another with a query in the field searches again at once under
+     * it; that search is not one anyone submitted, so it is not kept in recent searches. Choosing the
+     * chip in force, or any chip on a closed controller, does nothing.
+     */
+    public var filter: SearchFilter
+        get() = state.value.filter
+        set(value) {
+            var search: Pair<SearchTerm, SearchRequestId>? = null
+            val previousJob = synchronized(lock) {
+                if (closed || mutableState.value.filter == value) return
+                val running = activeJob
+                activeJob = null
+                val query = mutableState.value.query.trim().takeIf(String::isNotBlank)?.let(::SearchTerm)
+                search = query?.let { it to requestIds.next() }
+                mutableState.value =
+                    mutableState.value.copy(
+                        filter = value,
+                        content = search?.let { (term, id) -> SearchContent.Loading(term, id) } ?: SearchContent.Idle,
+                        consumedCursors = emptySet(),
+                    )
+                running
+            }
+            previousJob?.cancel()
+            search?.let { (term, id) -> launchInitial(term, id, debounce = false) }
+        }
+
+    /**
      * The folder searches stay inside, or null for the whole account. A new scope starts over
-     * from an empty query, so results never mix scopes; a closed controller ignores it.
+     * from an empty query on every type, so results never mix scopes; a closed controller ignores it.
      */
     public var scope: SearchScope?
         get() = state.value.scope
@@ -109,6 +136,7 @@ public class SearchController internal constructor(
                             content = SearchContent.Idle,
                             consumedCursors = emptySet(),
                             scope = value,
+                            filter = SearchFilter.All,
                         )
                     running
                 }
@@ -250,9 +278,9 @@ public class SearchController internal constructor(
                 // A pause while typing is not a search anyone chose; only submit and open record.
                 if (!committed) return@launch
             }
-            // Recent searches keep the bare term; only the request carries the scope.
-            val scope = synchronized(lock) { mutableState.value.scope }
-            val result = safely { repository.search(term.within(scope)) }
+            // Recent searches keep the bare term; only the request carries the scope and the type.
+            val (scope, filter) = synchronized(lock) { mutableState.value.let { it.scope to it.filter } }
+            val result = safely { repository.search(term.within(scope), filter) }
             applyInitialResult(lock, mutableState, term, requestId, result)
         }
     }
@@ -352,7 +380,7 @@ private fun SearchState.withInitialPage(
     term: SearchTerm,
     page: SearchPage,
 ): SearchState {
-    val items = page.items.distinctBy(FilesItem::id)
+    val items = page.items.filter(filter::accepts).distinctBy(FilesItem::id)
     val paging = page.nextCursor?.let(SearchPaging::Available) ?: SearchPaging.Complete
     val content =
         if (items.isEmpty()) SearchContent.Empty(term, paging) else SearchContent.Ready(term, items, paging)
@@ -365,7 +393,7 @@ private fun SearchState.withNextPage(
 ): SearchState {
     val consumed = consumedCursors + cursor
     val paging = page.nextCursor?.takeUnless(consumed::contains)?.let(SearchPaging::Available) ?: SearchPaging.Complete
-    val items = (content.items() + page.items).distinctBy(FilesItem::id)
+    val items = (content.items() + page.items.filter(filter::accepts)).distinctBy(FilesItem::id)
     val term =
         when (val current = content) {
             is SearchContent.Empty -> current.term

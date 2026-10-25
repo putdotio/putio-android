@@ -136,8 +136,6 @@ internal fun MobileNavHost(
     searchOpen: Boolean = false,
     searchForward: Boolean = true,
     filesBackPreview: MobileBackPreview = rememberMobileBackPreview(),
-    focusSearch: Boolean = false,
-    onSearchFocused: () -> Unit = {},
     fileDragOut: MobileFileDragOut? = null,
     continueWatching: MobileContinueWatching? = null,
     onNewFolder: (() -> Unit)? = null,
@@ -174,16 +172,15 @@ internal fun MobileNavHost(
                             MobileSearchScreen(
                                 searchState = searchHistoryState.search,
                                 recentSearchFailure = searchHistoryState.recentSearchFailure,
-                                onSearchQueryChanged = searchHistoryActions.onQueryChanged,
-                                onSearchSubmit = searchHistoryActions.onSubmit,
                                 onSearchResult = searchHistoryActions.onResult,
                                 onSearchNextPage = searchHistoryActions.onNextPage,
                                 onSearchRetry = searchHistoryActions.onRetry,
                                 onRecentSearch = searchHistoryActions.onRecentSearch,
                                 onRecentEdit = searchHistoryActions.onRecentEdit,
                                 onRecentRetry = searchHistoryActions.onRecentRetry,
-                                focusSearch = focusSearch,
-                                onSearchFocused = onSearchFocused,
+                                onFilterSelected = searchHistoryActions.onFilterSelected,
+                                folderNames = searchHistoryState.folderNames,
+                                downloadStatus = downloadsState::rowStatus,
                             )
                         },
                     ) {

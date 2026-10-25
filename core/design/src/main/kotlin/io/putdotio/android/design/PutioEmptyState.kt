@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
@@ -30,6 +31,18 @@ public fun PutioEmptyState(
     glyph: PutioEmptyGlyph?,
     headline: String,
     message: String,
+    modifier: Modifier = Modifier,
+    action: (@Composable () -> Unit)? = null,
+) {
+    PutioEmptyState(glyph, headline, AnnotatedString(message), modifier, action)
+}
+
+/** The same state with a message that styles part of itself, such as the search term it names. */
+@Composable
+public fun PutioEmptyState(
+    glyph: PutioEmptyGlyph?,
+    headline: String,
+    message: AnnotatedString,
     modifier: Modifier = Modifier,
     action: (@Composable () -> Unit)? = null,
 ) {

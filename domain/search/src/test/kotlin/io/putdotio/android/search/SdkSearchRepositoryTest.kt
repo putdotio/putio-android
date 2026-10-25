@@ -69,6 +69,34 @@ class SdkSearchRepositoryTest {
             assertSame(error, result.failure.cause)
         }
 
+    @Test
+    fun typeChipsBecomeTheApiTypeFilterExceptSubtitles() =
+        runBlocking {
+            val requested = mutableListOf<List<PutioFileType>>()
+            val repository =
+                SdkSearchRepository(
+                    searchFiles = { query ->
+                        requested += query.type
+                        response()
+                    },
+                    continueSearch = { error("Unexpected continuation") },
+                )
+
+            SearchFilter.entries.forEach { repository.search(SearchTerm("movie"), it) }
+
+            // put.io has no subtitle type: Subtitles asks for every type and filters on the device.
+            assertEquals(
+                listOf(
+                    emptyList(),
+                    listOf(PutioFileType.FOLDER),
+                    listOf(PutioFileType.VIDEO),
+                    listOf(PutioFileType.AUDIO),
+                    emptyList(),
+                ),
+                requested,
+            )
+        }
+
     private fun repositoryThrowing(error: Throwable): SdkSearchRepository =
         SdkSearchRepository(
             searchFiles = { throw error },

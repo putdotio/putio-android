@@ -3,9 +3,14 @@ package io.putdotio.android
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.isHeading
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
@@ -34,6 +39,7 @@ import io.putdotio.android.history.HistoryState
 import io.putdotio.android.history.historyState
 import io.putdotio.android.search.RecentSearchEdit
 import io.putdotio.android.search.SearchContent
+import io.putdotio.android.search.SearchFilter
 import io.putdotio.android.search.SearchPaging
 import io.putdotio.android.search.SearchState
 import io.putdotio.android.search.SearchTerm
@@ -48,6 +54,10 @@ import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import io.putdotio.android.search.MOBILE_HISTORY_LIST_TAG
+import io.putdotio.android.search.MOBILE_SEARCH_FIELD_TAG
+import io.putdotio.android.search.MOBILE_SEARCH_FILTERS_TAG
+import io.putdotio.android.search.MobileSearchBar
+import io.putdotio.android.search.MobileSearchFieldText
 import io.putdotio.android.search.MOBILE_SEARCH_RESULTS_TAG
 import io.putdotio.android.search.MobileHistoryOverflow
 import io.putdotio.android.search.MobileHistoryScreen
@@ -72,6 +82,106 @@ class MobileSearchScreensTest {
         compose.onNodeWithText(item.name).assertIsDisplayed().performClick()
 
         assertEquals(listOf(item), opened)
+    }
+
+    @Test
+    fun resultsGroupIntoFoldersAndFilesWithCountsAndNameTheirFolderOnceKnown() {
+        val items = listOf(
+            fileItem().copy(id = FilesItemId(1L), name = "Big Buck Bunny.mp4", parentId = FilesItemId(30L)),
+            fileItem().copy(
+                id = FilesItemId(30L),
+                name = "Big Buck Bunny",
+                type = PutioFileType.FOLDER,
+                parentId = FilesItemId(0L),
+            ),
+            fileItem().copy(id = FilesItemId(2L), name = "Big Buck Bunny.en.srt", parentId = FilesItemId(40L)),
+        )
+        setScreen(
+            search = searchState(SearchContent.Ready(SearchTerm("bunny"), items, SearchPaging.Complete)),
+            folderNames = mapOf(FilesItemId(30L) to "Big Buck Bunny"),
+        )
+
+        val labels = compose.onAllNodes(isHeading()).fetchSemanticsNodes()
+            .map { it.config[SemanticsProperties.Text].joinToString() }
+        assertEquals(listOf("Folders", "Files"), labels)
+        compose.onNodeWithText("1").assertIsDisplayed()
+        compose.onNodeWithText("2").assertIsDisplayed()
+        // The folder sits at the root, named Files under the Files label; the video sits in a folder the
+        // session has named; the subtitle's folder isn't known yet, so its row names none.
+        compose.onAllNodesWithText("Files", useUnmergedTree = true).assertCountEquals(2)
+        compose.onAllNodesWithText("Big Buck Bunny", useUnmergedTree = true).assertCountEquals(2)
+    }
+
+    @Test
+    fun aTypeChipSearchesThatTypeAndNothingFoundAtAllDropsTheChips() {
+        val chosen = mutableListOf<SearchFilter>()
+        var search by mutableStateOf(searchState(SearchContent.Idle))
+        compose.setContent {
+            PutioTheme {
+                MobileSearchScreen(
+                    searchState = search,
+                    recentSearchFailure = null,
+                    onSearchResult = {},
+                    onSearchNextPage = {},
+                    onSearchRetry = {},
+                    onRecentSearch = {},
+                    onRecentEdit = {},
+                    onRecentRetry = {},
+                    onFilterSelected = chosen::add,
+                )
+            }
+        }
+
+        compose.onNodeWithText("All").assertIsSelected()
+        compose.onNodeWithText("Videos").performClick()
+        assertEquals(listOf(SearchFilter.Videos), chosen)
+
+        // A page that held nothing is not yet nothing at all: more pages may match.
+        val term = SearchTerm("cassini ring scans")
+        val firstPage = SearchContent.Empty(term, SearchPaging.Available(FilesCursor("next")))
+        search = searchState("cassini ring scans", firstPage, emptyList(), 1L)
+        compose.onNodeWithTag(MOBILE_SEARCH_FILTERS_TAG).assertExists()
+        val empty = SearchContent.Empty(SearchTerm("cassini ring scans"), SearchPaging.Complete)
+        search = searchState("cassini ring scans", empty, emptyList(), 1L, filter = SearchFilter.Videos)
+        compose.onNodeWithTag(MOBILE_SEARCH_FILTERS_TAG).assertExists()
+        search = searchState("cassini ring scans", empty, emptyList(), 1L)
+        compose.onNodeWithTag(MOBILE_SEARCH_FILTERS_TAG).assertDoesNotExist()
+        compose.onNodeWithText("Nothing matches.").assertIsDisplayed()
+        compose.onNodeWithText("No files or folders named cassini ring scans. Try fewer words.").assertIsDisplayed()
+    }
+
+    @Test
+    fun theBarSendsTypingUpTakesAQuerySetElsewhereAndClears() {
+        val sent = mutableListOf<String>()
+        var replacement by mutableStateOf<MobileSearchFieldText?>(null)
+        compose.setContent {
+            PutioTheme {
+                MobileSearchBar(
+                    query = "",
+                    scope = null,
+                    onQueryChanged = { sent += it },
+                    onSubmit = {},
+                    onBack = {},
+                    focusRequested = false,
+                    onFocused = {},
+                    replacement = replacement,
+                    onReplaced = { replacement = null },
+                )
+            }
+        }
+
+        compose.onNodeWithTag(MOBILE_SEARCH_FIELD_TAG).performTextInput("bunny")
+        compose.runOnIdle { assertEquals("bunny", sent.last()) }
+        // A recent search replaces the text without sending it back up, whatever edits went before.
+        replacement = MobileSearchFieldText("sintel")
+        compose.onNodeWithTag(MOBILE_SEARCH_FIELD_TAG).assertTextEquals("sintel")
+        compose.runOnIdle {
+            assertEquals("bunny", sent.last())
+            assertEquals(null, replacement)
+        }
+        compose.onNodeWithContentDescription("Clear search").performClick()
+        compose.runOnIdle { assertEquals("", sent.last()) }
+        compose.onNodeWithContentDescription("Clear search").assertDoesNotExist()
     }
 
     @Test
@@ -319,20 +429,21 @@ class MobileSearchScreensTest {
     private fun setScreen(
         search: SearchState = searchState(SearchContent.Idle),
         actions: MobileSearchHistoryActions = MobileSearchHistoryActions(),
+        folderNames: Map<FilesItemId, String> = emptyMap(),
     ) {
         compose.setContent {
             PutioTheme {
                 MobileSearchScreen(
                     searchState = search,
                     recentSearchFailure = null,
-                    onSearchQueryChanged = {},
-                    onSearchSubmit = {},
                     onSearchResult = actions.onResult,
                     onSearchNextPage = actions.onNextPage,
                     onSearchRetry = {},
                     onRecentSearch = actions.onRecentSearch,
                     onRecentEdit = actions.onRecentEdit,
                     onRecentRetry = actions.onRecentRetry,
+                    onFilterSelected = actions.onFilterSelected,
+                    folderNames = folderNames,
                 )
             }
         }

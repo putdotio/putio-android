@@ -28,7 +28,9 @@ Mobile, on the emulator harness against the live API:
 - Transfers in Active, Needs attention and Completed sections, each card
   filling with its progress; Transfer actions open the save folder, copy the
   source link, stop, retry, open the file or remove it from the list
-- Search
+- Search with type chips (All, Folders, Videos, Audio, Subtitles), results
+  grouped into Folders and Files with each result's folder named, and recent
+  searches
 - History under Today, Yesterday and date headers, one line per event with a
   neutral glyph and its time; Clear history sits in the tab's overflow and
   confirms first
