@@ -96,6 +96,11 @@ boot_snapshot() {
     sleep 2
   done
   is_ours "${serial}" "${SHARED_AVD}" "${pid}" || die "${serial} is not the instance this run started"
+  # The restored app checks its session at once; give it a validated network first.
+  until "${ADB}" -s "${serial}" shell dumpsys connectivity 2>/dev/null | grep -q 'NetworkAgentInfo.*IS_VALIDATED'; do
+    ((SECONDS < deadline)) || die "no validated network on ${serial} after ${BOOT_TIMEOUT}s"
+    sleep 2
+  done
   grep -q "Successfully loaded snapshot '${SNAPSHOT}'" "${logfile}" ||
     log "WARNING: ${SNAPSHOT} did not load; this is a cold boot and the app may be signed out (Doctor will say)"
   log "booted ${serial} (pid ${pid}) from ${SNAPSHOT}"

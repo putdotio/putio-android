@@ -55,6 +55,9 @@ Two ways to boot:
 - Ready means the sign-in script printed `SIGNED IN <account id>` and
   `PROOF PASS sign-in-devs-auto`: the app holds a devs-auto session and shows
   Files. Its `--help` lists failures and fixes.
+- `Device sign-in stopped: app is ValidationUnavailable` means the restored
+  app could not reach put.io to check its session yet. `session.sh up` waits
+  for a validated network to make this rare; run the script once more.
 - Every `putio-phone` instance runs `-read-only`, ours included; boot that
   AVD only through `session.sh up --snapshot`. A snapshot loads only with the
   renderer that saved it (`-gpu swiftshader_indirect`).
