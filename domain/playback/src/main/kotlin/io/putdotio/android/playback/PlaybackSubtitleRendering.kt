@@ -66,38 +66,71 @@ public fun SubtitleCueOverlay(
 internal class SubtitleCueRenderer(
     context: Context,
 ) {
-    private val subtitleView =
-        SubtitleView(context).apply {
-            setUserDefaultStyle()
-            setUserDefaultTextSize()
-        }
     private val captionScale =
         (context.getSystemService(Context.CAPTIONING_SERVICE) as? CaptioningManager)
             ?.takeIf { it.isEnabled }
             ?.fontScale
             ?: 1f
-    private var renderedCues: List<Cue> = emptyList()
-    private var renderedScale = 1f
-    private var renderedBottomPadding = SubtitleView.DEFAULT_BOTTOM_PADDING_FRACTION
-    private var renderedWidth = 0
-    private var renderedHeight = 0
+    private val placed = CueLayer(context)
+
+    // WebVTT gives each cue without a line its own line counted up from the bottom (-1, -2, ...),
+    // and Media3 applies the bottom padding only to cues with no line, so these stack in a layer of
+    // their own, raised by the padding as a whole.
+    private val stacked = CueLayer(context).apply { subtitleView.setBottomPaddingFraction(0f) }
+    private var bottomPaddingFraction = SubtitleView.DEFAULT_BOTTOM_PADDING_FRACTION
 
     /**
      * [textScale] multiplies Android's caption size, as the user's caption settings set it; any
      * scale but 1 also overrides the sizes a styled subtitle file sets. [bottomPaddingFraction]
-     * raises cues placed at the bottom by default; positioned cues stay where the file puts them.
+     * raises cues placed at the bottom by default, and WebVTT cues stacked up from it; positioned
+     * cues stay where the file puts them.
      */
     fun layOut(textScale: Float, bottomPaddingFraction: Float) {
-        if (renderedBottomPadding != bottomPaddingFraction) {
-            renderedBottomPadding = bottomPaddingFraction
-            subtitleView.setBottomPaddingFraction(bottomPaddingFraction)
+        if (this.bottomPaddingFraction != bottomPaddingFraction) {
+            this.bottomPaddingFraction = bottomPaddingFraction
+            placed.subtitleView.setBottomPaddingFraction(bottomPaddingFraction)
         }
-        if (renderedScale != textScale) {
-            renderedScale = textScale
-            subtitleView.setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * captionScale * textScale)
-            // A size the viewer picked wins over sizes the subtitle file sets.
-            subtitleView.setApplyEmbeddedFontSizes(textScale == 1f)
+        placed.scale(textScale, captionScale)
+        stacked.scale(textScale, captionScale)
+    }
+
+    fun draw(
+        cues: List<Cue>,
+        width: Int,
+        height: Int,
+        canvas: android.graphics.Canvas,
+    ) {
+        val (bottomStacked, others) = cues.partition { it.isStackedFromBottom() }
+        placed.draw(others, width, height, canvas)
+        if (bottomStacked.isEmpty()) return
+        val save = canvas.save()
+        canvas.translate(0f, -(height.coerceAtLeast(1) * bottomPaddingFraction))
+        stacked.draw(bottomStacked, width, height, canvas)
+        canvas.restoreToCount(save)
+    }
+}
+
+private fun Cue.isStackedFromBottom(): Boolean =
+    lineType == Cue.LINE_TYPE_NUMBER && line != Cue.DIMEN_UNSET && line < 0f && verticalType == Cue.TYPE_UNSET
+
+@UnstableApi
+private class CueLayer(context: Context) {
+    val subtitleView =
+        SubtitleView(context).apply {
+            setUserDefaultStyle()
+            setUserDefaultTextSize()
         }
+    private var renderedCues: List<Cue> = emptyList()
+    private var renderedScale = 1f
+    private var renderedWidth = 0
+    private var renderedHeight = 0
+
+    fun scale(textScale: Float, captionScale: Float) {
+        if (renderedScale == textScale) return
+        renderedScale = textScale
+        subtitleView.setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * captionScale * textScale)
+        // A size the viewer picked wins over sizes the subtitle file sets.
+        subtitleView.setApplyEmbeddedFontSizes(textScale == 1f)
     }
 
     fun draw(

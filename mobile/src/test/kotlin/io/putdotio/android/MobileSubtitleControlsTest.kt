@@ -49,6 +49,9 @@ import androidx.media3.common.TrackGroup
 import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.text.Cue
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.extractor.text.subrip.SubripParser
+import androidx.media3.extractor.text.webvtt.WebvttParser
+import androidx.media3.ui.SubtitleView
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
@@ -93,6 +96,18 @@ private fun ImageBitmap.hasVisiblePixel(): Boolean {
         }
     }
     return false
+}
+
+/** The row below the lowest pixel unlike the top-left corner's background, or 0 when there is none. */
+private fun ImageBitmap.drawnBottom(): Int {
+    val pixels = toPixelMap()
+    val background = pixels[0, 0]
+    for (y in height - 1 downTo 0) {
+        for (x in 0 until width) {
+            if (pixels[x, y] != background) return y + 1
+        }
+    }
+    return 0
 }
 
 @RunWith(AndroidJUnit4::class)
@@ -306,6 +321,44 @@ class MobileSubtitleControlsTest {
         assertTrue(compose.onNodeWithTag(SUBTITLE_CUES_TAG).captureToImage().hasVisiblePixel())
         compose.runOnIdle { aspectRatio = null }
         compose.onNodeWithTag(SUBTITLE_CUES_TAG).assertDoesNotExist()
+    }
+
+    @Test
+    @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+    fun unplacedSubtitleCuesRiseAboveControlsAndReturnWhenTheyHide() {
+        // HLS subtitle renditions are WebVTT; sidecar files are often SubRip.
+        val webvtt = "WEBVTT\n\n00:00.000 --> 00:05.000\nA subtitle line\n".toByteArray()
+        val subrip = "1\n00:00:00,000 --> 00:00:05,000\nA subtitle line\n".toByteArray()
+        val parsed = mapOf(
+            "WebVTT" to WebvttParser().parseToLegacySubtitle(webvtt, 0, webvtt.size).getCues(1_000_000L),
+            "SubRip" to SubripParser().parseToLegacySubtitle(subrip, 0, subrip.size).getCues(1_000_000L),
+        )
+        var bottomPadding by mutableStateOf(SubtitleView.DEFAULT_BOTTOM_PADDING_FRACTION)
+        var cues by mutableStateOf(emptyList<Cue>())
+        compose.setContent {
+            PutioTheme {
+                SubtitleCueOverlay(
+                    cues = cues,
+                    videoAspectRatio = 16f / 9f,
+                    modifier = Modifier.requiredSize(320.dp, 180.dp),
+                    bottomPaddingFraction = bottomPadding,
+                )
+            }
+        }
+
+        for ((format, formatCues) in parsed) {
+            compose.runOnIdle {
+                cues = formatCues
+                bottomPadding = 0.5f
+            }
+            val raised = compose.onNodeWithTag(SUBTITLE_CUES_TAG).captureToImage()
+            assertTrue("$format cue drawn", raised.drawnBottom() > 0)
+            assertTrue("$format cue clears the controls", raised.drawnBottom() <= raised.height / 2)
+
+            compose.runOnIdle { bottomPadding = SubtitleView.DEFAULT_BOTTOM_PADDING_FRACTION }
+            val resting = compose.onNodeWithTag(SUBTITLE_CUES_TAG).captureToImage()
+            assertTrue("$format cue returns to the bottom", resting.drawnBottom() > resting.height * 3 / 4)
+        }
     }
 
     @Test
