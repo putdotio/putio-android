@@ -2,6 +2,7 @@ package io.putdotio.android
 
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
+import io.putdotio.android.account.MOBILE_APP_INFO_ROUTE
 import io.putdotio.android.account.MOBILE_PRIVACY_CONTROLS_ROUTE
 import io.putdotio.android.design.R as DesignR
 import io.putdotio.android.downloads.MOBILE_DOWNLOADS_ROUTE
@@ -52,6 +53,7 @@ internal enum class MobileDestination(
             MOBILE_TRASH_ROUTE,
             MOBILE_PUBLIC_LINKS_ROUTE,
             MOBILE_PRIVACY_CONTROLS_ROUTE,
+            MOBILE_APP_INFO_ROUTE,
         )
 
         val start: MobileDestination = Files

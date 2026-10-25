@@ -363,9 +363,9 @@ private fun SignedInMobileSession(
         contentNavigation = searchHistorySession.navigation,
         navigationFailure = navigationFailure,
         onDismissNavigationFailure = searchHistorySession::dismissNavigationFailure,
-        onSignOut = {
+        onSignOut = { removeDownloads ->
             MobilePlaybackService.stop(appContext)
-            rootScope.launch { authController.logout() }
+            rootScope.launch { signOut(authController, downloadsController.takeIf { removeDownloads }) }
         },
     )
 }
@@ -406,6 +406,15 @@ private fun SavedPositionEffects(
             .distinctUntilChanged()
             .collect { gone -> gone.forEach(row::removed) }
     }
+}
+
+/**
+ * Ends the session, first deleting [removeDownloadsFrom]'s downloads when the viewer asked. Deletes reach
+ * Media3 before the session ends, so they run even though sign-out parks this account's transfers next.
+ */
+private suspend fun signOut(authController: MobileAuthController, removeDownloadsFrom: DownloadsController?) {
+    removeDownloadsFrom?.removeAll()
+    authController.logout()
 }
 
 /** Offline playback falls back to the resume setting this device last confirmed. */

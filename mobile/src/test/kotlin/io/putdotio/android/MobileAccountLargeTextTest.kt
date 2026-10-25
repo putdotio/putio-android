@@ -73,20 +73,13 @@ class MobileAccountLargeTextTest {
     }).around(compose)
 
     @Test
-    fun selectedValuesLeaveDescriptionsAReadableColumn() {
+    fun oneLineRowsWrapLongValuesBesideAWholeTitle() {
         mount()
-        assertValueAndDescription(
-            "Default sort order", "Date modified, newest first",
-            "Used by every folder that doesn’t have its own order.",
-        )
-        assertValueAndDescription(
-            "Choose your proxy", "a-long-regional-proxy-name",
-            "Route streams and downloads through a put.io proxy closer to you.",
-        )
-        assertValueAndDescription("Video playback", "HLS stream", "Choose how this app streams videos.")
-        assertValueAndDescription(
-            "App info", BuildConfig.VERSION_NAME, "Version, build, and device details for support.",
-        )
+        assertTitleAndValue("Default sort order", "Date modified, newest first")
+        assertTitleAndValue("Proxy", "a-long-regional-proxy-name")
+        assertTitleAndValue("Video playback", "HLS stream")
+        assertTitleAndValue("Privacy controls", "Diagnostics on · Analytics off")
+        assertTitleAndValue("App info", BuildConfig.VERSION_NAME)
     }
 
     @Test
@@ -96,11 +89,13 @@ class MobileAccountLargeTextTest {
                 MobilePrivacyControlsScreen(settingsState = readyAccountSettingsState(), onSettingsEvent = {})
             }
         }
-        assertValueAndDescription(
-            "Strictly necessary", "Always on",
-            "Needed for sign-in, security, transfers, downloads, playback, billing, and saving your choices.",
-            list = MOBILE_PRIVACY_CONTROLS_LIST_TAG,
-        )
+        val description =
+            "Needed for sign-in, security, transfers, downloads, playback, billing, and saving your choices."
+        compose.onNodeWithTag(MOBILE_PRIVACY_CONTROLS_LIST_TAG)
+            .performScrollToNode(hasText(description, substring = true))
+        assertCompleteText("Strictly necessary")
+        assertCompleteText("Always on")
+        assertCompleteText(description)
         compose.onNodeWithTag(MOBILE_STRICTLY_NECESSARY_TAG)
             .assert(SemanticsMatcher.keyNotDefined(SemanticsProperties.ToggleableState))
             .assert(SemanticsMatcher.keyNotDefined(SemanticsActions.OnClick))
@@ -113,7 +108,7 @@ class MobileAccountLargeTextTest {
         mount(configEvents = events)
         scrollTo("Video playback")
         compose.onNodeWithText("Video playback").performClick()
-        compose.onNodeWithText("Direct MP4").performScrollTo().assertIsDisplayed().performClick()
+        compose.onNodeWithText("Direct MP4", substring = true).performScrollTo().assertIsDisplayed().performClick()
         assertTrue(events.isEmpty())
         compose.onNodeWithText("Save").assertIsDisplayed().performClick()
         assertEquals(
@@ -129,8 +124,9 @@ class MobileAccountLargeTextTest {
         mount(settingsEvents = events)
         scrollTo("Move deleted files to Trash")
         compose.onNodeWithText("Move deleted files to Trash").performClick()
-        compose.onNodeWithText("Deleted files will no longer be recoverable. Continue?").assertIsDisplayed()
-        assertCompleteText("Deleted files will no longer be recoverable. Continue?")
+        val consequence = "Deleted files will no longer be recoverable. Files already in Trash stay for their 14 days."
+        compose.onNodeWithText(consequence).assertIsDisplayed()
+        assertCompleteText(consequence)
         compose.onNodeWithText("Cancel").assertIsDisplayed().performClick()
         assertTrue(events.isEmpty())
         compose.onNodeWithText("Move deleted files to Trash").performClick()
@@ -183,21 +179,15 @@ class MobileAccountLargeTextTest {
         compose.onNodeWithText("Try again").performClick()
     }
 
-    private fun assertValueAndDescription(
-        title: String,
-        value: String,
-        description: String,
-        list: String = MOBILE_ACCOUNT_LIST_TAG,
-    ) {
-        compose.onNodeWithTag(list).performScrollToNode(hasText(description))
+    /** One line per row: the value sits beside its title, takes at most 60% of it, and neither is cut. */
+    private fun assertTitleAndValue(title: String, value: String) {
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText(title))
         val heading = compose.onNodeWithText(title, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
         val selected = compose.onNodeWithText(value, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
-        val supporting = compose.onNodeWithText(description, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
-        assertTrue("Selected values must not squeeze the heading", selected.top >= heading.bottom)
-        assertEquals("Selected value aligns with its heading", heading.left, selected.left, 1f)
-        assertTrue("Description must use most of the row width", supporting.width >= rootWidth() * 0.65f)
+        assertTrue("$value sits beside $title", selected.left >= heading.right)
+        assertTrue("$value leaves its title room", selected.width <= rootWidth() * 0.6f)
+        assertCompleteText(title)
         assertCompleteText(value)
-        assertCompleteText(description)
     }
 
     private fun assertCompleteText(text: String) {

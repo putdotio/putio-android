@@ -71,17 +71,30 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import io.putdotio.android.account.MOBILE_ABOUT_COPIED_TAG
 import io.putdotio.android.account.MOBILE_ABOUT_COPY_TAG
-import io.putdotio.android.account.MOBILE_ABOUT_DIALOG_TAG
+import io.putdotio.android.account.MOBILE_APP_INFO_TAG
 import io.putdotio.android.account.MOBILE_ABOUT_ROW_TAG
 import io.putdotio.android.account.MOBILE_ACCOUNT_AVATAR_FALLBACK_TAG
 import io.putdotio.android.account.MOBILE_ACCOUNT_LIST_TAG
+import io.putdotio.android.account.MOBILE_ACCOUNT_SIGN_OUT_TAG
+import io.putdotio.android.account.MOBILE_CHOICE_SAVE_TAG
 import io.putdotio.android.account.MOBILE_ACCOUNT_STORAGE_PROGRESS_TAG
 import io.putdotio.android.account.MOBILE_DEFAULT_SORT_DIALOG_TAG
 import io.putdotio.android.account.MOBILE_DEFAULT_SORT_ROW_TAG
+import io.putdotio.android.account.MOBILE_MANAGE_PUBLIC_LINKS_TAG
 import io.putdotio.android.account.MOBILE_PRIVACY_CONTROLS_ROW_TAG
 import io.putdotio.android.account.MOBILE_TUNNEL_ROUTE_RETRY_TAG
 import io.putdotio.android.account.MOBILE_TUNNEL_ROUTE_ROW_TAG
+import io.putdotio.android.account.MOBILE_SIGN_OUT_DIALOG_TAG
+import io.putdotio.android.account.MOBILE_SIGN_OUT_REMOVE_DOWNLOADS_TAG
+import io.putdotio.android.account.MobileAccountLibrary
 import io.putdotio.android.account.MobileAccountScreen
+import io.putdotio.android.account.MobileAppInfoScreen
+import io.putdotio.android.account.mobileAppDiagnostics
+import io.putdotio.android.playback.playbackPreference
+import io.putdotio.android.trash.MOBILE_MANAGE_TRASH_TAG
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
 
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -93,7 +106,7 @@ class MobileAccountScreenTest {
     @Test
     fun settingsSectionsSupportHeadingNavigation() {
         compose.setAccountContent()
-        listOf("Files", "Playback", "About").forEach { title ->
+        listOf("Library", "Files", "Playback", "Subtitles", "Privacy", "About").forEach { title ->
             compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText(title))
             compose.onNodeWithText(title).assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading))
         }
@@ -101,11 +114,11 @@ class MobileAccountScreenTest {
 
     @Test
     fun accountIdentitySettingsAndSignOutAreAvailable() {
-        var signedOut = false
+        var signedOut: Boolean? = null
         val events = mutableListOf<AccountSettingsEvent>()
         compose.setAccountContent(
             events = events,
-            options = AccountScreenOptions(onSignOut = { signedOut = true }),
+            options = AccountScreenOptions(onSignOut = { signedOut = it }),
         )
 
         compose.onNodeWithText("putio-user").assertIsDisplayed()
@@ -117,11 +130,13 @@ class MobileAccountScreenTest {
         compose.onNodeWithText(expectedStorage).assertIsDisplayed()
         compose.onNodeWithTag(MOBILE_ACCOUNT_STORAGE_PROGRESS_TAG)
             .assertRangeInfoEquals(ProgressBarRangeInfo(0.25f, 0f..1f))
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Show subtitles"))
         compose.onNodeWithText("Show subtitles").performClick()
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Resume where you left off"))
         compose.onNodeWithText("Resume where you left off").performClick()
-        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Sign out"))
-        compose.onNodeWithText("Sign out").performClick()
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_ACCOUNT_SIGN_OUT_TAG))
+        compose.onNodeWithTag(MOBILE_ACCOUNT_SIGN_OUT_TAG).performClick()
+        compose.onNode(hasText("Sign out") and hasAnyAncestor(hasTestTag(MOBILE_SIGN_OUT_DIALOG_TAG))).performClick()
 
         assertEquals(
             listOf(
@@ -134,7 +149,7 @@ class MobileAccountScreenTest {
             ),
             events,
         )
-        assertTrue(signedOut)
+        assertEquals(false, signedOut)
     }
 
     @Test
@@ -219,13 +234,13 @@ class MobileAccountScreenTest {
         compose.setAccountContent(
             state = { state },
             events = events,
-            options = AccountScreenOptions(onPrivacyControls = { opened += 1 }),
+            options = AccountScreenOptions(pages = AccountPages(onPrivacyControls = { opened += 1 })),
         )
 
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_PRIVACY_CONTROLS_ROW_TAG))
         compose.onNodeWithTag(MOBILE_PRIVACY_CONTROLS_ROW_TAG)
             .assertTextContains("Privacy controls")
-            .assertTextContains("Diagnostics on · Product analytics off")
+            .assertTextContains("Diagnostics on · Analytics off")
             .performClick()
         compose.onAllNodesWithText("Strictly necessary").assertCountEquals(0)
         compose.onAllNodesWithText("Diagnostics").assertCountEquals(0)
@@ -238,7 +253,7 @@ class MobileAccountScreenTest {
             )
         }
         compose.onNodeWithTag(MOBILE_PRIVACY_CONTROLS_ROW_TAG)
-            .assertTextContains("Diagnostics off · Product analytics on")
+            .assertTextContains("Diagnostics off · Analytics on")
     }
 
     @Test
@@ -318,6 +333,7 @@ class MobileAccountScreenTest {
             events = events,
         )
 
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Show subtitles"))
         compose.onNodeWithText("Show subtitles").assertIsNotEnabled()
         compose.onAllNodesWithText("Try again").assertCountEquals(0)
         assertTrue(events.isEmpty())
@@ -374,6 +390,8 @@ class MobileAccountScreenTest {
         compose.onNodeWithTag(MOBILE_DEFAULT_SORT_ROW_TAG).assertTextContains("Name, A–Z").performClick()
         compose.onNodeWithTag(MOBILE_DEFAULT_SORT_DIALOG_TAG).assertIsDisplayed()
         compose.onNodeWithText("Date added, newest first").performClick()
+        compose.runOnIdle { assertTrue("Picking a row only marks it", events.isEmpty()) }
+        compose.onNodeWithTag(MOBILE_CHOICE_SAVE_TAG).performClick()
         compose.runOnIdle {
             assertEquals(
                 listOf<AccountSettingsEvent>(
@@ -433,8 +451,7 @@ class MobileAccountPlaybackSettingsTest {
                 ),
             )
             .performClick()
-        // A choice applies on Save.
-        compose.onNodeWithText("Save").performClick()
+        compose.onNodeWithTag(MOBILE_CHOICE_SAVE_TAG).performClick()
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Autoplay next video"))
         compose.onNodeWithText("Autoplay next video").performClick()
 
@@ -466,6 +483,7 @@ class MobileAccountPlaybackSettingsTest {
             options = AccountScreenOptions(onAppConfigEvent = appConfigEvents::add),
         )
 
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Show subtitles"))
         compose.onNodeWithText("Show subtitles").assertIsDisplayed()
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Loading playback settings"))
         compose.onNodeWithText("Loading playback settings").assertIsDisplayed()
@@ -575,8 +593,11 @@ class MobileAccountPlaybackSettingsTest {
         compose.onNodeWithTag(MOBILE_TUNNEL_ROUTE_ROW_TAG).assertTextContains("Direct").performClick()
         compose.onNodeWithText("Couldn’t load proxies").assertIsDisplayed()
         compose.onNodeWithTag(MOBILE_TUNNEL_ROUTE_RETRY_TAG).performClick()
-        compose.onNodeWithText("Amsterdam (Direct)").assertIsDisplayed()
-        compose.onNodeWithText("cdn77").performClick()
+        // Direct reads put.io's own line, not the route's API description; other routes keep theirs.
+        compose.onNodeWithText("Straight from put.io, no proxy.", substring = true).assertIsDisplayed()
+        compose.onAllNodesWithText("Amsterdam (Direct)", substring = true).assertCountEquals(0)
+        compose.onNodeWithText("cdn77", substring = true).assertTextContains("CDN").performClick()
+        compose.onNodeWithTag(MOBILE_CHOICE_SAVE_TAG).performClick()
         compose.runOnIdle {
             assertEquals(2, attempts)
             assertEquals(
@@ -586,7 +607,7 @@ class MobileAccountPlaybackSettingsTest {
                 events,
             )
         }
-        compose.onNodeWithText("Amsterdam (Direct)").assertDoesNotExist()
+        compose.onAllNodesWithText("Straight from put.io, no proxy.", substring = true).assertCountEquals(0)
     }
 
     @Test
@@ -610,11 +631,14 @@ class MobileAccountPlaybackSettingsTest {
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_TUNNEL_ROUTE_ROW_TAG))
         compose.onNodeWithTag(MOBILE_TUNNEL_ROUTE_ROW_TAG).assertTextContains("Direct")
         compose.onAllNodesWithText("Couldn’t save this setting").assertCountEquals(1)
-        compose.onNodeWithText("That proxy isn’t available for your account. Choose another one.").assertIsDisplayed()
+        val unavailable = "That proxy isn’t available for your account. Choose another one."
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText(unavailable))
+        compose.onNodeWithText(unavailable).assertIsDisplayed()
+        // The failure sits under the Proxy row it belongs to.
+        val proxy = compose.onNodeWithTag(MOBILE_TUNNEL_ROUTE_ROW_TAG).fetchSemanticsNode().boundsInRoot
+        val failureTop = compose.onNodeWithText(unavailable).fetchSemanticsNode().boundsInRoot.top
+        assertTrue(failureTop >= proxy.bottom && failureTop - proxy.bottom < 1f)
         compose.onNodeWithText("Try again").performClick()
-        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Show subtitles"))
-        compose.onNodeWithText("Show subtitles").assertIsDisplayed()
-        compose.onAllNodesWithText("Couldn’t save this setting").assertCountEquals(0)
         compose.runOnIdle { assertEquals(listOf<AccountSettingsEvent>(AccountSettingsEvent.RetryChange), events) }
     }
 }
@@ -627,14 +651,21 @@ class MobileAccountAboutTest {
     val compose = createComposeRule()
 
     @Test
-    fun aboutRowOpensAppInfoAndCopiesSupportTextToTheClipboard() {
-        compose.setAccountContent()
+    fun appInfoRowShowsTheVersionAndOpensTheSubpage() {
+        var opened = 0
+        compose.setAccountContent(options = AccountScreenOptions(pages = AccountPages(onAppInfo = { opened += 1 })))
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_ABOUT_ROW_TAG))
         compose.onNodeWithTag(MOBILE_ABOUT_ROW_TAG).assertTextContains(BuildConfig.VERSION_NAME).performClick()
-        compose.onNodeWithTag(MOBILE_ABOUT_DIALOG_TAG).assertIsDisplayed()
+        compose.runOnIdle { assertEquals(1, opened) }
+    }
+
+    @Test
+    fun appInfoCopiesSupportTextToTheClipboard() {
+        compose.setContent { PutioTheme { MobileAppInfoScreen(diagnostics(readyAndroidAppConfigState())) } }
+        compose.onNodeWithTag(MOBILE_APP_INFO_TAG).assertIsDisplayed()
         compose.onNodeWithText("Android API level").assertIsDisplayed()
         compose.onNodeWithText("Phone").assertIsDisplayed()
-        compose.onNodeWithText("media3/hls").assertIsDisplayed()
+        compose.onNodeWithText("Media3").assertIsDisplayed()
         compose.onAllNodesWithTag(MOBILE_ABOUT_COPIED_TAG).assertCountEquals(0)
 
         val clipboard = ApplicationProvider.getApplicationContext<Context>()
@@ -654,17 +685,12 @@ class MobileAccountAboutTest {
         assertTrue(pasted, pasted.contains("device_class: phone"))
         assertTrue(pasted, pasted.contains("player: media3/hls"))
         assertFalse(pasted, pasted.contains(Account.username))
-
-        compose.onNodeWithText("Close").performClick()
-        compose.onNodeWithTag(MOBILE_ABOUT_DIALOG_TAG).assertDoesNotExist()
     }
 
     @Test
     fun copiedConfirmationResetsWhenTheSupportTextChanges() {
         var appConfigState by mutableStateOf(readyAndroidAppConfigState())
-        compose.setAccountContent(appConfigState = { appConfigState })
-        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_ABOUT_ROW_TAG))
-        compose.onNodeWithTag(MOBILE_ABOUT_ROW_TAG).performClick()
+        compose.setContent { PutioTheme { MobileAppInfoScreen(diagnostics(appConfigState)) } }
         val clipboard = ApplicationProvider.getApplicationContext<Context>()
             .getSystemService(android.content.ClipboardManager::class.java)
         clipboard.clearPrimaryClip()
@@ -680,53 +706,165 @@ class MobileAccountAboutTest {
                 preferences = DefaultAndroidAppConfigPreferences.copy(videoPlaybackType = VideoPlaybackType.Mp4),
             )
         }
-        compose.onNodeWithText("media3/mp4").assertIsDisplayed()
         compose.onNodeWithTag(MOBILE_ABOUT_COPY_TAG).assertTextEquals("Copy for support")
         assertTrue(clipboard.primaryClip?.getItemAt(0)?.text?.toString().orEmpty().contains("player: media3/hls"))
     }
 
     @Test
-    fun aboutDialogReportsTheEffectivePlayerNotAnUnconfirmedSave() {
+    fun appInfoReportsTheEffectivePlayerNotAnUnconfirmedSave() {
         val mp4 = DefaultAndroidAppConfigPreferences.copy(videoPlaybackType = VideoPlaybackType.Mp4)
-        compose.setAccountContent(
-            // Optimistic Ready shows MP4, but the save is still pending: playback keeps HLS.
-            appConfigState = {
-                androidAppConfigState(
-                    content = AndroidAppConfigContent.Ready(mp4),
-                    mutation = AndroidAppConfigMutation.Saving(
-                        requestId = AndroidAppConfigRequestId(3L),
-                        change = AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Mp4),
-                        previousPreferences = DefaultAndroidAppConfigPreferences,
-                        operation = AndroidAppConfigMutation.Operation.Save,
-                    ),
-                    nextRequestValue = 4L,
-                    confirmedPreferences = DefaultAndroidAppConfigPreferences,
-                )
-            },
+        // Optimistic Ready shows MP4, but the save is still pending: playback keeps HLS.
+        val pending = androidAppConfigState(
+            content = AndroidAppConfigContent.Ready(mp4),
+            mutation = AndroidAppConfigMutation.Saving(
+                requestId = AndroidAppConfigRequestId(3L),
+                change = AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Mp4),
+                previousPreferences = DefaultAndroidAppConfigPreferences,
+                operation = AndroidAppConfigMutation.Operation.Save,
+            ),
+            nextRequestValue = 4L,
+            confirmedPreferences = DefaultAndroidAppConfigPreferences,
         )
-        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_ABOUT_ROW_TAG))
-        compose.onNodeWithTag(MOBILE_ABOUT_ROW_TAG).performClick()
-        compose.onNodeWithText("media3/hls").assertIsDisplayed()
+        assertEquals("media3/hls", diagnostics(pending).player)
     }
 
     @Test
-    fun aboutDialogReportsTheDeviceClassTheShellPassesIn() {
-        compose.setAccountContent(options = AccountScreenOptions(deviceClass = AppDiagnostics.DeviceClass.Tablet))
-        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_ABOUT_ROW_TAG))
-        compose.onNodeWithTag(MOBILE_ABOUT_ROW_TAG).performClick()
+    fun appInfoReportsTheDeviceClassTheShellPassesIn() {
+        compose.setContent {
+            PutioTheme {
+                MobileAppInfoScreen(diagnostics(readyAndroidAppConfigState(), AppDiagnostics.DeviceClass.Tablet))
+            }
+        }
         compose.onNodeWithText("Tablet").assertIsDisplayed()
+    }
+
+    private fun diagnostics(
+        state: AndroidAppConfigState,
+        deviceClass: AppDiagnostics.DeviceClass = AppDiagnostics.DeviceClass.Phone,
+    ) = mobileAppDiagnostics(state.playbackPreference(), deviceClass)
+}
+
+@RunWith(AndroidJUnit4::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [35])
+class MobileAccountSignOutAndLibraryTest {
+    @get:Rule
+    val compose = createComposeRule()
+
+    @Test
+    fun signOutConfirmsAndCancelKeepsTheSession() {
+        val signOuts = mutableListOf<Boolean>()
+        compose.setAccountContent(options = AccountScreenOptions(onSignOut = signOuts::add))
+        openSignOut()
+        compose.onNodeWithText("Sign out of put.io?").assertIsDisplayed()
+        compose.onNodeWithText("Downloads stay on this device and come back when you sign in again.")
+            .assertIsDisplayed()
+        // No downloads on the device: nothing to remove, so no checkbox.
+        compose.onAllNodesWithTag(MOBILE_SIGN_OUT_REMOVE_DOWNLOADS_TAG).assertCountEquals(0)
+        compose.onNodeWithText("Cancel").performClick()
+        compose.onAllNodesWithTag(MOBILE_SIGN_OUT_DIALOG_TAG).assertCountEquals(0)
+        compose.runOnIdle { assertTrue(signOuts.isEmpty()) }
+    }
+
+    @Test
+    fun removeDownloadsIsOffByDefaultAndShowsTheirSize() {
+        val signOuts = mutableListOf<Boolean>()
+        compose.setAccountContent(
+            options = AccountScreenOptions(
+                onSignOut = signOuts::add,
+                pages = AccountPages(downloadsOnDeviceBytes = 4 * GIBIBYTE),
+            ),
+        )
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        openSignOut()
+        compose.onNodeWithTag(MOBILE_SIGN_OUT_REMOVE_DOWNLOADS_TAG)
+            .assertTextContains("Remove downloads from this device", substring = true)
+            .assertTextContains("(${Formatter.formatShortFileSize(context, 4 * GIBIBYTE)})", substring = true)
+            .assertIsOff()
+        confirmSignOut()
+        compose.runOnIdle { assertEquals(listOf(false), signOuts) }
+
+        openSignOut()
+        compose.onNodeWithTag(MOBILE_SIGN_OUT_REMOVE_DOWNLOADS_TAG).assertIsOff().performClick().assertIsOn()
+        confirmSignOut()
+        compose.runOnIdle { assertEquals(listOf(false, true), signOuts) }
+    }
+
+    @Test
+    fun libraryRowsShowWhatTheAppAlreadyKnowsAndOpenTheirPages() {
+        var links = 0
+        var trash = 0
+        var library by mutableStateOf(MobileAccountLibrary())
+        compose.setAccountContent(
+            options = AccountScreenOptions(
+                pages = AccountPages(
+                    onManagePublicLinks = { links += 1 },
+                    onManageTrash = { trash += 1 },
+                    library = { library },
+                ),
+            ),
+        )
+        compose.onNodeWithTag(MOBILE_MANAGE_PUBLIC_LINKS_TAG).assertTextEquals("Exclusive links")
+        compose.onNodeWithTag(MOBILE_MANAGE_TRASH_TAG).assertTextEquals("Trash")
+
+        compose.runOnIdle { library = MobileAccountLibrary(exclusiveLinkCount = 2, trashSizeBytes = GIBIBYTE) }
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        compose.onNodeWithTag(MOBILE_MANAGE_PUBLIC_LINKS_TAG).assertTextEquals("Exclusive links", "2").performClick()
+        compose.onNodeWithTag(MOBILE_MANAGE_TRASH_TAG)
+            .assertTextEquals("Trash", Formatter.formatShortFileSize(context, GIBIBYTE))
+            .performClick()
+        compose.runOnIdle {
+            assertEquals(1, links)
+            assertEquals(1, trash)
+        }
+    }
+
+    @Test
+    fun fullStorageSaysWhatWaitsAndWhatFreesSpace() {
+        val full = AccountStorage(availableBytes = 0, sizeBytes = 4 * GIBIBYTE, usedBytes = 4 * GIBIBYTE)
+        var account by mutableStateOf(Account)
+        compose.setAccountContent(account = { account })
+        val fullLine = "Full. New transfers wait until you free up space. Empty Trash or delete files to make room."
+        compose.onAllNodesWithText(fullLine, substring = true).assertCountEquals(0)
+
+        compose.runOnIdle { account = Account.copy(storage = full) }
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val size = Formatter.formatShortFileSize(context, 4 * GIBIBYTE)
+        compose.onNodeWithText(fullLine, substring = true).assertIsDisplayed()
+        compose.onNodeWithText("$size of $size").assertIsDisplayed()
+        compose.onNodeWithTag(MOBILE_ACCOUNT_STORAGE_PROGRESS_TAG)
+            .assertRangeInfoEquals(ProgressBarRangeInfo(1f, 0f..1f))
+    }
+
+    private fun openSignOut() {
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_ACCOUNT_SIGN_OUT_TAG))
+        compose.onNodeWithTag(MOBILE_ACCOUNT_SIGN_OUT_TAG).performClick()
+    }
+
+    private fun confirmSignOut() {
+        compose.onNode(hasText("Sign out") and hasAnyAncestor(hasTestTag(MOBILE_SIGN_OUT_DIALOG_TAG))).performClick()
+        compose.onAllNodesWithTag(MOBILE_SIGN_OUT_DIALOG_TAG).assertCountEquals(0)
     }
 }
 
 private class AccountScreenOptions(
     val onAppConfigEvent: (AndroidAppConfigEvent) -> Unit = {},
-    val onSignOut: () -> Unit = {},
-    val onPrivacyControls: () -> Unit = {},
+    val onSignOut: (Boolean) -> Unit = {},
+    val pages: AccountPages = AccountPages(),
     val loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>> = {
         AccountSettingsRepositoryResult.Success(emptyList())
     },
-    val deviceClass: AppDiagnostics.DeviceClass = AppDiagnostics.DeviceClass.Phone,
     val sessionId: () -> MobileAuthSessionId = { SessionOne },
+)
+
+/** Account's ways out to its subpages, and what Library and the sign-out confirm read from outside. */
+private class AccountPages(
+    val onPrivacyControls: () -> Unit = {},
+    val onAppInfo: () -> Unit = {},
+    val onManagePublicLinks: (() -> Unit)? = null,
+    val onManageTrash: () -> Unit = {},
+    val library: () -> MobileAccountLibrary = { MobileAccountLibrary() },
+    val downloadsOnDeviceBytes: Long? = null,
 )
 
 // State arguments are read during composition, so tests can drive them from mutableStateOf.
@@ -747,9 +885,13 @@ private fun ComposeContentTestRule.setAccountContent(
                 onSettingsEvent = events::add,
                 onAppConfigEvent = options.onAppConfigEvent,
                 onSignOut = options.onSignOut,
-                onPrivacyControls = options.onPrivacyControls,
+                onPrivacyControls = options.pages.onPrivacyControls,
+                onAppInfo = options.pages.onAppInfo,
+                onManagePublicLinks = options.pages.onManagePublicLinks,
+                onManageTrash = options.pages.onManageTrash,
+                library = options.pages.library(),
+                downloadsOnDeviceBytes = options.pages.downloadsOnDeviceBytes,
                 loadTunnelRoutes = options.loadTunnelRoutes,
-                deviceClass = options.deviceClass,
             )
         }
     }

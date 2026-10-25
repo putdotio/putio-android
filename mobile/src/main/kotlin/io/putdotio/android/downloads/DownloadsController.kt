@@ -167,13 +167,31 @@ internal class DownloadsController(
             mutableState.value = current.copy(removal = removal, removing = current.removing + chosen)
             chosen
         }
-        enqueue {
-            for (fileId in fileIds) {
-                store.find(fileId)?.let { store.upsert(it.copy(removing = true)) }
-                engine.remove(fileId)
-            }
-        }
+        enqueue { markAndRemove(fileIds) }
         return true
+    }
+
+    /**
+     * Sign-out's Remove downloads: marks every row and hands its bytes to the engine before it returns,
+     * so the caller can end the session after. A row the engine has not confirmed by then finishes its
+     * removal on this account's next sign-in, as a confirmed removal does after a process death.
+     */
+    suspend fun removeAll() {
+        val fileIds = synchronized(lock) {
+            if (closed) return
+            val current = mutableState.value
+            val ids = store.entries.value.mapTo(mutableSetOf()) { it.fileId }
+            mutableState.value = current.copy(removal = null, removing = current.removing + ids)
+            ids
+        }
+        mutations.withLock { markAndRemove(fileIds) }
+    }
+
+    private suspend fun markAndRemove(fileIds: Set<FilesItemId>) {
+        for (fileId in fileIds) {
+            store.find(fileId)?.let { store.upsert(it.copy(removing = true)) }
+            engine.remove(fileId)
+        }
     }
 
     /** Pause holds the rows that can pause, Resume releases the viewer's paused ones; deleting rows take neither. */

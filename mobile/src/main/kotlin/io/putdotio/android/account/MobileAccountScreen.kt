@@ -1,7 +1,6 @@
 package io.putdotio.android.account
 
 import android.text.format.Formatter
-import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -11,27 +10,19 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -44,31 +35,37 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import coil3.compose.SubcomposeAsyncImage
 import coil3.compose.SubcomposeAsyncImageContent
+import io.putdotio.android.AccountStorage
+import io.putdotio.android.BuildConfig
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.apiReason
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
-import io.putdotio.android.design.PutioDestructiveButton
-import io.putdotio.android.design.PutioSwitch
-import io.putdotio.android.design.R as DesignR
-import io.putdotio.android.downloads.description
+import io.putdotio.android.design.PutioDesignTokens
+import io.putdotio.android.design.PutioTypeScale
+import io.putdotio.android.design.putioMono
+import io.putdotio.android.files.FilesSort
 import io.putdotio.android.files.labelResource
 import io.putdotio.android.isSupportedAvatarUrl
-import io.putdotio.android.playback.playbackPreference
 import io.putdotio.android.settings.AccountSettingsChange
 import io.putdotio.android.settings.AccountSettingsContent
 import io.putdotio.android.settings.AccountSettingsEvent
@@ -84,20 +81,36 @@ import io.putdotio.android.settings.AndroidAppConfigEvent
 import io.putdotio.android.settings.AndroidAppConfigMutation
 import io.putdotio.android.settings.AndroidAppConfigPreferences
 import io.putdotio.android.settings.AndroidAppConfigState
-import io.putdotio.android.settings.AppDiagnostics
 import io.putdotio.android.settings.TunnelRouteName
 import io.putdotio.android.settings.TunnelRouteOption
 import io.putdotio.android.settings.VideoPlaybackType
 import io.putdotio.android.settings.apiReason
 import io.putdotio.android.settings.putioFailure
+import io.putdotio.android.transfers.neutralTextButtonColors
+import io.putdotio.android.trash.MOBILE_MANAGE_TRASH_TAG
 
 internal const val MOBILE_ACCOUNT_LIST_TAG = "mobile-account-list"
 internal const val MOBILE_MANAGE_PUBLIC_LINKS_TAG = "mobile-manage-public-links"
 internal const val MOBILE_ACCOUNT_AVATAR_FALLBACK_TAG = "mobile-account-avatar-fallback"
 internal const val MOBILE_ACCOUNT_STORAGE_PROGRESS_TAG = "mobile-account-storage-progress"
+internal const val MOBILE_ACCOUNT_SIGN_OUT_TAG = "mobile-account-sign-out"
 internal const val MOBILE_TUNNEL_ROUTE_ROW_TAG = "mobile-tunnel-route-row"
-internal const val MOBILE_TUNNEL_ROUTE_RETRY_TAG = "mobile-tunnel-route-retry"
+internal const val MOBILE_VIDEO_PLAYBACK_ROW_TAG = "mobile-video-playback-row"
+internal const val MOBILE_PRIVACY_POLICY_ROW_TAG = "mobile-privacy-policy-row"
+internal const val MOBILE_PRIVACY_POLICY_URL = "https://put.io/privacy-policy"
 
+/** What Account's Library rows show beside their titles, when the app already knows it. */
+internal data class MobileAccountLibrary(
+    /** The account's exclusive links, once they have loaded; null hides the count. */
+    val exclusiveLinkCount: Int? = null,
+    /** What Trash holds, once Trash has loaded; null hides the size. */
+    val trashSizeBytes: Long? = null,
+)
+
+/**
+ * The Account tab under its title: the identity line, the storage card, then the settings as segmented
+ * groups in DESIGN.md's order, and Sign out alone behind its confirm.
+ */
 @Composable
 internal fun MobileAccountScreen(
     account: MobileAccount,
@@ -106,11 +119,16 @@ internal fun MobileAccountScreen(
     appConfigState: AndroidAppConfigState,
     onSettingsEvent: (AccountSettingsEvent) -> Unit,
     onAppConfigEvent: (AndroidAppConfigEvent) -> Unit,
-    onSignOut: () -> Unit,
+    /** Signs out; true also deletes this account's downloads from the device first. */
+    onSignOut: (removeDownloads: Boolean) -> Unit,
     modifier: Modifier = Modifier,
     onManageTrash: () -> Unit = {},
     onManagePublicLinks: (() -> Unit)? = null,
     onPrivacyControls: () -> Unit = {},
+    onAppInfo: () -> Unit = {},
+    library: MobileAccountLibrary = MobileAccountLibrary(),
+    /** Bytes this account's downloads hold on the device; null when it holds none, which hides the option. */
+    downloadsOnDeviceBytes: Long? = null,
     loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>> = {
         AccountSettingsRepositoryResult.Failure(
             AccountSettingsFailure.Putio(
@@ -118,906 +136,648 @@ internal fun MobileAccountScreen(
             ),
         )
     },
-    // The shell decides phone vs tablet from the window, not from this screen's content width.
-    deviceClass: AppDiagnostics.DeviceClass = AppDiagnostics.DeviceClass.Phone,
 ) {
-    var confirmTrashDisable by rememberSaveable(sessionId) { mutableStateOf(false) }
-    var choosePlaybackType by rememberSaveable(sessionId) { mutableStateOf(false) }
-    var chooseTunnelRoute by rememberSaveable(sessionId) { mutableStateOf(false) }
-    var chooseDefaultSort by rememberSaveable(sessionId) { mutableStateOf(false) }
-    var showAbout by rememberSaveable(sessionId) { mutableStateOf(false) }
-    val diagnostics = mobileAppDiagnostics(appConfigState.playbackPreference(), deviceClass)
+    var dialog by rememberSaveable(sessionId) { mutableStateOf(AccountDialog.None) }
+    val uriHandler = LocalUriHandler.current
+    val rows = AccountRows(
+        settingsState = settingsState,
+        appConfigState = appConfigState,
+        onSettingsChange = { change ->
+            if (change.disablesTrash) {
+                dialog = AccountDialog.TrashOff
+            } else {
+                onSettingsEvent(AccountSettingsEvent.ChangeRequested(change))
+            }
+        },
+        onRetrySettings = { onSettingsEvent(AccountSettingsEvent.RetryChange) },
+        onAppConfigEvent = onAppConfigEvent,
+        onOpen = { dialog = it },
+    )
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
             .testTag(MOBILE_ACCOUNT_LIST_TAG),
     ) {
-        item(key = ACCOUNT_IDENTITY_KEY) {
-            MobileAccountIdentity(account)
-        }
-        item(key = ACCOUNT_IDENTITY_DIVIDER_KEY) {
-            HorizontalDivider()
-        }
-        manageItems(onManagePublicLinks, onManageTrash)
-        when (val content = settingsState.content) {
-            is AccountSettingsContent.Loading ->
-                item(key = SETTINGS_LOADING_KEY) {
-                    MobileAccountSettingsLoading()
-                }
+        item(key = IDENTITY_KEY) { MobileAccountIdentity(account) }
+        item(key = STORAGE_KEY) { MobileAccountStorage(account.storage) }
+        libraryGroup(rows, library, onManagePublicLinks, onManageTrash)
+        filesItems(settingsState, rows, onRetryLoad = { onSettingsEvent(AccountSettingsEvent.RetryLoad) })
+        playbackItems(settingsState, appConfigState, rows, onRetryLoad = {
+            onAppConfigEvent(AndroidAppConfigEvent.RetryLoad)
+        })
+        privacyItems(settingsState, rows, onPrivacyControls)
+        aboutItems(
+            rows = rows,
+            onAppInfo = onAppInfo,
+            onPrivacyPolicy = { uriHandler.openSafely(MOBILE_PRIVACY_POLICY_URL) },
+            onSignOut = { dialog = AccountDialog.SignOut },
+        )
+    }
+    MobileAccountDialogs(
+        dialog = dialog,
+        settingsState = settingsState,
+        appConfigState = appConfigState,
+        onDismiss = { dialog = AccountDialog.None },
+        onSettingsEvent = onSettingsEvent,
+        onAppConfigEvent = onAppConfigEvent,
+        onSignOut = onSignOut,
+        downloadsOnDeviceBytes = downloadsOnDeviceBytes,
+        loadTunnelRoutes = loadTunnelRoutes,
+    )
+}
 
-            is AccountSettingsContent.Failed ->
-                item(key = SETTINGS_ERROR_KEY) {
-                    MobileAccountSettingsError(
-                        failure = content.failure,
-                        onRetry = { onSettingsEvent(AccountSettingsEvent.RetryLoad) },
+private enum class AccountDialog { None, TrashOff, SignOut, DefaultSort, Proxy, VideoPlayback }
+
+private fun LazyListScope.libraryGroup(
+    rows: AccountRows,
+    library: MobileAccountLibrary,
+    onManagePublicLinks: (() -> Unit)?,
+    onManageTrash: () -> Unit,
+) {
+    val links = onManagePublicLinks?.let { open ->
+        SettingsRow { segment ->
+            rows.Link(
+                segment = segment,
+                title = R.string.mobile_settings_exclusive_links,
+                icon = R.drawable.ic_ph_link,
+                value = library.exclusiveLinkCount?.let { settingsValue(it.toString(), mono = true) },
+                onClick = open,
+                tag = MOBILE_MANAGE_PUBLIC_LINKS_TAG,
+            )
+        }
+    }
+    val trash = SettingsRow { segment ->
+        val context = LocalContext.current
+        rows.Link(
+            segment = segment,
+            title = R.string.mobile_settings_trash_row,
+            icon = R.drawable.ic_ph_trash,
+            value = library.trashSizeBytes?.let {
+                settingsValue(Formatter.formatShortFileSize(context, it.coerceAtLeast(0L)), mono = true)
+            },
+            onClick = onManageTrash,
+            tag = MOBILE_MANAGE_TRASH_TAG,
+        )
+    }
+    settingsGroup(LIBRARY_KEY, R.string.mobile_settings_section_library, listOfNotNull(links, trash))
+}
+
+/** Files, or the account settings' loading or failure row while they are not ready. */
+private fun LazyListScope.filesItems(settingsState: AccountSettingsState, rows: AccountRows, onRetryLoad: () -> Unit) {
+    when (val content = settingsState.content) {
+        is AccountSettingsContent.Loading -> item(key = SETTINGS_LOADING_KEY) { MobileAccountSettingsLoading() }
+        is AccountSettingsContent.Failed -> item(key = SETTINGS_ERROR_KEY) {
+            MobileAccountSettingsError(failure = content.failure, onRetry = onRetryLoad)
+        }
+        is AccountSettingsContent.Ready -> settingsGroup(
+            key = FILES_KEY,
+            label = R.string.mobile_settings_section_files,
+            rows = listOf(
+                SettingsRow { rows.DefaultSort(it, content.preferences) },
+                SettingsRow {
+                    rows.AccountSwitch(it, R.string.mobile_settings_trash, R.drawable.ic_ph_trash_simple,
+                        AccountSettingsKey.Trash, content.preferences.trashEnabled)
+                },
+            ),
+        )
+    }
+}
+
+/**
+ * Playback mixes account-wide settings (resume, proxy) with this app's `/config` (autoplay, video
+ * playback); each row shows once its source has loaded, and `/config`'s loading or failure follows.
+ */
+private fun LazyListScope.playbackItems(
+    settingsState: AccountSettingsState,
+    appConfigState: AndroidAppConfigState,
+    rows: AccountRows,
+    onRetryLoad: () -> Unit,
+) {
+    val settings = (settingsState.content as? AccountSettingsContent.Ready)?.preferences
+    val config = (appConfigState.content as? AndroidAppConfigContent.Ready)?.preferences
+    settingsGroup(
+        key = PLAYBACK_KEY,
+        label = R.string.mobile_settings_section_playback,
+        rows = listOfNotNull(
+            settings?.let { preferences ->
+                SettingsRow {
+                    rows.AccountSwitch(it, R.string.mobile_settings_resume_playback, R.drawable.ic_ph_play_circle,
+                        AccountSettingsKey.ResumePlayback, preferences.resumePlayback)
+                }
+            },
+            config?.let { preferences -> SettingsRow { rows.AutoplayNext(it, preferences) } },
+            config?.let { preferences -> SettingsRow { rows.VideoPlayback(it, preferences) } },
+            settings?.let { preferences -> SettingsRow { rows.Proxy(it, preferences) } },
+        ),
+    )
+    when (val content = appConfigState.content) {
+        is AndroidAppConfigContent.Loading -> item(key = APP_CONFIG_LOADING_KEY) {
+            MobileAccountLoadingRow(R.string.mobile_settings_playback_loading)
+        }
+        is AndroidAppConfigContent.Failed -> item(key = APP_CONFIG_ERROR_KEY) {
+            MobileAppConfigLoadError(content.failure, onRetry = onRetryLoad)
+        }
+        is AndroidAppConfigContent.Ready -> Unit
+    }
+}
+
+private fun LazyListScope.privacyItems(
+    settingsState: AccountSettingsState,
+    rows: AccountRows,
+    onPrivacyControls: () -> Unit,
+) {
+    val preferences = (settingsState.content as? AccountSettingsContent.Ready)?.preferences ?: return
+    // Picking subtitles means nothing while they are hidden.
+    val pickSubtitles = SettingsRow {
+        rows.AccountSwitch(it, R.string.mobile_settings_auto_select_subtitles, R.drawable.ic_ph_list_checks,
+            AccountSettingsKey.AutoSelectSubtitles, preferences.autoSelectSubtitles)
+    }.takeIf { preferences.showSubtitles }
+    settingsGroup(
+        key = SUBTITLES_KEY,
+        label = R.string.mobile_settings_section_subtitles,
+        rows = listOfNotNull(
+            SettingsRow {
+                rows.AccountSwitch(it, R.string.mobile_settings_show_subtitles, R.drawable.ic_ph_subtitles,
+                    AccountSettingsKey.ShowSubtitles, preferences.showSubtitles)
+            },
+            pickSubtitles,
+        ),
+    )
+    settingsGroup(
+        key = PRIVACY_KEY,
+        label = R.string.mobile_settings_section_privacy,
+        rows = listOf(
+            SettingsRow {
+                rows.AccountSwitch(it, R.string.mobile_settings_history, R.drawable.ic_ph_clock_counter_clockwise,
+                    AccountSettingsKey.History, preferences.historyEnabled)
+            },
+            SettingsRow { rows.PrivacyControls(it, preferences, onPrivacyControls) },
+        ),
+    )
+}
+
+/** About, then Sign out alone, in red. */
+private fun LazyListScope.aboutItems(
+    rows: AccountRows,
+    onAppInfo: () -> Unit,
+    onPrivacyPolicy: () -> Unit,
+    onSignOut: () -> Unit,
+) {
+    settingsGroup(
+        key = ABOUT_KEY,
+        label = R.string.mobile_settings_section_about,
+        rows = listOf(
+            SettingsRow {
+                rows.Link(it, R.string.mobile_settings_about, R.drawable.ic_ph_info,
+                    settingsValue(BuildConfig.VERSION_NAME, mono = true), onAppInfo, MOBILE_ABOUT_ROW_TAG)
+            },
+            SettingsRow {
+                rows.Link(it, R.string.mobile_settings_privacy_policy, R.drawable.ic_ph_file_text, null,
+                    onPrivacyPolicy, MOBILE_PRIVACY_POLICY_ROW_TAG)
+            },
+        ),
+    )
+    item(key = SIGN_OUT_KEY) {
+        Column(Modifier.padding(top = 16.dp, bottom = 24.dp)) {
+            MobileSettingsGroup {
+                MobileSettingsSegment(
+                    segment = SettingsSegment.Only,
+                    interaction = Modifier
+                        .clickable(role = Role.Button, onClick = onSignOut)
+                        .testTag(MOBILE_ACCOUNT_SIGN_OUT_TAG),
+                ) {
+                    MobileSettingsLine(
+                        title = stringResource(R.string.mobile_account_sign_out),
+                        icon = R.drawable.ic_ph_sign_out,
+                        trailing = SettingsTrailing.None,
+                        titleColor = PutioDesignTokens.redTextSecondary,
+                        iconColor = PutioDesignTokens.redTextSecondary,
                     )
                 }
-
-            is AccountSettingsContent.Ready -> {
-                item(key = FILES_HEADER_KEY) {
-                    MobileAccountSectionHeader(R.string.mobile_settings_section_files)
-                }
-                defaultSortItem(
-                    settingsState = settingsState,
-                    onChoose = { chooseDefaultSort = true },
-                    onRetryChange = { onSettingsEvent(AccountSettingsEvent.RetryChange) },
-                )
-                accountSettingsItems(
-                    preferences = content.preferences,
-                    mutation = settingsState.mutation,
-                    onChange = { change ->
-                        if (change.disablesTrash) {
-                            confirmTrashDisable = true
-                        } else {
-                            onSettingsEvent(AccountSettingsEvent.ChangeRequested(change))
-                        }
-                    },
-                    onRetryChange = { onSettingsEvent(AccountSettingsEvent.RetryChange) },
-                    onPrivacyControls = onPrivacyControls,
-                )
-            }
-        }
-        appConfigItems(
-            state = appConfigState,
-            onChoosePlaybackType = { choosePlaybackType = true },
-            onEvent = onAppConfigEvent,
-            resumePlaybackItem = {
-                resumePlaybackItem(
-                    settingsState = settingsState,
-                    onChange = { onSettingsEvent(AccountSettingsEvent.ChangeRequested(it)) },
-                    onRetryChange = { onSettingsEvent(AccountSettingsEvent.RetryChange) },
-                )
-                tunnelRouteItem(
-                    settingsState = settingsState,
-                    onChoose = { chooseTunnelRoute = true },
-                    onRetryChange = { onSettingsEvent(AccountSettingsEvent.RetryChange) },
-                )
-            },
-        )
-        item(key = ABOUT_HEADER_KEY) {
-            MobileAccountSectionHeader(R.string.mobile_settings_section_about)
-        }
-        aboutItem(diagnostics = diagnostics, onOpen = { showAbout = true })
-        item(key = SIGN_OUT_KEY) {
-            OutlinedButton(
-                onClick = onSignOut,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-            ) {
-                Text(stringResource(R.string.mobile_account_sign_out))
             }
         }
     }
+}
 
-    if (confirmTrashDisable) {
-        AlertDialog(
-            onDismissRequest = { confirmTrashDisable = false },
-            title = { Text(stringResource(R.string.mobile_settings_trash_confirm_title)) },
-            text = {
-                Text(
-                    stringResource(R.string.mobile_settings_trash_confirm_message),
-                    Modifier.verticalScroll(rememberScrollState()),
-                )
-            },
-            confirmButton = {
-                PutioDestructiveButton(
-                    onClick = {
-                        confirmTrashDisable = false
-                        onSettingsEvent(
-                            AccountSettingsEvent.ChangeRequested(
-                                AccountSettingsChange(AccountSettingsKey.Trash, enabled = false),
-                            ),
-                        )
-                    },
-                ) {
-                    Text(stringResource(R.string.mobile_settings_trash_confirm_action))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmTrashDisable = false }) {
-                    Text(stringResource(R.string.mobile_action_cancel))
-                }
-            },
-        )
-    }
-
-    val editableSettings = (settingsState.content as? AccountSettingsContent.Ready)
+/** The open dialog; a choice opens only while its setting has loaded and takes input. */
+@Composable
+private fun MobileAccountDialogs(
+    dialog: AccountDialog,
+    settingsState: AccountSettingsState,
+    appConfigState: AndroidAppConfigState,
+    onDismiss: () -> Unit,
+    onSettingsEvent: (AccountSettingsEvent) -> Unit,
+    onAppConfigEvent: (AndroidAppConfigEvent) -> Unit,
+    onSignOut: (removeDownloads: Boolean) -> Unit,
+    downloadsOnDeviceBytes: Long?,
+    loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>>,
+) {
+    val settings = (settingsState.content as? AccountSettingsContent.Ready)?.preferences
         ?.takeIf { settingsState.accountControlsEnabled() }
-    if (chooseTunnelRoute && editableSettings != null) {
-        MobileTunnelRouteDialog(
-            selected = editableSettings.preferences.tunnelRoute,
-            loadRoutes = loadTunnelRoutes,
-            onSelect = { route ->
-                chooseTunnelRoute = false
-                onSettingsEvent(AccountSettingsEvent.ChangeRequested(AccountSettingsChange.Route(route)))
-            },
-            onDismiss = { chooseTunnelRoute = false },
-        )
-    }
-
-    if (showAbout) {
-        MobileAboutDialog(diagnostics = diagnostics, onDismiss = { showAbout = false })
-    }
-
-    if (chooseDefaultSort && editableSettings != null) {
-        MobileDefaultSortDialog(
-            selected = editableSettings.preferences.defaultSort,
-            onSelect = { sort ->
-                chooseDefaultSort = false
-                onSettingsEvent(AccountSettingsEvent.ChangeRequested(AccountSettingsChange.Sort(sort)))
-            },
-            onDismiss = { chooseDefaultSort = false },
-        )
-    }
-
-    val editableAppConfig = (appConfigState.content as? AndroidAppConfigContent.Ready)
+    val config = (appConfigState.content as? AndroidAppConfigContent.Ready)?.preferences
         ?.takeIf { appConfigState.appConfigControlsEnabled() }
-    if (choosePlaybackType && editableAppConfig != null) {
-        MobilePlaybackTypeDialog(
-            selected = editableAppConfig.preferences.videoPlaybackType,
-            onSelect = { playbackType ->
-                choosePlaybackType = false
-                onAppConfigEvent(
-                    AndroidAppConfigEvent.ChangeRequested(
-                        AndroidAppConfigChange.VideoPlayback(playbackType),
-                    ),
-                )
+    val change = { settingsChange: AccountSettingsChange ->
+        onDismiss()
+        onSettingsEvent(AccountSettingsEvent.ChangeRequested(settingsChange))
+    }
+    when (dialog) {
+        AccountDialog.None -> Unit
+        AccountDialog.TrashOff -> MobileTrashOffDialog(
+            onDismiss = onDismiss,
+            onConfirm = { change(AccountSettingsChange(AccountSettingsKey.Trash, enabled = false)) },
+        )
+        AccountDialog.SignOut -> MobileSignOutDialog(
+            downloadsOnDeviceBytes = downloadsOnDeviceBytes,
+            onDismiss = onDismiss,
+            onSignOut = { removeDownloads ->
+                onDismiss()
+                onSignOut(removeDownloads)
             },
-            onDismiss = { choosePlaybackType = false },
+        )
+        AccountDialog.DefaultSort -> if (settings != null) {
+            MobileDefaultSortDialog(settings.defaultSort, { change(AccountSettingsChange.Sort(it)) }, onDismiss)
+        }
+        AccountDialog.Proxy -> if (settings != null) {
+            MobileTunnelRouteDialog(
+                selected = settings.tunnelRoute,
+                loadRoutes = loadTunnelRoutes,
+                onSave = { change(AccountSettingsChange.Route(it)) },
+                onDismiss = onDismiss,
+            )
+        }
+        AccountDialog.VideoPlayback -> if (config != null) {
+            MobilePlaybackTypeDialog(
+                selected = config.videoPlaybackType,
+                onSave = {
+                    onDismiss()
+                    onAppConfigEvent(AndroidAppConfigEvent.ChangeRequested(AndroidAppConfigChange.VideoPlayback(it)))
+                },
+                onDismiss = onDismiss,
+            )
+        }
+    }
+}
+
+/** One row of a group; it draws itself into the [SettingsSegment] its place gives it. */
+private class SettingsRow(val content: @Composable (SettingsSegment) -> Unit)
+
+private fun LazyListScope.settingsGroup(key: String, @StringRes label: Int, rows: List<SettingsRow>) {
+    if (rows.isEmpty()) return
+    item(key = key) {
+        Column {
+            MobileSettingsLabel(stringResource(label))
+            MobileSettingsGroup {
+                rows.forEachIndexed { index, row -> row.content(settingsSegment(index, rows.size)) }
+            }
+        }
+    }
+}
+
+/** The rows' shared wiring: which mutation each one shows, and whether controls take input. */
+private class AccountRows(
+    private val settingsState: AccountSettingsState,
+    private val appConfigState: AndroidAppConfigState,
+    private val onSettingsChange: (AccountSettingsChange) -> Unit,
+    private val onRetrySettings: () -> Unit,
+    private val onAppConfigEvent: (AndroidAppConfigEvent) -> Unit,
+    private val onOpen: (AccountDialog) -> Unit,
+) {
+    private val settingsEnabled = settingsState.accountControlsEnabled()
+    private val configEnabled = appConfigState.appConfigControlsEnabled()
+
+    @Composable
+    fun Link(
+        segment: SettingsSegment,
+        @StringRes title: Int,
+        icon: Int,
+        value: SettingsTrailing.Value?,
+        onClick: () -> Unit,
+        tag: String,
+    ) {
+        MobileSettingsSegment(
+            segment = segment,
+            interaction = Modifier.clickable(role = Role.Button, onClick = onClick).testTag(tag),
+        ) {
+            MobileSettingsLine(stringResource(title), icon, value ?: SettingsTrailing.None)
+        }
+    }
+
+    @Composable
+    fun AccountSwitch(
+        segment: SettingsSegment,
+        @StringRes title: Int,
+        icon: Int,
+        key: AccountSettingsKey,
+        checked: Boolean,
+    ) {
+        val mutation = settingsState.mutation
+        val saving = (mutation as? AccountSettingsMutation.Saving)?.change?.key == key
+        val failure = (mutation as? AccountSettingsMutation.Failed)?.takeIf { it.change.key == key }
+        SwitchSegment(
+            segment = segment,
+            title = title,
+            icon = icon,
+            checked = checked,
+            enabled = settingsEnabled,
+            saving = saving,
+            onToggle = { onSettingsChange(AccountSettingsChange(key, it)) },
+            failure = failure?.let { { MobileAccountMutationError(it.failure, it.operation, onRetrySettings) } },
+        )
+    }
+
+    @Composable
+    fun AutoplayNext(segment: SettingsSegment, preferences: AndroidAppConfigPreferences) {
+        val mutation = appConfigState.mutation
+        val change = { candidate: AndroidAppConfigChange? -> candidate is AndroidAppConfigChange.AutoplayNextVideo }
+        SwitchSegment(
+            segment = segment,
+            title = R.string.mobile_settings_autoplay_next,
+            icon = R.drawable.ic_ph_skip_forward,
+            checked = preferences.autoplayNextVideo,
+            enabled = configEnabled,
+            saving = change((mutation as? AndroidAppConfigMutation.Saving)?.change),
+            onToggle = {
+                onAppConfigEvent(AndroidAppConfigEvent.ChangeRequested(AndroidAppConfigChange.AutoplayNextVideo(it)))
+            },
+            failure = (mutation as? AndroidAppConfigMutation.Failed)?.takeIf { change(it.change) }?.let { failed ->
+                { MobileAppConfigMutationError(failed.failure, failed.operation) { onRetryConfig() } }
+            },
+        )
+    }
+
+    @Composable
+    fun VideoPlayback(segment: SettingsSegment, preferences: AndroidAppConfigPreferences) {
+        val mutation = appConfigState.mutation
+        val change = { candidate: AndroidAppConfigChange? -> candidate is AndroidAppConfigChange.VideoPlayback }
+        ChoiceSegment(
+            segment = segment,
+            title = R.string.mobile_settings_video_playback_type,
+            icon = R.drawable.ic_ph_film_strip,
+            value = stringResource(preferences.videoPlaybackType.labelResource()),
+            enabled = configEnabled,
+            saving = change((mutation as? AndroidAppConfigMutation.Saving)?.change),
+            onChoose = { onOpen(AccountDialog.VideoPlayback) },
+            tag = MOBILE_VIDEO_PLAYBACK_ROW_TAG,
+            failure = (mutation as? AndroidAppConfigMutation.Failed)?.takeIf { change(it.change) }?.let { failed ->
+                { MobileAppConfigMutationError(failed.failure, failed.operation) { onRetryConfig() } }
+            },
+        )
+    }
+
+    @Composable
+    fun DefaultSort(segment: SettingsSegment, preferences: AccountSettingsPreferences) {
+        AccountChoice(
+            segment = segment,
+            title = R.string.mobile_settings_default_sort,
+            icon = R.drawable.ic_ph_sort_ascending,
+            value = preferences.defaultSort.displayName(),
+            onChoose = { onOpen(AccountDialog.DefaultSort) },
+            tag = MOBILE_DEFAULT_SORT_ROW_TAG,
+        ) { it is AccountSettingsChange.Sort }
+    }
+
+    @Composable
+    fun Proxy(segment: SettingsSegment, preferences: AccountSettingsPreferences) {
+        AccountChoice(
+            segment = segment,
+            title = R.string.mobile_settings_proxy,
+            icon = R.drawable.ic_ph_globe_simple,
+            value = preferences.tunnelRoute.displayName(),
+            onChoose = { onOpen(AccountDialog.Proxy) },
+            tag = MOBILE_TUNNEL_ROUTE_ROW_TAG,
+        ) { it is AccountSettingsChange.Route }
+    }
+
+    @Composable
+    fun PrivacyControls(segment: SettingsSegment, preferences: AccountSettingsPreferences, onOpen: () -> Unit) {
+        val diagnostics = stringResource(
+            if (preferences.diagnosticsEnabled) R.string.mobile_settings_diagnostics_on
+            else R.string.mobile_settings_diagnostics_off,
+        )
+        val analytics = stringResource(
+            if (preferences.productAnalyticsEnabled) R.string.mobile_settings_analytics_on
+            else R.string.mobile_settings_analytics_off,
+        )
+        Link(
+            segment = segment,
+            title = R.string.mobile_settings_privacy_controls,
+            icon = R.drawable.ic_ph_shield_check,
+            value = settingsValue(
+                stringResource(R.string.mobile_settings_privacy_controls_state, diagnostics, analytics),
+            ),
+            onClick = onOpen,
+            tag = MOBILE_PRIVACY_CONTROLS_ROW_TAG,
+        )
+    }
+
+    @Composable
+    private fun AccountChoice(
+        segment: SettingsSegment,
+        @StringRes title: Int,
+        icon: Int,
+        value: String,
+        onChoose: () -> Unit,
+        tag: String,
+        matches: (AccountSettingsChange) -> Boolean,
+    ) {
+        val mutation = settingsState.mutation
+        val failure = (mutation as? AccountSettingsMutation.Failed)?.takeIf { matches(it.change) }
+        ChoiceSegment(
+            segment = segment,
+            title = title,
+            icon = icon,
+            value = value,
+            enabled = settingsEnabled,
+            saving = (mutation as? AccountSettingsMutation.Saving)?.change?.let(matches) == true,
+            onChoose = onChoose,
+            tag = tag,
+            failure = failure?.let { { MobileAccountMutationError(it.failure, it.operation, onRetrySettings) } },
+        )
+    }
+
+    private fun onRetryConfig() = onAppConfigEvent(AndroidAppConfigEvent.RetryChange)
+}
+
+@Composable
+private fun SwitchSegment(
+    segment: SettingsSegment,
+    @StringRes title: Int,
+    icon: Int,
+    checked: Boolean,
+    enabled: Boolean,
+    saving: Boolean,
+    onToggle: (Boolean) -> Unit,
+    failure: (@Composable () -> Unit)?,
+) {
+    MobileSettingsSegment(
+        segment = segment,
+        interaction = Modifier.toggleable(
+            value = checked,
+            enabled = enabled,
+            role = Role.Switch,
+            onValueChange = onToggle,
+        ),
+        below = failure?.let { { it() } },
+    ) {
+        MobileSettingsLine(
+            title = stringResource(title),
+            icon = icon,
+            trailing = SettingsTrailing.Switch(checked, enabled),
+            saving = saving,
+        )
+    }
+}
+
+@Composable
+private fun ChoiceSegment(
+    segment: SettingsSegment,
+    @StringRes title: Int,
+    icon: Int,
+    value: String,
+    enabled: Boolean,
+    saving: Boolean,
+    onChoose: () -> Unit,
+    tag: String,
+    failure: (@Composable () -> Unit)?,
+) {
+    MobileSettingsSegment(
+        segment = segment,
+        interaction = Modifier.clickable(enabled = enabled, role = Role.Button, onClick = onChoose).testTag(tag),
+        below = failure?.let { { it() } },
+    ) {
+        MobileSettingsLine(
+            title = stringResource(title),
+            icon = icon,
+            trailing = settingsValue(value),
+            saving = saving,
         )
     }
 }
 
 @Composable
 private fun MobileAccountIdentity(account: MobileAccount) {
-    val context = LocalContext.current
-    val storage = account.storage
-    val size = Formatter.formatShortFileSize(context, storage.sizeBytes.coerceAtLeast(0L))
-    val storageCopy =
-        if (storage.showOptimisticUsage) {
-            val available = Formatter.formatShortFileSize(context, storage.availableBytes.coerceAtLeast(0L))
-            stringResource(R.string.mobile_account_storage_free, available, size)
-        } else {
-            val used = Formatter.formatShortFileSize(context, storage.usedBytes.coerceAtLeast(0L))
-            stringResource(R.string.mobile_account_storage_used, used, size)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp)
+            .semantics(mergeDescendants = true) {},
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        MobileAccountAvatar(account.avatarUrl, account.username)
+        Column {
+            Text(account.username, style = PutioTypeScale.bodyLg.copy(fontWeight = FontWeight.Medium))
+            Text(
+                account.email,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
-    ListItem(
-        headlineContent = { Text(account.username) },
-        supportingContent = {
-            Column {
-                Text(account.email)
-                Text(
-                    text = storageCopy,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                LinearProgressIndicator(
-                    progress = { storage.usedFraction },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp)
-                        .testTag(MOBILE_ACCOUNT_STORAGE_PROGRESS_TAG),
-                )
-            }
-        },
-        leadingContent = {
-            MobileAccountAvatar(account.avatarUrl)
-        },
-        overlineContent = { Text(stringResource(R.string.mobile_account_signed_in_as)) },
-    )
+    }
 }
 
 @Composable
-private fun MobileAccountAvatar(avatarUrl: String?) {
+private fun MobileAccountAvatar(avatarUrl: String?, username: String) {
     val resolvedUrl = avatarUrl?.takeIf(String::isSupportedAvatarUrl)
-    val avatarModifier =
-        Modifier
-            .size(48.dp)
-            .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+    val avatarModifier = Modifier
+        .size(40.dp)
+        .clip(CircleShape)
+        .background(MaterialTheme.colorScheme.surfaceContainerHighest)
     if (resolvedUrl == null) {
-        MobileAccountAvatarFallback(avatarModifier)
+        MobileAccountAvatarFallback(username, avatarModifier)
         return
     }
-
     SubcomposeAsyncImage(
         model = resolvedUrl,
         contentDescription = null,
         modifier = avatarModifier,
         contentScale = ContentScale.Crop,
-        loading = { MobileAccountAvatarFallback(Modifier.fillMaxSize()) },
-        error = { MobileAccountAvatarFallback(Modifier.fillMaxSize()) },
+        loading = { MobileAccountAvatarFallback(username, Modifier.fillMaxSize()) },
+        error = { MobileAccountAvatarFallback(username, Modifier.fillMaxSize()) },
         success = { SubcomposeAsyncImageContent() },
     )
 }
 
+/** The username's first letter on the avatar's disc, as web and iOS draw an account without a picture. */
 @Composable
-private fun MobileAccountAvatarFallback(modifier: Modifier) {
-    Box(
-        modifier = modifier.testTag(MOBILE_ACCOUNT_AVATAR_FALLBACK_TAG),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            painter = painterResource(R.drawable.ic_ph_user_circle_fill),
-            contentDescription = null,
-            modifier = Modifier.size(28.dp),
+private fun MobileAccountAvatarFallback(username: String, modifier: Modifier) {
+    Box(modifier = modifier.testTag(MOBILE_ACCOUNT_AVATAR_FALLBACK_TAG), contentAlignment = Alignment.Center) {
+        Text(
+            text = username.firstOrNull()?.uppercase().orEmpty(),
+            style = PutioTypeScale.bodyLg.copy(fontWeight = FontWeight.Medium),
         )
     }
 }
 
-private fun LazyListScope.accountSettingsItems(
-    preferences: AccountSettingsPreferences,
-    mutation: AccountSettingsMutation,
-    onChange: (AccountSettingsChange) -> Unit,
-    onRetryChange: () -> Unit,
-    onPrivacyControls: () -> Unit,
-) {
-    item(key = SUBTITLES_HEADER_KEY) {
-        MobileAccountSectionHeader(R.string.mobile_settings_section_subtitles)
-    }
-    item(key = AccountSettingsKey.ShowSubtitles) {
-        MobileAccountSettingRow(
-            title = R.string.mobile_settings_show_subtitles,
-            description = R.string.mobile_settings_show_subtitles_description,
-            icon = R.drawable.ic_ph_subtitles,
-            checked = preferences.showSubtitles,
-            key = AccountSettingsKey.ShowSubtitles,
-            mutation = mutation,
-            onRetry = onRetryChange,
-            onChange = onChange,
-        )
-    }
-    if (preferences.showSubtitles) {
-        item(key = AccountSettingsKey.AutoSelectSubtitles) {
-            MobileAccountSettingRow(
-                title = R.string.mobile_settings_auto_select_subtitles,
-                description = R.string.mobile_settings_auto_select_subtitles_description,
-                icon = R.drawable.ic_ph_list_checks,
-                checked = preferences.autoSelectSubtitles,
-                key = AccountSettingsKey.AutoSelectSubtitles,
-                mutation = mutation,
-                onRetry = onRetryChange,
-                onChange = onChange,
-            )
-        }
-    }
-    item(key = PRIVACY_STORAGE_HEADER_KEY) {
-        MobileAccountSectionHeader(R.string.mobile_settings_section_privacy_storage)
-    }
-    item(key = AccountSettingsKey.History) {
-        MobileAccountSettingRow(
-            title = R.string.mobile_settings_history,
-            description = R.string.mobile_settings_history_description,
-            icon = R.drawable.ic_ph_clock_counter_clockwise,
-            checked = preferences.historyEnabled,
-            key = AccountSettingsKey.History,
-            mutation = mutation,
-            onRetry = onRetryChange,
-            onChange = onChange,
-        )
-    }
-    item(key = AccountSettingsKey.Trash) {
-        MobileAccountSettingRow(
-            title = R.string.mobile_settings_trash,
-            description = R.string.mobile_settings_trash_description,
-            icon = R.drawable.ic_ph_trash,
-            checked = preferences.trashEnabled,
-            key = AccountSettingsKey.Trash,
-            mutation = mutation,
-            onRetry = onRetryChange,
-            onChange = onChange,
-        )
-    }
-    privacyControlsRow(preferences, onOpen = onPrivacyControls)
-}
+/** Storage is full when nothing is left to use; transfers then wait. */
+internal val AccountStorage.isFull: Boolean
+    get() = sizeBytes > 0L && (availableBytes <= 0L || usedBytes >= sizeBytes)
 
-// Account-wide `use_start_from` sits with the Playback controls even though it is
-// saved through /account/settings rather than the Android-owned /config.
-private fun LazyListScope.resumePlaybackItem(
-    settingsState: AccountSettingsState,
-    onChange: (AccountSettingsChange) -> Unit,
-    onRetryChange: () -> Unit,
-) {
-    val preferences = (settingsState.content as? AccountSettingsContent.Ready)?.preferences ?: return
-    item(key = AccountSettingsKey.ResumePlayback) {
-        MobileAccountSettingRow(
-            title = R.string.mobile_settings_resume_playback,
-            description = R.string.mobile_settings_resume_playback_description,
-            icon = R.drawable.ic_ph_clock_counter_clockwise,
-            checked = preferences.resumePlayback,
-            key = AccountSettingsKey.ResumePlayback,
-            mutation = settingsState.mutation,
-            onRetry = onRetryChange,
-            onChange = onChange,
-        )
+@Composable
+private fun MobileAccountStorage(storage: AccountStorage) {
+    val context = LocalContext.current
+    val mono = MaterialTheme.typography.bodySmall.putioMono().toSpanStyle()
+    fun size(bytes: Long) = Formatter.formatShortFileSize(context, bytes.coerceAtLeast(0L))
+    val full = storage.isFull
+    val (template, shown) = when {
+        full -> R.string.mobile_account_storage_full_value to storage.usedBytes
+        storage.showOptimisticUsage -> R.string.mobile_account_storage_free to storage.availableBytes
+        else -> R.string.mobile_account_storage_used to storage.usedBytes
     }
-}
-
-private fun LazyListScope.tunnelRouteItem(
-    settingsState: AccountSettingsState,
-    onChoose: () -> Unit,
-    onRetryChange: () -> Unit,
-) {
-    val preferences = (settingsState.content as? AccountSettingsContent.Ready)?.preferences ?: return
-    val mutation = settingsState.mutation
-    item(key = AccountSettingsKey.TunnelRoute) {
-        val saving = (mutation as? AccountSettingsMutation.Saving)?.change is AccountSettingsChange.Route
-        val failure = (mutation as? AccountSettingsMutation.Failed)?.takeIf { it.change is AccountSettingsChange.Route }
-        Column(modifier = Modifier.fillMaxWidth()) {
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.mobile_settings_tunnel_route)) },
-                supportingContent = {
-                    MobileAccountValueDescription(
-                        value = preferences.tunnelRoute.displayName(),
-                        description = stringResource(R.string.mobile_settings_tunnel_route_description),
+    val value = monoArguments(stringResource(template), mono, size(shown), size(storage.sizeBytes))
+    MobileSettingsGroup(Modifier.semantics(mergeDescendants = true) {}) {
+        MobileSettingsSegment(SettingsSegment.Only) {
+            Column(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        stringResource(R.string.mobile_account_storage),
+                        style = PutioTypeScale.bodyMd,
+                        modifier = Modifier.weight(1f).padding(end = 16.dp),
                     )
-                },
-                leadingContent = {
-                    Icon(painter = painterResource(R.drawable.ic_ph_globe), contentDescription = null)
-                },
-                trailingContent = if (saving) {
-                    { CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp) }
-                } else null,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag(MOBILE_TUNNEL_ROUTE_ROW_TAG)
-                    .clickable(
-                        enabled = settingsState.accountControlsEnabled(),
-                        role = Role.Button,
-                        onClick = onChoose,
-                    ),
-            )
-            failure?.let {
-                MobileAccountMutationError(failure = it.failure, operation = it.operation, onRetry = onRetryChange)
-            }
-        }
-    }
-}
-
-// Routes load when the picker opens: the list depends on the account's CDN eligibility
-// and the caller's address, so it is not worth caching across the session.
-@Composable
-private fun MobileTunnelRouteDialog(
-    selected: TunnelRouteName,
-    loadRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>>,
-    onSelect: (TunnelRouteName) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    var attempt by remember { mutableStateOf(0) }
-    var result by remember { mutableStateOf<AccountSettingsRepositoryResult<List<TunnelRouteOption>>?>(null) }
-    LaunchedEffect(attempt) {
-        result = null
-        result = loadRoutes()
-    }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.mobile_settings_tunnel_route)) },
-        text = {
-            when (val loaded = result) {
-                null -> Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                    Text(stringResource(R.string.mobile_settings_tunnel_route_loading))
+                    Text(
+                        value,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
-                is AccountSettingsRepositoryResult.Failure -> Column(
-                    modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Text(stringResource(R.string.mobile_settings_tunnel_route_error))
-                    Text(loaded.failure.message())
-                    if (loaded.failure.putioFailure !is PutioFailure.AuthenticationRequired) {
-                        TextButton(
-                            onClick = { attempt += 1 },
-                            modifier = Modifier.testTag(MOBILE_TUNNEL_ROUTE_RETRY_TAG),
-                        ) { Text(stringResource(R.string.mobile_action_retry)) }
-                    }
-                }
-                // Route counts and font scale vary; keep every option reachable inside the dialog.
-                is AccountSettingsRepositoryResult.Success -> Column(
-                    modifier = Modifier.selectableGroup().verticalScroll(rememberScrollState()),
-                ) {
-                    loaded.value.forEach { option ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .selectable(
-                                    selected = option.name == selected,
-                                    role = Role.RadioButton,
-                                    onClick = { onSelect(option.name) },
-                                )
-                                .padding(vertical = 12.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            RadioButton(selected = option.name == selected, onClick = null)
-                            Column {
-                                Text(option.name.displayName())
-                                if (
-                                    option.description.isNotEmpty() &&
-                                    option.description != option.name.displayName()
-                                ) {
-                                    Text(
-                                        text = option.description,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.mobile_action_cancel)) }
-        },
-    )
-}
-
-@Composable
-private fun TunnelRouteName.displayName(): String =
-    if (this == TunnelRouteName.DEFAULT) stringResource(R.string.mobile_settings_tunnel_route_default) else value
-
-private val AccountSettingsChange.disablesTrash: Boolean
-    get() = this is AccountSettingsChange.Toggle && key == AccountSettingsKey.Trash && !enabled
-
-internal fun AccountSettingsState.accountControlsEnabled(): Boolean = mutation.controlsEnabled()
-
-private fun AccountSettingsMutation.controlsEnabled(): Boolean =
-    when (this) {
-        AccountSettingsMutation.Idle -> true
-        is AccountSettingsMutation.Saving -> false
-        is AccountSettingsMutation.Failed -> failure.putioFailure !is PutioFailure.AuthenticationRequired
-    }
-
-private fun LazyListScope.appConfigItems(
-    state: AndroidAppConfigState,
-    onChoosePlaybackType: () -> Unit,
-    onEvent: (AndroidAppConfigEvent) -> Unit,
-    resumePlaybackItem: LazyListScope.() -> Unit,
-) {
-    item(key = PLAYBACK_HEADER_KEY) {
-        MobileAccountSectionHeader(R.string.mobile_settings_section_playback)
-    }
-    resumePlaybackItem()
-    when (val content = state.content) {
-        is AndroidAppConfigContent.Loading ->
-            item(key = APP_CONFIG_LOADING_KEY) {
-                MobileAccountLoadingRow(R.string.mobile_settings_playback_loading)
-            }
-        is AndroidAppConfigContent.Failed ->
-            item(key = APP_CONFIG_ERROR_KEY) {
-                MobileAppConfigLoadError(
-                    failure = content.failure,
-                    onRetry = { onEvent(AndroidAppConfigEvent.RetryLoad) },
+                LinearProgressIndicator(
+                    progress = { storage.usedFraction },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(4.dp)
+                        .testTag(MOBILE_ACCOUNT_STORAGE_PROGRESS_TAG),
+                    color = if (full) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    strokeCap = StrokeCap.Round,
+                    gapSize = 0.dp,
+                    drawStopIndicator = {},
                 )
-            }
-        is AndroidAppConfigContent.Ready -> {
-            val mutation = state.mutation
-            val enabled = state.appConfigControlsEnabled()
-            val saving = mutation as? AndroidAppConfigMutation.Saving
-            val failed = mutation as? AndroidAppConfigMutation.Failed
-            item(key = VIDEO_PLAYBACK_TYPE_KEY) {
-                MobilePlaybackTypeRow(
-                    preferences = content.preferences,
-                    enabled = enabled,
-                    saving = saving?.change is AndroidAppConfigChange.VideoPlayback,
-                    failure = failed?.takeIf { it.change is AndroidAppConfigChange.VideoPlayback },
-                    onChoose = onChoosePlaybackType,
-                    onRetry = { onEvent(AndroidAppConfigEvent.RetryChange) },
-                )
-            }
-            item(key = AUTOPLAY_NEXT_VIDEO_KEY) {
-                MobileAppConfigSwitchRow(
-                    title = R.string.mobile_settings_autoplay_next,
-                    description = R.string.mobile_settings_autoplay_next_description,
-                    icon = R.drawable.ic_ph_list_checks,
-                    checked = content.preferences.autoplayNextVideo,
-                    enabled = enabled,
-                    saving = saving?.change is AndroidAppConfigChange.AutoplayNextVideo,
-                    failure = failed?.takeIf { it.change is AndroidAppConfigChange.AutoplayNextVideo },
-                    onRetry = { onEvent(AndroidAppConfigEvent.RetryChange) },
-                    onCheckedChange = {
-                        onEvent(
-                            AndroidAppConfigEvent.ChangeRequested(
-                                AndroidAppConfigChange.AutoplayNextVideo(it),
-                            ),
-                        )
-                    },
-                )
-            }
-        }
-    }
-}
-
-private fun AndroidAppConfigState.appConfigControlsEnabled(): Boolean =
-    when (val currentMutation = mutation) {
-        AndroidAppConfigMutation.Idle -> true
-        is AndroidAppConfigMutation.Saving -> false
-        is AndroidAppConfigMutation.Failed ->
-            currentMutation.failure !is PutioFailure.AuthenticationRequired
-    }
-
-@Composable
-private fun MobilePlaybackTypeRow(
-    preferences: AndroidAppConfigPreferences,
-    enabled: Boolean,
-    saving: Boolean,
-    failure: AndroidAppConfigMutation.Failed?,
-    onChoose: () -> Unit,
-    onRetry: () -> Unit,
-) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        ListItem(
-            headlineContent = { Text(stringResource(R.string.mobile_settings_video_playback_type)) },
-            supportingContent = {
-                MobileAccountValueDescription(
-                    value = stringResource(preferences.videoPlaybackType.labelResource()),
-                    description = stringResource(R.string.mobile_settings_video_playback_type_description),
-                )
-            },
-            leadingContent = {
-                Icon(
-                    painter = painterResource(DesignR.drawable.ic_ph_file_video_fill),
-                    contentDescription = null,
-                )
-            },
-            trailingContent = if (saving) {
-                { CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp) }
-            } else null,
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(
-                    enabled = enabled,
-                    role = Role.Button,
-                    onClick = onChoose,
-                ),
-        )
-        failure?.let {
-            MobileAppConfigMutationError(it.failure, it.operation, onRetry)
-        }
-    }
-}
-
-@Composable
-private fun MobileAppConfigSwitchRow(
-    @StringRes title: Int,
-    @StringRes description: Int,
-    @DrawableRes icon: Int,
-    checked: Boolean,
-    enabled: Boolean,
-    saving: Boolean,
-    failure: AndroidAppConfigMutation.Failed?,
-    onRetry: () -> Unit,
-    onCheckedChange: (Boolean) -> Unit,
-) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        ListItem(
-            headlineContent = { Text(stringResource(title)) },
-            supportingContent = { Text(stringResource(description)) },
-            leadingContent = { Icon(painterResource(icon), contentDescription = null) },
-            trailingContent = {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    if (saving) {
-                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    }
-                    PutioSwitch(checked = checked, enabled = enabled)
-                }
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .toggleable(
-                    value = checked,
-                    enabled = enabled,
-                    role = Role.Switch,
-                    onValueChange = onCheckedChange,
-                ),
-        )
-        failure?.let {
-            MobileAppConfigMutationError(it.failure, it.operation, onRetry)
-        }
-    }
-}
-
-@Composable
-private fun MobilePlaybackTypeDialog(
-    selected: VideoPlaybackType,
-    onSelect: (VideoPlaybackType) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    MobileChoiceDialog(
-        title = stringResource(R.string.mobile_settings_video_playback_type),
-        message = stringResource(R.string.mobile_settings_video_playback_type_description),
-        choices = VideoPlaybackType.entries,
-        label = { stringResource(it.labelResource()) },
-        description = {
-            stringResource(
-                when (it) {
-                    VideoPlaybackType.Hls -> R.string.mobile_settings_video_playback_hls_description
-                    VideoPlaybackType.Mp4 -> R.string.mobile_settings_video_playback_mp4_description
-                },
-            )
-        },
-        selected = selected,
-        onSave = onSelect,
-        onDismiss = onDismiss,
-    )
-}
-
-@StringRes
-private fun VideoPlaybackType.labelResource(): Int =
-    when (this) {
-        VideoPlaybackType.Hls -> R.string.mobile_settings_video_playback_hls
-        VideoPlaybackType.Mp4 -> R.string.mobile_settings_video_playback_mp4
-    }
-
-@Composable
-private fun MobileAppConfigLoadError(
-    failure: PutioFailure,
-    onRetry: () -> Unit,
-) {
-    ListItem(
-        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-        headlineContent = { Text(stringResource(R.string.mobile_settings_playback_error_title)) },
-        supportingContent = {
-            Column {
-                Text(failure.appConfigMessage())
-                if (failure !is PutioFailure.AuthenticationRequired) {
-                    TextButton(onClick = onRetry) {
-                        Text(stringResource(R.string.mobile_action_retry))
-                    }
+                if (full) {
+                    Text(
+                        stringResource(R.string.mobile_account_storage_full),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 10.dp),
+                    )
                 }
             }
-        },
-    )
-}
-
-@Composable
-private fun MobileAppConfigMutationError(
-    failure: PutioFailure,
-    operation: AndroidAppConfigMutation.Operation,
-    onRetry: () -> Unit,
-) {
-    val bringIntoViewRequester = remember { BringIntoViewRequester() }
-    LaunchedEffect(failure, operation) {
-        bringIntoViewRequester.bringIntoView()
-    }
-    val title =
-        when (operation) {
-            AndroidAppConfigMutation.Operation.Save -> R.string.mobile_settings_save_error
-            AndroidAppConfigMutation.Operation.Refresh -> R.string.mobile_settings_refresh_error
-        }
-    ListItem(
-        modifier = Modifier
-            .bringIntoViewRequester(bringIntoViewRequester)
-            .semantics { liveRegion = LiveRegionMode.Polite },
-        headlineContent = { Text(stringResource(title)) },
-        supportingContent = {
-            Column {
-                Text(failure.appConfigMessage())
-                if (failure !is PutioFailure.AuthenticationRequired) {
-                    TextButton(onClick = onRetry) {
-                        Text(stringResource(R.string.mobile_action_retry))
-                    }
-                }
-            }
-        },
-    )
-}
-
-@Composable
-private fun PutioFailure.appConfigMessage(): String = apiReason ?: stringResource(appConfigMessageResource())
-
-@StringRes
-private fun PutioFailure.appConfigMessageResource(): Int =
-    when (this) {
-        is PutioFailure.AuthenticationRequired -> R.string.mobile_state_error_session
-        is PutioFailure.AccessDenied -> R.string.mobile_settings_playback_error_access_denied
-        is PutioFailure.RateLimited -> R.string.mobile_state_error_rate_limited
-        is PutioFailure.ServerUnavailable -> R.string.mobile_state_error_unavailable
-        is PutioFailure.NetworkUnavailable -> R.string.mobile_state_error_message
-        is PutioFailure.ApiRejected,
-        is PutioFailure.InvalidResponse,
-        is PutioFailure.Misconfigured,
-        is PutioFailure.Unexpected,
-        -> R.string.mobile_state_error_unavailable
-    }
-
-@Composable
-private fun MobileAccountSectionHeader(@StringRes title: Int) {
-    Text(
-        text = stringResource(title),
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp).semantics { heading() },
-        color = MaterialTheme.colorScheme.primary,
-        style = MaterialTheme.typography.titleSmall,
-    )
-}
-
-@Composable
-internal fun MobileAccountSettingRow(
-    @StringRes title: Int,
-    @StringRes description: Int,
-    @DrawableRes icon: Int,
-    checked: Boolean,
-    key: AccountSettingsKey,
-    mutation: AccountSettingsMutation,
-    onRetry: () -> Unit,
-    onChange: (AccountSettingsChange) -> Unit,
-) {
-    val enabled = mutation.controlsEnabled()
-    val saving = (mutation as? AccountSettingsMutation.Saving)?.change?.key == key
-    val failure = (mutation as? AccountSettingsMutation.Failed)?.takeIf { it.change.key == key }
-    Column(modifier = Modifier.fillMaxWidth()) {
-        ListItem(
-            headlineContent = { Text(stringResource(title)) },
-            supportingContent = { Text(stringResource(description)) },
-            leadingContent = { Icon(painterResource(icon), contentDescription = null) },
-            trailingContent = {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    if (saving) {
-                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    }
-                    PutioSwitch(checked = checked, enabled = enabled)
-                }
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .toggleable(
-                    value = checked,
-                    enabled = enabled,
-                    role = Role.Switch,
-                    onValueChange = { onChange(AccountSettingsChange(key, it)) },
-                ),
-        )
-        failure?.let {
-            MobileAccountMutationError(failure = it.failure, operation = it.operation, onRetry = onRetry)
         }
     }
 }
 
-@Composable
-internal fun MobileAccountSettingsLoading() {
-    MobileAccountLoadingRow(R.string.mobile_settings_loading)
-}
-
-@Composable
-private fun MobileAccountLoadingRow(@StringRes text: Int) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(24.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-        Text(stringResource(text))
-    }
-}
-
-@Composable
-internal fun MobileAccountSettingsError(
-    failure: AccountSettingsFailure,
-    onRetry: () -> Unit,
-) {
-    ListItem(
-        headlineContent = { Text(stringResource(R.string.mobile_settings_error_title)) },
-        supportingContent = {
-            Column {
-                Text(failure.message())
-                if (failure.putioFailure !is PutioFailure.AuthenticationRequired) {
-                    TextButton(onClick = onRetry) {
-                        Text(stringResource(R.string.mobile_action_retry))
-                    }
-                }
-            }
-        },
-    )
-}
-
-@Composable
-internal fun MobileAccountMutationError(
-    failure: AccountSettingsFailure,
-    operation: AccountSettingsMutation.Operation,
-    onRetry: () -> Unit,
-) {
-    val bringIntoViewRequester = remember { BringIntoViewRequester() }
-    LaunchedEffect(failure, operation) {
-        bringIntoViewRequester.bringIntoView()
-    }
-    val title =
-        when (operation) {
-            AccountSettingsMutation.Operation.Save -> R.string.mobile_settings_save_error
-            AccountSettingsMutation.Operation.Refresh -> R.string.mobile_settings_refresh_error
-        }
-    ListItem(
-        modifier = Modifier
-            .bringIntoViewRequester(bringIntoViewRequester)
-            .semantics { liveRegion = LiveRegionMode.Polite },
-        headlineContent = { Text(stringResource(title)) },
-        supportingContent = {
-            Column {
-                Text(failure.message())
-                if (failure.putioFailure !is PutioFailure.AuthenticationRequired) {
-                    TextButton(onClick = onRetry) {
-                        Text(stringResource(R.string.mobile_action_retry))
-                    }
-                }
-            }
-        },
-    )
-}
-
-@Composable
-private fun AccountSettingsFailure.message(): String = apiReason ?: stringResource(messageResource())
-
-@StringRes
-private fun AccountSettingsFailure.messageResource(): Int =
-    when (this) {
-        is AccountSettingsFailure.RouteUnavailable -> R.string.mobile_settings_tunnel_route_unavailable
-        is AccountSettingsFailure.Putio -> when (failure) {
-            is PutioFailure.AuthenticationRequired -> R.string.mobile_state_error_session
-            is PutioFailure.AccessDenied -> R.string.mobile_settings_error_access_denied
-            is PutioFailure.RateLimited -> R.string.mobile_state_error_rate_limited
-            is PutioFailure.ServerUnavailable -> R.string.mobile_state_error_unavailable
-            is PutioFailure.NetworkUnavailable -> R.string.mobile_state_error_message
-            is PutioFailure.ApiRejected,
-            is PutioFailure.InvalidResponse,
-            is PutioFailure.Misconfigured,
-            is PutioFailure.Unexpected,
-            -> R.string.mobile_state_error_unavailable
-        }
-    }
-
-private const val ACCOUNT_IDENTITY_KEY = "account-identity"
-private const val ACCOUNT_IDENTITY_DIVIDER_KEY = "account-identity-divider"
+private const val IDENTITY_KEY = "account-identity"
+private const val STORAGE_KEY = "account-storage"
+private const val LIBRARY_KEY = "account-library"
 private const val SETTINGS_LOADING_KEY = "account-settings-loading"
 private const val SETTINGS_ERROR_KEY = "account-settings-error"
-private const val FILES_HEADER_KEY = "account-settings-files-header"
-private const val SUBTITLES_HEADER_KEY = "account-settings-subtitles-header"
-private const val PRIVACY_STORAGE_HEADER_KEY = "account-settings-privacy-storage-header"
-private const val PLAYBACK_HEADER_KEY = "app-config-playback-header"
+private const val FILES_KEY = "account-files"
+private const val PLAYBACK_KEY = "account-playback"
 private const val APP_CONFIG_LOADING_KEY = "app-config-loading"
 private const val APP_CONFIG_ERROR_KEY = "app-config-error"
-private const val VIDEO_PLAYBACK_TYPE_KEY = "app-config-video-playback-type"
-private const val AUTOPLAY_NEXT_VIDEO_KEY = "app-config-autoplay-next-video"
-private const val ABOUT_HEADER_KEY = "account-about-header"
+private const val SUBTITLES_KEY = "account-subtitles"
+private const val PRIVACY_KEY = "account-privacy"
+private const val ABOUT_KEY = "account-about"
 private const val SIGN_OUT_KEY = "account-sign-out"
-
-@Composable
-internal fun MobileAccountValueDescription(value: String, description: String) {
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(value, color = MaterialTheme.colorScheme.onSurface)
-        Text(description)
-    }
-}
-

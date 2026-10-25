@@ -20,8 +20,9 @@ Tests: `KeystoreAuthTokenStoreTest`, `MobileAuthStorageRecoveryTest`,
 
 ## Sign-out revocation
 
-Sign out is local and immediate on both surfaces; put.io revokes the token in
-the background. Before the session is cleared, the token is written to its own
+Mobile's Sign out confirms first; TV's is immediate. Once confirmed, sign-out
+is local and immediate on both surfaces; put.io revokes the token in the
+background. Before the session is cleared, the token is written to its own
 Keystore-encrypted record, separate from the session record, and revoked with a
 dedicated client that never touches the live session. A failed revocation
 retries after 15 s, 1 min, 5 min and 15 min, then waits for the next app start
@@ -36,8 +37,16 @@ of revoked, and an unreadable record or session defers the attempt. Sign-out
 revokes the token the live session holds, so an unreadable session record still
 gets revoked. Nothing in the path logs the token.
 
+The mobile confirm keeps downloads by default: they stay on the device and
+come back when the same account signs in again. When the account has
+downloads, a Remove downloads from this device checkbox, off by default, shows
+their size; ticked, every row is marked and its bytes handed to Media3 for
+deletion before the session ends. A row Media3 has not confirmed by then
+finishes its removal at that account's next sign-in.
+
 Tests: `PendingTokenRevocationsTest`, `KeystoreAuthTokenStoreTest`,
-`MobileAuthControllerSessionTest`, `TvAuthControllerTest`.
+`MobileAuthControllerSessionTest`, `TvAuthControllerTest`,
+`MobileAccountSignOutAndLibraryTest`, `DownloadsControllerTest`.
 
 ## Upgrade from tv-native
 
@@ -1124,18 +1133,21 @@ Tests: `SdkHistoryRepositoryTest`, `MobileSearchScreensTest`,
 
 The account header labels the quota as web and iOS do: X of Y free when the
 account's `show_optimistic_usage` is on, X of Y used otherwise. The bar fills
-with what is used either way.
+with what is used either way. On mobile, storage is full when nothing is
+available or the used bytes reach the size: the card reads X of Y, the bar
+turns red, and a line says new transfers wait until space is freed.
 
 Tests: `PutioAuthSessionGatewayTest`, `PutioTvSessionGatewayTest`,
-`MobileAccountScreenTest`, `TvAccountScreenTest`.
+`MobileAccountScreenTest`, `MobileAccountSignOutAndLibraryTest`,
+`TvAccountScreenTest`.
 
 ## Privacy controls
 
 Mobile has two account-wide privacy controls, shared with every put.io app:
 Diagnostics (`diagnostics_enabled`, on by default) and Product analytics
 (`product_analytics_enabled`, opt-in and off by default). Account shows them as
-one Privacy controls row with their current state ("Diagnostics on · Product
-analytics off"), which opens a Privacy controls page. The page discloses
+one Privacy controls row with their current state ("Diagnostics on · Analytics
+off"), which opens a Privacy controls page. The page discloses
 Strictly necessary processing as Always on, with no toggle, then the two
 toggles, a footer that says neither sends filenames, media titles, URLs, search
 text, or tokens, and links to the Privacy policy and Services we use. Each row's

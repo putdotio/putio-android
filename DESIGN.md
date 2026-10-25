@@ -611,8 +611,10 @@ rows. Every row is one line, with a leading glyph, the title and a trailing
 value or switch.
 
 Groups, in order: Library (Exclusive links, Trash), Files, Playback, Subtitles,
-Downloads, Privacy, About, then Sign out alone, in red, behind its
-[confirm](#dialogs-and-pickers).
+Privacy, About, then Sign out alone, in red, behind its
+[confirm](#dialogs-and-pickers). Download concurrency stays on the Downloads
+tab. Library rows show the link count and Trash's size in mono once the app
+has loaded them; App info opens its own page.
 
 **Privacy controls** opens its own screen, in the order
 [Privacy controls](docs/behavior.md#privacy-controls) fixes: Strictly necessary
@@ -765,7 +767,6 @@ the navigation bar: **Welcome!** as a 40sp medium title on a 48sp line, then
 - Search opens over Files with an outlined text field, not
   `ExpandedFullScreenSearchBar`.
 - The item actions sheet has rows only, no action tiles.
-- Sign out is an outlined button that signs out at once, with no confirm.
 - Names outside Files, Transfers, Downloads and History wrap instead of being
   cut in the middle on one line.
 - Rename does not preselect the name up to the extension.
@@ -775,10 +776,9 @@ the navigation bar: **Welcome!** as a 40sp medium title on a 48sp line, then
 - The actions sheet has no Play or Resume and no Mark as watched.
 - The Move picker can't create a folder.
 - Moving to Trash offers View Trash in its snackbar, not Undo.
-- Settings are two-line rows under yellow subheads.
-- Only the player's timestamps, the tab-title summaries, Transfers, Files, and
-  Downloads and History rows set numbers in mono; sizes, speeds and counts
-  elsewhere use the UI face.
+- Only the player's timestamps, the tab-title summaries, Transfers, Files,
+  Account, and Downloads and History rows set numbers in mono; sizes, speeds
+  and counts elsewhere use the UI face.
 - Transfer cards and Transfer actions show no peer count: the Kotlin SDK's
   `Transfer` has no peers field.
 - The mini player (`MobileNowPlayingBar`) exists in another form; Files has no
