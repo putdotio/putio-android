@@ -73,17 +73,18 @@ private fun FilesBrowserState.deleteChecked(event: FilesBrowserEvent.DeleteCheck
     val folder = stack.getOrNull(index)
     val outcome = folder?.deleteOutcome
     if (folder == null || outcome == null) return FilesBrowserTransition(this, consumed = false)
-    val reads = outcome.intent.itemIds.zipReads(event.results).map { (id, result) -> result.deleteReadFailure(id) }
-    val gone = reads.map { it.isNotFound }
-    val failure = reads.firstOrNull { it != null && !it.isNotFound }
+    val reads = outcome.intent.itemIds.zipReads(event.results)
+        .map { (id, result) -> id to result.deleteReadFailure(id) }
+    val remaining = reads.filterNot { (_, failure) -> failure.isNotFound }.mapTo(mutableSetOf()) { it.first }
+    val failure = reads.mapNotNull { (_, failure) -> failure?.takeUnless { it.isNotFound } }.verdict()
     return if (failure != null) {
         loadFailed(FilesBrowserEvent.LoadFailed(event.requestId, failure))
     } else {
         val requestId = FilesRequestId(nextRequestValue)
         val updated = folder.copy(
             deleteOutcome = outcome.copy(
-                status = outcome.checkedStatus(unavailable = gone.all { it }),
-                remainingCount = gone.count { !it },
+                status = outcome.checkedStatus(unavailable = remaining.isEmpty()),
+                remainingIds = remaining,
             ),
             operation = FilesFolderOperation.Loading(requestId, outcome.intent, FilesFolderOperationPhase.RELOADING),
             needsReload = false,

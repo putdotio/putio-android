@@ -262,7 +262,7 @@ internal fun MobileShell(
     // The Downloads top bar and list share one selection: in selection its bar replaces the title.
     val downloadsSelection = rememberDownloadsSelection()
     // So do Files' bar and folder; its selection belongs to the folder it started in.
-    val filesSelection = rememberFilesSelection(sessionId)
+    val filesSelection = rememberFilesSelection(sessionId, filesState)
     val filesSelecting = filesSelection.isShown(
         filesState,
         onFiles = selectedDestination == MobileDestination.Files,

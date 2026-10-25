@@ -29,10 +29,11 @@ public data class FilesDeleteOutcome(
     val status: FilesDeleteStatus = FilesDeleteStatus.CHECKING,
     /** The screen announced it on its own; it stays for a later page to correct. */
     val announced: Boolean = false,
-    /** How many of the items the check still found; a later page that lists one counts it too. */
-    val remainingCount: Int = 0,
+    /** The items the check still found, and those a later page lists again. */
+    val remainingIds: Set<FilesItemId> = emptySet(),
 ) {
     val itemCount: Int get() = intent.itemIds.size
+    val remainingCount: Int get() = remainingIds.size
 }
 
 /** put.io refuses a Trash move of a folder over its item limit with this error type, before changing anything. */

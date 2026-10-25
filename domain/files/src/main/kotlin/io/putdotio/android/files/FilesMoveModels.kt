@@ -19,8 +19,9 @@ public data class FilesMoveOutcome(
     val errors: List<FileMoveError>? = null,
     val failure: PutioFailure? = null,
     val status: FilesMoveStatus = FilesMoveStatus.CHECKING,
-    /** How many of the items the check found outside the destination. */
-    val remainingCount: Int = 0,
+    /** The items the check found outside the destination, and those a later page lists again. */
+    val remainingIds: Set<FilesItemId> = emptySet(),
 ) {
     val itemCount: Int get() = intent.itemIds.size
+    val remainingCount: Int get() = remainingIds.size
 }

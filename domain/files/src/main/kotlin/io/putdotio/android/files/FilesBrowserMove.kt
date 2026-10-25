@@ -85,21 +85,21 @@ private fun FilesBrowserState.moveChecked(event: FilesBrowserEvent.MoveChecked):
     val outcome = folder?.moveOutcome
     if (folder == null || outcome == null) return FilesBrowserTransition(this, consumed = false)
     val reads = outcome.intent.itemIds.zipReads(event.results)
-    val failure = reads.firstNotNullOfOrNull { (id, result) -> result.moveReadFailure(id) }
+    val failure = reads.mapNotNull { (id, result) -> result.moveReadFailure(id) }.verdict()
     return if (failure != null) {
         loadFailed(FilesBrowserEvent.LoadFailed(event.requestId, failure))
     } else {
-        val notMoved = reads.count { (_, result) ->
+        val notMoved = reads.filter { (_, result) ->
             (result as? PutioResult.Success)?.value?.parentId != outcome.intent.destinationId
-        }
+        }.mapTo(mutableSetOf()) { it.first }
         val status = when {
             !outcome.errors.isNullOrEmpty() -> FilesMoveStatus.REJECTED
-            notMoved == 0 -> FilesMoveStatus.MOVED
+            notMoved.isEmpty() -> FilesMoveStatus.MOVED
             else -> FilesMoveStatus.STILL_PRESENT
         }
         val requestId = FilesRequestId(nextRequestValue)
         val updated = folder.copy(
-            moveOutcome = outcome.copy(status = status, remainingCount = notMoved),
+            moveOutcome = outcome.copy(status = status, remainingIds = notMoved),
             operation = FilesFolderOperation.Loading(requestId, outcome.intent, FilesFolderOperationPhase.RELOADING),
             needsReload = false,
         )
@@ -122,10 +122,12 @@ private fun PutioResult<FilesItem>.moveReadFailure(expectedId: FilesItemId): Put
 public val FilesFolderOperation.pendingMove: FilesFolderOperationIntent.Move?
     get() = pendingIntent()
 
+/** A page that lists a moved item again: the move left it here, whatever the check said. */
 internal fun FilesMoveOutcome.afterFolderPage(page: FilesPage): FilesMoveOutcome {
-    val listed = page.items.count { it.id in intent.itemIds }
-    return if (status == FilesMoveStatus.MOVED && listed > 0) {
-        copy(status = FilesMoveStatus.STILL_PRESENT, remainingCount = listed)
+    val listed = page.items.mapNotNullTo(mutableSetOf()) { item -> item.id.takeIf { it in intent.itemIds } }
+    val correctable = status == FilesMoveStatus.MOVED || status == FilesMoveStatus.STILL_PRESENT
+    return if (correctable && !remainingIds.containsAll(listed)) {
+        copy(status = FilesMoveStatus.STILL_PRESENT, remainingIds = remainingIds + listed)
     } else {
         this
     }

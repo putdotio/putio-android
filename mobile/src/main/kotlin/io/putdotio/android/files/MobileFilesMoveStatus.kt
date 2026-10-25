@@ -57,7 +57,11 @@ private fun FilesMoveOutcome.statusMessage(): String? {
         }
         FilesMoveStatus.REJECTED -> when {
             collision != null -> stringResource(R.string.mobile_files_move_collision, collision.name ?: itemName)
-            many -> pluralStringResource(R.plurals.mobile_files_move_rejected_many, itemCount, itemCount)
+            many -> {
+                // What the check found outside the destination; a refusal the check can't place counts all.
+                val refused = remainingCount.takeIf { it > 0 } ?: itemCount
+                pluralStringResource(R.plurals.mobile_files_move_rejected_many, refused, refused)
+            }
             else -> stringResource(R.string.mobile_files_move_rejected, itemName)
         }
         FilesMoveStatus.CHECKING, FilesMoveStatus.UNKNOWN -> null

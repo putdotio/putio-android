@@ -92,7 +92,15 @@ internal fun MobileFilesTrashLimitStatus(
         val delete = FilesBrowserEvent.Delete(folder.folder.id, listed.map { it.id }, FilesDeleteMode.PERMANENT)
         AlertDialog(
             onDismissRequest = { confirming = false },
-            title = { Text(stringResource(R.string.mobile_files_trash_limit_title)) },
+            title = {
+                Text(
+                    if (listed.size > 1) {
+                        pluralStringResource(R.plurals.mobile_files_delete_permanently_title, listed.size, listed.size)
+                    } else {
+                        stringResource(R.string.mobile_files_trash_limit_title)
+                    },
+                )
+            },
             text = {
                 Column(
                     modifier = Modifier.verticalScroll(rememberScrollState()),

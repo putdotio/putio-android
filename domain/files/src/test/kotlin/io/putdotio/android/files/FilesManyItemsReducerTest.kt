@@ -1,9 +1,11 @@
 package io.putdotio.android.files
 
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
 import io.putdotio.android.toPutioFailure
 import io.putdotio.sdk.errors.PutioApiErrorEnvelope
 import io.putdotio.sdk.errors.PutioApiException
+import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.errors.PutioRequestData
 import io.putdotio.sdk.files.FileDeleteResult
 import io.putdotio.sdk.files.FileMoveError
@@ -70,6 +72,30 @@ class FilesManyItemsReducerTest {
         )).state.current.deleteOutcome
         assertEquals(FilesDeleteStatus.STILL_PRESENT, reloaded?.status)
         assertEquals(1, reloaded?.remainingCount)
+    }
+
+    @Test
+    fun laterPagesAddEachItemTheyListAgainOnce() {
+        val checking = acknowledge(FilesBrowserReducer.reduce(loadedRoot(), deleteBoth()))
+        val reloading = checkDelete(checking, listOf(notFound(), notFound()))
+        val firstPage = FilesBrowserReducer.reduce(reloading.state, FilesBrowserEvent.LoadSucceeded(
+            checkNotNull(reloading.effect).requestId, FilesPage(listOf(first), FilesCursor("next")),
+        )).state
+        val paging = FilesBrowserReducer.reduce(firstPage, FilesBrowserEvent.LoadNextPage)
+        val secondPage = FilesBrowserReducer.reduce(paging.state, FilesBrowserEvent.LoadSucceeded(
+            checkNotNull(paging.effect).requestId, FilesPage(listOf(first, second), null),
+        )).state.current.deleteOutcome
+        assertEquals(FilesDeleteStatus.STILL_PRESENT, secondPage?.status)
+        assertEquals(ids.toSet(), secondPage?.remainingIds)
+    }
+
+    @Test
+    fun aRejectedSessionWinsOverOtherCheckFailures() {
+        val checking = acknowledge(FilesBrowserReducer.reduce(loadedRoot(), deleteBoth()))
+        val offline = PutioResult.Failure(PutioFailure.NetworkUnavailable(IllegalStateException("offline")))
+        val rejected = PutioResult.Failure(PutioFailure.AuthenticationRequired(PutioConfigurationException("401")))
+        val failed = checkDelete(checking, listOf(offline, rejected)).state.current.operation
+        assertTrue((failed as FilesFolderOperation.Failed).failure is PutioFailure.AuthenticationRequired)
     }
 
     @Test

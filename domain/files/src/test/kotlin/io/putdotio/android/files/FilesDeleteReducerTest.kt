@@ -154,7 +154,7 @@ class FilesDeleteReducerTest {
         ))
 
         assertEquals(
-            outcome.copy(status = FilesDeleteStatus.STILL_PRESENT, announced = true, remainingCount = 1),
+            outcome.copy(status = FilesDeleteStatus.STILL_PRESENT, announced = true, remainingIds = setOf(item.id)),
             appended.state.current.deleteOutcome,
         )
     }
@@ -188,7 +188,7 @@ class FilesDeleteReducerTest {
             checkNotNull(paging.effect).requestId, FilesPage(listOf(item), null),
         ))
         assertEquals(
-            previousOutcome.copy(status = FilesDeleteStatus.STILL_PRESENT, remainingCount = 1),
+            previousOutcome.copy(status = FilesDeleteStatus.STILL_PRESENT, remainingIds = setOf(item.id)),
             appended.state.current.deleteOutcome,
         )
         assertEquals(listOf(file(8L), item), appended.state.current.content.items())

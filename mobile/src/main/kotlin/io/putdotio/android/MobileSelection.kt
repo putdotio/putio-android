@@ -2,6 +2,7 @@ package io.putdotio.android
 
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
@@ -79,6 +81,12 @@ internal class MobileSelection(selecting: Boolean = false, selected: List<Long> 
     fun end() {
         selecting = false
         selectedIds = emptyList()
+    }
+
+    /** Forgets rows no longer in [selectable], so one that comes back is not checked again. */
+    fun retain(selectable: Set<Long>) {
+        val kept = selectedIds.filter { it in selectable }
+        if (kept.size != selectedIds.size) selectedIds = kept
     }
 
     companion object {
@@ -177,8 +185,9 @@ internal fun MobileSelectionToolbar(modifier: Modifier = Modifier, tiles: @Compo
         color = MaterialTheme.colorScheme.surfaceContainerHighest,
         contentColor = MaterialTheme.colorScheme.onSurface,
     ) {
+        // Large text can make the tiles wider than the screen; the row then scrolls, keeping each reachable.
         Row(
-            modifier = Modifier.padding(TOOLBAR_PADDING),
+            modifier = Modifier.horizontalScroll(rememberScrollState()).padding(TOOLBAR_PADDING),
             horizontalArrangement = Arrangement.spacedBy(TOOLBAR_GAP),
             content = tiles,
         )

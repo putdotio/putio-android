@@ -100,13 +100,20 @@ internal class MobileFilesActionsController(
     fun setWatched(items: List<FilesItem>, watched: Boolean) {
         val writes = items.mapNotNull { item -> writeWatched(item, watched)?.let { item to it } }
         if (writes.isEmpty()) return
+        // A 401 is the session's verdict: it signs out as soon as its write answers, not after the rest.
+        writes.forEach { (_, write) ->
+            scope.launch {
+                val failure = (write.await() as? PutioResult.Failure)?.failure
+                if (failure is PutioFailure.AuthenticationRequired) onAuthenticationRequired()
+            }
+        }
         scope.launch {
             val refused = writes.mapNotNull { (item, write) ->
-                (write.await() as? PutioResult.Failure)?.let { item to it.failure }
+                (write.await() as? PutioResult.Failure)?.failure
+                    ?.takeUnless { it is PutioFailure.AuthenticationRequired }
+                    ?.let { item to it }
             }
-            val (item, failure) = refused.firstOrNull { it.second is PutioFailure.AuthenticationRequired }
-                ?: refused.firstOrNull()
-                ?: return@launch
+            val (item, failure) = refused.firstOrNull() ?: return@launch
             report(watchedRefusal(watched, item, failure, refused.size))
         }
     }

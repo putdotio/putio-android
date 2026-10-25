@@ -1,6 +1,7 @@
 package io.putdotio.android.files
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
@@ -89,6 +90,21 @@ internal class FilesSelection(
         scope = null
     }
 
+    /**
+     * Ends the selection once another folder shows, or its folder lists nothing, and forgets rows that
+     * left the listing, so neither comes back checked later.
+     */
+    fun reconcile(state: FilesBrowserState) {
+        val current = scope ?: return
+        val selectable = state.selectableIds()
+        val listed = state.current.content is FilesContent.Ready || state.current.content is FilesContent.Empty
+        when {
+            current != state.selectionScope() -> end()
+            listed && selectable.isEmpty() -> end()
+            listed -> selection.retain(selectable)
+        }
+    }
+
     companion object {
         val Saver: Saver<FilesSelection, Any> = Saver(
             save = { selection ->
@@ -119,9 +135,15 @@ private fun FilesBrowserState.selectionScope() = FilesSelectionScope(stack.size,
 private fun FilesBrowserState.selectableIds(): Set<Long> =
     current.content.items().filter { it.id.value > 0L }.mapTo(linkedSetOf()) { it.id.value }
 
+/** The session's Files selection, kept in step with the folder on screen and its rows. */
 @Composable
-internal fun rememberFilesSelection(key: Any?): FilesSelection =
-    rememberSaveable(key, saver = FilesSelection.Saver) { FilesSelection() }
+internal fun rememberFilesSelection(key: Any?, state: FilesBrowserState): FilesSelection {
+    val selection = rememberSaveable(key, saver = FilesSelection.Saver) { FilesSelection() }
+    LaunchedEffect(selection, state.stack.size, state.current.folder.id, state.current.content) {
+        selection.reconcile(state)
+    }
+    return selection
+}
 
 /**
  * What the toolbar offers for [items]: each action only when every item allows it, under the
@@ -191,18 +213,6 @@ internal fun MobileFilesSelectionToolbar(
         canDownload = handlers.onDownload != null,
         canSetWatched = handlers.onSetWatched != null,
     )
-    var confirmingPermanentDelete by rememberSaveable { mutableStateOf(false) }
-    // As in the sheet, Move to trash is sent after the next composition, against the latest Trash
-    // setting: once Trash is off, put.io applies a Trash request as permanent deletion.
-    var trashTapped by remember { mutableStateOf(false) }
-    val currentTrashEnabled by rememberUpdatedState(confirmedTrashEnabled)
-    val currentItems by rememberUpdatedState(items)
-    if (trashTapped) {
-        SideEffect {
-            trashTapped = false
-            if (currentTrashEnabled == true) handlers.onDelete(currentItems, FilesDeleteMode.TRASH)
-        }
-    }
     val label = pluralStringResource(R.plurals.mobile_files_selection_actions, items.size, items.size)
     // Download leaves the files already here or on their way as they are.
     val notHere = items.filter { (downloads.entry(it.id)?.status).downloadable }
@@ -214,27 +224,54 @@ internal fun MobileFilesSelectionToolbar(
         if (actions.download) DownloadTile { handlers.onDownload?.invoke(notHere) }
         actions.watched?.let { watched -> WatchedTile(watched) { handlers.onSetWatched?.invoke(items, watched) } }
         if (actions.delete) {
-            // An unknown Trash setting can't say which delete this would be.
-            DeleteTile(
-                permanent = confirmedTrashEnabled == false,
-                enabled = canStart && confirmedTrashEnabled != null,
-            ) {
-                when (currentTrashEnabled) {
-                    true -> trashTapped = true
-                    false -> confirmingPermanentDelete = true
-                    null -> Unit
-                }
-            }
+            DeleteAction(items, operation.canStartOperation, confirmedTrashEnabled, handlers.onDelete)
+        }
+    }
+}
+
+/**
+ * The toolbar's delete: Move to trash goes at once; Delete permanently asks first, naming the count.
+ * Both follow the latest Trash setting, as the sheet does.
+ */
+@Composable
+private fun DeleteAction(
+    items: List<FilesItem>,
+    canStart: Boolean,
+    confirmedTrashEnabled: Boolean?,
+    onDelete: (List<FilesItem>, FilesDeleteMode) -> Unit,
+) {
+    var confirmingPermanentDelete by rememberSaveable { mutableStateOf(false) }
+    // Move to trash is sent after the next composition, against the latest Trash setting: once
+    // Trash is off, put.io applies a Trash request as permanent deletion.
+    var trashTapped by remember { mutableStateOf(false) }
+    val currentTrashEnabled by rememberUpdatedState(confirmedTrashEnabled)
+    val currentItems by rememberUpdatedState(items)
+    // A Trash setting that changes while the confirm is open withdraws it.
+    LaunchedEffect(confirmedTrashEnabled) {
+        if (confirmedTrashEnabled != false) confirmingPermanentDelete = false
+    }
+    if (trashTapped) {
+        SideEffect {
+            trashTapped = false
+            if (currentTrashEnabled == true) onDelete(currentItems, FilesDeleteMode.TRASH)
+        }
+    }
+    // An unknown Trash setting can't say which delete this would be.
+    DeleteTile(permanent = confirmedTrashEnabled == false, enabled = canStart && confirmedTrashEnabled != null) {
+        when (currentTrashEnabled) {
+            true -> trashTapped = true
+            false -> confirmingPermanentDelete = true
+            null -> Unit
         }
     }
     if (confirmingPermanentDelete && confirmedTrashEnabled == false) {
         MobileFilesDeleteConfirmation(
-            enabled = operation.canStartOperation,
+            enabled = canStart,
             count = items.size,
             onDismiss = { confirmingPermanentDelete = false },
             onConfirm = {
                 confirmingPermanentDelete = false
-                handlers.onDelete(items, FilesDeleteMode.PERMANENT)
+                if (currentTrashEnabled == false) onDelete(currentItems, FilesDeleteMode.PERMANENT)
             },
         )
     }

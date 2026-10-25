@@ -21,11 +21,15 @@ import io.putdotio.android.files.FilesBrowserEffect
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserReducer
 import io.putdotio.android.files.FilesBrowserState
+import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesDeleteMode
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPage
+import io.putdotio.android.files.FilesPaging
+import io.putdotio.android.files.FilesSelection
+import io.putdotio.android.files.copyForTest
 import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.files.MOBILE_FILES_SELECTION_BAR_TAG
 import io.putdotio.android.files.MOBILE_FILES_SELECTION_DELETE_TAG
@@ -148,6 +152,26 @@ class MobileFilesSelectionTest {
         assertNull(offline.watched)
     }
 
+    @Test
+    fun theSelectionEndsInAnotherFolderAndForgetsRowsThatLeft() {
+        val folder = folderState()
+        val selection = FilesSelection()
+        selection.start(folder, SINTEL)
+        selection.toggle(folder, FINISHED)
+
+        // A row leaves the listing, then comes back: it is not checked again.
+        val without = folder.withItems(SERIES, SINTEL)
+        selection.reconcile(without)
+        selection.reconcile(folder)
+        assertEquals(listOf(SINTEL), selection.selected(folder))
+
+        // Another folder ends it, so coming back shows none.
+        val root = FilesBrowserReducer.reduce(folder, FilesBrowserEvent.NavigateBack).state
+        selection.reconcile(root)
+        assertFalse(selection.isActive(folder))
+        assertTrue(selection.selected(folder).isEmpty())
+    }
+
     private fun selectFromTheSheet(item: FilesItem) {
         compose.onNodeWithText(item.name).performTouchInput { longClick() }
         compose.onNodeWithText("Select").performClick()
@@ -194,6 +218,12 @@ class MobileFilesSelectionTest {
             playback: FilesPlaybackProgress? = null,
             parent: FilesItemId = FilesItemId(7L),
         ) = FilesItem(FilesItemId(id), parent, name, type, 1_000_000L, "2026-10-13T00:00:00", playback = playback)
+
+        fun FilesBrowserState.withItems(vararg items: FilesItem): FilesBrowserState =
+            copyForTest(
+                stack = stack.dropLast(1) +
+                    current.copy(content = FilesContent.Ready(items.toList(), FilesPaging.Complete)),
+            )
 
         fun folderState(): FilesBrowserState {
             val start = FilesBrowserReducer.start()
