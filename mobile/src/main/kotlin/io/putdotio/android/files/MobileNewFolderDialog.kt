@@ -7,7 +7,6 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -36,6 +35,7 @@ import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
+import io.putdotio.android.transfers.neutralTextButtonColors
 import kotlinx.coroutines.launch
 
 internal const val MOBILE_NEW_FOLDER_FIELD_TAG = "mobile-new-folder-field"
@@ -183,7 +183,7 @@ internal fun MobileNewFolderDialog(
             TextButton(
                 onClick = onDismiss,
                 enabled = !creating,
-                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurface),
+                colors = neutralTextButtonColors(),
             ) {
                 Text(stringResource(R.string.mobile_action_cancel))
             }
