@@ -50,6 +50,7 @@ import io.putdotio.android.playback.playbackPreference
 import io.putdotio.android.search.ActiveSearchHistorySession
 import io.putdotio.android.search.MobileSearchHistoryViewModel
 import io.putdotio.android.search.SdkSearchRepository
+import io.putdotio.android.search.SearchController
 import io.putdotio.android.search.authoritativeSessionFailure
 import io.putdotio.android.settings.AccountSettingsController
 import io.putdotio.android.settings.AccountSettingsRepositoryResult
@@ -187,7 +188,10 @@ internal fun SignedInMobileRoot(
         }
     }
     val filesActions =
-        remember(filesViewModel, filesController, trashRepository, continueWatching, account.userId, sessionId) {
+        remember(
+            filesViewModel, filesController, trashRepository, continueWatching, searchHistorySession,
+            account.userId, sessionId,
+        ) {
             filesController?.let { browser ->
                 filesViewModel.actionsFor(account.userId, sessionId) { scope ->
                     MobileFilesActionsController(
@@ -201,6 +205,7 @@ internal fun SignedInMobileRoot(
                         onPositionSaved = { fileId, seconds ->
                             // Finished or cleared, the video leaves Continue watching; an offline position follows.
                             continueWatching?.positionSaved(fileId, seconds)
+                            searchHistorySession?.search?.positionSaved(fileId, seconds)
                             runtime.offlinePositions?.afterWrite(
                                 account.userId, fileId.value, seconds, PlaybackRepositoryResult.Success(Unit),
                             )
@@ -297,7 +302,9 @@ private fun SignedInMobileSession(
     val reportingPlayerFactory = remember(runtime, sessionId, accountSettingsController, playbackPlayerFactory) {
         runtime.playbackReporting.factoryFor(sessionId, accountSettingsController.state, playbackPlayerFactory)
     }
-    SavedPositionEffects(runtime, filesController, filesRepository, continueWatching, authController)
+    SavedPositionEffects(
+        runtime, filesController, filesRepository, continueWatching, searchHistorySession.search, authController,
+    )
     val trashState by trashController.state.collectAsStateWithLifecycle()
     val filesState by filesController.state.collectAsStateWithLifecycle()
     val accountSettingsState by accountSettingsController.state.collectAsStateWithLifecycle()
@@ -428,13 +435,15 @@ private fun SavedPositionEffects(
     filesController: FilesBrowserController,
     filesRepository: SdkFilesRepository,
     continueWatching: MobileContinueWatching?,
+    search: SearchController,
     authController: MobileAuthController,
 ) {
-    LaunchedEffect(runtime, filesController, continueWatching) {
+    LaunchedEffect(runtime, filesController, continueWatching, search) {
         runtime.playbackReporting.savedPositions.collect { saved ->
             val fileId = FilesItemId(saved.fileId)
             filesController.dispatch(FilesBrowserEvent.PlaybackPositionReported(fileId, saved.seconds))
             continueWatching?.positionSaved(fileId, saved.seconds)
+            search.positionSaved(fileId, saved.seconds)
         }
     }
     LaunchedEffect(continueWatching, filesRepository) {
@@ -442,17 +451,22 @@ private fun SavedPositionEffects(
             authController.rejectAuthoritativeSession()
         }
     }
-    // A delete the fresh read confirmed takes the video out of Continue watching too.
+    // A delete the fresh read confirmed takes the video, or a deleted folder's videos, out of Continue watching.
     LaunchedEffect(filesController, continueWatching) {
         val row = continueWatching ?: return@LaunchedEffect
         filesController.state
             .map { state ->
                 state.stack.mapNotNull { folder ->
-                    folder.deleteOutcome?.takeIf { it.status == FilesDeleteStatus.NO_LONGER_AVAILABLE }?.intent?.itemId
+                    folder.deleteOutcome?.takeIf { it.status == FilesDeleteStatus.NO_LONGER_AVAILABLE }
                 }
             }
             .distinctUntilChanged()
-            .collect { gone -> gone.forEach(row::removed) }
+            .collect { gone -> row.removed(gone) }
+    }
+    LaunchedEffect(continueWatching, filesRepository) {
+        if (continueWatching?.recheckAfterDeletes(filesRepository::resolveItem) != null) {
+            authController.rejectAuthoritativeSession()
+        }
     }
 }
 

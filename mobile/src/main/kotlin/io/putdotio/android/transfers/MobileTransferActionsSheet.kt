@@ -60,7 +60,8 @@ internal class MobileTransferActions(
 )
 
 /**
- * Transfer actions: the full name, the state and a progress bar, the facts in mono, then Open folder
+ * Transfer actions: the full name, the state, put.io's whole reason when it gave one, and a progress
+ * bar, the facts in mono, then Open folder
  * and Copy source link when put.io returned a link. A running transfer ends with Stop transfer in red;
  * a failed one offers Retry; a finished one Open file and Remove from list.
  */
@@ -174,6 +175,12 @@ private fun MobileTransferActionsHeader(item: TransferItem) {
             }
         }
         MobileTransferMeta(item.dot, state, maxLines = 1)
+        // The card cuts put.io's reason to its meta lines; here it shows in full.
+        item.errorMessage?.let { reason ->
+            SelectionContainer {
+                Text(reason, style = PutioTypeScale.bodySm, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
         // A running transfer without a reported share shows an empty track rather than no bar.
         val reported = item.percentDone?.takeIf { it in 0.0..100.0 }
         val percent = when (item.section) {

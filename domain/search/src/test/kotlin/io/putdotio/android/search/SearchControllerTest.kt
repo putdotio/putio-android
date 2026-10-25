@@ -5,6 +5,7 @@ import io.putdotio.android.PutioResult
 import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.sdk.files.PutioFileType
 import java.util.concurrent.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -196,6 +197,27 @@ class SearchControllerTest {
                 assertEquals(SearchOutput.OpenResult(item(9L, "movie.mkv")), output.await())
                 assertEquals(listOf(SearchTerm("movie")), store.recorded)
             }
+        }
+
+    @Test
+    fun aSavedPositionReachesTheResultShowingThatMedia() =
+        runBlocking<Unit> {
+            val watched = item(9L, "movie.mkv").copy(playback = FilesPlaybackProgress(5_400.0, null))
+            val controller = controller(repository { success(watched, folder(8L, "movie")) })
+
+            controller.use {
+                controller.updateQuery("movie")
+                controller.awaitContent<SearchContent.Ready>()
+
+                // Marked unwatched from its actions sheet: the result reads unwatched without a new search.
+                assertTrue(controller.positionSaved(FilesItemId(9L), 0.0))
+                val items = (controller.state.value.content as SearchContent.Ready).items
+                assertEquals(FilesPlaybackProgress(0.0, null), items.single { it.id.value == 9L }.playback)
+                assertEquals(null, items.single { it.id.value == 8L }.playback)
+                assertFalse(controller.positionSaved(FilesItemId(8L), 0.0))
+                assertFalse(controller.positionSaved(FilesItemId(7L), 0.0))
+            }
+            assertFalse(controller.positionSaved(FilesItemId(9L), 60.0))
         }
 
     @Test

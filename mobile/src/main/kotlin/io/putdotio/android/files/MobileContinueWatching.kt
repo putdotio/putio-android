@@ -10,6 +10,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
@@ -73,6 +74,9 @@ internal class MobileContinueWatching(
     /** Videos the player resolved this session, for positions put.io accepts later. */
     private val media = mutableMapOf<FilesItemId, Media>()
     private val mutableEntries = MutableStateFlow(store.read())
+    private val handledDeletes = mutableSetOf<FilesRequestId>()
+    private val recheckRequests = MutableStateFlow(0)
+    private var rechecksDone = 0
     private var reconciled = false
     private var closed = false
 
@@ -110,25 +114,10 @@ internal class MobileContinueWatching(
     suspend fun reconcile(
         resolve: suspend (FilesItemId) -> PutioResult<FilesItem>,
     ): PutioFailure.AuthenticationRequired? {
-        var rejected: PutioFailure.AuthenticationRequired? = null
-        if (!reconciled && !closed) {
-            for (read in mutableEntries.value) {
-                val result = resolve(read.fileId)
-                val failure = (result as? PutioResult.Failure)?.failure
-                // A session already closed answers for nobody, so its 401 rejects nothing.
-                rejected = (failure as? PutioFailure.AuthenticationRequired)?.takeUnless { closed }
-                if (rejected != null) break
-                // A position saved while the read was out is newer than what it brought back.
-                val unchanged = !closed && mutableEntries.value.any { it == read }
-                if (unchanged && result is PutioResult.Success) {
-                    refresh(read, result.value)
-                } else if (unchanged && failure?.isNotFound == true) {
-                    update(mutableEntries.value.filterNot { it == read })
-                }
-            }
-            // Set only once the pass ends, so a pass cancelled with its screen runs again.
-            reconciled = true
-        }
+        if (reconciled || closed) return null
+        val rejected = readEntries(resolve)
+        // Set only once the pass ends, so a pass cancelled with its screen runs again.
+        reconciled = true
         return rejected
     }
 
@@ -137,6 +126,55 @@ internal class MobileContinueWatching(
         // Forget the media too, so a save answered after the delete can't bring the card back.
         media.remove(fileId)
         update(mutableEntries.value.filterNot { it.fileId == fileId })
+    }
+
+    /**
+     * Deletes Files confirmed, each handled once per session however often the screen replays it.
+     * An entry deleted leaves at once. Any other item may be a folder holding entries, which only a
+     * fresh read of each entry finds: [recheckAfterDeletes] runs it.
+     */
+    fun removed(deletes: List<FilesDeleteOutcome>) {
+        val fresh = deletes.filter { handledDeletes.add(it.requestId) }.map { it.intent.itemId }
+        val entryIds = mutableEntries.value.mapTo(mutableSetOf()) { it.fileId }
+        fresh.forEach { removed(it) }
+        if (fresh.any { it !in entryIds }) recheckRequests.value += 1
+    }
+
+    /**
+     * Reads every entry again, as [reconcile] does, each time [removed] asks; asks that arrive
+     * during a pass share the next one. A pass cancelled with its screen runs again. Returns a 401
+     * for the session to reject.
+     */
+    suspend fun recheckAfterDeletes(
+        resolve: suspend (FilesItemId) -> PutioResult<FilesItem>,
+    ): PutioFailure.AuthenticationRequired? {
+        while (true) {
+            val asked = recheckRequests.first { it > rechecksDone }
+            val rejected = if (closed) null else readEntries(resolve)
+            rechecksDone = asked
+            if (rejected != null) return rejected
+        }
+    }
+
+    private suspend fun readEntries(
+        resolve: suspend (FilesItemId) -> PutioResult<FilesItem>,
+    ): PutioFailure.AuthenticationRequired? {
+        for (read in mutableEntries.value) {
+            val result = resolve(read.fileId)
+            val failure = (result as? PutioResult.Failure)?.failure
+            // A session already closed answers for nobody, so its 401 rejects nothing.
+            val rejected = (failure as? PutioFailure.AuthenticationRequired)?.takeUnless { closed }
+            if (rejected != null) return rejected
+            when {
+                closed -> Unit
+                // A position saved while the read was out is newer than what it brought back.
+                result is PutioResult.Success ->
+                    if (mutableEntries.value.any { it == read }) refresh(read, result.value)
+                // Gone whatever was saved meanwhile; as in removed(fileId), a later save can't bring it back.
+                failure?.isNotFound == true -> removed(read.fileId)
+            }
+        }
+        return null
     }
 
     /** The session ended; nothing it still has in flight writes the row again. */

@@ -87,12 +87,12 @@ class SdkPlaybackRepositoryTest {
         }
 
     @Test
-    fun aSavedVideoPositionWithoutADurationListsTheFileForIt() =
+    fun aVideoWithoutADurationListsTheFileForIt() =
         runBlocking {
             val listed = mutableListOf<Long>()
-            fun repository(startFrom: Double) = SdkPlaybackRepository(
+            fun repository(startFrom: Double, useStartFrom: Boolean = true) = SdkPlaybackRepository(
                 playbackPreference = { PlaybackPreference.HLS },
-                loadAccount = { account(downloadToken = Token, useStartFrom = true) },
+                loadAccount = { account(downloadToken = Token, useStartFrom = useStartFrom) },
                 resolvePlayback = {
                     io.putdotio.sdk.files.PlaybackResolution.Ready(playbackSource().copy(startFromSeconds = startFrom))
                 },
@@ -108,12 +108,14 @@ class SdkPlaybackRepositoryTest {
                 ((result as PlaybackRepositoryResult.Success).value as PlaybackResolution.Ready).durationSeconds
 
             assertEquals(1_260.0, duration(repository(1_255.0).resolve(Target)))
-            assertEquals(listOf(42L), listed)
-            // Nothing to decide without a saved position, and a listing's duration is enough.
-            assertNull(duration(repository(0.0).resolve(Target)))
+            // A video never started needs it too: Continue watching records a video only with its duration.
+            assertEquals(1_260.0, duration(repository(0.0).resolve(Target)))
+            assertEquals(1_260.0, duration(repository(0.0, useStartFrom = false).resolve(Target)))
+            assertEquals(listOf(42L, 42L, 42L), listed)
+            // A listing's duration is enough, and audio never needs one.
             assertNull(duration(repository(1_255.0).resolve(Target.copy(durationSeconds = 1_260.0))))
             assertNull(duration(repository(1_255.0).resolve(Target.copy(mediaType = PlaybackMediaType.AUDIO))))
-            assertEquals(listOf(42L), listed)
+            assertEquals(listOf(42L, 42L, 42L), listed)
         }
 
     @Test

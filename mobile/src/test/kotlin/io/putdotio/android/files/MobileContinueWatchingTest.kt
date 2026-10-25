@@ -6,7 +6,9 @@ import io.putdotio.sdk.errors.PutioApiErrorEnvelope
 import io.putdotio.sdk.errors.PutioApiException
 import io.putdotio.sdk.errors.PutioRequestData
 import io.putdotio.sdk.files.PutioFileType
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.yield
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -112,6 +114,62 @@ class MobileContinueWatchingTest {
     }
 
     @Test
+    fun aDeletedFolderTakesTheVideosPutioNoLongerHas() = runBlocking {
+        listOf(Tears, Sintel, Flaky).forEach { id ->
+            row.opened(id, "video-${id.value}.mkv", 600.0)
+            row.positionSaved(id, 60.0)
+        }
+        val reads = mutableListOf<FilesItemId>()
+        val resolve: suspend (FilesItemId) -> PutioResult<FilesItem> = { id ->
+            reads += id
+            if (id == Tears) PutioResult.Failure(notFound()) else PutioResult.Success(video(id, "kept.mkv", 60.0))
+        }
+
+        val recheck = launch { row.recheckAfterDeletes(resolve) }
+
+        // An entry deleted on its own leaves without reading the others.
+        val video = deleted(1L, Flaky)
+        row.removed(listOf(video))
+        settle()
+        assertTrue(reads.isEmpty())
+
+        // A folder's id is no entry: every entry is read, and the one inside it is gone.
+        val folder = deleted(2L, Folder)
+        row.removed(listOf(video, folder))
+        settle()
+        assertEquals(listOf(Tears, Sintel), reads.sortedBy { it.value })
+        assertEquals(listOf(Sintel), row.entries.value.map { it.fileId })
+        // A save answered after the folder went can't bring its video back.
+        row.positionSaved(Tears, 90.0)
+        assertEquals(listOf(Sintel), row.entries.value.map { it.fileId })
+
+        // The screen replays deletes it still shows, after a rotation say; they read nothing again.
+        row.removed(listOf(video, folder))
+        settle()
+        assertEquals(2, reads.size)
+        recheck.cancel()
+
+        row.removed(listOf(deleted(3L, Folder)))
+        val rejected = row.recheckAfterDeletes {
+            PutioResult.Failure(PutioFailure.AuthenticationRequired(apiException(401)))
+        }
+        assertTrue(rejected is PutioFailure.AuthenticationRequired)
+    }
+
+    @Test
+    fun aFileGoneDuringItsReadLeavesEvenIfASaveArrivedMeanwhile() = runBlocking {
+        row.opened(Tears, "Tears.of.Steel.mkv", 600.0)
+        row.positionSaved(Tears, 60.0)
+
+        row.reconcile { id ->
+            row.positionSaved(id, 120.0)
+            PutioResult.Failure(notFound())
+        }
+
+        assertTrue(row.entries.value.isEmpty())
+    }
+
+    @Test
     fun aClosedRowWritesNothing() {
         row.opened(Tears, "Tears.of.Steel.mkv", 600.0)
         row.close()
@@ -152,6 +210,15 @@ class MobileContinueWatchingTest {
         playback = FilesPlaybackProgress(startFrom, null),
     )
 
+    private suspend fun settle() = repeat(SETTLE_YIELDS) { yield() }
+
+    private fun deleted(request: Long, id: FilesItemId) = FilesDeleteOutcome(
+        requestId = FilesRequestId(request),
+        intent = FilesFolderOperationIntent.Delete(id, FilesDeleteMode.TRASH),
+        itemName = "item-${id.value}",
+        status = FilesDeleteStatus.NO_LONGER_AVAILABLE,
+    )
+
     private fun notFound(): PutioFailure =
         PutioFailure.ApiRejected(statusCode = 404, errorType = "NotFound", cause = apiException(404))
 
@@ -170,5 +237,7 @@ class MobileContinueWatchingTest {
         val Sintel = FilesItemId(2L)
         val Gone = FilesItemId(3L)
         val Flaky = FilesItemId(4L)
+        val Folder = FilesItemId(5L)
+        const val SETTLE_YIELDS = 5
     }
 }

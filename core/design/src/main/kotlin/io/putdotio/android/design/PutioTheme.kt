@@ -69,10 +69,11 @@ private fun Typography.inUiFace(): Typography {
     )
 }
 
-/** DESIGN.md's corners on Material's shape scale; medium, which the contract leaves out, stays 12dp. */
+/** DESIGN.md's corners on Material's shape scale. */
 internal val putioShapes: Shapes = Shapes().copy(
     extraSmall = RoundedCornerShape(PutioRadius.extraSmall),
     small = RoundedCornerShape(PutioRadius.small),
+    medium = RoundedCornerShape(PutioRadius.medium),
     large = RoundedCornerShape(PutioRadius.large),
     extraLarge = RoundedCornerShape(PutioRadius.extraLarge),
 )
