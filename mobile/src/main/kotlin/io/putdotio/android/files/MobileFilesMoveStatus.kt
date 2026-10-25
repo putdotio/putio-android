@@ -55,18 +55,24 @@ private fun FilesMoveOutcome.statusMessage(): String? {
         } else {
             stringResource(R.string.mobile_files_move_still_present, itemName)
         }
-        FilesMoveStatus.REJECTED -> when {
-            collision != null -> stringResource(R.string.mobile_files_move_collision, collision.name ?: itemName)
-            many -> {
-                // What the check found outside the destination; a refusal the check can't place counts all.
-                val refused = remainingCount.takeIf { it > 0 } ?: itemCount
-                pluralStringResource(R.plurals.mobile_files_move_rejected_many, refused, refused)
+        FilesMoveStatus.REJECTED -> {
+            // An unnamed clash among several items can't be named: the first item's name may not be its.
+            val clashName = collision?.name ?: itemName.takeUnless { many }
+            when {
+                collision != null && clashName != null ->
+                    stringResource(R.string.mobile_files_move_collision, clashName)
+                many -> pluralStringResource(R.plurals.mobile_files_move_rejected_many, refusedCount, refusedCount)
+                else -> stringResource(R.string.mobile_files_move_rejected, itemName)
             }
-            else -> stringResource(R.string.mobile_files_move_rejected, itemName)
         }
         FilesMoveStatus.CHECKING, FilesMoveStatus.UNKNOWN -> null
     }
 }
+
+/** The items put.io's answer refused, by ID; an answer that names none of them counts them all. */
+private val FilesMoveOutcome.refusedCount: Int
+    get() = errors.orEmpty().map { it.id }.filter { id -> intent.itemIds.any { it.value == id } }.toSet().size
+        .takeIf { it > 0 } ?: itemCount
 
 // put.io answers a move with a bare 403 only when the destination is the item or a folder inside
 // it; the app never sends the negative IDs that also get one.

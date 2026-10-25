@@ -122,13 +122,17 @@ private fun PutioResult<FilesItem>.moveReadFailure(expectedId: FilesItemId): Put
 public val FilesFolderOperation.pendingMove: FilesFolderOperationIntent.Move?
     get() = pendingIntent()
 
-/** A page that lists a moved item again: the move left it here, whatever the check said. */
+/**
+ * A page that lists a moved item again: the move left it here, whatever the check said. A refused
+ * move keeps its status and counts the item too.
+ */
 internal fun FilesMoveOutcome.afterFolderPage(page: FilesPage): FilesMoveOutcome {
     val listed = page.items.mapNotNullTo(mutableSetOf()) { item -> item.id.takeIf { it in intent.itemIds } }
-    val correctable = status == FilesMoveStatus.MOVED || status == FilesMoveStatus.STILL_PRESENT
-    return if (correctable && !remainingIds.containsAll(listed)) {
-        copy(status = FilesMoveStatus.STILL_PRESENT, remainingIds = remainingIds + listed)
-    } else {
-        this
+    return when {
+        remainingIds.containsAll(listed) -> this
+        status == FilesMoveStatus.MOVED || status == FilesMoveStatus.STILL_PRESENT ->
+            copy(status = FilesMoveStatus.STILL_PRESENT, remainingIds = remainingIds + listed)
+        status == FilesMoveStatus.REJECTED -> copy(remainingIds = remainingIds + listed)
+        else -> this
     }
 }

@@ -31,6 +31,7 @@ import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesSelection
 import io.putdotio.android.files.copyForTest
 import io.putdotio.android.files.FilesPlaybackProgress
+import io.putdotio.android.files.FilesRequestId
 import io.putdotio.android.files.MOBILE_FILES_SELECTION_BAR_TAG
 import io.putdotio.android.files.MOBILE_FILES_SELECTION_DELETE_TAG
 import io.putdotio.android.files.MOBILE_FILES_SELECTION_TOOLBAR_TAG
@@ -164,6 +165,14 @@ class MobileFilesSelectionTest {
         selection.reconcile(without)
         selection.reconcile(folder)
         assertEquals(listOf(SINTEL), selection.selected(folder))
+
+        // The same folder read afresh, as an outside open that replaces it does, ends it too.
+        val again = FilesSelection()
+        again.start(folder, SINTEL)
+        again.reconcile(folder.copyForTest(stack = folder.stack.dropLast(1) + folder.current.copy(
+            content = FilesContent.Loading(FilesRequestId(99L)),
+        )))
+        assertFalse(again.isActive(folder))
 
         // Another folder ends it, so coming back shows none.
         val root = FilesBrowserReducer.reduce(folder, FilesBrowserEvent.NavigateBack).state

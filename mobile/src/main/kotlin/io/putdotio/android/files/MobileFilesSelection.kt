@@ -91,8 +91,9 @@ internal class FilesSelection(
     }
 
     /**
-     * Ends the selection once another folder shows, or its folder lists nothing, and forgets rows that
-     * left the listing, so neither comes back checked later.
+     * Ends the selection once another folder shows, its folder reads afresh (an outside open can
+     * replace it in place), or it lists nothing; and forgets rows that left the listing, so neither
+     * comes back checked later.
      */
     fun reconcile(state: FilesBrowserState) {
         val current = scope ?: return
@@ -100,6 +101,7 @@ internal class FilesSelection(
         val listed = state.current.content is FilesContent.Ready || state.current.content is FilesContent.Empty
         when {
             current != state.selectionScope() -> end()
+            state.current.content is FilesContent.Loading -> end()
             listed && selectable.isEmpty() -> end()
             listed -> selection.retain(selectable)
         }

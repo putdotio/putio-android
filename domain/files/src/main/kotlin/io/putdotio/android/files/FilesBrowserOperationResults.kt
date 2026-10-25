@@ -67,14 +67,18 @@ internal fun FilesFolderState.replaceFirstPage(
     )
 }
 
-/** A page that lists a deleted item again: it is still here, whatever the check said. */
+/**
+ * A page that lists a deleted item again: it is still here, whatever the check said. An incomplete
+ * request keeps its status and counts the item too.
+ */
 internal fun FilesDeleteOutcome.afterFolderPage(page: FilesPage): FilesDeleteOutcome {
     val listed = page.items.mapNotNullTo(mutableSetOf()) { item -> item.id.takeIf { it in intent.itemIds } }
-    val correctable = status == FilesDeleteStatus.NO_LONGER_AVAILABLE || status == FilesDeleteStatus.STILL_PRESENT
-    return if (correctable && !remainingIds.containsAll(listed)) {
-        copy(status = FilesDeleteStatus.STILL_PRESENT, remainingIds = remainingIds + listed)
-    } else {
-        this
+    return when {
+        remainingIds.containsAll(listed) -> this
+        status == FilesDeleteStatus.NO_LONGER_AVAILABLE || status == FilesDeleteStatus.STILL_PRESENT ->
+            copy(status = FilesDeleteStatus.STILL_PRESENT, remainingIds = remainingIds + listed)
+        status == FilesDeleteStatus.SKIPPED -> copy(remainingIds = remainingIds + listed)
+        else -> this
     }
 }
 
