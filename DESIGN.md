@@ -62,6 +62,7 @@ rounded:
   progress: 2px
   extra-small: 4px
   small: 8px
+  medium: 12px
   large: 16px
   large-increased: 20px
   extra-large: 28px
@@ -166,6 +167,9 @@ components:
     backgroundColor: "{colors.surface-container}"
     textColor: "{colors.on-surface}"
     rounded: "{rounded.large}"
+  transfer-field:
+    backgroundColor: "{colors.surface-container-high}"
+    rounded: "{rounded.medium}"
   state-dot-downloading:
     backgroundColor: "{colors.primary}"
   state-dot-seeding:
@@ -334,7 +338,7 @@ scrim. Menus and snackbars keep Material's own shadow; nothing else draws one.
 Corners follow the M3 shape scale: 28dp for sheets (with a 32x4dp handle),
 dialogs and the widget;
 20dp for action tiles; 16dp for cards, menus, notices, the FAB and settings
-groups; 8dp for snackbars; 4dp for the inner corners of segmented groups.
+groups; 12dp for the Add transfer field; 8dp for snackbars; 4dp for the inner corners of segmented groups.
 Search, buttons and the nav indicator are full pills; chips keep M3's 8dp
 corners, and a selected filter chip shows its leading check. Progress bars
 round to 2dp.

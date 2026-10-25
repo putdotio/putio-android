@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -291,7 +290,7 @@ private fun MobileAddTransferField(
         placeholder = {
             Text(stringResource(R.string.mobile_transfers_add_placeholder), style = MaterialTheme.typography.bodyLarge)
         },
-        shape = RoundedCornerShape(FIELD_RADIUS),
+        shape = MaterialTheme.shapes.medium,
         colors = OutlinedTextFieldDefaults.colors(
             focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
             unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -459,5 +458,4 @@ private fun MobileTransferDraftState.reason(lines: MobileTransferLines, failure:
 
 private val TORRENT_PICKER_TYPES = arrayOf(TORRENT_MEDIA_TYPE, "application/octet-stream")
 private const val COUNT_SLOT = "\u0001"
-private val FIELD_RADIUS = 12.dp
 private val PASTE_SCHEMES = setOf("http", "https", "magnet")
