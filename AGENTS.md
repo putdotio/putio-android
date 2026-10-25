@@ -5,8 +5,7 @@ phones and tablets (`mobile`) and Android TV / Fire TV (`tv`) from one
 codebase. It is not on Google Play yet; [#14](https://github.com/putdotio/putio-android/issues/14)
 tracks the rollout. The [README](README.md) lists what works,
 [Behaviour](docs/behavior.md) the product rules and the tests that pin them,
-[Harness](docs/harness.md) the emulator lanes, evidence, and live proof,
-[Distribution](docs/distribution.md) the Google Play lanes, and
+[Harness](docs/harness.md) the emulator lanes, evidence, and live proof, and
 [Design](DESIGN.md) the Android design contract.
 
 ## Where code lives
@@ -58,10 +57,8 @@ tracks the rollout. The [README](README.md) lists what works,
   `io.put.putio` in production, the id of the put.io TV app users run today, so
   a release replaces it in place and TV imports its session
   ([Upgrade from tv-native](docs/behavior.md#upgrade-from-tv-native)). Keep the
-  id unless product owners choose a new listing. Version codes are shared with
-  that app's repository and never reusable; only the
-  [Distribution](docs/distribution.md) workflows upload, and each upload,
-  promotion or rollout change needs Altay's OK.
+  id unless product owners choose a new listing. Only the
+  [Google Play delivery](#google-play-delivery) workflows upload.
 - **Shared test account.** Live proof uses the `devs-auto` put.io CLI profile
   that the web, iOS, and TV harnesses share. Create uniquely named fixtures,
   record their ids, and remove only those. Never use a personal profile or put
@@ -139,7 +136,7 @@ that matches. Report skipped or unavailable proof.
 | Domain or core logic                | `./gradlew :domain:<name>:testDebugUnitTest` or `:core:<name>:testDebugUnitTest`; tests live in the owning module                                                   |
 | App view models or services         | `./gradlew :mobile:testProductionDebugUnitTest` or `:tv:testProductionDebugUnitTest`                                                                                |
 | UI, navigation, playback, or launch | The affected flow on the emulator: `./scripts/prove.sh <mobile\|tv>` or its lane in [Harness](docs/harness.md)                                                      |
-| Google Play delivery                | `./gradlew -PputioVersionName=3.0.1 :mobile:bundleProductionRelease :tv:bundleProductionRelease`, then the dry run in [Distribution](docs/distribution.md#dry-runs) |
+| Google Play delivery                | `./gradlew -PputioVersionName=3.0.1 :mobile:bundleProductionRelease :tv:bundleProductionRelease`, then a `dry_run` of [Google Play delivery](#google-play-delivery) |
 | Live API behavior                   | The lane's `devs-auto` steps in [Harness](docs/harness.md#live-api-proof-putio-cli)                                                                                 |
 | Design tokens or icons              | The sync in [design/README.md](design/README.md), then `./gradlew verify`                                                                                           |
 | Visible change                      | Reviewed captures from `.evidence/`, attached with `gh pr comment <n> --attach <file>`                                                                              |
@@ -153,9 +150,7 @@ names the tests that pin it; a new device lane gets a row in
 
 Open pull requests against `main`; the repository squash-merges. A push to
 `main` runs only [CI](.github/workflows/ci.yml), whose header comments own the
-triggers and path filters; CI holds no secrets. Google Play delivery is
-dispatch-only, with secrets in the `release` Environment
-([Distribution](docs/distribution.md)).
+triggers and path filters; CI holds no secrets.
 
 - `Build release` and `Verify Android app` split `verify` plus the four debug
   assembles between them. When either command changes, compare their
@@ -172,3 +167,20 @@ detached worktree with `sdk.dir` set and `putioSdkKotlinPath` unset, then run
 the same command. A pull-request run tests a temporary merge commit; if it is
 gone, merge the recorded second parent into the first and resolve conflicts
 explicitly rather than substituting a newer base or head.
+
+### Google Play delivery
+
+[Google Play Internal](.github/workflows/play-internal.yml) uploads both
+bundles and tags `v<version>`; [Google Play Release](.github/workflows/play-release.yml)
+promotes or changes the rollout. Their inputs own the options.
+
+- Every dispatch, `dry_run` included, needs Altay's OK: it loads the `release`
+  Environment's secrets.
+- Mobile and TV share the
+  [putio-tv-native-legacy](https://github.com/putdotio/putio-tv-native-legacy)
+  listing and its version codes. Google Play never takes a code twice, and
+  codes up to 94 are taken. Each upload needs a new `version_name`
+  ([`putioVersionCode`](build-logic/src/main/kotlin/PutioAndroidApplicationPlugin.kt));
+  only an upload Google Play rejected may reuse its name.
+- If the upload lands but its `tag` job fails, rerun only that job. A full
+  rerun repeats the version code, and Google Play refuses it.

@@ -95,7 +95,6 @@ The [Agent guide](./AGENTS.md#build-and-verify) covers what the gate runs and
 - [Behaviour](./docs/behavior.md): product rules and the tests that pin them
 - [Harness](./docs/harness.md): emulators, evidence, device lanes and live API
   proof
-- [Distribution](./docs/distribution.md): Google Play delivery for both apps
 - [Design](./DESIGN.md): the Android design contract
 - [Design system binding](./design/README.md): tokens, brand fonts and icon
   generation
