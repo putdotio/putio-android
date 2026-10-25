@@ -114,6 +114,22 @@ class MobileContinueWatchingTest {
     }
 
     @Test
+    fun aPartlyFinishedBulkDeleteTakesOnlyTheVideosItRemoved() {
+        listOf(Tears, Sintel, Flaky).forEach { id ->
+            row.opened(id, "video-${id.value}.mkv", 600.0)
+            row.positionSaved(id, 60.0)
+        }
+        val partly = deleted(1L, Tears).copy(
+            intent = FilesFolderOperationIntent.Delete(listOf(Tears, Sintel, Flaky), FilesDeleteMode.TRASH),
+            status = FilesDeleteStatus.STILL_PRESENT,
+            remainingIds = setOf(Flaky),
+        )
+        row.removed(listOf(partly))
+
+        assertEquals(listOf(Flaky), row.entries.value.map { it.fileId })
+    }
+
+    @Test
     fun aDeletedFolderTakesTheVideosPutioNoLongerHas() = runBlocking {
         listOf(Tears, Sintel, Flaky).forEach { id ->
             row.opened(id, "video-${id.value}.mkv", 600.0)
