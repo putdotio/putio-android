@@ -10,6 +10,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
@@ -74,6 +75,8 @@ internal class MobileContinueWatching(
     private val media = mutableMapOf<FilesItemId, Media>()
     private val mutableEntries = MutableStateFlow(store.read())
     private val handledDeletes = mutableSetOf<FilesRequestId>()
+    private val recheckRequests = MutableStateFlow(0)
+    private var rechecksDone = 0
     private var reconciled = false
     private var closed = false
 
@@ -128,21 +131,29 @@ internal class MobileContinueWatching(
     /**
      * Deletes Files confirmed, each handled once per session however often the screen replays it.
      * An entry deleted leaves at once. Any other item may be a folder holding entries, which only a
-     * fresh read of each entry finds, as [reconcile] reads them.
+     * fresh read of each entry finds: [recheckAfterDeletes] runs it.
      */
-    suspend fun removed(
-        deletes: List<FilesDeleteOutcome>,
+    fun removed(deletes: List<FilesDeleteOutcome>) {
+        val fresh = deletes.filter { handledDeletes.add(it.requestId) }.map { it.intent.itemId }
+        val entryIds = mutableEntries.value.mapTo(mutableSetOf()) { it.fileId }
+        fresh.forEach { removed(it) }
+        if (fresh.any { it !in entryIds }) recheckRequests.value += 1
+    }
+
+    /**
+     * Reads every entry again, as [reconcile] does, each time [removed] asks; asks that arrive
+     * during a pass share the next one. A pass cancelled with its screen runs again. Returns a 401
+     * for the session to reject.
+     */
+    suspend fun recheckAfterDeletes(
         resolve: suspend (FilesItemId) -> PutioResult<FilesItem>,
     ): PutioFailure.AuthenticationRequired? {
-        val fresh = deletes.filterNot { it.requestId in handledDeletes }
-        val fileIds = fresh.map { it.intent.itemId }
-        val entryIds = mutableEntries.value.mapTo(mutableSetOf()) { it.fileId }
-        fileIds.forEach { removed(it) }
-        val elsewhere = fileIds.any { it !in entryIds }
-        val rejected = if (elsewhere && !closed && mutableEntries.value.isNotEmpty()) readEntries(resolve) else null
-        // Only once the pass ends, so a pass cancelled with its screen runs again.
-        fresh.mapTo(handledDeletes) { it.requestId }
-        return rejected
+        while (true) {
+            val asked = recheckRequests.first { it > rechecksDone }
+            val rejected = if (closed) null else readEntries(resolve)
+            rechecksDone = asked
+            if (rejected != null) return rejected
+        }
     }
 
     private suspend fun readEntries(
@@ -154,14 +165,13 @@ internal class MobileContinueWatching(
             // A session already closed answers for nobody, so its 401 rejects nothing.
             val rejected = (failure as? PutioFailure.AuthenticationRequired)?.takeUnless { closed }
             if (rejected != null) return rejected
-            // A position saved while the read was out is newer than what it brought back.
-            val unchanged = !closed && mutableEntries.value.any { it == read }
-            if (unchanged && result is PutioResult.Success) {
-                refresh(read, result.value)
-            } else if (unchanged && failure?.isNotFound == true) {
-                // As in removed(fileId): a save answered later must not bring the card back.
-                media.remove(read.fileId)
-                update(mutableEntries.value.filterNot { it == read })
+            when {
+                closed -> Unit
+                // A position saved while the read was out is newer than what it brought back.
+                result is PutioResult.Success ->
+                    if (mutableEntries.value.any { it == read }) refresh(read, result.value)
+                // Gone whatever was saved meanwhile; as in removed(fileId), a later save can't bring it back.
+                failure?.isNotFound == true -> removed(read.fileId)
             }
         }
         return null
