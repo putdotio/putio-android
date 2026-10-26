@@ -643,15 +643,15 @@ over a top and bottom scrim:
   Subtitles and Speed chips, and Next episode on the right when the account's
   next-episode setting is on.
 
-**Cast** shows in the top bar only while a receiver is in reach, in yellow
-while casting. On Android 17 it also shows until the user allows nearby
-devices; its tap asks, then opens the picker. It opens "Cast to", a bottom sheet at most 560dp wide: 64dp
-rows with the kind's glyph (TV, screen, speaker), the name over its model or
-"Audio only", a yellow check on the one playing, and Stop casting while
-connected. Casting video swaps the picture for black with "Playing on" and the
-device, over the cast glyph in `on-surface-variant`, above the same transport,
-times and scrubber; only Speed stays, when the receiver takes a playback rate.
-Now Playing keeps its layout and names the device in its top bar.
+**Cast** shows in the top bar only while a receiver is in reach, in yellow while
+casting. On Android 17 it also shows until the user allows nearby devices; its
+tap asks, then opens the picker. It opens "Cast to", a bottom sheet at most
+560dp wide: 64dp rows with the kind's glyph (TV, screen, speaker), the name over
+its model or "Audio only", a yellow check on the one playing, and Stop casting
+while connected. Casting video swaps the picture for black with "Playing on" and
+the device, over the cast glyph in `on-surface-variant`, above the same
+transport, times and scrubber; only Speed stays, when the receiver takes a
+playback rate. Now Playing keeps its layout and names the device in its top bar.
 
 Audio, Subtitles and Speed open a 340dp side sheet from the right with the
 video dimmed behind:
