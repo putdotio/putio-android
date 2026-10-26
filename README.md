@@ -23,6 +23,7 @@ Mobile, on the emulator harness against the live API:
 - Offline downloads with offline playback
 - Transfer intake from magnet links, `.torrent` files and shared links
 - Launcher shortcuts, a Transfers widget and the system file picker
+- Google Cast from the players, resuming locally where the receiver stopped
 
 TV:
 

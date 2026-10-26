@@ -842,6 +842,27 @@
       "asset": "assets/regular/screencast.svg",
       "sourceSha256": "2245e0a4a14f671f0b5c0338702b4b7edd70deb7dad5b51fa43e7f47dcae4458",
       "outputSha256": "552fd0501b356b5af7a49f1786ed5e8dc2e8e4f285072857a37a0db8d487da25"
+    },
+    {
+      "resDir": "mobile/src/main/res",
+      "resource": "ic_ph_television",
+      "asset": "assets/regular/television.svg",
+      "sourceSha256": "db6c3b07832e504d5634abfacd740e8aa45358bfc29b884f3ffd6819ec3ed124",
+      "outputSha256": "fe9c191ea5235c231086ba503a12f9f0d88ffe7395601aa73c7f4f989dc67db1"
+    },
+    {
+      "resDir": "mobile/src/main/res",
+      "resource": "ic_ph_television_simple",
+      "asset": "assets/regular/television-simple.svg",
+      "sourceSha256": "c443681533640fe60a3c37b0ef7786886845c47b4f3dc2086e9a02b94d0a168a",
+      "outputSha256": "93995ad0c78623f1d1596937d5ec5d2eb7af6a8aebf1d220cb0a2887db127807"
+    },
+    {
+      "resDir": "mobile/src/main/res",
+      "resource": "ic_ph_speaker_hifi",
+      "asset": "assets/regular/speaker-hifi.svg",
+      "sourceSha256": "582ba467cd79b96d3c4baae867223ae906c64c46f71e2f5268f89a62bf934427",
+      "outputSha256": "14c3d14b051677eb30ef76a3ffc440301a65173296fa835697cf47d91b338f22"
     }
   ]
 }

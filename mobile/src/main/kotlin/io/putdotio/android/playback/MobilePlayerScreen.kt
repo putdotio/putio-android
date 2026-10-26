@@ -66,6 +66,7 @@ import androidx.compose.ui.platform.LocalAccessibilityManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -127,6 +128,9 @@ internal fun MobilePlayerScreen(
     onPlay: (PlaybackTarget) -> Unit = {},
     /** Hands the original to VLC when this player can't play it; null where VLC isn't offered. */
     onOpenInVlc: (() -> Unit)? = null,
+    /** The Cast session; with [castMedia], the top bar offers Cast once a receiver is in reach. */
+    cast: MobileCastController? = null,
+    castMedia: MobileCastMediaLoader? = null,
 ) {
     // Like iOS, the window turns only for a landscape video; the last shape holds across autoplay.
     var landscapeVideo by rememberSaveable { mutableStateOf(false) }
@@ -137,7 +141,32 @@ internal fun MobilePlayerScreen(
         // A closed window stopped the video; the next visit finds it paused instead of playing on.
         PictureInPictureDismissalEffect { preferences.resumeAfterLifecyclePause = false }
     }
-    var keyboardNavigationActive by rememberSaveable(state.target.fileId.value) { mutableStateOf(false) }
+    val keyboardNavigation = rememberSaveable(state.target.fileId.value) { mutableStateOf(false) }
+    var keyboardNavigationActive by keyboardNavigation
+    val castPicker = rememberSaveable { mutableStateOf(false) }
+    val playerCast = rememberPlayerCast(cast, castMedia) { castPicker.value = true }
+    val readyContent: @Composable () -> Unit = {
+        MobileReadyContent(
+            state = state,
+            playerCast = playerCast,
+            preferences = preferences,
+            playerFactory = playerFactory,
+            subtitleStartupPolicy = subtitleStartupPolicy,
+            keyboardNavigation = keyboardNavigation,
+            onPlayerFailure = onPlayerFailure,
+            autoplayNextVideo = autoplayNextVideo,
+            onPlaybackEnded = onPlaybackEnded,
+            seekClock = seekClock,
+            onSourceRequired = onSourceRequired,
+            onBack = onBack,
+            onVideoAspectRatio = { landscapeVideo = it > 1f },
+            pictureInPicture = pictureInPicture,
+            nextEpisode = nextEpisode.takeIf { state.target.mediaType == PlaybackMediaType.VIDEO },
+            onNextEpisode = onNextEpisode,
+            neighbours = neighbours,
+            onPlay = onPlay,
+        )
+    }
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -147,97 +176,176 @@ internal fun MobilePlayerScreen(
                 onKeyboardNavigation = { keyboardNavigationActive = true },
             ),
     ) {
-        val isVideo = state.target.mediaType == PlaybackMediaType.VIDEO
-        when (val content = state.content) {
-            is PlaybackContent.Loading ->
-                MobileLoadingState(stringResource(state.target.mediaType.loadingMessage()))
+        // The open device picker is modal: TalkBack reaches only it.
+        Box(Modifier.fillMaxSize().hiddenFromAccessibility(castPicker.value)) {
+            val isVideo = state.target.mediaType == PlaybackMediaType.VIDEO
+            val shown = state.shownContent(playerCast, onResume)
+            when (val content = shown) {
+                is PlaybackContent.Loading ->
+                    MobileLoadingState(stringResource(state.target.mediaType.loadingMessage()))
 
-            is PlaybackContent.AwaitingResume -> MobileResumePlaybackDialog(
-                startFromSeconds = content.source.startFromSeconds,
-                onResume = onResume,
-                onRestart = onRestart,
-                onDismiss = onBack,
-            )
-
-            is PlaybackContent.Ready, PlaybackContent.Session ->
-                MobileSessionPlayerHost(
-                    mediaType = state.target.mediaType,
-                    playerFactory = playerFactory,
-                ) { sessionPlayer ->
-                MobileReadyPlayer(
-                    source = (content as? PlaybackContent.Ready)?.source,
-                    useStartFrom = (content as? PlaybackContent.Ready)?.useStartFrom == true,
-                    fileId = state.target.fileId.value,
-                    title = state.target.name,
-                    mediaType = state.target.mediaType,
-                    sessionPlayer = sessionPlayer,
-                    preferences = preferences,
-                    sessionHandled = preferences.sessionHandled,
-                    onSessionHandled = { preferences.sessionHandled = true },
-                    startPositionMillis = preferences.positionMillis ?: state.resumePositionMillis,
-                    resumeAfterLifecyclePause = preferences.resumeAfterLifecyclePause,
-                    retainedSubtitleSelection = preferences.subtitleSelection,
-                    subtitleStartupPolicy = subtitleStartupPolicy.orHiddenWhen(
-                        (content as? PlaybackContent.Ready)?.subtitlesHidden == true,
-                    ),
-                    onPlaybackRetained = preferences::retainPlayback,
-                    onPositionChanged = preferences::retainPosition,
-                    onSubtitleSelectionChanged = { preferences.subtitleSelection = it },
-                    keyboardNavigationActive = keyboardNavigationActive,
-                    onKeyboardNavigation = { keyboardNavigationActive = true },
-                    onPointerNavigation = { keyboardNavigationActive = false },
-                    onPlayerFailure = onPlayerFailure,
-                    autoplayNextVideo = autoplayNextVideo,
-                    onPlaybackEnded = onPlaybackEnded,
-                    playerFactory = playerFactory,
-                    seekClock = seekClock,
-                    onSourceRequired = onSourceRequired,
-                    onBack = onBack,
-                    onVideoAspectRatio = { landscapeVideo = it > 1f },
-                    pictureInPicture = pictureInPicture,
-                    sidecarSubtitles = (content as? PlaybackContent.Ready)?.source?.subtitles.sidecarTracks(),
-                    nextEpisode = nextEpisode.takeIf { isVideo },
-                    onNextEpisode = onNextEpisode,
-                    neighbours = neighbours,
-                    onPlay = onPlay,
-                )
-                }
-
-            is PlaybackContent.FindingNext ->
-                MobileLoadingState(stringResource(R.string.mobile_playback_finding_next))
-
-            is PlaybackContent.NextFailed ->
-                MobilePlaybackFailureState(
-                    title = stringResource(R.string.mobile_playback_next_error_title),
-                    failure = content.failure,
-                    onRetry = onRetry,
-                    video = isVideo,
+                is PlaybackContent.AwaitingResume -> MobileResumePlaybackDialog(
+                    startFromSeconds = content.source.startFromSeconds,
+                    onResume = onResume,
+                    onRestart = onRestart,
+                    onDismiss = onBack,
                 )
 
-            PlaybackContent.Ended -> Unit
+                is PlaybackContent.Ready, PlaybackContent.Session -> readyContent()
 
-            is PlaybackContent.Conversion ->
-                MobileConversionState(content, onRefreshConversion, onStartConversion)
+                is PlaybackContent.FindingNext ->
+                    MobileLoadingState(stringResource(R.string.mobile_playback_finding_next))
 
-            is PlaybackContent.Unsupported ->
-                MobileEmptyState(
-                    title = stringResource(R.string.mobile_playback_unsupported_title),
-                    message = stringResource(R.string.mobile_playback_unsupported_message),
-                )
+                is PlaybackContent.NextFailed ->
+                    MobilePlaybackFailureState(
+                        title = stringResource(R.string.mobile_playback_next_error_title),
+                        failure = content.failure,
+                        onRetry = onRetry,
+                        video = isVideo,
+                    )
 
-            is PlaybackContent.Failed ->
-                MobilePlaybackFailureState(
-                    title = stringResource(state.target.mediaType.errorTitle()),
-                    failure = content.failure,
-                    onRetry = onRetry,
-                    video = isVideo,
-                    onOpenInVlc = onOpenInVlc,
-                )
+                PlaybackContent.Ended -> Unit
+
+                is PlaybackContent.Conversion ->
+                    MobileConversionState(content, onRefreshConversion, onStartConversion)
+
+                is PlaybackContent.Unsupported ->
+                    MobileEmptyState(
+                        title = stringResource(R.string.mobile_playback_unsupported_title),
+                        message = stringResource(R.string.mobile_playback_unsupported_message),
+                    )
+
+                is PlaybackContent.Failed ->
+                    MobilePlaybackFailureState(
+                        title = stringResource(state.target.mediaType.errorTitle()),
+                        failure = content.failure,
+                        onRetry = onRetry,
+                        video = isVideo,
+                        onOpenInVlc = onOpenInVlc,
+                    )
+            }
+
+            if (state.showsSeparateBack(shown) && !pictureInPicture.value) {
+                MobilePlayerSeparateBack(state, onBack, Modifier.align(Alignment.TopStart))
+            }
         }
+        MobileCastPickerHost(cast, castPicker, pictureInPicture.value, Modifier.zIndex(4f))
+    }
+}
 
-        if (state.showsSeparateBack() && !pictureInPicture.value) {
-            MobilePlayerSeparateBack(state, onBack, Modifier.align(Alignment.TopStart))
-        }
+/**
+ * What the screen shows: a receiver already playing the file takes the place of a resume prompt,
+ * which is answered with the saved position so a session that ends hands back as from any ready
+ * file, and of a local failure, which leaves that receiver in reach. A session that already ended
+ * answers the prompt too: the file resumes where the receiver stopped.
+ */
+@Composable
+private fun PlaybackState.shownContent(playerCast: PlayerCast, onResume: () -> Unit): PlaybackContent {
+    val prompt = content as? PlaybackContent.AwaitingResume
+    val attached = playerCast.attaches(target.fileId.value) && content.attachable
+    // Where a receiver stopped is the answer the prompt would ask for, so it is not asked.
+    if (prompt != null && (attached || playerCast.handsBack(target.fileId.value))) {
+        LaunchedEffect(prompt) { onResume() }
+    }
+    return if (attached) PlaybackContent.Session else content
+}
+
+/** States a receiver that already plays the file stands in for: none needs the viewer first. */
+private val PlaybackContent.attachable: Boolean
+    get() = this is PlaybackContent.Loading || this is PlaybackContent.AwaitingResume ||
+        this is PlaybackContent.Conversion || this is PlaybackContent.Failed
+
+/** Leaves this content out of accessibility while something modal covers it. */
+private fun Modifier.hiddenFromAccessibility(hidden: Boolean): Modifier =
+    if (hidden) clearAndSetSemantics {} else this
+
+/**
+ * The player once it has something to play: the receiver's controls while a Cast session runs,
+ * otherwise the local player, which picks a file up where a session that just ended left it.
+ */
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+@Composable
+private fun MobileReadyContent(
+    state: PlaybackState,
+    playerCast: PlayerCast,
+    preferences: RetainedPlayerPreferences,
+    playerFactory: MobilePlayerFactory,
+    subtitleStartupPolicy: SubtitleStartupPolicy?,
+    keyboardNavigation: MutableState<Boolean>,
+    onPlayerFailure: (PlaybackFailure, Long) -> Unit,
+    autoplayNextVideo: Boolean,
+    onPlaybackEnded: () -> Unit,
+    seekClock: () -> Long,
+    onSourceRequired: (Long?) -> Unit,
+    onBack: () -> Unit,
+    onVideoAspectRatio: (Float) -> Unit,
+    pictureInPicture: State<Boolean>,
+    nextEpisode: PlaybackTarget?,
+    onNextEpisode: () -> Unit,
+    neighbours: PlaybackNeighbours,
+    onPlay: (PlaybackTarget) -> Unit,
+) {
+    val casting = playerCast.casting
+    if (casting != null) {
+        MobileCastPlayback(
+            state = state,
+            cast = casting.controller,
+            castMedia = casting.media,
+            deviceName = casting.deviceName,
+            preferences = preferences,
+            playerFactory = playerFactory,
+            subtitleStartupPolicy = subtitleStartupPolicy,
+            castButton = playerCast.button,
+            onBack = onBack,
+            onSourceRequired = onSourceRequired,
+            neighbours = neighbours,
+            onPlay = onPlay,
+        )
+        return
+    }
+    val handover = rememberCastHandover(playerCast, state.target.fileId.value, preferences)
+    val ready = state.content as? PlaybackContent.Ready
+    MobileSessionPlayerHost(
+        mediaType = state.target.mediaType,
+        playerFactory = playerFactory,
+    ) { sessionPlayer ->
+        MobileReadyPlayer(
+            source = ready?.source,
+            useStartFrom = ready?.useStartFrom == true,
+            fileId = state.target.fileId.value,
+            title = state.target.name,
+            mediaType = state.target.mediaType,
+            sessionPlayer = sessionPlayer,
+            preferences = preferences,
+            sessionHandled = preferences.sessionHandled,
+            onSessionHandled = { preferences.sessionHandled = true },
+            startPositionMillis = handover?.positionMillis ?: preferences.positionMillis
+                ?: state.resumePositionMillis,
+            resumeAfterLifecyclePause = handover?.playing ?: preferences.resumeAfterLifecyclePause,
+            retainedSubtitleSelection = preferences.subtitleSelection,
+            subtitleStartupPolicy = subtitleStartupPolicy.orHiddenWhen(ready?.subtitlesHidden == true),
+            onPlaybackRetained = preferences::retainPlayback,
+            onPositionChanged = preferences::retainPosition,
+            onSubtitleSelectionChanged = { preferences.subtitleSelection = it },
+            keyboardNavigationActive = keyboardNavigation.value,
+            onKeyboardNavigation = { keyboardNavigation.value = true },
+            onPointerNavigation = { keyboardNavigation.value = false },
+            onPlayerFailure = onPlayerFailure,
+            autoplayNextVideo = autoplayNextVideo,
+            onPlaybackEnded = onPlaybackEnded,
+            playerFactory = playerFactory,
+            seekClock = seekClock,
+            onSourceRequired = onSourceRequired,
+            onBack = onBack,
+            onVideoAspectRatio = onVideoAspectRatio,
+            pictureInPicture = pictureInPicture,
+            sidecarSubtitles = ready?.source?.subtitles.sidecarTracks(),
+            nextEpisode = nextEpisode,
+            onNextEpisode = onNextEpisode,
+            neighbours = neighbours,
+            onPlay = onPlay,
+            castButton = playerCast.button,
+        )
     }
 }
 
@@ -264,8 +372,9 @@ private fun MobilePlayerSeparateBack(state: PlaybackState, onBack: () -> Unit, m
     }
 }
 
-private fun PlaybackState.showsSeparateBack(): Boolean =
-    target.mediaType == PlaybackMediaType.AUDIO || content !is PlaybackContent.Ready
+// The receiver's controls draw the video's own top bar, as the ready player does.
+private fun PlaybackState.showsSeparateBack(shown: PlaybackContent): Boolean =
+    target.mediaType == PlaybackMediaType.AUDIO || (shown !is PlaybackContent.Ready && shown != PlaybackContent.Session)
 
 /**
  * Back and the filename over a video that is not playing yet or cannot: the resume prompt, the
@@ -327,6 +436,7 @@ private fun MobileReadyPlayer(
     onNextEpisode: () -> Unit,
     neighbours: PlaybackNeighbours,
     onPlay: (PlaybackTarget) -> Unit,
+    castButton: @Composable (Modifier) -> Unit,
 ) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -499,6 +609,7 @@ private fun MobileReadyPlayer(
         onPlay = onPlay,
         enterPictureInPicture = enterPictureInPicture,
         pictureInPictureSeeks = pictureInPictureSeeks,
+        castButton = castButton,
     )
 }
 
@@ -1043,6 +1154,7 @@ private fun MobileReadyPlayerContent(
     onPlay: (PlaybackTarget) -> Unit,
     enterPictureInPicture: (() -> Unit)?,
     pictureInPictureSeeks: SeekRelay,
+    castButton: @Composable (Modifier) -> Unit,
 ) {
     val player = playerState.player
     fun seek(direction: SeekDirection) {
@@ -1135,6 +1247,7 @@ private fun MobileReadyPlayerContent(
                 onScrub = { pendingSeek.value = null },
                 onPlay = onPlay,
                 onAudioSelectionChanged = { preferences.audioSelection = it },
+                castButton = castButton,
                 modifier = Modifier.zIndex(2f).observeControlNavigation(onPointerNavigation, onKeyboardNavigation),
             )
             MobileSeekFeedbackLayer(pendingSeek.value)
@@ -1149,7 +1262,10 @@ private fun MobileReadyPlayerContent(
                 onScrub = { pendingSeek.value = null },
                 onBack = onBack,
                 modifier = Modifier.zIndex(2f),
-                topActions = { MobilePictureInPictureButton(enterPictureInPicture, optionModifier) },
+                topActions = {
+                    castButton(optionModifier)
+                    MobilePictureInPictureButton(enterPictureInPicture, optionModifier)
+                },
                 settings = { MobileVideoChips(options, subtitleStartupPolicy, { sheet = it }, optionModifier) },
                 trailingChip = { MobileNextEpisodeChip(nextEpisode, onNextEpisode, optionModifier) },
                 onFooterHeight = { footerHeight = it },
