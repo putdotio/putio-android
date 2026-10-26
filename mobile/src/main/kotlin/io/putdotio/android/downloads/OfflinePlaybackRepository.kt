@@ -1,6 +1,7 @@
 package io.putdotio.android.downloads
 
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.playback.PlaybackCastMedia
 import io.putdotio.android.playback.PlaybackNeighbours
 import io.putdotio.android.playback.PlaybackNextResult
 import io.putdotio.android.playback.PlaybackRepository
@@ -90,6 +91,13 @@ internal class OfflinePlaybackRepository(
 
     override suspend fun startConversion(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> =
         delegate.startConversion(target)
+
+    // A receiver streams a downloaded file from put.io: the token-free API URL gets the download token.
+    override suspend fun castMedia(
+        target: PlaybackTarget,
+        source: PlaybackSource,
+        activeSubtitleKey: String?,
+    ): PlaybackRepositoryResult<PlaybackCastMedia> = delegate.castMedia(target, source, activeSubtitleKey)
 
     override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult = delegate.findNextVideo(target)
 
