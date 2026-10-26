@@ -30,6 +30,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -255,6 +256,74 @@ class MobileCastControllerTest {
     }
 
     @Test
+    fun aFileThatPlaysToItsEndOnTheReceiverFinishesOncePerPlay() {
+        val finished = collectFinished()
+        gateway.connect()
+        cast.cast(Media, Item, CastHandover(positionMillis = 0L, playing = true))
+        gateway.report(CastRemoteState.Buffering, positionMillis = 0L)
+        gateway.report(CastRemoteState.Playing, positionMillis = 590_000L, durationMillis = 600_000L)
+
+        // The receiver keeps reporting its finished file until something else loads.
+        gateway.report(CastRemoteState.Ended, positionMillis = 600_000L, durationMillis = 600_000L)
+        now += 1_000L
+        gateway.report(CastRemoteState.Ended, positionMillis = 600_000L, durationMillis = 600_000L)
+        assertEquals(listOf(42L), finished)
+
+        // Played again, it finishes again.
+        cast.remotePlayer.seekTo(0L)
+        gateway.report(CastRemoteState.Playing, positionMillis = 0L, durationMillis = 600_000L)
+        gateway.report(CastRemoteState.Ended, positionMillis = 600_000L, durationMillis = 600_000L)
+        assertEquals(listOf(42L, 42L), finished)
+    }
+
+    @Test
+    fun stoppingFailingOrLeavingTheReceiverIsNoFinish() {
+        val finished = collectFinished()
+        gateway.connect()
+        cast.cast(Media, Item, CastHandover(positionMillis = 0L, playing = true))
+
+        // Stopped from the TV's remote: the receiver idles without finishing.
+        gateway.report(CastRemoteState.Playing, positionMillis = 60_000L)
+        gateway.report(CastRemoteState.Idle, positionMillis = 60_000L)
+        gateway.report(CastRemoteState.Ended, positionMillis = 600_000L)
+        // A failure is no finish either.
+        cast.cast(Media, Item, CastHandover(positionMillis = 0L, playing = true))
+        gateway.report(CastRemoteState.Playing, positionMillis = 60_000L)
+        gateway.report(CastRemoteState.Failed, positionMillis = 60_000L)
+        gateway.report(CastRemoteState.Ended, positionMillis = 600_000L)
+        // A seek toward the end, taken back before the file got there.
+        cast.cast(Media, Item, CastHandover(positionMillis = 0L, playing = true))
+        gateway.report(CastRemoteState.Playing, positionMillis = 60_000L, durationMillis = 600_000L)
+        cast.remotePlayer.seekTo(599_000L)
+        gateway.report(CastRemoteState.Playing, positionMillis = 599_000L, durationMillis = 600_000L)
+        cast.remotePlayer.seekTo(60_000L)
+        gateway.report(CastRemoteState.Playing, positionMillis = 60_000L, durationMillis = 600_000L)
+        // Stopped from the phone, which ends the session and hands the file back.
+        gateway.stopCasting()
+
+        assertTrue(finished.isEmpty())
+        assertEquals(CastHandover(positionMillis = 60_000L, playing = true), cast.takeHandover(42L))
+    }
+
+    @Test
+    fun aSessionThatEndsOrSignsOutMidPlayIsNoFinish() {
+        val finished = collectFinished()
+        gateway.connect()
+        gateway.report(CastRemoteState.Playing, positionMillis = 599_000L)
+        // The receiver ends the session; the next one finds the file finished without having seen it play.
+        gateway.disconnect()
+        gateway.connect()
+        gateway.report(CastRemoteState.Ended, positionMillis = 600_000L)
+
+        cast.cast(Media, Item, CastHandover(positionMillis = 0L, playing = true))
+        gateway.report(CastRemoteState.Playing, positionMillis = 599_000L)
+        cast.end()
+        gateway.report(CastRemoteState.Ended, positionMillis = 600_000L)
+
+        assertTrue(finished.isEmpty())
+    }
+
+    @Test
     fun theReceiverShowsTheSubtitleTheLocalPlayerWould() {
         val sidecar = source(listOf("default", "other"))
 
@@ -398,6 +467,13 @@ class MobileCastControllerTest {
     }
 
     private fun idle() = shadowOf(Looper.getMainLooper()).idle()
+
+    private fun collectFinished(): List<Long> {
+        val finished = mutableListOf<Long>()
+        scope.launch { cast.finished.collect { finished += it } }
+        idle()
+        return finished
+    }
 
     private companion object {
         val Shown = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = true)

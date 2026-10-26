@@ -15,6 +15,9 @@ import io.putdotio.android.files.FilesItemId
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSubtitles
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
@@ -175,6 +178,19 @@ internal class MobileCastController(
     /** The ended session whose position has been handed back, so it is handed back once. */
     private var handedBack: CastRemoteStatus? = null
 
+    /** The file the receiver was last seen playing; only its finish counts as one. */
+    private var playingFileId: Long? = null
+
+    private val mutableFinished = MutableSharedFlow<Long>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+
+    /**
+     * Each file the receiver played to its end, once per play. A stop, a failure, a sign-out or a
+     * session's end is no finish; nor is a finish no collector hears, so none arrives late.
+     */
+    val finished: SharedFlow<Long> = mutableFinished
 
     init {
         scope.launch {
@@ -182,6 +198,7 @@ internal class MobileCastController(
                 // The status clears only as the session ends: freeze where the receiver stood, for
                 // the file's next local start. A file that finished hands back stopped.
                 if (status == null) takeEnded()?.let { (fileId, handover) -> handovers[fileId] = handover }
+                noteFinish(status)
             }
         }
         scope.launch {
@@ -248,6 +265,7 @@ internal class MobileCastController(
             it is CastAvailability.Connected || it is CastAvailability.Connecting
         }
         lastMedia = null
+        playingFileId = null
         handovers.clear()
         // Nor does one that ended a moment ago and is not handed back yet.
         handedBack = gateway.endedStatus
@@ -275,6 +293,15 @@ internal class MobileCastController(
         val ended = gateway.endedStatus?.takeIf { it !== handedBack } ?: return null
         handedBack = ended
         return ended.fileId?.let { it to CastHandover(ended.positionAt(clock()), ended.playing, ended.speed) }
+    }
+
+    // Only a file seen playing finishes: a receiver found finished already, or a report on a file
+    // still loading, is no new finish.
+    private fun noteFinish(status: CastRemoteStatus?) {
+        val playing = playingFileId.takeUnless { ending }
+        playingFileId = status?.takeIf { it.state in LIVE_STATES }?.fileId.takeUnless { ending }
+        val finished = status?.takeIf { it.state == CastRemoteState.Ended }?.fileId
+        if (finished != null && finished == playing) mutableFinished.tryEmit(finished)
     }
 
     // A file that finished or failed has left the receiver; playing it again sends it once more.
