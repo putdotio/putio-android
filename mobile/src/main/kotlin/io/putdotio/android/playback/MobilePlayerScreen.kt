@@ -300,6 +300,8 @@ private fun MobileReadyContent(
             onSourceRequired = onSourceRequired,
             neighbours = neighbours,
             onPlay = onPlay,
+            autoplayNextVideo = autoplayNextVideo,
+            onPlaybackEnded = onPlaybackEnded,
         )
         return
     }
