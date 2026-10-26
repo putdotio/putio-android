@@ -1,13 +1,17 @@
 package io.putdotio.android.playback
 
+import android.Manifest
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.core.net.toUri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import androidx.annotation.VisibleForTesting
 import androidx.core.content.ContextCompat
 import androidx.mediarouter.media.MediaRouteSelector
 import androidx.mediarouter.media.MediaRouter
@@ -45,14 +49,22 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
 
-/** The process's Cast controller, started on first use; null where Google Play services is missing. */
+/**
+ * The process's Cast controller, started on first use; null where Google Play services is missing.
+ * MainActivity starts it in onCreate: Cast discovers receivers only for activities that resume after
+ * it started.
+ */
 internal object MobileCast {
     @Volatile
     private var controller: MobileCastController? = null
 
+    /** Google Play services, which runs Cast in its own process. */
+    @VisibleForTesting
+    var playServices: (Context) -> Boolean = ::playServicesAvailable
+
     fun controller(context: Context): MobileCastController? {
         val appContext = context.applicationContext
-        if (!playServicesAvailable(appContext)) return null
+        if (!playServices(appContext)) return null
         return controller ?: synchronized(this) {
             controller ?: run {
                 val gateway = GmsCastGateway(appContext).also { it.start() }
@@ -174,12 +186,15 @@ internal class GmsCastGateway private constructor(
     override val availability: StateFlow<CastAvailability> = mutableAvailability
     private var castContext: CastContext? = null
 
-    // Play services runs Cast in its own process; a failure to start it means no Cast here.
+    /**
+     * Starts Cast at once: it tracks the activities that resume from here on and discovers receivers
+     * only while one is resumed, so a start that lands after the activity resumed finds none. Play
+     * services runs Cast in its own process; a failure to start it means no Cast here.
+     */
     @Suppress("SwallowedException")
     fun start() {
         try {
-            CastContext.getSharedInstance(context, ContextCompat.getMainExecutor(context))
-                .addOnSuccessListener(::bind)
+            bind(CastContext.getSharedInstance(context))
         } catch (_: RuntimeException) {
             mutableAvailability.value = CastAvailability.Unsupported
         }
@@ -204,7 +219,8 @@ internal class GmsCastGateway private constructor(
         val device = cast.sessionManager.currentCastSession?.castDevice?.friendlyName
         mutableAvailability.value = when {
             remote.attached -> CastAvailability.Connected(device.orEmpty())
-            cast.castState == CastState.NO_DEVICES_AVAILABLE -> CastAvailability.NoDevices
+            cast.castState == CastState.NO_DEVICES_AVAILABLE ->
+                if (localNetworkBlocked()) CastAvailability.NeedsLocalNetwork else CastAvailability.NoDevices
             cast.castState == CastState.CONNECTING || cast.castState == CastState.CONNECTED ->
                 CastAvailability.Connecting(device)
             else -> CastAvailability.Available
@@ -258,6 +274,18 @@ internal class GmsCastGateway private constructor(
     }
 
     private var stopOnBind = false
+
+    override fun localNetworkAnswered(granted: Boolean) {
+        if (!granted) localNetworkRefused = true
+        updateAvailability()
+    }
+
+    private var localNetworkRefused = false
+
+    private fun localNetworkBlocked(): Boolean =
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.CINNAMON_BUN && !localNetworkRefused &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_LOCAL_NETWORK) !=
+            PackageManager.PERMISSION_GRANTED
 }
 
 /** The receivers MediaRouter finds for the Cast framework's selector, while the picker asks. */

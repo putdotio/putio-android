@@ -10,6 +10,7 @@ import androidx.core.net.toUri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import io.putdotio.android.auth.handleAuthTabActivityResult
+import io.putdotio.android.playback.MobileCast
 import io.putdotio.android.share.MobileFileShareService
 import io.putdotio.android.share.MobileResumedActivity
 import io.putdotio.android.transfers.MobileTransferDraft
@@ -48,6 +49,8 @@ class MainActivity : BasePutioActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         configureEdgeToEdge()
+        // Before this activity resumes, so Cast looks for receivers while it shows.
+        MobileCast.controller(this)
         if (savedInstanceState == null) MobileFileShareService.pruneStale(applicationContext)
         consumeShare(intent, savedInstanceState?.getBoolean(STATE_SHARE_CONSUMED) == true)
         consumeDeepLink(intent, savedInstanceState?.getBoolean(STATE_DEEP_LINK_CONSUMED) == true)

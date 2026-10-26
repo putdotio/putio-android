@@ -366,6 +366,8 @@ class MobileCastControllerTest {
             idle()
         }
 
+        override fun localNetworkAnswered(granted: Boolean) = Unit
+
         override fun load(media: PlaybackCastMedia, startMillis: Long, autoplay: Boolean, speed: Float) {
             loads += Load(media.fileId, startMillis, autoplay, speed)
         }

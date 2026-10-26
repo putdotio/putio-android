@@ -18,12 +18,21 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
-/** Where Cast stands on this device; the Cast button shows only once a receiver is in reach. */
+/**
+ * Where Cast stands on this device; the Cast button shows once a receiver is in reach, or while
+ * Android needs the local network allowed to find one.
+ */
 internal sealed interface CastAvailability {
     /** No Google Play services, or Cast failed to start: no button. */
     data object Unsupported : CastAvailability
 
     data object NoDevices : CastAvailability
+
+    /**
+     * Android 17 hides the receivers until the user allows the local network: the button shows, and
+     * its tap asks.
+     */
+    data object NeedsLocalNetwork : CastAvailability
 
     data object Available : CastAvailability
 
@@ -101,6 +110,9 @@ internal interface CastGateway : CastRoutes, CastRemote {
      * receiver reported by then, so the next account never resumes the last one's.
      */
     fun endForSignOut()
+
+    /** The user answered the local network prompt; a refusal hides the button until the next launch. */
+    fun localNetworkAnswered(granted: Boolean)
 }
 
 /** The receivers the picker lists. */

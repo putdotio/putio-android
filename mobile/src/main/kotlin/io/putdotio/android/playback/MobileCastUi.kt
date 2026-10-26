@@ -1,7 +1,11 @@
 package io.putdotio.android.playback
 
+import android.Manifest
+import android.annotation.SuppressLint
 import androidx.annotation.DrawableRes
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
@@ -69,12 +73,33 @@ internal const val MOBILE_CAST_PICKER_TAG = "mobile-cast-picker"
 internal const val MOBILE_CAST_STOP_TAG = "mobile-cast-stop"
 internal const val MOBILE_CAST_LABEL_TAG = "mobile-cast-label"
 
-/** Cast in a player's top bar, once a receiver is in reach; yellow while casting. */
+/**
+ * Cast in a player's top bar, once a receiver is in reach; yellow while casting. Where Android needs
+ * the local network allowed first, the tap asks for it and opens the picker once allowed.
+ */
 @Composable
-internal fun MobileCastButton(availability: CastAvailability, onClick: () -> Unit, modifier: Modifier = Modifier) {
+internal fun MobileCastButton(
+    availability: CastAvailability,
+    onClick: () -> Unit,
+    onLocalNetworkAnswer: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     if (!availability.showsButton) return
     val device = availability.connectedDevice
-    IconButton(onClick = onClick, modifier = modifier.testTag(MOBILE_CAST_BUTTON_TAG)) {
+    val askLocalNetwork = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        onLocalNetworkAnswer(granted)
+        if (granted) onClick()
+    }
+    IconButton(
+        onClick = {
+            if (availability == CastAvailability.NeedsLocalNetwork) {
+                askLocalNetwork.launch(LOCAL_NETWORK_PERMISSION)
+            } else {
+                onClick()
+            }
+        },
+        modifier = modifier.testTag(MOBILE_CAST_BUTTON_TAG),
+    ) {
         Icon(
             painterResource(R.drawable.ic_ph_screencast),
             contentDescription = device?.let { stringResource(R.string.mobile_cast_casting_to, it) }
@@ -298,6 +323,10 @@ internal fun MobileCastFrameLabel(text: String, modifier: Modifier = Modifier) {
         }
     }
 }
+
+// Only asked for on Android 17 and later, where the platform defines it.
+@SuppressLint("InlinedApi")
+private const val LOCAL_NETWORK_PERMISSION = Manifest.permission.ACCESS_LOCAL_NETWORK
 
 private val CAST_PICKER_MAX_WIDTH = 560.dp
 private const val CAST_PICKER_SCRIM_ALPHA = 0.55f

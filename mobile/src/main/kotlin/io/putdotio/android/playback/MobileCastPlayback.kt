@@ -93,7 +93,9 @@ internal fun rememberPlayerCast(
         ?: (availability as? CastAvailability.Connecting)?.takeIf { status != null }?.let { it.deviceName.orEmpty() }
     return PlayerCast(
         controller = cast,
-        button = { modifier -> MobileCastButton(availability, onOpenPicker, modifier) },
+        button = { modifier ->
+            MobileCastButton(availability, onOpenPicker, cast.gateway::localNetworkAnswered, modifier)
+        },
         casting = if (device == null) null else CastingTarget(cast, castMedia, device),
     )
 }
