@@ -14,6 +14,9 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- Finished and failed downloads; asked for at the first download, never at launch. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Cast: from Android 17, Play services shows this app no receivers without it; asked for at
+         the first tap on Cast, never at launch. -->
+    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
 
     <queries>
         <intent>
@@ -162,6 +165,17 @@
             android:name="androidx.media3.exoplayer.scheduler.PlatformScheduler$PlatformSchedulerService"
             android:exported="true"
             android:permission="android.permission.BIND_JOB_SERVICE" />
+        <!-- The Cast notification's tap: hands MainActivity the open-the-player request. -->
+        <activity
+            android:name=".playback.MobileCastNotificationActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.NoDisplay" />
+        <!-- Google Cast reads its options here: the Default Media Receiver and the remote notification. -->
+        <meta-data
+            android:name="com.google.android.gms.cast.framework.OPTIONS_PROVIDER_CLASS_NAME"
+            android:value="io.putdotio.android.playback.MobileCastOptionsProvider" />
         <service
             android:name=".MobilePlaybackService"
             android:exported="false"

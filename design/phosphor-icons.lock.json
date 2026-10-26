@@ -835,6 +835,13 @@
       "asset": "assets/regular/x-circle.svg",
       "sourceSha256": "cff9cacbd83ab11a01585dc63af07d289479bdb332708b0de2ad4c953f67d223",
       "outputSha256": "4cdaa2c5c11806b30172de56bcb5677197e2a2fbf28cd730e3d37a459e3ec840"
+    },
+    {
+      "resDir": "mobile/src/main/res",
+      "resource": "ic_ph_screencast",
+      "asset": "assets/regular/screencast.svg",
+      "sourceSha256": "2245e0a4a14f671f0b5c0338702b4b7edd70deb7dad5b51fa43e7f47dcae4458",
+      "outputSha256": "552fd0501b356b5af7a49f1786ed5e8dc2e8e4f285072857a37a0db8d487da25"
     }
   ]
 }
