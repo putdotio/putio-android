@@ -208,9 +208,10 @@ internal class MobileCastController(
         if (gateway.availability.value !is CastAvailability.Connected || ending) return false
         remotePlayer.adopt(item)
         val loads = !holds(media.fileId)
+        // Held or sent, this is what Play sends again once the file has finished there.
+        lastMedia = media
         if (loads) {
             handovers.remove(media.fileId)
-            lastMedia = media
             gateway.load(media, local.positionMillis.coerceAtLeast(0L), local.playing, local.speed)
         }
         return loads
@@ -306,7 +307,8 @@ internal fun castSubtitleKey(
             keys.firstOrNull { key -> id == key || id.endsWith(":$key") }
         }
         SubtitleSelection.Automatic -> keys.first()
-        null -> keys.first().takeIf { policy?.autoSelectSubtitles != false }
+        // Unknown settings show none, as locally: the account may hide subtitles.
+        null -> keys.first().takeIf { policy?.autoSelectSubtitles == true }
     }
 }
 

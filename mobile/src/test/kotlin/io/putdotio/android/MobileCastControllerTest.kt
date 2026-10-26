@@ -80,6 +80,11 @@ class MobileCastControllerTest {
 
         assertTrue(gateway.loads.isEmpty())
         assertEquals(Media3Player.STATE_READY, cast.remotePlayer.playbackState)
+
+        // Once it finishes there, Play sends the held file again.
+        gateway.report(CastRemoteState.Ended, positionMillis = 600_000L)
+        cast.remotePlayer.seekTo(0L)
+        assertEquals(listOf(Load(42L, 0L, autoplay = true, speed = 1f)), gateway.loads)
     }
 
     @Test
@@ -259,6 +264,9 @@ class MobileCastControllerTest {
         assertNull(castSubtitleKey(sidecar, SubtitleSelection.Off, Shown))
         assertEquals("other", castSubtitleKey(sidecar, SubtitleSelection.Track(identity("0:other")), Shown))
         assertNull(castSubtitleKey(source(emptyList()), SubtitleSelection.Automatic, Shown))
+        // Settings still loading: none unless the viewer picked one, as the local player.
+        assertNull(castSubtitleKey(sidecar, null, null))
+        assertEquals("default", castSubtitleKey(sidecar, SubtitleSelection.Automatic, null))
     }
 
     private fun source(keys: List<String>) =
