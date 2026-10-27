@@ -124,9 +124,8 @@ Shipped user-facing behavior updates the README's "What works today".
 
 ## Delivery and CI
 
-Open pull requests against `main`; the repository squash-merges. A push to
-`main` runs only [CI](.github/workflows/ci.yml), whose header comments own the
-triggers and path filters; CI holds no secrets.
+Open pull requests against `main`. A merge runs only
+[CI](.github/workflows/ci.yml); nothing ships without a Google Play dispatch.
 
 - `Build release` and `Verify Android app` split `verify` plus the four debug
   assembles between them. When either command changes, compare their
