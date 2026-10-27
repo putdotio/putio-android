@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- The widget picker's preview of widget_transfers.xml (Android 12 and later): sample transfers in the
-     signed-in layout. It is inflated as is, so it has no ids and nothing is set at run time. -->
+     signed-in layout. It is inflated as is, so it has no ids and nothing is set at run time. RemoteViews inflate
+     framework ImageViews, which read android:tint; AppCompat's app:tint never reaches them. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:id="@android:id/background"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -27,7 +29,8 @@
             android:layout_height="20dp"
             android:importantForAccessibility="no"
             android:src="@drawable/ic_ph_cloud_arrow_down_fill"
-            android:tint="@color/putio_yellow_solid" />
+            android:tint="@color/putio_yellow_solid"
+            tools:ignore="UseAppTint" />
 
         <TextView
             android:layout_width="0dp"
@@ -46,7 +49,8 @@
             android:contentDescription="@string/mobile_widget_refresh"
             android:padding="14dp"
             android:src="@drawable/ic_ph_arrows_clockwise"
-            android:tint="@color/putio_text_secondary" />
+            android:tint="@color/putio_text_secondary"
+            tools:ignore="UseAppTint" />
     </LinearLayout>
 
     <LinearLayout
