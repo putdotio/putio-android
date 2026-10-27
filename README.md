@@ -16,8 +16,8 @@ Mobile, on the emulator harness against the live API:
 - OAuth sign-in, with the session in Android secure storage
 - Files, Search, History, Transfers, Downloads, Trash and Account, with
   adaptive layouts for tablets
-- Item actions, multi-select, public links and in-app image, PDF and text
-  viewers
+- Item actions from the overflow, multi-select from a long-press, public
+  links and in-app image, PDF and text viewers
 - Video and background audio playback with resume, tracks, subtitles,
   picture-in-picture and positions saved to put.io
 - Offline downloads with offline playback, also after a start with no

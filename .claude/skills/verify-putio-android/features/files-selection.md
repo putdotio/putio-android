@@ -8,10 +8,9 @@ Preconditions:
 - Doctor passes. The run's root holds `Target folder` and three small
   uploaded files `a-<run>.txt`, `b-<run>.txt`, `c-<run>.txt`.
 
-- **Enter.** Open the run's folder, then the sheet of `a-<run>.txt`, and tap
-  `Select`. Run `$S/ui.sh tap $SERIAL --desc "Actions for a-$RUN.txt"` and
-  `$S/ui.sh tap $SERIAL --text "Select"`. The bar shows `1 selected`. Capture
-  `select-enter`.
+- **Enter.** Open the run's folder and long-press `a-<run>.txt`. Run
+  `$S/ui.sh long-press $SERIAL --text "a-$RUN.txt"`. The bar shows
+  `1 selected`. Capture `select-enter`. The sheet's `Select` does the same.
 - **Toggle.** Tap `b-<run>.txt` and `c-<run>.txt`. Run
   `$S/ui.sh tap $SERIAL --text "b-$RUN.txt"` and the same for `c`. The bar
   shows `3 selected`; tapping one again drops it to `2 selected`.
@@ -22,7 +21,7 @@ Preconditions:
 - **Trash.** Intend `trash <id>`. Select the remaining file and tap `Trash`. The snackbar reads
   `Moved to Trash` with Undo. Tap Undo and adopt the id, or delete it
   from Trash by id as in [Item actions](./item-actions.md); then settle.
-- **Exit.** Select a file again from its sheet, then press Back. Run `$S/ui.sh key $SERIAL BACK`. The
+- **Exit.** Long-press a file again, then press Back. Run `$S/ui.sh key $SERIAL BACK`. The
   bar leaves and the folder stays.
 - **Proof.** Capture the bar, the picker, the snackbar and the CLI read-back.
 

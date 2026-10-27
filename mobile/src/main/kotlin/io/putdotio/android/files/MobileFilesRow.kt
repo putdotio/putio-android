@@ -53,8 +53,9 @@ internal const val MOBILE_FILES_DOWNLOAD_TAG = "mobile-files-download"
 
 /**
  * A file row: a fixed 64dp line with the type glyph, the name cut in the middle on one line, and
- * meta (size in mono, date, then the played eye and the on-device mark when true). Folders end in
- * a chevron and files in an overflow button; long-press opens the same actions either way. In
+ * meta (size in mono, date, then the played eye and the on-device mark when true). A row with
+ * actions ends in an overflow button, and a folder without them in a chevron. Long-press runs
+ * [onLongClick], which starts selection where the list has one, else opens the actions. In
  * selection a checkbox takes the glyph's place, the trailing slot empties, and a tap toggles the row.
  */
 @Composable
@@ -65,6 +66,9 @@ internal fun MobileFilesRow(
     onClickLabel: String? = null,
     onActions: (() -> Unit)? = null,
     actionsEnabled: Boolean = true,
+    /** Long-press, when it does something other than open the actions: starting selection. */
+    onLongClick: (() -> Unit)? = null,
+    onLongClickLabel: String? = null,
     downloadStatus: DownloadStatus? = null,
     /** The file an outside open came for; it has no screen of its own, so its row stands out. */
     highlighted: Boolean = false,
@@ -84,35 +88,15 @@ internal fun MobileFilesRow(
     // Touch never focuses a row; a keyboard-focused one is outlined so it reads at a glance.
     var focused by remember { mutableStateOf(false) }
     val outline = MaterialTheme.colorScheme.primary
-    val interaction = if (onActions != null && actionsEnabled) {
-        Modifier.combinedClickable(
-            onClickLabel = onClickLabel,
-            role = Role.Button,
-            onClick = onClick ?: onActions,
-            onLongClickLabel = actionsLabel,
-            onLongClick = onActions,
-        )
-    } else if (onClick != null) {
-        Modifier.clickable(
-            onClickLabel = onClickLabel,
-            role = Role.Button,
-            onClick = onClick,
-        )
-    } else {
-        Modifier
-    }
+    val interaction = Modifier.rowInteraction(
+        onClick = onClick,
+        onClickLabel = onClickLabel,
+        onActions = onActions?.takeIf { actionsEnabled },
+        onLongClick = onLongClick,
+        onLongClickLabel = if (onLongClick != null) onLongClickLabel else actionsLabel,
+    )
 
     val trailing: (@Composable () -> Unit)? = when {
-        item.isFolder -> {
-            {
-                Icon(
-                    painter = painterResource(R.drawable.ic_ph_caret_right),
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(end = 12.dp).size(FILES_CHEVRON_SIZE),
-                )
-            }
-        }
         onActions != null -> {
             {
                 IconButton(
@@ -127,6 +111,16 @@ internal fun MobileFilesRow(
                         contentDescription = actionsLabel,
                     )
                 }
+            }
+        }
+        item.isFolder -> {
+            {
+                Icon(
+                    painter = painterResource(R.drawable.ic_ph_caret_right),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(end = 12.dp).size(FILES_CHEVRON_SIZE),
+                )
             }
         }
         else -> null
@@ -250,6 +244,32 @@ private fun MobileFilesMeta(item: FilesItem, onDevice: Boolean, place: MobileFil
             if (index > 0) Text("·", style = style, color = color, modifier = Modifier.clearAndSetSemantics {})
             part()
         }
+    }
+}
+
+/**
+ * Tap runs [onClick], or opens the actions when there is nothing else to do; long-press runs
+ * [onLongClick] where the list has one, else opens the actions.
+ */
+private fun Modifier.rowInteraction(
+    onClick: (() -> Unit)?,
+    onClickLabel: String?,
+    onActions: (() -> Unit)?,
+    onLongClick: (() -> Unit)?,
+    onLongClickLabel: String?,
+): Modifier {
+    val longClick = onLongClick ?: onActions
+    val tap = onClick ?: onActions
+    return when {
+        longClick != null -> combinedClickable(
+            onClickLabel = onClickLabel,
+            role = Role.Button,
+            onClick = tap ?: {},
+            onLongClickLabel = onLongClickLabel,
+            onLongClick = longClick,
+        )
+        tap != null -> clickable(onClickLabel = onClickLabel, role = Role.Button, onClick = tap)
+        else -> this
     }
 }
 

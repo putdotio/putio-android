@@ -102,20 +102,26 @@ internal data class MobileFilesHeaders(
         }
 }
 
+/**
+ * The items above the first row. [hidden] in selection draws them empty but keeps them in the list,
+ * so entering selection neither shifts row indices nor cancels the long-press that started it.
+ */
 internal fun LazyListScope.mobileFilesHeaderItems(
     headers: MobileFilesHeaders,
     onPlay: (ContinueWatchingEntry) -> Unit,
+    hidden: Boolean = false,
 ) {
+    fun header(key: String, content: @Composable () -> Unit) = item(key = key) { if (!hidden) content() }
     if (headers.continueWatching.isNotEmpty()) {
-        item(key = "continue-watching-label") {
+        header("continue-watching-label") {
             MobileFilesSectionLabel(stringResource(R.string.mobile_files_continue_watching))
         }
-        item(key = "continue-watching") { MobileContinueWatchingRow(headers.continueWatching, onPlay) }
-        item(key = "all-files-label") {
+        header("continue-watching") { MobileContinueWatchingRow(headers.continueWatching, onPlay) }
+        header("all-files-label") {
             MobileFilesSectionLabel(stringResource(R.string.mobile_files_all_files), top = 12.dp)
         }
     } else {
-        headers.summary?.let { summary -> item(key = "folder-summary") { MobileFolderSummaryLine(summary) } }
+        headers.summary?.let { summary -> header("folder-summary") { MobileFolderSummaryLine(summary) } }
     }
 }
 

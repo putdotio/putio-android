@@ -280,7 +280,7 @@ class MobileShellTest {
         }
 
         compose.onNodeWithTag(MOBILE_NAV_BAR_TAG).assertExists()
-        compose.onNodeWithText("movie.mkv").performTouchInput { longClick() }
+        compose.onNodeWithContentDescription("Actions for movie.mkv").performClick()
         compose.onNodeWithTag(MOBILE_FILES_SHARE_ACTION_TAG).assertIsDisplayed().performClick()
 
         compose.runOnIdle { assertEquals(listOf(FilesItemId(9L)), shared.map(FilesItem::id)) }

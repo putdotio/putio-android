@@ -334,7 +334,6 @@ private fun MobileRefreshableFilesContent(
             }
         }
     }
-    val listHeaders = headers.unlessSelecting(selecting)
     val isRefreshing =
         operation is FilesFolderOperation.Loading &&
             operation.intent == FilesFolderOperationIntent.Refresh
@@ -398,11 +397,11 @@ private fun MobileRefreshableFilesContent(
                             state.stack.size,
                             state.current.folder.id.value,
                             state.current.viewportGeneration,
-                            listHeaders.itemCount,
+                            headers.itemCount,
                         ) {
                             MobileFilesList(
                                 content = content,
-                                headers = listHeaders,
+                                headers = headers,
                                 onPlayEntry = { onPlayMedia(it.toFilesItem()) },
                                 revealItemId = state.current.revealItemId,
                                 pagingEnabled = operation == FilesFolderOperation.Idle,
@@ -418,10 +417,11 @@ private fun MobileRefreshableFilesContent(
                                     focusedItemId = focusedItemId.afterFocusChange(id.value, focused)
                                 },
                                 fileDragOut = fileDragOut,
-                                // A touch drag starts after the long press opened the sheet; the drag replaces it.
+                                // A touch drag starts after the long press; it closes any sheet that press opened.
                                 onDragStarted = dismissSelection,
                                 fileOpening = fileOpening,
                                 selection = selection.listSelection(state, toolbarClearance),
+                                onStartSelection = selection.starter { currentState },
                             )
                         }
 
@@ -827,6 +827,8 @@ private fun MobileFilesList(
     onDragStarted: () -> Unit,
     fileOpening: MobileFilesOpening?,
     selection: MobileFilesListSelection? = null,
+    /** Long-press starts selection with the row; null leaves long-press opening the row's actions. */
+    onStartSelection: ((FilesItem) -> Unit)? = null,
 ) {
     val viewport = content.viewport
     // The viewport counts rows; headers sit above them and show again when the list is back at its top.
@@ -878,7 +880,7 @@ private fun MobileFilesList(
         // toolbar, however tall large fonts make it.
         contentPadding = selection?.let { PaddingValues(top = 8.dp, bottom = it.bottomClearance) } ?: PaddingValues(),
     ) {
-        mobileFilesHeaderItems(headers, onPlayEntry)
+        mobileFilesHeaderItems(headers, onPlayEntry, hidden = selection != null)
         itemsIndexed(
             items = content.items,
             key = { _, item -> item.id.value },
@@ -902,6 +904,9 @@ private fun MobileFilesList(
                     downloadStatus = downloads.rowStatus(item.id),
                     onActions = if (hasActions(item)) { { onActions(item) } } else null,
                     actionsEnabled = actionsEnabled,
+                    onLongClick = onStartSelection?.takeIf { actionsEnabled && item.id.value > 0L }
+                        ?.let { start -> { start(item) } },
+                    onLongClickLabel = stringResource(R.string.mobile_files_select),
                     onClick = rowClick(item, fileOpening, onEvent, onPlayMedia)
                         .takeUnless { item.id in pendingItemIds },
                     onClickLabel = rowClickLabel(item, fileOpening),
@@ -1043,12 +1048,16 @@ private fun MobileFilesListRow(
             MobileFileDragShadow(item.name, density.density, density.fontScale, shadowBackground, shadowForeground)
         if (fileDragOut?.start(view, item, shadow) == true) onDragStarted()
     }
-    row(
-        Modifier
-            .then(entryFocus?.let { Modifier.focusRequester(it) } ?: Modifier)
-            .onFocusChanged { onFocusChanged(it.hasFocus) }
-            .mobileFileDragSource(fileDragOut != null && !item.isFolder && item.id.value > 0L) { startDrag.value() },
-    )
+    // The drag source wraps the row: the long-press before a touch drag starts selection, which swaps the
+    // row for its selectable form, and the gesture has to outlive that swap.
+    val draggable = fileDragOut != null && !item.isFolder && item.id.value > 0L
+    Box(Modifier.mobileFileDragSource(draggable) { startDrag.value() }) {
+        row(
+            Modifier
+                .then(entryFocus?.let { Modifier.focusRequester(it) } ?: Modifier)
+                .onFocusChanged { onFocusChanged(it.hasFocus) },
+        )
+    }
 }
 
 private fun FilesFolderOperation.pendingItemIds(): Set<FilesItemId> {

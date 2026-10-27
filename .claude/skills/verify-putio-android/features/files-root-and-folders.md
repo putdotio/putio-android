@@ -53,8 +53,8 @@ Preconditions:
 - Files keeps the listing it loaded. A fixture created after the app opened
   the folder stays missing until `ui.sh refresh`; `scroll-to` alone swipes
   past where it would be.
-- A folder row has a chevron and no overflow button; its actions open with
-  a long-press. Files rows carry `Actions for <name>`.
+- Rows with actions, folders included, carry an `Actions for <name>`
+  overflow; a long-press starts selection instead of opening them.
 - A row's name is cut in the middle on screen; the XML holds the full name,
   so `--text` matches it.
 - Count and size come from put.io's total for the folder, not the rows on

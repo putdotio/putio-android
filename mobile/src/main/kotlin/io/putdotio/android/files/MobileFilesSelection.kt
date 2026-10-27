@@ -412,9 +412,6 @@ internal class MobileFilesListSelection(
 internal fun FilesSelection?.isActiveIn(state: FilesBrowserState): Boolean = this?.isActive(state) == true
 
 /** Selection keeps to the rows: Continue watching and the folder's count line step aside. */
-internal fun MobileFilesHeaders.unlessSelecting(selecting: Boolean): MobileFilesHeaders =
-    if (selecting) MobileFilesHeaders() else this
-
 /** The room the list leaves under its last row for a toolbar [heightPx] tall. */
 @Composable
 internal fun selectionToolbarClearance(heightPx: Int): Dp =
@@ -438,6 +435,10 @@ internal fun MobileFilesItemActions.selectingIn(
     selection: FilesSelection?,
     state: () -> FilesBrowserState,
 ): MobileFilesItemActions = selection?.let { withSelect { item -> it.start(state(), item) } } ?: this
+
+/** A row's long-press, which starts selection in the folder [state] reads, when there is a selection. */
+internal fun FilesSelection?.starter(state: () -> FilesBrowserState): ((FilesItem) -> Unit)? =
+    this?.let { selection -> { item -> selection.start(state(), item) } }
 
 /** A file not downloaded yet, or whose download failed or went missing, can start one. */
 private val DownloadStatus?.downloadable: Boolean

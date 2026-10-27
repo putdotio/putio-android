@@ -389,12 +389,13 @@ start padding:
 - Meta: size in mono, `·`, date. Then, only when true: a grey outline eye when
   the video or audio was played (one glyph, started or finished alike), a
   yellow arrow-circle-down when the file is on this device.
-- Trailing: a chevron for folders, an overflow button for files.
+- Trailing: an overflow button for any row with actions; a folder without
+  them shows a chevron.
 - No progress bars or percentages in file rows.
 
-Tap opens the item.
-Long-press opens the same actions sheet as the overflow button. Downloads is
-the exception: long-press starts selection with that row selected.
+Tap opens the item. Long-press starts selection with that row selected, in
+Files and Downloads. Where a list has no selection, as in Search, long-press
+opens the same actions sheet as the overflow button.
 
 ### Item actions
 
@@ -413,9 +414,9 @@ names the sharer.
 
 ### Selection
 
-**Select** starts selection mode: the top bar turns `surface-container-high`
+Long-press or the sheet's **Select** starts selection mode: the top bar turns `surface-container-high`
 with close, "_n_ selected" and select all. Checkboxes replace the file icons,
-the trailing chevron and overflow leave, and selected rows take a 9% yellow
+the trailing overflow or chevron leaves, and selected rows take a 9% yellow
 tint. A floating toolbar above the nav bar holds Move, Download, Watched and
 the delete action. Each action shows only when every selected item allows it,
 under the same rules as the sheet; Watched reads Unwatched when every file is
@@ -516,7 +517,7 @@ Don't translate iOS:
 | ----------------------- | ------------------------------------------------------ |
 | Inset-grouped list      | Segmented list groups under small labels               |
 | Action sheet            | `ModalBottomSheet` for item actions                    |
-| Long-press context menu | Long-press opens the actions sheet (Downloads selects) |
+| Long-press context menu | Long-press selects; the overflow opens the actions     |
 | Toolbar plus            | Extended FAB                                           |
 | Text back-label         | System back gesture and a top-bar arrow                |
 | `UISwitch`              | The compact neutral switch above                       |
