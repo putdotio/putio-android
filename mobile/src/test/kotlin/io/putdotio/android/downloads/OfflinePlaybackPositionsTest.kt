@@ -138,6 +138,22 @@ class OfflinePlaybackPositionsTest {
     }
 
     @Test
+    fun aSignOutDuringTheSyncWritePublishesNothingAndTheNextPassSettlesIt() = runTest {
+        val positions = playedOffline()
+
+        remote.online = true
+        remote.duringWrite = { signedIn = null }
+        positions.syncNow(USER)
+        assertEquals(250.0, remote.positions[FILE])
+        assertTrue(synced.isEmpty())
+
+        signedIn = USER
+        positions.syncNow(USER)
+        assertNull(positions.store(USER).pending(FILE))
+        assertEquals(listOf(FILE to 250.0), synced)
+    }
+
+    @Test
     fun aFileDeletedOrNoLongerAccessibleStopsCostingAReadWhileANetworkFailureKeepsWaiting() = runTest {
         val positions = playedOffline()
         remote.online = true
