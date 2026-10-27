@@ -10,6 +10,7 @@ import io.putdotio.android.playback.PlaybackRepositoryResult
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
 import java.io.IOException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
@@ -125,6 +126,18 @@ class OfflinePlaybackPositionsTest {
     }
 
     @Test
+    fun aSignOutDuringTheSyncReadStopsItsWrite() = runTest {
+        val positions = playedOffline()
+
+        remote.online = true
+        remote.afterRead = { signedIn = null }
+        positions.syncNow(USER)
+
+        assertTrue(remote.writes.isEmpty())
+        assertEquals(250.0, positions.store(USER).pending(FILE)?.seconds)
+    }
+
+    @Test
     fun aFileDeletedOrNoLongerAccessibleStopsCostingAReadWhileANetworkFailureKeepsWaiting() = runTest {
         val positions = playedOffline()
         remote.online = true
@@ -205,6 +218,8 @@ internal class FakePositionRemote : PositionRemote {
     /** Runs after a read has taken its value, as a concurrent request would. */
     var afterRead: () -> Unit = {}
     var duringWrite: () -> Unit = {}
+    /** Holds the next write until completed, as a slow request would. */
+    var writeGate: CompletableDeferred<Unit>? = null
     val positions = mutableMapOf<Long, Double>()
     val writes = mutableListOf<Pair<Long, Double>>()
     var reads = 0
@@ -220,6 +235,7 @@ internal class FakePositionRemote : PositionRemote {
     }
 
     override suspend fun write(fileId: Long, seconds: Double): PlaybackRepositoryResult<Unit> {
+        writeGate?.also { writeGate = null }?.await()
         duringWrite()
         duringWrite = {}
         if (online) positions[fileId] = seconds
