@@ -7,45 +7,31 @@ tracks the rollout. The [README](README.md) lists what works and
 [Design](DESIGN.md) the Android design contract. Tests pin the product rules;
 script headers and `--help` own the harness.
 
-## Where code lives
+## Conventions
 
-- `core/*`: shared kernel (`common`), theme and generated design tokens
-  (`design`), and Sentry (`telemetry`).
-- `domain/<name>`: one domain's models, SDK repository, reducer and
-  controller, shared by both apps.
-- `mobile` (phones and tablets, plus the Google Play publisher both apps
-  share) and `tv` (D-pad UI): the apps.
-- `build-logic`: convention plugins, design-token codegen and proof tasks.
-
-- Dependencies point from the apps to `domain` to `core`; `history`, `search`
-  and `trash` also build on `files` for `FilesItem`. A domain failure with
-  cases of its own wraps a `PutioFailure` (`AccountSettingsFailure`,
-  `PlaybackFailure`) instead of cloning the shared cases. Kotlin packages stay
-  `io.putdotio.android.*` whatever the module. Libraries build in strict
-  Kotlin explicit API mode, which covers `main` and `src/testFixtures`: a
-  declaration stays `internal` unless another module uses it, and a new public
-  one needs an explicit `public`. Fakes other modules' tests reuse live in the
-  owning module's `src/testFixtures`.
-- Only `core/telemetry` imports Sentry; detekt's `ForbiddenImport` rejects
-  `io.sentry` anywhere else. Report a failure as a `TelemetryFailure` of codes,
-  never as a raw error or message.
+- A domain failure with cases of its own wraps a `PutioFailure`
+  (`AccountSettingsFailure`, `PlaybackFailure`) instead of cloning the shared
+  cases.
+- Kotlin packages stay `io.putdotio.android.*` whatever the module.
+- A declaration stays `internal` unless another module uses it; a new public
+  one needs an explicit `public`.
+- Fakes other modules' tests reuse live in the owning module's
+  `src/testFixtures`.
+- Report a failure as a `TelemetryFailure` of codes, never as a raw error or
+  message.
 - Mobile and TV share data, domain, theme, and component foundations; their
   shells diverge where input differs. TV should feel like Android TV: Compose
   for TV, D-pad focus, system media sessions, and platform search.
 - [`putio-sdk-kotlin`](https://github.com/putdotio/putio-sdk-kotlin) is the
   API boundary. Close an SDK gap there instead of adding app-local HTTP.
-- Design values come from the locked `@putdotio/design` release and generated
-  Phosphor drawables; `scripts/sync-design-assets.sh` (macOS only) and
-  `scripts/generate-icons.sh` write them from the locks in `design/`. To take a
-  design release, set the lock's version, tarball and `integrity`
-  (`npm view @putdotio/design@<version> dist.integrity`), run the sync, and
-  replace each digest it reports as unlocked. Never hand-write design values
-  or edit generated output. A UI change follows
-  [Design](DESIGN.md); when it changes the design, update that file in the
-  same pull request. `DESIGN.md` follows the
-  [design.md format](https://github.com/google-labs-code/design.md); its
-  `colors` block is generated (`./gradlew updateDesignMdColors`), and
-  `markdownCheck` checks the block and lints the file.
+- Never hand-write design values or edit generated output.
+  `scripts/sync-design-assets.sh` (macOS only) and `scripts/generate-icons.sh`
+  write them from the locks in `design/`.
+- To take a design release:
+  1. Set the lock's version, tarball, and `integrity`
+     (`npm view @putdotio/design@<version> dist.integrity`).
+  2. Run the sync.
+  3. Replace each digest it reports as unlocked.
 
 ## Hazards
 
@@ -86,25 +72,15 @@ script headers and `--help` own the harness.
 
 ## Setup
 
-The machine provides JDK 21 (`.java-version`), Node 24 (`.node-version`),
-`python3`, and, on macOS, Homebrew. Then run:
-
-```bash
-./scripts/bootstrap.sh   # idempotent; --google-tv adds the Google TV image and AVD
-```
-
-The first run downloads several GB. Bootstrap, build, CI, and launch proof
-need no credentials; only live and authenticated lanes use the `devs-auto`
-profile.
+The machine provides Node 24 (`.node-version`) and `python3`. Then run
+`./scripts/bootstrap.sh`; its header lists the other preconditions. Only live
+and authenticated lanes need the `devs-auto` profile.
 
 ## Kotlin SDK
 
-The app depends on the released `io.put:putio-sdk-kotlin` from Maven Central;
-bump `putioSdkKotlin` in [`libs.versions.toml`](gradle/libs.versions.toml) to
-take a new release. To build against unreleased SDK changes, set
-`putioSdkKotlinPath` in `local.properties` to an absolute SDK checkout path and
-Gradle substitutes it as a composite build. Remove the key to return to the
-pinned release, and release the SDK before an app PR depends on it.
+To build against unreleased SDK changes, see `putioSdkKotlinPath` in
+[`settings.gradle.kts`](settings.gradle.kts). Release the SDK before an app PR
+depends on it.
 
 ## Build and verify
 
@@ -157,11 +133,8 @@ triggers and path filters; CI holds no secrets.
   `--dry-run` task lists with the full command's; together they must run
   exactly the same tasks.
 
-To reproduce a CI failure, check out the app SHA from the run summary in a
-detached worktree with `sdk.dir` set and `putioSdkKotlinPath` unset, then run
-the same command. A pull-request run tests a temporary merge commit; if it is
-gone, merge the recorded second parent into the first and resolve conflicts
-explicitly rather than substituting a newer base or head.
+To reproduce a CI failure, use the
+[android-delivery](.claude/skills/android-delivery/SKILL.md) skill.
 
 ### Google Play delivery
 
@@ -171,11 +144,6 @@ promotes or changes the rollout. Their inputs own the options.
 
 - Every dispatch, `dry_run` included, needs Altay's OK: it loads the `release`
   Environment's secrets.
-- Mobile and TV share the
-  [putio-tv-native-legacy](https://github.com/putdotio/putio-tv-native-legacy)
-  listing and its version codes. Google Play never takes a code twice, so
-  each upload needs a new `version_name`
-  ([`putioVersionCode`](build-logic/src/main/kotlin/PutioAndroidApplicationPlugin.kt));
-  only an upload Google Play rejected may reuse its name.
-- If the upload lands but its `tag` job fails, rerun only that job. A full
+- If an upload lands but its `tag` job fails, rerun only that job. A full
   rerun repeats the version code, and Google Play refuses it.
+- Version codes: [android-delivery](.claude/skills/android-delivery/SKILL.md).
