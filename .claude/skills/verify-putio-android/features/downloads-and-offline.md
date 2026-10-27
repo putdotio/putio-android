@@ -33,13 +33,16 @@ Preconditions:
   `Viewing full screen` prompt covers it first; tap `Got it`.
 - **Offline root.** Press Back, open Files and pull to refresh. The app
   keeps the root it loaded and shows `Couldn’t refresh files.` with
-  `Try again`. The `Can’t reach put.io.` state, which lists the clip under
-  `Offline. Showing what’s on this device.`, needs a root that never
-  loaded. A cold start offline stops at `Couldn’t check your session`
-  instead ([#417](https://github.com/putdotio/putio-android/issues/417)):
-  report that state unverified until it ships.
-- **Back online.** Run `adb -s $SERIAL shell cmd connectivity airplane-mode disable`
-  and tap `Try again`. Files reloads.
+  `Try again`.
+- **Offline cold start.** Run `adb -s $SERIAL shell am force-stop io.put.putio.mobile.debug`
+  and start MainActivity. Files opens offline: `Can’t reach put.io.` and
+  `Offline. Showing what’s on this device.` list the clip. Capture
+  `offline-cold-start`. Downloads plays the clip as in Offline play.
+- **Back online.** Open Files, run
+  `adb -s $SERIAL shell cmd connectivity airplane-mode disable`, and
+  `$S/ui.sh gone $SERIAL --text "Can’t reach put.io."` with no tap. Files
+  reloads, and `./scripts/sign-in-devs-auto.sh $SERIAL` passes with no
+  approval: put.io confirmed the session again.
 - **Remove.** Changes only the device, so no ledger intent. Open the row's `Download actions for verify-clip.mp4`, tap
   `Remove from this device`, confirm `Remove`. The row leaves;
   `putio files list --parent-id <root id>` still lists the clip.
@@ -52,6 +55,9 @@ Preconditions:
   `On this device` is also the Downloads section heading. Prove completion in
   the run's own folder, where the clip is the only row that can carry the
   glyph.
+- An offline cold start opens the shell only with an account put.io confirmed
+  on this install. The first start of a build that never confirmed one shows
+  `Couldn’t check your session`, and retries once the network returns.
 - Strings use typographic apostrophes (`’`), and selectors match them
   exactly.
 - Without POST_NOTIFICATIONS the first download opens Android's permission

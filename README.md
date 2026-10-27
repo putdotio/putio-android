@@ -20,7 +20,8 @@ Mobile, on the emulator harness against the live API:
   viewers
 - Video and background audio playback with resume, tracks, subtitles,
   picture-in-picture and positions saved to put.io
-- Offline downloads with offline playback
+- Offline downloads with offline playback, also after a start with no
+  network; the session is checked again when the network returns
 - Transfer intake from magnet links, `.torrent` files and shared links
 - Launcher shortcuts, a Transfers widget and the system file picker
 - Google Cast from the players, resuming locally where the receiver stopped

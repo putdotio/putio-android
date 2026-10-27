@@ -202,6 +202,7 @@ class MobileOAuthRuntime internal constructor(
                     scope = applicationScope,
                 ),
                 clearAccountLocalState = { clearAccountLocalState(context) },
+                validatedAccounts = SharedPreferencesValidatedAccountStore(context),
             )
             // Sessions also change without a UI, so the process scope tells diagnostics.
             applicationScope.launch {
@@ -217,7 +218,10 @@ class MobileOAuthRuntime internal constructor(
                     MobileWidgets.sessionStarted(context)
                 },
             ).also { runtime ->
-                syncWhenOnline(context, runtime.keepOfflinePositions(downloadPreferences(context)))
+                val revalidation = SessionRevalidation(authController, applicationScope)
+                syncWhenOnline(context, runtime.keepOfflinePositions(downloadPreferences(context))) {
+                    applicationScope.launch { revalidation.onNetworkReturned() }
+                }
             }
         }
 
@@ -243,14 +247,33 @@ class MobileOAuthRuntime internal constructor(
             MobileContinueWatchingStore.clearAll(context)
         }
 
-        /** put.io answers again once a validated network returns; positions saved offline go then. */
-        private fun syncWhenOnline(context: Context, positions: OfflinePlaybackPositions) {
-            context.getSystemService(ConnectivityManager::class.java)?.registerDefaultNetworkCallback(
+        /**
+         * put.io answers again once a validated network returns: positions saved offline go then,
+         * and [onNetworkReturned] runs when the network had been missing or unvalidated.
+         */
+        private fun syncWhenOnline(
+            context: Context,
+            positions: OfflinePlaybackPositions,
+            onNetworkReturned: () -> Unit,
+        ) {
+            val connectivity = context.getSystemService(ConnectivityManager::class.java) ?: return
+            // Registration reports the current network at once; a start without one waits for it.
+            val returns = NetworkReturns(
+                initiallyValidated = connectivity.activeNetwork
+                    ?.let(connectivity::getNetworkCapabilities)
+                    ?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true,
+                onReturn = onNetworkReturned,
+            )
+            connectivity.registerDefaultNetworkCallback(
                 object : ConnectivityManager.NetworkCallback() {
+                    override fun onLost(network: Network) {
+                        returns.onLost()
+                    }
+
                     override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
-                        if (capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) {
-                            positions.requestSync()
-                        }
+                        val validated = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+                        if (validated) positions.requestSync()
+                        returns.onCapabilities(validated)
                     }
                 },
             )
@@ -270,7 +293,10 @@ internal fun oauthRuntimeFailureLog(error: Exception): String =
 
 private const val MOBILE_OAUTH_LOG_TAG = "PutioOAuth"
 
-/** Null while restoring, validating, signing out, or unable to read or clear the token, so the last answer stands. */
+/**
+ * Null while restoring, validating, signed in offline before put.io confirms the account, signing out,
+ * or unable to read or clear the token, so the last answer stands.
+ */
 internal fun MobileAuthState.diagnosticsAllowed(): Boolean? =
     when (this) {
         MobileAuthState.Initializing,
@@ -282,5 +308,5 @@ internal fun MobileAuthState.diagnosticsAllowed(): Boolean? =
 
         is MobileAuthState.SignedOut -> true.takeUnless { reason == MobileSignedOutReason.SecureStorageUnavailable }
         MobileAuthState.AwaitingOAuthCallback -> true
-        is MobileAuthState.SignedIn -> account.diagnosticsEnabled
+        is MobileAuthState.SignedIn -> account.diagnosticsEnabled.takeIf { validated }
     }

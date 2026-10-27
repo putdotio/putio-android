@@ -67,8 +67,9 @@ Three ways to get an emulator:
   renderer that saved it; both boots use `-gpu swiftshader_indirect`.
 - For a minute or two after a snapshot load the app can fail to check its
   restored session: it shows `Couldn’t check your session` with `Try again`,
-  and the sign-in script stops with
-  `Device sign-in stopped: app is ValidationUnavailable`. The first
+  or Files offline when it confirmed the account before, and the sign-in
+  script stops with `Device sign-in stopped: app is ValidationUnavailable`
+  or `app is signed in offline`. The first
   `relaunch` waits that out, tapping `Try again`. If the script still stops
   there, relaunch and run it again.
 - After a snapshot load the app's window can composite black: the status bar
