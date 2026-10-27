@@ -203,15 +203,10 @@ class MobilePlaybackOptionsProofTest {
         openSpeedOptions()
         val choice = compose.onNodeWithText("1.25×")
         val instrumentation = InstrumentationRegistry.getInstrumentation()
-        // The quick speeds are a row under the speed track: down into the row, then across to 1.25×.
+        // Focus opens on the speed track, which takes the arrow keys; Tab moves on to the quick speeds.
         for (ignored in 0 until 12) {
             if (focused("1.25×")) break
-            val key = when {
-                focused("1×") -> KeyEvent.KEYCODE_DPAD_RIGHT
-                focused("1.5×") || focused("2×") -> KeyEvent.KEYCODE_DPAD_LEFT
-                else -> KeyEvent.KEYCODE_DPAD_DOWN
-            }
-            instrumentation.sendKeyDownUpSync(key)
+            instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_TAB)
             compose.waitForIdle()
         }
         choice.assertIsFocused()
