@@ -121,13 +121,15 @@ class OfflinePlaybackPositionsTest {
             positions.afterWrite(USER, FILE, 400.0, PlaybackRepositoryResult.Success(Unit))
         }
         positions.syncNow(USER)
+        // The pass that follows sends the newer position again.
+        positions.syncNow(USER)
 
         // put.io ends on the newer position, and the older one's confirmation reaches no Files row.
         assertEquals(400.0, remote.positions[FILE])
         assertEquals(listOf(FILE to 250.0, FILE to 400.0), remote.writes)
         assertEquals(400.0, positions.store(USER).known(FILE))
         assertNull(positions.store(USER).pending(FILE))
-        assertTrue(synced.isEmpty())
+        assertEquals(listOf(FILE to 400.0), synced)
     }
 
     @Test
@@ -140,6 +142,7 @@ class OfflinePlaybackPositionsTest {
             positions.afterWrite(USER, FILE, 400.0, PlaybackRepositoryResult.Success(Unit))
         }
         remote.failWritesAfter = 1
+        positions.syncNow(USER)
         positions.syncNow(USER)
         assertEquals(250.0, remote.positions[FILE])
         assertEquals(400.0, positions.store(USER).pending(FILE)?.seconds)
