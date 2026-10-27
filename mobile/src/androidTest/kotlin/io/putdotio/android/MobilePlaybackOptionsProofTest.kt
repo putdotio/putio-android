@@ -274,8 +274,11 @@ class MobilePlaybackOptionsProofTest {
         } else {
             hasContentDescription("Playback speed ", substring = true)
         }
-        if (compose.onAllNodes(trigger).fetchSemanticsNodes().isEmpty()) {
+        // Controls that are fading out still exist but aren't displayed; a tap brings them back.
+        repeat(3) {
+            if (runCatching { compose.onNode(trigger).assertIsDisplayed() }.isSuccess) return
             compose.onNodeWithTag(MOBILE_PLAYER_GESTURE_TAG).performTouchInput { click() }
+            compose.waitForIdle()
         }
         compose.onNode(trigger).assertIsDisplayed()
     }
