@@ -16,6 +16,8 @@ internal class AuthControllerFixture(
     val pendingAttemptStore: FakePendingOAuthAttemptStore = FakePendingOAuthAttemptStore(),
     revocations: RevocationScript = RevocationScript(),
 ) {
+    /** What an earlier process kept as the account put.io last confirmed. */
+    val validatedAccounts = FakeValidatedAccounts()
     val clock = FakeOAuthAttemptClock(NOW_EPOCH_MILLIS)
     val tokenStore = FakeAuthTokenStore(storedToken?.let { checkNotNull(AccessToken.parse(it)) })
     val gateway = FakeAuthSessionGateway(validationResults)
@@ -30,7 +32,26 @@ internal class AuthControllerFixture(
         sessionGateway = gateway,
         tokenRevocations = PendingTokenRevocations(revocationStore, tokenStore, revoker, revocationScope),
         clearAccountLocalState = { accountLocalStateClears += 1 },
+        validatedAccounts = validatedAccounts,
     )
+}
+
+internal class FakeValidatedAccounts(
+    var account: MobileAccount? = null,
+) : ValidatedAccountStore {
+    var failClear = false
+
+    override suspend fun read(): MobileAccount? = account
+
+    override suspend fun write(account: MobileAccount) {
+        this.account = account
+    }
+
+    override suspend fun clear(): Boolean {
+        if (failClear) return false
+        account = null
+        return true
+    }
 }
 
 /** A revocation recorded by an earlier process, and put.io's answers to each revocation attempt. */
@@ -105,6 +126,7 @@ internal class FakeAuthSessionGateway(
     var configuredToken: AccessToken? = null
     var clearCount = 0
     var validationFailure: Throwable? = null
+    var beforeValidate: (suspend () -> Unit)? = null
 
     override fun buildLoginUrl(redirectUri: String, state: String): String {
         calls += "build-url"
@@ -125,6 +147,7 @@ internal class FakeAuthSessionGateway(
 
     override suspend fun validateSession(): SessionValidationResult {
         calls += "validate"
+        beforeValidate?.invoke()
         validationFailure?.let { throw it }
         return results.removeFirst()
     }

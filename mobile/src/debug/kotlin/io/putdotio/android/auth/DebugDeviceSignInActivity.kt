@@ -92,8 +92,13 @@ internal class DebugDeviceSignIn(
         val controller = runtime.authController
         controller.restoreSession()
         when (val settled = controller.state.first { it.isSettled() }) {
+            // A session that opened offline is not proof that put.io accepts it.
             is MobileAuthState.SignedIn -> {
-                mutableState.value = DebugDeviceSignInState.SignedIn(settled.account.userId)
+                mutableState.value = if (settled.validated) {
+                    DebugDeviceSignInState.SignedIn(settled.account.userId)
+                } else {
+                    DebugDeviceSignInState.Stopped("app is signed in offline; put.io has not confirmed the session")
+                }
                 return
             }
             is MobileAuthState.SignedOut -> Unit

@@ -47,9 +47,15 @@ sealed interface MobileAuthState {
         val source: SessionValidationSource,
     ) : MobileAuthState
 
+    /**
+     * [validated] is false while put.io has not answered for a restored session: the shell runs
+     * offline on the account put.io last confirmed, and [MobileAuthController.revalidate] confirms it
+     * in place, keeping [sessionId].
+     */
     data class SignedIn(
         val account: MobileAccount,
         val sessionId: MobileAuthSessionId,
+        val validated: Boolean = true,
     ) : MobileAuthState
 
     data object SigningOut : MobileAuthState
@@ -80,8 +86,9 @@ enum class OAuthCallbackHandlingResult {
 }
 
 // One mutex and one state flow serialize every auth transition; splitting the operations
-// across classes would share that mutable state between them.
-@Suppress("TooManyFunctions")
+// across classes would share that mutable state between them. Each parameter is a separate
+// store or process boundary those transitions order.
+@Suppress("TooManyFunctions", "LongParameterList")
 class MobileAuthController internal constructor(
     private val oauthConfiguration: MobileOAuthConfiguration,
     private val tokenStore: AuthTokenStore,
@@ -90,6 +97,7 @@ class MobileAuthController internal constructor(
     private val tokenRevocations: TokenRevocations,
     /** Drops what this device keeps for the account, such as the Move picker's remembered folder. */
     private val clearAccountLocalState: () -> Unit = {},
+    private val validatedAccounts: ValidatedAccountStore = NoValidatedAccounts,
 ) {
     private val operationMutex = Mutex()
     private val mutableState = MutableStateFlow<MobileAuthState>(MobileAuthState.Initializing)
@@ -238,6 +246,48 @@ class MobileAuthController internal constructor(
         }
     }
 
+    /**
+     * Asks put.io again about a session that opened offline. True once nothing is left to confirm:
+     * put.io confirmed or rejected it, or another state replaced it. The network call runs outside
+     * the lock, so sign-out never waits on it; a result for a replaced session is dropped.
+     */
+    // Gateway implementations are process boundaries; cancellation remains control flow.
+    @Suppress("TooGenericExceptionCaught")
+    internal suspend fun revalidate(): Boolean {
+        val pending = (mutableState.value as? MobileAuthState.SignedIn)?.takeUnless { it.validated } ?: return true
+        val result = try {
+            sessionGateway.validateSession()
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            SessionValidationResult.Unavailable(error)
+        }
+        return operationMutex.withLock {
+            val current = mutableState.value as? MobileAuthState.SignedIn
+            if (current == null || current.validated || current.sessionId != pending.sessionId) {
+                return@withLock true
+            }
+            when (result) {
+                is SessionValidationResult.Valid -> {
+                    validatedAccounts.write(result.account)
+                    // The token names its account; a different one is a different session.
+                    val sessionId = if (result.account.userId == current.account.userId) {
+                        current.sessionId
+                    } else {
+                        nextSessionId()
+                    }
+                    mutableState.value = MobileAuthState.SignedIn(result.account, sessionId)
+                    true
+                }
+                is SessionValidationResult.Rejected -> {
+                    handleRejectedSession()
+                    true
+                }
+                is SessionValidationResult.Unavailable -> false
+            }
+        }
+    }
+
     suspend fun rejectAuthoritativeSession(): Boolean = rejectAuthoritativeSession(expectedSessionId = null)
 
     internal suspend fun rejectAuthoritativeSession(
@@ -263,6 +313,8 @@ class MobileAuthController internal constructor(
 
     private suspend fun persistAndValidateToken(accessToken: AccessToken, source: SessionValidationSource) {
         try {
+            // The previous token's account must never open the shell for this one.
+            if (!validatedAccounts.clear()) throw AuthTokenStorageException("clear validated account")
             tokenStore.write(accessToken)
         } catch (_: AuthTokenStorageException) {
             clearConfiguredSession()
@@ -291,15 +343,25 @@ class MobileAuthController internal constructor(
         }
         when (result) {
             is SessionValidationResult.Valid -> {
-                sessionSequence = Math.incrementExact(sessionSequence)
-                mutableState.value = MobileAuthState.SignedIn(
-                    account = result.account,
-                    sessionId = MobileAuthSessionId(sessionSequence),
-                )
+                validatedAccounts.write(result.account)
+                mutableState.value = MobileAuthState.SignedIn(account = result.account, sessionId = nextSessionId())
             }
-            is SessionValidationResult.Unavailable -> mutableState.value = MobileAuthState.ValidationUnavailable(source)
+            is SessionValidationResult.Unavailable -> {
+                // Only a stored session put.io confirmed before opens offline; a new sign-in has none.
+                val offlineAccount = if (source.restoresStoredToken()) validatedAccounts.read() else null
+                mutableState.value = if (offlineAccount != null) {
+                    MobileAuthState.SignedIn(offlineAccount, nextSessionId(), validated = false)
+                } else {
+                    MobileAuthState.ValidationUnavailable(source)
+                }
+            }
             is SessionValidationResult.Rejected -> handleRejectedSession()
         }
+    }
+
+    private fun nextSessionId(): MobileAuthSessionId {
+        sessionSequence = Math.incrementExact(sessionSequence)
+        return MobileAuthSessionId(sessionSequence)
     }
 
     private suspend fun handleRejectedSession() = withContext(NonCancellable) {
@@ -339,6 +401,7 @@ class MobileAuthController internal constructor(
 
     private suspend fun clearLocalSession(): Boolean {
         clearAccountLocalState()
+        val accountCleared = validatedAccounts.clear()
         val storageCleared = try {
             tokenStore.clear()
             true
@@ -347,7 +410,7 @@ class MobileAuthController internal constructor(
         }
         val pendingAttemptCleared = oauthAttempts.clear()
         clearConfiguredSession()
-        return storageCleared && pendingAttemptCleared
+        return accountCleared && storageCleared && pendingAttemptCleared
     }
 
     private suspend fun finishPendingSignIn(reason: MobileSignedOutReason?): Boolean {
@@ -392,6 +455,9 @@ private fun MobileOAuthConfiguration.initialSignedOutState(): MobileAuthState.Si
             null
         },
     )
+
+private fun SessionValidationSource.restoresStoredToken(): Boolean =
+    this == SessionValidationSource.RESTORE || this == SessionValidationSource.RETRY
 
 private fun MobileAuthState.canHandleOAuthAttempt(): Boolean =
     this == MobileAuthState.Initializing ||
