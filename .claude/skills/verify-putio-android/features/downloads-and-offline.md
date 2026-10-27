@@ -29,11 +29,17 @@ Preconditions:
   `adb -s $SERIAL shell cmd connectivity airplane-mode enable`, open
   Downloads, open `Download actions for verify-clip.mp4` and tap `Play` in
   that sheet (the row's own Play is only an action label). The player shows
-  the clip. Capture with `--allow-dark`.
-- **Offline root.** Open Files. The root reads `Can’t reach put.io.` and
-  lists the clip under `Offline. Showing what’s on this device.`
-- **Back online.** Run `adb -s $SERIAL shell cmd connectivity airplane-mode disable`.
-  Files loads without a tap.
+  the clip. Capture with `--allow-dark`. On a fresh AVD Android's
+  `Viewing full screen` prompt covers it first; tap `Got it`.
+- **Offline root.** Press Back, open Files and pull to refresh. The app
+  keeps the root it loaded and shows `Couldn’t refresh files.` with
+  `Try again`. The `Can’t reach put.io.` state, which lists the clip under
+  `Offline. Showing what’s on this device.`, needs a root that never
+  loaded. A cold start offline stops at `Couldn’t check your session`
+  instead ([#417](https://github.com/putdotio/putio-android/issues/417)):
+  report that state unverified until it ships.
+- **Back online.** Run `adb -s $SERIAL shell cmd connectivity airplane-mode disable`
+  and tap `Try again`. Files reloads.
 - **Remove.** Changes only the device, so no ledger intent. Open the row's `Download actions for verify-clip.mp4`, tap
   `Remove from this device`, confirm `Remove`. The row leaves;
   `putio files list --parent-id <root id>` still lists the clip.

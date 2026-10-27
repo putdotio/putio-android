@@ -24,8 +24,9 @@ Preconditions:
   `$S/ui.sh tap $SERIAL --text "Rename" --last`. The row reads
   `renamed-<run>.txt`. Adopt the file id and settle, then read its name back
   with `putio files list --parent-id <root id>`.
-- **Move.** Intend `move <file id>`, open the sheet, tap `Move`, open
-  `Target folder`, confirm. The row leaves this folder;
+- **Move.** Intend `move <file id>`, open the sheet and tap `Move`. The
+  picker opens at the Files root: open `android-verify-<run>`, then
+  `Target folder`, and tap `Move to Target folder`. The row leaves this folder;
   `putio files list --parent-id <target id>` lists it. Adopt the id and
   settle.
 - **Copy.** `Make a copy` shows only on items shared with the account, never
