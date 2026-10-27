@@ -35,26 +35,22 @@ internal class MobilePlaybackReporting(
     val savedPositions: SharedFlow<SavedPlaybackPosition> = mutableSavedPositions
 
     private val writer = PlaybackPositionWriter(scope) { fileId, seconds ->
-        // Inside the offline lock, so a sync write never lands after this newer position.
-        val report: suspend () -> PlaybackRepositoryResult<Unit> = {
-            val signedIn = auth.value as? MobileAuthState.SignedIn
-            val sessionId = signedIn?.sessionId
-            write(fileId, seconds).also { result ->
-                if (result is PlaybackRepositoryResult.Success) publishSaved(fileId, seconds)
-                signedIn?.let { offline()?.afterWrite(it.account.userId, fileId, seconds, result) }
-                if (sessionId != null && result is PlaybackRepositoryResult.Failure &&
-                    result.failure.putioFailure is PutioFailure.AuthenticationRequired
-                ) {
-                    // Rejection clears the session and cancels its writer. It must own a separate job.
-                    scope.launch {
-                        if ((auth.value as? MobileAuthState.SignedIn)?.sessionId == sessionId) {
-                            onAuthenticationRequired(sessionId)
-                        }
+        val signedIn = auth.value as? MobileAuthState.SignedIn
+        val sessionId = signedIn?.sessionId
+        write(fileId, seconds).also { result ->
+            if (result is PlaybackRepositoryResult.Success) publishSaved(fileId, seconds)
+            signedIn?.let { offline()?.afterWrite(it.account.userId, fileId, seconds, result) }
+            if (sessionId != null && result is PlaybackRepositoryResult.Failure &&
+                result.failure.putioFailure is PutioFailure.AuthenticationRequired
+            ) {
+                // Rejection clears the session and cancels its writer. It must own a separate job.
+                scope.launch {
+                    if ((auth.value as? MobileAuthState.SignedIn)?.sessionId == sessionId) {
+                        onAuthenticationRequired(sessionId)
                     }
                 }
             }
         }
-        offline()?.writing(report) ?: report()
     }
     private var settings: SettingsBinding? = null
     private var settingsJob: Job? = null

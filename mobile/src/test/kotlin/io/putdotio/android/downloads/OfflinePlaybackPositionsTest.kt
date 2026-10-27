@@ -10,7 +10,6 @@ import io.putdotio.android.playback.PlaybackRepositoryResult
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
 import java.io.IOException
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
@@ -116,10 +115,16 @@ class OfflinePlaybackPositionsTest {
         val positions = playedOffline()
 
         remote.online = true
-        remote.duringWrite = { positions.afterWrite(USER, FILE, 400.0, PlaybackRepositoryResult.Success(Unit)) }
+        // The player's newer write lands and is accepted first; the older sync write lands after it.
+        remote.duringWrite = {
+            remote.positions[FILE] = 400.0
+            positions.afterWrite(USER, FILE, 400.0, PlaybackRepositoryResult.Success(Unit))
+        }
         positions.syncNow(USER)
 
-        // The older position's late confirmation neither rewrites what is known nor reaches Files rows.
+        // put.io ends on the newer position, and the older one's confirmation reaches no Files row.
+        assertEquals(400.0, remote.positions[FILE])
+        assertEquals(listOf(FILE to 250.0, FILE to 400.0), remote.writes)
         assertEquals(400.0, positions.store(USER).known(FILE))
         assertNull(positions.store(USER).pending(FILE))
         assertTrue(synced.isEmpty())
@@ -234,8 +239,6 @@ internal class FakePositionRemote : PositionRemote {
     /** Runs after a read has taken its value, as a concurrent request would. */
     var afterRead: () -> Unit = {}
     var duringWrite: () -> Unit = {}
-    /** Holds the next write until completed, as a slow request would. */
-    var writeGate: CompletableDeferred<Unit>? = null
     val positions = mutableMapOf<Long, Double>()
     val writes = mutableListOf<Pair<Long, Double>>()
     var reads = 0
@@ -251,7 +254,6 @@ internal class FakePositionRemote : PositionRemote {
     }
 
     override suspend fun write(fileId: Long, seconds: Double): PlaybackRepositoryResult<Unit> {
-        writeGate?.also { writeGate = null }?.await()
         duringWrite()
         duringWrite = {}
         if (online) positions[fileId] = seconds

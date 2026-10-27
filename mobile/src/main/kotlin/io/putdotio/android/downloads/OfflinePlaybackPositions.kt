@@ -229,9 +229,6 @@ internal class OfflinePositionStore(private val preferences: SharedPreferences, 
  * went offline wins; otherwise this device's newest position is written. A pass runs for the
  * signed-in user only, stops when that changes, and drops pending positions if the account has
  * resume turned off. Application-owned: playback reports and the sync outlive any screen.
- *
- * Every position write goes through [writing], so a sync write never lands after a newer one the
- * player sent.
  */
 internal class OfflinePlaybackPositions(
     private val preferences: SharedPreferences,
@@ -242,7 +239,6 @@ internal class OfflinePlaybackPositions(
 ) {
     private val stores = mutableMapOf<Long, OfflinePositionStore>()
     private val passes = Mutex()
-    private val writes = Mutex()
 
     @Volatile
     private var passRequested = false
@@ -250,9 +246,6 @@ internal class OfflinePlaybackPositions(
     @Synchronized
     fun store(userId: Long): OfflinePositionStore =
         stores.getOrPut(userId) { OfflinePositionStore(preferences, userId) }
-
-    /** Runs one position write, with its bookkeeping, apart from every other position write. */
-    suspend fun <T> writing(block: suspend () -> T): T = writes.withLock { block() }
 
     /**
      * After a reporting write for a downloaded file: an accepted position becomes the known one,
@@ -342,32 +335,52 @@ internal class OfflinePlaybackPositions(
                 passRequested = true
             }
             expected != null && !samePosition(current, expected) -> store.yieldTo(update, current)
-            else -> writing {
-                // The player's own write may have landed since the read; the newer position then stands.
-                if (!store.isCurrent(update) || signedInUser() != userId) return@writing
+            // The player's own write may have landed during the read; the newer position then stands.
+            !store.isCurrent(update) -> Unit
+            else -> {
                 store.attempted(update)
                 val written = remote.write(update.fileId, update.seconds) is PlaybackRepositoryResult.Success
                 // After a sign-out mid-write, the next pass finds the attempted position and settles it.
-                if (written && signedInUser() == userId) {
-                    settle(store, update, update.seconds)
+                if (written && signedInUser() == userId &&
+                    settle(store, update, update.seconds) == SyncResult.SUPERSEDED
+                ) {
+                    sendNewer(userId, store, update)
                 }
             }
         }
     }
 
-    private fun settle(store: OfflinePositionStore, update: PendingPosition, seconds: Double) {
-        when (store.synced(update, seconds)) {
-            SyncResult.SUPERSEDED -> Unit
-            SyncResult.NEWER_WAITING -> {
-                passRequested = true
-                onSynced(update.fileId, seconds)
-            }
-            SyncResult.SETTLED -> onSynced(update.fileId, seconds)
+    /**
+     * The player's newer position was accepted while [update] was in flight, and the older one may
+     * have landed after it: send the newest known position again so it lands last.
+     */
+    private suspend fun sendNewer(userId: Long, store: OfflinePositionStore, update: PendingPosition) {
+        var sent = update.seconds
+        repeat(MAX_RESENDS) {
+            val newer = store.known(update.fileId)?.takeUnless { samePosition(it, sent) } ?: return
+            // A failed player write waits in the store; the next pass sends it.
+            if (signedInUser() != userId || store.pending(update.fileId) != null) return
+            if (remote.write(update.fileId, newer) !is PlaybackRepositoryResult.Success) return
+            sent = newer
         }
     }
 
+    private fun settle(store: OfflinePositionStore, update: PendingPosition, seconds: Double): SyncResult =
+        store.synced(update, seconds).also { result ->
+            when (result) {
+                SyncResult.SUPERSEDED -> Unit
+                SyncResult.NEWER_WAITING -> {
+                    passRequested = true
+                    onSynced(update.fileId, seconds)
+                }
+                SyncResult.SETTLED -> onSynced(update.fileId, seconds)
+            }
+        }
+
     private companion object {
         const val REFRESH_TIMEOUT_MILLIS = 3_000L
+        // Each resend answers a newer position accepted during the one before; the player keeps reporting.
+        const val MAX_RESENDS = 3
     }
 }
 
