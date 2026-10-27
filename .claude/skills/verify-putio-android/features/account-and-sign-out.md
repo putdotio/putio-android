@@ -23,11 +23,13 @@ Preconditions:
 - **Trash.** Tap `Trash`. The list or its empty state shows. Leave it
   untouched.
 - **Sign out.** Only on a `--fresh` run, and last. Tap `Sign out`; the dialog reads
-  `Sign out of put.io?` with `Remove downloads from this device`. Confirm
+  `Sign out of put.io?`, with `Remove downloads from this device` only
+  while downloads are on the device. Confirm
   `Sign out`. Run `$S/ui.sh tap $SERIAL --text "Sign out"` twice and
   `$S/ui.sh wait $SERIAL --match "^Welcome"`. Capture `account-sign-out`.
-- **Back in.** Run `./scripts/sign-in-devs-auto.sh $SERIAL` to sign in for
-  the next recipe.
+- **Back in.** Only when another recipe follows: run
+  `./scripts/sign-in-devs-auto.sh $SERIAL`, and sign out again before
+  Cleanup.
 
 ## Gotchas
 

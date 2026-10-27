@@ -74,6 +74,12 @@ Three ways to get an emulator:
 - After a snapshot load the app's window can composite black: the status bar
   draws, the app does not, and `capture.sh` rejects the screenshot as
   near-black. `session.sh relaunch` restarts the app, which draws it again.
+- After `install` on a snapshot, System UI can put the snapshot's device
+  sign-in screen back over the app. `relaunch` starts MainActivity again
+  when another of the app's activities is on top.
+- In a fresh AVD's first minutes Google Play services updates itself and can
+  kill the app (`forcing restart due to module cast.framework.dynamite` in
+  logcat). The app vanishes to the launcher; run `session.sh relaunch`.
 - After a code change: assemble, then `session.sh install`. `install -r`
   keeps the session, so skip sign-in; Doctor confirms it.
 

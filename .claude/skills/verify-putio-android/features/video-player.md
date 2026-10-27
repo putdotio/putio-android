@@ -11,12 +11,20 @@ Preconditions:
 
 - **Open.** Tap the clip's row. Run
   `$S/ui.sh tap $SERIAL --text "verify-clip.mp4"` and
-  `$S/ui.sh gone $SERIAL --text "Preparing video" 60`. The window turns
-  landscape: `adb -s $SERIAL shell dumpsys window | grep -m1 mCurrentRotation`
-  reads `ROTATION_90` or `ROTATION_270`. Capture `video-open --allow-dark`.
-- **Controls.** Tap the video, then `Back 10 seconds` and
-  `Forward 10 seconds`. Run `$S/ui.sh tap $SERIAL --desc "Forward 10 seconds"`.
-  The elapsed time moves.
+  `$S/ui.sh gone $SERIAL --text "Preparing video" 60`. A fresh upload can
+  show `Converting to MP4` first: put.io may convert the ffmpeg clip before
+  it streams. Wait with `$S/ui.sh gone $SERIAL --text "Converting to MP4" 300`.
+  A saved position opens `Resume from <time>?` first; tap `Start over`. The
+  window turns landscape:
+  `adb -s $SERIAL shell dumpsys window | grep -m1 mCurrentRotation` reads
+  `ROTATION_90` or `ROTATION_270`. On a fresh AVD tap `Got it` on Android's
+  `Viewing full screen` prompt. Capture `video-open --allow-dark`.
+- **Controls.** Controls hide faster than `ui.sh` reads the tree, so pause
+  first: tap the video
+  (`adb -s $SERIAL shell input tap <x> <y>` at its centre) and run
+  `$S/ui.sh tap $SERIAL --desc "Pause"`; paused, they stay. Then tap
+  `Forward 10 seconds` and `Back 10 seconds`. The elapsed time moves by 10 s
+  each way. Tap `Play` before **Resume**.
 - **Speed.** Tap the speed chip (`Playback speed 1×`), then the step whose
   description is `Faster, 1.25×`. Run
   `$S/ui.sh tap $SERIAL --match "^Playback speed "` and

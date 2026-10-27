@@ -30,8 +30,8 @@ Preconditions:
 - **Background.** Press Home. Run `$S/ui.sh key $SERIAL HOME`;
   `adb -s $SERIAL shell dumpsys media_session` lists the app's session as
   playing.
-- **Stop.** Reopen the app and tap `Stop playback` on the card. The card
-  leaves.
+- **Stop.** Reopen the app: Now Playing returns. Press Back to the card and
+  tap `Stop playback`. The card leaves.
 
 ## Gotchas
 

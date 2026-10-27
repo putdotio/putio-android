@@ -218,8 +218,11 @@ case "${cmd}" in
   relaunch)
     serial="$(env_value SERIAL)"
     owns_run_serial || die "no running emulator for run ${run}"
-    "${ADB}" -s "${serial}" shell am force-stop "${PACKAGE}"
-    "${ADB}" -s "${serial}" shell am start -W -n "${PACKAGE}/io.putdotio.android.MainActivity" >/dev/null
+    start_main() {
+      "${ADB}" -s "${serial}" shell am force-stop "${PACKAGE}"
+      "${ADB}" -s "${serial}" shell am start -W -n "${PACKAGE}/io.putdotio.android.MainActivity" >/dev/null
+    }
+    start_main
     ui="$(dirname "${BASH_SOURCE[0]}")/ui.sh"
     # Right after a snapshot load the app can fail to check its session for a
     # minute or two; its "Couldn’t check your session" screen keeps the session
@@ -227,6 +230,15 @@ case "${cmd}" in
     deadline=$((SECONDS + ${PUTIO_VERIFY_SESSION_TIMEOUT:-240}))
     until "${ui}" find "${serial}" --match '^(Search your files|Welcome!|Welcome back!)$' >/dev/null 2>&1; do
       ((SECONDS < deadline)) || die "the app showed neither Files nor Welcome; run ui.sh dump ${serial} to see why"
+      # After install -r on a snapshot, System UI can restore the snapshot's
+      # device sign-in screen over MainActivity; start MainActivity again.
+      top="$("${ADB}" -s "${serial}" shell dumpsys activity activities 2>/dev/null | tr -d '\r' |
+        sed -n 's/.*topResumedActivity=ActivityRecord{[^ ]* [^ ]* \([^ ]*\) .*/\1/p' | head -1 || true)"
+      if [[ "${top}" == "${PACKAGE}/"* && "${top}" != *"/io.putdotio.android.MainActivity" ]]; then
+        log "${top} is on top; starting MainActivity again"
+        start_main
+        continue
+      fi
       if "${ui}" find "${serial}" --text "Couldn’t check your session" >/dev/null 2>&1; then
         log "session check unavailable; tapping Try again"
         "${ui}" tap "${serial}" --text "Try again" || true

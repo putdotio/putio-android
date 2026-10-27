@@ -28,8 +28,8 @@ Preconditions:
   returns to the results with their scroll.
 - **Folder scope.** In `android-verify-<run>`, tap the bar's search button.
   Run `$S/ui.sh tap $SERIAL --desc "Search in android-verify-$RUN"` and
-  `$S/ui.sh type $SERIAL "Inner"`. Only `Inner folder` shows. Back leaves
-  Search first, then the folder.
+  `$S/ui.sh type $SERIAL "Inner"`. Only `Inner folder` shows. Back closes
+  the keyboard, then leaves Search, then the folder.
 - **Recent.** Clear the field with `Clear search`. Run
   `$S/ui.sh tap $SERIAL --desc "Clear search"`. `Recent searches` lists the
   submitted run name; tapping it searches again. Remove it with its
@@ -38,8 +38,9 @@ Preconditions:
   Run `$S/ui.sh type $SERIAL "zz-no-such-$RUN"` and
   `$S/ui.sh wait $SERIAL --text "Nothing matches."`. The message names the
   term and the chips hide.
-- **Link entry.** Run `$S/ui.sh link $SERIAL putio://search`. Search opens
-  without the keyboard.
+- **Link entry.** From the Files root run
+  `$S/ui.sh link $SERIAL putio://search`. Search opens without the keyboard
+  and keeps the last term typed in this app session.
 
 ## Gotchas
 
