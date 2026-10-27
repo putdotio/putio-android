@@ -133,9 +133,6 @@ triggers and path filters; CI holds no secrets.
   `--dry-run` task lists with the full command's; together they must run
   exactly the same tasks.
 
-To reproduce a CI failure, use the
-[android-delivery](.claude/skills/android-delivery/SKILL.md) skill.
-
 ### Google Play delivery
 
 [Google Play Internal](.github/workflows/play-internal.yml) uploads both
@@ -146,4 +143,6 @@ promotes or changes the rollout. Their inputs own the options.
   Environment's secrets.
 - If an upload lands but its `tag` job fails, rerun only that job. A full
   rerun repeats the version code, and Google Play refuses it.
-- Version codes: [android-delivery](.claude/skills/android-delivery/SKILL.md).
+- Each upload needs a new `version_name`. Mobile and TV share the
+  [putio-tv-native-legacy](https://github.com/putdotio/putio-tv-native-legacy)
+  listing's version codes.
