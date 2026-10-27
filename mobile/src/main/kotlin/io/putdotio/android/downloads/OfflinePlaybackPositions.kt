@@ -357,9 +357,10 @@ internal class OfflinePlaybackPositions(
     private suspend fun sendNewer(userId: Long, store: OfflinePositionStore, update: PendingPosition) {
         var sent = update.seconds
         repeat(MAX_RESENDS) {
-            val newer = store.known(update.fileId)?.takeUnless { samePosition(it, sent) } ?: return
             // A failed player write waits in the store; the next pass sends it.
-            if (signedInUser() != userId || store.pending(update.fileId) != null) return
+            val newer = store.known(update.fileId)?.takeIf {
+                !samePosition(it, sent) && signedInUser() == userId && store.pending(update.fileId) == null
+            } ?: return
             if (remote.write(update.fileId, newer) !is PlaybackRepositoryResult.Success) return
             sent = newer
         }
