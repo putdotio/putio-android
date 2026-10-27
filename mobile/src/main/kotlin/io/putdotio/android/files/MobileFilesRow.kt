@@ -92,9 +92,8 @@ internal fun MobileFilesRow(
         onClick = onClick,
         onClickLabel = onClickLabel,
         onActions = onActions?.takeIf { actionsEnabled },
-        actionsLabel = actionsLabel,
         onLongClick = onLongClick,
-        onLongClickLabel = onLongClickLabel,
+        onLongClickLabel = if (onLongClick != null) onLongClickLabel else actionsLabel,
     )
 
     val trailing: (@Composable () -> Unit)? = when {
@@ -256,7 +255,6 @@ private fun rowInteraction(
     onClick: (() -> Unit)?,
     onClickLabel: String?,
     onActions: (() -> Unit)?,
-    actionsLabel: String,
     onLongClick: (() -> Unit)?,
     onLongClickLabel: String?,
 ): Modifier {
@@ -267,7 +265,7 @@ private fun rowInteraction(
             onClickLabel = onClickLabel,
             role = Role.Button,
             onClick = tap ?: {},
-            onLongClickLabel = if (onLongClick != null) onLongClickLabel else actionsLabel,
+            onLongClickLabel = onLongClickLabel,
             onLongClick = longClick,
         )
         tap != null -> Modifier.clickable(onClickLabel = onClickLabel, role = Role.Button, onClick = tap)
