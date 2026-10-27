@@ -104,6 +104,11 @@ internal fun MobileNowPlayingScreen(
     onAudioSelectionChanged: (AudioSelection) -> Unit,
     modifier: Modifier = Modifier,
     sleepTimer: MobileSleepTimer = MobileSleepTimer.Shared,
+    castButton: @Composable (Modifier) -> Unit = {},
+    /** "Playing on Living room TV" while a receiver plays the file; the sleep timer then stays here. */
+    castLabel: String? = null,
+    /** Try again beside [castLabel], when the file's lookup for the receiver failed. */
+    onCastRetry: (() -> Unit)? = null,
 ) {
     val options = rememberPlayerOptionsSnapshot(player)
     var sheet by rememberSaveable { mutableStateOf<NowPlayingSheet?>(null) }
@@ -111,6 +116,9 @@ internal fun MobileNowPlayingScreen(
         NowPlayingTopBar(
             canChooseAudio = options.audioTracks.size > 1,
             onAudioTrack = { sheet = NowPlayingSheet.AudioTrack },
+            castButton = castButton,
+            castLabel = castLabel,
+            onCastRetry = onCastRetry,
         )
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
             val details: @Composable (Modifier) -> Unit = { detailsModifier ->
@@ -123,8 +131,11 @@ internal fun MobileNowPlayingScreen(
                     onScrub = onScrub,
                     onPlay = onPlay,
                     chips = {
-                        MobileSpeedChip(options, { sheet = NowPlayingSheet.Speed }, onPage = true)
-                        SleepTimerChip(sleepTimer) { sheet = NowPlayingSheet.SleepTimer }
+                        // A receiver without speed control leaves the chip out.
+                        if (castLabel == null || options.canChangeSpeed) {
+                            MobileSpeedChip(options, { sheet = NowPlayingSheet.Speed }, onPage = true)
+                        }
+                        if (castLabel == null) SleepTimerChip(sleepTimer) { sheet = NowPlayingSheet.SleepTimer }
                         UpNextChip(neighbours.next) { sheet = NowPlayingSheet.UpNext }
                     },
                     modifier = detailsModifier,
@@ -168,14 +179,38 @@ internal fun MobileNowPlayingScreen(
     )
 }
 
-/** Room for the top bar's back, which the player screen draws, then More when there is a choice in it. */
+/**
+ * Room for the top bar's back, which the player screen draws, then where a receiver plays the file,
+ * Cast, and More when there is a choice in it.
+ */
 @Composable
-private fun NowPlayingTopBar(canChooseAudio: Boolean, onAudioTrack: () -> Unit) {
+private fun NowPlayingTopBar(
+    canChooseAudio: Boolean,
+    onAudioTrack: () -> Unit,
+    castButton: @Composable (Modifier) -> Unit,
+    castLabel: String?,
+    onCastRetry: (() -> Unit)?,
+) {
     Row(
         Modifier.fillMaxWidth().height(TOP_BAR_HEIGHT).padding(horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.End,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
+        Spacer(Modifier.width(TOP_BAR_BACK_ROOM))
+        if (castLabel == null) {
+            Spacer(Modifier.weight(1f))
+        } else {
+            Text(
+                castLabel,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f).testTag(MOBILE_CAST_LABEL_TAG),
+            )
+            if (onCastRetry != null) MobileCastRetry(onCastRetry)
+        }
+        castButton(Modifier)
         if (!canChooseAudio) return@Row
         var expanded by remember { mutableStateOf(false) }
         Box {
@@ -597,6 +632,9 @@ private fun UpNextRow(next: PlaybackTarget, onClick: () -> Unit) {
 }
 
 private val TOP_BAR_HEIGHT = 64.dp
+
+/** The player screen's 48dp back sits at the bar's start. */
+private val TOP_BAR_BACK_ROOM = 48.dp
 private val WIDE_LAYOUT_WIDTH = 600.dp
 
 /** Beside the glyph, the details need the transport's 288dp and their 16dp gutters. */
