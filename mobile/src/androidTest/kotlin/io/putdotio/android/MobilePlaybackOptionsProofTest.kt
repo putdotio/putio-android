@@ -18,6 +18,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.click
@@ -202,9 +203,15 @@ class MobilePlaybackOptionsProofTest {
         openSpeedOptions()
         val choice = compose.onNodeWithText("1.25×")
         val instrumentation = InstrumentationRegistry.getInstrumentation()
-        for (ignored in 0 until 8) {
-            if (choice.fetchSemanticsNode().config.getOrElse(SemanticsProperties.Focused) { false }) break
-            instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_DOWN)
+        // The quick speeds are a row under the speed track: down into the row, then across to 1.25×.
+        for (ignored in 0 until 12) {
+            if (focused("1.25×")) break
+            val key = when {
+                focused("1×") -> KeyEvent.KEYCODE_DPAD_RIGHT
+                focused("1.5×") || focused("2×") -> KeyEvent.KEYCODE_DPAD_LEFT
+                else -> KeyEvent.KEYCODE_DPAD_DOWN
+            }
+            instrumentation.sendKeyDownUpSync(key)
             compose.waitForIdle()
         }
         choice.assertIsFocused()
@@ -212,6 +219,10 @@ class MobilePlaybackOptionsProofTest {
         compose.waitUntil(15_000) {
             compose.runOnIdle { factory.current().playbackParameters.speed == 1.25f }
         }
+    }
+
+    private fun focused(label: String) = compose.onAllNodesWithText(label).fetchSemanticsNodes().any {
+        it.config.getOrElse(SemanticsProperties.Focused) { false }
     }
 
     /** The audio choices: the video's Audio side sheet, or Now Playing's sheet under More. */
