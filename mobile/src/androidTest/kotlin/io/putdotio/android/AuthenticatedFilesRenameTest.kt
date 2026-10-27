@@ -6,7 +6,6 @@ import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
-import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -14,7 +13,6 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextReplacement
-import androidx.compose.ui.test.performTouchInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.putdotio.android.auth.MobileAuthState
@@ -104,7 +102,7 @@ class AuthenticatedFilesRenameTest {
         requireSession(runtime, session)
         openContainer(fixture)
         renameThroughOverflow(fixture, runtime, session)
-        cancelThroughLongPress(fixture, runtime, session)
+        cancelThroughOverflow(fixture, runtime, session)
         requireSession(runtime, session)
         apiCheck("final identity") {
             check(runtime.putioClient.account.getInfo().userId == fixture.expectedAccountId)
@@ -148,14 +146,14 @@ class AuthenticatedFilesRenameTest {
         }
     }
 
-    private fun cancelThroughLongPress(
+    private fun cancelThroughOverflow(
         fixture: RenameProofFixture,
         runtime: MobileOAuthRuntime,
         session: MobileAuthState.SignedIn,
     ) {
         requireSession(runtime, session)
-        val cancelRow = waitForRow(MOBILE_FILES_LIST_TAG, fixture.cancelOriginalName)
-        compose.onNode(cancelRow).performTouchInput { longClick() }
+        waitForRow(MOBILE_FILES_LIST_TAG, fixture.cancelOriginalName)
+        compose.onNodeWithContentDescription(compose.activity.getString(R.string.mobile_files_actions, fixture.cancelOriginalName)).performClick()
         compose.onNodeWithText(compose.activity.getString(R.string.mobile_files_rename)).performClick()
         requireEditorName(fixture.cancelOriginalName)
         val draft = fixture.cancelOriginalName + " cancelled draft"

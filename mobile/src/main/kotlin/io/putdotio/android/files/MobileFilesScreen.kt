@@ -418,10 +418,11 @@ private fun MobileRefreshableFilesContent(
                                     focusedItemId = focusedItemId.afterFocusChange(id.value, focused)
                                 },
                                 fileDragOut = fileDragOut,
-                                // A touch drag starts after the long press opened the sheet; the drag replaces it.
+                                // A touch drag starts after the long press; it closes any sheet that press opened.
                                 onDragStarted = dismissSelection,
                                 fileOpening = fileOpening,
                                 selection = selection.listSelection(state, toolbarClearance),
+                                onStartSelection = selection?.let { s -> { item -> s.start(currentState, item) } },
                             )
                         }
 
@@ -827,6 +828,8 @@ private fun MobileFilesList(
     onDragStarted: () -> Unit,
     fileOpening: MobileFilesOpening?,
     selection: MobileFilesListSelection? = null,
+    /** Long-press starts selection with the row; null leaves long-press opening the row's actions. */
+    onStartSelection: ((FilesItem) -> Unit)? = null,
 ) {
     val viewport = content.viewport
     // The viewport counts rows; headers sit above them and show again when the list is back at its top.
@@ -902,6 +905,9 @@ private fun MobileFilesList(
                     downloadStatus = downloads.rowStatus(item.id),
                     onActions = if (hasActions(item)) { { onActions(item) } } else null,
                     actionsEnabled = actionsEnabled,
+                    onLongClick = onStartSelection?.takeIf { actionsEnabled && item.id.value > 0L }
+                        ?.let { start -> { start(item) } },
+                    onLongClickLabel = stringResource(R.string.mobile_files_select),
                     onClick = rowClick(item, fileOpening, onEvent, onPlayMedia)
                         .takeUnless { item.id in pendingItemIds },
                     onClickLabel = rowClickLabel(item, fileOpening),

@@ -89,6 +89,21 @@ class MobileFilesSelectionTest {
     }
 
     @Test
+    fun longPressStartsSelectionWithThatRowAndFoldersKeepTheirActionsInTheOverflow() {
+        setShell()
+
+        compose.onNodeWithText(SERIES.name).performTouchInput { longClick() }
+        compose.onNodeWithText("1 selected").assertExists()
+        compose.onNodeWithText("Select").assertDoesNotExist()
+        assertTrue(events.none { it is FilesBrowserEvent.OpenFolder })
+        compose.runOnIdle { backOwner.onBackPressedDispatcher.onBackPressed() }
+
+        compose.onNodeWithContentDescription("Actions for ${SERIES.name}").performClick()
+        compose.onNodeWithText("Rename").assertExists()
+        compose.onNodeWithTag(MOBILE_FILES_SELECTION_BAR_TAG).assertDoesNotExist()
+    }
+
+    @Test
     fun trashSendsEveryCheckedRowInOneDeleteAndEndsTheSelection() {
         setShell()
 
@@ -213,7 +228,7 @@ class MobileFilesSelectionTest {
     }
 
     private fun selectFromTheSheet(item: FilesItem) {
-        compose.onNodeWithText(item.name).performTouchInput { longClick() }
+        compose.onNodeWithContentDescription("Actions for ${item.name}").performClick()
         compose.onNodeWithText("Select").performClick()
         compose.onNodeWithText("Select").assertDoesNotExist()
     }
