@@ -311,17 +311,14 @@ internal class OfflinePlaybackPositions(
         // A newer local position replacing one since the pass began goes in the next pass.
         for (update in store.pending()) {
             if (signedInUser() != userId) break
-            if (store.isCurrent(update)) syncRead(userId, store, update)
-        }
-    }
-
-    private suspend fun syncRead(userId: Long, store: OfflinePositionStore, update: PendingPosition) {
-        when (val read = remote.read(update.fileId)) {
-            // The owner may have signed out while the read was in flight.
-            is PlaybackRepositoryResult.Success ->
-                if (signedInUser() == userId) syncOne(userId, store, update, read.value)
-            // A deleted or no longer accessible file would cost a read on every pass, forever.
-            is PlaybackRepositoryResult.Failure -> if (!read.failure.retryable) store.discard(update)
+            if (!store.isCurrent(update)) continue
+            when (val read = remote.read(update.fileId)) {
+                // The owner may have signed out while the read was in flight.
+                is PlaybackRepositoryResult.Success ->
+                    if (signedInUser() == userId) syncOne(userId, store, update, read.value)
+                // A deleted or no longer accessible file would cost a read on every pass, forever.
+                is PlaybackRepositoryResult.Failure -> if (!read.failure.retryable) store.discard(update)
+            }
         }
     }
 
