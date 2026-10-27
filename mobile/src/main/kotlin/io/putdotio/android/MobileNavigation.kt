@@ -570,9 +570,18 @@ internal fun NavHostController.navigateTo(destination: MobileDestination) {
     }
 }
 
+/**
+ * Shows [destination]'s own screen. Tab restoration can bring back a player saved above it, which
+ * a link or an item opened from another screen must not show: they land as on a cold start.
+ */
+internal fun NavHostController.showTab(destination: MobileDestination) {
+    navigateTo(destination)
+    popBackStack(destination.route, inclusive = false)
+}
+
 /** Trash lives under Account, so Back from it lands on Account wherever it was opened from. */
 internal fun NavHostController.navigateToTrash() {
-    navigateTo(MobileDestination.Account)
+    showTab(MobileDestination.Account)
     navigate(MOBILE_TRASH_ROUTE) { launchSingleTop = true }
 }
 

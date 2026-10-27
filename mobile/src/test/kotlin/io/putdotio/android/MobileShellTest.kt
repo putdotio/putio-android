@@ -522,6 +522,47 @@ class MobileShellTest {
             assertEquals(listOf(FilesItemId(7L)), opened)
         }
     }
+
+    @Test
+    fun aLinkToATabShowsWhatAColdStartShowsNotAPlayerSavedUnderIt() {
+        val requests = MobileDeepLinkRequests.None
+        val video = rootFile(8L, "episode.mkv", PutioFileType.VIDEO)
+        val opens = Channel<FilesExternalOpen>(Channel.UNLIMITED)
+        val items = listOf(video, shellResolvedFolder()).associateBy(FilesItem::id)
+        compose.setShell(
+            inputs = ShellInputs(
+                contentNavigation = opens.receiveAsFlow(),
+                deepLinkRequests = requests,
+                onOpenFile = { id -> opens.send(FilesExternalOpen(items.getValue(id), FilesOpenOrigin.LINK)) },
+            ),
+        )
+        fun open(link: MobileDeepLink) {
+            compose.runOnIdle { requests.receive(link) }
+            compose.waitForIdle()
+            compose.runOnIdle { assertNull(requests.pending.value) }
+        }
+        val cases = listOf(
+            MobileDeepLink.Files to MobileDeepLink.Files,
+            MobileDeepLink.Files to MobileDeepLink.File(shellResolvedFolder().id),
+            MobileDeepLink.Transfers to MobileDeepLink.Transfers,
+            MobileDeepLink.History to MobileDeepLink.History,
+        )
+        for ((tab, link) in cases) {
+            // A video opened on the tab, then a hop away, saves the tab with the player on top.
+            // The player covers the navigation bar.
+            open(tab)
+            compose.runOnIdle { opens.trySend(FilesExternalOpen(video, FilesOpenOrigin.HISTORY)) }
+            compose.onAllNodesWithTag(MOBILE_NAV_BAR_TAG).assertCountEquals(0)
+            open(if (tab == MobileDeepLink.Transfers) MobileDeepLink.Files else MobileDeepLink.Transfers)
+
+            open(link)
+            compose.onNodeWithTag(MOBILE_NAV_BAR_TAG).assertIsDisplayed()
+        }
+
+        // A link to a video still opens the player, with Files below it as on a cold start.
+        open(MobileDeepLink.File(video.id))
+        compose.onAllNodesWithTag(MOBILE_NAV_BAR_TAG).assertCountEquals(0)
+    }
 }
 
 @RunWith(AndroidJUnit4::class)

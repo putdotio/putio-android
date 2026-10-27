@@ -238,9 +238,7 @@ internal fun MobileShell(
     }
     // A folder's search stays inside it; the root's pill, Ctrl+F and links search everything.
     val showSearch = {
-        navController.navigateTo(MobileDestination.Files)
-        // Tab restoration can bring back playback above Files; Search opens on Files itself.
-        navController.popBackStack(MobileDestination.Files.route, inclusive = false)
+        navController.showTab(MobileDestination.Files)
         searchForward = true
         searchOpen = true
     }
@@ -605,32 +603,24 @@ private fun DeepLinkNavigationEffect(
 private suspend fun NavHostController.openDeepLink(link: MobileDeepLink, targets: DeepLinkTargets) {
     when (link) {
         MobileDeepLink.Files -> {
-            navigateTo(MobileDestination.Files)
+            showTab(MobileDestination.Files)
             targets.closeSearch()
         }
         is MobileDeepLink.File -> {
-            navigateTo(MobileDestination.Files)
+            showTab(MobileDestination.Files)
             targets.closeSearch()
             targets.openFile(link.id)
         }
-        MobileDeepLink.Transfers -> navigateTo(MobileDestination.Transfers)
+        MobileDeepLink.Transfers -> showTab(MobileDestination.Transfers)
         MobileDeepLink.AddTransfer -> {
-            navigateTo(MobileDestination.Transfers)
-            // Tab restoration can bring back playback above Transfers; the sheet belongs to Transfers.
-            popBackStack(MobileDestination.Transfers.route, inclusive = false)
+            showTab(MobileDestination.Transfers)
             targets.addTransfer()
         }
         MobileDeepLink.Search -> targets.openSearch()
-        MobileDeepLink.History -> {
-            navigateTo(MobileDestination.History)
-            // Tab restoration can bring back playback above History; the link shows History itself.
-            popBackStack(MobileDestination.History.route, inclusive = false)
-        }
+        MobileDeepLink.History -> showTab(MobileDestination.History)
         MobileDeepLink.Trash -> navigateToTrash()
         is MobileDeepLink.Downloads -> {
-            navigateTo(MobileDestination.Downloads)
-            // Tab restoration can bring back playback above Downloads; the row belongs to Downloads.
-            popBackStack(MobileDestination.Downloads.route, inclusive = false)
+            showTab(MobileDestination.Downloads)
             link.fileId?.let { targets.openDownload(it, link.play) }
         }
     }
@@ -654,9 +644,7 @@ private fun IncomingTransferNavigationEffect(
     LaunchedEffect(incomingRequestId, backStackEntry, navigationBlocked) {
         val requestId = incomingRequestId ?: return@LaunchedEffect
         if (backStackEntry == null || navigationBlocked) return@LaunchedEffect
-        navController.navigateTo(MobileDestination.Transfers)
-        // Tab restoration can bring back playback above Transfers; a share must reach its editor.
-        navController.popBackStack(MobileDestination.Transfers.route, inclusive = false)
+        navController.showTab(MobileDestination.Transfers)
         transferDraft.acknowledgeNavigation(requestId)
     }
 }
@@ -759,7 +747,7 @@ private fun ContentNavigationEffect(
             } else if (currentOnFilesEvent(FilesBrowserEvent.OpenExternalItem(item, origin))) {
                 // A delayed history result may update Files without displacing a newer transfer draft.
                 if (!editingTransfer) {
-                    navController.navigateTo(MobileDestination.Files)
+                    navController.showTab(MobileDestination.Files)
                     onFilesOpened()
                 }
             } else {
@@ -790,7 +778,7 @@ private fun TransferFileNavigationEffect(
                 currentCoroutineContext().ensureActive()
                 val open = FilesBrowserEvent.OpenExternalItem(resolved.value, FilesOpenOrigin.TRANSFERS)
                 if (onFilesEvent(open)) {
-                    navController.navigateTo(MobileDestination.Files)
+                    navController.showTab(MobileDestination.Files)
                     onFilesOpened()
                     onTransfersEvent(TransfersEvent.OpenSucceeded(resolvingTransfer.requestId))
                 } else {
