@@ -115,7 +115,9 @@ internal object DefaultMobilePlayerFactory : MobilePlayerFactory {
                 DefaultMediaSourceFactory(
                     DefaultDataSource.Factory(
                         context,
-                        MobileDownloadCache.get(context).let { it.playbackFactory(it.activeUserId ?: NO_DOWNLOAD_USER) },
+                        MobileDownloadCache.get(context).let {
+                            it.playbackFactory(it.activeUserId ?: NO_DOWNLOAD_USER)
+                        },
                     ),
                 ),
             )
