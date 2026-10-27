@@ -233,7 +233,7 @@ case "${cmd}" in
       # After install -r on a snapshot, System UI can restore the snapshot's
       # device sign-in screen over MainActivity; start MainActivity again.
       top="$("${ADB}" -s "${serial}" shell dumpsys activity activities 2>/dev/null | tr -d '\r' |
-        sed -n 's/.*topResumedActivity=ActivityRecord{[^ ]* [^ ]* \([^ ]*\) .*/\1/p' | head -1)"
+        sed -n 's/.*topResumedActivity=ActivityRecord{[^ ]* [^ ]* \([^ ]*\) .*/\1/p' | head -1 || true)"
       if [[ "${top}" == "${PACKAGE}/"* && "${top}" != *"/io.putdotio.android.MainActivity" ]]; then
         log "${top} is on top; starting MainActivity again"
         start_main
