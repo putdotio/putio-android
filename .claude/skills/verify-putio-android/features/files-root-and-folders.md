@@ -19,7 +19,7 @@ Preconditions:
 - **Find the fixture.** Scroll the root. Run
   `$S/ui.sh scroll-to $SERIAL --text "android-verify-$RUN"`, then
   `$S/capture.sh $RUN files-root`. The folder row shows its name, its date
-  and a chevron.
+  and an overflow button, `Actions for android-verify-<run>`.
 - **Open folder.** Tap the row. Run
   `$S/ui.sh tap $SERIAL --text "android-verify-$RUN"` and
   `$S/ui.sh wait $SERIAL --text "Inner folder"`. The bar names the folder

@@ -17,8 +17,8 @@ Preconditions:
 - **Long-press selects.** Press Back, then run
   `$S/ui.sh long-press $SERIAL --text "note-$RUN.txt"`. The selection bar
   shows `1 selected` and no sheet opens. Press Back to end it.
-- **Rename.** Run `$S/fixture.sh intend $RUN "rename <file id>"`. Tap
-  `Rename`; the dialog's field selects `note-<run>` and keeps `.txt`. Type a
+- **Rename.** Run `$S/fixture.sh intend $RUN "rename <file id>"`. Open the
+  sheet again from the overflow, then tap `Rename`; the dialog's field selects `note-<run>` and keeps `.txt`. Type a
   new stem and tap the dialog's `Rename` button, the last node with that
   label. Run `$S/ui.sh tap $SERIAL --text "Rename"`,
   `$S/ui.sh type $SERIAL "renamed-$RUN"` and
