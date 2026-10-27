@@ -88,7 +88,7 @@ internal fun MobileFilesRow(
     // Touch never focuses a row; a keyboard-focused one is outlined so it reads at a glance.
     var focused by remember { mutableStateOf(false) }
     val outline = MaterialTheme.colorScheme.primary
-    val interaction = rowInteraction(
+    val interaction = Modifier.rowInteraction(
         onClick = onClick,
         onClickLabel = onClickLabel,
         onActions = onActions?.takeIf { actionsEnabled },
@@ -251,7 +251,7 @@ private fun MobileFilesMeta(item: FilesItem, onDevice: Boolean, place: MobileFil
  * Tap runs [onClick], or opens the actions when there is nothing else to do; long-press runs
  * [onLongClick] where the list has one, else opens the actions.
  */
-private fun rowInteraction(
+private fun Modifier.rowInteraction(
     onClick: (() -> Unit)?,
     onClickLabel: String?,
     onActions: (() -> Unit)?,
@@ -261,15 +261,15 @@ private fun rowInteraction(
     val longClick = onLongClick ?: onActions
     val tap = onClick ?: onActions
     return when {
-        longClick != null -> Modifier.combinedClickable(
+        longClick != null -> combinedClickable(
             onClickLabel = onClickLabel,
             role = Role.Button,
             onClick = tap ?: {},
             onLongClickLabel = onLongClickLabel,
             onLongClick = longClick,
         )
-        tap != null -> Modifier.clickable(onClickLabel = onClickLabel, role = Role.Button, onClick = tap)
-        else -> Modifier
+        tap != null -> clickable(onClickLabel = onClickLabel, role = Role.Button, onClick = tap)
+        else -> this
     }
 }
 
