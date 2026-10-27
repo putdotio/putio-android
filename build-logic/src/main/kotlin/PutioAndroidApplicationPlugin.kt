@@ -11,9 +11,9 @@ import org.gradle.kotlin.dsl.register
 
 /**
  * Shared setup for the `mobile` and `tv` application modules: SDK levels, the
- * `production` and `nightly` channels, release minification, upload signing, R8 mappings for
- * Sentry, the lint and detekt gates, and the launcher manifest check. Each app declares its application id,
- * surface-specific build config and dependencies.
+ * `production` and `nightly` channels, release minification, release-like nightly debug builds,
+ * upload signing, R8 mappings for Sentry, the lint and detekt gates, and the launcher manifest
+ * check. Each app declares its application id, surface-specific build config and dependencies.
  */
 class PutioAndroidApplicationPlugin : Plugin<Project> {
     override fun apply(target: Project) = with(target) {
@@ -67,6 +67,11 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
             buildTypes {
                 getByName("debug") {
                     applicationIdSuffix = ".debug"
+                    // Only nightly debug builds minify (below); production debug keeps a fast, debuggable build.
+                    proguardFiles(
+                        getDefaultProguardFile("proguard-android-optimize.txt"),
+                        "proguard-rules.pro",
+                    )
                 }
                 getByName("release") {
                     buildConfigField("String", "PUTIO_SENTRY_DSN", "\"${sentryDsn()}\"")
@@ -107,6 +112,14 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
             // Nightly adds resources only, so its unit tests would rerun production's.
             beforeVariants(selector().withFlavor("channel" to "nightly")) { variant ->
                 variant.hostTests[HostTestBuilder.UNIT_TEST_TYPE]?.enable = false
+            }
+            // Testers install nightly debug APKs: they keep the harness sign-in but run like release.
+            // BuildConfig.DEBUG follows debuggable, so only production debug honours the local OAuth override.
+            beforeVariants(selector().withFlavor("channel" to "nightly").withBuildType("debug")) { variant ->
+                variant.isMinifyEnabled = true
+                variant.shrinkResources = true
+                variant.debuggable = false
+                variant.profileable = true
             }
 
             onVariants { variant ->
