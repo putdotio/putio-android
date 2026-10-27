@@ -15,6 +15,7 @@ import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.ComposeTimeoutException
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -280,7 +281,11 @@ class MobilePlaybackOptionsProofTest {
         repeat(3) {
             if (displayed()) return
             compose.onNodeWithTag(MOBILE_PLAYER_GESTURE_TAG).performTouchInput { click() }
-            runCatching { compose.waitUntil(2_000) { displayed() } }
+            try {
+                compose.waitUntil(2_000) { displayed() }
+            } catch (_: ComposeTimeoutException) {
+                // Still hidden: tap once more.
+            }
         }
         compose.onNode(trigger).assertIsDisplayed()
     }
