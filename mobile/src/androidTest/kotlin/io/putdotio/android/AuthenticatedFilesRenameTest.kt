@@ -152,8 +152,10 @@ class AuthenticatedFilesRenameTest {
         session: MobileAuthState.SignedIn,
     ) {
         requireSession(runtime, session)
-        waitForRow(MOBILE_FILES_LIST_TAG, fixture.cancelOriginalName)
-        compose.onNodeWithContentDescription(compose.activity.getString(R.string.mobile_files_actions, fixture.cancelOriginalName)).performClick()
+        val cancelRow = waitForRow(MOBILE_FILES_LIST_TAG, fixture.cancelOriginalName)
+        compose.onNodeWithContentDescription(
+            compose.activity.getString(R.string.mobile_files_actions, fixture.cancelOriginalName),
+        ).performClick()
         compose.onNodeWithText(compose.activity.getString(R.string.mobile_files_rename)).performClick()
         requireEditorName(fixture.cancelOriginalName)
         val draft = fixture.cancelOriginalName + " cancelled draft"

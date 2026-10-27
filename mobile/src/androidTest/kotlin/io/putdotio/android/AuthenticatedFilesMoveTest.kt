@@ -191,7 +191,9 @@ class AuthenticatedFilesMoveTest {
 
     private fun cancelMove(f: MoveProofFixture, runtime: MobileOAuthRuntime) {
         val before = compose.onNode(row(f.folderName)).fetchSemanticsNode().boundsInRoot
-        compose.onNodeWithContentDescription(compose.activity.getString(R.string.mobile_files_actions, f.folderName)).performClick()
+        compose.onNodeWithContentDescription(
+            compose.activity.getString(R.string.mobile_files_actions, f.folderName),
+        ).performClick()
         openPicker()
         pickFolder(f.containerId)
         pickFolder(f.destinationId)
@@ -221,7 +223,9 @@ class AuthenticatedFilesMoveTest {
 
     private fun submit(name: String, destinationPath: List<Long>) {
         row(name)
-        compose.onNodeWithContentDescription(compose.activity.getString(R.string.mobile_files_actions, name)).performClick()
+        compose.onNodeWithContentDescription(
+            compose.activity.getString(R.string.mobile_files_actions, name),
+        ).performClick()
         openPicker()
         destinationPath.forEach(::pickFolder)
         compose.onNodeWithTag(MOBILE_FILES_MOVE_HERE_TAG).performClick()

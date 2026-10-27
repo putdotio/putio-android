@@ -176,7 +176,9 @@ class AuthenticatedFilesDeleteTest {
 
     private fun confirmOrCancel(fixture: DeleteProofFixture, name: String, cancel: Boolean) {
         row(MOBILE_FILES_LIST_TAG, name)
-        compose.onNodeWithContentDescription(compose.activity.getString(R.string.mobile_files_actions, name)).performClick()
+        compose.onNodeWithContentDescription(
+            compose.activity.getString(R.string.mobile_files_actions, name),
+        ).performClick()
         val action =
             if (fixture.expectedTrashEnabled) R.string.mobile_files_trash else R.string.mobile_files_delete_permanently
         val actionLabel = compose.activity.getString(action)
