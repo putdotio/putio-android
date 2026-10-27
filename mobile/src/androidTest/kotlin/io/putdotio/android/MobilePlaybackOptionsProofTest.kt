@@ -203,8 +203,9 @@ class MobilePlaybackOptionsProofTest {
         openSpeedOptions()
         val choice = compose.onNodeWithText("1.25×")
         val instrumentation = InstrumentationRegistry.getInstrumentation()
-        // Focus opens on the speed track, which takes the arrow keys; Tab moves on to the quick speeds.
-        for (ignored in 0 until 12) {
+        // Focus opens on the speed track or the sheet's scrim; the track takes the arrow keys, so Tab
+        // moves on to the quick speeds.
+        for (ignored in 0 until 20) {
             if (focused("1.25×")) break
             instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_TAB)
             compose.waitForIdle()
@@ -274,11 +275,12 @@ class MobilePlaybackOptionsProofTest {
         } else {
             hasContentDescription("Playback speed ", substring = true)
         }
-        // Controls that are fading out still exist but aren't displayed; a tap brings them back.
+        val displayed = { runCatching { compose.onNode(trigger).assertIsDisplayed() }.isSuccess }
+        // Hidden or fading controls take a tap to show; another tap while they fade in hides them again.
         repeat(3) {
-            if (runCatching { compose.onNode(trigger).assertIsDisplayed() }.isSuccess) return
+            if (displayed()) return
             compose.onNodeWithTag(MOBILE_PLAYER_GESTURE_TAG).performTouchInput { click() }
-            compose.waitForIdle()
+            runCatching { compose.waitUntil(2_000) { displayed() } }
         }
         compose.onNode(trigger).assertIsDisplayed()
     }
