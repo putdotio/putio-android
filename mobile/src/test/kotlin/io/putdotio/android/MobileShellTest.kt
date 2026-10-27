@@ -1946,6 +1946,26 @@ class MobileShellPlaybackTest {
     }
 
     @Test
+    fun aRejectedSessionOnTheNeighboursLookupEndsTheSession() {
+        val session = RecordingPlayer()
+        var rejections = 0
+        val repository = object : PlaybackRepository by EndingPlaybackRepository {
+            override suspend fun findNeighbours(target: PlaybackTarget) =
+                PlaybackRepositoryResult.Failure(
+                    PlaybackFailure.Putio(PutioFailure.AuthenticationRequired(PutioConfigurationException("expired"))),
+                )
+        }
+        compose.setPlaybackShell(
+            filesState = mediaFilesState(),
+            playback = ShellPlayback(repository, ShellSessionFactory(session) {}) { rejections += 1 },
+        )
+        compose.runOnIdle { session.playSong() }
+
+        compose.onNodeWithTag(MOBILE_NOW_PLAYING_OPEN_TAG).performClick()
+        compose.waitUntil(5_000) { rejections == 1 }
+    }
+
+    @Test
     fun mediaNotificationTapOpensTheLiveAudioPlayer() {
         var resolves = 0
         val unavailableRepository = object : PlaybackRepository {

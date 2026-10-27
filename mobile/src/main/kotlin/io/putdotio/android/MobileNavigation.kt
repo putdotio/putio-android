@@ -465,15 +465,20 @@ private fun MobilePlaybackRoute(
     val nextEpisode by produceState<PlaybackTarget?>(null, state.target.fileId, ready, findNextEpisode != null) {
         value = null
         val find = findNextEpisode ?: return@produceState
-        if (ready) value = (find(state.target) as? PlaybackNextResult.Found)?.target
+        if (!ready) return@produceState
+        when (val next = find(state.target)) {
+            is PlaybackNextResult.Found -> value = next.target
+            is PlaybackNextResult.Failure -> if (next.failure.rejectsSession) onAuthenticationRequired()
+            PlaybackNextResult.Ended -> Unit
+        }
     }
-    val neighbours = rememberFolderNeighbours(state, findNeighbours)
+    val neighbours = rememberFolderNeighbours(state, findNeighbours, onAuthenticationRequired)
     val authenticationFailure =
         when (val content = state.content) {
             is PlaybackContent.Failed -> content.failure
             is PlaybackContent.NextFailed -> content.failure
             else -> null
-        }?.takeIf { it.putioFailure is PutioFailure.AuthenticationRequired }
+        }?.takeIf { it.rejectsSession }
 
     LaunchedEffect(authenticationFailure) {
         if (authenticationFailure != null) onAuthenticationRequired()
@@ -516,6 +521,8 @@ private fun MobilePlaybackRoute(
     )
 }
 
+private val PlaybackFailure.rejectsSession: Boolean get() = putioFailure is PutioFailure.AuthenticationRequired
+
 /** [load] for the file on screen, or no Cast without it. */
 private fun castMediaFor(
     load: (suspend (PlaybackTarget, PlaybackSource?, String?) -> PlaybackRepositoryResult<PlaybackCastMedia>)?,
@@ -525,12 +532,14 @@ private fun castMediaFor(
 
 /**
  * Playing audio asks for its folder once: the files around it for the skip buttons and Up next, and
- * the folder's name. A failed read leaves them off; playback does not depend on it.
+ * the folder's name. A failed read leaves them off; playback does not depend on it, but a rejected
+ * session still ends.
  */
 @Composable
 private fun rememberFolderNeighbours(
     state: PlaybackState,
     findNeighbours: (suspend (PlaybackTarget) -> PlaybackRepositoryResult<PlaybackNeighbours>)?,
+    onAuthenticationRequired: suspend () -> Unit,
 ): PlaybackNeighbours {
     val audioReady by rememberUpdatedState(
         state.target.mediaType == PlaybackMediaType.AUDIO &&
@@ -543,7 +552,9 @@ private fun rememberFolderNeighbours(
         snapshotFlow { audioReady }.first { it }
         value = when (val result = find(target)) {
             is PlaybackRepositoryResult.Success -> result.value
-            is PlaybackRepositoryResult.Failure -> PlaybackNeighbours()
+            is PlaybackRepositoryResult.Failure -> PlaybackNeighbours().also {
+                if (result.failure.rejectsSession) onAuthenticationRequired()
+            }
         }
     }
     return neighbours

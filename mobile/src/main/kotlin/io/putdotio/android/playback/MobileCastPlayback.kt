@@ -194,15 +194,13 @@ internal fun MobileCastPlayback(
     val player = cast.remotePlayer
     val status by cast.status.collectAsState()
     val current = status?.takeIf { it.fileId == fileId }
+    // A receiver that failed to load the file no longer holds it, so another handover sends it again.
+    val castFailed = failed || current?.state == CastRemoteState.Failed
     val label = stringResource(
-        if (failed || current?.state == CastRemoteState.Failed) {
-            R.string.mobile_cast_failed
-        } else {
-            R.string.mobile_cast_playing_on
-        },
+        if (castFailed) R.string.mobile_cast_failed else R.string.mobile_cast_playing_on,
         deviceName,
     )
-    val onRetry: (() -> Unit)? = if (failed) ({ attempt++ }) else null
+    val onRetry: (() -> Unit)? = if (castFailed) ({ attempt++ }) else null
     val seekEnabled = current?.seekable == true
     val intervals = if (target.mediaType == PlaybackMediaType.AUDIO) AudioSeekIntervals else VideoSeekIntervals
     val seek = { direction: SeekDirection -> player.seekBy(intervals, direction) }
