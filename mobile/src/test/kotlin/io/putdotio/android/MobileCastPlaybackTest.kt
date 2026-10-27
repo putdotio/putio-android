@@ -128,9 +128,8 @@ class MobileCastPlaybackTest {
                     castMedia = { source, _ ->
                         lookups++
                         if (lookups == 1) {
-                            PlaybackRepositoryResult.Failure(
-                                PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IllegalStateException("offline"))),
-                            )
+                            val offline = PutioFailure.NetworkUnavailable(IllegalStateException("offline"))
+                            PlaybackRepositoryResult.Failure(PlaybackFailure.Putio(offline))
                         } else {
                             PlaybackRepositoryResult.Success(
                                 requireNotNull(requireNotNull(source).toCastMedia(Episode1, "download-token")),
