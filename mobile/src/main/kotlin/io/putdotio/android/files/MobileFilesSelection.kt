@@ -439,6 +439,10 @@ internal fun MobileFilesItemActions.selectingIn(
     state: () -> FilesBrowserState,
 ): MobileFilesItemActions = selection?.let { withSelect { item -> it.start(state(), item) } } ?: this
 
+/** A row's long-press, which starts selection in the folder [state] reads, when there is a selection. */
+internal fun FilesSelection?.starter(state: () -> FilesBrowserState): ((FilesItem) -> Unit)? =
+    this?.let { selection -> { item -> selection.start(state(), item) } }
+
 /** A file not downloaded yet, or whose download failed or went missing, can start one. */
 private val DownloadStatus?.downloadable: Boolean
     get() = this == null || this is DownloadStatus.Failed || this == DownloadStatus.Missing

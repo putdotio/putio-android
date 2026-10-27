@@ -422,7 +422,7 @@ private fun MobileRefreshableFilesContent(
                                 onDragStarted = dismissSelection,
                                 fileOpening = fileOpening,
                                 selection = selection.listSelection(state, toolbarClearance),
-                                onStartSelection = selection?.let { s -> { item -> s.start(currentState, item) } },
+                                onStartSelection = selection.starter { currentState },
                             )
                         }
 

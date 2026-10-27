@@ -88,24 +88,14 @@ internal fun MobileFilesRow(
     // Touch never focuses a row; a keyboard-focused one is outlined so it reads at a glance.
     var focused by remember { mutableStateOf(false) }
     val outline = MaterialTheme.colorScheme.primary
-    val longClick = onLongClick ?: onActions?.takeIf { actionsEnabled }
-    val interaction = if (longClick != null) {
-        Modifier.combinedClickable(
-            onClickLabel = onClickLabel,
-            role = Role.Button,
-            onClick = onClick ?: onActions?.takeIf { actionsEnabled } ?: {},
-            onLongClickLabel = if (onLongClick != null) onLongClickLabel else actionsLabel,
-            onLongClick = longClick,
-        )
-    } else if (onClick != null) {
-        Modifier.clickable(
-            onClickLabel = onClickLabel,
-            role = Role.Button,
-            onClick = onClick,
-        )
-    } else {
-        Modifier
-    }
+    val interaction = rowInteraction(
+        onClick = onClick,
+        onClickLabel = onClickLabel,
+        onActions = onActions?.takeIf { actionsEnabled },
+        actionsLabel = actionsLabel,
+        onLongClick = onLongClick,
+        onLongClickLabel = onLongClickLabel,
+    )
 
     val trailing: (@Composable () -> Unit)? = when {
         onActions != null -> {
@@ -255,6 +245,33 @@ private fun MobileFilesMeta(item: FilesItem, onDevice: Boolean, place: MobileFil
             if (index > 0) Text("·", style = style, color = color, modifier = Modifier.clearAndSetSemantics {})
             part()
         }
+    }
+}
+
+/**
+ * Tap runs [onClick], or opens the actions when there is nothing else to do; long-press runs
+ * [onLongClick] where the list has one, else opens the actions.
+ */
+private fun rowInteraction(
+    onClick: (() -> Unit)?,
+    onClickLabel: String?,
+    onActions: (() -> Unit)?,
+    actionsLabel: String,
+    onLongClick: (() -> Unit)?,
+    onLongClickLabel: String?,
+): Modifier {
+    val longClick = onLongClick ?: onActions
+    val tap = onClick ?: onActions
+    return when {
+        longClick != null -> Modifier.combinedClickable(
+            onClickLabel = onClickLabel,
+            role = Role.Button,
+            onClick = tap ?: {},
+            onLongClickLabel = if (onLongClick != null) onLongClickLabel else actionsLabel,
+            onLongClick = longClick,
+        )
+        tap != null -> Modifier.clickable(onClickLabel = onClickLabel, role = Role.Button, onClick = tap)
+        else -> Modifier
     }
 }
 
