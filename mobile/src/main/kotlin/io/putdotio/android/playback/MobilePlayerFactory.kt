@@ -4,6 +4,7 @@ import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player as Media3Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.session.MediaController
@@ -109,9 +110,15 @@ internal object DefaultMobilePlayerFactory : MobilePlayerFactory {
     ): Media3Player {
         return ExoPlayer.Builder(context, playbackRenderersFactory(context))
             // Completed downloads play from the cache; everything else streams through the same source.
+            // Local schemes such as file:// bypass it; network URLs still go through the cache.
             .setMediaSourceFactory(
                 DefaultMediaSourceFactory(
-                    MobileDownloadCache.get(context).let { it.playbackFactory(it.activeUserId ?: NO_DOWNLOAD_USER) },
+                    DefaultDataSource.Factory(
+                        context,
+                        MobileDownloadCache.get(context).let {
+                            it.playbackFactory(it.activeUserId ?: NO_DOWNLOAD_USER)
+                        },
+                    ),
                 ),
             )
             .setAudioAttributes(mediaType.audioAttributes(), true)

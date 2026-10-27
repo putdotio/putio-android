@@ -18,6 +18,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.click
@@ -202,9 +203,10 @@ class MobilePlaybackOptionsProofTest {
         openSpeedOptions()
         val choice = compose.onNodeWithText("1.25×")
         val instrumentation = InstrumentationRegistry.getInstrumentation()
-        for (ignored in 0 until 8) {
-            if (choice.fetchSemanticsNode().config.getOrElse(SemanticsProperties.Focused) { false }) break
-            instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_DOWN)
+        // Focus opens on the speed track, which takes the arrow keys; Tab moves on to the quick speeds.
+        for (ignored in 0 until 12) {
+            if (focused("1.25×")) break
+            instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_TAB)
             compose.waitForIdle()
         }
         choice.assertIsFocused()
@@ -212,6 +214,10 @@ class MobilePlaybackOptionsProofTest {
         compose.waitUntil(15_000) {
             compose.runOnIdle { factory.current().playbackParameters.speed == 1.25f }
         }
+    }
+
+    private fun focused(label: String) = compose.onAllNodesWithText(label).fetchSemanticsNodes().any {
+        it.config.getOrElse(SemanticsProperties.Focused) { false }
     }
 
     /** The audio choices: the video's Audio side sheet, or Now Playing's sheet under More. */
@@ -268,8 +274,11 @@ class MobilePlaybackOptionsProofTest {
         } else {
             hasContentDescription("Playback speed ", substring = true)
         }
-        if (compose.onAllNodes(trigger).fetchSemanticsNodes().isEmpty()) {
+        // Controls that are fading out still exist but aren't displayed; a tap brings them back.
+        repeat(3) {
+            if (runCatching { compose.onNode(trigger).assertIsDisplayed() }.isSuccess) return
             compose.onNodeWithTag(MOBILE_PLAYER_GESTURE_TAG).performTouchInput { click() }
+            compose.waitForIdle()
         }
         compose.onNode(trigger).assertIsDisplayed()
     }

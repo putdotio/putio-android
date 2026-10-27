@@ -15,12 +15,12 @@ import androidx.lifecycle.Lifecycle
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.exoplayer.ExoPlayer
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.playback.DefaultMobilePlayerFactory
 import io.putdotio.android.playback.MobilePlayerFactory
 import io.putdotio.android.playback.MobilePlayerScreen
 import io.putdotio.android.playback.PlaybackContent
@@ -28,8 +28,6 @@ import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackPositionObserver
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.playback.SubtitleStartupPolicy
-import io.putdotio.android.playback.audioAttributes
-import io.putdotio.android.playback.playbackRenderersFactory
 import io.putdotio.android.playback.playbackState
 import io.putdotio.android.playback.withReportingLease
 import io.putdotio.sdk.files.PlaybackSource
@@ -357,10 +355,7 @@ class MobilePictureInPictureProofTest {
 
 private class MenuButtons(val action: Rect, val expand: Rect, val close: Rect)
 
-/**
- * Production renderers and audio attributes over a local file, which the production player's
- * download-cache HTTP source cannot read; positions go through the real observer to a recorder.
- */
+/** The production player over a local file; positions go through the real observer to a recorder. */
 private class PictureInPictureProofPlayerFactory(private val lease: String) : MobilePlayerFactory {
     var player: Player? = null
         private set
@@ -373,21 +368,18 @@ private class PictureInPictureProofPlayerFactory(private val lease: String) : Mo
     fun current(): Player = checkNotNull(player)
 
     override fun create(context: Context, mediaType: PlaybackMediaType): Player =
-        ExoPlayer.Builder(context, playbackRenderersFactory(context))
-            .setAudioAttributes(mediaType.audioAttributes(), true)
-            .build()
-            .also {
-                created += 1
-                player = it
-                renderedFrame = false
-                it.addListener(
-                    object : Player.Listener {
-                        override fun onRenderedFirstFrame() {
-                            renderedFrame = true
-                        }
-                    },
-                )
-            }
+        DefaultMobilePlayerFactory.create(context, mediaType).also {
+            created += 1
+            player = it
+            renderedFrame = false
+            it.addListener(
+                object : Player.Listener {
+                    override fun onRenderedFirstFrame() {
+                        renderedFrame = true
+                    }
+                },
+            )
+        }
 
     override fun reportableItem(item: MediaItem, useStartFrom: Boolean): MediaItem = item.withReportingLease(lease)
 

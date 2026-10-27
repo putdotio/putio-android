@@ -32,7 +32,6 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.Lifecycle
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.exoplayer.ExoPlayer
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.putdotio.android.design.PutioTheme
@@ -43,6 +42,7 @@ import io.putdotio.android.playback.MOBILE_PLAYER_SIDE_SHEET_TAG
 import io.putdotio.android.playback.PlaybackAudioTrack
 import io.putdotio.android.playback.PlaybackSubtitleTrack
 import io.putdotio.android.playback.languageName
+import io.putdotio.android.playback.DefaultMobilePlayerFactory
 import io.putdotio.android.playback.MobilePlayerFactory
 import io.putdotio.android.playback.MobilePlayerScreen
 import io.putdotio.android.playback.PlaybackContent
@@ -50,9 +50,7 @@ import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackState
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.playback.SubtitleTrackIdentity
-import io.putdotio.android.playback.audioAttributes
 import io.putdotio.android.playback.playbackAudioTracks
-import io.putdotio.android.playback.playbackRenderersFactory
 import io.putdotio.android.playback.playbackState
 import io.putdotio.android.playback.playbackSubtitleTracks
 import io.putdotio.sdk.files.PlaybackSource
@@ -359,19 +357,14 @@ private class FullscreenProofPlayerFactory : MobilePlayerFactory {
     var renderedFrame = false
         private set
     fun current(): Player = checkNotNull(player)
-    // The production player streams through the download cache's HTTP source, which cannot read
-    // the caller's local file; this one keeps its renderers and audio attributes.
     override fun create(context: Context, mediaType: PlaybackMediaType): Player =
-        ExoPlayer.Builder(context, playbackRenderersFactory(context))
-            .setAudioAttributes(mediaType.audioAttributes(), true)
-            .build()
-            .also {
-                player = it
-                renderedFrame = false
-                it.addListener(object : Player.Listener {
-                    override fun onRenderedFirstFrame() { renderedFrame = true }
-                })
-            }
+        DefaultMobilePlayerFactory.create(context, mediaType).also {
+            player = it
+            renderedFrame = false
+            it.addListener(object : Player.Listener {
+                override fun onRenderedFirstFrame() { renderedFrame = true }
+            })
+        }
     // This private-video proof must not stop an unrelated real audio session.
     override fun stopAudio(context: Context) = Unit
 }
