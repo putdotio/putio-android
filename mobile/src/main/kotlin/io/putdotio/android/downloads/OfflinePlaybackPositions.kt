@@ -311,8 +311,9 @@ internal class OfflinePlaybackPositions(
         // A newer local position replacing one since the pass began goes in the next pass.
         for (update in store.pending()) {
             if (signedInUser() != userId) break
-            if (!store.isCurrent(update)) continue
-            when (val read = remote.read(update.fileId)) {
+            val read = if (store.isCurrent(update)) remote.read(update.fileId) else null
+            when (read) {
+                null -> Unit
                 // The owner may have signed out while the read was in flight.
                 is PlaybackRepositoryResult.Success ->
                     if (signedInUser() == userId) syncOne(userId, store, update, read.value)
