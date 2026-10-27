@@ -94,6 +94,24 @@ class SessionRevalidationTest {
     }
 
     @Test
+    fun `a return during the launch check still retries once that check fails`() = runTest {
+        val fixture = AuthControllerFixture(
+            storedToken = TOKEN,
+            validationResults = listOf(UNAVAILABLE, SessionValidationResult.Valid(ACCOUNT)),
+        )
+        val revalidation = SessionRevalidation(fixture.controller, backgroundScope, DELAYS)
+        fixture.gateway.beforeValidate = {
+            fixture.gateway.beforeValidate = null
+            revalidation.onNetworkReturned()
+        }
+
+        fixture.controller.restoreSession()
+        runCurrent()
+
+        assertEquals(MobileAuthState.SignedIn(ACCOUNT, MobileAuthSessionId(1L)), fixture.controller.state.value)
+    }
+
+    @Test
     fun `a confirmed session asks put io nothing on return`() = runTest {
         val fixture = AuthControllerFixture(storedToken = TOKEN)
         val revalidation = SessionRevalidation(fixture.controller, backgroundScope, DELAYS)

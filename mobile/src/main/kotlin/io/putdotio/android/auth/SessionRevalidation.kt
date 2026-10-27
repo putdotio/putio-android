@@ -20,12 +20,21 @@ internal class SessionRevalidation(
 ) {
     private var attempts: Job? = null
 
+    /** A return that came while a session check was still running; its failure starts attempts. */
+    private var returnedDuringCheck = false
+
     init {
         scope.launch {
             var opened: MobileAuthSessionId? = null
             authController.state.collect { state ->
                 val offline = (state as? MobileAuthState.SignedIn)?.takeUnless { it.validated }?.sessionId
-                if (offline != null && offline != opened) onNetworkReturned()
+                val openedOffline = offline != null && offline != opened
+                val checkFailedAfterReturn = returnedDuringCheck && state.awaitsPutio()
+                when {
+                    !state.isSettled() -> Unit
+                    openedOffline || checkFailedAfterReturn -> start()
+                    else -> returnedDuringCheck = false
+                }
                 opened = offline
             }
         }
@@ -33,7 +42,16 @@ internal class SessionRevalidation(
 
     /** The default network validated after it was missing or unvalidated. */
     fun onNetworkReturned() {
-        if (!authController.state.value.awaitsPutio()) return
+        val state = authController.state.value
+        if (state.awaitsPutio()) {
+            start()
+        } else if (!state.isSettled()) {
+            returnedDuringCheck = true
+        }
+    }
+
+    private fun start() {
+        returnedDuringCheck = false
         attempts?.cancel()
         attempts = scope.launch {
             for (wait in delays) {
