@@ -131,6 +131,26 @@ class OfflinePlaybackPositionsTest {
     }
 
     @Test
+    fun aResendThatFailsWaitsForTheNextPassInsteadOfLeavingTheOlderPosition() = runTest {
+        val positions = playedOffline()
+
+        remote.online = true
+        remote.duringWrite = {
+            remote.positions[FILE] = 400.0
+            positions.afterWrite(USER, FILE, 400.0, PlaybackRepositoryResult.Success(Unit))
+        }
+        remote.failWritesAfter = 1
+        positions.syncNow(USER)
+        assertEquals(250.0, remote.positions[FILE])
+        assertEquals(400.0, positions.store(USER).pending(FILE)?.seconds)
+
+        remote.failWritesAfter = Int.MAX_VALUE
+        positions.syncNow(USER)
+        assertEquals(400.0, remote.positions[FILE])
+        assertNull(positions.store(USER).pending(FILE))
+    }
+
+    @Test
     fun aSignOutDuringTheSyncReadStopsItsWrite() = runTest {
         val positions = playedOffline()
 
@@ -239,6 +259,9 @@ internal class FakePositionRemote : PositionRemote {
     /** Runs after a read has taken its value, as a concurrent request would. */
     var afterRead: () -> Unit = {}
     var duringWrite: () -> Unit = {}
+    /** Writes after this many fail without landing, as on a dropped connection. */
+    var failWritesAfter = Int.MAX_VALUE
+    private var writeCalls = 0
     val positions = mutableMapOf<Long, Double>()
     val writes = mutableListOf<Pair<Long, Double>>()
     var reads = 0
@@ -256,6 +279,7 @@ internal class FakePositionRemote : PositionRemote {
     override suspend fun write(fileId: Long, seconds: Double): PlaybackRepositoryResult<Unit> {
         duringWrite()
         duringWrite = {}
+        if (++writeCalls > failWritesAfter) return offline()
         if (online) positions[fileId] = seconds
         if (online && !landButFail) writes += fileId to seconds
         return if (online && !landButFail) PlaybackRepositoryResult.Success(Unit) else offline()

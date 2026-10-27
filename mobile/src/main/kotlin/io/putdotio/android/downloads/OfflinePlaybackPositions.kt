@@ -122,6 +122,16 @@ internal class OfflinePositionStore(private val preferences: SharedPreferences, 
         }
     }
 
+    /**
+     * A resend of [attempted] failed after the older [expectedRemote] may have landed: [seconds] waits
+     * for the next sync, which tells either of them apart from another device's position.
+     */
+    @Synchronized
+    fun repair(fileId: Long, seconds: Double, expectedRemote: Double, attempted: Double) {
+        val next = PendingPosition(fileId, seconds, expectedRemote, attempted, snapshot.nextRevision)
+        write(snapshot.copy(pending = snapshot.pending + (fileId to next), nextRevision = snapshot.nextRevision + 1))
+    }
+
     /** True while [update] is still the position waiting for its file. */
     @Synchronized
     fun isCurrent(update: PendingPosition): Boolean = snapshot.pending[update.fileId]?.revision == update.revision
@@ -361,7 +371,14 @@ internal class OfflinePlaybackPositions(
             val newer = store.known(update.fileId)?.takeIf {
                 !samePosition(it, sent) && signedInUser() == userId && store.pending(update.fileId) == null
             } ?: return
-            if (remote.write(update.fileId, newer) !is PlaybackRepositoryResult.Success) return
+            val result = remote.write(update.fileId, newer)
+            if (result is PlaybackRepositoryResult.Failure) {
+                if (result.failure.retryable) {
+                    val latest = store.known(update.fileId) ?: newer
+                    store.repair(update.fileId, latest, expectedRemote = sent, attempted = newer)
+                }
+                return
+            }
             sent = newer
         }
     }
