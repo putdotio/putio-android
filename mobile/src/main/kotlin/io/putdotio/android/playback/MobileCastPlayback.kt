@@ -7,6 +7,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -167,11 +168,13 @@ internal fun MobileCastPlayback(
     val fileId = target.fileId.value
     val source = (state.content as? PlaybackContent.Ready)?.source
     var failed by remember(fileId) { mutableStateOf(false) }
+    // Try again reruns the handover: a lookup that failed for a moment never needs a new session.
+    var attempt by remember(fileId) { mutableIntStateOf(0) }
     val currentPolicy by rememberUpdatedState(subtitleStartupPolicy)
     val currentOnSourceRequired by rememberUpdatedState(onSourceRequired)
     // A session reconnecting holds the handover until it answers again.
     val connected = cast.availability.collectAsState().value is CastAvailability.Connected
-    LaunchedEffect(fileId, source, connected) {
+    LaunchedEffect(fileId, source, connected, attempt) {
         if (!connected) return@LaunchedEffect
         failed = false
         // One player at a time: session audio stops once the receiver takes over, for a video too.
@@ -199,6 +202,7 @@ internal fun MobileCastPlayback(
         },
         deviceName,
     )
+    val onRetry: (() -> Unit)? = if (failed) ({ attempt++ }) else null
     val seekEnabled = current?.seekable == true
     val intervals = if (target.mediaType == PlaybackMediaType.AUDIO) AudioSeekIntervals else VideoSeekIntervals
     val seek = { direction: SeekDirection -> player.seekBy(intervals, direction) }
@@ -223,10 +227,11 @@ internal fun MobileCastPlayback(
             onAudioSelectionChanged = {},
             castButton = castButton,
             castLabel = label,
+            onCastRetry = onRetry,
             modifier = Modifier.zIndex(2f).then(keys),
         )
     } else {
-        MobileCastVideo(player, target.name, label, seekEnabled, seek, onBack, castButton, keys)
+        MobileCastVideo(player, target.name, label, onRetry, seekEnabled, seek, onBack, castButton, keys)
     }
 }
 
@@ -236,6 +241,7 @@ private fun MobileCastVideo(
     player: CastRemotePlayer,
     title: String,
     label: String,
+    onRetry: (() -> Unit)?,
     seekEnabled: Boolean,
     seek: (SeekDirection) -> Unit,
     onBack: () -> Unit,
@@ -253,7 +259,7 @@ private fun MobileCastVideo(
         }
     }
     Box(closeSheet.then(modifier).fillMaxSize()) {
-        MobileCastFrameLabel(label)
+        MobileCastFrameLabel(label, onRetry)
         MobilePlayerChrome(
             player = player,
             title = title,

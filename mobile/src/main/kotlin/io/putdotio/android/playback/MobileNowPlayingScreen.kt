@@ -107,6 +107,8 @@ internal fun MobileNowPlayingScreen(
     castButton: @Composable (Modifier) -> Unit = {},
     /** "Playing on Living room TV" while a receiver plays the file; the sleep timer then stays here. */
     castLabel: String? = null,
+    /** Try again beside [castLabel], when the file's lookup for the receiver failed. */
+    onCastRetry: (() -> Unit)? = null,
 ) {
     val options = rememberPlayerOptionsSnapshot(player)
     var sheet by rememberSaveable { mutableStateOf<NowPlayingSheet?>(null) }
@@ -116,6 +118,7 @@ internal fun MobileNowPlayingScreen(
             onAudioTrack = { sheet = NowPlayingSheet.AudioTrack },
             castButton = castButton,
             castLabel = castLabel,
+            onCastRetry = onCastRetry,
         )
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
             val details: @Composable (Modifier) -> Unit = { detailsModifier ->
@@ -186,6 +189,7 @@ private fun NowPlayingTopBar(
     onAudioTrack: () -> Unit,
     castButton: @Composable (Modifier) -> Unit,
     castLabel: String?,
+    onCastRetry: (() -> Unit)?,
 ) {
     Row(
         Modifier.fillMaxWidth().height(TOP_BAR_HEIGHT).padding(horizontal = 4.dp),
@@ -204,6 +208,7 @@ private fun NowPlayingTopBar(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f).testTag(MOBILE_CAST_LABEL_TAG),
             )
+            if (onCastRetry != null) MobileCastRetry(onCastRetry)
         }
         castButton(Modifier)
         if (!canChooseAudio) return@Row

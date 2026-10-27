@@ -45,6 +45,7 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -66,12 +67,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.MobileSheetHandle
 import io.putdotio.android.R
+import io.putdotio.android.neutralTextButtonColors
 import io.putdotio.android.design.PutioDesignTokens
 
 internal const val MOBILE_CAST_BUTTON_TAG = "mobile-cast-button"
 internal const val MOBILE_CAST_PICKER_TAG = "mobile-cast-picker"
 internal const val MOBILE_CAST_STOP_TAG = "mobile-cast-stop"
 internal const val MOBILE_CAST_LABEL_TAG = "mobile-cast-label"
+internal const val MOBILE_CAST_RETRY_TAG = "mobile-cast-retry"
 
 /**
  * Cast in a player's top bar, once a receiver is in reach; yellow while casting. Where Android needs
@@ -293,34 +296,48 @@ private fun MobileCastActionRow(
 
 /**
  * Over the casting video's dark frame, just above the transport: the cast glyph and "Playing on
- * Living room TV", or why the receiver can't play it.
+ * Living room TV", or why the receiver can't play it, with Try again when [onRetry] can fix that.
  */
 @Composable
-internal fun MobileCastFrameLabel(text: String, modifier: Modifier = Modifier) {
+internal fun MobileCastFrameLabel(text: String, onRetry: (() -> Unit)?, modifier: Modifier = Modifier) {
     Box(modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
-        Row(
-            Modifier
-                .offset(y = -CAST_LABEL_LIFT)
-                .padding(horizontal = 24.dp)
-                .testTag(MOBILE_CAST_LABEL_TAG),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                painterResource(R.drawable.ic_ph_screencast),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp),
-            )
-            Text(
-                text,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
+        Column(Modifier.offset(y = -CAST_LABEL_LIFT), horizontalAlignment = Alignment.CenterHorizontally) {
+            Row(
+                Modifier
+                    .padding(horizontal = 24.dp)
+                    .testTag(MOBILE_CAST_LABEL_TAG),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    painterResource(R.drawable.ic_ph_screencast),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp),
+                )
+                Text(
+                    text,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (onRetry != null) MobileCastRetry(onRetry)
         }
+    }
+}
+
+/** Sends the file to the receiver again after its lookup failed. */
+@Composable
+internal fun MobileCastRetry(onRetry: () -> Unit, modifier: Modifier = Modifier) {
+    TextButton(
+        onClick = onRetry,
+        colors = neutralTextButtonColors(),
+        modifier = modifier.testTag(MOBILE_CAST_RETRY_TAG),
+    ) {
+        Text(stringResource(R.string.mobile_action_retry))
     }
 }
 

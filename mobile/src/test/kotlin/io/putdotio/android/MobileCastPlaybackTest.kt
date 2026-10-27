@@ -6,7 +6,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.media3.common.util.UnstableApi
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performClick
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.playback.CastAvailability
@@ -14,6 +18,7 @@ import io.putdotio.android.playback.CastDevice
 import io.putdotio.android.playback.CastGateway
 import io.putdotio.android.playback.CastRemoteState
 import io.putdotio.android.playback.CastRemoteStatus
+import io.putdotio.android.playback.MOBILE_CAST_RETRY_TAG
 import io.putdotio.android.playback.MobileCastController
 import io.putdotio.android.playback.MobilePlayerFactory
 import io.putdotio.android.playback.MobilePlayerScreen
@@ -21,6 +26,7 @@ import io.putdotio.android.playback.PlaybackCastMedia
 import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackController
 import io.putdotio.android.playback.PlaybackEvent
+import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackNextResult
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
@@ -104,6 +110,42 @@ class MobileCastPlaybackTest {
             assertEquals(PlaybackContent.Ready::class, playback.state.value.content::class)
             assertEquals(listOf(1L, 2L), gateway.loads)
         }
+    }
+
+    @Test
+    fun aLookupThatFailsForAMomentCastsOnTryAgain() {
+        var lookups = 0
+        compose.setContent {
+            val state by playback.state.collectAsState()
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = state,
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    playerFactory = MobilePlayerFactory { _, _ -> error("Casting plays nothing on the phone") },
+                    cast = cast,
+                    castMedia = { source, _ ->
+                        lookups++
+                        if (lookups == 1) {
+                            PlaybackRepositoryResult.Failure(
+                                PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IllegalStateException("offline"))),
+                            )
+                        } else {
+                            PlaybackRepositoryResult.Success(
+                                requireNotNull(requireNotNull(source).toCastMedia(Episode1, "download-token")),
+                            )
+                        }
+                    },
+                )
+            }
+        }
+        compose.runOnIdle { assertEquals(emptyList<Long>(), gateway.loads) }
+
+        compose.onNodeWithTag(MOBILE_CAST_RETRY_TAG).performClick()
+
+        compose.runOnIdle { assertEquals(listOf(1L), gateway.loads) }
+        compose.onAllNodesWithTag(MOBILE_CAST_RETRY_TAG).assertCountEquals(0)
     }
 
     private fun ReceiverGateway.report(fileId: Long, state: CastRemoteState) {

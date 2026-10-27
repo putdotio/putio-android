@@ -652,6 +652,8 @@ while connected. Casting video swaps the picture for black with "Playing on" and
 the device, over the cast glyph in `on-surface-variant`, above the same
 transport, times and scrubber; only Speed stays, when the receiver takes a
 playback rate. Now Playing keeps its layout and names the device in its top bar.
+When the file fails to reach the receiver, the label says so and Try again sends
+it once more.
 
 Audio, Subtitles and Speed open a 340dp side sheet from the right with the
 video dimmed behind:
