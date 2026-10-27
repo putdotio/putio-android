@@ -103,6 +103,8 @@ and `ffmpeg` with the `freezedetect` filter and `libx264` encoder on PATH.
   will not rerun when it changes.
 - `lintVital` is off (`checkReleaseBuilds = false`): AGP discards its report
   whenever full lint runs, so a release lane must run `lint` itself.
+- `mobile/src/main/baseline-prof.txt` is generated. After a change to startup,
+  navigation or Files lists, rerun `scripts/generate-baseline-profile.sh`.
 
 ## Proof map
 

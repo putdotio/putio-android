@@ -115,9 +115,11 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
             }
             // Testers install nightly debug APKs: they keep the harness sign-in but run like release.
             // BuildConfig.DEBUG follows debuggable, so only production debug honours the local OAuth override.
+            // Baseline Profile generation needs source names; R8 rewrites the checked-in profile for minified builds.
+            val profiling = providers.gradleProperty("putioBaselineProfileTarget").orNull == "true"
             beforeVariants(selector().withFlavor("channel" to "nightly").withBuildType("debug")) { variant ->
-                variant.isMinifyEnabled = true
-                variant.shrinkResources = true
+                variant.isMinifyEnabled = !profiling
+                variant.shrinkResources = !profiling
                 variant.debuggable = false
                 variant.profileable = true
             }
