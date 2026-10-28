@@ -41,12 +41,14 @@ class BasePutioActivityTest {
     fun restoreFontScale() = RuntimeEnvironment.setFontScale(previousFontScale)
 
     @Test
+    @Config(sdk = [26, 35])
     fun capsLargerSystemFontScales() {
         assertEquals(1.3f, fontScaleAt(2f))
         assertEquals(1.3f, fontScaleAt(1.5f))
     }
 
     @Test
+    @Config(sdk = [26, 35])
     fun keepsFontScalesUpToTheCap() {
         assertEquals(0.85f, fontScaleAt(0.85f))
         assertEquals(1.15f, fontScaleAt(1.15f))
