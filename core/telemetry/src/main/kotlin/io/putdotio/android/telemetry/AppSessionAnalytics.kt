@@ -13,6 +13,10 @@ internal class AppSessionAnalytics(
     private val capture: (AnalyticsEvent) -> Unit,
     private val now: () -> Long = System::currentTimeMillis,
 ) : Application.ActivityLifecycleCallbacks {
+    /** The account's tunnel route name, null until its settings load. */
+    @Volatile
+    var route: String? = null
+
     private var started = 0
     private var opensOnResume = false
     private var openedFromLink = false
@@ -38,7 +42,7 @@ internal class AppSessionAnalytics(
         openedFromLink = false
         hasOpened = true
         activeSince = now()
-        capture(AnalyticsEvent.AppOpened(entry))
+        capture(AnalyticsEvent.AppOpened(entry, route))
     }
 
     override fun onActivityStopped(activity: Activity) {

@@ -18,6 +18,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 
 /**
@@ -91,6 +92,12 @@ class TvAuthRuntime internal constructor(
                     state.productAnalyticsAnswer()?.let { (accountId, enabled) ->
                         ProductAnalytics.update(accountId, enabled)
                     }
+                }
+            }
+            // A quiet sign-out lands on Initializing, which keeps the last answer; it is an off answer.
+            applicationScope.launch {
+                authController.quietSignOuts.filter { it > 0 }.collect {
+                    ProductAnalytics.update(null, enabled = false)
                 }
             }
             return TvAuthRuntime(

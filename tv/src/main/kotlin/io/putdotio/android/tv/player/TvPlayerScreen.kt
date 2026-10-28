@@ -148,6 +148,8 @@ internal fun TvPlayerScreen(
     subtitleStartupPolicy: SubtitleStartupPolicy? = null,
     autoplayNextVideo: Boolean = false,
     onPlaybackEnded: () -> Boolean = { false },
+    /** The player played the file to its end, whatever autoplay does next. */
+    onReachedEnd: () -> Unit = {},
 ) {
     // Ready playback registers its own Back for the overlay stack.
     BackHandler(enabled = state.content !is PlaybackContent.Ready, onBack = onBack)
@@ -166,6 +168,7 @@ internal fun TvPlayerScreen(
                     onExit = onBack,
                     autoplayNextVideo = autoplayNextVideo,
                     onPlaybackEnded = onPlaybackEnded,
+                    onReachedEnd = onReachedEnd,
                 )
 
             is PlaybackContent.AwaitingResume -> {
@@ -224,6 +227,7 @@ private fun TvReadyPlayer(
     onExit: () -> Unit,
     autoplayNextVideo: Boolean,
     onPlaybackEnded: () -> Boolean,
+    onReachedEnd: () -> Unit,
 ) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -248,6 +252,7 @@ private fun TvReadyPlayer(
     val currentOnExit by rememberUpdatedState(onExit)
     val currentAutoplayNextVideo by rememberUpdatedState(autoplayNextVideo)
     val currentOnPlaybackEnded by rememberUpdatedState(onPlaybackEnded)
+    val currentOnReachedEnd by rememberUpdatedState(onReachedEnd)
     var overlay by remember(player) { mutableStateOf(TvPlayerOverlay()) }
     val apply: (TvPlayerTransition) -> Unit = remember(player) {
         { transition ->
@@ -283,7 +288,10 @@ private fun TvReadyPlayer(
 
             override fun onPlaybackStateChanged(value: Int) {
                 playbackState = value
-                if (value == Player.STATE_ENDED) apply(overlay.ended(autoplayNext = currentAutoplayNextVideo))
+                if (value == Player.STATE_ENDED) {
+                    currentOnReachedEnd()
+                    apply(overlay.ended(autoplayNext = currentAutoplayNextVideo))
+                }
             }
 
             override fun onPlayerError(error: PlaybackException) {

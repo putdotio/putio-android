@@ -3,21 +3,12 @@ package io.putdotio.android.playback
 import io.putdotio.android.telemetry.AnalyticsEvent
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSourceKind
-import kotlinx.coroutines.flow.Flow
 
 /**
- * Turns one controller's states into `playback_started` once per file when its source is ready,
- * `playback_ended` when it plays to its end, and `playback_failed` once per failed load. Resumes,
+ * One controller's `playback_started` once per file when its source is ready, `playback_failed`
+ * once per failed load, and `playback_ended` once per file the player plays to its end. Resumes,
  * seeks and retries don't repeat the start; closing the player first sends no end.
  */
-internal suspend fun Flow<PlaybackState>.capturePlaybackAnalytics(
-    capture: (AnalyticsEvent) -> Unit,
-    now: () -> Long = System::currentTimeMillis,
-) {
-    val tracker = PlaybackAnalyticsTracker(capture, now)
-    collect(tracker::onState)
-}
-
 internal class PlaybackAnalyticsTracker(
     private val capture: (AnalyticsEvent) -> Unit,
     private val now: () -> Long,
@@ -25,6 +16,7 @@ internal class PlaybackAnalyticsTracker(
     private var previous: PlaybackState? = null
     private var started: Pair<AnalyticsEvent.Playback, Long>? = null
 
+    @Synchronized
     fun onState(state: PlaybackState) {
         val before = previous
         previous = state
@@ -41,13 +33,17 @@ internal class PlaybackAnalyticsTracker(
                 val playback = started?.first ?: playback(state.target.mediaType, source)
                 capture(AnalyticsEvent.PlaybackFailed(playback, content.failure.analyticsError()))
             }
-            // The player reported its end; autoplay then looks for the next file.
-            before?.content is PlaybackContent.Ready &&
-                (content is PlaybackContent.FindingNext || content == PlaybackContent.Ended) -> {
-                started?.let { (playback, since) ->
-                    capture(AnalyticsEvent.PlaybackEnded(playback, AnalyticsEvent.PlaybackDuration.of(now() - since)))
-                }
-            }
+        }
+    }
+
+    /** The player reached the end of the current file, whether or not autoplay moves on. */
+    @Synchronized
+    fun onReachedEnd() {
+        val (playback, since) = started ?: return
+        // A replay after the end doesn't repeat it; the file's next opening does.
+        started = playback to Long.MAX_VALUE
+        if (since != Long.MAX_VALUE) {
+            capture(AnalyticsEvent.PlaybackEnded(playback, AnalyticsEvent.PlaybackDuration.of(now() - since)))
         }
     }
 }

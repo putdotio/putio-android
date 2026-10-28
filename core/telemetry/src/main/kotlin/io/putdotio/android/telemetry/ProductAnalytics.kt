@@ -30,8 +30,14 @@ public object ProductAnalytics {
         appSession?.didOpenLink()
     }
 
+    /** The account's tunnel route name for `app_opened`; null while its settings aren't loaded. */
+    public fun updateRoute(route: String?) {
+        appSession?.route = route
+    }
+
     /** The account's answer: a null [accountId] is signed out, which counts as off. */
     public fun update(accountId: Long?, enabled: Boolean) {
+        if (accountId == null) updateRoute(null)
         gate?.update(accountId, enabled)
     }
 

@@ -114,6 +114,8 @@ internal fun MobilePlayerScreen(
     modifier: Modifier = Modifier,
     autoplayNextVideo: Boolean = false,
     onPlaybackEnded: () -> Unit = {},
+    /** The player played the file to its end, whatever autoplay does next. */
+    onReachedEnd: () -> Unit = {},
     playerFactory: MobilePlayerFactory = DefaultMobilePlayerFactory,
     subtitleStartupPolicy: SubtitleStartupPolicy? = null,
     seekClock: () -> Long = SystemClock::uptimeMillis,
@@ -156,6 +158,7 @@ internal fun MobilePlayerScreen(
             onPlayerFailure = onPlayerFailure,
             autoplayNextVideo = autoplayNextVideo,
             onPlaybackEnded = onPlaybackEnded,
+            onReachedEnd = onReachedEnd,
             seekClock = seekClock,
             onSourceRequired = onSourceRequired,
             onBack = onBack,
@@ -275,6 +278,7 @@ private fun MobileReadyContent(
     onPlayerFailure: (PlaybackFailure, Long) -> Unit,
     autoplayNextVideo: Boolean,
     onPlaybackEnded: () -> Unit,
+    onReachedEnd: () -> Unit,
     seekClock: () -> Long,
     onSourceRequired: (Long?) -> Unit,
     onBack: () -> Unit,
@@ -335,6 +339,7 @@ private fun MobileReadyContent(
             onPlayerFailure = onPlayerFailure,
             autoplayNextVideo = autoplayNextVideo,
             onPlaybackEnded = onPlaybackEnded,
+            onReachedEnd = onReachedEnd,
             playerFactory = playerFactory,
             seekClock = seekClock,
             onSourceRequired = onSourceRequired,
@@ -427,6 +432,7 @@ private fun MobileReadyPlayer(
     onPlayerFailure: (PlaybackFailure, Long) -> Unit,
     autoplayNextVideo: Boolean,
     onPlaybackEnded: () -> Unit,
+    onReachedEnd: () -> Unit,
     playerFactory: MobilePlayerFactory,
     seekClock: () -> Long,
     onSourceRequired: (Long?) -> Unit,
@@ -471,6 +477,7 @@ private fun MobileReadyPlayer(
     val currentOnPlayerFailure = rememberUpdatedState(onPlayerFailure)
     val currentAutoplayNextVideo = rememberUpdatedState(autoplayNextVideo)
     val currentOnPlaybackEnded = rememberUpdatedState(onPlaybackEnded)
+    val currentOnReachedEnd = rememberUpdatedState(onReachedEnd)
     val currentOnPlaybackRetained = rememberUpdatedState(onPlaybackRetained)
     val currentOnPositionChanged = rememberUpdatedState(onPositionChanged)
     val currentSubtitleStartupPolicy = rememberUpdatedState(subtitleStartupPolicy)
@@ -557,6 +564,7 @@ private fun MobileReadyPlayer(
         currentSubtitleStartupPolicy = currentSubtitleStartupPolicy,
         currentAutoplayNextVideo = currentAutoplayNextVideo,
         currentOnPlaybackEnded = currentOnPlaybackEnded,
+        currentOnReachedEnd = currentOnReachedEnd,
         currentOnPlayerFailure = currentOnPlayerFailure,
         currentOnPlaybackRetained = currentOnPlaybackRetained,
         currentOnPositionChanged = currentOnPositionChanged,
@@ -964,6 +972,7 @@ private fun PlayerListenerEffect(
     currentSubtitleStartupPolicy: State<SubtitleStartupPolicy?>,
     currentAutoplayNextVideo: State<Boolean>,
     currentOnPlaybackEnded: State<() -> Unit>,
+    currentOnReachedEnd: State<() -> Unit>,
     currentOnPlayerFailure: State<(PlaybackFailure, Long) -> Unit>,
     currentOnPlaybackRetained: State<(RetainedPlayback) -> Unit>,
     currentOnPositionChanged: State<(Long) -> Unit>,
@@ -1059,6 +1068,7 @@ private fun PlayerListenerEffect(
                     if (newPlaybackState == Media3Player.STATE_ENDED) {
                         if (!playerState.endedReported) {
                             playerState.endedReported = true
+                            currentOnReachedEnd.value()
                             if (currentAutoplayNextVideo.value) currentOnPlaybackEnded.value()
                         }
                     } else {

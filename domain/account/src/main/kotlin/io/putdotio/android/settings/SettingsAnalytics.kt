@@ -6,11 +6,16 @@ import io.putdotio.android.telemetry.AnalyticsEvent.SettingValue
 import io.putdotio.android.telemetry.ProductAnalytics
 import kotlinx.coroutines.flow.Flow
 
-/** Sends `settings_changed` once per save put.io accepts; privacy controls send nothing. */
+/**
+ * Sends `settings_changed` once per save put.io accepts; privacy controls send nothing. Also keeps
+ * the route `app_opened` reports.
+ */
 public suspend fun Flow<AccountSettingsState>.captureSavedSettings() {
     var previous: AccountSettingsState? = null
     collect { state ->
         previous?.let(state::savedChange)?.analyticsEvent()?.let(ProductAnalytics::capture)
+        val ready = state.content as? AccountSettingsContent.Ready
+        ready?.let { ProductAnalytics.updateRoute(it.preferences.tunnelRoute.value) }
         previous = state
     }
 }

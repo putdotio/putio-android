@@ -10,13 +10,13 @@ import io.putdotio.sdk.files.PutioCredentialUrl
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-class PlaybackAnalyticsTest {
+class PlaybackAnalyticsTrackerTest {
     private val events = mutableListOf<AnalyticsEvent>()
     private var clock = 0L
     private val tracker = PlaybackAnalyticsTracker(events::add) { clock }
 
     @Test
-    fun oneStartPerFileThroughRetriesThenItsEndAndTheNextFilesStart() {
+    fun oneStartAndEndPerFileThroughRetriesAndReplays() {
         var state = PlaybackReducer.start(Target).state.also(tracker::onState)
         state = state.after(resolved(1L, 42L))
         val unsupported = PlaybackFailure.MediaUnsupported(IllegalStateException("decoder"))
@@ -24,6 +24,8 @@ class PlaybackAnalyticsTest {
         state = state.after(PlaybackEvent.Retry)
         state = state.after(resolved(2L, 42L))
         clock = 40 * 60_000L
+        tracker.onReachedEnd()
+        tracker.onReachedEnd()
         state = state.after(PlaybackEvent.PlayerEnded)
         val next = PlaybackTarget(FilesItemId(43L), "next.mkv")
         state = state.after(PlaybackEvent.NextFound(PlaybackRequestId(3L), next))

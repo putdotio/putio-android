@@ -31,10 +31,17 @@ public class PlaybackController(
     private var closed = false
 
     public val state: StateFlow<PlaybackState> = mutableState.asStateFlow()
+    private val analyticsTracker =
+        if (analytics) PlaybackAnalyticsTracker(ProductAnalytics::capture, System::currentTimeMillis) else null
 
     init {
         initial.effect?.let(::launchEffect)
-        if (analytics) controllerScope.launch { state.capturePlaybackAnalytics(ProductAnalytics::capture) }
+        analyticsTracker?.let { tracker -> controllerScope.launch { state.collect(tracker::onState) } }
+    }
+
+    /** The player played the current file to its end, whether or not autoplay moves on. */
+    public fun playerReachedEnd() {
+        analyticsTracker?.onReachedEnd()
     }
 
     public fun dispatch(event: PlaybackEvent): Boolean {
