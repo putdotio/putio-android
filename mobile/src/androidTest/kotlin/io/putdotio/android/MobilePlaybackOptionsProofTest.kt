@@ -1,6 +1,7 @@
 package io.putdotio.android
 
 import android.content.Context
+import android.os.ParcelFileDescriptor
 import android.os.SystemClock
 import android.view.MotionEvent
 import android.view.KeyEvent
@@ -81,7 +82,26 @@ class MobilePlaybackOptionsProofTest {
             }
         }
     }
-    @get:Rule val rules: RuleChain = RuleChain.outerRule(optIn).around(compose)
+    // Until someone taps "Got it", System UI's immersive-mode confirmation takes window focus from the
+    // full-screen player. Taps still reach the player, but injected keys go to the confirmation.
+    private val immersiveConfirmed = TestRule { base, _ ->
+        object : Statement() {
+            override fun evaluate() {
+                val previous = shell("settings get secure $IMMERSIVE_CONFIRMATIONS")
+                shell("settings put secure $IMMERSIVE_CONFIRMATIONS confirmed")
+                try {
+                    base.evaluate()
+                } finally {
+                    if (previous.isEmpty() || previous == "null") {
+                        shell("settings delete secure $IMMERSIVE_CONFIRMATIONS")
+                    } else {
+                        shell("settings put secure $IMMERSIVE_CONFIRMATIONS $previous")
+                    }
+                }
+            }
+        }
+    }
+    @get:Rule val rules: RuleChain = RuleChain.outerRule(optIn).around(immersiveConfirmed).around(compose)
 
     @Test
     fun videoOptionsSurvivePlayerAndSavedStateRecreation() {
@@ -204,9 +224,8 @@ class MobilePlaybackOptionsProofTest {
         openSpeedOptions()
         val choice = compose.onNodeWithText("1.25×")
         val instrumentation = InstrumentationRegistry.getInstrumentation()
-        // Focus opens on the speed track or the sheet's scrim; the track takes the arrow keys, so Tab
-        // moves on to the quick speeds.
-        for (ignored in 0 until 20) {
+        // Focus opens on the speed track, which takes the arrow keys; Tab moves on to the quick speeds.
+        for (ignored in 0 until 12) {
             if (focused("1.25×")) break
             instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_TAB)
             compose.waitForIdle()
@@ -336,9 +355,16 @@ class MobilePlaybackOptionsProofTest {
         saveProofScreenshot(proofDirectory("playback-options-proof-$runId"), label)
     }
 
+    private fun shell(command: String): String =
+        ParcelFileDescriptor.AutoCloseInputStream(
+            InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(command),
+        ).bufferedReader().use { it.readText().trim() }
+
     private val arguments get() = InstrumentationRegistry.getArguments()
     private val context get() = InstrumentationRegistry.getInstrumentation().targetContext
 }
+
+private const val IMMERSIVE_CONFIRMATIONS = "immersive_mode_confirmations"
 
 private class ObservedPlaybackFactory : MobilePlayerFactory {
     var player: Player? = null
