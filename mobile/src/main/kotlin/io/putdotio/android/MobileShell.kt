@@ -223,6 +223,7 @@ internal fun MobileShell(
     val isTrash = backStackEntry?.destination?.route == MOBILE_TRASH_ROUTE
     // Search opens over Files and stays open across tab switches, like a folder does.
     var searchOpen by rememberSaveable(sessionId) { mutableStateOf(false) }
+    ScreenViewedEffect(analyticsScreen(selectedDestination, isPlayback, isTrash, searchOpen))
     // Which way Search last moved: forward when opened or left for a result, back on a Back.
     var searchForward by remember { mutableStateOf(true) }
     val currentSearchActions by rememberUpdatedState(searchHistoryActions)
@@ -1278,3 +1279,4 @@ private fun emptySearchHistoryState(): MobileSearchHistoryState =
     )
 
 private fun emptyTransfersState(): TransfersState = TransfersReducer.start().state
+

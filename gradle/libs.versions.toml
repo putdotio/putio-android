@@ -15,6 +15,7 @@ okhttp = "5.5.1"
 playPublisher = "4.1.1"
 playServicesCastFramework = "22.3.1"
 putioSdkKotlin = "2.0.0"
+posthog = "3.72.0"
 sentry = "8.61.1"
 sentryGradlePlugin = "6.24.0"
 tvMaterial = "1.1.0"
@@ -74,6 +75,7 @@ putio-sdk-kotlin = { module = "io.put:putio-sdk-kotlin", version.ref = "putioSdk
 # Google Cast sends from the mobile players only; the TV app builds the same id and never sends.
 play-services-cast-framework = { module = "com.google.android.gms:play-services-cast-framework", version.ref = "playServicesCastFramework" }
 # Core only: JVM crashes and ANRs. No NDK, replay or performance modules.
+posthog-android = { module = "com.posthog:posthog-android", version.ref = "posthog" }
 sentry-android-core = { module = "io.sentry:sentry-android-core", version.ref = "sentry" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 # The SDK 35 runtime every Robolectric test pins with @Config(sdk = [35]); its version is the one

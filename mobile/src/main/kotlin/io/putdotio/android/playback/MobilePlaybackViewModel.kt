@@ -19,6 +19,7 @@ internal class MobilePlaybackViewModel(
         } else {
             PlaybackStartup.Resolve
         },
+        analytics = true,
     )
 
     override fun onCleared() {

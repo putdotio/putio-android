@@ -19,6 +19,7 @@ import io.putdotio.android.files.MobileContinueWatchingStore
 import io.putdotio.android.files.MobileMoveTargetStore
 import io.putdotio.android.share.MobileFileDrags
 import io.putdotio.android.share.MobileFileShareService
+import io.putdotio.android.telemetry.ProductAnalytics
 import io.putdotio.android.telemetry.PutioDiagnostics
 import io.putdotio.android.widgets.MobileWidgets
 import io.putdotio.sdk.PutioClient
@@ -205,9 +206,14 @@ class MobileOAuthRuntime internal constructor(
                 clearAccountLocalState = { clearAccountLocalState(context) },
                 validatedAccounts = SharedPreferencesValidatedAccountStore(context),
             )
-            // Sessions also change without a UI, so the process scope tells diagnostics.
+            // Sessions also change without a UI, so the process scope tells diagnostics and analytics.
             applicationScope.launch {
-                authController.state.collect { state -> state.diagnosticsAllowed()?.let(PutioDiagnostics::update) }
+                authController.state.collect { state ->
+                    state.diagnosticsAllowed()?.let(PutioDiagnostics::update)
+                    state.productAnalyticsAnswer()?.let { (accountId, enabled) ->
+                        ProductAnalytics.update(accountId, enabled)
+                    }
+                }
             }
             return MobileOAuthRuntime(
                 putioClient = putioClient,
@@ -310,4 +316,12 @@ internal fun MobileAuthState.diagnosticsAllowed(): Boolean? =
         is MobileAuthState.SignedOut -> true.takeUnless { reason == MobileSignedOutReason.SecureStorageUnavailable }
         MobileAuthState.AwaitingOAuthCallback -> true
         is MobileAuthState.SignedIn -> account.diagnosticsEnabled.takeIf { validated }
+    }
+
+/** The account and its product analytics answer: signed out is `null to false`; null keeps the last answer. */
+internal fun MobileAuthState.productAnalyticsAnswer(): Pair<Long?, Boolean>? =
+    when (this) {
+        is MobileAuthState.SignedOut, MobileAuthState.AwaitingOAuthCallback -> null to false
+        is MobileAuthState.SignedIn -> (account.userId to account.productAnalyticsEnabled).takeIf { validated }
+        else -> null
     }

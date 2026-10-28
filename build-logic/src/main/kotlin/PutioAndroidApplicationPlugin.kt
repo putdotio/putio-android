@@ -51,6 +51,7 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
             }
 
             defaultConfig.buildConfigField("String", "PUTIO_SENTRY_DSN", "\"\"")
+            defaultConfig.buildConfigField("String", "PUTIO_POSTHOG_TOKEN", "\"\"")
 
             // Delivery signs with the Play upload key (.github/workflows/play-internal.yml); without it,
             // release builds stay unsigned and Google Play rejects them.
@@ -75,6 +76,8 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
                 }
                 getByName("release") {
                     buildConfigField("String", "PUTIO_SENTRY_DSN", "\"${sentryDsn()}\"")
+                    // Release only, so debug and test builds never report into the production project.
+                    buildConfigField("String", "PUTIO_POSTHOG_TOKEN", "\"$POSTHOG_TOKEN\"")
                     isMinifyEnabled = true
                     isShrinkResources = true
                     proguardFiles(
@@ -212,6 +215,8 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
     }
 
     private companion object {
+        // PostHog's public project token, shared with putio-web and iOS; it only names the project.
+        const val POSTHOG_TOKEN = "phc_DcWvN8MzbwTfNxki3GhGuBBBDHY5sfvtxfaKZQ3iRDvm" // gitleaks:allow
         // Keeps the highest code under Google Play's 2_100_000_000 ceiling.
         const val MAX_MAJOR = 2_099
         val VERSION_NAME = Regex("""[1-9]\d{0,3}\.(0|[1-9]\d?)\.(0|[1-9]\d{0,2})""")

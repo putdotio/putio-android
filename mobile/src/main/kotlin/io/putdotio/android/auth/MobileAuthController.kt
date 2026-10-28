@@ -21,6 +21,8 @@ data class MobileAccount(
     val inactiveNotice: InactiveAccountNotice? = null,
     /** The account's `diagnostics_enabled` at sign-in; the settings controller's answers supersede it. */
     val diagnosticsEnabled: Boolean = true,
+    /** The account's `product_analytics_enabled` at sign-in; the settings controller's answers supersede it. */
+    val productAnalyticsEnabled: Boolean = false,
 )
 
 @JvmInline

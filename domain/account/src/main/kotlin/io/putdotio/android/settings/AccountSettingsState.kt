@@ -267,6 +267,12 @@ public fun AccountSettingsState.diagnosticsAllowed(): Boolean? =
         confirmedPreferences(AccountSettingsKey.Diagnostics)?.diagnosticsEnabled == true
     }
 
+/** Whether product analytics may run, or null while the settings are unloaded; off wins like [diagnosticsAllowed]. */
+public fun AccountSettingsState.productAnalyticsAllowed(): Boolean? =
+    (content as? AccountSettingsContent.Ready)?.let {
+        confirmedPreferences(AccountSettingsKey.ProductAnalytics)?.productAnalyticsEnabled == true
+    }
+
 // Wraps the nullable sort so "confirmed as unknown to this app" stays distinct from "not confirmed".
 @JvmInline
 public value class ConfirmedDefaultSort(internal val sort: FilesSort?)

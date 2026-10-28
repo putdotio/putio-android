@@ -1,5 +1,6 @@
 package io.putdotio.android.playback
 
+import io.putdotio.android.telemetry.ProductAnalytics
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
@@ -18,6 +19,8 @@ public class PlaybackController(
     private val repository: PlaybackRepository,
     parentScope: CoroutineScope,
     startup: PlaybackStartup = PlaybackStartup.Resolve,
+    /** Sends this playback's product analytics events; off where nothing plays, as in tests. */
+    analytics: Boolean = false,
 ) : Closeable {
     private val lock = Any()
     private val controllerJob = SupervisorJob(parentScope.coroutineContext[Job])
@@ -31,6 +34,7 @@ public class PlaybackController(
 
     init {
         initial.effect?.let(::launchEffect)
+        if (analytics) controllerScope.launch { state.capturePlaybackAnalytics(ProductAnalytics::capture) }
     }
 
     public fun dispatch(event: PlaybackEvent): Boolean {

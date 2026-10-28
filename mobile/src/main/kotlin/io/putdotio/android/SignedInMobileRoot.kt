@@ -61,15 +61,19 @@ import io.putdotio.android.settings.AndroidAppConfigState
 import io.putdotio.android.settings.SdkAccountSettingsRepository
 import io.putdotio.android.settings.SdkAndroidAppConfigRepository
 import io.putdotio.android.settings.authoritativeSessionFailure
+import io.putdotio.android.settings.captureSavedAppConfig
+import io.putdotio.android.settings.captureSavedSettings
 import io.putdotio.android.settings.confirmedHistoryEnabled
 import io.putdotio.android.settings.confirmedResumePlayback
 import io.putdotio.android.settings.diagnosticsAllowed
+import io.putdotio.android.settings.productAnalyticsAllowed
 import io.putdotio.android.settings.putioFailure
 import io.putdotio.android.share.MobileFileDragOut
 import io.putdotio.android.share.MobileFileShareService
 import io.putdotio.android.sharing.MobilePublicLinksViewModel
 import io.putdotio.android.sharing.PublicLinksController
 import io.putdotio.android.sharing.SdkPublicLinksRepository
+import io.putdotio.android.telemetry.ProductAnalytics
 import io.putdotio.android.telemetry.PutioDiagnostics
 import io.putdotio.android.transfers.MobileTransferDraft
 import io.putdotio.android.transfers.MobileTransfersViewModel
@@ -297,8 +301,13 @@ private fun SignedInMobileSession(
         ) ?: streaming
     }
     RememberResumeSettingEffect(runtime, account.userId, accountSettingsController)
+    LaunchedEffect(accountSettingsController) { accountSettingsController.state.captureSavedSettings() }
+    LaunchedEffect(appConfigController) { appConfigController.state.captureSavedAppConfig() }
     LaunchedEffect(accountSettingsController) {
-        accountSettingsController.state.collect { state -> state.diagnosticsAllowed()?.let(PutioDiagnostics::update) }
+        accountSettingsController.state.collect { state ->
+            state.diagnosticsAllowed()?.let(PutioDiagnostics::update)
+            state.productAnalyticsAllowed()?.let { ProductAnalytics.update(account.userId, it) }
+        }
     }
     val reportingPlayerFactory = remember(runtime, sessionId, accountSettingsController, playbackPlayerFactory) {
         runtime.playbackReporting.factoryFor(sessionId, accountSettingsController.state, playbackPlayerFactory)

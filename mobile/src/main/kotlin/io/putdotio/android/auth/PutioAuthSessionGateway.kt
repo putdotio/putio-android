@@ -125,4 +125,5 @@ private fun AccountInfo.toMobileAccount(): MobileAccount =
         storage = toAccountStorage(),
         inactiveNotice = inactiveAccountNotice(),
         diagnosticsEnabled = settings.diagnosticsEnabled,
+        productAnalyticsEnabled = settings.productAnalyticsEnabled,
     )

@@ -5,6 +5,7 @@ import io.putdotio.android.auth.KeystoreAuthTokenStore
 import io.putdotio.android.auth.PendingTokenRevocations
 import io.putdotio.android.auth.PutioAuthTokenRevoker
 import io.putdotio.android.search.SdkSearchRepository
+import io.putdotio.android.telemetry.ProductAnalytics
 import io.putdotio.android.telemetry.PutioDiagnostics
 import io.putdotio.android.tv.search.TvGlobalSearch
 import io.putdotio.android.tv.search.tvGlobalSearch
@@ -83,9 +84,14 @@ class TvAuthRuntime internal constructor(
                 scope = applicationScope,
                 legacySession = AsyncStorageLegacyTvSession(context),
             )
-            // Sessions also change without a UI, so the process scope tells diagnostics.
+            // Sessions also change without a UI, so the process scope tells diagnostics and analytics.
             applicationScope.launch {
-                authController.state.collect { state -> state.diagnosticsAllowed()?.let(PutioDiagnostics::update) }
+                authController.state.collect { state ->
+                    state.diagnosticsAllowed()?.let(PutioDiagnostics::update)
+                    state.productAnalyticsAnswer()?.let { (accountId, enabled) ->
+                        ProductAnalytics.update(accountId, enabled)
+                    }
+                }
             }
             return TvAuthRuntime(
                 putioClient = putioClient,
@@ -114,4 +120,12 @@ internal fun TvAuthState.diagnosticsAllowed(): Boolean? =
 
         is TvAuthState.Linking -> true.takeUnless { phase == TvLinkPhase.Stopped(TvLinkStop.StorageUnavailable) }
         is TvAuthState.SignedIn -> account.diagnosticsEnabled
+    }
+
+/** The account and its product analytics answer: signed out is `null to false`; null keeps the last answer. */
+internal fun TvAuthState.productAnalyticsAnswer(): Pair<Long?, Boolean>? =
+    when (this) {
+        is TvAuthState.Linking -> null to false
+        is TvAuthState.SignedIn -> account.userId to account.productAnalyticsEnabled
+        else -> null
     }

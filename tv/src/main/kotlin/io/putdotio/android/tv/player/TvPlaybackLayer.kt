@@ -13,6 +13,8 @@ import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.SubtitleStartupPolicy
 import io.putdotio.android.playback.playerFailureTelemetry
 import io.putdotio.android.playback.putioFailure
+import io.putdotio.android.telemetry.AnalyticsEvent
+import io.putdotio.android.telemetry.ProductAnalytics
 import io.putdotio.android.telemetry.PutioDiagnostics
 
 /**
@@ -28,6 +30,7 @@ internal fun TvPlaybackLayer(
 ) {
     val saveableState = rememberSaveableStateHolder()
     if (playing) {
+        LaunchedEffect(Unit) { ProductAnalytics.capture(AnalyticsEvent.ScreenViewed(AnalyticsEvent.Screen.Player)) }
         player()
     } else {
         saveableState.SaveableStateProvider(SHELL_STATE_KEY, shell)

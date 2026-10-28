@@ -7,5 +7,7 @@ android {
 }
 
 dependencies {
+    implementation(libs.posthog.android)
     implementation(libs.sentry.android.core)
+    implementation(libs.okhttp)
 }

@@ -23,6 +23,8 @@ import io.putdotio.android.history.HistoryFileOpener
 import io.putdotio.android.history.HistoryEventKind
 import io.putdotio.android.history.HistoryRepository
 import io.putdotio.android.history.keeping
+import io.putdotio.android.settings.captureSavedAppConfig
+import io.putdotio.android.settings.captureSavedSettings
 import io.putdotio.android.tv.history.isShownOnTv
 import io.putdotio.android.playback.PlaybackController
 import io.putdotio.android.playback.PlaybackMediaType
@@ -39,6 +41,8 @@ import io.putdotio.android.settings.AccountSettingsRepository
 import io.putdotio.android.settings.AndroidAppConfigController
 import io.putdotio.android.settings.AndroidAppConfigRepository
 import io.putdotio.android.settings.diagnosticsAllowed
+import io.putdotio.android.settings.productAnalyticsAllowed
+import io.putdotio.android.telemetry.ProductAnalytics
 import io.putdotio.android.telemetry.PutioDiagnostics
 import io.putdotio.android.trash.TrashController
 import io.putdotio.android.trash.TrashRepository
@@ -116,6 +120,8 @@ internal class TvSession internal constructor(
     sessionCurrent: () -> Boolean,
     parentScope: CoroutineScope,
     private val watchNext: TvWatchNextRecorder = TvWatchNextRecorder.None,
+    /** The signed-in account, which product analytics identifies; null in tests. */
+    accountId: Long? = null,
 ) {
     private val recentSearches = dependencies.recentSearchStore(parentScope)
     val files = FilesBrowserController(dependencies.filesRepository, parentScope)
@@ -205,8 +211,13 @@ internal class TvSession internal constructor(
         scope.launch {
             watchNext.reconcile(filesItemResolver::resolveItem)?.let { mutableFileActionFailure.value = it }
         }
+        scope.launch { settings.state.captureSavedSettings() }
+        scope.launch { appConfig.state.captureSavedAppConfig() }
         scope.launch {
-            settings.state.collect { state -> state.diagnosticsAllowed()?.let(PutioDiagnostics::update) }
+            settings.state.collect { state ->
+                state.diagnosticsAllowed()?.let(PutioDiagnostics::update)
+                if (accountId != null) state.productAnalyticsAllowed()?.let { ProductAnalytics.update(accountId, it) }
+            }
         }
     }
 
@@ -258,7 +269,7 @@ internal class TvSession internal constructor(
         val mediaType = PlaybackMediaType.fromFileType(item.type) ?: return
         if (!scope.isActive) return
         val target = PlaybackTarget(item.id, item.name, mediaType, item.playback?.durationSeconds, item.screenshotUrl)
-        val controller = PlaybackController(target, playbackRepository, scope)
+        val controller = PlaybackController(target, playbackRepository, scope, analytics = true)
         playbackReporting.startPlayback()
         mutablePlayback.getAndUpdate { controller }?.close()
         playbackStart = item
@@ -388,6 +399,7 @@ internal class TvSessionViewModel(
                 sessionCurrent = { authState.value.sessionKey() == key },
                 parentScope = viewModelScope,
                 watchNext = dependencies.watchNext(account.userId, sessionId),
+                accountId = account.userId,
             )
         }
     }
