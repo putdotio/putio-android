@@ -16,6 +16,9 @@ public object ProductAnalytics {
     private var appSession: AppSessionAnalytics? = null
     private var accountId: Long? = null
 
+    @Volatile
+    private var consentCheck: (() -> Unit)? = null
+
     /** Once per process, from `Application.onCreate`; a null [configuration] keeps PostHog off. */
     @Synchronized
     public fun start(application: Application, configuration: ProductAnalyticsConfiguration?) {
@@ -24,7 +27,7 @@ public object ProductAnalytics {
             PostHogAnalyticsSdk(application, configuration),
             Executors.newSingleThreadExecutor(),
         )
-        appSession = AppSessionAnalytics(::capture).also(application::registerActivityLifecycleCallbacks)
+        appSession = AppSessionAnalytics(::capture, ::recheckConsent).also(application::registerActivityLifecycleCallbacks)
     }
 
     /** A link or launcher card opened the app; call before the activity resumes. Main thread only. */
@@ -46,8 +49,33 @@ public object ProductAnalytics {
         gate?.update(accountId, enabled)
     }
 
+    /**
+     * Asks put.io for the answer again on each return to the foreground, since an opt-out on another
+     * device reaches the app only that way. Events wait until [check] calls [confirm].
+     */
+    public fun setConsentCheck(check: (() -> Unit)?) {
+        consentCheck = check
+    }
+
+    /** A consent check's answer for [accountId]; a null [enabled] couldn't be read and keeps the last answer. */
+    @Synchronized
+    public fun confirm(accountId: Long?, enabled: Boolean?) {
+        // A sign-out or account switch since the check already answered for the current account.
+        if (accountId == null || accountId != this.accountId || enabled == null) {
+            gate?.release()
+        } else {
+            update(accountId, enabled)
+        }
+    }
+
     public fun capture(event: AnalyticsEvent) {
         gate?.capture(event)
+    }
+
+    private fun recheckConsent() {
+        val check = consentCheck ?: return
+        gate?.hold()
+        check()
     }
 }
 
@@ -73,6 +101,7 @@ internal class ProductAnalyticsGate(
     private val now: () -> Long = System::currentTimeMillis,
 ) {
     private var answered = false
+    private var rechecking = false
     private var running: Long? = null
 
     // Bumped on every start or stop, so a capture queued before an opt-out drops instead of draining.
@@ -87,9 +116,27 @@ internal class ProductAnalyticsGate(
         submit(sdk::stop)
     }
 
+    /** Holds events until the next [update] or [release], as the last answer may be stale. */
+    @Synchronized
+    fun hold() {
+        if (!answered) return
+        answered = false
+        rechecking = true
+    }
+
+    /** Sends events held since [hold] on the last answer; before the first answer it changes nothing. */
+    @Synchronized
+    fun release() {
+        if (!rechecking) return
+        rechecking = false
+        answered = true
+        flushHeld()
+    }
+
     @Synchronized
     fun update(accountId: Long?, enabled: Boolean) {
         answered = true
+        rechecking = false
         val target = accountId.takeIf { enabled }
         if (target != running) {
             running = target
@@ -100,6 +147,10 @@ internal class ProductAnalyticsGate(
                 if (target != null) sdk.start(target)
             }
         }
+        flushHeld()
+    }
+
+    private fun flushHeld() {
         val pending = held.toList()
         held.clear()
         pending.forEach { (event, at) -> send(event, at) }

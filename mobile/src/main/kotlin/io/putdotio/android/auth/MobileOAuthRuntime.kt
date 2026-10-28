@@ -18,6 +18,8 @@ import io.putdotio.android.downloads.downloadPreferences
 import io.putdotio.android.files.MobileContinueWatchingStore
 import io.putdotio.android.files.MobileMoveTargetStore
 import io.putdotio.android.share.MobileFileDrags
+import io.putdotio.android.settings.SdkAccountSettingsRepository
+import io.putdotio.android.settings.confirmProductAnalytics
 import io.putdotio.android.share.MobileFileShareService
 import io.putdotio.android.telemetry.ProductAnalytics
 import io.putdotio.android.telemetry.PutioDiagnostics
@@ -214,6 +216,11 @@ class MobileOAuthRuntime internal constructor(
                         ProductAnalytics.update(accountId, enabled)
                     }
                 }
+            }
+            val accountSettings = SdkAccountSettingsRepository(putioClient)
+            ProductAnalytics.setConsentCheck {
+                val accountId = (authController.state.value as? MobileAuthState.SignedIn)?.account?.userId
+                applicationScope.launch { accountSettings.confirmProductAnalytics(accountId) }
             }
             return MobileOAuthRuntime(
                 putioClient = putioClient,

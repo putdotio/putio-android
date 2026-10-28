@@ -52,6 +52,36 @@ class ProductAnalyticsGateTest {
     }
 
     @Test
+    fun aRecheckHoldsEventsUntilPutioAnswersAgain() {
+        gate.update(accountId = 7, enabled = true)
+        gate.hold()
+        gate.capture(AppOpened(Entry.Resume))
+        gate.update(accountId = 7, enabled = false)
+
+        assertEquals(listOf("stop", "stop", "start 7", "stop"), sdk.calls)
+    }
+
+    @Test
+    fun aRecheckWithoutAnAnswerSendsOnTheLastOne() {
+        gate.update(accountId = 7, enabled = true)
+        gate.hold()
+        gate.capture(AppOpened(Entry.Resume))
+        gate.release()
+
+        assertEquals(listOf("stop", "stop", "start 7", "app_opened {entry=resume} @1000"), sdk.calls)
+    }
+
+    @Test
+    fun aReleaseBeforeTheFirstAnswerKeepsHolding() {
+        gate.capture(AppOpened(Entry.Direct))
+        gate.hold()
+        gate.release()
+        gate.update(accountId = 7, enabled = true)
+
+        assertEquals(listOf("stop", "stop", "start 7", "app_opened {entry=direct} @1000"), sdk.calls)
+    }
+
+    @Test
     fun anAccountSwitchStartsAFreshIdentity() {
         gate.update(accountId = 7, enabled = true)
         gate.update(accountId = 7, enabled = true)

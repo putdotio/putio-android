@@ -1,7 +1,6 @@
 package io.putdotio.android.playback
 
 import io.putdotio.android.telemetry.AnalyticsEvent
-import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSourceKind
 
 /** What the players tell a playback's product analytics beyond the controller's own states. */
@@ -49,10 +48,10 @@ internal class PlaybackAnalyticsTracker(
         val content = state.content
         when {
             content is PlaybackContent.Ready && started == null ->
-                start(playback(state.target.mediaType, content.source, AnalyticsEvent.Player.ExoPlayer))
+                start(playback(state.target.mediaType, content, AnalyticsEvent.Player.ExoPlayer))
             content is PlaybackContent.Failed && before?.content !is PlaybackContent.Failed -> {
-                val source = (before?.content as? PlaybackContent.Ready)?.source
-                val playback = started ?: playback(state.target.mediaType, source, AnalyticsEvent.Player.ExoPlayer)
+                val ready = before?.content as? PlaybackContent.Ready
+                val playback = started ?: playback(state.target.mediaType, ready, AnalyticsEvent.Player.ExoPlayer)
                 capture(AnalyticsEvent.PlaybackFailed(playback, content.failure.analyticsError()))
             }
         }
@@ -76,9 +75,9 @@ internal class PlaybackAnalyticsTracker(
     @Synchronized
     override fun localShown() {
         val state = previous ?: return
-        val source = (state.content as? PlaybackContent.Ready)?.source ?: return
+        val ready = state.content as? PlaybackContent.Ready ?: return
         if (started?.player == AnalyticsEvent.Player.Chromecast) {
-            start(playback(state.target.mediaType, source, AnalyticsEvent.Player.ExoPlayer))
+            start(playback(state.target.mediaType, ready, AnalyticsEvent.Player.ExoPlayer))
         }
     }
 
@@ -90,8 +89,7 @@ internal class PlaybackAnalyticsTracker(
 
     private fun castPlayback(): AnalyticsEvent.Playback? {
         val state = previous ?: return null
-        val source = (state.content as? PlaybackContent.Ready)?.source
-        return playback(state.target.mediaType, source, AnalyticsEvent.Player.Chromecast)
+        return playback(state.target.mediaType, state.content as? PlaybackContent.Ready, AnalyticsEvent.Player.Chromecast)
     }
 
     private fun start(playback: AnalyticsEvent.Playback) {
@@ -102,17 +100,22 @@ internal class PlaybackAnalyticsTracker(
     }
 }
 
-private fun playback(mediaType: PlaybackMediaType, source: PlaybackSource?, player: AnalyticsEvent.Player) =
+private fun playback(mediaType: PlaybackMediaType, ready: PlaybackContent.Ready?, player: AnalyticsEvent.Player) =
     AnalyticsEvent.Playback(
         media = when (mediaType) {
             PlaybackMediaType.VIDEO -> AnalyticsEvent.Media.Video
             PlaybackMediaType.AUDIO -> AnalyticsEvent.Media.Audio
         },
-        streamMethod = when (source?.kind) {
-            PlaybackSourceKind.HLS -> AnalyticsEvent.StreamMethod.Hls
-            PlaybackSourceKind.MP4 -> AnalyticsEvent.StreamMethod.Mp4
-            PlaybackSourceKind.ORIGINAL -> AnalyticsEvent.StreamMethod.Progressive
-            null -> null
+        // A receiver streams a downloaded file from put.io; only the local player reads the download.
+        streamMethod = if (ready?.offline == true && player == AnalyticsEvent.Player.ExoPlayer) {
+            AnalyticsEvent.StreamMethod.LocalFile
+        } else {
+            when (ready?.source?.kind) {
+                PlaybackSourceKind.HLS -> AnalyticsEvent.StreamMethod.Hls
+                PlaybackSourceKind.MP4 -> AnalyticsEvent.StreamMethod.Mp4
+                PlaybackSourceKind.ORIGINAL -> AnalyticsEvent.StreamMethod.Progressive
+                null -> null
+            }
         },
         player = player,
     )

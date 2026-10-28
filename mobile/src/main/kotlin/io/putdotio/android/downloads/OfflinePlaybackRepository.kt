@@ -85,6 +85,7 @@ internal class OfflinePlaybackRepository(
                 useStartFrom = resumeEnabled,
                 subtitlesHidden = subtitlesHidden,
                 durationSeconds = entry.durationSeconds,
+                offline = true,
             ),
         )
     }

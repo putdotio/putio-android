@@ -11,6 +11,8 @@ import android.os.Bundle
  */
 internal class AppSessionAnalytics(
     private val capture: (AnalyticsEvent) -> Unit,
+    /** A return to the foreground after an earlier open, before its `app_opened`. */
+    private val onReturn: () -> Unit = {},
     private val now: () -> Long = System::currentTimeMillis,
 ) : Application.ActivityLifecycleCallbacks {
     /** The account's tunnel route name, null until its settings load. */
@@ -40,6 +42,7 @@ internal class AppSessionAnalytics(
         }
         opensOnResume = false
         openedFromLink = false
+        if (hasOpened) onReturn()
         hasOpened = true
         activeSince = now()
         capture(AppOpened(entry, route))

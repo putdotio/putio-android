@@ -41,7 +41,7 @@ import io.putdotio.android.settings.AccountSettingsRepository
 import io.putdotio.android.settings.AndroidAppConfigController
 import io.putdotio.android.settings.AndroidAppConfigRepository
 import io.putdotio.android.settings.diagnosticsAllowed
-import io.putdotio.android.settings.productAnalyticsAllowed
+import io.putdotio.android.settings.productAnalyticsAnswers
 import io.putdotio.android.telemetry.ProductAnalytics
 import io.putdotio.android.telemetry.PutioDiagnostics
 import io.putdotio.android.trash.TrashController
@@ -214,10 +214,10 @@ internal class TvSession internal constructor(
         scope.launch { settings.state.captureSavedSettings() }
         scope.launch { appConfig.state.captureSavedAppConfig() }
         scope.launch {
-            settings.state.collect { state ->
-                state.diagnosticsAllowed()?.let(PutioDiagnostics::update)
-                if (accountId != null) state.productAnalyticsAllowed()?.let { ProductAnalytics.update(accountId, it) }
-            }
+            settings.state.collect { state -> state.diagnosticsAllowed()?.let(PutioDiagnostics::update) }
+        }
+        if (accountId != null) {
+            scope.launch { settings.state.productAnalyticsAnswers().collect { ProductAnalytics.update(accountId, it) } }
         }
     }
 

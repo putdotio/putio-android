@@ -5,6 +5,8 @@ import io.putdotio.android.auth.KeystoreAuthTokenStore
 import io.putdotio.android.auth.PendingTokenRevocations
 import io.putdotio.android.auth.PutioAuthTokenRevoker
 import io.putdotio.android.search.SdkSearchRepository
+import io.putdotio.android.settings.SdkAccountSettingsRepository
+import io.putdotio.android.settings.confirmProductAnalytics
 import io.putdotio.android.telemetry.ProductAnalytics
 import io.putdotio.android.telemetry.PutioDiagnostics
 import io.putdotio.android.tv.search.TvGlobalSearch
@@ -93,6 +95,11 @@ class TvAuthRuntime internal constructor(
                         ProductAnalytics.update(accountId, enabled)
                     }
                 }
+            }
+            val accountSettings = SdkAccountSettingsRepository(putioClient)
+            ProductAnalytics.setConsentCheck {
+                val accountId = (authController.state.value as? TvAuthState.SignedIn)?.account?.userId
+                applicationScope.launch { accountSettings.confirmProductAnalytics(accountId) }
             }
             // A quiet sign-out lands on Initializing, which keeps the last answer; it is an off answer.
             applicationScope.launch {
