@@ -65,6 +65,7 @@ import io.putdotio.android.settings.AndroidAppConfigController
 import io.putdotio.android.settings.AndroidAppConfigState
 import io.putdotio.android.settings.SdkAccountSettingsRepository
 import io.putdotio.android.settings.acceptedProductAnalyticsChoices
+import io.putdotio.android.settings.canRecordProductAnalyticsAnswer
 import io.putdotio.android.settings.SdkAndroidAppConfigRepository
 import io.putdotio.android.settings.authoritativeSessionFailure
 import io.putdotio.android.settings.captureSavedAppConfig
@@ -316,14 +317,7 @@ private fun SignedInMobileSession(
             state.productAnalyticsAllowed()?.let { ProductAnalytics.update(account.userId, it) }
         }
     }
-    // A choice put.io accepts, from the prompt or Privacy controls, answers the prompt.
-    LaunchedEffect(accountSettingsController, appConfigController) {
-        accountSettingsController.state.acceptedProductAnalyticsChoices().collect {
-            appConfigController.dispatch(
-                AndroidAppConfigEvent.ChangeRequested(AndroidAppConfigChange.ProductAnalyticsPromptAnswered),
-            )
-        }
-    }
+    ProductAnalyticsAnswerEffect(sessionId, accountSettingsController, appConfigController)
     val reportingPlayerFactory = remember(runtime, sessionId, accountSettingsController, playbackPlayerFactory) {
         runtime.playbackReporting.factoryFor(sessionId, accountSettingsController.state, playbackPlayerFactory)
     }
@@ -452,10 +446,40 @@ private fun SignedInMobileSession(
         sessionId = sessionId,
         accountSettingsState = accountSettingsState,
         appConfigState = appConfigState,
-        opensLaunchLink = { deepLinkRequests.receivedLink || transferDraft.state.value.open },
+        opensLaunchLink = {
+            deepLinkRequests.receivedLink || transferDraft.receivedShare || transferDraft.state.value.open
+        },
         onSettingsEvent = { accountSettingsController.dispatch(it) },
         onAppConfigEvent = { appConfigController.dispatch(it) },
     )
+}
+
+/**
+ * A choice put.io accepts, from the prompt or Privacy controls, answers the prompt. The answer waits
+ * while the config is unloaded or busy rather than being dropped.
+ */
+@Composable
+private fun ProductAnalyticsAnswerEffect(
+    sessionId: MobileAuthSessionId,
+    accountSettingsController: AccountSettingsController,
+    appConfigController: AndroidAppConfigController,
+) {
+    var answerPending by rememberSaveable(sessionId) { mutableStateOf(false) }
+    LaunchedEffect(accountSettingsController) {
+        accountSettingsController.state.acceptedProductAnalyticsChoices().collect { answerPending = true }
+    }
+    LaunchedEffect(appConfigController, answerPending) {
+        if (!answerPending) return@LaunchedEffect
+        appConfigController.state.collect { state ->
+            when (state.canRecordProductAnalyticsAnswer()) {
+                null -> answerPending = false
+                true -> appConfigController.dispatch(
+                    AndroidAppConfigEvent.ChangeRequested(AndroidAppConfigChange.ProductAnalyticsPromptAnswered),
+                )
+                false -> Unit
+            }
+        }
+    }
 }
 
 /**

@@ -53,10 +53,19 @@ class ProductAnalyticsPromptTest {
 
         val saving = off.on(allow)
         assertEquals(ProductAnalyticsAnswerStep.Wait, productAnalyticsAnswerStep(enabled = true, saving, unanswered))
-        assertEquals(ProductAnalyticsAnswerProgress.Saving, productAnalyticsAnswerProgress(saving, unanswered))
+        assertEquals(ProductAnalyticsAnswerProgress.Saving, productAnalyticsAnswerProgress(true, saving, unanswered))
 
         val accepted = saving.on(AccountSettingsEvent.SaveSucceeded(saving.savingId()))
         assertEquals(markAnswered, productAnalyticsAnswerStep(enabled = true, accepted, unanswered))
+    }
+
+    @Test
+    fun aChoiceRestoredWithNothingInFlightCanBeAnsweredAgain() {
+        // The process died after Allow, before put.io took the setting.
+        assertEquals(
+            ProductAnalyticsAnswerProgress.Idle,
+            productAnalyticsAnswerProgress(true, settings(enabled = false), config(answered = false)),
+        )
     }
 
     @Test
@@ -67,7 +76,10 @@ class ProductAnalyticsPromptTest {
         val failure = AccountSettingsFailure.Putio(PutioFailure.NetworkUnavailable(RuntimeException("offline")))
         val failed = saving.on(AccountSettingsEvent.SaveFailed(saving.savingId(), failure))
 
-        assertEquals(ProductAnalyticsAnswerProgress.Failed(failure), productAnalyticsAnswerProgress(failed, unanswered))
+        assertEquals(
+            ProductAnalyticsAnswerProgress.Failed(failure),
+            productAnalyticsAnswerProgress(true, failed, unanswered),
+        )
         assertEquals(emptyList<Boolean>(), choices(off, saving, failed))
         // Trying again saves the setting again rather than skipping to the answer.
         assertEquals(
@@ -90,6 +102,32 @@ class ProductAnalyticsPromptTest {
     }
 
     @Test
+    fun allowStillSavesTheSettingWhenTheAnswerLandedElsewhere() {
+        assertEquals(
+            ProductAnalyticsAnswerStep.SaveSetting(allow),
+            productAnalyticsAnswerStep(enabled = true, settings(enabled = false), config(answered = true)),
+        )
+    }
+
+    @Test
+    fun aPendingAnswerWaitsForABusyConfigAndStopsOnceRecorded() {
+        val unanswered = config(answered = false)
+        assertEquals(true, unanswered.canRecordProductAnalyticsAnswer())
+        assertEquals(false, AndroidAppConfigReducer.start().state.canRecordProductAnalyticsAnswer())
+        val busy = unanswered.on(
+            AndroidAppConfigEvent.ChangeRequested(AndroidAppConfigChange.AutoplayNextVideo(true)),
+        )
+        assertEquals(false, busy.canRecordProductAnalyticsAnswer())
+        assertEquals(null, config(answered = true).canRecordProductAnalyticsAnswer())
+
+        val answering = unanswered.on(markAnswered.event)
+        val failed = answering.on(
+            AndroidAppConfigEvent.SaveFailed(answering.savingId(), PutioFailure.Unexpected(RuntimeException("503"))),
+        )
+        assertEquals(null, failed.canRecordProductAnalyticsAnswer())
+    }
+
+    @Test
     fun dontAllowOnAnAccountAlreadyOffOnlyRecordsTheAnswer() {
         assertEquals(
             markAnswered,
@@ -101,18 +139,18 @@ class ProductAnalyticsPromptTest {
     fun aFailedAnswerShowsAndALandedOneCloses() {
         val accepted = settings(enabled = true)
         val answering = config(answered = false).on(markAnswered.event)
-        assertEquals(ProductAnalyticsAnswerProgress.Saving, productAnalyticsAnswerProgress(accepted, answering))
+        assertEquals(ProductAnalyticsAnswerProgress.Saving, productAnalyticsAnswerProgress(true, accepted, answering))
 
         val failure = PutioFailure.Unexpected(RuntimeException("503"))
         val failed = answering.on(AndroidAppConfigEvent.SaveFailed(answering.savingId(), failure))
         assertEquals(
             ProductAnalyticsAnswerProgress.Failed(AccountSettingsFailure.Putio(failure)),
-            productAnalyticsAnswerProgress(accepted, failed),
+            productAnalyticsAnswerProgress(true, accepted, failed),
         )
         assertEquals(markAnswered, productAnalyticsAnswerStep(enabled = true, accepted, failed))
 
         val landed = answering.on(AndroidAppConfigEvent.SaveSucceeded(answering.savingId()))
-        assertEquals(ProductAnalyticsAnswerProgress.Answered, productAnalyticsAnswerProgress(accepted, landed))
+        assertEquals(ProductAnalyticsAnswerProgress.Answered, productAnalyticsAnswerProgress(true, accepted, landed))
     }
 
     private fun settings(enabled: Boolean) =

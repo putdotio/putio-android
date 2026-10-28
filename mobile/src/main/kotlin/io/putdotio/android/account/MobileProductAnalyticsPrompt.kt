@@ -47,10 +47,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
-import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
@@ -90,7 +88,7 @@ internal fun MobileProductAnalyticsPrompt(
     onDismiss: () -> Unit,
 ) {
     var choice by rememberSaveable { mutableStateOf<Boolean?>(null) }
-    val progress = choice?.let { productAnalyticsAnswerProgress(settingsState, appConfigState) }
+    val progress = choice?.let { productAnalyticsAnswerProgress(it, settingsState, appConfigState) }
     val saving by rememberUpdatedState(progress == ProductAnalyticsAnswerProgress.Saving)
     val sheetState = rememberModalBottomSheetState(
         skipPartiallyExpanded = true,
@@ -208,9 +206,7 @@ private fun MobileProductAnalyticsPromptContent(
                 }
             },
             colors = neutralTextButtonColors(),
-            modifier = Modifier
-                .align(Alignment.CenterHorizontally)
-                .semantics { role = Role.Button },
+            modifier = Modifier.align(Alignment.CenterHorizontally),
         ) {
             Text(
                 stringResource(R.string.mobile_settings_privacy_policy),

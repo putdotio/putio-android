@@ -20,6 +20,21 @@ public fun productAnalyticsPromptDue(
     }
 }
 
+/**
+ * Whether a pending answer can be written now: false while the config is unloaded or busy with another
+ * write, null once it is recorded or its write failed. A failed write isn't retried; the next launch
+ * asks again.
+ */
+public fun AndroidAppConfigState.canRecordProductAnalyticsAnswer(): Boolean? {
+    val config = (content as? AndroidAppConfigContent.Ready)?.preferences
+    val failedAnswer = (mutation as? AndroidAppConfigMutation.Failed)?.isAnswerWrite() == true
+    return when {
+        config?.productAnalyticsPromptAnswered == true || failedAnswer -> null
+        config == null -> false
+        else -> mutation !is AndroidAppConfigMutation.Saving
+    }
+}
+
 /** Each product analytics choice put.io accepts, from the prompt or Privacy controls. */
 public fun Flow<AccountSettingsState>.acceptedProductAnalyticsChoices(): Flow<Boolean> =
     flow {
@@ -55,7 +70,7 @@ public fun productAnalyticsAnswerStep(
     val settingBusy = (settings.mutation as? AccountSettingsMutation.Saving)
         ?.operation == AccountSettingsMutation.Operation.Save
     return when {
-        account == null || config == null || settingBusy || config.productAnalyticsPromptAnswered ->
+        account == null || config == null || settingBusy ->
             ProductAnalyticsAnswerStep.Wait
         account.productAnalyticsEnabled != enabled ->
             ProductAnalyticsAnswerStep.SaveSetting(
@@ -63,7 +78,8 @@ public fun productAnalyticsAnswerStep(
                     AccountSettingsChange(AccountSettingsKey.ProductAnalytics, enabled),
                 ),
             )
-        appConfig.mutation is AndroidAppConfigMutation.Saving -> ProductAnalyticsAnswerStep.Wait
+        config.productAnalyticsPromptAnswered || appConfig.mutation is AndroidAppConfigMutation.Saving ->
+            ProductAnalyticsAnswerStep.Wait
         else ->
             ProductAnalyticsAnswerStep.MarkAnswered(
                 AndroidAppConfigEvent.ChangeRequested(AndroidAppConfigChange.ProductAnalyticsPromptAnswered),
@@ -71,8 +87,11 @@ public fun productAnalyticsAnswerStep(
     }
 }
 
-/** Where the prompt's answer stands once the viewer chose. */
+/** Where the prompt's answer stands once the viewer chose [enabled]. */
 public sealed interface ProductAnalyticsAnswerProgress {
+    /** Nothing in flight, for example after the process died mid-save: the viewer can answer again. */
+    public data object Idle : ProductAnalyticsAnswerProgress
+
     public data object Saving : ProductAnalyticsAnswerProgress
 
     public data class Failed(
@@ -83,6 +102,7 @@ public sealed interface ProductAnalyticsAnswerProgress {
 }
 
 public fun productAnalyticsAnswerProgress(
+    enabled: Boolean,
     settings: AccountSettingsState,
     appConfig: AndroidAppConfigState,
 ): ProductAnalyticsAnswerProgress {
@@ -99,7 +119,13 @@ public fun productAnalyticsAnswerProgress(
             settingMutation.change.key == AccountSettingsKey.ProductAnalytics &&
             settingMutation.operation == AccountSettingsMutation.Operation.Save ->
             ProductAnalyticsAnswerProgress.Failed(settingMutation.failure)
-        else -> ProductAnalyticsAnswerProgress.Saving
+        settingMutation is AccountSettingsMutation.Saving &&
+            settingMutation.change.key == AccountSettingsKey.ProductAnalytics ->
+            ProductAnalyticsAnswerProgress.Saving
+        // put.io holds the choice, so the answer is about to follow.
+        (settings.content as? AccountSettingsContent.Ready)?.preferences?.productAnalyticsEnabled == enabled ->
+            ProductAnalyticsAnswerProgress.Saving
+        else -> ProductAnalyticsAnswerProgress.Idle
     }
 }
 

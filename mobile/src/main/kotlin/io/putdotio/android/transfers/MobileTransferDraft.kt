@@ -89,7 +89,12 @@ class MobileTransferDraft private constructor(
         lastMutation = state.mutation
     }
 
+    /** Whether a share or drop arrived, read or still reading, so the shell skips asks that would cover it. */
+    internal var receivedShare: Boolean = false
+        private set
+
     internal fun receive(shared: MobileSharedTransfer) {
+        receivedShare = true
         pendingRead?.cancel()
         deliver(shared)
     }
@@ -106,6 +111,7 @@ class MobileTransferDraft private constructor(
         picked: Boolean = false,
         read: () -> MobileSharedTransfer,
     ) {
+        if (!picked) receivedShare = true
         pendingRead?.cancel()
         val generation = draftGeneration
         mutableState.update { it.copy(readingTorrent = picked) }
