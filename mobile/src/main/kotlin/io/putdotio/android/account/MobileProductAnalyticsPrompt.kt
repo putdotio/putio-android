@@ -38,6 +38,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -70,6 +71,33 @@ import io.putdotio.android.settings.productAnalyticsAnswerProgress
 import io.putdotio.android.settings.productAnalyticsAnswerStep
 
 internal const val MOBILE_PRODUCT_ANALYTICS_PROMPT_TAG = "mobile-product-analytics-prompt"
+
+/** The launch extra a debug build needs to show the prompt; `adb shell am start --ez` sets it. */
+internal const val EXTRA_HARNESS_ANALYTICS_PROMPT = "putio.harness.analytics_prompt"
+
+/**
+ * Whether the signed-in shell may ask. Debug builds keep the prompt out of harness, proof and test
+ * launches, which share an account, unless the launch opts in; an opted-in launch asks whatever the
+ * account and config hold, so the shared account never needs its answer reset.
+ */
+internal enum class MobileProductAnalyticsPromptMode {
+    Ask,
+    Suppressed,
+    Forced,
+    ;
+
+    companion object {
+        fun of(debug: Boolean, harnessAsks: Boolean): MobileProductAnalyticsPromptMode =
+            when {
+                !debug -> Ask
+                harnessAsks -> Forced
+                else -> Suppressed
+            }
+    }
+}
+
+internal val LocalMobileProductAnalyticsPromptMode =
+    staticCompositionLocalOf { MobileProductAnalyticsPromptMode.Ask }
 internal const val MOBILE_PRODUCT_ANALYTICS_ALLOW_TAG = "mobile-product-analytics-allow"
 internal const val MOBILE_PRODUCT_ANALYTICS_DENY_TAG = "mobile-product-analytics-deny"
 

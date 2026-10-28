@@ -12,7 +12,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.putdotio.android.account.MobileAccountSettingsViewModel
 import io.putdotio.android.account.MobileAndroidAppConfigViewModel
+import io.putdotio.android.account.LocalMobileProductAnalyticsPromptMode
 import io.putdotio.android.account.MobileProductAnalyticsPrompt
+import io.putdotio.android.account.MobileProductAnalyticsPromptMode
 import io.putdotio.android.auth.MobileAuthController
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.auth.MobileAuthState
@@ -495,10 +497,14 @@ internal fun ProductAnalyticsPromptHost(
     onSettingsEvent: (AccountSettingsEvent) -> Unit,
     onAppConfigEvent: (AndroidAppConfigEvent) -> Unit,
 ) {
+    val mode = LocalMobileProductAnalyticsPromptMode.current
+    if (mode == MobileProductAnalyticsPromptMode.Suppressed) return
     var asking by rememberSaveable(sessionId) { mutableStateOf<Boolean?>(null) }
     val due = productAnalyticsPromptDue(accountSettingsState, appConfigState)
     LaunchedEffect(due) {
-        if (asking == null && due != null) asking = due && !opensLaunchLink()
+        if (asking == null && due != null) {
+            asking = mode == MobileProductAnalyticsPromptMode.Forced || (due && !opensLaunchLink())
+        }
     }
     if (asking == true) {
         MobileProductAnalyticsPrompt(

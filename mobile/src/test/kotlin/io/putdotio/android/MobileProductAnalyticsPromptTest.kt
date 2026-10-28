@@ -13,6 +13,9 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.account.MOBILE_PRODUCT_ANALYTICS_ALLOW_TAG
 import io.putdotio.android.account.MOBILE_PRODUCT_ANALYTICS_DENY_TAG
 import io.putdotio.android.account.MOBILE_PRODUCT_ANALYTICS_PROMPT_TAG
+import io.putdotio.android.account.LocalMobileProductAnalyticsPromptMode
+import io.putdotio.android.account.MobileProductAnalyticsPromptMode
+import androidx.compose.runtime.CompositionLocalProvider
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.settings.AccountSettingsChange
@@ -128,6 +131,37 @@ class MobileProductAnalyticsPromptTest {
             }
         }
         compose.onNodeWithTag(MOBILE_PRODUCT_ANALYTICS_PROMPT_TAG).assertDoesNotExist()
+    }
+
+    @Test
+    fun aDebugLaunchStaysQuietUnlessTheHarnessOptsIn() {
+        assertEquals(MobileProductAnalyticsPromptMode.Ask, MobileProductAnalyticsPromptMode.of(false, false))
+        assertEquals(MobileProductAnalyticsPromptMode.Suppressed, MobileProductAnalyticsPromptMode.of(true, false))
+        assertEquals(MobileProductAnalyticsPromptMode.Forced, MobileProductAnalyticsPromptMode.of(true, true))
+
+        var mode by mutableStateOf(MobileProductAnalyticsPromptMode.Suppressed)
+        compose.setContent {
+            PutioTheme {
+                androidx.compose.runtime.key(mode) {
+                    CompositionLocalProvider(LocalMobileProductAnalyticsPromptMode provides mode) {
+                        ProductAnalyticsPromptHost(
+                            sessionId = MobileAuthSessionId(1L),
+                            accountSettingsState = settings,
+                            appConfigState = readyAndroidAppConfigState(
+                                AndroidAppConfigPreferences(productAnalyticsPromptAnswered = true),
+                            ),
+                            opensLaunchLink = { false },
+                            onSettingsEvent = {},
+                            onAppConfigEvent = {},
+                        )
+                    }
+                }
+            }
+        }
+        compose.onNodeWithTag(MOBILE_PRODUCT_ANALYTICS_PROMPT_TAG).assertDoesNotExist()
+        // Opted in, it asks even though the shared account already answered.
+        mode = MobileProductAnalyticsPromptMode.Forced
+        compose.onNodeWithTag(MOBILE_PRODUCT_ANALYTICS_PROMPT_TAG).assertExists()
     }
 
     @Test

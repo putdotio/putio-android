@@ -50,7 +50,8 @@ allowlist in
 [`AnalyticsEvent.kt`](core/telemetry/src/main/kotlin/io/putdotio/android/telemetry/AnalyticsEvent.kt),
 which follows put.io's Analytics event contract. Mobile asks once per launch
 while the control is off and unanswered, except on a launch that opens a link
-or a shared transfer.
+or a shared transfer; debug builds ask only on a launch with the
+`putio.harness.analytics_prompt` extra.
 
 ## Build and verify
 

@@ -5,10 +5,14 @@ import android.os.Bundle
 import android.view.KeyboardShortcutGroup
 import android.view.Menu
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.browser.auth.AuthTabIntent
 import androidx.core.net.toUri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import io.putdotio.android.account.EXTRA_HARNESS_ANALYTICS_PROMPT
+import io.putdotio.android.account.LocalMobileProductAnalyticsPromptMode
+import io.putdotio.android.account.MobileProductAnalyticsPromptMode
 import io.putdotio.android.auth.handleAuthTabActivityResult
 import io.putdotio.android.playback.MobileCast
 import io.putdotio.android.share.MobileFileShareService
@@ -62,8 +66,14 @@ class MainActivity : BasePutioActivity() {
         } else if (savedInstanceState?.getBoolean(STATE_NOW_PLAYING_PENDING) == true) {
             pendingNowPlayingRequest.value = true
         }
+        val promptMode = MobileProductAnalyticsPromptMode.of(
+            debug = BuildConfig.DEBUG,
+            harnessAsks = intent?.getBooleanExtra(EXTRA_HARNESS_ANALYTICS_PROMPT, false) == true,
+        )
         setContent {
-            PutioApp(authTabLauncher, nowPlayingRequests, transferDraft, deepLinkRequests)
+            CompositionLocalProvider(LocalMobileProductAnalyticsPromptMode provides promptMode) {
+                PutioApp(authTabLauncher, nowPlayingRequests, transferDraft, deepLinkRequests)
+            }
         }
     }
 
