@@ -12,13 +12,17 @@ import io.putdotio.android.playback.CastGateway
 import io.putdotio.android.playback.CastHandover
 import io.putdotio.android.playback.CastRemoteState
 import io.putdotio.android.playback.CastRemoteStatus
+import io.putdotio.android.playback.CastTextTrack
 import io.putdotio.android.playback.MobileCastController
 import io.putdotio.android.playback.PlaybackCastMedia
+import io.putdotio.android.playback.PlaybackCastPlaylistSubtitle
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.playback.SubtitleSelection
 import io.putdotio.android.playback.SubtitleStartupPolicy
 import io.putdotio.android.playback.SubtitleTrackIdentity
+import io.putdotio.android.playback.castPlaylistSubtitle
 import io.putdotio.android.playback.castSubtitleKey
+import io.putdotio.android.playback.playlistSubtitleTrack
 import io.putdotio.android.playback.toCastMedia
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSourceKind
@@ -336,6 +340,36 @@ class MobileCastControllerTest {
         // Settings still loading: none unless the viewer picked one, as the local player.
         assertNull(castSubtitleKey(sidecar, null, null))
         assertEquals("default", castSubtitleKey(sidecar, SubtitleSelection.Automatic, null))
+    }
+
+    @Test
+    fun anHlsStreamShowsThePlaylistSubtitleTheLocalPlayerWould() {
+        val hls = PlaybackSource(
+            fileId = 42L,
+            kind = PlaybackSourceKind.HLS,
+            url = PutioCredentialUrl.of("https://api.put.io/v2/files/42/hls/media.m3u8"),
+            startFromSeconds = 0.0,
+            subtitles = PlaybackSubtitles.Embedded,
+        )
+
+        assertEquals(PlaybackCastPlaylistSubtitle(null), castPlaylistSubtitle(hls, null, Shown))
+        assertNull(castPlaylistSubtitle(hls, null, Shown.copy(autoSelectSubtitles = false)))
+        assertNull(castPlaylistSubtitle(hls, SubtitleSelection.Automatic, Shown.copy(showSubtitles = false)))
+        assertNull(castPlaylistSubtitle(hls, SubtitleSelection.Off, Shown))
+        val english = SubtitleSelection.Track(identity("2:subs"))
+        assertEquals(PlaybackCastPlaylistSubtitle("eng"), castPlaylistSubtitle(hls, english, Shown))
+        // Sidecar subtitles go with the load itself.
+        assertNull(castPlaylistSubtitle(source(listOf("default")), SubtitleSelection.Automatic, Shown))
+    }
+
+    @Test
+    fun thePlaylistSubtitleIsTheReceiversTrackInTheChosenLanguage() {
+        val tracks = listOf(CastTextTrack(1L, "de"), CastTextTrack(2L, "en-US"), CastTextTrack(3L, "en"))
+
+        assertEquals(2L, playlistSubtitleTrack(tracks, PlaybackCastPlaylistSubtitle("eng")))
+        assertEquals(1L, playlistSubtitleTrack(tracks, PlaybackCastPlaylistSubtitle(null)))
+        assertNull(playlistSubtitleTrack(tracks, PlaybackCastPlaylistSubtitle("fra")))
+        assertNull(playlistSubtitleTrack(emptyList(), PlaybackCastPlaylistSubtitle(null)))
     }
 
     private fun source(keys: List<String>) =

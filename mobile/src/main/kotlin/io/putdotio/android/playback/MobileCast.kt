@@ -14,6 +14,7 @@ import com.google.common.util.concurrent.SettableFuture
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSubtitles
+import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -337,6 +338,41 @@ internal fun castSubtitleKey(
         // Unknown settings show none, as locally: the account may hide subtitles.
         null -> keys.first().takeIf { policy?.autoSelectSubtitles == true }
     }
+}
+
+/**
+ * The playlist subtitle an HLS source shows on the receiver, by the same rules as [castSubtitleKey]:
+ * the viewer's pick by its language, else the playlist's first when the account selects one.
+ */
+internal fun castPlaylistSubtitle(
+    source: PlaybackSource,
+    selection: SubtitleSelection?,
+    policy: SubtitleStartupPolicy?,
+): PlaybackCastPlaylistSubtitle? {
+    if (source.subtitles != PlaybackSubtitles.Embedded || policy?.showSubtitles == false) return null
+    return when (selection) {
+        SubtitleSelection.Off -> null
+        is SubtitleSelection.Track -> PlaybackCastPlaylistSubtitle(
+            selection.identity.language?.takeUnless { it.isBlank() || it == C.LANGUAGE_UNDETERMINED },
+        )
+        SubtitleSelection.Automatic -> PlaybackCastPlaylistSubtitle(null)
+        null -> PlaybackCastPlaylistSubtitle(null).takeIf { policy?.autoSelectSubtitles == true }
+    }
+}
+
+/** A text track the receiver lists, by its id and language tag. */
+internal data class CastTextTrack(val id: Long, val language: String?)
+
+/** The id of the receiver's track for [wanted]: the first in its language, or the first of all; null for none. */
+internal fun playlistSubtitleTrack(tracks: List<CastTextTrack>, wanted: PlaybackCastPlaylistSubtitle): Long? {
+    val language = wanted.language?.primaryLanguage() ?: return tracks.firstOrNull()?.id
+    return tracks.firstOrNull { it.language?.primaryLanguage() == language }?.id
+}
+
+/** "en", "eng" and "en-US" all name English: compared as ISO 639-2, else as the tag's first part. */
+private fun String.primaryLanguage(): String? {
+    val tag = substringBefore('-').substringBefore('_').lowercase().takeUnless { it.isBlank() } ?: return null
+    return runCatching { Locale.forLanguageTag(tag).isO3Language }.getOrNull()?.takeUnless { it.isBlank() } ?: tag
 }
 
 /**

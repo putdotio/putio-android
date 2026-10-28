@@ -180,7 +180,14 @@ internal fun MobileCastPlayback(
         // One player at a time: session audio stops once the receiver takes over, for a video too.
         playerFactory.stopAudio(context)
         val load: suspend (PlaybackSource?) -> PlaybackRepositoryResult<PlaybackCastMedia> = { source ->
-            castMedia(source, source?.let { castSubtitleKey(it, preferences.subtitleSelection, currentPolicy) })
+            val selection = preferences.subtitleSelection
+            val loaded = castMedia(source, source?.let { castSubtitleKey(it, selection, currentPolicy) })
+            val playlistSubtitle = source?.let { castPlaylistSubtitle(it, selection, currentPolicy) }
+            if (loaded is PlaybackRepositoryResult.Success && playlistSubtitle != null) {
+                PlaybackRepositoryResult.Success(loaded.value.copy(playlistSubtitle = playlistSubtitle))
+            } else {
+                loaded
+            }
         }
         failed = !cast.handOver(state, load, preferences, playerFactory, currentOnSourceRequired)
     }

@@ -30,10 +30,18 @@ public data class PlaybackCastMedia(
     public val subtitles: List<PlaybackCastSubtitle>,
     /** The subtitle track to show from the start; null for none. */
     public val activeSubtitleId: Long?,
+    /** The HLS playlist's own subtitle to turn on once the receiver lists it; null for none. */
+    public val playlistSubtitle: PlaybackCastPlaylistSubtitle? = null,
 ) {
     override fun toString(): String =
         "PlaybackCastMedia(fileId=$fileId, contentType=$contentType, subtitles=${subtitles.size}, <redacted urls>)"
 }
+
+/**
+ * A subtitle an HLS playlist carries itself: the receiver lists it only after loading the stream.
+ * [language] names the track to turn on; null takes the playlist's first.
+ */
+public data class PlaybackCastPlaylistSubtitle(public val language: String?)
 
 /** A subtitle as a WebVTT text track; [id] is the receiver's track id. */
 public data class PlaybackCastSubtitle(

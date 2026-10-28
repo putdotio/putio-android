@@ -365,6 +365,9 @@ internal class GmsCastRemote : CastRemote {
     /** A refused load, which stands over the receiver's reports until the next load. */
     private var failedLoad: CastRemoteStatus? = null
 
+    /** The latest load's playlist subtitle, until the receiver lists the stream's text tracks. */
+    private var pendingSubtitle: Pair<Long, PlaybackCastPlaylistSubtitle>? = null
+
     /** Whether play was last asked for, which a loading receiver's status does not say. */
     private var playIntent: Boolean? = null
 
@@ -400,6 +403,7 @@ internal class GmsCastRemote : CastRemote {
             clearIfEmpty()
             markStatusKnown()
             publish()
+            showPlaylistSubtitle()
         }
 
         override fun onMetadataUpdated() = publish()
@@ -433,6 +437,7 @@ internal class GmsCastRemote : CastRemote {
         // A load still in flight belongs to the session that ended.
         loadRequest++
         failedLoad = null
+        pendingSubtitle = null
         playIntent = null
         endedStatus = mutableStatus.value?.takeUnless { discardHandback }
             ?.copy(endedAtMillis = SystemClock.elapsedRealtime())
@@ -476,6 +481,21 @@ internal class GmsCastRemote : CastRemote {
     }
 
     /**
+     * Turns on the playlist subtitle the latest load asked for, once the receiver lists the text
+     * tracks of that file's stream: an HLS playlist's own tracks exist only after it loads.
+     */
+    private fun showPlaylistSubtitle() {
+        val (fileId, wanted) = pendingSubtitle ?: return
+        val remote = client ?: return
+        val info = remote.mediaInfo?.takeIf { it.customData?.optLong(FILE_ID_KEY) == fileId } ?: return
+        val tracks = info.mediaTracks.orEmpty().filter { it.type == MediaTrack.TYPE_TEXT }
+        if (tracks.isEmpty()) return
+        pendingSubtitle = null
+        playlistSubtitleTrack(tracks.map { CastTextTrack(it.id, it.language) }, wanted)
+            ?.let { remote.setActiveMediaTracks(longArrayOf(it)) }
+    }
+
+    /**
      * The receiver reported [state] for [fileId]. A report never settles a load: one for the same file
      * sent again can be about the media before it, so only the load's own result does.
      */
@@ -493,6 +513,7 @@ internal class GmsCastRemote : CastRemote {
         val request = ++loadRequest
         loadSettled = false
         failedLoad = null
+        pendingSubtitle = media.playlistSubtitle?.let { media.fileId to it }
         playIntent = autoplay
         remote.load(
             MediaLoadRequestData.Builder()
