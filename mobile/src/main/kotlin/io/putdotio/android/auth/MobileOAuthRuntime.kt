@@ -100,6 +100,7 @@ class MobileOAuthRuntime internal constructor(
             },
             scope = applicationScope,
             onSynced = { fileId, seconds -> playbackReporting.publishSaved(fileId, seconds) },
+            writing = playbackReporting::exclusive,
         ).also {
             offlinePositions = it
             // A session restored before this attached still has its waiting positions sent.

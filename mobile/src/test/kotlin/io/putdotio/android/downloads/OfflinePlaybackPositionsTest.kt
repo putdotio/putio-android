@@ -10,6 +10,7 @@ import io.putdotio.android.playback.PlaybackRepositoryResult
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
 import java.io.IOException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
@@ -115,42 +116,13 @@ class OfflinePlaybackPositionsTest {
         val positions = playedOffline()
 
         remote.online = true
-        // The player's newer write lands and is accepted first; the older sync write lands after it.
-        remote.duringWrite = {
-            remote.positions[FILE] = 400.0
-            positions.afterWrite(USER, FILE, 400.0, PlaybackRepositoryResult.Success(Unit))
-        }
-        positions.syncNow(USER)
-        // The pass that follows sends the newer position again.
+        remote.duringWrite = { positions.afterWrite(USER, FILE, 400.0, PlaybackRepositoryResult.Success(Unit)) }
         positions.syncNow(USER)
 
-        // put.io ends on the newer position, and the older one's confirmation reaches no Files row.
-        assertEquals(400.0, remote.positions[FILE])
-        assertEquals(listOf(FILE to 250.0, FILE to 400.0), remote.writes)
+        // The older position's late confirmation neither rewrites what is known nor reaches Files rows.
         assertEquals(400.0, positions.store(USER).known(FILE))
         assertNull(positions.store(USER).pending(FILE))
-        assertEquals(listOf(FILE to 400.0), synced)
-    }
-
-    @Test
-    fun aResendThatFailsWaitsForTheNextPassInsteadOfLeavingTheOlderPosition() = runTest {
-        val positions = playedOffline()
-
-        remote.online = true
-        remote.duringWrite = {
-            remote.positions[FILE] = 400.0
-            positions.afterWrite(USER, FILE, 400.0, PlaybackRepositoryResult.Success(Unit))
-        }
-        remote.failWritesAfter = 1
-        positions.syncNow(USER)
-        positions.syncNow(USER)
-        assertEquals(250.0, remote.positions[FILE])
-        assertEquals(400.0, positions.store(USER).pending(FILE)?.seconds)
-
-        remote.failWritesAfter = Int.MAX_VALUE
-        positions.syncNow(USER)
-        assertEquals(400.0, remote.positions[FILE])
-        assertNull(positions.store(USER).pending(FILE))
+        assertTrue(synced.isEmpty())
     }
 
     @Test
@@ -262,9 +234,8 @@ internal class FakePositionRemote : PositionRemote {
     /** Runs after a read has taken its value, as a concurrent request would. */
     var afterRead: () -> Unit = {}
     var duringWrite: () -> Unit = {}
-    /** Writes after this many fail without landing, as on a dropped connection. */
-    var failWritesAfter = Int.MAX_VALUE
-    private var writeCalls = 0
+    /** Holds the next write until completed, as a slow request would. */
+    var writeGate: CompletableDeferred<Unit>? = null
     val positions = mutableMapOf<Long, Double>()
     val writes = mutableListOf<Pair<Long, Double>>()
     var reads = 0
@@ -280,9 +251,9 @@ internal class FakePositionRemote : PositionRemote {
     }
 
     override suspend fun write(fileId: Long, seconds: Double): PlaybackRepositoryResult<Unit> {
+        writeGate?.also { writeGate = null }?.await()
         duringWrite()
         duringWrite = {}
-        if (++writeCalls > failWritesAfter) return offline()
         if (online) positions[fileId] = seconds
         if (online && !landButFail) writes += fileId to seconds
         return if (online && !landButFail) PlaybackRepositoryResult.Success(Unit) else offline()

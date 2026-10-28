@@ -258,6 +258,41 @@ class MobilePlaybackReportingTest {
     }
 
     @Test
+    fun aPlayerWriteWaitsForAnOfflineSyncWriteInFlightSoTheNewerPositionLandsLast() = runTest {
+        val preferences = ApplicationProvider.getApplicationContext<Context>()
+            .getSharedPreferences("reporting-sync-order-test", Context.MODE_PRIVATE)
+        val remote = FakePositionRemote().apply { positions[42L] = 0.0 }
+        lateinit var reporting: MobilePlaybackReporting
+        val offline = OfflinePlaybackPositions(
+            preferences, { Account.userId }, remote, backgroundScope, writing = { reporting.exclusive(it) },
+        )
+        offline.store(Account.userId).apply {
+            remote(42L, 0.0)
+            // Played offline to 5 s; the sync sends it once put.io answers.
+            keep(42L, 5.0)
+        }
+        val fixture = ReportingFixture(backgroundScope, offline = offline)
+        reporting = fixture.runtime
+        val gate = CompletableDeferred<Unit>()
+        remote.writeGate = gate
+        backgroundScope.launch { offline.syncNow(Account.userId) }
+        runCurrent()
+
+        fixture.player.show(fixture.item(), 10_000L)
+        fixture.observer.flush()
+        runCurrent()
+        assertTrue(fixture.writes.isEmpty())
+
+        gate.complete(Unit)
+        runCurrent()
+        assertEquals(listOf(42L to 5.0), remote.writes)
+        assertEquals(listOf(42L to 10.0), fixture.writes)
+        assertEquals(10.0, offline.store(Account.userId).known(42L))
+        fixture.close()
+        preferences.edit().clear().commit()
+    }
+
+    @Test
     fun unrelatedPendingAndFailedSettingsDoNotRevokeConfirmedResume() = runTest {
         val fixture = ReportingFixture(backgroundScope)
         fixture.player.show(fixture.item(), 10_000L)

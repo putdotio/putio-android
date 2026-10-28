@@ -115,6 +115,9 @@ internal class MobilePlaybackReporting(
             ?: (offlineStore?.resumeSetting == true && offlineStore.tracks(fileId) && state != null)
     }
 
+    /** Runs [block] between the player's position writes; the offline sync sends its writes here. */
+    suspend fun exclusive(block: suspend () -> Unit) = writer.exclusive(block)
+
     fun observe(player: Player): PlaybackPositionObserver =
         PlaybackPositionObserver(player, scope, writer::offer)
 

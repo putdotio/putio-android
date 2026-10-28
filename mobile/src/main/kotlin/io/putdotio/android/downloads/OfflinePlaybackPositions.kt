@@ -30,10 +30,7 @@ internal enum class SyncResult {
     /** A newer local position arrived during the write and still waits. */
     NEWER_WAITING,
 
-    /**
-     * The player's own write was accepted meanwhile. It is newer, and this older write may have
-     * landed after it, so it waits to be sent again.
-     */
+    /** The player's own write was accepted meanwhile; it is newer, so this result is dropped. */
     SUPERSEDED,
 }
 
@@ -112,18 +109,7 @@ internal class OfflinePositionStore(private val preferences: SharedPreferences, 
         val known = snapshot.known + (update.fileId to remote)
         return when {
             // The player's own accepted write replaced this one: [known] already holds the newer position.
-            // put.io may hold either; the next pass compares against what this write sent.
-            current == null -> SyncResult.SUPERSEDED.also {
-                snapshot.known[update.fileId]?.let { newer ->
-                    val resend = PendingPosition(update.fileId, newer, remote, attempted = null, snapshot.nextRevision)
-                    write(
-                        snapshot.copy(
-                            pending = snapshot.pending + (update.fileId to resend),
-                            nextRevision = snapshot.nextRevision + 1,
-                        ),
-                    )
-                }
-            }
+            current == null -> SyncResult.SUPERSEDED
             current.revision == update.revision -> {
                 write(snapshot.copy(known = known, pending = snapshot.pending - update.fileId))
                 SyncResult.SETTLED
@@ -243,6 +229,9 @@ internal class OfflinePositionStore(private val preferences: SharedPreferences, 
  * went offline wins; otherwise this device's newest position is written. A pass runs for the
  * signed-in user only, stops when that changes, and drops pending positions if the account has
  * resume turned off. Application-owned: playback reports and the sync outlive any screen.
+ *
+ * Its writes go through [writing], between the player's own, so an older position this device
+ * played offline never lands after a newer one the player sent.
  */
 internal class OfflinePlaybackPositions(
     private val preferences: SharedPreferences,
@@ -250,6 +239,7 @@ internal class OfflinePlaybackPositions(
     private val remote: PositionRemote,
     private val scope: CoroutineScope,
     private val onSynced: (fileId: Long, seconds: Double) -> Unit = { _, _ -> },
+    private val writing: suspend (suspend () -> Unit) -> Unit = { it() },
 ) {
     private val stores = mutableMapOf<Long, OfflinePositionStore>()
     private val passes = Mutex()
@@ -351,20 +341,21 @@ internal class OfflinePlaybackPositions(
                 passRequested = true
             }
             expected != null && !samePosition(current, expected) -> store.yieldTo(update, current)
-            // The player's own write may have landed during the read; the newer position then stands.
-            !store.isCurrent(update) -> Unit
-            else -> {
-                store.attempted(update)
-                val written = remote.write(update.fileId, update.seconds) is PlaybackRepositoryResult.Success
-                // After a sign-out mid-write, the next pass finds the attempted position and settles it.
-                if (written && signedInUser() == userId) settle(store, update, update.seconds)
+            else -> writing {
+                // The player's own write may have landed since the read; the newer position then stands.
+                if (store.isCurrent(update) && signedInUser() == userId) {
+                    store.attempted(update)
+                    val written = remote.write(update.fileId, update.seconds) is PlaybackRepositoryResult.Success
+                    // After a sign-out mid-write, the next pass finds the attempted position and settles it.
+                    if (written && signedInUser() == userId) settle(store, update, update.seconds)
+                }
             }
         }
     }
 
     private fun settle(store: OfflinePositionStore, update: PendingPosition, seconds: Double) {
         when (store.synced(update, seconds)) {
-            SyncResult.SUPERSEDED -> passRequested = true
+            SyncResult.SUPERSEDED -> Unit
             SyncResult.NEWER_WAITING -> {
                 passRequested = true
                 onSynced(update.fileId, seconds)
