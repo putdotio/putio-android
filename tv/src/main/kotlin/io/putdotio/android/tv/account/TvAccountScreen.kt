@@ -82,6 +82,8 @@ import io.putdotio.android.settings.AppDiagnostics
 import io.putdotio.android.settings.TunnelRouteOption
 import io.putdotio.android.settings.VideoPlaybackType
 import io.putdotio.android.settings.putioFailure
+import io.putdotio.android.telemetry.AnalyticsEvent
+import io.putdotio.android.telemetry.ProductAnalytics
 import io.putdotio.android.tv.FULL_WIDTH_FOCUSED_SCALE
 import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.TvChoice
@@ -141,6 +143,7 @@ internal fun TvAccountScreen(
     // Set by Back only, so a first visit to Account never pulls focus off the drawer.
     val returningFromTrash = remember { mutableStateOf(false) }
     if (trashPane != null && showingTrash) {
+        LaunchedEffect(Unit) { ProductAnalytics.capture(AnalyticsEvent.ScreenViewed(AnalyticsEvent.Screen.Trash)) }
         BackHandler {
             showingTrash = false
             returningFromTrash.value = true

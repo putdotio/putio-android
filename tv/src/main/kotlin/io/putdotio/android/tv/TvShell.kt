@@ -36,6 +36,8 @@ import androidx.tv.material3.NavigationDrawerItem
 import androidx.tv.material3.Text
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
+import io.putdotio.android.telemetry.AnalyticsEvent
+import io.putdotio.android.telemetry.ProductAnalytics
 import io.putdotio.android.tv.account.TvInactiveAccountNotice
 import io.putdotio.android.tv.auth.TvAccount
 
@@ -95,6 +97,7 @@ internal fun TvShell(
             onDestinationRequestHandled()
         }
     }
+    LaunchedEffect(destination) { ProductAnalytics.capture(AnalyticsEvent.ScreenViewed(destination.analyticsScreen)) }
     val paneFocus = remember { FocusRequester() }
     val selectedItemFocus = remember { FocusRequester() }
 
@@ -225,3 +228,12 @@ private fun PaneTitle(text: String) {
 /** Full-width rows scale less than compact surfaces so they stay inside the safe area. */
 internal const val FULL_WIDTH_FOCUSED_SCALE = 1.02f
 internal val PANE_INSET = 16.dp
+
+private val TvDestination.analyticsScreen: AnalyticsEvent.Screen
+    get() =
+        when (this) {
+            TvDestination.Files -> AnalyticsEvent.Screen.Files
+            TvDestination.Search -> AnalyticsEvent.Screen.Search
+            TvDestination.History -> AnalyticsEvent.Screen.History
+            TvDestination.Account -> AnalyticsEvent.Screen.Account
+        }

@@ -28,4 +28,6 @@ style:
     imports:
       - value: 'io.sentry.*'
         reason: 'Report through core/telemetry, so every event passes its allowlist.'
+      - value: 'com.posthog.*'
+        reason: 'Capture through ProductAnalytics, so every event passes its allowlist.'
     excludes: ['**/core/telemetry/**']

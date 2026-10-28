@@ -5,6 +5,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.datasource.HttpDataSource
 import io.putdotio.android.PutioFailure
+import io.putdotio.android.telemetry.AnalyticsEvent
 import io.putdotio.android.telemetry.TelemetryFailure
 import io.putdotio.sdk.files.PlaybackSourceKind
 
@@ -35,11 +36,7 @@ private fun playbackFailureTelemetry(
     mediaType: PlaybackMediaType,
     sourceKind: PlaybackSourceKind?,
 ): TelemetryFailure {
-    val causes = generateSequence(failure.cause) { it.cause }.take(MAX_CAUSES).toList()
-    val exception = causes.filterIsInstance<PlaybackException>().firstOrNull()
-    val status = causes.firstNotNullOfOrNull { cause ->
-        (cause as? HttpDataSource.InvalidResponseCodeException)?.responseCode ?: cause.message?.relayedResponseCode()
-    }
+    val (exception, status) = failure.engineFacts()
     val mode = failureMode(failure, exception?.errorCode, status)
     val code = exception?.errorCodeName?.removePrefix("ERROR_CODE_")?.lowercase() ?: "none"
     val tags = mapOf(
@@ -55,6 +52,27 @@ private fun playbackFailureTelemetry(
         "media_type" to mediaType.name.lowercase(),
     ) + listOfNotNull(status?.let { "source_request_status" to "$it" }, fileId?.let { "file_id" to "$it" })
     return TelemetryFailure(EVENT, listOf(mode, code), tags)
+}
+
+private fun PlaybackFailure.engineFacts(): Pair<PlaybackException?, Int?> {
+    val causes = generateSequence(cause) { it.cause }.take(MAX_CAUSES).toList()
+    val exception = causes.filterIsInstance<PlaybackException>().firstOrNull()
+    val status = causes.firstNotNullOfOrNull { cause ->
+        (cause as? HttpDataSource.InvalidResponseCodeException)?.responseCode ?: cause.message?.relayedResponseCode()
+    }
+    return exception to status
+}
+
+/** The failure as product analytics' `error`: `source` is a deleted, unpaid or throttled file. */
+internal fun PlaybackFailure.analyticsError(): AnalyticsEvent.PlaybackError {
+    val (exception, status) = engineFacts()
+    return when (failureMode(this, exception?.errorCode, status)) {
+        "source_gone", "entitlement", "throttled" -> AnalyticsEvent.PlaybackError.Source
+        "server_transient", "network", "load" -> AnalyticsEvent.PlaybackError.Network
+        "unsupported_source" -> AnalyticsEvent.PlaybackError.Unsupported
+        "decode", "drm" -> AnalyticsEvent.PlaybackError.Media
+        else -> AnalyticsEvent.PlaybackError.Unknown
+    }
 }
 
 // The web contract's failure modes; a definitive source status outranks the player's own code.

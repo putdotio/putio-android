@@ -11,6 +11,7 @@ android {
 
 dependencies {
     implementation(project(":core:common"))
+    implementation(project(":core:telemetry"))
     implementation(libs.putio.sdk.kotlin)
     implementation(libs.kotlinx.coroutines.android)
 }

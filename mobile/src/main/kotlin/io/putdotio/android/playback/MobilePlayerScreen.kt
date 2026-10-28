@@ -114,6 +114,8 @@ internal fun MobilePlayerScreen(
     modifier: Modifier = Modifier,
     autoplayNextVideo: Boolean = false,
     onPlaybackEnded: () -> Unit = {},
+    /** The file's end, whatever autoplay does next, and Cast handovers. */
+    analytics: PlaybackAnalyticsReporter = PlaybackAnalyticsReporter.None,
     playerFactory: MobilePlayerFactory = DefaultMobilePlayerFactory,
     subtitleStartupPolicy: SubtitleStartupPolicy? = null,
     seekClock: () -> Long = SystemClock::uptimeMillis,
@@ -156,6 +158,7 @@ internal fun MobilePlayerScreen(
             onPlayerFailure = onPlayerFailure,
             autoplayNextVideo = autoplayNextVideo,
             onPlaybackEnded = onPlaybackEnded,
+            analytics = analytics,
             seekClock = seekClock,
             onSourceRequired = onSourceRequired,
             onBack = onBack,
@@ -275,6 +278,7 @@ private fun MobileReadyContent(
     onPlayerFailure: (PlaybackFailure, Long) -> Unit,
     autoplayNextVideo: Boolean,
     onPlaybackEnded: () -> Unit,
+    analytics: PlaybackAnalyticsReporter,
     seekClock: () -> Long,
     onSourceRequired: (Long?) -> Unit,
     onBack: () -> Unit,
@@ -302,10 +306,12 @@ private fun MobileReadyContent(
             onPlay = onPlay,
             autoplayNextVideo = autoplayNextVideo,
             onPlaybackEnded = onPlaybackEnded,
+            analytics = analytics,
         )
         return
     }
     val handover = rememberCastHandover(playerCast, state.target.fileId.value, preferences)
+    LaunchedEffect(analytics) { analytics.localShown() }
     val ready = state.content as? PlaybackContent.Ready
     MobileSessionPlayerHost(
         mediaType = state.target.mediaType,
@@ -335,6 +341,7 @@ private fun MobileReadyContent(
             onPlayerFailure = onPlayerFailure,
             autoplayNextVideo = autoplayNextVideo,
             onPlaybackEnded = onPlaybackEnded,
+            analytics = analytics,
             playerFactory = playerFactory,
             seekClock = seekClock,
             onSourceRequired = onSourceRequired,
@@ -427,6 +434,7 @@ private fun MobileReadyPlayer(
     onPlayerFailure: (PlaybackFailure, Long) -> Unit,
     autoplayNextVideo: Boolean,
     onPlaybackEnded: () -> Unit,
+    analytics: PlaybackAnalyticsReporter,
     playerFactory: MobilePlayerFactory,
     seekClock: () -> Long,
     onSourceRequired: (Long?) -> Unit,
@@ -471,6 +479,7 @@ private fun MobileReadyPlayer(
     val currentOnPlayerFailure = rememberUpdatedState(onPlayerFailure)
     val currentAutoplayNextVideo = rememberUpdatedState(autoplayNextVideo)
     val currentOnPlaybackEnded = rememberUpdatedState(onPlaybackEnded)
+    val currentOnReachedEnd = rememberUpdatedState<() -> Unit> { analytics.reachedEnd() }
     val currentOnPlaybackRetained = rememberUpdatedState(onPlaybackRetained)
     val currentOnPositionChanged = rememberUpdatedState(onPositionChanged)
     val currentSubtitleStartupPolicy = rememberUpdatedState(subtitleStartupPolicy)
@@ -557,6 +566,7 @@ private fun MobileReadyPlayer(
         currentSubtitleStartupPolicy = currentSubtitleStartupPolicy,
         currentAutoplayNextVideo = currentAutoplayNextVideo,
         currentOnPlaybackEnded = currentOnPlaybackEnded,
+        currentOnReachedEnd = currentOnReachedEnd,
         currentOnPlayerFailure = currentOnPlayerFailure,
         currentOnPlaybackRetained = currentOnPlaybackRetained,
         currentOnPositionChanged = currentOnPositionChanged,
@@ -964,6 +974,7 @@ private fun PlayerListenerEffect(
     currentSubtitleStartupPolicy: State<SubtitleStartupPolicy?>,
     currentAutoplayNextVideo: State<Boolean>,
     currentOnPlaybackEnded: State<() -> Unit>,
+    currentOnReachedEnd: State<() -> Unit>,
     currentOnPlayerFailure: State<(PlaybackFailure, Long) -> Unit>,
     currentOnPlaybackRetained: State<(RetainedPlayback) -> Unit>,
     currentOnPositionChanged: State<(Long) -> Unit>,
@@ -1059,6 +1070,7 @@ private fun PlayerListenerEffect(
                     if (newPlaybackState == Media3Player.STATE_ENDED) {
                         if (!playerState.endedReported) {
                             playerState.endedReported = true
+                            currentOnReachedEnd.value()
                             if (currentAutoplayNextVideo.value) currentOnPlaybackEnded.value()
                         }
                     } else {

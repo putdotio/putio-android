@@ -13,6 +13,7 @@ import io.putdotio.android.auth.handleAuthTabActivityResult
 import io.putdotio.android.playback.MobileCast
 import io.putdotio.android.share.MobileFileShareService
 import io.putdotio.android.share.MobileResumedActivity
+import io.putdotio.android.telemetry.ProductAnalytics
 import io.putdotio.android.transfers.MobileTransferDraft
 import io.putdotio.android.transfers.consumeMobileIncomingTransfer
 import io.putdotio.android.transfers.receive
@@ -113,7 +114,10 @@ class MainActivity : BasePutioActivity() {
         val consumed = !freshIntent && (launch.deepLinkLaunchConsumed || restoredConsumed)
         launch.deepLinkLaunchConsumed = true
         val fromHistory = intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0
-        if (!consumed && !fromHistory) deepLinkRequests.receive(link)
+        if (!consumed && !fromHistory) {
+            ProductAnalytics.didOpenLink()
+            deepLinkRequests.receive(link)
+        }
     }
 
     /** A link the shell has not routed yet, for example one received signed out, survives process death. */

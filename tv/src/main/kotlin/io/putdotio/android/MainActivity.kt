@@ -5,6 +5,7 @@ import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.core.net.toUri
 import androidx.lifecycle.ViewModelProvider
+import io.putdotio.android.telemetry.ProductAnalytics
 import io.putdotio.android.tv.TvLaunchRequests
 import io.putdotio.android.tv.consumeTvLaunchRequest
 import io.putdotio.android.tv.toTvLaunchRequest
@@ -47,7 +48,10 @@ class MainActivity : BasePutioActivity() {
         val request = intent?.consumeTvLaunchRequest() ?: return
         // Recents replays the intent that started the task; it is not a new request.
         val fromHistory = intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0
-        if (fresh && !fromHistory) launchRequests.receive(request)
+        if (fresh && !fromHistory) {
+            ProductAnalytics.didOpenLink()
+            launchRequests.receive(request)
+        }
     }
 
     private companion object {

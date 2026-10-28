@@ -19,6 +19,8 @@ internal class MobilePlaybackViewModel(
         } else {
             PlaybackStartup.Resolve
         },
+        // Audio playback analytics, background service and Cast included, are not wired yet.
+        analytics = target.mediaType == PlaybackMediaType.VIDEO,
     )
 
     override fun onCleared() {
