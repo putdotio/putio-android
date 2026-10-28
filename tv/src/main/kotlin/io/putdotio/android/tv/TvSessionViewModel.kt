@@ -269,7 +269,9 @@ internal class TvSession internal constructor(
         val mediaType = PlaybackMediaType.fromFileType(item.type) ?: return
         if (!scope.isActive) return
         val target = PlaybackTarget(item.id, item.name, mediaType, item.playback?.durationSeconds, item.screenshotUrl)
-        val controller = PlaybackController(target, playbackRepository, scope, analytics = true)
+        // Audio playback analytics are not wired yet, here or on mobile.
+        val analytics = mediaType == PlaybackMediaType.VIDEO
+        val controller = PlaybackController(target, playbackRepository, scope, analytics = analytics)
         playbackReporting.startPlayback()
         mutablePlayback.getAndUpdate { controller }?.close()
         playbackStart = item

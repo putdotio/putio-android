@@ -40,7 +40,7 @@ frames, device facts and failure codes.
 
 Release builds send product analytics to PostHog only while the account's
 Product analytics control is on: app opens and backgrounds, screens, saved
-settings, and playback starts, ends and failures. Every event passes the
+settings, and video playback starts, ends and failures. Every event passes the
 allowlist in
 [`AnalyticsEvent.kt`](core/telemetry/src/main/kotlin/io/putdotio/android/telemetry/AnalyticsEvent.kt),
 which follows put.io's Analytics event contract.

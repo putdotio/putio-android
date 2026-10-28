@@ -19,7 +19,7 @@ internal class MobilePlaybackViewModel(
         } else {
             PlaybackStartup.Resolve
         },
-        // Audio plays on the session service, whose player reports its own analytics.
+        // Audio playback analytics, background service and Cast included, are not wired yet.
         analytics = target.mediaType == PlaybackMediaType.VIDEO,
     )
 

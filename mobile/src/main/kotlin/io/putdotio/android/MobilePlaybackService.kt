@@ -21,9 +21,7 @@ import io.putdotio.android.playback.DefaultMobilePlayerFactory
 import io.putdotio.android.playback.MobileSleepTimer
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackPositionObserver
-import io.putdotio.android.playback.PlayerPlaybackAnalytics
 import io.putdotio.android.playback.playerFailureTelemetry
-import io.putdotio.android.telemetry.AnalyticsEvent
 import io.putdotio.android.telemetry.PutioDiagnostics
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
@@ -47,8 +45,6 @@ class MobilePlaybackService : MediaSessionService() {
         // Streaming with the screen off needs the CPU and radio awake; a foreground service alone does not.
         (player as? ExoPlayer)?.setWakeMode(C.WAKE_MODE_NETWORK)
         positionObserver = MobileOAuthRuntime.get(this).playbackReporting.observe(player)
-        // Audio plays here, past any screen, so its analytics come from this player alone.
-        player.addListener(PlayerPlaybackAnalytics(AnalyticsEvent.Media.Audio))
         player.addListener(
             object : Media3Player.Listener {
                 override fun onEvents(player: Media3Player, events: Media3Player.Events) {
