@@ -242,9 +242,9 @@ class MobileOAuthRuntime internal constructor(
                 }
             }
             val accountSettings = SdkAccountSettingsRepository(putioClient)
-            ProductAnalytics.setConsentCheck {
+            ProductAnalytics.setConsentCheck { check ->
                 val accountId = (authController.state.value as? MobileAuthState.SignedIn)?.account?.userId
-                applicationScope.launch { accountSettings.confirmProductAnalytics(accountId) }
+                applicationScope.launch { accountSettings.confirmProductAnalytics(check, accountId) }
             }
         }
 

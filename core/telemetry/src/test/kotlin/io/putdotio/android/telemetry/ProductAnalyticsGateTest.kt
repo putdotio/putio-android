@@ -54,9 +54,9 @@ class ProductAnalyticsGateTest {
     @Test
     fun aRecheckHoldsEventsUntilPutioAnswersAgain() {
         gate.update(accountId = 7, enabled = true)
-        gate.hold()
+        val check = gate.hold()
         gate.capture(AppOpened(Entry.Resume))
-        gate.update(accountId = 7, enabled = false)
+        gate.answer(check, accountId = 7, enabled = false)
 
         assertEquals(listOf("stop", "stop", "start 7", "stop"), sdk.calls)
     }
@@ -64,21 +64,34 @@ class ProductAnalyticsGateTest {
     @Test
     fun aRecheckWithoutAnAnswerSendsOnTheLastOne() {
         gate.update(accountId = 7, enabled = true)
-        gate.hold()
+        val check = gate.hold()
         gate.capture(AppOpened(Entry.Resume))
-        gate.release()
+        gate.answer(check, accountId = null, enabled = null)
 
         assertEquals(listOf("stop", "stop", "start 7", "app_opened {entry=resume} @1000"), sdk.calls)
     }
 
     @Test
-    fun aReleaseBeforeTheFirstAnswerKeepsHolding() {
+    fun aCheckBeforeTheFirstAnswerKeepsHolding() {
         gate.capture(AppOpened(Entry.Direct))
-        gate.hold()
-        gate.release()
+        gate.answer(gate.hold(), accountId = null, enabled = null)
         gate.update(accountId = 7, enabled = true)
 
         assertEquals(listOf("stop", "stop", "start 7", "app_opened {entry=direct} @1000"), sdk.calls)
+    }
+
+    @Test
+    fun aCheckAnswerANewerAnswerOvertookChangesNothing() {
+        gate.update(accountId = 7, enabled = true)
+        val slow = gate.hold()
+        gate.update(accountId = 7, enabled = false)
+        gate.answer(slow, accountId = 7, enabled = true)
+        val superseded = gate.hold()
+        val latest = gate.hold()
+        gate.answer(superseded, accountId = 7, enabled = true)
+        gate.answer(latest, accountId = null, enabled = null)
+
+        assertEquals(listOf("stop", "stop", "start 7", "stop"), sdk.calls)
     }
 
     @Test

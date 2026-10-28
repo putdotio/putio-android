@@ -17,7 +17,7 @@ public object ProductAnalytics {
     private var accountId: Long? = null
 
     @Volatile
-    private var consentCheck: (() -> Unit)? = null
+    private var consentCheck: ((ConsentCheck) -> Unit)? = null
 
     /** Once per process, from `Application.onCreate`; a null [configuration] keeps PostHog off. */
     @Synchronized
@@ -54,19 +54,19 @@ public object ProductAnalytics {
      * Asks put.io for the answer again on each return to the foreground, since an opt-out on another
      * device reaches the app only that way. Events wait until [check] calls [confirm].
      */
-    public fun setConsentCheck(check: (() -> Unit)?) {
+    public fun setConsentCheck(check: ((ConsentCheck) -> Unit)?) {
         consentCheck = check
     }
 
-    /** A consent check's answer for [accountId]; a null [enabled] couldn't be read and keeps the last answer. */
+    /**
+     * [check]'s answer for [accountId]; a null [enabled] couldn't be read and keeps the last answer.
+     * An answer that a newer answer or check overtook changes nothing.
+     */
     @Synchronized
-    public fun confirm(accountId: Long?, enabled: Boolean?) {
+    public fun confirm(check: ConsentCheck, accountId: Long?, enabled: Boolean?) {
         // A sign-out or account switch since the check already answered for the current account.
-        if (accountId == null || accountId != this.accountId || enabled == null) {
-            gate?.release()
-        } else {
-            update(accountId, enabled)
-        }
+        val current = accountId != null && accountId == this.accountId
+        gate?.answer(check.revision, accountId.takeIf { current }, enabled.takeIf { current })
     }
 
     public fun capture(event: AnalyticsEvent) {
@@ -75,10 +75,14 @@ public object ProductAnalytics {
 
     private fun recheckConsent() {
         val check = consentCheck ?: return
-        gate?.hold()
-        check()
+        val revision = gate?.hold() ?: return
+        check(ConsentCheck(revision))
     }
 }
+
+/** One consent check, so its answer can tell whether a newer one overtook it. */
+@JvmInline
+public value class ConsentCheck internal constructor(internal val revision: Int)
 
 /** What the gate needs from PostHog; every call runs on the gate's executor, in order. */
 internal interface AnalyticsSdk {
@@ -103,6 +107,7 @@ internal class ProductAnalyticsGate(
 ) {
     private var answered = false
     private var rechecking = false
+    private var revision = 0
     private var running: Long? = null
 
     // Bumped on every start or stop, so a capture queued before an opt-out drops instead of draining.
@@ -117,27 +122,40 @@ internal class ProductAnalyticsGate(
         submit(sdk::stop)
     }
 
-    /** Holds events until the next [update] or [release], as the last answer may be stale. */
+    /**
+     * Holds events until the next [update] or this check's [answer], as the last answer may be
+     * stale. Returns the check's revision.
+     */
     @Synchronized
-    fun hold() {
-        if (!answered) return
-        answered = false
-        rechecking = true
+    fun hold(): Int {
+        if (answered) {
+            answered = false
+            rechecking = true
+        }
+        return ++revision
     }
 
-    /** Sends events held since [hold] on the last answer; before the first answer it changes nothing. */
+    /**
+     * The answer to the check [hold] returned [revision] for; a null [accountId] or [enabled] keeps
+     * the last answer. Before the first answer, or once a newer check or update came, it changes nothing.
+     */
     @Synchronized
-    fun release() {
-        if (!rechecking) return
-        rechecking = false
-        answered = true
-        flushHeld()
+    fun answer(revision: Int, accountId: Long?, enabled: Boolean?) {
+        if (revision != this.revision || !rechecking) return
+        if (accountId != null && enabled != null) {
+            update(accountId, enabled)
+        } else {
+            rechecking = false
+            answered = true
+            flushHeld()
+        }
     }
 
     @Synchronized
     fun update(accountId: Long?, enabled: Boolean) {
         answered = true
         rechecking = false
+        revision++
         val target = accountId.takeIf { enabled }
         if (target != running) {
             running = target

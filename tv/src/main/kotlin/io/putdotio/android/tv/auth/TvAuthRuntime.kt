@@ -97,9 +97,9 @@ class TvAuthRuntime internal constructor(
                 }
             }
             val accountSettings = SdkAccountSettingsRepository(putioClient)
-            ProductAnalytics.setConsentCheck {
+            ProductAnalytics.setConsentCheck { check ->
                 val accountId = (authController.state.value as? TvAuthState.SignedIn)?.account?.userId
-                applicationScope.launch { accountSettings.confirmProductAnalytics(accountId) }
+                applicationScope.launch { accountSettings.confirmProductAnalytics(check, accountId) }
             }
             // A quiet sign-out lands on Initializing, which keeps the last answer; it is an off answer.
             applicationScope.launch {

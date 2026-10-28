@@ -3,6 +3,7 @@ package io.putdotio.android.settings
 import io.putdotio.android.telemetry.AnalyticsEvent
 import io.putdotio.android.telemetry.AnalyticsEvent.Setting
 import io.putdotio.android.telemetry.AnalyticsEvent.SettingValue
+import io.putdotio.android.telemetry.ConsentCheck
 import io.putdotio.android.telemetry.ProductAnalytics
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -27,11 +28,11 @@ public fun Flow<AccountSettingsState>.productAnalyticsAnswers(): Flow<Boolean> =
     mapNotNull { it.productAnalyticsAllowed() }.distinctUntilChanged()
 
 /** Answers a [ProductAnalytics.setConsentCheck] for [accountId] from put.io; a failed read keeps the last answer. */
-public suspend fun AccountSettingsRepository.confirmProductAnalytics(accountId: Long?) {
+public suspend fun AccountSettingsRepository.confirmProductAnalytics(check: ConsentCheck, accountId: Long?) {
     val enabled = accountId?.let {
         (load() as? AccountSettingsRepositoryResult.Success)?.value?.productAnalyticsEnabled
     }
-    ProductAnalytics.confirm(accountId, enabled)
+    ProductAnalytics.confirm(check, accountId, enabled)
 }
 
 /** Sends `settings_changed` once per app config save put.io accepts; the prompt's answer sends nothing. */
