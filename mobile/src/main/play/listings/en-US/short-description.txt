@@ -1,1 +1,1 @@
-put.io application for the Android TV platform.
+Browse, stream and download your put.io files on phones, tablets and TV.

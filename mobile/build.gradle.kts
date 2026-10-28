@@ -117,7 +117,10 @@ play {
     artifactDir.set(layout.buildDirectory.dir("play-bundles"))
 }
 
-tasks.matching { it.name == "publishProductionReleaseBundle" }.configureEach { dependsOn(playBundles) }
+// lintVital is off (checkReleaseBuilds = false), so an upload lints both release variants itself.
+tasks.matching { it.name == "publishProductionReleaseBundle" }.configureEach {
+    dependsOn(playBundles, "lintProductionRelease", ":tv:lintProductionRelease")
+}
 
 val launchSmokeTest = "io.putdotio.android.LaunchSmokeTest#shellLaunchesStaysResumedAndRenders"
 

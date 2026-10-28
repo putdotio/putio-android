@@ -289,6 +289,29 @@ class MobileAccountScreenTest {
     }
 
     @Test
+    fun privacyControlsStayReachableWhenSettingsFailToLoad() {
+        var opened = 0
+        compose.setAccountContent(
+            state = {
+                accountSettingsState(
+                    content = AccountSettingsContent.Failed(
+                        AccountSettingsFailure.Putio(PutioFailure.Unexpected(IllegalStateException("offline"))),
+                    ),
+                    mutation = AccountSettingsMutation.Idle,
+                    nextRequestValue = 2L,
+                )
+            },
+            events = mutableListOf(),
+            options = AccountScreenOptions(pages = AccountPages(onPrivacyControls = { opened += 1 })),
+        )
+
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_PRIVACY_CONTROLS_ROW_TAG))
+        compose.onNodeWithTag(MOBILE_PRIVACY_CONTROLS_ROW_TAG).performClick()
+        compose.onAllNodesWithText("Keep account history").assertCountEquals(0)
+        compose.runOnIdle { assertEquals(1, opened) }
+    }
+
+    @Test
     fun authenticationLoadFailureHasNoRetryAction() {
         val events = mutableListOf<AccountSettingsEvent>()
         compose.setAccountContent(
