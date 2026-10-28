@@ -62,6 +62,26 @@ class PlaybackAnalyticsTrackerTest {
         )
     }
 
+    @Test
+    fun aFileBackOnThePhoneAfterCastingEndsThere() {
+        PlaybackReducer.start(Target).state.also(tracker::onState).after(resolved(1L, 42L))
+        tracker.localShown()
+        tracker.castStarted()
+        tracker.localShown()
+        tracker.reachedEnd()
+
+        val cast = Local.copy(player = AnalyticsEvent.Player.Chromecast)
+        assertEquals(
+            listOf(
+                AnalyticsEvent.PlaybackStarted(Local),
+                AnalyticsEvent.PlaybackStarted(cast),
+                AnalyticsEvent.PlaybackStarted(Local),
+                AnalyticsEvent.PlaybackEnded(Local, AnalyticsEvent.PlaybackDuration.Under5m),
+            ),
+            events,
+        )
+    }
+
     private fun PlaybackState.after(event: PlaybackEvent): PlaybackState =
         PlaybackReducer.reduce(this, event).state.also(tracker::onState)
 

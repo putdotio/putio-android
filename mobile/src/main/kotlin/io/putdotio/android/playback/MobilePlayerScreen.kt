@@ -311,6 +311,7 @@ private fun MobileReadyContent(
         return
     }
     val handover = rememberCastHandover(playerCast, state.target.fileId.value, preferences)
+    LaunchedEffect(analytics) { analytics.localShown() }
     val ready = state.content as? PlaybackContent.Ready
     MobileSessionPlayerHost(
         mediaType = state.target.mediaType,

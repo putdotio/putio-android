@@ -18,6 +18,7 @@ import androidx.media3.session.SessionToken
 import io.putdotio.android.auth.MobileOAuthRuntime
 import io.putdotio.android.design.R as DesignR
 import io.putdotio.android.playback.DefaultMobilePlayerFactory
+import io.putdotio.android.playback.MobileAudioAnalytics
 import io.putdotio.android.playback.MobileSleepTimer
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackPositionObserver
@@ -53,6 +54,10 @@ class MobilePlaybackService : MediaSessionService() {
 
                 override fun onPlayerError(error: PlaybackException) {
                     PutioDiagnostics.capture(player.playerFailureTelemetry(error, PlaybackMediaType.AUDIO))
+                }
+
+                override fun onPlaybackStateChanged(playbackState: Int) {
+                    if (playbackState == Media3Player.STATE_ENDED) MobileAudioAnalytics.reporter.reachedEnd()
                 }
             },
         )

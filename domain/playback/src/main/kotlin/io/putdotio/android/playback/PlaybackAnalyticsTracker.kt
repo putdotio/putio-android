@@ -15,6 +15,9 @@ public interface PlaybackAnalyticsReporter {
     /** A receiver couldn't take the current file over. */
     public fun castFailed() {}
 
+    /** The local player shows the current file, such as after a Cast session ends. */
+    public fun localShown() {}
+
     public companion object {
         public val None: PlaybackAnalyticsReporter = object : PlaybackAnalyticsReporter {}
     }
@@ -68,6 +71,15 @@ internal class PlaybackAnalyticsTracker(
     override fun castStarted() {
         val playback = castPlayback() ?: return
         if (started?.player != AnalyticsEvent.Player.Chromecast) start(playback)
+    }
+
+    @Synchronized
+    override fun localShown() {
+        val state = previous ?: return
+        val source = (state.content as? PlaybackContent.Ready)?.source ?: return
+        if (started?.player == AnalyticsEvent.Player.Chromecast) {
+            start(playback(state.target.mediaType, source, AnalyticsEvent.Player.ExoPlayer))
+        }
     }
 
     @Synchronized
