@@ -41,6 +41,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.media3.common.C
 import androidx.media3.common.Player as Media3Player
 import io.putdotio.android.MobileMiddleCutText
+import io.putdotio.android.isCompactHeightWindow
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioTypeScale
@@ -203,9 +204,25 @@ internal fun MobileNowPlayingBar(
                         modifier = Modifier.size(22.dp),
                     )
                 }
-                Column(Modifier.weight(1f)) {
-                    MobileMiddleCutText(nowPlaying.title, style = MaterialTheme.typography.bodyMedium)
-                    MobileNowPlayingTime(nowPlaying)
+                // A compact-height window sets the time beside the name, keeping the card to one line.
+                if (isCompactHeightWindow()) {
+                    Row(
+                        Modifier.weight(1f),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        MobileMiddleCutText(
+                            nowPlaying.title,
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        MobileNowPlayingTime(nowPlaying)
+                    }
+                } else {
+                    Column(Modifier.weight(1f)) {
+                        MobileMiddleCutText(nowPlaying.title, style = MaterialTheme.typography.bodyMedium)
+                        MobileNowPlayingTime(nowPlaying)
+                    }
                 }
                 Row {
                     IconButton(

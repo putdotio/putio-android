@@ -363,7 +363,10 @@ round to 2dp.
   mono.
 - **History, Transfers, Downloads, Account:** a tab title with an optional
   one-line summary below it (for example "2 active · 2 failed · 56.2 MB/s"),
-  and an overflow at the top right when the tab has actions for it.
+  and an overflow at the top right when the tab has actions for it. Below
+  480dp of window height, as on a phone in landscape, the title drops to
+  `title-lg` and sits on one 64dp top-app-bar row with the summary after it
+  and the actions at the end, so the list keeps the height.
 
 ### Search
 
@@ -568,7 +571,8 @@ bar, that collapses to its icon on scroll.
 It opens a sheet: one field for links and magnets, Paste and .torrent chips,
 the destination with Change, then Cancel and Add. Each line is checked on its
 own: a line that doesn't parse stays in the field with a one-line reason, and
-Add counts the lines that will go ("Add 1").
+Add counts the lines that will go ("Add 1"). Below 480dp of window height the
+sheet drops its drag handle and its content scrolls; Cancel and Back close it.
 
 **Widget:** the home-screen widget is a `background` card titled Transfers
 with a yellow glyph and a refresh button. Up to three running transfers follow,
@@ -679,8 +683,9 @@ Audio keeps playing while you browse: a mini player card above the nav bar on
 every tab, on `surface-container-high` with 16dp corners, 8dp from the sides
 and the bar. It holds the type glyph on a 40dp `surface-container-highest`
 tile, the filename cut in the middle in `body-sm`, elapsed and total time in
-mono, pause and close, and a 2dp yellow progress line along its foot. Tapping
-it opens Now Playing:
+mono, pause and close, and a 2dp yellow progress line along its foot. Below
+480dp of window height the time sits after the filename on the same line.
+Tapping it opens Now Playing:
 
 - Top: back as a caret down, Cast, and More when the file has more than one
   audio track.
