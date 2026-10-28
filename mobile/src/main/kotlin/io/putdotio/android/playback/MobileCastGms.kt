@@ -522,6 +522,7 @@ internal class GmsCastRemote : CastRemote {
             if (loadRequest == request) loadSettled = true
             if (client === remote && loadRequest == request && result.status.isSuccess) showPendingSubtitle()
             if (client === remote && loadRequest == request && !result.status.isSuccess) {
+                pendingSubtitle = null
                 failedLoad = CastRemoteStatus(
                     fileId = media.fileId,
                     state = CastRemoteState.Failed,

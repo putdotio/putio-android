@@ -200,10 +200,13 @@ class MobileCastPlaybackTest {
             }
         }
 
-        compose.runOnIdle {
-            assertEquals(listOf(PlaybackCastPlaylistSubtitle(null)), gateway.sent.map { it.playlistSubtitle })
+        try {
+            compose.runOnIdle {
+                assertEquals(listOf(PlaybackCastPlaylistSubtitle(null)), gateway.sent.map { it.playlistSubtitle })
+            }
+        } finally {
+            hls.close()
         }
-        hls.close()
     }
 
     private fun ReceiverGateway.report(fileId: Long, state: CastRemoteState) {
