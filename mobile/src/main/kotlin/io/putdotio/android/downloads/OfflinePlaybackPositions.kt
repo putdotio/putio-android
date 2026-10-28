@@ -238,8 +238,8 @@ internal class OfflinePlaybackPositions(
     private val signedInUser: () -> Long?,
     private val remote: PositionRemote,
     private val scope: CoroutineScope,
-    private val onSynced: (fileId: Long, seconds: Double) -> Unit = { _, _ -> },
     private val writing: suspend (suspend () -> Unit) -> Unit = { it() },
+    private val onSynced: (fileId: Long, seconds: Double) -> Unit = { _, _ -> },
 ) {
     private val stores = mutableMapOf<Long, OfflinePositionStore>()
     private val passes = Mutex()
