@@ -120,6 +120,25 @@ class MobileProductAnalyticsPromptTest {
     }
 
     @Test
+    fun allowAfterAFailedDontAllowSavesTheSettingThenAnswers() {
+        show()
+        compose.onNodeWithTag(MOBILE_PRODUCT_ANALYTICS_DENY_TAG).performScrollTo().performClick()
+        compose.runOnIdle {
+            config = AndroidAppConfigReducer.reduce(
+                config,
+                AndroidAppConfigEvent.SaveFailed(config.savingId(), PutioFailure.Unexpected(RuntimeException("503"))),
+            ).state
+        }
+        compose.onNodeWithTag(MOBILE_PRODUCT_ANALYTICS_ALLOW_TAG).performScrollTo().performClick()
+        compose.runOnIdle {
+            settings = AccountSettingsReducer
+                .reduce(settings, AccountSettingsEvent.SaveSucceeded(settings.savingId()))
+                .state
+        }
+        compose.runOnIdle { assertEquals(listOf(answer, answer), configEvents) }
+    }
+
+    @Test
     fun aLaunchThatOpensALinkSkipsTheAsk() {
         compose.setContent {
             PutioTheme {
