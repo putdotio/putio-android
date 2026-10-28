@@ -87,9 +87,10 @@ private fun downloadsDeepLink(segments: List<String>, user: String?): MobileDeep
     return if (valid) MobileDeepLink.Downloads(fileId, play = play == true, userId = userId) else null
 }
 
+/** `files` or `files/<id>`; shared folders such as Items shared with you (-2) have negative ids. */
 private fun filesDeepLink(segments: List<String>): MobileDeepLink? = when (segments.size) {
     0, 1 -> MobileDeepLink.Files
-    2 -> segments[1].toLongOrNull()?.takeIf { it > 0L }?.let { MobileDeepLink.File(FilesItemId(it)) }
+    2 -> segments[1].toLongOrNull()?.takeIf { it != 0L }?.let { MobileDeepLink.File(FilesItemId(it)) }
     else -> null
 }
 

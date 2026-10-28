@@ -22,14 +22,15 @@ public value class SearchTerm(
 
 /**
  * A folder a search stays inside. put.io takes the scope in the query itself, as `in:<folderId>`,
- * so a scoped search covers the whole folder, not only its loaded pages.
+ * so a scoped search covers the whole folder, not only its loaded pages. put.io ignores `in:` for
+ * the virtual shared folders, whose ids are negative, so they search everything instead.
  */
 public data class SearchScope(
     val folderId: FilesItemId,
     val folderName: String?,
 ) {
     init {
-        require(folderId.value > 0L) { "A search scope must be a folder, not root" }
+        require(folderId.value > 0L) { "A search scope must be a real folder, not root or a shared one" }
     }
 }
 

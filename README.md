@@ -18,6 +18,8 @@ Mobile, on the emulator harness against the live API:
   adaptive layouts for tablets
 - Item actions from the overflow, multi-select from a long-press, public
   links and in-app image, PDF and text viewers
+- Items shared with you and friends' folders, also from `files/<id>` links;
+  Search there covers the whole account, since put.io can't scope it
 - Video and background audio playback with resume, tracks, subtitles,
   picture-in-picture and positions saved to put.io
 - Offline downloads with offline playback, also after a start with no

@@ -39,10 +39,11 @@ internal fun Intent.consumeTvLaunchRequest(): TvLaunchRequest? =
 
 internal fun Uri.toTvLaunchRequest(): TvLaunchRequest? {
     if (scheme != SCHEME) return null
-    val id = pathSegments.singleOrNull()?.toLongOrNull()?.takeIf { it > 0L }?.let(::FilesItemId)
+    // Shared folders such as Items shared with you (-2) have negative ids; only files are watched.
+    val id = pathSegments.singleOrNull()?.toLongOrNull()?.takeIf { it != 0L }?.let(::FilesItemId)
     return when (host) {
         HOST_FILES -> id?.let { TvLaunchRequest.OpenFile(it) }
-        HOST_CONTINUE -> id?.let { TvLaunchRequest.OpenFile(it, continueWatching = true) }
+        HOST_CONTINUE -> id?.takeIf { it.value > 0L }?.let { TvLaunchRequest.OpenFile(it, continueWatching = true) }
         HOST_SEARCH -> getQueryParameter(QUERY)?.trim()?.takeIf(String::isNotEmpty)
             ?.let { TvLaunchRequest.Search(SearchTerm(it)) }
         else -> null
