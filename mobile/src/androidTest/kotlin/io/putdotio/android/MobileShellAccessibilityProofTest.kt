@@ -24,6 +24,7 @@ import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.junit4.accessibility.enableAccessibilityChecks
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -73,6 +74,7 @@ import io.putdotio.android.transfers.mobileTransferCardTag
 import io.putdotio.android.transfers.MOBILE_TRANSFER_ADD_CONFIRM_TAG
 import java.io.Closeable
 import java.io.File
+import org.junit.Before
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -87,6 +89,8 @@ import org.junit.runner.RunWith
 class MobileShellAccessibilityProofTest {
     private val compose = createComposeRule()
     @get:Rule val rules: RuleChain = RuleChain.outerRule(accessibilityProofOptIn()).around(compose)
+
+    @Before fun checkAccessibility() = compose.enableAccessibilityChecks()
     private lateinit var hostView: View
     private lateinit var backOwner: OnBackPressedDispatcherOwner
     private lateinit var capturePrefix: String

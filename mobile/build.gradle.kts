@@ -242,6 +242,7 @@ dependencies {
     androidTestImplementation(testFixtures(project(":domain:transfers")))
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+    androidTestImplementation(libs.androidx.compose.ui.test.junit4.accessibility)
     androidTestImplementation(libs.androidx.test.core)
     androidTestImplementation(libs.androidx.test.espresso.core) {
         because("API 37 removed InputManager.getInstance; Espresso 3.7 uses getSystemService for input injection")

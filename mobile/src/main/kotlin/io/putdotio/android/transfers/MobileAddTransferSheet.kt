@@ -64,6 +64,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.putdotio.android.MobileSheetHandle
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.design.putioMono
@@ -219,6 +220,7 @@ private fun MobileAddTransferSheet(
     ModalBottomSheet(
         onDismissRequest = actions.onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        dragHandle = { MobileSheetHandle() },
     ) {
         Column(
             modifier = Modifier

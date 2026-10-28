@@ -66,6 +66,7 @@ import io.putdotio.android.MobileSelectedRowTint
 import io.putdotio.android.MobileSelectionCheckbox
 import io.putdotio.android.MobileSelectionToolbarClearance
 import io.putdotio.android.MobileSelectionToolbarOffset
+import io.putdotio.android.MobileSheetHandle
 import io.putdotio.android.R
 import io.putdotio.android.design.FileTypeIcon
 import io.putdotio.android.design.PutioDesignTokens
@@ -480,6 +481,7 @@ private fun MobileDownloadItemSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        dragHandle = { MobileSheetHandle() },
         modifier = Modifier.testTag(MOBILE_DOWNLOADS_ITEM_SHEET_TAG),
     ) {
         Column(Modifier.verticalScroll(rememberScrollState())) {

@@ -1,13 +1,17 @@
 package io.putdotio.android
 
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.files.FilesContent
@@ -103,6 +107,22 @@ class MobileFilesActionsSheetTest {
         compose.onNodeWithTag(MOBILE_FILES_WATCHED_ACTION_TAG).performScrollTo().performClick()
         compose.onNodeWithTag(MOBILE_FILES_PLAY_ACTION_TAG).performClick()
         compose.runOnIdle { assertEquals(listOf("vlc", "select", "watched=true", "play"), chosen) }
+    }
+
+    @Test
+    fun theHandleCarryingTheSheetsActionsIsALabelledTouchTarget() {
+        compose.setContent {
+            PutioTheme {
+                MobileFilesActions(
+                    started, FilesFolder.Root.id, FilesFolderOperation.Idle, null, {}, {},
+                    confirmedTrashEnabled = true, onMoveItem = {},
+                )
+            }
+        }
+        // Android's minimum touch target; Material's sheet hangs expand and dismiss on the handle.
+        compose.onNodeWithContentDescription("Drag handle")
+            .assertWidthIsAtLeast(48.dp)
+            .assertHeightIsAtLeast(48.dp)
     }
 
     @Test
