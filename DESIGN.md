@@ -276,11 +276,12 @@ screen or dialog:
 - Neutral: switches, the player's transport buttons, status icons such as the
   played eye, every other button.
 - Red: destructive actions and failures only, plus the storage bar when
-  storage is full. Red text and red icons use the light
+  storage is full, and the product analytics prompt's never-send glyphs. Red text and red icons use the light
   `--red-text-secondary`: `red-solid` text reaches only 4.0:1 on the surface
   tiers. The destructive button keeps the `error` fill with dark
   `background` text, which reaches 4.6:1; white text on it reaches 3.9:1. Green: seeding and completed
-  transfer dots, and the seeding card's progress fill.
+  transfer dots, the seeding card's progress fill, and the product analytics
+  prompt's would-send glyphs.
 
 ## Typography
 
@@ -462,6 +463,17 @@ limits in prose: a link stops working after 72 hours, or sooner at its IP or
 data limit (the API returns no limit numbers). Each live link is a row: the full
 link in mono, cut in the middle, "Expires in" with a mono remainder, then copy,
 share and revoke icon buttons; revoke confirms. A filled **Create link** ends the sheet.
+
+### Product analytics prompt
+
+A sheet titled **Turn on product analytics?**, with the iOS copy word for word:
+one body line, then two outlined boxes, "What we never send" with x-circle
+glyphs in `red-text-secondary` and "What we'd send" with check-circle glyphs
+in `green-solid`, side by side from 500dp and stacked below. Each glyph scales
+with the text and centres on the item's first line. **Don't allow** and **Allow** are equal tonal buttons, so neither
+reads as the default, and an underlined **Privacy policy** link ends the
+sheet. While an answer saves, its button shows a spinner and the sheet can't
+be dismissed; a failure shows in red text above the buttons.
 
 ### Notices and snackbars
 

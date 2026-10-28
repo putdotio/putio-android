@@ -20,6 +20,12 @@ Preconditions:
   config switches such as `Autoplay next video` have no CLI read-back (the
   CLI refuses `config.*` key reads); prove those only by force-stopping,
   relaunching and seeing the switch keep its state.
+- **Product analytics prompt.** Debug builds show it only on a launch that
+  opts in, and then whatever devs-auto holds. Run
+  `adb -s $SERIAL shell am start -W -S -n io.put.putio.mobile.debug/io.putdotio.android.MainActivity --ez putio.harness.analytics_prompt true`
+  and `$S/ui.sh wait $SERIAL --text "Turn on product analytics?"`. Capture
+  `analytics-prompt`. Close it with Back, never `Allow` or `Don’t allow`:
+  either writes the shared account. `$S/ui.sh gone $SERIAL --text "Turn on product analytics?"`.
 - **Trash.** Tap `Trash`. The list or its empty state shows. Leave it
   untouched.
 - **Sign out.** Only on a `--fresh` run, and last. Tap `Sign out`; the dialog reads

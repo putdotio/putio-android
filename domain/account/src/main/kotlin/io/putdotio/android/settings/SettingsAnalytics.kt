@@ -17,7 +17,7 @@ public suspend fun Flow<AccountSettingsState>.captureSavedSettings() {
     }
 }
 
-/** Sends `settings_changed` once per app config save put.io accepts. */
+/** Sends `settings_changed` once per app config save put.io accepts; the prompt's answer sends nothing. */
 public suspend fun Flow<AndroidAppConfigState>.captureSavedAppConfig() {
     captureSaved({ it.mutation.step() }, AndroidAppConfigChange::analyticsEvent)
 }
@@ -95,7 +95,7 @@ internal fun AccountSettingsChange.analyticsEvent(): AnalyticsEvent.SettingsChan
         is AccountSettingsChange.Sort -> Setting.SortBy to SettingValue.Changed
     }?.let { (setting, value) -> AnalyticsEvent.SettingsChanged(setting, value) }
 
-internal fun AndroidAppConfigChange.analyticsEvent(): AnalyticsEvent.SettingsChanged =
+internal fun AndroidAppConfigChange.analyticsEvent(): AnalyticsEvent.SettingsChanged? =
     when (this) {
         is AndroidAppConfigChange.VideoPlayback -> AnalyticsEvent.SettingsChanged(
             Setting.VideoPlaybackType,
@@ -106,4 +106,5 @@ internal fun AndroidAppConfigChange.analyticsEvent(): AnalyticsEvent.SettingsCha
         )
         is AndroidAppConfigChange.AutoplayNextVideo ->
             AnalyticsEvent.SettingsChanged(Setting.AutoplayNextVideo, SettingValue.of(enabled))
+        AndroidAppConfigChange.ProductAnalyticsPromptAnswered -> null
     }

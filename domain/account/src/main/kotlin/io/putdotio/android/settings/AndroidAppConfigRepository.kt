@@ -71,6 +71,11 @@ internal fun AppConfig.toAndroidPreferences(): AndroidAppConfigPreferences =
                 ?.takeUnless(JsonPrimitive::isString)
                 ?.booleanOrNull
                 ?: false,
+        // Only a readable "not answered" asks, so a value this app can't read never asks again.
+        productAnalyticsPromptAnswered =
+            this[PRODUCT_ANALYTICS_PROMPT_ANSWERED_KEY]?.let { value ->
+                (value as? JsonPrimitive)?.takeUnless(JsonPrimitive::isString)?.booleanOrNull ?: true
+            } ?: false,
     )
 
 public fun AndroidAppConfigChange.toUpdate(): AppConfigUpdate =
@@ -85,10 +90,18 @@ public fun AndroidAppConfigChange.toUpdate(): AppConfigUpdate =
                 key = AUTOPLAY_NEXT_VIDEO_KEY,
                 value = JsonPrimitive(enabled),
             )
+        AndroidAppConfigChange.ProductAnalyticsPromptAnswered ->
+            AppConfigUpdate(
+                key = PRODUCT_ANALYTICS_PROMPT_ANSWERED_KEY,
+                value = JsonPrimitive(true),
+            )
     }
 
 public const val VIDEO_PLAYBACK_TYPE_KEY: String = "video_playback_type"
 internal const val AUTOPLAY_NEXT_VIDEO_KEY = "autoplay_next_video"
+
+// One flat key, dot included. put.io keeps config per OAuth app, so the web's answer doesn't reach this app.
+internal const val PRODUCT_ANALYTICS_PROMPT_ANSWERED_KEY = "dismissed.product_analytics_prompt"
 
 /**
  * [toPutioFailure], except that an `invalid_scope` refusal anywhere in the chain is AccessDenied

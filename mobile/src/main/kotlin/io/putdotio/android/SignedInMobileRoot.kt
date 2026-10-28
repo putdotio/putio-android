@@ -5,12 +5,16 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.putdotio.android.account.MobileAccountSettingsViewModel
 import io.putdotio.android.account.MobileAndroidAppConfigViewModel
+import io.putdotio.android.account.LocalMobileProductAnalyticsPromptMode
+import io.putdotio.android.account.MobileProductAnalyticsPrompt
+import io.putdotio.android.account.MobileProductAnalyticsPromptMode
 import io.putdotio.android.auth.MobileAuthController
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.auth.MobileAuthState
@@ -54,11 +58,16 @@ import io.putdotio.android.search.SdkSearchRepository
 import io.putdotio.android.search.SearchController
 import io.putdotio.android.search.authoritativeSessionFailure
 import io.putdotio.android.settings.AccountSettingsController
+import io.putdotio.android.settings.AccountSettingsEvent
 import io.putdotio.android.settings.AccountSettingsRepositoryResult
 import io.putdotio.android.settings.AccountSettingsState
+import io.putdotio.android.settings.AndroidAppConfigChange
+import io.putdotio.android.settings.AndroidAppConfigEvent
 import io.putdotio.android.settings.AndroidAppConfigController
 import io.putdotio.android.settings.AndroidAppConfigState
 import io.putdotio.android.settings.SdkAccountSettingsRepository
+import io.putdotio.android.settings.acceptedProductAnalyticsChoices
+import io.putdotio.android.settings.canRecordProductAnalyticsAnswer
 import io.putdotio.android.settings.SdkAndroidAppConfigRepository
 import io.putdotio.android.settings.authoritativeSessionFailure
 import io.putdotio.android.settings.captureSavedAppConfig
@@ -67,6 +76,7 @@ import io.putdotio.android.settings.confirmedHistoryEnabled
 import io.putdotio.android.settings.confirmedResumePlayback
 import io.putdotio.android.settings.diagnosticsAllowed
 import io.putdotio.android.settings.productAnalyticsAllowed
+import io.putdotio.android.settings.productAnalyticsPromptDue
 import io.putdotio.android.settings.putioFailure
 import io.putdotio.android.share.MobileFileDragOut
 import io.putdotio.android.share.MobileFileShareService
@@ -309,6 +319,7 @@ private fun SignedInMobileSession(
             state.productAnalyticsAllowed()?.let { ProductAnalytics.update(account.userId, it) }
         }
     }
+    ProductAnalyticsAnswerEffect(sessionId, accountSettingsController, appConfigController)
     val reportingPlayerFactory = remember(runtime, sessionId, accountSettingsController, playbackPlayerFactory) {
         runtime.playbackReporting.factoryFor(sessionId, accountSettingsController.state, playbackPlayerFactory)
     }
@@ -433,6 +444,77 @@ private fun SignedInMobileSession(
             signOut.start(rootScope, removeDownloads)
         },
     )
+    ProductAnalyticsPromptHost(
+        sessionId = sessionId,
+        accountSettingsState = accountSettingsState,
+        appConfigState = appConfigState,
+        opensLaunchLink = {
+            deepLinkRequests.receivedLink || transferDraft.receivedShare || transferDraft.state.value.open
+        },
+        onSettingsEvent = { accountSettingsController.dispatch(it) },
+        onAppConfigEvent = { appConfigController.dispatch(it) },
+    )
+}
+
+/**
+ * A choice put.io accepts, from the prompt or Privacy controls, answers the prompt. The answer waits
+ * while the config is unloaded or busy rather than being dropped.
+ */
+@Composable
+private fun ProductAnalyticsAnswerEffect(
+    sessionId: MobileAuthSessionId,
+    accountSettingsController: AccountSettingsController,
+    appConfigController: AndroidAppConfigController,
+) {
+    var answerPending by rememberSaveable(sessionId) { mutableStateOf(false) }
+    LaunchedEffect(accountSettingsController) {
+        accountSettingsController.state.acceptedProductAnalyticsChoices().collect { answerPending = true }
+    }
+    LaunchedEffect(appConfigController, answerPending) {
+        if (!answerPending) return@LaunchedEffect
+        appConfigController.state.collect { state ->
+            when (state.canRecordProductAnalyticsAnswer()) {
+                null -> answerPending = false
+                true -> appConfigController.dispatch(
+                    AndroidAppConfigEvent.ChangeRequested(AndroidAppConfigChange.ProductAnalyticsPromptAnswered),
+                )
+                false -> Unit
+            }
+        }
+    }
+}
+
+/**
+ * Asks once per launch, decided when the account settings and app config first land. A launch that
+ * opens a link or a shared transfer skips the ask, so the sheet never covers what the viewer came for.
+ */
+@Composable
+internal fun ProductAnalyticsPromptHost(
+    sessionId: MobileAuthSessionId,
+    accountSettingsState: AccountSettingsState,
+    appConfigState: AndroidAppConfigState,
+    opensLaunchLink: () -> Boolean,
+    onSettingsEvent: (AccountSettingsEvent) -> Unit,
+    onAppConfigEvent: (AndroidAppConfigEvent) -> Unit,
+) {
+    val mode = LocalMobileProductAnalyticsPromptMode.current
+    if (mode == MobileProductAnalyticsPromptMode.Suppressed) return
+    var asking by rememberSaveable(sessionId) { mutableStateOf<Boolean?>(null) }
+    val due = productAnalyticsPromptDue(accountSettingsState, appConfigState)
+    LaunchedEffect(due) {
+        if (asking == null && due != null) {
+            asking = mode == MobileProductAnalyticsPromptMode.Forced || (due && !opensLaunchLink())
+        }
+    }
+    if (asking == true) {
+        MobileProductAnalyticsPrompt(
+            settingsState = accountSettingsState,
+            appConfigState = appConfigState,
+            onSettingsEvent = onSettingsEvent,
+            onAppConfigEvent = onAppConfigEvent,
+            onDismiss = { asking = false },
+        )
+    }
 }
 
 /**
