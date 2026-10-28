@@ -28,7 +28,9 @@ public fun Flow<AccountSettingsState>.productAnalyticsAnswers(): Flow<Boolean> =
 
 /** Answers a [ProductAnalytics.setConsentCheck] for [accountId] from put.io; a failed read keeps the last answer. */
 public suspend fun AccountSettingsRepository.confirmProductAnalytics(accountId: Long?) {
-    val enabled = accountId?.let { (load() as? AccountSettingsRepositoryResult.Success)?.value?.productAnalyticsEnabled }
+    val enabled = accountId?.let {
+        (load() as? AccountSettingsRepositoryResult.Success)?.value?.productAnalyticsEnabled
+    }
     ProductAnalytics.confirm(accountId, enabled)
 }
 

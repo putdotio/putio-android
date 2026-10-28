@@ -27,7 +27,8 @@ public object ProductAnalytics {
             PostHogAnalyticsSdk(application, configuration),
             Executors.newSingleThreadExecutor(),
         )
-        appSession = AppSessionAnalytics(::capture, ::recheckConsent).also(application::registerActivityLifecycleCallbacks)
+        appSession = AppSessionAnalytics(::capture, ::recheckConsent)
+            .also(application::registerActivityLifecycleCallbacks)
     }
 
     /** A link or launcher card opened the app; call before the activity resumes. Main thread only. */

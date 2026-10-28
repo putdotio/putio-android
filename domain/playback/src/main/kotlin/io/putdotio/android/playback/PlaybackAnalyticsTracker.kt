@@ -89,7 +89,8 @@ internal class PlaybackAnalyticsTracker(
 
     private fun castPlayback(): AnalyticsEvent.Playback? {
         val state = previous ?: return null
-        return playback(state.target.mediaType, state.content as? PlaybackContent.Ready, AnalyticsEvent.Player.Chromecast)
+        val ready = state.content as? PlaybackContent.Ready
+        return playback(state.target.mediaType, ready, AnalyticsEvent.Player.Chromecast)
     }
 
     private fun start(playback: AnalyticsEvent.Playback) {

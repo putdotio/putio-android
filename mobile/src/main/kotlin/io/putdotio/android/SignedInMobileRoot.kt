@@ -317,7 +317,9 @@ private fun SignedInMobileSession(
         accountSettingsController.state.collect { state -> state.diagnosticsAllowed()?.let(PutioDiagnostics::update) }
     }
     LaunchedEffect(accountSettingsController) {
-        accountSettingsController.state.productAnalyticsAnswers().collect { ProductAnalytics.update(account.userId, it) }
+        accountSettingsController.state.productAnalyticsAnswers().collect {
+            ProductAnalytics.update(account.userId, it)
+        }
     }
     ProductAnalyticsAnswerEffect(sessionId, accountSettingsController, appConfigController)
     val reportingPlayerFactory = remember(runtime, sessionId, accountSettingsController, playbackPlayerFactory) {
