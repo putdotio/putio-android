@@ -53,6 +53,13 @@ internal fun isCompactHeight(height: Dp): Boolean = height < 480.dp
 internal fun isCompactHeightWindow(): Boolean =
     isCompactHeight(with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp() })
 
+/** A window compact in height but at least 600dp wide, such as a phone in landscape, not a narrow split. */
+@Composable
+internal fun isShortWideWindow(): Boolean {
+    val size = LocalWindowInfo.current.containerSize
+    return with(LocalDensity.current) { isCompactHeight(size.height.toDp()) && size.width.toDp() >= 600.dp }
+}
+
 @Composable
 internal fun mobileNavigationLayout(width: Dp, height: Dp): MobileNavigationLayout {
     val density = LocalDensity.current

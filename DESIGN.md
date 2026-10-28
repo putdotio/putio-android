@@ -684,7 +684,8 @@ every tab, on `surface-container-high` with 16dp corners, 8dp from the sides
 and the bar. It holds the type glyph on a 40dp `surface-container-highest`
 tile, the filename cut in the middle in `body-sm`, elapsed and total time in
 mono, pause and close, and a 2dp yellow progress line along its foot. Below
-480dp of window height the time sits after the filename on the same line.
+480dp of window height and from 600dp wide, the time sits after the filename on
+the same line.
 Tapping it opens Now Playing:
 
 - Top: back as a caret down, Cast, and More when the file has more than one
