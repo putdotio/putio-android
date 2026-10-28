@@ -35,14 +35,18 @@ public fun AndroidAppConfigState.canRecordProductAnalyticsAnswer(): Boolean? {
     }
 }
 
-/** Each product analytics choice put.io accepts, from the prompt or Privacy controls. */
+/**
+ * Each product analytics choice put.io accepts, from the prompt or Privacy controls. The account must
+ * hold the choice too: a later save can hide a failure the collector missed.
+ */
 public fun Flow<AccountSettingsState>.acceptedProductAnalyticsChoices(): Flow<Boolean> =
     flow {
         var previous: SaveStep<AccountSettingsChange>? = null
         collect { state ->
             val now = state.mutation.step()
             val change = previous?.let(now::savedAfter) as? AccountSettingsChange.Toggle
-            if (change?.key == AccountSettingsKey.ProductAnalytics) emit(change.enabled)
+            val held = (state.content as? AccountSettingsContent.Ready)?.preferences?.productAnalyticsEnabled
+            if (change?.key == AccountSettingsKey.ProductAnalytics && held == change.enabled) emit(change.enabled)
             previous = now
         }
     }

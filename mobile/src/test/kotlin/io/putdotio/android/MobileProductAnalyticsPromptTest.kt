@@ -1,6 +1,9 @@
 package io.putdotio.android
 
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -10,12 +13,12 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.putdotio.android.account.LocalMobileProductAnalyticsPromptMode
 import io.putdotio.android.account.MOBILE_PRODUCT_ANALYTICS_ALLOW_TAG
 import io.putdotio.android.account.MOBILE_PRODUCT_ANALYTICS_DENY_TAG
 import io.putdotio.android.account.MOBILE_PRODUCT_ANALYTICS_PROMPT_TAG
-import io.putdotio.android.account.LocalMobileProductAnalyticsPromptMode
+import io.putdotio.android.account.MobileProductAnalyticsPrompt
 import io.putdotio.android.account.MobileProductAnalyticsPromptMode
-import androidx.compose.runtime.CompositionLocalProvider
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.settings.AccountSettingsChange
@@ -142,7 +145,7 @@ class MobileProductAnalyticsPromptTest {
         var mode by mutableStateOf(MobileProductAnalyticsPromptMode.Suppressed)
         compose.setContent {
             PutioTheme {
-                androidx.compose.runtime.key(mode) {
+                key(mode) {
                     CompositionLocalProvider(LocalMobileProductAnalyticsPromptMode provides mode) {
                         ProductAnalyticsPromptHost(
                             sessionId = MobileAuthSessionId(1L),
@@ -185,7 +188,7 @@ class MobileProductAnalyticsPromptTest {
         val dismissed = mutableListOf<Unit>()
         compose.setContent {
             PutioTheme {
-                io.putdotio.android.account.MobileProductAnalyticsPrompt(
+                MobileProductAnalyticsPrompt(
                     settingsState = settings,
                     appConfigState = config,
                     onSettingsEvent = { event ->
@@ -204,7 +207,7 @@ class MobileProductAnalyticsPromptTest {
         return dismissed.also { assertTrue(it.isEmpty()) }
     }
 
-    @androidx.compose.runtime.Composable
+    @Composable
     private fun AskingHost(
         sessionId: MobileAuthSessionId,
         accountSettingsState: AccountSettingsState,

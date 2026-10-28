@@ -81,6 +81,11 @@ class ProductAnalyticsPromptTest {
             productAnalyticsAnswerProgress(true, failed, unanswered),
         )
         assertEquals(emptyList<Boolean>(), choices(off, saving, failed))
+        // A later save after a failure the collector missed doesn't count as the choice landing.
+        val otherSaving = failed.on(
+            AccountSettingsEvent.ChangeRequested(AccountSettingsChange(AccountSettingsKey.History, false)),
+        )
+        assertEquals(emptyList<Boolean>(), choices(off, saving, otherSaving))
         // Trying again saves the setting again rather than skipping to the answer.
         assertEquals(
             ProductAnalyticsAnswerStep.SaveSetting(allow),
