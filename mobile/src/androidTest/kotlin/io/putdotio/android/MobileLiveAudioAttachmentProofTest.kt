@@ -233,13 +233,7 @@ class MobileLiveAudioAttachmentProofTest {
         }
     }
 
-    private fun localFixture(): File {
-        val path = requireNotNull(arguments.getString("putio.audio.attach.fixture"))
-        val file = File(path).canonicalFile
-        require(file.isFile && file.canRead()) { "Local two-track audio fixture must be readable" }
-        require(file.toPath().startsWith(requireNotNull(context.getExternalFilesDir(null)).canonicalFile.toPath()))
-        return file
-    }
+    private fun localFixture(): File = proofFixture("putio.audio.attach.fixture")
 
     private fun screenshot(label: String) {
         compose.mainClock.advanceTimeBy(300)

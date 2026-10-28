@@ -167,10 +167,9 @@ class MobileFullscreenVideoProofTest {
 
     @Test
     fun portraitVideoKeepsAnUnlockedPortraitWindow() {
-        val fixture = arguments.getString("putio.video.fullscreen.portraitFixture")
-        assumeTrue("Needs a portrait fixture", fixture != null)
+        assumeTrue("Needs a portrait fixture", arguments.getString(PORTRAIT_FIXTURE) != null)
         val factory = FullscreenProofPlayerFactory()
-        val state = localVideoState(checkNotNull(fixture))
+        val state = localVideoState(PORTRAIT_FIXTURE)
         var showingVideo by mutableStateOf(false)
         showBars(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED)
         compose.setContent {
@@ -310,11 +309,9 @@ class MobileFullscreenVideoProofTest {
     }
 
     private fun localVideoState(
-        path: String = requireNotNull(arguments.getString("putio.video.fullscreen.fixture")),
+        argument: String = "putio.video.fullscreen.fixture",
     ): PlaybackState {
-        val file = File(path).canonicalFile
-        require(file.isFile && file.canRead())
-        require(file.toPath().startsWith(requireNotNull(context.getExternalFilesDir(null)).canonicalFile.toPath()))
+        val file = proofFixture(argument)
         // The SDK owns production URLs. This proof reads only its caller-owned local fixture.
         val url = PutioCredentialUrl::class.java.getDeclaredConstructor(String::class.java)
             .newInstance(Uri.fromFile(file).toString())
@@ -348,6 +345,7 @@ class MobileFullscreenVideoProofTest {
 
     private companion object {
         const val CAPTION_TEXT = "Rehearsal caption proof"
+        const val PORTRAIT_FIXTURE = "putio.video.fullscreen.portraitFixture"
     }
 }
 

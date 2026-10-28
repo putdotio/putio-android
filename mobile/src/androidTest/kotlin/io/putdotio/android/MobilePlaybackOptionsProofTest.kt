@@ -313,10 +313,7 @@ class MobilePlaybackOptionsProofTest {
     }
 
     private fun fixture(mediaType: PlaybackMediaType): PlaybackSource {
-        val path = requireNotNull(arguments.getString("putio.playback.options.${mediaType.name.lowercase()}"))
-        val file = File(path).canonicalFile
-        require(file.isFile && file.canRead()) { "Local two-track fixture must be readable" }
-        require(file.toPath().startsWith(requireNotNull(context.getExternalFilesDir(null)).canonicalFile.toPath()))
+        val file = proofFixture("putio.playback.options.${mediaType.name.lowercase()}")
         // Production credential URLs are SDK-owned; this isolated proof substitutes a caller-owned local file.
         val url = PutioCredentialUrl::class.java.getDeclaredConstructor(String::class.java)
             .newInstance(android.net.Uri.fromFile(file).toString())

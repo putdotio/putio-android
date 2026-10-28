@@ -391,15 +391,7 @@ class MobileShellAccessibilityProofTest {
         return actual
     }
 
-    private fun localAudioFixture(): File {
-        val path = requireNotNull(InstrumentationRegistry.getArguments().getString("putio.accessibility.audio"))
-        val file = File(path).canonicalFile
-        val root = requireNotNull(context.getExternalFilesDir(null)).canonicalFile
-        require(file.toPath().startsWith(root.toPath()) && file.isFile && file.canRead()) {
-            "Audio must be a caller-owned readable fixture beneath the target app's external files directory"
-        }
-        return file
-    }
+    private fun localAudioFixture(): File = proofFixture("putio.accessibility.audio")
 
     private companion object {
         const val SHELL_VIEWPORT_TAG = "shell-accessibility-viewport"

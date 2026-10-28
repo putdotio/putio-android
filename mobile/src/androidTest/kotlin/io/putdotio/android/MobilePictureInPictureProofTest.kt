@@ -305,11 +305,7 @@ class MobilePictureInPictureProofTest {
     }
 
     private fun localVideoState() = run {
-        // Asking for the directory first creates it with the app's ownership on a fresh install.
-        val directory = requireNotNull(context.getExternalFilesDir(null)).canonicalFile
-        val file = File(requireNotNull(arguments.getString("putio.pip.fixture"))).canonicalFile
-        require(file.toPath().startsWith(directory.toPath())) { "The fixture must sit under $directory" }
-        require(file.isFile && file.canRead()) { "Unreadable fixture $file" }
+        val file = proofFixture("putio.pip.fixture")
         // The SDK owns production URLs. This proof reads only its caller-owned local fixture.
         val url = PutioCredentialUrl::class.java.getDeclaredConstructor(String::class.java)
             .newInstance(Uri.fromFile(file).toString())

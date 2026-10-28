@@ -180,15 +180,7 @@ class MobileTalkBackSessionProofTest {
         }) { "Actual TalkBack is required" }
     }
 
-    private fun audioFixture(): File {
-        val path = requireNotNull(InstrumentationRegistry.getArguments().getString("putio.accessibility.audio"))
-        val file = File(path).canonicalFile
-        val root = requireNotNull(instrumentation.targetContext.getExternalFilesDir(null)).canonicalFile
-        require(file.isFile && file.canRead() && file.toPath().startsWith(root.toPath())) {
-            "Audio must be a caller-owned readable fixture beneath the app's external files directory"
-        }
-        return file
-    }
+    private fun audioFixture(): File = proofFixture("putio.accessibility.audio")
 
     private companion object {
         const val PRIVATE_MEDIA_ID = "9147003"

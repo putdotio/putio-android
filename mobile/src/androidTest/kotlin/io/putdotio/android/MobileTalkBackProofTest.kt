@@ -139,10 +139,7 @@ class MobileTalkBackProofTest {
 
     private fun localPlaybackState(mediaType: PlaybackMediaType): PlaybackState {
         val kind = if (mediaType == PlaybackMediaType.VIDEO) "video" else "audio"
-        val path = requireNotNull(InstrumentationRegistry.getArguments().getString("putio.accessibility.$kind"))
-        val file = File(path).canonicalFile
-        val root = requireNotNull(instrumentation.targetContext.getExternalFilesDir(null)).canonicalFile
-        require(file.isFile && file.canRead() && file.toPath().startsWith(root.toPath()))
+        val file = proofFixture("putio.accessibility.$kind")
         // The SDK owns production URLs; this proof reads only the caller's local fixture.
         val url = PutioCredentialUrl::class.java.getDeclaredConstructor(String::class.java)
             .newInstance(Uri.fromFile(file).toString())
