@@ -1132,7 +1132,7 @@ private fun MobileFilesTopBar(
         folder = filesState.current,
         onSelectSort = { onFilesEvent(FilesBrowserEvent.SelectSort(it)) },
         onOpenSearch = {
-            onOpenSearch(folder.id.takeIf { it != FilesFolder.Root.id }?.let { SearchScope(it, title) })
+            onOpenSearch(folder.id.takeIf { it.value > 0L }?.let { SearchScope(it, title) })
         },
         onNewFolder = onNewFolder,
         navigation = openNavigation?.let { { MobileNavigationMenuButton(it) } },

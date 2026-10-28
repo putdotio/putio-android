@@ -25,6 +25,15 @@ class TvLaunchRequestTest {
     }
 
     @Test
+    fun `a link to a shared folder opens it`() {
+        assertEquals(TvLaunchRequest.OpenFile(FilesItemId(-2L)), view("putio://files/-2").consumeTvLaunchRequest())
+        assertEquals(
+            TvLaunchRequest.OpenFile(FilesItemId(-7000L)),
+            view("putio://files/-7000").consumeTvLaunchRequest(),
+        )
+    }
+
+    @Test
     fun `a system search query opens Search with it`() {
         val intent = Intent(Intent.ACTION_SEARCH).putExtra(SearchManager.QUERY, "  harbor film ")
 
@@ -48,6 +57,7 @@ class TvLaunchRequestTest {
         listOf(
             "putio://files",
             "putio://files/0",
+            "putio://continue/-2",
             "putio://files/abc",
             "putio://files/55/extra",
             "putio://transfers/55",

@@ -31,6 +31,7 @@ import io.putdotio.android.search.SearchScope
 import io.putdotio.android.settings.readyAccountSettingsState
 import io.putdotio.android.settings.readyAndroidAppConfigState
 import io.putdotio.sdk.files.PutioFileType
+import io.putdotio.sdk.files.PutioFolderType
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -54,6 +55,16 @@ class MobileFilesBarsTest {
         compose.onNodeWithTag(MOBILE_FILES_SEARCH_TAG).performClick()
 
         assertEquals(listOf<SearchScope?>(SearchScope(FilesItemId(7L), "Blue Lights")), scopes)
+    }
+
+    @Test
+    fun aSharedFolderSearchesEverything() {
+        val scopes = mutableListOf<SearchScope?>()
+        compose.setShell({ folderState(sharedWithYou) }, onScope = { scopes += it })
+
+        compose.onNodeWithTag(MOBILE_FILES_SEARCH_TAG).performClick()
+
+        assertEquals(listOf<SearchScope?>(null), scopes)
     }
 
     @Test
@@ -139,7 +150,10 @@ class MobileFilesBarsTest {
             ).state
         }
 
-        fun folderState(): FilesBrowserState {
+        val sharedWithYou = file(-2L, "Items shared with you", PutioFileType.FOLDER)
+            .copy(isShared = true, folderType = PutioFolderType.SHARED_ROOT)
+
+        fun folderState(folder: FilesItem = Companion.folder): FilesBrowserState {
             val opened = FilesBrowserReducer.reduce(rootState(folder), FilesBrowserEvent.OpenFolder(folder.id))
             val request = (opened.effect as FilesBrowserEffect.LoadFolder).requestId
             val page = FilesPage(

@@ -24,6 +24,9 @@ class MobileDeepLinksTest {
             parseMobileDeepLink("https://app.put.io/files/42?x=1#f".toUri()),
         )
         assertEquals(MobileDeepLink.File(FilesItemId(42L)), parseMobileDeepLink("putio://files/42".toUri()))
+        // Items shared with you and a friend's folder in it are virtual folders with negative ids.
+        assertEquals(MobileDeepLink.File(FilesItemId(-2L)), parseMobileDeepLink("https://app.put.io/files/-2".toUri()))
+        assertEquals(MobileDeepLink.File(FilesItemId(-7000L)), parseMobileDeepLink("putio://files/-7000".toUri()))
         assertEquals(MobileDeepLink.Transfers, parseMobileDeepLink("https://put.io/transfers".toUri()))
         assertEquals(MobileDeepLink.Search, parseMobileDeepLink("putio://search".toUri()))
         assertEquals(MobileDeepLink.History, parseMobileDeepLink("https://www.put.io/history".toUri()))
