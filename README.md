@@ -36,6 +36,9 @@ TV:
 - Full-screen playback with D-pad scrubbing, resume and track pickers
 - The launcher's Watch Next row and Android TV system search
 
+Both apps follow the system font size up to a 1.3 font scale, as the iOS app
+caps it; widgets and notifications keep the system scale.
+
 Both apps report crashes and player failures to Sentry only while the
 account's Diagnostics control is on, and send only exception types, stack
 frames, device facts and failure codes.
