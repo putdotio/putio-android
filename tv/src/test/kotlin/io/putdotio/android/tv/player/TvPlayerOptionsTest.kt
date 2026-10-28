@@ -199,6 +199,19 @@ class TvPlayerOptionsTest {
     }
 
     @Test
+    fun audioTracksOfUndeterminedLanguageTakeTheirNumbers() {
+        val player = TrackPlayer(
+            audio = TrackGroup("audio-und", audioFormat("a-1", C.LANGUAGE_UNDETERMINED), audioFormat("a-2", "und")),
+            text = null,
+        )
+        show(player)
+        openPicker(LANGUAGE)
+        compose.onNodeWithText("Audio track 1").assertIsDisplayed()
+        compose.onNodeWithText("Audio track 2").assertIsDisplayed()
+        compose.onNodeWithText("und").assertDoesNotExist()
+    }
+
+    @Test
     fun subtitlesOffStaysOffAndDrawsNothingAcrossSeeksAndTrackChanges() {
         val player = TrackPlayer()
         show(player, policy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = true))

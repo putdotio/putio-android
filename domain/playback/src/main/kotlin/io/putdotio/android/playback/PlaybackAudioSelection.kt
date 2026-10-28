@@ -65,11 +65,18 @@ public fun Tracks.playbackAudioTracks(): List<PlaybackAudioTrack> =
                         group = group.mediaTrackGroup,
                         trackIndex = trackIndex,
                         identity = format.toAudioTrackIdentity(),
-                        label = format.label ?: format.language,
+                        label = format.label ?: format.knownLanguage(),
                         selected = group.isTrackSelected(trackIndex),
                     )
                 }
         }
+
+/**
+ * The track's language, or null when it has none. MP4 and Matroska extractors pass an
+ * undetermined `und` tag through as is, and it names no language.
+ */
+public fun Format.knownLanguage(): String? =
+    language?.takeUnless { it.isBlank() || it == C.LANGUAGE_UNDETERMINED }
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 public fun Format.toAudioTrackIdentity(): AudioTrackIdentity =

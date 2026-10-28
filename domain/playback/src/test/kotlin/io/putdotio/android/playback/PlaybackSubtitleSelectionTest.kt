@@ -6,6 +6,7 @@ import androidx.media3.common.MimeTypes
 import androidx.media3.common.Timeline
 import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.TrackGroup
+import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.RendererCapabilities
 import androidx.media3.exoplayer.source.MediaSource
@@ -348,6 +349,16 @@ class PlaybackSubtitleSelectionTest {
             ).resolve(selected.toSubtitleTrackIdentity())
 
         assertEquals(selectedGroup, resolved?.group)
+    }
+
+    @Test
+    fun anUndeterminedSubtitleLanguageGivesAnUnlabelledTrackNoLabel() {
+        val text = Format.Builder().setSampleMimeType(MimeTypes.TEXT_VTT).setLanguage(C.LANGUAGE_UNDETERMINED).build()
+        val tracks = Tracks(
+            listOf(Tracks.Group(TrackGroup(text), false, intArrayOf(C.FORMAT_HANDLED), booleanArrayOf(false))),
+        ).playbackSubtitleTracks()
+
+        assertEquals(listOf(null), tracks.map { it.label })
     }
 
     private fun loaded(showSubtitles: Boolean): AccountSettingsState {

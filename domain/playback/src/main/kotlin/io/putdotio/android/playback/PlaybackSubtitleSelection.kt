@@ -70,7 +70,7 @@ public fun Tracks.playbackSubtitleTracks(): List<PlaybackSubtitleTrack> =
                         group = group.mediaTrackGroup,
                         trackIndex = trackIndex,
                         identity = format.toSubtitleTrackIdentity(),
-                        label = format.label ?: format.language,
+                        label = format.label ?: format.knownLanguage(),
                         selected = group.isTrackSelected(trackIndex),
                     )
                 }
