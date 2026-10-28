@@ -111,6 +111,7 @@ import io.putdotio.android.settings.AndroidAppConfigEvent
 import io.putdotio.android.settings.AndroidAppConfigMutation
 import io.putdotio.android.settings.AndroidAppConfigPreferences
 import io.putdotio.android.settings.AndroidAppConfigState
+import io.putdotio.android.settings.AccountSettingsState
 import io.putdotio.android.settings.DefaultAccountSettingsPreferences
 import io.putdotio.android.settings.androidAppConfigState
 import io.putdotio.android.settings.readyAccountSettingsState
@@ -1946,6 +1947,26 @@ class MobileShellPlaybackTest {
     }
 
     @Test
+    fun aRejectedSessionOnTheNeighboursLookupEndsTheSession() {
+        val session = RecordingPlayer()
+        var rejections = 0
+        val repository = object : PlaybackRepository by EndingPlaybackRepository {
+            override suspend fun findNeighbours(target: PlaybackTarget) =
+                PlaybackRepositoryResult.Failure(
+                    PlaybackFailure.Putio(PutioFailure.AuthenticationRequired(PutioConfigurationException("expired"))),
+                )
+        }
+        compose.setPlaybackShell(
+            filesState = mediaFilesState(),
+            playback = ShellPlayback(repository, ShellSessionFactory(session) {}) { rejections += 1 },
+        )
+        compose.runOnIdle { session.playSong() }
+
+        compose.onNodeWithTag(MOBILE_NOW_PLAYING_OPEN_TAG).performClick()
+        compose.waitUntil(5_000) { rejections == 1 }
+    }
+
+    @Test
     fun mediaNotificationTapOpensTheLiveAudioPlayer() {
         var resolves = 0
         val unavailableRepository = object : PlaybackRepository {
@@ -2048,6 +2069,27 @@ class MobileShellPlaybackTest {
     }
 
     @Test
+    fun aRejectedSessionOnTheNextVideoLookupEndsTheSession() {
+        var rejections = 0
+        val repository = object : PlaybackRepository by EndingPlaybackRepository {
+            override suspend fun findNextVideo(target: PlaybackTarget) = PlaybackNextResult.Failure(
+                PlaybackFailure.Putio(PutioFailure.AuthenticationRequired(PutioConfigurationException("expired"))),
+            )
+        }
+        compose.setPlaybackShell(
+            accountSettingsState = readyAccountSettingsState(
+                DefaultAccountSettingsPreferences.copy(nextEpisode = true),
+            ),
+            playback = ShellPlayback(repository, MobilePlayerFactory { _, _ -> RecordingPlayer() }) {
+                rejections += 1
+            },
+        )
+
+        compose.onNodeWithText("episode.mkv").performClick()
+        compose.waitUntil(5_000) { rejections == 1 }
+    }
+
+    @Test
     fun terminalAutoplayRestoresTheFilesRoute() {
         lateinit var player: RecordingPlayer
         compose.setPlaybackShell(
@@ -2119,6 +2161,7 @@ class MobileShellPlaybackTest {
 
     private fun ComposeContentTestRule.setPlaybackShell(
         appConfigState: AndroidAppConfigState = readyAndroidAppConfigState(),
+        accountSettingsState: AccountSettingsState = readyAccountSettingsState(),
         playback: ShellPlayback = ShellPlayback(),
         filesState: FilesBrowserState = videoFilesState(),
         nowPlayingRequests: NowPlayingRequests = NowPlayingRequests.None,
@@ -2128,7 +2171,7 @@ class MobileShellPlaybackTest {
                 MobileShell(
                     nowPlayingRequests = nowPlayingRequests,
                     filesState = filesState,
-                    accountSettingsState = readyAccountSettingsState(),
+                    accountSettingsState = accountSettingsState,
                     appConfigState = appConfigState,
                     account = Account,
                     playbackRepository = playback.repository,

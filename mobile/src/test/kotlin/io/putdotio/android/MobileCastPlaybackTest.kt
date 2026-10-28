@@ -147,6 +147,34 @@ class MobileCastPlaybackTest {
         compose.onAllNodesWithTag(MOBILE_CAST_RETRY_TAG).assertCountEquals(0)
     }
 
+    @Test
+    fun aReceiverThatFailsToLoadTheFileLoadsItAgainOnTryAgain() {
+        compose.setContent {
+            val state by playback.state.collectAsState()
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = state,
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    playerFactory = MobilePlayerFactory { _, _ -> error("Casting plays nothing on the phone") },
+                    cast = cast,
+                    castMedia = { source, _ ->
+                        PlaybackRepositoryResult.Success(
+                            requireNotNull(requireNotNull(source).toCastMedia(Episode1, "download-token")),
+                        )
+                    },
+                )
+            }
+        }
+        compose.runOnIdle { assertEquals(listOf(1L), gateway.loads) }
+
+        gateway.report(1L, CastRemoteState.Failed)
+        compose.onNodeWithTag(MOBILE_CAST_RETRY_TAG).performClick()
+
+        compose.runOnIdle { assertEquals(listOf(1L, 1L), gateway.loads) }
+    }
+
     private fun ReceiverGateway.report(fileId: Long, state: CastRemoteState) {
         compose.runOnIdle {
             status.value = CastRemoteStatus(
