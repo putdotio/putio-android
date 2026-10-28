@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import io.putdotio.android.design.PutioRadius
 
 /**
  * A centred 28dp dialog per the TV contract: a title, an optional message, an optional
@@ -44,7 +45,7 @@ internal fun TvDialog(
         Column(
             modifier = Modifier
                 .width(480.dp)
-                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(28.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(PutioRadius.extraLarge))
                 .padding(24.dp)
                 .focusGroup(),
             verticalArrangement = Arrangement.spacedBy(12.dp),

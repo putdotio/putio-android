@@ -67,7 +67,7 @@ internal class SecureOAuthStateGenerator(
     }
 }
 
-sealed interface OAuthLaunchResult {
+internal sealed interface OAuthLaunchResult {
     data class Ready(
         val authorizationUrl: String,
     ) : OAuthLaunchResult

@@ -28,6 +28,9 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
@@ -162,7 +165,13 @@ internal fun MobileNewFolderDialog(
                     placeholder = { Text(stringResource(R.string.mobile_files_new_folder_name)) },
                     isError = failure != null,
                     supportingText = failure?.let { refused ->
-                        { Text(refused.mobileMessage(), color = PutioDesignTokens.redTextSecondary) }
+                        {
+                            Text(
+                                text = refused.mobileMessage(),
+                                color = PutioDesignTokens.redTextSecondary,
+                                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                            )
+                        }
                     },
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { create() }),

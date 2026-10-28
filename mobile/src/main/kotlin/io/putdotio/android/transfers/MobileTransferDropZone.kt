@@ -5,17 +5,13 @@ import android.view.DragEvent
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.draganddrop.dragAndDropTarget
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -39,14 +35,12 @@ import androidx.compose.ui.draganddrop.toAndroidDragEvent
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioRadius
 import io.putdotio.android.design.PutioTypeScale
@@ -170,30 +164,13 @@ internal fun MobileTransferDropOverlay(over: Boolean) {
             .semantics { liveRegion = LiveRegionMode.Polite },
         contentAlignment = Alignment.Center,
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+        Text(
+            text = stringResource(R.string.mobile_transfers_drop_title),
+            style = PutioTypeScale.titleLg,
+            color = MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.Center,
             modifier = Modifier.padding(horizontal = 40.dp),
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ic_ph_magnet),
-                contentDescription = null,
-                tint = accent,
-                modifier = Modifier.size(48.dp),
-            )
-            Text(
-                text = stringResource(R.string.mobile_transfers_drop_title),
-                style = PutioTypeScale.titleLg.copy(fontSize = DROP_TITLE_SIZE),
-                color = MaterialTheme.colorScheme.onSurface,
-                textAlign = TextAlign.Center,
-            )
-            Text(
-                text = stringResource(R.string.mobile_transfers_drop_message),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-            )
-        }
+        )
     }
 }
 
@@ -203,4 +180,3 @@ private val DASH = listOf(8.dp, 6.dp)
 private val DROP_TOP_CLEARANCE = 132.dp
 private val ROOMY_WINDOW_HEIGHT = 560.dp
 private val DROP_BOTTOM_CLEARANCE = 100.dp
-private val DROP_TITLE_SIZE = 20.sp

@@ -69,6 +69,10 @@ public sealed interface PutioFailure : FilesFailure {
 public val PutioFailure.apiReason: String?
     get() = (this as? PutioFailure.ApiRejected)?.cause?.apiRejectionReason()
 
+/** put.io has no such file: a 404 in both the envelope and HTTP status, which a trashed file reads as too. */
+public val PutioFailure?.isNotFound: Boolean
+    get() = this is PutioFailure.ApiRejected && statusCode == HTTP_NOT_FOUND && httpStatusCode == HTTP_NOT_FOUND
+
 // A contract-derived 401/403 reason anywhere in the wrapper chain is an auth verdict even when the
 // underlying error is not an API exception. The envelope's status code classifies the API error;
 // ApiRejected keeps the HTTP status beside it.
@@ -119,6 +123,7 @@ private fun PutioException.leafFailure(context: PutioException): PutioFailure =
 
 private const val HTTP_UNAUTHORIZED = 401
 private const val HTTP_FORBIDDEN = 403
+private const val HTTP_NOT_FOUND = 404
 private const val HTTP_TOO_MANY_REQUESTS = 429
 private val HTTP_SERVER_ERROR_RANGE = HTTP_SERVER_ERROR_START..HTTP_SERVER_ERROR_END
 private const val HTTP_SERVER_ERROR_START = 500

@@ -246,7 +246,7 @@ class TvFilesRowActionsTest {
             ready(listed).let { it.copyForTest(stack = listOf(it.current.copy(deleteOutcome = outcome))) }
         var state by mutableStateOf(withOutcome(folder))
         setConfirmedTrashScreen({ state }, events)
-        val message = "This folder contains too many files. Would you want to delete it PERMANENTLY?"
+        val message = "This folder contains too many files. Delete it permanently?"
 
         compose.onNodeWithText("We couldn’t send these files to trash").assertIsDisplayed()
         compose.onAllNodesWithText("Sample folder is still in Files. Open its actions to try again.")

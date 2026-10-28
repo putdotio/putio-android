@@ -6,7 +6,7 @@ import io.putdotio.android.R
 import io.putdotio.android.design.R as DesignR
 
 /** The four top-level TV destinations, in drawer order. */
-enum class TvDestination(
+internal enum class TvDestination(
     @StringRes val label: Int,
     @DrawableRes val icon: Int,
 ) {

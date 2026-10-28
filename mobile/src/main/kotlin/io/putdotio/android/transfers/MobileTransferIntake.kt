@@ -14,7 +14,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -26,6 +25,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.putdotio.android.AuthoritativeSessionFailureEffect
 import io.putdotio.android.R
 import io.putdotio.android.design.FileTypeIcon
@@ -136,7 +136,7 @@ internal fun MobileTransferDestinationPicker(
     val scope = rememberCoroutineScope()
     val controller = remember(repository) { FilesMoveDestinationController(repository, scope) }
     DisposableEffect(controller) { onDispose(controller::close) }
-    val destination by controller.state.collectAsState()
+    val destination by controller.state.collectAsStateWithLifecycle()
     val sessionFailure = destination.current.content.authoritativeSessionFailure() != null
     AuthoritativeSessionFailureEffect(shouldReject = sessionFailure, onReject = onAuthenticationRequired)
     MobileFilesMoveDestination(

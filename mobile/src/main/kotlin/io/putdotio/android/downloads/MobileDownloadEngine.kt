@@ -170,11 +170,17 @@ internal class MobileDownloadEngine(
         // always goes out; only the row's fate depends on whether Media3 has a record.
         val contentId = downloadContentId(userId, fileId)
         DownloadService.sendRemoveDownload(appContext, MobileDownloadService::class.java, contentId, false)
-        val known = runCatching { downloadManager.downloadIndex.getDownload(contentId) }.getOrNull()
-        if (known == null) {
-            store.removeBlocking(fileId)
-        } else {
+        val known = try {
+            downloadManager.downloadIndex.getDownload(contentId) != null
+        } catch (_: IOException) {
+            // An unreadable index proves nothing; the row stays removing until Media3 reports or
+            // the next reconcile finds no record.
+            true
+        }
+        if (known) {
             synchronized(removing) { removing += fileId }
+        } else {
+            store.removeBlocking(fileId)
         }
     }
 
@@ -194,7 +200,12 @@ internal class MobileDownloadEngine(
         // A resume after every transfer was paused may find no service in this process; the
         // foreground service keeps the transfer alive in the background. The viewer taps from the
         // app, so the start is allowed; were it refused, the transfer would still run while the app does.
-        if (!paused) runCatching { DownloadService.startForeground(appContext, MobileDownloadService::class.java) }
+        if (paused) return
+        try {
+            DownloadService.startForeground(appContext, MobileDownloadService::class.java)
+        } catch (_: IllegalStateException) {
+            // Refused from the background; see above.
+        }
     }
 
     /** True while Media3 is still deleting this file's bytes; a new download must wait. */

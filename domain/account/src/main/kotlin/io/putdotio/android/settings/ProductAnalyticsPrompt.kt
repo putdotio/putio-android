@@ -121,10 +121,8 @@ public fun productAnalyticsAnswerProgress(
         ?: (appConfig.content as? AndroidAppConfigContent.Failed)?.failure?.let(AccountSettingsFailure::Putio)
     val answered = (appConfig.content as? AndroidAppConfigContent.Ready)?.preferences?.productAnalyticsPromptAnswered
     return when {
-        !staleAnswerFailure && appConfig.productAnalyticsAnswerFailed() ->
-            ProductAnalyticsAnswerProgress.Failed(
-                AccountSettingsFailure.Putio((answerMutation as AndroidAppConfigMutation.Failed).failure),
-            )
+        !staleAnswerFailure && answerMutation is AndroidAppConfigMutation.Failed && answerMutation.isAnswerWrite() ->
+            ProductAnalyticsAnswerProgress.Failed(AccountSettingsFailure.Putio(answerMutation.failure))
         answerMutation is AndroidAppConfigMutation.Saving && answerMutation.isAnswerWrite() ->
             ProductAnalyticsAnswerProgress.Saving
         answered == true -> ProductAnalyticsAnswerProgress.Answered

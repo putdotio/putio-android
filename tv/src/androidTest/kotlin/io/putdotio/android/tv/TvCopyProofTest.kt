@@ -192,7 +192,7 @@ class TvCopyProofTest {
         const val UPLOAD = "Archive été 東京.zip"
         const val FAILED = "Sample transfer"
         const val MANAGE_TRASH = "Manage your trash"
-        const val TRASH_INFO = "Heads up: Files in trash have an expiry date of 14 days."
+        const val TRASH_INFO = "Items stay in Trash for 14 days."
         const val SIZE = 1_000_000_000_000L
         const val USED = 250_000_000_000L
         const val MAX_STEPS = 20

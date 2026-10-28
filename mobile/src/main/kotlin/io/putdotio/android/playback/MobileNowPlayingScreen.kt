@@ -40,7 +40,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -55,6 +54,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -68,6 +68,7 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.common.util.Util
@@ -468,7 +469,7 @@ private fun PlayPauseButton(player: Player, ring: Dp) {
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @Composable
 private fun SleepTimerChip(timer: MobileSleepTimer, onClick: () -> Unit) {
-    val run by timer.run.collectAsState()
+    val run by timer.run.collectAsStateWithLifecycle()
     val remaining = run?.let { rememberRemaining(timer, it) }
     val left = remaining?.let { Util.getStringForTime(it) }
     MobilePlayerChip(
@@ -563,7 +564,7 @@ private fun NowPlayingSheets(
 
 @Composable
 private fun SleepTimerChoices(timer: MobileSleepTimer, onDone: () -> Unit) {
-    val run by timer.run.collectAsState()
+    val run by timer.run.collectAsStateWithLifecycle()
     Column(Modifier.selectableGroup()) {
         PlaybackOption(
             label = AnnotatedString(stringResource(R.string.mobile_now_playing_sleep_off)),
@@ -629,7 +630,11 @@ private fun UpNextRow(next: PlaybackTarget, onClick: () -> Unit) {
             )
         },
         headline = { MobileMiddleCutText(next.name) },
-        modifier = Modifier.clickable(onClick = onClick),
+        modifier = Modifier.clickable(
+            onClickLabel = stringResource(R.string.mobile_now_playing_play),
+            role = Role.Button,
+            onClick = onClick,
+        ),
     )
 }
 

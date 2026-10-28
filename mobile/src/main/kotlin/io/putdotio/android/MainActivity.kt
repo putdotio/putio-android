@@ -155,7 +155,7 @@ internal class NowPlayingLaunchState : ViewModel() {
 }
 
 /** A request to open the live audio player; [acknowledge] clears it once handled. */
-class NowPlayingRequests internal constructor(
+internal class NowPlayingRequests(
     internal val pending: StateFlow<Boolean>,
     internal val acknowledge: () -> Unit,
 ) {

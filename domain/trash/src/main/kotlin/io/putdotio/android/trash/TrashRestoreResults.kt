@@ -1,5 +1,6 @@
 package io.putdotio.android.trash
 
+import io.putdotio.android.isNotFound
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
 import io.putdotio.android.files.FilesItem
@@ -31,8 +32,7 @@ internal fun TrashMachine.completeCheck(
     if (request != completed || outcome == null) return this
     val failure = result.readFailure(completed.item)
     return if (failure != null) {
-        val unavailable = failure is PutioFailure.ApiRejected &&
-            failure.httpStatusCode == HTTP_NOT_FOUND && failure.statusCode == HTTP_NOT_FOUND
+        val unavailable = failure.isNotFound
         copy(request = null, state = state.copy(
             restoreOutcome = outcome.copy(
                 check = if (unavailable) TrashRestoreCheck.UNAVAILABLE else TrashRestoreCheck.FAILED,
@@ -40,8 +40,8 @@ internal fun TrashMachine.completeCheck(
             ),
             authenticationFailure = failure.authFailure() ?: state.authenticationFailure,
         ))
-    } else {
-        val resolved = (result as PutioResult.Success).value
+    } else if (result is PutioResult.Success) {
+        val resolved = result.value
         copy(request = null, state = state.copy(
             restoreOutcome = outcome.copy(
                 check = TrashRestoreCheck.AVAILABLE, checkFailure = null, resolvedItem = resolved,
@@ -51,6 +51,8 @@ internal fun TrashMachine.completeCheck(
             restoredOccurrences = state.restoredOccurrences + (resolved.id to completed.item.deletedAt),
             lastRestoredItem = resolved,
         )).startList()
+    } else {
+        this
     }
 }
 
@@ -72,4 +74,3 @@ private fun PutioResult<FilesItem>.readFailure(selected: TrashItem): PutioFailur
 }
 
 private const val HTTP_BAD_REQUEST = 400
-private const val HTTP_NOT_FOUND = 404

@@ -100,9 +100,9 @@ private fun FilesFolderState.appendPage(
 private fun FilesFolderState.loadFailed(
     requestId: FilesRequestId,
     failure: PutioFailure,
-): FilesFolderState? =
-    if (operation.requestId() == requestId) {
-        val loading = operation as FilesFolderOperation.Loading
+): FilesFolderState? {
+    val loading = (operation as? FilesFolderOperation.Loading)?.takeIf { it.requestId == requestId }
+    return if (loading != null) {
         copy(
             operation = FilesFolderOperation.Failed(failure, loading.intent, loading.phase),
             moveOutcome = if (loading.phase == FilesFolderOperationPhase.CHECKING_MOVE) {
@@ -145,6 +145,7 @@ private fun FilesFolderState.loadFailed(
             is FilesContent.Failed -> null
         }
     }
+}
 
 internal fun contentFor(
     items: List<FilesItem>,

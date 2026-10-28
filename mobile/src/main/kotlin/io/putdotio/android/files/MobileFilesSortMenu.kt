@@ -182,7 +182,7 @@ private fun SortGroup(content: @Composable () -> Unit) {
 private fun SortGroupLabel(@StringRes label: Int) {
     Text(
         text = stringResource(label),
-        style = MaterialTheme.typography.labelSmall,
+        style = PutioTypeScale.labelMd,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier
             .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp)

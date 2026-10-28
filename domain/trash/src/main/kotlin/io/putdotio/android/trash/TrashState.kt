@@ -101,7 +101,8 @@ public data class TrashState(
     public fun canDelete(itemId: FilesItemId): Boolean = isIdleLoaded && itemId.value > 0L
     // A failed refresh leaves a snapshot the server may have moved past; bulk actions wait for a fresh one.
     val canActOnAll: Boolean
-        get() = isIdleLoaded && (content as TrashContent.Loaded).let { !it.isKnownEmpty && it.refreshFailure == null }
+        get() = isIdleLoaded && content is TrashContent.Loaded &&
+            !content.isKnownEmpty && content.refreshFailure == null
 }
 
 public sealed interface TrashEvent {

@@ -122,7 +122,6 @@ private fun String.withDownloadToken(token: String, vararg extra: Pair<String, S
 }
 
 /** This URL when it is put.io's HTTPS API; null for any other host, scheme or a malformed URL. */
-@Suppress("SwallowedException")
 private fun String.apiUri(): URI? =
     try {
         URI(this).takeIf { it.scheme == "https" && it.host == PUTIO_API_HOST && !it.rawPath.isNullOrEmpty() }
@@ -131,7 +130,6 @@ private fun String.apiUri(): URI? =
     }
 
 /** This URL's query names, decoded; empty for a malformed URL. */
-@Suppress("SwallowedException")
 private fun String.queryNames(): Set<String> =
     try {
         URI(this).rawQuery.orEmpty().split('&').map { it.substringBefore('=').decoded() }.toSet()
@@ -139,7 +137,6 @@ private fun String.queryNames(): Set<String> =
         emptySet()
     }
 
-@Suppress("SwallowedException")
 private fun String.decoded(): String =
     try {
         URLDecoder.decode(this, Charsets.UTF_8.name())

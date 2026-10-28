@@ -324,7 +324,7 @@ class MobileFilesDeleteTest {
         compose.setContent {
             PutioTheme { MobileFilesScreen(state, events::add, {}, confirmedTrashEnabled = true) }
         }
-        val message = "This folder contains too many files. Would you want to delete it PERMANENTLY?"
+        val message = "This folder contains too many files. Delete it permanently?"
 
         compose.onNodeWithText("We couldn’t send these files to trash").assertIsDisplayed()
         compose.onAllNodesWithText("“Sample folder” is still in Files. Open its actions to try again.")

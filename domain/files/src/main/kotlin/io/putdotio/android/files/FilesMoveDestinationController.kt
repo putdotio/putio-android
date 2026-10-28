@@ -20,6 +20,7 @@ public class FilesMoveDestinationController private constructor(
     private val repository: FilesRepository,
     parentScope: CoroutineScope,
     startPath: List<FilesFolder>,
+    // Sets this constructor apart from the public list one; without it both share one JVM signature.
     @Suppress("UNUSED_PARAMETER") marker: Unit,
 ) : Closeable {
     /** [startPath] is the folder to open at and its ancestors below root; empty opens at root. */

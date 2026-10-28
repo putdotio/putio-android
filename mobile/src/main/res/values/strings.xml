@@ -41,9 +41,9 @@
     <string name="mobile_files_delete_unavailable">“%1$s” is no longer available in Files.</string>
     <string name="mobile_files_delete_still_present">“%1$s” is still in Files. Open its actions to try again.</string>
     <string name="mobile_files_trash_limit_title">We couldn’t send these files to trash</string>
-    <string name="mobile_files_trash_limit_message">This folder contains too many files. Would you want to delete it PERMANENTLY?</string>
+    <string name="mobile_files_trash_limit_message">This folder contains too many files. Delete it permanently?</string>
     <string name="mobile_files_trash_limit_delete">Delete permanently</string>
-    <string name="mobile_files_trash_limit_message_many">At least one of these folders contains too many files. Would you want to delete all of these items PERMANENTLY?</string>
+    <string name="mobile_files_trash_limit_message_many">At least one of these folders contains too many files. Delete all of these items permanently?</string>
     <string name="mobile_files_delete_skipped">The request was incomplete. “%1$s” was not confirmed removed.</string>
     <string name="mobile_files_actions">Actions for %1$s</string>
     <string name="mobile_files_rename">Rename</string>
@@ -512,7 +512,7 @@
     <string name="mobile_downloads_status_failed_authentication">Sign in again to continue this download.</string>
     <string name="mobile_downloads_status_failed_unavailable">This file is no longer available to download.</string>
     <string name="mobile_downloads_status_failed_storage">Not enough storage on this device. Free up space, then retry.</string>
-    <string name="mobile_downloads_status_failed_unexpected">Download failed. Retry to try again.</string>
+    <string name="mobile_downloads_status_failed_unexpected">Download failed.</string>
     <string name="mobile_downloads_play">Play</string>
     <string name="mobile_downloads_remove">Remove from this device</string>
     <string name="mobile_downloads_remove_title">Remove from this device?</string>
@@ -746,7 +746,6 @@
     <!-- en.json files_public_share_error_weekly_total_link_count_exceeded. -->
     <string name="mobile_public_links_refused_weekly">You have reached the weekly public link creation limit.</string>
     <string name="mobile_transfers_drop_title">Drop to add a transfer</string>
-    <string name="mobile_transfers_drop_message">Links, magnet links and .torrent files open Add transfer.</string>
     <!-- Keyboard Shortcuts Helper (Meta + /) and hardware-keyboard shortcuts. -->
     <string name="mobile_shortcuts_files">Files</string>
     <string name="mobile_shortcuts_player">Player</string>

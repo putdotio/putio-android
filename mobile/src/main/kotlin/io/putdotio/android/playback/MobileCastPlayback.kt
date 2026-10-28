@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -22,6 +21,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusTarget
 import androidx.compose.ui.input.key.onKeyEvent
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.util.Util
 import io.putdotio.android.MobileKeyCommand
 import io.putdotio.android.MobileShortcutScope
@@ -86,8 +86,8 @@ internal fun rememberPlayerCast(
     castMedia: MobileCastMediaLoader?,
     onOpenPicker: () -> Unit,
 ): PlayerCast {
-    val availability by (cast?.availability ?: NoCast).collectAsState()
-    val status by (cast?.status ?: NoStatus).collectAsState()
+    val availability by (cast?.availability ?: NoCast).collectAsStateWithLifecycle()
+    val status by (cast?.status ?: NoStatus).collectAsStateWithLifecycle()
     if (cast == null || castMedia == null) return NoPlayerCast
     // A session reconnecting still owns playback while the receiver's last status stands.
     val device = availability.connectedDevice
@@ -175,7 +175,7 @@ internal fun MobileCastPlayback(
     val currentPolicy by rememberUpdatedState(subtitleStartupPolicy)
     val currentOnSourceRequired by rememberUpdatedState(onSourceRequired)
     // A session reconnecting holds the handover until it answers again.
-    val connected = cast.availability.collectAsState().value is CastAvailability.Connected
+    val connected = cast.availability.collectAsStateWithLifecycle().value is CastAvailability.Connected
     LaunchedEffect(fileId, source, connected, attempt) {
         if (!connected) return@LaunchedEffect
         failed = false
@@ -206,7 +206,7 @@ internal fun MobileCastPlayback(
     }
 
     val player = cast.remotePlayer
-    val status by cast.status.collectAsState()
+    val status by cast.status.collectAsStateWithLifecycle()
     val current = status?.takeIf { it.fileId == fileId }
     // A receiver that failed to load the file no longer holds it, so another handover sends it again.
     val castFailed = failed || current?.state == CastRemoteState.Failed

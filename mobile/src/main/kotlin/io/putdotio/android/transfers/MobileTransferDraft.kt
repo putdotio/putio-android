@@ -36,7 +36,7 @@ internal data class MobileTransferDraftState(
 }
 
 /** Activity-owned memory only: signed URLs must never enter a saved-state registry. */
-class MobileTransferDraft private constructor(
+internal class MobileTransferDraft private constructor(
     private val ioDispatcher: CoroutineDispatcher,
     private val mutableState: MutableStateFlow<MobileTransferDraftState>,
 ) : ViewModel(), MobileTransferDraftEdits by MobileTransferDraftEditor(mutableState) {
