@@ -27,7 +27,7 @@ import kotlinx.coroutines.launch
  * Process-wide TV session: one SDK client, one controller, one application scope, and the
  * launcher's Watch Next row, which follows the session even with no screen showing.
  */
-class TvAuthRuntime internal constructor(
+internal class TvAuthRuntime(
     val putioClient: PutioClient,
     val authController: TvAuthController,
     private val applicationScope: CoroutineScope,

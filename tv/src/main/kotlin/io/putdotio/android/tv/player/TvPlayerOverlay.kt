@@ -74,8 +74,8 @@ internal fun TvPlayerOverlay.setPlaying(play: Boolean): TvPlayerTransition {
 
 /**
  * The system's controls asked the media session to play or pause. Play is the dedicated play
- * key's. A pause keeps a pending scrub's target but no longer resumes on Back: a scrub already
- * holds playback paused, so the player alone would not report it.
+ * key's. A pause keeps a pending scrub's target, and Back then leaves playback paused: a scrub
+ * already holds playback paused, so the player alone would not report it.
  */
 internal fun TvPlayerOverlay.sessionPlaying(play: Boolean): TvPlayerTransition =
     when {

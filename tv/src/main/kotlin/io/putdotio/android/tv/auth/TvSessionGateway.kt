@@ -15,7 +15,7 @@ import io.putdotio.sdk.errors.PutioOperationException
 import io.putdotio.sdk.errors.PutioTransportException
 import kotlinx.coroutines.flow.Flow
 
-data class TvAccount(
+internal data class TvAccount(
     val userId: Long,
     val username: String,
     val email: String,
@@ -125,7 +125,7 @@ internal fun AccountInfo.toTvAccount(): TvAccount =
         productAnalyticsEnabled = settings.productAnalyticsEnabled,
     )
 
-enum class TvLinkFailure {
+internal enum class TvLinkFailure {
     /** No route to put.io; the same code cannot be reused, so the screen offers a fresh one. */
     NETWORK,
 

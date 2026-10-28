@@ -130,7 +130,9 @@ class MobilePlaybackService : MediaSessionService() {
             val intent = Intent(context, MobilePlaybackService::class.java).setAction(ACTION_STOP)
             // In the background a start command may be refused; a bind-only controller can
             // still stop the player, and stopService then lets the unbound service die.
-            runCatching { context.startService(intent) }.onFailure {
+            try {
+                context.startService(intent)
+            } catch (_: IllegalStateException) {
                 stopThroughController(context.applicationContext)
                 context.stopService(Intent(context, MobilePlaybackService::class.java))
             }

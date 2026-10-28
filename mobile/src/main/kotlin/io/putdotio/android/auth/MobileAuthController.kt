@@ -11,7 +11,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
-data class MobileAccount(
+internal data class MobileAccount(
     val userId: Long,
     val username: String,
     val email: String,
@@ -30,7 +30,7 @@ value class MobileAuthSessionId internal constructor(
     val value: Long,
 )
 
-sealed interface MobileAuthState {
+internal sealed interface MobileAuthState {
     data object Initializing : MobileAuthState
 
     data object RestoringSession : MobileAuthState
@@ -63,7 +63,7 @@ sealed interface MobileAuthState {
     data object SigningOut : MobileAuthState
 }
 
-sealed interface MobileSignedOutReason {
+internal sealed interface MobileSignedOutReason {
     data object SessionExpired : MobileSignedOutReason
 
     data object SignInFailed : MobileSignedOutReason
@@ -73,7 +73,7 @@ sealed interface MobileSignedOutReason {
     data object SecureStorageUnavailable : MobileSignedOutReason
 }
 
-enum class SessionValidationSource {
+internal enum class SessionValidationSource {
     RESTORE,
     OAUTH_CALLBACK,
 
@@ -82,7 +82,7 @@ enum class SessionValidationSource {
     RETRY,
 }
 
-enum class OAuthCallbackHandlingResult {
+internal enum class OAuthCallbackHandlingResult {
     ACCEPTED,
     REJECTED,
 }
@@ -91,7 +91,7 @@ enum class OAuthCallbackHandlingResult {
 // across classes would share that mutable state between them. Each parameter is a separate
 // store or process boundary those transitions order.
 @Suppress("TooManyFunctions", "LongParameterList")
-class MobileAuthController internal constructor(
+internal class MobileAuthController(
     private val oauthConfiguration: MobileOAuthConfiguration,
     private val tokenStore: AuthTokenStore,
     private val oauthAttempts: OAuthAttempts,

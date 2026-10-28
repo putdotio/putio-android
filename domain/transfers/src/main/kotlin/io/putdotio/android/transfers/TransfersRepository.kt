@@ -1,5 +1,6 @@
 package io.putdotio.android.transfers
 
+import io.putdotio.android.isNotFound
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.putioRequest
 import io.putdotio.android.PutioResult
@@ -210,14 +211,8 @@ internal fun Transfer.toTransferItem(): TransferItem =
         finishedAt = finishedAt?.takeIf(String::isNotBlank),
     )
 
-private fun PutioException.isTransferNotFound(): Boolean {
-    val failure = toPutioFailure()
-    return failure is PutioFailure.ApiRejected &&
-        failure.statusCode == HTTP_NOT_FOUND &&
-        failure.httpStatusCode == HTTP_NOT_FOUND
-}
+private fun PutioException.isTransferNotFound(): Boolean = toPutioFailure().isNotFound
 
-private const val HTTP_NOT_FOUND = 404
 public const val TORRENT_MEDIA_TYPE: String = "application/x-bittorrent"
 
 private fun Transfer.displayPercentDone(): Double? =

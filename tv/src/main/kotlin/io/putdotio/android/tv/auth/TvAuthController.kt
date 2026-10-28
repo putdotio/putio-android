@@ -20,7 +20,7 @@ value class TvAuthSessionId internal constructor(
     val value: Long,
 )
 
-sealed interface TvAuthState {
+internal sealed interface TvAuthState {
     data object Initializing : TvAuthState
 
     data object RestoringSession : TvAuthState
@@ -47,7 +47,7 @@ sealed interface TvAuthState {
     data object SigningOut : TvAuthState
 }
 
-sealed interface TvLinkPhase {
+internal sealed interface TvLinkPhase {
     data object RequestingCode : TvLinkPhase
 
     data class AwaitingLink(
@@ -62,7 +62,7 @@ sealed interface TvLinkPhase {
     ) : TvLinkPhase
 }
 
-sealed interface TvLinkStop {
+internal sealed interface TvLinkStop {
     data object CodeExpired : TvLinkStop
 
     data class Failed(
@@ -72,7 +72,7 @@ sealed interface TvLinkStop {
     data object StorageUnavailable : TvLinkStop
 }
 
-enum class TvSessionValidationSource {
+internal enum class TvSessionValidationSource {
     RESTORE,
     RETRY,
 }
@@ -82,7 +82,7 @@ enum class TvSessionValidationSource {
  * is none, otherwise drives device-code attempts through [TvDeviceLinking], and
  * persists the linked token in Keystore-backed storage.
  */
-class TvAuthController internal constructor(
+internal class TvAuthController(
     tokenStore: AuthTokenStore,
     sessionGateway: TvSessionGateway,
     private val tokenRevocations: TokenRevocations,

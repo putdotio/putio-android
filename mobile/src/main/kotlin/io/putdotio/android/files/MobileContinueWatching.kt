@@ -3,6 +3,7 @@ package io.putdotio.android.files
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
+import io.putdotio.android.isNotFound
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
 import io.putdotio.sdk.files.PutioFileType
@@ -282,11 +283,6 @@ private fun JSONArray.toEntries(): List<ContinueWatchingEntry> =
         }
     }
 
-/** put.io has no such file: a 404, which a trashed file reads as too. */
-private val PutioFailure.isNotFound: Boolean
-    get() = this is PutioFailure.ApiRejected && statusCode == HTTP_NOT_FOUND && httpStatusCode == HTTP_NOT_FOUND
-
-private const val HTTP_NOT_FOUND = 404
 private const val COMPLETED_FRACTION = 0.95
 private const val FINISHED_WITHIN_SECONDS = 10.0
 

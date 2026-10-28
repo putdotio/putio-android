@@ -6,7 +6,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /** A pending product link; it stays pending until the signed-in shell has routed it. */
-class MobileDeepLinkRequests internal constructor() : ViewModel() {
+internal class MobileDeepLinkRequests : ViewModel() {
     private val mutablePending = MutableStateFlow<MobileDeepLink?>(null)
     internal val pending: StateFlow<MobileDeepLink?> = mutablePending.asStateFlow()
 

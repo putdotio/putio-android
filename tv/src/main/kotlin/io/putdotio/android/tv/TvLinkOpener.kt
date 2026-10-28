@@ -1,5 +1,6 @@
 package io.putdotio.android.tv
 
+import io.putdotio.android.isNotFound
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
 import io.putdotio.android.files.FilesItem
@@ -63,9 +64,3 @@ internal class TvLinkOpener(
         opened.close()
     }
 }
-
-/** put.io has no such file: a 404, which a trashed file reads as too. */
-internal val PutioFailure.isNotFound: Boolean
-    get() = this is PutioFailure.ApiRejected && statusCode == HTTP_NOT_FOUND && httpStatusCode == HTTP_NOT_FOUND
-
-private const val HTTP_NOT_FOUND = 404

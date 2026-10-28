@@ -21,6 +21,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.paneTitle
+import androidx.lifecycle.compose.LifecycleStartEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.putdotio.android.design.PutioRadius
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -47,10 +49,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -120,12 +120,12 @@ internal fun MobileCastButton(
  */
 @Composable
 internal fun MobileCastPicker(gateway: CastGateway, onDismiss: () -> Unit, modifier: Modifier = Modifier) {
-    DisposableEffect(gateway) {
+    LifecycleStartEffect(gateway) {
         gateway.startDiscovery()
-        onDispose { gateway.stopDiscovery() }
+        onStopOrDispose { gateway.stopDiscovery() }
     }
-    val devices by gateway.devices.collectAsState()
-    val availability by gateway.availability.collectAsState()
+    val devices by gateway.devices.collectAsStateWithLifecycle()
+    val availability by gateway.availability.collectAsStateWithLifecycle()
     BackHandler(onBack = onDismiss)
     // Keys move through the picker, not the player behind it.
     val focus = remember { FocusRequester() }

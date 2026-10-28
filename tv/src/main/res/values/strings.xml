@@ -2,11 +2,11 @@
     <string name="tv_wordmark">put.io</string>
 
     <string name="tv_link_title">Sign in to put.io</string>
-    <string name="tv_link_instruction">Use this activation code to log in</string>
+    <string name="tv_link_instruction">Use this activation code to sign in</string>
     <string name="tv_link_follow">Follow the steps at the website below</string>
     <string name="tv_link_url">put.io/link</string>
     <string name="tv_link_requesting">Getting a code</string>
-    <string name="tv_link_validating">Logging you in</string>
+    <string name="tv_link_validating">Signing you in</string>
     <string name="tv_link_expired">That code expired. Get a new one to continue.</string>
     <string name="tv_link_session_expired">Your session expired. Sign in again to continue.</string>
     <string name="tv_link_failed_network">Can’t reach put.io. Check the network, then get a new code.</string>
@@ -90,7 +90,7 @@
     <string name="tv_files_delete_unavailable">%1$s is no longer in Files.</string>
     <string name="tv_files_delete_still_present">%1$s is still in Files. Open its actions to try again.</string>
     <string name="tv_files_trash_limit_title">We couldn’t send these files to trash</string>
-    <string name="tv_files_trash_limit_message">This folder contains too many files. Would you want to delete it PERMANENTLY?</string>
+    <string name="tv_files_trash_limit_message">This folder contains too many files. Delete it permanently?</string>
     <string name="tv_files_trash_limit_confirm">Delete</string>
     <string name="tv_files_delete_skipped">The request was incomplete. %1$s was not confirmed removed.</string>
     <string name="tv_files_ok">OK</string>
@@ -200,7 +200,7 @@
     <string name="tv_trash_restore_all">Restore all</string>
     <string name="tv_trash_empty_action">Empty trash</string>
     <string name="tv_trash_loading">Loading trash</string>
-    <string name="tv_trash_info">Heads up: Files in trash have an expiry date of 14 days.</string>
+    <string name="tv_trash_info">Items stay in Trash for 14 days.</string>
     <string name="tv_trash_empty_title">Your trash is empty</string>
     <string name="tv_trash_empty_message">When you send files to trash, we keep them here for 14 days.</string>
     <string name="tv_trash_error_title">Couldn’t load trash</string>
@@ -257,7 +257,7 @@
     <string name="tv_player_conversion_message">This video isn’t in a format this app can play yet, so its conversion has started. It plays here once it finishes.</string>
     <string name="tv_player_conversion_failed_message">This video isn’t in a format this app can play yet, and its conversion failed.</string>
     <string name="tv_player_conversion_unavailable_message">This video isn’t in a format this app can play, and it can’t be converted.</string>
-    <string name="tv_player_conversion_status">CONVERSION STATUS</string>
+    <string name="tv_player_conversion_status">Conversion status</string>
     <string name="tv_player_conversion_starting">Starting…</string>
     <string name="tv_player_conversion_queued">In queue…</string>
     <string name="tv_player_conversion_percent">%1$d%%</string>

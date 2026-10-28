@@ -40,8 +40,8 @@ private fun TrashMachine.cancelAction(): TrashMachine? =
 private fun TrashMachine.confirmAction(event: TrashEvent.ConfirmAction): TrashMachine? {
     val action = state.actionConfirmation
         ?.takeIf { request == null && event.confirmationId == state.actionConfirmationId && isEligible(it) }
-        ?: return null
-    val content = state.content as TrashContent.Loaded
+    val content = state.content as? TrashContent.Loaded
+    if (action == null || content == null) return null
     val selection = (action as? TrashAction.RestoreAll)?.let {
         TrashBulkSelection(content.snapshotCursor, content.items.map(TrashItem::id))
     }

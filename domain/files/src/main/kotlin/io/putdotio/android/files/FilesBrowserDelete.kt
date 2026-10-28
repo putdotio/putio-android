@@ -1,5 +1,6 @@
 package io.putdotio.android.files
 
+import io.putdotio.android.isNotFound
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
 
@@ -114,9 +115,6 @@ private fun FilesBrowserState.trashUndone(outcome: FilesDeleteOutcome): FilesBro
     return FilesBrowserTransition(copy(stack = stack.replaceAt(index, undone)))
 }
 
-private val PutioFailure?.isNotFound: Boolean
-    get() = this is PutioFailure.ApiRejected && statusCode == HTTP_NOT_FOUND && httpStatusCode == HTTP_NOT_FOUND
-
 private fun PutioResult<FilesItem>.deleteReadFailure(expectedId: FilesItemId): PutioFailure? = when (this) {
     is PutioResult.Failure -> failure
     is PutioResult.Success -> if (value.id == expectedId) null else
@@ -137,4 +135,3 @@ internal fun FilesBrowserState.isDeleteTargetBlocked(itemId: FilesItemId): Boole
     it.operation.pendingDelete?.itemIds?.contains(itemId) == true
 }
 
-private const val HTTP_NOT_FOUND = 404

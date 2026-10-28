@@ -42,7 +42,7 @@ import io.putdotio.android.trash.mobileTrashViewModelFactory
 import kotlinx.coroutines.launch
 
 @Composable
-fun PutioApp(
+internal fun PutioApp(
     authTabLauncher: ActivityResultLauncher<Intent>? = null,
     nowPlayingRequests: NowPlayingRequests = NowPlayingRequests.None,
     transferDraft: MobileTransferDraft = viewModel(),

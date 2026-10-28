@@ -569,7 +569,7 @@ class TvPlayerProofTest {
         ).assertExists()
         screenshot("49-conversion-starting")
         awaitConversionStatus("In queue…")
-        compose.onNodeWithText("CONVERSION STATUS").assertExists()
+        compose.onNodeWithText("Conversion status").assertExists()
         screenshot("50-conversion-queued")
         awaitConversionStatus("35%")
         screenshot("51-conversion-35")

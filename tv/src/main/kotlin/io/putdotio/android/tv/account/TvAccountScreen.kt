@@ -63,6 +63,7 @@ import io.putdotio.android.BuildConfig
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
+import io.putdotio.android.design.PutioRadius
 import io.putdotio.android.isSupportedAvatarUrl
 import io.putdotio.android.playback.playbackPreference
 import io.putdotio.android.settings.AccountSettingsChange
@@ -505,7 +506,7 @@ private fun TvAccountHeader(
                     .padding(top = 8.dp)
                     .width(STORAGE_BAR_WIDTH)
                     .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp))
+                    .clip(RoundedCornerShape(PutioRadius.progress))
                     .background(MaterialTheme.colorScheme.surfaceVariant)
                     .testTag(TV_ACCOUNT_STORAGE_TAG),
             ) {
@@ -533,7 +534,7 @@ private fun TvAccountHeader(
 private fun TvAccountAvatar(avatarUrl: String?) {
     val avatarModifier = Modifier
         .size(AVATAR_SIZE)
-        .clip(RoundedCornerShape(8.dp))
+        .clip(RoundedCornerShape(PutioRadius.small))
         .background(MaterialTheme.colorScheme.surfaceVariant)
     val fallback = painterResource(R.drawable.ic_ph_user_circle_fill)
     val resolved = avatarUrl?.takeIf(String::isSupportedAvatarUrl)

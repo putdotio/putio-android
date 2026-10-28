@@ -149,7 +149,6 @@ private fun MobileTransferActionRows(
             )
         }
         item.canRemove -> {
-            HorizontalDivider(Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
             MobileTransferActionRow(R.drawable.ic_ph_x, R.string.mobile_transfer_remove, enabled, run(actions.onRemove))
         }
     }

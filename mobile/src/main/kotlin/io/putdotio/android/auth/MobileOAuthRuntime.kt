@@ -43,7 +43,7 @@ internal fun interface OAuthRuntimeFailureReporter {
     fun report(error: Exception)
 }
 
-class MobileOAuthRuntime internal constructor(
+internal class MobileOAuthRuntime(
     val putioClient: PutioClient,
     val authController: MobileAuthController,
     private val applicationScope: CoroutineScope,

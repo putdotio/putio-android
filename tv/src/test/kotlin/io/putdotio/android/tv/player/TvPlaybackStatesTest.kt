@@ -64,7 +64,7 @@ class TvPlaybackStatesTest {
     fun aQueuedConversionShowsItsStatusAndReadsItAgainEveryThreeSeconds() {
         show()
         compose.onNodeWithText(TITLE).assertIsDisplayed()
-        compose.onNodeWithText("CONVERSION STATUS").assertIsDisplayed()
+        compose.onNodeWithText("Conversion status").assertIsDisplayed()
         compose.onNodeWithTag(TV_CONVERSION_STATUS_TAG).assertTextEquals("In queue…")
         compose.onNodeWithText("Check again").assertDoesNotExist()
 

@@ -19,9 +19,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -30,6 +30,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
+import io.putdotio.android.design.PutioRadius
 import io.putdotio.android.tv.auth.TvLinkFailure
 import io.putdotio.android.tv.auth.TvLinkPhase
 import io.putdotio.android.tv.auth.TvLinkStop
@@ -118,7 +119,7 @@ private fun AwaitingLinkBody(code: String) {
                 light = MaterialTheme.colorScheme.onBackground,
                 modifier = Modifier
                     .size(184.dp)
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(RoundedCornerShape(PutioRadius.small))
                     .testTag(TV_LINK_QR_TAG),
             )
             Text(
@@ -152,7 +153,7 @@ private fun CodeInstructions(code: String) {
             Box(
                 modifier = Modifier
                     .size(56.dp)
-                    .background(MaterialTheme.colorScheme.onBackground, RoundedCornerShape(8.dp)),
+                    .background(MaterialTheme.colorScheme.onBackground, RoundedCornerShape(PutioRadius.small)),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(

@@ -14,6 +14,7 @@ import io.putdotio.android.account.InactiveAccountNotice
 import io.putdotio.android.account.daysUntilFilesDeleted
 import io.putdotio.android.account.deactivatedAccountNoticeText
 import io.putdotio.android.account.familyPlanExpiredNoticeText
+import io.putdotio.android.design.PutioRadius
 
 /** The inactive-account banner above every pane; plain text, so nothing here takes D-pad focus. */
 @Composable
@@ -28,7 +29,7 @@ internal fun TvInactiveAccountNotice(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(PutioRadius.large))
             .padding(horizontal = 24.dp, vertical = 16.dp),
     ) {
         Text(
