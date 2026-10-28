@@ -37,6 +37,13 @@ WORDMARK_SVG = (
     b'<path d="M20 0H30V10H20Z" fill="#FDCE45"></path>'
     b"</svg>"
 )
+MONOCHROME_ASSET = "system/assets/app-icon-monochrome.svg"
+MONOCHROME_SVG = (
+    b"<!-- comment -->"
+    b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108">'
+    b'<path fill-rule="evenodd" d="M30 30H78V78H30ZM40 40V68H68V40Z"/>'
+    b"</svg>"
+)
 
 
 class DesignAssetLockTest(unittest.TestCase):
@@ -53,6 +60,7 @@ class DesignAssetLockTest(unittest.TestCase):
         self.icon_outputs = self.channel_outputs("nightly")
         self.dev_outputs = self.channel_outputs("dev")
         self.wordmark = design_assets.render_wordmark(WORDMARK_SVG, WORDMARK_ASSET, "3.3.0")
+        self.monochrome = design_assets.render_monochrome_icon(MONOCHROME_SVG, MONOCHROME_ASSET, "3.3.0")
         self.document: dict[str, object] = {
             "schemaVersion": 1,
             "package": {
@@ -80,6 +88,11 @@ class DesignAssetLockTest(unittest.TestCase):
                 "sourceSha256": hashlib.sha256(WORDMARK_SVG).hexdigest(),
                 "outputSha256": hashlib.sha256(self.wordmark).hexdigest(),
             },
+            "monochromeIcon": {
+                "asset": MONOCHROME_ASSET,
+                "sourceSha256": hashlib.sha256(MONOCHROME_SVG).hexdigest(),
+                "outputSha256": hashlib.sha256(self.monochrome).hexdigest(),
+            },
         }
         self.lock_path.parent.mkdir(parents=True)
         (self.repo_root / design_assets.TOKENS_PATH).write_bytes(self.tokens)
@@ -88,6 +101,8 @@ class DesignAssetLockTest(unittest.TestCase):
             (self.repo_root / path).write_bytes(data)
         self.wordmark_path.parent.mkdir(parents=True, exist_ok=True)
         self.wordmark_path.write_bytes(self.wordmark)
+        self.monochrome_path.parent.mkdir(parents=True, exist_ok=True)
+        self.monochrome_path.write_bytes(self.monochrome)
         self.repo_patch = patch.multiple(
             design_assets,
             REPO_ROOT=self.repo_root,
@@ -126,6 +141,10 @@ class DesignAssetLockTest(unittest.TestCase):
     @property
     def wordmark_path(self) -> Path:
         return self.repo_root / design_assets.WORDMARK_PATH
+
+    @property
+    def monochrome_path(self) -> Path:
+        return self.repo_root / design_assets.MONOCHROME_ICON_PATH
 
     def icon_path(self, density: str, res: str = "mobile/src/nightly/res") -> Path:
         return self.repo_root / res / f"drawable-{density}" / "putio_icon.png"
@@ -236,6 +255,15 @@ class DesignAssetLockTest(unittest.TestCase):
         with self.assertRaisesRegex(SystemExit, "path the converter cannot model"):
             design_assets.render_wordmark(source, WORDMARK_ASSET, "3.3.0")
 
+    def test_monochrome_mark_fills_unfilled_paths_on_the_adaptive_grid(self) -> None:
+        drawable = self.monochrome.decode("utf-8")
+        self.assertIn('android:width="108dp"', drawable)
+        self.assertIn('android:viewportWidth="108"', drawable)
+        self.assertIn('android:fillColor="#FFFFFFFF"\n            android:fillType="evenOdd"', drawable)
+        unfilled_wordmark = WORDMARK_SVG.replace(b' fill="#FDCE45"', b"")
+        with self.assertRaisesRegex(SystemExit, "path the converter cannot model"):
+            design_assets.render_wordmark(unfilled_wordmark, WORDMARK_ASSET, "3.3.0")
+
     def fetch(self, archive: bytes) -> object:
         class Response(io.BytesIO):
             def __enter__(self) -> "Response":
@@ -280,6 +308,7 @@ class DesignAssetLockTest(unittest.TestCase):
             "system/assets/app-icon-nightly-stars.png": self.icon_source if icon_source is None else icon_source,
             "system/assets/app-icon-dev-blueprint.png": self.dev_source,
             WORDMARK_ASSET: WORDMARK_SVG,
+            MONOCHROME_ASSET: MONOCHROME_SVG,
         })
         document = json.loads(json.dumps(self.document))
         document["package"]["integrity"] = "sha512-" + base64.b64encode(
@@ -315,7 +344,9 @@ class DesignAssetLockTest(unittest.TestCase):
         )
 
     def replace_outputs(self, data: bytes) -> list[Path]:
-        paths = [self.repo_root / design_assets.TOKENS_PATH, self.wordmark_path] + self.icon_paths()
+        paths = [
+            self.repo_root / design_assets.TOKENS_PATH, self.wordmark_path, self.monochrome_path,
+        ] + self.icon_paths()
         for path in paths:
             path.write_bytes(data)
         return paths

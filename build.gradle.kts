@@ -79,6 +79,7 @@ val checkDesignAssets = tasks.register<Exec>("checkDesignAssets") {
     cacheableCheck(
         fileTree("design"),
         "core/design/src/main/res/drawable/putio_wordmark.xml",
+        "mobile/src/main/res/drawable/putio_launcher_monochrome.xml",
         fileTree("core/design/src/main/res") { include("drawable-*/putio_icon.png") },
         fileTree("mobile/src/main/res") { include("drawable-*/putio_launcher_art.png") },
         fileTree("mobile/src/nightly/res"),

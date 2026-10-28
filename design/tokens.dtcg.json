@@ -519,7 +519,7 @@
       },
       "labelSize": {
         "$type": "dimension",
-        "$value": "{typography.fontSize.sm}",
+        "$value": "{typography.role.ui}",
         "$description": "Uppercase label size.",
         "$extensions": {
           "putio": {
@@ -643,154 +643,184 @@
       }
     },
     "input": {
+      "$description": "Deprecated shadcn-shaped aliases of component.field. shadcn reads only --input (component.alias.input); author against --field-*.",
       "background": {
         "$type": "color",
         "$value": "{component.field.background}",
+        "$description": "Deprecated alias. Use --field-bg (component.field.background).",
         "$extensions": {
           "putio": {
             "cssName": "input-bg",
-            "mode": "light"
+            "mode": "light",
+            "deprecated": true
           }
         }
       },
       "backgroundDark": {
         "$type": "color",
         "$value": "{component.field.backgroundDark}",
+        "$description": "Deprecated alias. Use --field-bg (component.field.backgroundDark).",
         "$extensions": {
           "putio": {
             "cssName": "input-bg",
-            "mode": "dark"
+            "mode": "dark",
+            "deprecated": true
           }
         }
       },
       "border": {
         "$type": "color",
         "$value": "{component.field.border}",
+        "$description": "Deprecated alias. Use --field-border (component.field.border).",
         "$extensions": {
           "putio": {
             "cssName": "input-border",
-            "mode": "light"
+            "mode": "light",
+            "deprecated": true
           }
         }
       },
       "borderDark": {
         "$type": "color",
         "$value": "{component.field.borderDark}",
+        "$description": "Deprecated alias. Use --field-border (component.field.borderDark).",
         "$extensions": {
           "putio": {
             "cssName": "input-border",
-            "mode": "dark"
+            "mode": "dark",
+            "deprecated": true
           }
         }
       },
       "radius": {
         "$type": "dimension",
         "$value": "{component.field.radius}",
+        "$description": "Deprecated alias. Use --field-radius (component.field.radius).",
         "$extensions": {
           "putio": {
             "cssName": "input-radius",
-            "mode": "global"
+            "mode": "global",
+            "deprecated": true
           }
         }
       },
       "borderHover": {
         "$type": "color",
         "$value": "{component.field.borderHover}",
-        "$description": "shadcn-friendly alias of --field-border-hover. Always aliases the field token so the two name systems cannot drift.",
+        "$description": "Deprecated alias. Use --field-border-hover (component.field.borderHover).",
         "$extensions": {
           "putio": {
             "cssName": "input-border-hover",
-            "mode": "light"
+            "mode": "light",
+            "deprecated": true
           }
         }
       },
       "borderHoverDark": {
         "$type": "color",
         "$value": "{component.field.borderHoverDark}",
+        "$description": "Deprecated alias. Use --field-border-hover (component.field.borderHoverDark).",
         "$extensions": {
           "putio": {
             "cssName": "input-border-hover",
-            "mode": "dark"
+            "mode": "dark",
+            "deprecated": true
           }
         }
       },
       "borderFocus": {
         "$type": "color",
         "$value": "{component.field.borderFocus}",
+        "$description": "Deprecated alias. Use --field-border-focus (component.field.borderFocus).",
         "$extensions": {
           "putio": {
             "cssName": "input-border-focus",
-            "mode": "light"
+            "mode": "light",
+            "deprecated": true
           }
         }
       },
       "borderFocusDark": {
         "$type": "color",
         "$value": "{component.field.borderFocusDark}",
+        "$description": "Deprecated alias. Use --field-border-focus (component.field.borderFocusDark).",
         "$extensions": {
           "putio": {
             "cssName": "input-border-focus",
-            "mode": "dark"
+            "mode": "dark",
+            "deprecated": true
           }
         }
       },
       "ring": {
         "$type": "string",
         "$value": "{component.field.ring}",
+        "$description": "Deprecated alias. Use --field-ring (component.field.ring).",
         "$extensions": {
           "putio": {
             "cssName": "input-ring",
-            "mode": "light"
+            "mode": "light",
+            "deprecated": true
           }
         }
       },
       "ringDark": {
         "$type": "string",
         "$value": "{component.field.ringDark}",
+        "$description": "Deprecated alias. Use --field-ring (component.field.ringDark).",
         "$extensions": {
           "putio": {
             "cssName": "input-ring",
-            "mode": "dark"
+            "mode": "dark",
+            "deprecated": true
           }
         }
       },
       "text": {
         "$type": "color",
         "$value": "{component.field.text}",
+        "$description": "Deprecated alias. Use --field-text (component.field.text).",
         "$extensions": {
           "putio": {
             "cssName": "input-text",
-            "mode": "light"
+            "mode": "light",
+            "deprecated": true
           }
         }
       },
       "textDark": {
         "$type": "color",
         "$value": "{component.field.textDark}",
+        "$description": "Deprecated alias. Use --field-text (component.field.textDark).",
         "$extensions": {
           "putio": {
             "cssName": "input-text",
-            "mode": "dark"
+            "mode": "dark",
+            "deprecated": true
           }
         }
       },
       "placeholder": {
         "$type": "color",
         "$value": "{component.field.placeholder}",
+        "$description": "Deprecated alias. Use --field-placeholder (component.field.placeholder).",
         "$extensions": {
           "putio": {
             "cssName": "input-placeholder",
-            "mode": "light"
+            "mode": "light",
+            "deprecated": true
           }
         }
       },
       "placeholderDark": {
         "$type": "color",
         "$value": "{component.field.placeholderDark}",
+        "$description": "Deprecated alias. Use --field-placeholder (component.field.placeholderDark).",
         "$extensions": {
           "putio": {
             "cssName": "input-placeholder",
-            "mode": "dark"
+            "mode": "dark",
+            "deprecated": true
           }
         }
       }
@@ -798,8 +828,8 @@
     "field": {
       "background": {
         "$type": "color",
-        "$value": "{surface.light.appBg}",
-        "$description": "Form-control fill. Fields stay on the app background surface, even inside a raised panel.",
+        "$value": "{color.neutral.light.bgSecondary}",
+        "$description": "Form-control fill. Fields are filled so they read on the page background as well as inside panels.",
         "$extensions": {
           "putio": {
             "cssName": "field-bg",
@@ -810,7 +840,7 @@
       },
       "backgroundDark": {
         "$type": "color",
-        "$value": "{surface.dark.appBg}",
+        "$value": "{color.neutral.dark.bgSecondary}",
         "$description": "Dark-mode form-control fill.",
         "$extensions": {
           "putio": {
@@ -822,8 +852,8 @@
       },
       "backgroundDisabled": {
         "$type": "color",
-        "$value": "{color.neutral.light.bgSecondary}",
-        "$description": "Disabled form-control fill.",
+        "$value": "{color.neutral.light.componentBg}",
+        "$description": "Disabled form-control fill, a step off the resting fill.",
         "$extensions": {
           "putio": {
             "cssName": "field-bg-disabled",
@@ -834,7 +864,7 @@
       },
       "backgroundDisabledDark": {
         "$type": "color",
-        "$value": "{color.neutral.dark.bgSecondary}",
+        "$value": "{color.neutral.dark.componentBg}",
         "$description": "Dark-mode disabled form-control fill.",
         "$extensions": {
           "putio": {
@@ -846,7 +876,7 @@
       },
       "border": {
         "$type": "color",
-        "$value": "{color.neutral.light.border}",
+        "$value": "{color.neutral.light.line}",
         "$description": "Resting form-control border.",
         "$extensions": {
           "putio": {
@@ -858,7 +888,7 @@
       },
       "borderDark": {
         "$type": "color",
-        "$value": "{color.neutral.dark.border}",
+        "$value": "{color.neutral.dark.line}",
         "$description": "Dark-mode resting form-control border.",
         "$extensions": {
           "putio": {
@@ -894,8 +924,8 @@
       },
       "borderFocus": {
         "$type": "color",
-        "$value": "{color.neutral.light.borderHover}",
-        "$description": "Focused form-control border. Focus matches hover and does not use the yellow focus shadow.",
+        "$value": "{color.neutral.light.solidHover}",
+        "$description": "Focused form-control border, a step past hover; at least 3:1 against the fill, the page, and panels. Does not use the yellow focus shadow.",
         "$extensions": {
           "putio": {
             "cssName": "field-border-focus",
@@ -906,8 +936,8 @@
       },
       "borderFocusDark": {
         "$type": "color",
-        "$value": "{color.neutral.dark.borderHover}",
-        "$description": "Dark-mode focused form-control border. Focus matches hover and does not use the yellow focus shadow.",
+        "$value": "{color.neutral.dark.solidHover}",
+        "$description": "Dark-mode focused form-control border, a step past hover; at least 3:1 against the fill, the page, and panels.",
         "$extensions": {
           "putio": {
             "cssName": "field-border-focus",
@@ -978,8 +1008,8 @@
       },
       "ring": {
         "$type": "string",
-        "$value": "0 0 0 1px {color.neutral.light.borderHover}",
-        "$description": "Quiet field focus ring. Brand-yellow shadow focus is reserved for buttons, links, nav, and TV focus.",
+        "$value": "0 0 0 1px {color.neutral.light.solidHover}",
+        "$description": "Quiet field focus ring in the focus border colour. Buttons, links, and nav focus with --shadow-focus instead.",
         "$extensions": {
           "putio": {
             "cssName": "field-ring",
@@ -990,8 +1020,8 @@
       },
       "ringDark": {
         "$type": "string",
-        "$value": "0 0 0 1px {color.neutral.dark.borderHover}",
-        "$description": "Dark-mode quiet field focus ring. Brand-yellow shadow focus is reserved for buttons, links, nav, and TV focus.",
+        "$value": "0 0 0 1px {color.neutral.dark.solidHover}",
+        "$description": "Dark-mode quiet field focus ring. Buttons, links, and nav focus with --shadow-focus instead.",
         "$extensions": {
           "putio": {
             "cssName": "field-ring",
@@ -1135,22 +1165,26 @@
       "foregroundMuted": {
         "$type": "color",
         "$value": "{color.neutral.light.textSecondary}",
+        "$description": "Deprecated alias. Use --text-secondary (color.neutral.light.textSecondary).",
         "$extensions": {
           "putio": {
             "cssName": "foreground-muted",
             "mode": "light",
-            "figma": false
+            "figma": false,
+            "deprecated": true
           }
         }
       },
       "foregroundMutedDark": {
         "$type": "color",
         "$value": "{color.neutral.dark.textSecondary}",
+        "$description": "Deprecated alias. Use --text-secondary (color.neutral.dark.textSecondary).",
         "$extensions": {
           "putio": {
             "cssName": "foreground-muted",
             "mode": "dark",
-            "figma": false
+            "figma": false,
+            "deprecated": true
           }
         }
       },
@@ -1466,7 +1500,7 @@
       },
       "input": {
         "$type": "color",
-        "$value": "{color.neutral.light.border}",
+        "$value": "{component.field.border}",
         "$extensions": {
           "putio": {
             "cssName": "input",
@@ -1477,7 +1511,7 @@
       },
       "inputDark": {
         "$type": "color",
-        "$value": "{color.neutral.dark.border}",
+        "$value": "{component.field.borderDark}",
         "$extensions": {
           "putio": {
             "cssName": "input",
@@ -3111,7 +3145,7 @@
         "tertiary": {
           "$type": "color",
           "$value": "{context.tv.text.secondary}",
-          "$description": "Deprecated compatibility alias. Use context.tv.text.secondary.",
+          "$description": "Deprecated alias. Use --text-2 (context.tv.text.secondary).",
           "$extensions": {
             "putio": {
               "cssName": "text-3",
@@ -4712,11 +4746,24 @@
     },
     "focus": {
       "$type": "string",
-      "$value": "0 0 0 3px {elevation.focusColor}",
+      "$value": "0 0 0 2px {color.neutral.light.bg}, 0 0 0 4px {color.neutral.light.solidHover}",
       "$extensions": {
         "putio": {
           "cssName": "shadow-focus",
-          "mode": "global",
+          "mode": "light",
+          "figma": false
+        }
+      },
+      "$description": "Button, link, and nav focus: a 2px page-coloured gap, then a 2px opaque ring at least 3:1 against the page and panels."
+    },
+    "focusDark": {
+      "$type": "string",
+      "$value": "0 0 0 2px {color.neutral.dark.bg}, 0 0 0 4px {color.neutral.dark.solidHover}",
+      "$description": "Dark-mode button, link, and nav focus ring.",
+      "$extensions": {
+        "putio": {
+          "cssName": "shadow-focus",
+          "mode": "dark",
           "figma": false
         }
       }
@@ -4763,6 +4810,7 @@
       "xs": {
         "$type": "dimension",
         "$value": "0.75rem",
+        "$description": "12px. Captions: read it through --fs-caption.",
         "$extensions": {
           "putio": {
             "cssName": "fs-xs",
@@ -4774,7 +4822,7 @@
       "sm": {
         "$type": "dimension",
         "$value": "0.875rem",
-        "$description": "Caption and button labels — production fontSize 0.",
+        "$description": "14px. UI chrome (labels, buttons, links, errors): read it through --fs-ui.",
         "$extensions": {
           "putio": {
             "cssName": "fs-sm",
@@ -4786,7 +4834,7 @@
       "base": {
         "$type": "dimension",
         "$value": "1rem",
-        "$description": "Body, labels, inputs — production fontSize 1; equals the responsive root (14px, 15px at >= breakpoint.lg).",
+        "$description": "16px, the root. Body text and inputs: read it through --fs-body or --fs-field.",
         "$extensions": {
           "putio": {
             "cssName": "fs-base",
@@ -4798,7 +4846,7 @@
       "md": {
         "$type": "dimension",
         "$value": "1.125rem",
-        "$description": "Subheading.",
+        "$description": "18px. Subheading.",
         "$extensions": {
           "putio": {
             "cssName": "fs-md",
@@ -4810,7 +4858,7 @@
       "lg": {
         "$type": "dimension",
         "$value": "1.5rem",
-        "$description": "Heading.",
+        "$description": "24px. Heading.",
         "$extensions": {
           "putio": {
             "cssName": "fs-lg",
@@ -4819,10 +4867,22 @@
           }
         }
       },
+      "title": {
+        "$type": "dimension",
+        "$value": "1.375rem",
+        "$description": "22px. Screen titles and one-time-code digits, beside fontSize.lg (H2).",
+        "$extensions": {
+          "putio": {
+            "cssName": "fs-title",
+            "mode": "global",
+            "figma": true
+          }
+        }
+      },
       "xl": {
         "$type": "dimension",
         "$value": "2rem",
-        "$description": "Page title.",
+        "$description": "32px. Page title.",
         "$extensions": {
           "putio": {
             "cssName": "fs-xl",
@@ -4833,8 +4893,8 @@
       },
       "2xl": {
         "$type": "dimension",
-        "$value": "48px",
-        "$description": "Fixed display tier — does not scale with the responsive root.",
+        "$value": "3rem",
+        "$description": "48px. Display tier.",
         "$extensions": {
           "putio": {
             "cssName": "fs-2xl",
@@ -4845,8 +4905,8 @@
       },
       "3xl": {
         "$type": "dimension",
-        "$value": "64px",
-        "$description": "Fixed display tier — does not scale with the responsive root.",
+        "$value": "4rem",
+        "$description": "64px. Display tier.",
         "$extensions": {
           "putio": {
             "cssName": "fs-3xl",
@@ -4869,8 +4929,8 @@
       },
       "display": {
         "$type": "dimension",
-        "$value": "96px",
-        "$description": "Fixed display tier for brand display moments.",
+        "$value": "6rem",
+        "$description": "96px. Display tier for brand display moments.",
         "$extensions": {
           "putio": {
             "cssName": "fs-display",
@@ -4984,6 +5044,18 @@
           }
         }
       },
+      "snug": {
+        "$type": "dimension",
+        "$value": "-0.01em",
+        "$description": "Slight negative tracking for screen titles.",
+        "$extensions": {
+          "putio": {
+            "cssName": "tracking-snug",
+            "mode": "global",
+            "figma": true
+          }
+        }
+      },
       "normal": {
         "$type": "number",
         "$value": "0",
@@ -5017,6 +5089,57 @@
           }
         }
       }
+    },
+    "$description": "Text roles. Components choose a role, not a size step.",
+    "role": {
+      "ui": {
+        "$type": "dimension",
+        "$value": "{typography.fontSize.sm}",
+        "$description": "UI chrome: labels, buttons, nav, links, errors, footers.",
+        "$extensions": {
+          "putio": {
+            "cssName": "fs-ui",
+            "mode": "global",
+            "figma": true
+          }
+        }
+      },
+      "body": {
+        "$type": "dimension",
+        "$value": "{typography.fontSize.base}",
+        "$description": "Body and long text.",
+        "$extensions": {
+          "putio": {
+            "cssName": "fs-body",
+            "mode": "global",
+            "figma": true
+          }
+        }
+      },
+      "caption": {
+        "$type": "dimension",
+        "$value": "{typography.fontSize.xs}",
+        "$description": "Captions and metadata.",
+        "$extensions": {
+          "putio": {
+            "cssName": "fs-caption",
+            "mode": "global",
+            "figma": true
+          }
+        }
+      },
+      "field": {
+        "$type": "dimension",
+        "$value": "{typography.fontSize.base}",
+        "$description": "Text a person types into a field. 16px keeps iOS Safari from zooming on focus.",
+        "$extensions": {
+          "putio": {
+            "cssName": "fs-field",
+            "mode": "global",
+            "figma": true
+          }
+        }
+      }
     }
   },
   "spacing": {
@@ -5040,7 +5163,8 @@
           "mode": "global",
           "figma": true
         }
-      }
+      },
+      "$description": "Tailwind's spacing unit: --space-N is N × 4px, as p-N is."
     },
     "2": {
       "$type": "dimension",
@@ -5055,7 +5179,7 @@
     },
     "3": {
       "$type": "dimension",
-      "$value": "16px",
+      "$value": "12px",
       "$extensions": {
         "putio": {
           "cssName": "space-3",
@@ -5066,7 +5190,7 @@
     },
     "4": {
       "$type": "dimension",
-      "$value": "32px",
+      "$value": "16px",
       "$extensions": {
         "putio": {
           "cssName": "space-4",
@@ -5077,7 +5201,7 @@
     },
     "5": {
       "$type": "dimension",
-      "$value": "64px",
+      "$value": "20px",
       "$extensions": {
         "putio": {
           "cssName": "space-5",
@@ -5088,7 +5212,7 @@
     },
     "6": {
       "$type": "dimension",
-      "$value": "128px",
+      "$value": "24px",
       "$extensions": {
         "putio": {
           "cssName": "space-6",
@@ -5099,7 +5223,7 @@
     },
     "7": {
       "$type": "dimension",
-      "$value": "256px",
+      "$value": "28px",
       "$extensions": {
         "putio": {
           "cssName": "space-7",
@@ -5110,10 +5234,76 @@
     },
     "8": {
       "$type": "dimension",
-      "$value": "512px",
+      "$value": "32px",
       "$extensions": {
         "putio": {
           "cssName": "space-8",
+          "mode": "global",
+          "figma": true
+        }
+      }
+    },
+    "10": {
+      "$type": "dimension",
+      "$value": "40px",
+      "$extensions": {
+        "putio": {
+          "cssName": "space-10",
+          "mode": "global",
+          "figma": true
+        }
+      }
+    },
+    "12": {
+      "$type": "dimension",
+      "$value": "48px",
+      "$extensions": {
+        "putio": {
+          "cssName": "space-12",
+          "mode": "global",
+          "figma": true
+        }
+      }
+    },
+    "16": {
+      "$type": "dimension",
+      "$value": "64px",
+      "$extensions": {
+        "putio": {
+          "cssName": "space-16",
+          "mode": "global",
+          "figma": true
+        }
+      }
+    },
+    "32": {
+      "$type": "dimension",
+      "$value": "128px",
+      "$extensions": {
+        "putio": {
+          "cssName": "space-32",
+          "mode": "global",
+          "figma": true
+        }
+      }
+    },
+    "64": {
+      "$type": "dimension",
+      "$value": "256px",
+      "$extensions": {
+        "putio": {
+          "cssName": "space-64",
+          "mode": "global",
+          "figma": true
+        }
+      }
+    },
+    "128": {
+      "$type": "dimension",
+      "$value": "512px",
+      "$extensions": {
+        "putio": {
+          "cssName": "space-128",
           "mode": "global",
           "figma": true
         }
@@ -5234,6 +5424,17 @@
         "$extensions": {
           "putio": {
             "cssName": "dur-fast",
+            "mode": "global",
+            "figma": true
+          }
+        }
+      },
+      "reveal": {
+        "$type": "duration",
+        "$value": "180ms",
+        "$extensions": {
+          "putio": {
+            "cssName": "dur-reveal",
             "mode": "global",
             "figma": true
           }
