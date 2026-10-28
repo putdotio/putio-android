@@ -229,12 +229,16 @@ internal class OfflinePositionStore(private val preferences: SharedPreferences, 
  * went offline wins; otherwise this device's newest position is written. A pass runs for the
  * signed-in user only, stops when that changes, and drops pending positions if the account has
  * resume turned off. Application-owned: playback reports and the sync outlive any screen.
+ *
+ * Its writes go through [writing], between the player's own, so an older position this device
+ * played offline never lands after a newer one the player sent.
  */
 internal class OfflinePlaybackPositions(
     private val preferences: SharedPreferences,
     private val signedInUser: () -> Long?,
     private val remote: PositionRemote,
     private val scope: CoroutineScope,
+    private val writing: suspend (suspend () -> Unit) -> Unit = { it() },
     private val onSynced: (fileId: Long, seconds: Double) -> Unit = { _, _ -> },
 ) {
     private val stores = mutableMapOf<Long, OfflinePositionStore>()
@@ -304,13 +308,15 @@ internal class OfflinePlaybackPositions(
         // A newer local position replacing one since the pass began goes in the next pass.
         for (update in store.pending()) {
             if (signedInUser() != userId) break
-            if (store.isCurrent(update)) syncRead(store, update)
+            if (store.isCurrent(update)) syncRead(userId, store, update)
         }
     }
 
-    private suspend fun syncRead(store: OfflinePositionStore, update: PendingPosition) {
+    private suspend fun syncRead(userId: Long, store: OfflinePositionStore, update: PendingPosition) {
         when (val read = remote.read(update.fileId)) {
-            is PlaybackRepositoryResult.Success -> syncOne(store, update, read.value)
+            // The owner may have signed out while the read was in flight.
+            is PlaybackRepositoryResult.Success ->
+                if (signedInUser() == userId) syncOne(userId, store, update, read.value)
             // A deleted or no longer accessible file would cost a read on every pass, forever.
             is PlaybackRepositoryResult.Failure -> if (!read.failure.retryable) store.discard(update)
         }
@@ -324,7 +330,7 @@ internal class OfflinePlaybackPositions(
         return setting
     }
 
-    private suspend fun syncOne(store: OfflinePositionStore, update: PendingPosition, current: Double) {
+    private suspend fun syncOne(userId: Long, store: OfflinePositionStore, update: PendingPosition, current: Double) {
         val attempted = update.attempted
         val expected = update.expectedRemote
         when {
@@ -335,12 +341,15 @@ internal class OfflinePlaybackPositions(
                 passRequested = true
             }
             expected != null && !samePosition(current, expected) -> store.yieldTo(update, current)
-            // The player's own write may have landed during the read; the newer position then stands.
-            !store.isCurrent(update) -> Unit
-            else -> {
-                store.attempted(update)
-                if (remote.write(update.fileId, update.seconds) is PlaybackRepositoryResult.Success) {
-                    settle(store, update, update.seconds)
+            else -> writing {
+                // The player's own write may have landed since the read; the newer position then stands.
+                if (store.isCurrent(update) && signedInUser() == userId) {
+                    store.attempted(update)
+                    // The player's writes wait meanwhile. Cancelling here would let them overtake a
+                    // request already on its way, so only the transport's own timeouts end it.
+                    val written = remote.write(update.fileId, update.seconds) is PlaybackRepositoryResult.Success
+                    // After a sign-out mid-write, the next pass finds the attempted position and settles it.
+                    if (written && signedInUser() == userId) settle(store, update, update.seconds)
                 }
             }
         }

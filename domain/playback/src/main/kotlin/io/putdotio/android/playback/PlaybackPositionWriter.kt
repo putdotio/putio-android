@@ -9,6 +9,8 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeout
 import java.io.Closeable
 import java.util.UUID
@@ -25,6 +27,7 @@ public class PlaybackPositionWriter(
     private var active: Snapshot? = null
     private var activeJob: Job? = null
     private var closed = false
+    private val requests = Mutex()
     private val mutableFailure = MutableStateFlow<PlaybackFailure?>(null)
     internal val failure = mutableFailure.asStateFlow()
 
@@ -39,6 +42,12 @@ public class PlaybackPositionWriter(
         reconcile()
         return token
     }
+
+    /**
+     * Runs [block] between this writer's requests, for another writer of the same positions: no
+     * request starts until the one before has finished, so put.io applies them in the order sent.
+     */
+    public suspend fun <T> exclusive(block: suspend () -> T): T = requests.withLock { block() }
 
     public fun offer(token: String, positionMillis: Long) {
         val lease = leases[token]?.takeIf { !closed && positionMillis > 0L && it.authorized() } ?: return
@@ -76,15 +85,18 @@ public class PlaybackPositionWriter(
         active = snapshot
         val job = scope.launch(start = CoroutineStart.LAZY) {
             try {
-                if (snapshot.allowed()) {
-                    // The SDK captures the current credential before suspending. Do not add
-                    // a dispatcher hop between authorization and this asynchronous request.
-                    val result = withTimeout(WRITE_TIMEOUT_MILLIS) {
-                        if (snapshot.allowed()) write(snapshot.fileId, snapshot.positionMillis / MILLIS_PER_SECOND)
-                        else null
-                    }
+                // Waiting for an exclusive block comes before authorization and outside the timeout.
+                requests.withLock {
                     if (snapshot.allowed()) {
-                        mutableFailure.value = (result as? PlaybackRepositoryResult.Failure)?.failure
+                        // The SDK captures the current credential before suspending. Do not add
+                        // a dispatcher hop between authorization and this asynchronous request.
+                        val result = withTimeout(WRITE_TIMEOUT_MILLIS) {
+                            if (snapshot.allowed()) write(snapshot.fileId, snapshot.positionMillis / MILLIS_PER_SECOND)
+                            else null
+                        }
+                        if (snapshot.allowed()) {
+                            mutableFailure.value = (result as? PlaybackRepositoryResult.Failure)?.failure
+                        }
                     }
                 }
             } catch (error: TimeoutCancellationException) {

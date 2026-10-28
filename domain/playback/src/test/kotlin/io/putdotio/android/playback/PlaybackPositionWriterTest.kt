@@ -4,6 +4,7 @@ import io.putdotio.android.PutioFailure
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -38,6 +39,31 @@ class PlaybackPositionWriterTest {
         writer.offer("unknown", 25_000L)
         runCurrent()
         assertEquals(2, calls.size)
+        writer.close()
+    }
+
+    @Test
+    fun anExclusiveBlockHoldsRequestsWithoutSpendingTheirTimeout() = runTest {
+        val calls = mutableListOf<Pair<Long, Double>>()
+        val writer = PlaybackPositionWriter(backgroundScope) { fileId, seconds ->
+            calls += fileId to seconds
+            PlaybackRepositoryResult.Success(Unit)
+        }
+        val lease = writer.register(1L) { true }
+        val release = CompletableDeferred<Unit>()
+        backgroundScope.launch { writer.exclusive { release.await() } }
+        runCurrent()
+
+        writer.offer(lease, 15_000L)
+        // Longer than a request's own timeout.
+        advanceTimeBy(20_000L)
+        runCurrent()
+        assertTrue(calls.isEmpty())
+
+        release.complete(Unit)
+        runCurrent()
+        assertEquals(listOf(1L to 15.0), calls)
+        assertNull(writer.failure.value)
         writer.close()
     }
 
