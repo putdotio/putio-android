@@ -520,6 +520,13 @@
     },
     {
       "resDir": "mobile/src/main/res",
+      "resource": "ic_ph_magnet",
+      "asset": "assets/regular/magnet.svg",
+      "sourceSha256": "b62b4c2348845e7b498b274540b9eda464ab1f4f39176e5c5d51f7485f038f5d",
+      "outputSha256": "f6a90254ffe1b3887ba8c4e221fac62c976dfea037b6140a2f494a587b777fee"
+    },
+    {
+      "resDir": "mobile/src/main/res",
       "resource": "ic_ph_arrows_clockwise",
       "asset": "assets/regular/arrows-clockwise.svg",
       "sourceSha256": "2e80fbc9c5c37553934c9ebbd6324bf7fabe9a4b4d7c2445d99edfce55cc22df",
