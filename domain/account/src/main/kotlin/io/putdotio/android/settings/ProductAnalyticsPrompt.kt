@@ -115,7 +115,6 @@ public fun productAnalyticsAnswerProgress(
     appConfig: AndroidAppConfigState,
     staleAnswerFailure: Boolean = false,
 ): ProductAnalyticsAnswerProgress {
-    val settingMutation = settings.mutation
     val answerMutation = appConfig.mutation
     // A read that failed, for example after process death, leaves nothing in flight to wait for.
     val readFailure = (settings.content as? AccountSettingsContent.Failed)?.failure
@@ -130,6 +129,14 @@ public fun productAnalyticsAnswerProgress(
             ProductAnalyticsAnswerProgress.Saving
         answered == true -> ProductAnalyticsAnswerProgress.Answered
         readFailure != null -> ProductAnalyticsAnswerProgress.Failed(readFailure)
+        else -> settings.settingProgress(enabled)
+    }
+}
+
+/** Where the analytics setting stands, once neither the answer nor a failed read decides it. */
+private fun AccountSettingsState.settingProgress(enabled: Boolean): ProductAnalyticsAnswerProgress {
+    val settingMutation = mutation
+    return when {
         settingMutation is AccountSettingsMutation.Failed &&
             settingMutation.change.key == AccountSettingsKey.ProductAnalytics &&
             settingMutation.operation == AccountSettingsMutation.Operation.Save ->
@@ -138,7 +145,7 @@ public fun productAnalyticsAnswerProgress(
             settingMutation.change.key == AccountSettingsKey.ProductAnalytics ->
             ProductAnalyticsAnswerProgress.Saving
         // put.io holds the choice, so the answer is about to follow.
-        (settings.content as? AccountSettingsContent.Ready)?.preferences?.productAnalyticsEnabled == enabled ->
+        (content as? AccountSettingsContent.Ready)?.preferences?.productAnalyticsEnabled == enabled ->
             ProductAnalyticsAnswerProgress.Saving
         else -> ProductAnalyticsAnswerProgress.Idle
     }
