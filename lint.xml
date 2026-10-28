@@ -14,10 +14,6 @@
     <issue id="IconDuplicates">
         <ignore path="**/putio_launcher_art.png" />
     </issue>
-    <!-- @putdotio/design ships no monochrome mark yet, so themed launchers tint the color art. -->
-    <issue id="MonochromeLauncherIcon">
-        <ignore path="**/src/main/res/drawable/putio_launcher.xml" />
-    </issue>
     <!-- Dependency bumps are deliberate, catalog-driven changes; with
          warningsAsErrors these advisory checks would break CI whenever an
          upstream release ships. -->
