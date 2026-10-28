@@ -345,7 +345,10 @@ internal class OfflinePlaybackPositions(
                 // The player's own write may have landed since the read; the newer position then stands.
                 if (store.isCurrent(update) && signedInUser() == userId) {
                     store.attempted(update)
-                    val written = remote.write(update.fileId, update.seconds) is PlaybackRepositoryResult.Success
+                    // The player's writes wait meanwhile; one that runs out may still land, as [attempted].
+                    val written = withTimeoutOrNull(WRITE_TIMEOUT_MILLIS) {
+                        remote.write(update.fileId, update.seconds)
+                    } is PlaybackRepositoryResult.Success
                     // After a sign-out mid-write, the next pass finds the attempted position and settles it.
                     if (written && signedInUser() == userId) settle(store, update, update.seconds)
                 }
@@ -366,6 +369,7 @@ internal class OfflinePlaybackPositions(
 
     private companion object {
         const val REFRESH_TIMEOUT_MILLIS = 3_000L
+        const val WRITE_TIMEOUT_MILLIS = 15_000L
     }
 }
 

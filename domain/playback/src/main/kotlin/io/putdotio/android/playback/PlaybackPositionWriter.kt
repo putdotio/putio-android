@@ -44,8 +44,8 @@ public class PlaybackPositionWriter(
     }
 
     /**
-     * Runs [block] between this writer's requests, for another writer of the same positions: what
-     * it sends never overlaps one of these, so put.io takes them in the order they finish.
+     * Runs [block] between this writer's requests, for another writer of the same positions: no
+     * request starts until the one before has finished, so put.io applies them in the order sent.
      */
     public suspend fun <T> exclusive(block: suspend () -> T): T = requests.withLock { block() }
 
