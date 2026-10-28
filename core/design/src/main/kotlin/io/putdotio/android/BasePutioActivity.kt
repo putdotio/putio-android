@@ -10,9 +10,8 @@ import androidx.activity.enableEdgeToEdge
 public abstract class BasePutioActivity : ComponentActivity() {
     override fun attachBaseContext(newBase: Context) {
         super.attachBaseContext(newBase)
-        // Text stops growing two steps above the default, as in the iOS app;
-        // past that, rows, sheets and bars crowd out their own content. A font
-        // scale change recreates the activity, so this reads each new value.
+        // Read once: subclasses must leave fontScale out of configChanges, so
+        // a font size change recreates the activity (MainActivityFontScaleTest).
         val fontScale = newBase.resources.configuration.fontScale
         if (fontScale > MAX_FONT_SCALE) {
             applyOverrideConfiguration(Configuration().apply { this.fontScale = MAX_FONT_SCALE })
