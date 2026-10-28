@@ -547,6 +547,8 @@ class MobileShellTest {
             MobileDeepLink.Files to MobileDeepLink.File(shellResolvedFolder().id),
             MobileDeepLink.Transfers to MobileDeepLink.Transfers,
             MobileDeepLink.History to MobileDeepLink.History,
+            MobileDeepLink.Downloads() to MobileDeepLink.Downloads(),
+            MobileDeepLink.Trash to MobileDeepLink.Trash,
         )
         for ((tab, link) in cases) {
             // A video opened on the tab, then a hop away, saves the tab with the player on top.
