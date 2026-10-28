@@ -117,9 +117,10 @@ public fun productAnalyticsAnswerProgress(
 ): ProductAnalyticsAnswerProgress {
     val settingMutation = settings.mutation
     val answerMutation = appConfig.mutation
-    val settingsContent = settings.content
-    val configContent = appConfig.content
-    val answered = (configContent as? AndroidAppConfigContent.Ready)?.preferences?.productAnalyticsPromptAnswered
+    // A read that failed, for example after process death, leaves nothing in flight to wait for.
+    val readFailure = (settings.content as? AccountSettingsContent.Failed)?.failure
+        ?: (appConfig.content as? AndroidAppConfigContent.Failed)?.failure?.let(AccountSettingsFailure::Putio)
+    val answered = (appConfig.content as? AndroidAppConfigContent.Ready)?.preferences?.productAnalyticsPromptAnswered
     return when {
         !staleAnswerFailure && appConfig.productAnalyticsAnswerFailed() ->
             ProductAnalyticsAnswerProgress.Failed(
@@ -128,11 +129,7 @@ public fun productAnalyticsAnswerProgress(
         answerMutation is AndroidAppConfigMutation.Saving && answerMutation.isAnswerWrite() ->
             ProductAnalyticsAnswerProgress.Saving
         answered == true -> ProductAnalyticsAnswerProgress.Answered
-        // A read that failed, for example after process death, leaves nothing in flight to wait for.
-        settingsContent is AccountSettingsContent.Failed ->
-            ProductAnalyticsAnswerProgress.Failed(settingsContent.failure)
-        configContent is AndroidAppConfigContent.Failed ->
-            ProductAnalyticsAnswerProgress.Failed(AccountSettingsFailure.Putio(configContent.failure))
+        readFailure != null -> ProductAnalyticsAnswerProgress.Failed(readFailure)
         settingMutation is AccountSettingsMutation.Failed &&
             settingMutation.change.key == AccountSettingsKey.ProductAnalytics &&
             settingMutation.operation == AccountSettingsMutation.Operation.Save ->
