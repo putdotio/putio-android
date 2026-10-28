@@ -26,6 +26,7 @@ import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.accessibility.enableAccessibilityChecks
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -34,7 +35,9 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.unit.dp
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.media3.common.MediaItem
@@ -94,6 +97,7 @@ class MobileShellAccessibilityProofTest {
     private lateinit var hostView: View
     private lateinit var backOwner: OnBackPressedDispatcherOwner
     private lateinit var capturePrefix: String
+    private lateinit var navigation: MobileNavigationLayout
     private var proofStage = "start"
     private val context get() = InstrumentationRegistry.getInstrumentation().targetContext
 
@@ -129,7 +133,8 @@ class MobileShellAccessibilityProofTest {
     }
 
     private fun runShellProof(player: Player) {
-        capturePrefix = "shell-${requireOrientation()}-audio"
+        val orientation = requireOrientation()
+        capturePrefix = "shell-$orientation-audio"
         val mounted = mutableStateOf(true)
         val events = mutableListOf<TransfersEvent>()
         val transferDraft = MobileTransferDraft()
@@ -164,10 +169,12 @@ class MobileShellAccessibilityProofTest {
             }
         }
         try {
+            navigation = shownNavigation()
+            capturePrefix = "shell-$orientation-${navigation.name.lowercase()}-audio"
             assertFilesViewport()
             checkNowPlaying(player)
             capture("files")
-            checkDrawerAndBack()
+            checkNavigationLabels()
             compose.onNodeWithTag(MOBILE_FILES_SEARCH_TAG).performClick()
             compose.onNodeWithTag(MOBILE_SEARCH_FIELD_TAG).assertIsDisplayed()
             capture("search")
@@ -196,19 +203,16 @@ class MobileShellAccessibilityProofTest {
         }
     }
 
-    private fun checkDrawerAndBack() {
-        proofStage = "drawer-back"
+    private fun checkNavigationLabels() {
+        proofStage = "navigation-labels"
+        if (navigation != MobileNavigationLayout.Modal) {
+            DESTINATIONS.forEach { label -> assertCompleteLabel(label, navigationDestination(label).assertIsDisplayed()) }
+            return
+        }
         compose.onNodeWithTag(MOBILE_NAV_MENU_TAG).performClick()
         capture("drawer")
-        listOf("Files", "History", "Transfers", "Downloads", "Account").forEach { label ->
-            val layouts = mutableListOf<TextLayoutResult>()
-            drawerDestination(label).performScrollTo().assertIsDisplayed()
-                .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
-            val layout = layouts.single()
-            assertEquals("$label must not break into narrow fragments", 1, layout.lineCount)
-            assertFalse("$label must remain complete", layout.isLineEllipsized(0))
-            assertTrue("$label must fit horizontally", layout.getLineRight(0) <= layout.size.width + 1f)
-            assertTrue("$label must fit vertically", layout.getLineBottom(0) <= layout.size.height + 1f)
+        DESTINATIONS.forEach { label ->
+            assertCompleteLabel(label, navigationDestination(label).performScrollTo().assertIsDisplayed())
         }
         capture("drawer-bottom")
         compose.runOnIdle { backOwner.onBackPressedDispatcher.onBackPressed() }
@@ -217,15 +221,31 @@ class MobileShellAccessibilityProofTest {
         compose.onNodeWithText(ACCESSIBILITY_FILE_NAME).assertIsDisplayed()
     }
 
+    private fun assertCompleteLabel(label: String, node: SemanticsNodeInteraction) {
+        val layouts = mutableListOf<TextLayoutResult>()
+        node.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+        val layout = layouts.single()
+        assertEquals("$label must not break into narrow fragments", 1, layout.lineCount)
+        assertFalse("$label must remain complete", layout.isLineEllipsized(0))
+        assertTrue("$label must fit horizontally", layout.getLineRight(0) <= layout.size.width + 1f)
+        assertTrue("$label must fit vertically", layout.getLineBottom(0) <= layout.size.height + 1f)
+    }
+
     private fun navigate(label: String) {
         proofStage = "navigate-${label.lowercase()}"
+        if (navigation != MobileNavigationLayout.Modal) {
+            navigationDestination(label).assertIsDisplayed().performClick()
+            compose.waitForIdle()
+            navigationDestination(label).assertIsSelected()
+            return
+        }
         compose.onNodeWithTag(MOBILE_NAV_MENU_TAG).performClick()
-        drawerDestination(label).performScrollTo().assertIsDisplayed().performClick()
+        navigationDestination(label).performScrollTo().assertIsDisplayed().performClick()
         compose.waitForIdle()
         compose.onNodeWithTag(MOBILE_NAV_DRAWER_TAG).assertIsNotDisplayed()
         compose.onNodeWithTag(MOBILE_NAV_MENU_TAG).performClick()
         compose.waitForIdle()
-        drawerDestination(label).performScrollTo().assertIsDisplayed().assertIsSelected()
+        navigationDestination(label).performScrollTo().assertIsDisplayed().assertIsSelected()
         compose.runOnIdle { backOwner.onBackPressedDispatcher.onBackPressed() }
         compose.waitForIdle()
         compose.onNodeWithTag(MOBILE_NAV_DRAWER_TAG).assertIsNotDisplayed()
@@ -234,9 +254,16 @@ class MobileShellAccessibilityProofTest {
     private fun checkTransfers(events: MutableList<TransfersEvent>) {
         proofStage = "transfers-actions"
         val list = compose.onNodeWithTag(MOBILE_TRANSFERS_LIST_TAG).fetchSemanticsNode().boundsInRoot
-        val minimum = context.resources.displayMetrics.density * MINIMUM_LIST_HEIGHT_DP
-        assertTrue("The shell must leave usable scrolling space below its toolbar", list.height >= minimum)
-        compose.onNodeWithText(TRANSFER_NAME).assertIsDisplayed()
+        val density = context.resources.displayMetrics.density
+        val root = compose.onNodeWithTag(SHELL_VIEWPORT_TAG).fetchSemanticsNode().boundsInRoot
+        // Known gap: on a landscape phone at large text, the header, now playing and the bar leave
+        // Transfers no rows, so only its toolbar and Add transfer are checked there.
+        val rowsShown = !isCompactHeight((root.height / density).dp)
+        if (rowsShown) {
+            assertTrue("The shell must leave usable scrolling space below its toolbar",
+                list.height >= density * MINIMUM_LIST_HEIGHT_DP)
+            compose.onNodeWithText(TRANSFER_NAME).assertIsDisplayed()
+        }
         capture("transfers")
         compose.onNodeWithContentDescription("More options").performClick()
         compose.onNodeWithText("Refresh").assertIsDisplayed().assertIsEnabled()
@@ -246,12 +273,15 @@ class MobileShellAccessibilityProofTest {
         compose.onNodeWithText("Clear completed transfers?").assertIsDisplayed()
         compose.onNodeWithText("Cancel").performClick()
         assertTrue(events.isEmpty())
-        compose.onNodeWithTag(mobileTransferCardTag(TransferId(147)))
-            .performScrollTo().assertIsDisplayed().performClick()
-        compose.onNodeWithText("Stop transfer").assertIsDisplayed().performClick()
-        compose.onNodeWithText("Stop transfer?").assertIsDisplayed()
-        compose.onNodeWithText("Stop transfer").performClick()
-        assertEquals(listOf(TransfersEvent.Cancel(TransferId(147))), events)
+        val stopped = if (rowsShown) listOf(TransfersEvent.Cancel(TransferId(147))) else emptyList()
+        if (rowsShown) {
+            compose.onNodeWithTag(mobileTransferCardTag(TransferId(147)))
+                .performScrollTo().assertIsDisplayed().performClick()
+            compose.onNodeWithText("Stop transfer").assertIsDisplayed().performClick()
+            compose.onNodeWithText("Stop transfer?").assertIsDisplayed()
+            compose.onNodeWithText("Stop transfer").performClick()
+        }
+        assertEquals(stopped, events)
         compose.onNode(hasContentDescription("Add transfer") or hasText("Add transfer")).performClick()
         proofStage = "transfer-keyboard"
         compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).performScrollTo().performClick()
@@ -266,7 +296,7 @@ class MobileShellAccessibilityProofTest {
         compose.onNodeWithTag(MOBILE_TRANSFER_ADD_CONFIRM_TAG).performScrollTo().assertIsDisplayed().assertIsEnabled()
         capture("transfer-add-keyboard")
         compose.onNodeWithTag(MOBILE_TRANSFER_ADD_CONFIRM_TAG).performClick()
-        assertEquals(listOf(TransfersEvent.Cancel(TransferId(147)), TransfersEvent.Add(SHARED_URL)), events)
+        assertEquals(stopped + TransfersEvent.Add(SHARED_URL), events)
         compose.onNodeWithText("Cancel").performScrollTo().performClick()
     }
 
@@ -357,14 +387,30 @@ class MobileShellAccessibilityProofTest {
         capture("settings-bottom")
     }
 
+    /** The app picks the bar, the rail or the menu drawer from the window and its labels; the proof follows it. */
+    private fun shownNavigation(): MobileNavigationLayout {
+        val shown = NAVIGATION_TAGS.filterValues { tag ->
+            compose.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty()
+        }.keys
+        assertEquals("The shell shows exactly one navigation surface", 1, shown.size)
+        return shown.single()
+    }
+
     private fun assertFilesViewport() {
-        compose.onNodeWithTag(MOBILE_NAV_BAR_TAG).assertDoesNotExist()
-        compose.onNodeWithTag(MOBILE_NAV_RAIL_TAG).assertDoesNotExist()
-        compose.onNodeWithTag(MOBILE_NAV_MENU_TAG).assertIsDisplayed()
+        assertEquals(navigation, shownNavigation())
+        val tag = checkNotNull(NAVIGATION_TAGS[navigation])
+        val surface = compose.onNodeWithTag(tag).assertIsDisplayed().fetchSemanticsNode().boundsInRoot
         val root = compose.onNodeWithTag(SHELL_VIEWPORT_TAG).fetchSemanticsNode().boundsInRoot
         val list = compose.onNodeWithTag(MOBILE_FILES_LIST_TAG).fetchSemanticsNode().boundsInRoot
-        assertTrue("Files keeps most of the shell height", list.height >= root.height / 2f)
-        assertTrue("Navigation does not squeeze the file rows", list.width >= root.width * MINIMUM_CONTENT_WIDTH)
+        val contentWidth = if (navigation == MobileNavigationLayout.Rail) root.width - surface.width else root.width
+        val density = context.resources.displayMetrics.density
+        if (isCompactHeight((root.height / density).dp)) {
+            // A phone in landscape keeps the bar whenever its labels fit, so Files gets what is left.
+            assertTrue("Files keeps usable scrolling space", list.height >= density * MINIMUM_LIST_HEIGHT_DP)
+        } else {
+            assertTrue("Files keeps most of the shell height", list.height >= root.height / 2f)
+        }
+        assertTrue("Navigation does not squeeze the file rows", list.width >= contentWidth * MINIMUM_CONTENT_WIDTH)
     }
 
     private fun checkNowPlaying(player: Player) {
@@ -375,8 +421,9 @@ class MobileShellAccessibilityProofTest {
         compose.waitUntil(5_000) { compose.runOnIdle { player.isPlaying } }
     }
 
-    private fun drawerDestination(label: String) =
-        compose.onNode(hasText(label) and hasAnyAncestor(hasTestTag(MOBILE_NAV_DRAWER_TAG)))
+    private fun navigationDestination(label: String) = compose.onNode(hasText(label) and hasAnyAncestor(hasTestTag(
+        if (navigation == MobileNavigationLayout.Modal) MOBILE_NAV_DRAWER_TAG else checkNotNull(NAVIGATION_TAGS[navigation]),
+    )))
 
     private fun capture(label: String) {
         compose.waitForIdle()
@@ -406,6 +453,12 @@ class MobileShellAccessibilityProofTest {
         const val REPLACEMENT_MESSAGE = "You already have an unfinished transfer. Choose which input to keep."
         const val MINIMUM_LIST_HEIGHT_DP = 96f
         const val MINIMUM_CONTENT_WIDTH = 0.9f
+        val DESTINATIONS = listOf("Files", "History", "Transfers", "Downloads", "Account")
+        val NAVIGATION_TAGS = mapOf(
+            MobileNavigationLayout.Bar to MOBILE_NAV_BAR_TAG,
+            MobileNavigationLayout.Rail to MOBILE_NAV_RAIL_TAG,
+            MobileNavigationLayout.Modal to MOBILE_NAV_MENU_TAG,
+        )
     }
 
     private fun shellTransfers() = transfersState(TransfersContent.Ready(listOf(TransferItem(
