@@ -4,12 +4,14 @@ import android.content.Context
 import android.os.StatFs
 import android.text.format.Formatter
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -27,6 +29,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
@@ -46,6 +49,8 @@ internal const val MOBILE_TAB_SUMMARY_TAG = "mobile-tab-summary"
 /**
  * History, Transfers, Downloads and Account open on a tab title: an action row when the tab has
  * actions, the title in headline-lg, and an optional one-line summary with its numbers in mono.
+ * A compact-height window, such as a phone in landscape, sets all of it on one top-app-bar row,
+ * with the title in title-lg, so the content keeps the height.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -56,6 +61,29 @@ internal fun MobileTabTitle(
     modifier: Modifier = Modifier,
     actions: @Composable RowScope.() -> Unit = {},
 ) {
+    if (isCompactHeightWindow()) {
+        Row(
+            modifier
+                .fillMaxWidth()
+                .windowInsetsPadding(TopAppBarDefaults.windowInsets)
+                .heightIn(min = TOP_APP_BAR_HEIGHT)
+                .padding(start = 16.dp, end = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // The actions keep their width; the title and then the summary give way in a narrow window.
+            Row(
+                Modifier.weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TabTitleText(title, MaterialTheme.typography.titleLarge, maxLines = 1)
+                Box(Modifier.weight(1f)) { summary?.let { TabSummaryText(it, Modifier) } }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, content = actions)
+        }
+        return
+    }
     Column(modifier.fillMaxWidth().windowInsetsPadding(TopAppBarDefaults.windowInsets)) {
         if (hasActions) {
             Row(
@@ -67,27 +95,41 @@ internal fun MobileTabTitle(
         } else {
             Spacer(Modifier.height(16.dp))
         }
-        Text(
-            text = title,
-            style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier
-                .padding(horizontal = 16.dp)
-                .semantics { heading() }
-                .testTag(MOBILE_TAB_TITLE_TAG),
-        )
+        TabTitleText(title, MaterialTheme.typography.headlineMedium, Modifier.padding(horizontal = 16.dp))
         if (summary != null) {
-            Text(
-                text = summary,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 2.dp).testTag(MOBILE_TAB_SUMMARY_TAG),
-            )
+            TabSummaryText(summary, Modifier.padding(start = 16.dp, end = 16.dp, top = 2.dp))
         }
         Spacer(Modifier.height(12.dp))
     }
+}
+
+@Composable
+private fun TabTitleText(
+    title: String,
+    style: TextStyle,
+    modifier: Modifier = Modifier,
+    maxLines: Int = Int.MAX_VALUE,
+) {
+    Text(
+        text = title,
+        style = style,
+        color = MaterialTheme.colorScheme.onSurface,
+        maxLines = maxLines,
+        overflow = TextOverflow.Ellipsis,
+        modifier = modifier.semantics { heading() }.testTag(MOBILE_TAB_TITLE_TAG),
+    )
+}
+
+@Composable
+private fun TabSummaryText(summary: AnnotatedString, modifier: Modifier) {
+    Text(
+        text = summary,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = modifier.testTag(MOBILE_TAB_SUMMARY_TAG),
+    )
 }
 
 /** One summary part: a template with one `%1$s` slot whose value sets in mono. */

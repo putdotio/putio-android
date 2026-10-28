@@ -65,6 +65,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.putdotio.android.MobileSheetHandle
+import io.putdotio.android.isCompactHeightWindow
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.design.putioMono
@@ -220,7 +221,11 @@ private fun MobileAddTransferSheet(
     ModalBottomSheet(
         onDismissRequest = actions.onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        dragHandle = { MobileSheetHandle() },
+        // A compact-height window, such as a phone in landscape, scrolls this sheet's content
+        // under the handle, so it gives the handle's 48dp to the content; Cancel and Back close it.
+        dragHandle = if (isCompactHeightWindow()) null else {
+            { MobileSheetHandle() }
+        },
     ) {
         Column(
             modifier = Modifier

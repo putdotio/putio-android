@@ -30,6 +30,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -46,6 +47,18 @@ internal enum class MobileNavigationLayout { Bar, Rail, Modal }
 
 /** Material's compact window height, a phone in landscape: below 480dp. */
 internal fun isCompactHeight(height: Dp): Boolean = height < 480.dp
+
+/** Whether the app's window is compact in height; its chrome then keeps to one line. */
+@Composable
+internal fun isCompactHeightWindow(): Boolean =
+    isCompactHeight(with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp() })
+
+/** A window compact in height but at least 600dp wide, such as a phone in landscape, not a narrow split. */
+@Composable
+internal fun isShortWideWindow(): Boolean {
+    val size = LocalWindowInfo.current.containerSize
+    return with(LocalDensity.current) { isCompactHeight(size.height.toDp()) && size.width.toDp() >= 600.dp }
+}
 
 @Composable
 internal fun mobileNavigationLayout(width: Dp, height: Dp): MobileNavigationLayout {
