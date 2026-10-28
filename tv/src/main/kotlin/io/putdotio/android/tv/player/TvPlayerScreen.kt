@@ -97,6 +97,7 @@ import io.putdotio.android.playback.SubtitleCueOverlay
 import io.putdotio.android.playback.SubtitleSelection
 import io.putdotio.android.playback.SubtitleStartupPolicy
 import io.putdotio.android.playback.displayAspectRatioOrNull
+import io.putdotio.android.playback.knownLanguage
 import io.putdotio.android.playback.orHiddenWhen
 import io.putdotio.android.playback.playbackAudioTracks
 import io.putdotio.android.playback.playbackSubtitleTracks
@@ -576,7 +577,7 @@ private fun TvSubtitlePicker(
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 private fun TrackGroup.trackName(index: Int): TvTrackName =
-    getFormat(index).let { format -> TvTrackName(format.label, format.language) }
+    getFormat(index).let { format -> TvTrackName(format.label, format.knownLanguage()) }
 
 @Composable
 private fun pickerLabels(labels: List<String>): List<String> {

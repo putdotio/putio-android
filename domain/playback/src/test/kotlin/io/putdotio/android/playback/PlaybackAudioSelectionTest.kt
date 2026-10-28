@@ -45,6 +45,24 @@ class PlaybackAudioSelectionTest {
     }
 
     @Test
+    fun anUndeterminedLanguageGivesAnUnlabelledTrackNoLabel() {
+        // Media3's MP4 and Matroska extractors keep the container's "und" tag, as ffmpeg writes it.
+        val tracks = Tracks(
+            listOf(
+                Tracks.Group(
+                    TrackGroup(audioFormat("1", C.LANGUAGE_UNDETERMINED), audioFormat("2", "")),
+                    false,
+                    intArrayOf(C.FORMAT_HANDLED, C.FORMAT_HANDLED),
+                    booleanArrayOf(true, false),
+                ),
+            ),
+        ).playbackAudioTracks()
+
+        assertEquals(listOf(null, null), tracks.map { it.label })
+        assertEquals(C.LANGUAGE_UNDETERMINED, tracks.first().identity.language)
+    }
+
+    @Test
     fun retainedIdentityResolvesRecreatedAndReorderedTracks() {
         val english = audioFormat("en", "en")
         val german = audioFormat("de", "de")
