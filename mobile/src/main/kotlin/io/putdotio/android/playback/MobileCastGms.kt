@@ -403,7 +403,7 @@ internal class GmsCastRemote : CastRemote {
             clearIfEmpty()
             markStatusKnown()
             publish()
-            pendingSubtitle = pendingSubtitle?.let { pending -> client?.showPlaylistSubtitle(pending) ?: pending }
+            client?.let { remote -> pendingSubtitle = pendingSubtitle?.let(remote::showPlaylistSubtitle) }
         }
 
         override fun onMetadataUpdated() = publish()
