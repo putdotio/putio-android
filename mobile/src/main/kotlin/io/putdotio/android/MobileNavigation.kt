@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
@@ -61,7 +60,6 @@ import io.putdotio.android.playback.MobileAudioAnalytics
 import io.putdotio.android.playback.MobileCast
 import io.putdotio.android.playback.MobileCastController
 import io.putdotio.android.playback.MobileCastMediaLoader
-import io.putdotio.android.playback.PlaybackAnalyticsReporter
 import io.putdotio.android.playback.castMediaFor
 import io.putdotio.android.playback.MobilePlaybackViewModel
 import io.putdotio.android.playback.MobilePlayerFactory
@@ -478,15 +476,7 @@ private fun MobilePlaybackRoute(
         if (authenticationFailure != null) onAuthenticationRequired()
     }
     if (state.target.mediaType == PlaybackMediaType.AUDIO) {
-        DisposableEffect(controller) {
-            val reporter = controller.analyticsReporter
-            MobileAudioAnalytics.reporter = reporter
-            onDispose {
-                if (MobileAudioAnalytics.reporter === reporter) {
-                    MobileAudioAnalytics.reporter = PlaybackAnalyticsReporter.None
-                }
-            }
-        }
+        LaunchedEffect(controller) { MobileAudioAnalytics.reporter = controller.analyticsReporter }
     }
     // A picture-in-picture window never shows the shell: the finished video waits for the viewer to leave it.
     val pictureInPicture by rememberPictureInPictureMode()
