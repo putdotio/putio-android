@@ -120,7 +120,7 @@ class MobileProductAnalyticsPromptTest {
     fun aLaunchThatOpensALinkSkipsTheAsk() {
         compose.setContent {
             PutioTheme {
-                ProductAnalyticsPromptHost(
+                AskingHost(
                     sessionId = MobileAuthSessionId(1L),
                     accountSettingsState = settings,
                     appConfigState = config,
@@ -168,7 +168,7 @@ class MobileProductAnalyticsPromptTest {
     fun theHostAsksWhileAnalyticsIsOffAndUnanswered() {
         compose.setContent {
             PutioTheme {
-                ProductAnalyticsPromptHost(
+                AskingHost(
                     sessionId = MobileAuthSessionId(1L),
                     accountSettingsState = settings,
                     appConfigState = config,
@@ -202,6 +202,22 @@ class MobileProductAnalyticsPromptTest {
         }
         compose.onNodeWithTag(MOBILE_PRODUCT_ANALYTICS_PROMPT_TAG).assertExists()
         return dismissed.also { assertTrue(it.isEmpty()) }
+    }
+
+    @androidx.compose.runtime.Composable
+    private fun AskingHost(
+        sessionId: MobileAuthSessionId,
+        accountSettingsState: AccountSettingsState,
+        appConfigState: AndroidAppConfigState,
+        opensLaunchLink: () -> Boolean,
+        onSettingsEvent: (AccountSettingsEvent) -> Unit,
+        onAppConfigEvent: (AndroidAppConfigEvent) -> Unit,
+    ) {
+        CompositionLocalProvider(LocalMobileProductAnalyticsPromptMode provides MobileProductAnalyticsPromptMode.Ask) {
+            ProductAnalyticsPromptHost(
+                sessionId, accountSettingsState, appConfigState, opensLaunchLink, onSettingsEvent, onAppConfigEvent,
+            )
+        }
     }
 
     private fun AccountSettingsState.savingId() = (mutation as AccountSettingsMutation.Saving).requestId

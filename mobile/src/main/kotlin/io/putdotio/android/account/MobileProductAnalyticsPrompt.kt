@@ -56,6 +56,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.putdotio.android.MobileSheetHandle
+import io.putdotio.android.BuildConfig
 import io.putdotio.android.R
 import io.putdotio.android.neutralTextButtonColors
 import io.putdotio.android.design.PutioDesignTokens
@@ -71,6 +72,8 @@ import io.putdotio.android.settings.productAnalyticsAnswerProgress
 import io.putdotio.android.settings.productAnalyticsAnswerStep
 
 internal const val MOBILE_PRODUCT_ANALYTICS_PROMPT_TAG = "mobile-product-analytics-prompt"
+internal const val MOBILE_PRODUCT_ANALYTICS_ALLOW_TAG = "mobile-product-analytics-allow"
+internal const val MOBILE_PRODUCT_ANALYTICS_DENY_TAG = "mobile-product-analytics-deny"
 
 /** The launch extra a debug build needs to show the prompt; `adb shell am start --ez` sets it. */
 internal const val EXTRA_HARNESS_ANALYTICS_PROMPT = "putio.harness.analytics_prompt"
@@ -96,10 +99,9 @@ internal enum class MobileProductAnalyticsPromptMode {
     }
 }
 
+// MainActivity provides the launch's mode; any other debug composition, such as a proof's, stays quiet.
 internal val LocalMobileProductAnalyticsPromptMode =
-    staticCompositionLocalOf { MobileProductAnalyticsPromptMode.Ask }
-internal const val MOBILE_PRODUCT_ANALYTICS_ALLOW_TAG = "mobile-product-analytics-allow"
-internal const val MOBILE_PRODUCT_ANALYTICS_DENY_TAG = "mobile-product-analytics-deny"
+    staticCompositionLocalOf { MobileProductAnalyticsPromptMode.of(BuildConfig.DEBUG, harnessAsks = false) }
 
 /**
  * Asks once whether the account allows product analytics. An answer saves the account setting, then
