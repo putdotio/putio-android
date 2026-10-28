@@ -42,6 +42,35 @@ Preconditions:
   `putio files start-from set <id> <seconds>`, or
   `putio files start-from reset <id>` when it was unset.
 
+## Synthetic lanes
+
+`MobileFullscreenVideoProofTest`, `MobilePlaybackOptionsProofTest` and
+`MobilePictureInPictureProofTest` play local fixtures. The landscape test seeks
+to 45 s and waits for `Rehearsal caption proof` cues, so clips run 90 s:
+
+```bash
+mkdir -p build/proof && cd build/proof
+awk 'BEGIN { for (s = 0; s < 90; s += 2) printf "%d\n00:%02d:%02d,000 --> 00:%02d:%02d,900\nRehearsal caption proof\n\n", s/2+1, s/60, s%60, s/60, s%60+1 }' > captions.srt
+tone() { echo "-f lavfi -i sine=frequency=$1:duration=90"; }
+ffmpeg -y -f lavfi -i testsrc2=size=1280x720:rate=30:duration=90 $(tone 440) $(tone 660) -i captions.srt \
+  -map 0 -map 1 -map 2 -map 3 -c:v libx264 -pix_fmt yuv420p -c:a aac -c:s srt \
+  -metadata:s:a:0 language=eng -metadata:s:a:1 language=spa -metadata:s:s:0 language=eng proof-video.mkv
+ffmpeg -y -f lavfi -i testsrc2=size=720x1280:rate=30:duration=90 $(tone 440) \
+  -c:v libx264 -pix_fmt yuv420p -c:a aac -shortest proof-portrait.mp4
+ffmpeg -y $(tone 440) $(tone 660) -map 0 -map 1 -c:a aac \
+  -metadata:s:a:0 language=eng -metadata:s:a:1 language=spa proof-audio.mka
+```
+
+Push them as the skill's proof-lane steps say, then pass:
+
+| Class                             | Arguments                                                                              |
+| --------------------------------- | -------------------------------------------------------------------------------------- |
+| `MobileFullscreenVideoProofTest`  | `putio.video.fullscreen.fixture` (mkv), `putio.video.fullscreen.portraitFixture` (mp4) |
+| `MobilePlaybackOptionsProofTest`  | `putio.playback.options.video` (mkv), `putio.playback.options.audio` (mka)             |
+| `MobilePictureInPictureProofTest` | `putio.pip.fixture` (mkv)                                                              |
+
+Without `portraitFixture` the portrait test skips; report it as skipped.
+
 ## Gotchas
 
 - Captures of playback are dark: pass `--allow-dark` to `capture.sh`.

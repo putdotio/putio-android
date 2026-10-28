@@ -286,9 +286,7 @@ class MobileTabletPowerProofTest {
             authState = auth,
             accessToken = { PROOF_TOKEN },
         )
-        val video = File(requireNotNull(arguments.getString("putio.tablet.video"))).canonicalFile
-        val externalFiles = requireNotNull(context.getExternalFilesDir(null)).canonicalFile
-        require(video.isFile && video.toPath().startsWith(externalFiles.toPath())) { "Fixture must be under $externalFiles" }
+        val video = proofFixture("putio.tablet.video")
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
         val controller = FilesBrowserController(files, scope)
         uiAutomation.serviceInfo = uiAutomation.serviceInfo.apply {
