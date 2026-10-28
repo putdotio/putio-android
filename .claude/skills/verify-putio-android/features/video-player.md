@@ -71,6 +71,11 @@ Push them as the skill's proof-lane steps say, then pass:
 
 Without `portraitFixture` the portrait test skips; report it as skipped.
 
+`MobilePlaybackOptionsProofTest` sets the device-wide
+`immersive_mode_confirmations` setting to `confirmed` while it runs, then
+restores it. Otherwise System UI's full-screen notice takes focus from its
+keyboard steps. Run it only on an emulator you booted.
+
 ## Gotchas
 
 - Captures of playback are dark: pass `--allow-dark` to `capture.sh`.
