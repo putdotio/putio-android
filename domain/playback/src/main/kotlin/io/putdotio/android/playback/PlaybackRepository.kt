@@ -462,6 +462,8 @@ public sealed interface PlaybackResolution {
         val subtitlesHidden: Boolean = false,
         /** The media's duration when the target did not carry one; see [PlaybackTarget.durationSeconds]. */
         val durationSeconds: Double? = null,
+        /** Plays a download on this device, though [source] still names put.io's URL. */
+        val offline: Boolean = false,
     ) : PlaybackResolution
 
     public data class Conversion(

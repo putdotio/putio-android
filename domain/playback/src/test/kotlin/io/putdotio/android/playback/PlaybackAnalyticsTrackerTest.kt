@@ -82,6 +82,27 @@ class PlaybackAnalyticsTrackerTest {
         )
     }
 
+    @Test
+    fun aDownloadPlaysAsALocalFileAfterTheResumePromptAndStreamsOnTheReceiver() {
+        val download = PlaybackResolution.Ready(
+            source(42L).copy(startFromSeconds = 120.0),
+            useStartFrom = true,
+            offline = true,
+        )
+        PlaybackReducer.start(Target).state.also(tracker::onState)
+            .after(PlaybackEvent.ResolveSucceeded(PlaybackRequestId(1L), download))
+            .after(PlaybackEvent.Resume)
+        tracker.castStarted()
+
+        assertEquals(
+            listOf(
+                AnalyticsEvent.PlaybackStarted(Local.copy(streamMethod = AnalyticsEvent.StreamMethod.LocalFile)),
+                AnalyticsEvent.PlaybackStarted(Local.copy(player = AnalyticsEvent.Player.Chromecast)),
+            ),
+            events,
+        )
+    }
+
     private fun PlaybackState.after(event: PlaybackEvent): PlaybackState =
         PlaybackReducer.reduce(this, event).state.also(tracker::onState)
 

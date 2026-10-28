@@ -18,6 +18,8 @@ import io.putdotio.android.downloads.downloadPreferences
 import io.putdotio.android.files.MobileContinueWatchingStore
 import io.putdotio.android.files.MobileMoveTargetStore
 import io.putdotio.android.share.MobileFileDrags
+import io.putdotio.android.settings.SdkAccountSettingsRepository
+import io.putdotio.android.settings.confirmProductAnalytics
 import io.putdotio.android.share.MobileFileShareService
 import io.putdotio.android.telemetry.ProductAnalytics
 import io.putdotio.android.telemetry.PutioDiagnostics
@@ -206,15 +208,7 @@ class MobileOAuthRuntime internal constructor(
                 clearAccountLocalState = { clearAccountLocalState(context) },
                 validatedAccounts = SharedPreferencesValidatedAccountStore(context),
             )
-            // Sessions also change without a UI, so the process scope tells diagnostics and analytics.
-            applicationScope.launch {
-                authController.state.collect { state ->
-                    state.diagnosticsAllowed()?.let(PutioDiagnostics::update)
-                    state.productAnalyticsAnswer()?.let { (accountId, enabled) ->
-                        ProductAnalytics.update(accountId, enabled)
-                    }
-                }
-            }
+            reportConsent(authController, putioClient, applicationScope)
             return MobileOAuthRuntime(
                 putioClient = putioClient,
                 authController = authController,
@@ -233,6 +227,27 @@ class MobileOAuthRuntime internal constructor(
         }
 
         /** What a session leaves behind on this device, ended or removed once it is gone. */
+        // Sessions also change without a UI, so the process scope tells diagnostics and analytics.
+        private fun reportConsent(
+            authController: MobileAuthController,
+            putioClient: PutioClient,
+            applicationScope: CoroutineScope,
+        ) {
+            applicationScope.launch {
+                authController.state.collect { state ->
+                    state.diagnosticsAllowed()?.let(PutioDiagnostics::update)
+                    state.productAnalyticsAnswer()?.let { (accountId, enabled) ->
+                        ProductAnalytics.update(accountId, enabled)
+                    }
+                }
+            }
+            val accountSettings = SdkAccountSettingsRepository(putioClient)
+            ProductAnalytics.setConsentCheck { check ->
+                val accountId = (authController.state.value as? MobileAuthState.SignedIn)?.account?.userId
+                applicationScope.launch { accountSettings.confirmProductAnalytics(check, accountId) }
+            }
+        }
+
         private fun sessionLeft(context: Context, session: MobileAuthSessionId?, authController: MobileAuthController) {
             MobileFileShareService.endSession(context, session)
             MobilePdfDocument.clearCache(context)

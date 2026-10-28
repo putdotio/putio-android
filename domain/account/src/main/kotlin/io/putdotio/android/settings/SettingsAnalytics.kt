@@ -3,8 +3,11 @@ package io.putdotio.android.settings
 import io.putdotio.android.telemetry.AnalyticsEvent
 import io.putdotio.android.telemetry.AnalyticsEvent.Setting
 import io.putdotio.android.telemetry.AnalyticsEvent.SettingValue
+import io.putdotio.android.telemetry.ConsentCheck
 import io.putdotio.android.telemetry.ProductAnalytics
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.mapNotNull
 
 /**
  * Sends `settings_changed` once per save put.io accepts; privacy controls send nothing. Also keeps
@@ -15,6 +18,21 @@ public suspend fun Flow<AccountSettingsState>.captureSavedSettings() {
         val ready = state.content as? AccountSettingsContent.Ready
         ready?.let { ProductAnalytics.updateRoute(it.preferences.tunnelRoute.value) }
     }
+}
+
+/**
+ * Each new answer these settings give. A save of another setting re-emits the answer they loaded,
+ * which a consent check may have replaced since, so an unchanged answer is not repeated.
+ */
+public fun Flow<AccountSettingsState>.productAnalyticsAnswers(): Flow<Boolean> =
+    mapNotNull { it.productAnalyticsAllowed() }.distinctUntilChanged()
+
+/** Answers a [ProductAnalytics.setConsentCheck] for [accountId] from put.io; a failed read keeps the last answer. */
+public suspend fun AccountSettingsRepository.confirmProductAnalytics(check: ConsentCheck, accountId: Long?) {
+    val enabled = accountId?.let {
+        (load() as? AccountSettingsRepositoryResult.Success)?.value?.productAnalyticsEnabled
+    }
+    ProductAnalytics.confirm(check, accountId, enabled)
 }
 
 /** Sends `settings_changed` once per app config save put.io accepts; the prompt's answer sends nothing. */

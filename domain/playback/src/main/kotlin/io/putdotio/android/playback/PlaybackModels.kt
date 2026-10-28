@@ -50,6 +50,8 @@ public sealed interface PlaybackContent {
     public data class AwaitingResume(
         val source: PlaybackSource,
         val subtitlesHidden: Boolean = false,
+        /** See [PlaybackResolution.Ready.offline]. */
+        val offline: Boolean = false,
     ) : PlaybackContent
 
     public data class Ready(
@@ -57,6 +59,8 @@ public sealed interface PlaybackContent {
         val useStartFrom: Boolean = false,
         /** See [PlaybackResolution.Ready.subtitlesHidden]. */
         val subtitlesHidden: Boolean = false,
+        /** See [PlaybackResolution.Ready.offline]. */
+        val offline: Boolean = false,
     ) : PlaybackContent
 
     public data class FindingNext(
@@ -310,7 +314,7 @@ private fun PlaybackState.resolveSucceeded(
 private fun PlaybackState.ready(resolution: PlaybackResolution.Ready): PlaybackTransition =
     if (resolution.useStartFrom && resolution.source.startFromSeconds > 0 && resumePositionMillis == null) {
         val awaiting = copy(
-            content = PlaybackContent.AwaitingResume(resolution.source, resolution.subtitlesHidden),
+            content = PlaybackContent.AwaitingResume(resolution.source, resolution.subtitlesHidden, resolution.offline),
         )
         val durationSeconds = target.durationSeconds
         // A position saved within 10 s of the end is a finished video (iOS main's rule, applied
@@ -332,6 +336,7 @@ private fun PlaybackState.ready(resolution: PlaybackResolution.Ready): PlaybackT
                     resolution.source,
                     resolution.useStartFrom,
                     resolution.subtitlesHidden,
+                    resolution.offline,
                 ),
             ),
         )
@@ -445,6 +450,7 @@ private fun PlaybackState.chooseResume(restart: Boolean): PlaybackTransition {
                 pending.source,
                 useStartFrom = true,
                 subtitlesHidden = pending.subtitlesHidden,
+                offline = pending.offline,
             ),
             resumePositionMillis = if (restart) 0L else pending.source.startFromSeconds.toPlaybackMillis(),
         ),

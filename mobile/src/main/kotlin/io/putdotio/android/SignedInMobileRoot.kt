@@ -75,7 +75,7 @@ import io.putdotio.android.settings.captureSavedSettings
 import io.putdotio.android.settings.confirmedHistoryEnabled
 import io.putdotio.android.settings.confirmedResumePlayback
 import io.putdotio.android.settings.diagnosticsAllowed
-import io.putdotio.android.settings.productAnalyticsAllowed
+import io.putdotio.android.settings.productAnalyticsAnswers
 import io.putdotio.android.settings.productAnalyticsPromptDue
 import io.putdotio.android.settings.putioFailure
 import io.putdotio.android.share.MobileFileDragOut
@@ -314,9 +314,11 @@ private fun SignedInMobileSession(
     LaunchedEffect(accountSettingsController) { accountSettingsController.state.captureSavedSettings() }
     LaunchedEffect(appConfigController) { appConfigController.state.captureSavedAppConfig() }
     LaunchedEffect(accountSettingsController) {
-        accountSettingsController.state.collect { state ->
-            state.diagnosticsAllowed()?.let(PutioDiagnostics::update)
-            state.productAnalyticsAllowed()?.let { ProductAnalytics.update(account.userId, it) }
+        accountSettingsController.state.collect { state -> state.diagnosticsAllowed()?.let(PutioDiagnostics::update) }
+    }
+    LaunchedEffect(accountSettingsController) {
+        accountSettingsController.state.productAnalyticsAnswers().collect {
+            ProductAnalytics.update(account.userId, it)
         }
     }
     ProductAnalyticsAnswerEffect(sessionId, accountSettingsController, appConfigController)
