@@ -68,6 +68,7 @@ import io.putdotio.android.settings.AndroidAppConfigEvent
 import io.putdotio.android.settings.AndroidAppConfigState
 import io.putdotio.android.settings.ProductAnalyticsAnswerProgress
 import io.putdotio.android.settings.ProductAnalyticsAnswerStep
+import io.putdotio.android.settings.productAnalyticsAnswerFailed
 import io.putdotio.android.settings.productAnalyticsAnswerProgress
 import io.putdotio.android.settings.productAnalyticsAnswerStep
 
@@ -118,7 +119,13 @@ internal fun MobileProductAnalyticsPrompt(
     onDismiss: () -> Unit,
 ) {
     var choice by rememberSaveable { mutableStateOf<Boolean?>(null) }
-    val progress = choice?.let { productAnalyticsAnswerProgress(it, settingsState, appConfigState) }
+    // A new choice that saves its setting first sets aside the previous answer's failure; the next
+    // answer write replaces it.
+    var failureSetAside by rememberSaveable { mutableStateOf(false) }
+    val answerFailed = appConfigState.productAnalyticsAnswerFailed()
+    val progress = choice?.let {
+        productAnalyticsAnswerProgress(it, settingsState, appConfigState, failureSetAside && answerFailed)
+    }
     val saving by rememberUpdatedState(progress == ProductAnalyticsAnswerProgress.Saving)
     val sheetState = rememberModalBottomSheetState(
         skipPartiallyExpanded = true,
@@ -139,6 +146,9 @@ internal fun MobileProductAnalyticsPrompt(
             .takeIf { it is ProductAnalyticsAnswerStep.MarkAnswered }
             ?.let(::run)
     }
+    LaunchedEffect(answerFailed) {
+        if (!answerFailed) failureSetAside = false
+    }
     LaunchedEffect(progress) {
         if (progress == ProductAnalyticsAnswerProgress.Answered) {
             sheetState.hide()
@@ -156,8 +166,10 @@ internal fun MobileProductAnalyticsPrompt(
             savingChoice = choice.takeIf { saving },
             failure = progress as? ProductAnalyticsAnswerProgress.Failed,
             onAnswer = { enabled ->
+                val step = productAnalyticsAnswerStep(enabled, settingsState, appConfigState)
                 choice = enabled
-                run(productAnalyticsAnswerStep(enabled, settingsState, appConfigState))
+                failureSetAside = answerFailed && step is ProductAnalyticsAnswerStep.SaveSetting
+                run(step)
             },
         )
     }

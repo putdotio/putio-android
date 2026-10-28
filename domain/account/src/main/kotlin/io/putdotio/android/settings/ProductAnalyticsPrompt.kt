@@ -27,9 +27,8 @@ public fun productAnalyticsPromptDue(
  */
 public fun AndroidAppConfigState.canRecordProductAnalyticsAnswer(): Boolean? {
     val config = (content as? AndroidAppConfigContent.Ready)?.preferences
-    val failedAnswer = (mutation as? AndroidAppConfigMutation.Failed)?.isAnswerWrite() == true
     return when {
-        config?.productAnalyticsPromptAnswered == true || failedAnswer -> null
+        config?.productAnalyticsPromptAnswered == true || productAnalyticsAnswerFailed() -> null
         config == null -> false
         else -> mutation !is AndroidAppConfigMutation.Saving
     }
@@ -106,20 +105,34 @@ public sealed interface ProductAnalyticsAnswerProgress {
     public data object Answered : ProductAnalyticsAnswerProgress
 }
 
+/**
+ * [staleAnswerFailure] skips a failed answer write left from an earlier choice, so a new choice can
+ * save its setting and then answer.
+ */
 public fun productAnalyticsAnswerProgress(
     enabled: Boolean,
     settings: AccountSettingsState,
     appConfig: AndroidAppConfigState,
+    staleAnswerFailure: Boolean = false,
 ): ProductAnalyticsAnswerProgress {
     val settingMutation = settings.mutation
     val answerMutation = appConfig.mutation
-    val answered = (appConfig.content as? AndroidAppConfigContent.Ready)?.preferences?.productAnalyticsPromptAnswered
+    val settingsContent = settings.content
+    val configContent = appConfig.content
+    val answered = (configContent as? AndroidAppConfigContent.Ready)?.preferences?.productAnalyticsPromptAnswered
     return when {
-        answerMutation is AndroidAppConfigMutation.Failed && answerMutation.isAnswerWrite() ->
-            ProductAnalyticsAnswerProgress.Failed(AccountSettingsFailure.Putio(answerMutation.failure))
+        !staleAnswerFailure && appConfig.productAnalyticsAnswerFailed() ->
+            ProductAnalyticsAnswerProgress.Failed(
+                AccountSettingsFailure.Putio((answerMutation as AndroidAppConfigMutation.Failed).failure),
+            )
         answerMutation is AndroidAppConfigMutation.Saving && answerMutation.isAnswerWrite() ->
             ProductAnalyticsAnswerProgress.Saving
         answered == true -> ProductAnalyticsAnswerProgress.Answered
+        // A read that failed, for example after process death, leaves nothing in flight to wait for.
+        settingsContent is AccountSettingsContent.Failed ->
+            ProductAnalyticsAnswerProgress.Failed(settingsContent.failure)
+        configContent is AndroidAppConfigContent.Failed ->
+            ProductAnalyticsAnswerProgress.Failed(AccountSettingsFailure.Putio(configContent.failure))
         settingMutation is AccountSettingsMutation.Failed &&
             settingMutation.change.key == AccountSettingsKey.ProductAnalytics &&
             settingMutation.operation == AccountSettingsMutation.Operation.Save ->
@@ -133,6 +146,10 @@ public fun productAnalyticsAnswerProgress(
         else -> ProductAnalyticsAnswerProgress.Idle
     }
 }
+
+/** Whether the last answer write failed; the prompt shows it until a new choice writes again. */
+public fun AndroidAppConfigState.productAnalyticsAnswerFailed(): Boolean =
+    (mutation as? AndroidAppConfigMutation.Failed)?.isAnswerWrite() == true
 
 private fun AndroidAppConfigMutation.isAnswerWrite(): Boolean =
     when (this) {

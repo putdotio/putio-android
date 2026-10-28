@@ -158,6 +158,39 @@ class ProductAnalyticsPromptTest {
         assertEquals(ProductAnalyticsAnswerProgress.Answered, productAnalyticsAnswerProgress(true, accepted, landed))
     }
 
+    @Test
+    fun aNewChoiceSetsAsideThePreviousAnswerFailure() {
+        // Don't allow on an account already off failed to record; the viewer then taps Allow.
+        val answering = config(answered = false).on(markAnswered.event)
+        val failed = answering.on(
+            AndroidAppConfigEvent.SaveFailed(answering.savingId(), PutioFailure.Unexpected(RuntimeException("503"))),
+        )
+        val saving = settings(enabled = false).on(allow)
+        assertEquals(
+            ProductAnalyticsAnswerProgress.Saving,
+            productAnalyticsAnswerProgress(true, saving, failed, staleAnswerFailure = true),
+        )
+        val accepted = saving.on(AccountSettingsEvent.SaveSucceeded(saving.savingId()))
+        assertEquals(
+            ProductAnalyticsAnswerProgress.Saving,
+            productAnalyticsAnswerProgress(true, accepted, failed, staleAnswerFailure = true),
+        )
+        assertEquals(markAnswered, productAnalyticsAnswerStep(enabled = true, accepted, failed))
+    }
+
+    @Test
+    fun aFailedReadShowsRatherThanWaitingForever() {
+        // Restored after process death: the account already holds the choice, but the config read failed.
+        val start = AndroidAppConfigReducer.start().state
+        val requestId = (start.content as AndroidAppConfigContent.Loading).requestId
+        val failure = PutioFailure.NetworkUnavailable(RuntimeException("offline"))
+        val unreadable = start.on(AndroidAppConfigEvent.LoadFailed(requestId, failure))
+        assertEquals(
+            ProductAnalyticsAnswerProgress.Failed(AccountSettingsFailure.Putio(failure)),
+            productAnalyticsAnswerProgress(false, settings(enabled = false), unreadable),
+        )
+    }
+
     private fun settings(enabled: Boolean) =
         readyAccountSettingsState(DefaultAccountSettingsPreferences.copy(productAnalyticsEnabled = enabled))
 
