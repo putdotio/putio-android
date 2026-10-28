@@ -472,6 +472,18 @@
     <!-- System file picker: a folder or search page that failed to load. -->
     <string name="mobile_documents_load_failed">Couldn’t load from put.io. Open it again to retry.</string>
     <string name="mobile_sheet_handle_description">Drag handle</string>
+    <string name="mobile_product_analytics_prompt_title">Turn on product analytics?</string>
+    <string name="mobile_product_analytics_prompt_body">It helps us understand which apps and features work well. It stays off unless you allow it, and you can change it in Account → Privacy controls.</string>
+    <string name="mobile_product_analytics_prompt_never_title">What we never send</string>
+    <string name="mobile_product_analytics_prompt_never_names">Filenames or media titles</string>
+    <string name="mobile_product_analytics_prompt_never_urls">URLs or search text</string>
+    <string name="mobile_product_analytics_prompt_never_tokens">Tokens</string>
+    <string name="mobile_product_analytics_prompt_send_title">What we’d send</string>
+    <string name="mobile_product_analytics_prompt_send_features">Features you use</string>
+    <string name="mobile_product_analytics_prompt_send_device">App and device type</string>
+    <string name="mobile_product_analytics_prompt_send_events">Playback and billing events</string>
+    <string name="mobile_product_analytics_prompt_deny">Don’t allow</string>
+    <string name="mobile_product_analytics_prompt_allow">Allow</string>
     <string name="mobile_files_share_description">Copies the original to this device, then opens the share sheet.</string>
     <string name="mobile_share_preparing">Preparing %1$s</string>
     <string name="mobile_share_ready">%1$s is ready to share</string>

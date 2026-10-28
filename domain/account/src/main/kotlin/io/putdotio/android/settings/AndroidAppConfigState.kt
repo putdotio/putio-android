@@ -12,6 +12,8 @@ public enum class VideoPlaybackType(
 public data class AndroidAppConfigPreferences(
     val videoPlaybackType: VideoPlaybackType = VideoPlaybackType.Hls,
     val autoplayNextVideo: Boolean = false,
+    // Whether this app recorded an answer to the product analytics prompt.
+    val productAnalyticsPromptAnswered: Boolean = false,
 )
 
 internal fun AndroidAppConfigPreferences.applying(
@@ -20,6 +22,7 @@ internal fun AndroidAppConfigPreferences.applying(
     when (change) {
         is AndroidAppConfigChange.VideoPlayback -> copy(videoPlaybackType = change.value)
         is AndroidAppConfigChange.AutoplayNextVideo -> copy(autoplayNextVideo = change.enabled)
+        AndroidAppConfigChange.ProductAnalyticsPromptAnswered -> copy(productAnalyticsPromptAnswered = true)
     }
 
 public sealed interface AndroidAppConfigChange {
@@ -30,6 +33,9 @@ public sealed interface AndroidAppConfigChange {
     public data class AutoplayNextVideo(
         val enabled: Boolean,
     ) : AndroidAppConfigChange
+
+    /** Records that the product analytics prompt was answered; there is no way back to unanswered. */
+    public data object ProductAnalyticsPromptAnswered : AndroidAppConfigChange
 }
 
 @JvmInline

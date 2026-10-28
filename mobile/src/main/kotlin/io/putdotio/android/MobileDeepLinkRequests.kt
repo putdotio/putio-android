@@ -10,8 +10,13 @@ class MobileDeepLinkRequests internal constructor() : ViewModel() {
     private val mutablePending = MutableStateFlow<MobileDeepLink?>(null)
     internal val pending: StateFlow<MobileDeepLink?> = mutablePending.asStateFlow()
 
+    /** Whether this launch opened a link, so the shell skips asks that would cover it. */
+    internal var receivedLink: Boolean = false
+        private set
+
     /** Only the newest link matters; a second tap replaces the first. */
     internal fun receive(link: MobileDeepLink) {
+        receivedLink = true
         mutablePending.value = link
     }
 
