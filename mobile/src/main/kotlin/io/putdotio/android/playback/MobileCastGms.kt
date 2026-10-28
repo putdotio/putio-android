@@ -398,12 +398,21 @@ internal class GmsCastRemote : CastRemote {
         if (client?.mediaStatus == null) mutableStatus.value = null
     }
 
+    /**
+     * Sends the latest load's playlist subtitle once that load has answered: before then the
+     * receiver's status still describes the media before it, which can be the same file.
+     */
+    private val showPendingSubtitle = {
+        val remote = client
+        if (loadSettled && remote != null) pendingSubtitle = pendingSubtitle?.let(remote::showPlaylistSubtitle)
+    }
+
     private val callback = object : RemoteMediaClient.Callback() {
         override fun onStatusUpdated() {
             clearIfEmpty()
             markStatusKnown()
             publish()
-            client?.let { remote -> pendingSubtitle = pendingSubtitle?.let(remote::showPlaylistSubtitle) }
+            showPendingSubtitle()
         }
 
         override fun onMetadataUpdated() = publish()
@@ -511,6 +520,7 @@ internal class GmsCastRemote : CastRemote {
         ).setResultCallback { result ->
             // A refused or timed-out load says so for its file, unless another load followed it.
             if (loadRequest == request) loadSettled = true
+            if (client === remote && loadRequest == request && result.status.isSuccess) showPendingSubtitle()
             if (client === remote && loadRequest == request && !result.status.isSuccess) {
                 failedLoad = CastRemoteStatus(
                     fileId = media.fileId,
