@@ -37,6 +37,7 @@ import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.unit.dp
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.media3.common.MediaItem
@@ -392,7 +393,13 @@ class MobileShellAccessibilityProofTest {
         val root = compose.onNodeWithTag(SHELL_VIEWPORT_TAG).fetchSemanticsNode().boundsInRoot
         val list = compose.onNodeWithTag(MOBILE_FILES_LIST_TAG).fetchSemanticsNode().boundsInRoot
         val contentWidth = if (navigation == MobileNavigationLayout.Rail) root.width - surface.width else root.width
-        assertTrue("Files keeps most of the shell height", list.height >= root.height / 2f)
+        val density = context.resources.displayMetrics.density
+        if (isCompactHeight((root.height / density).dp)) {
+            // A phone in landscape keeps the bar whenever its labels fit, so Files gets what is left.
+            assertTrue("Files keeps usable scrolling space", list.height >= density * MINIMUM_LIST_HEIGHT_DP)
+        } else {
+            assertTrue("Files keeps most of the shell height", list.height >= root.height / 2f)
+        }
         assertTrue("Navigation does not squeeze the file rows", list.width >= contentWidth * MINIMUM_CONTENT_WIDTH)
     }
 
