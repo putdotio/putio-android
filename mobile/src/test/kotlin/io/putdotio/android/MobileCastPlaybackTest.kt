@@ -23,6 +23,7 @@ import io.putdotio.android.playback.MobileCastController
 import io.putdotio.android.playback.MobilePlayerFactory
 import io.putdotio.android.playback.MobilePlayerScreen
 import io.putdotio.android.playback.PlaybackCastMedia
+import io.putdotio.android.playback.PlaybackCastPlaylistSubtitle
 import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackController
 import io.putdotio.android.playback.PlaybackEvent
@@ -32,6 +33,7 @@ import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
 import io.putdotio.android.playback.PlaybackResolution
 import io.putdotio.android.playback.PlaybackTarget
+import io.putdotio.android.playback.SubtitleStartupPolicy
 import io.putdotio.android.playback.toCastMedia
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSourceKind
@@ -175,6 +177,38 @@ class MobileCastPlaybackTest {
         compose.runOnIdle { assertEquals(listOf(1L, 1L), gateway.loads) }
     }
 
+    @Test
+    fun anHlsVideoAsksTheReceiverForThePlaylistSubtitleTheAccountSelects() {
+        val hls = PlaybackController(Episode1, HlsEpisode, scope)
+        compose.setContent {
+            val state by hls.state.collectAsState()
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = state,
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    playerFactory = MobilePlayerFactory { _, _ -> error("Casting plays nothing on the phone") },
+                    cast = cast,
+                    castMedia = { source, _ ->
+                        PlaybackRepositoryResult.Success(
+                            requireNotNull(requireNotNull(source).toCastMedia(Episode1, "download-token")),
+                        )
+                    },
+                    subtitleStartupPolicy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = true),
+                )
+            }
+        }
+
+        try {
+            compose.runOnIdle {
+                assertEquals(listOf(PlaybackCastPlaylistSubtitle(null)), gateway.sent.map { it.playlistSubtitle })
+            }
+        } finally {
+            hls.close()
+        }
+    }
+
     private fun ReceiverGateway.report(fileId: Long, state: CastRemoteState) {
         compose.runOnIdle {
             status.value = CastRemoteStatus(
@@ -195,9 +229,11 @@ class MobileCastPlaybackTest {
         override val endedStatus: CastRemoteStatus? = null
         override val devices = MutableStateFlow<List<CastDevice>>(emptyList())
         val loads = mutableListOf<Long>()
+        val sent = mutableListOf<PlaybackCastMedia>()
 
         override fun load(media: PlaybackCastMedia, startMillis: Long, autoplay: Boolean, speed: Float) {
             loads += media.fileId
+            sent += media
         }
 
         override fun startDiscovery() = Unit
@@ -228,6 +264,26 @@ class MobileCastPlaybackTest {
 
         override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult =
             if (target == Episode1) PlaybackNextResult.Found(Episode2) else PlaybackNextResult.Ended
+    }
+
+    /** An episode put.io streams as HLS, whose playlist carries its subtitles. */
+    private object HlsEpisode : PlaybackRepository {
+        override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> =
+            PlaybackRepositoryResult.Success(
+                PlaybackResolution.Ready(
+                    PlaybackSource(
+                        fileId = target.fileId.value,
+                        kind = PlaybackSourceKind.HLS,
+                        url = PutioCredentialUrl.of(
+                            "https://api.put.io/v2/files/${target.fileId.value}/hls/media.m3u8",
+                        ),
+                        startFromSeconds = 0.0,
+                        subtitles = PlaybackSubtitles.Embedded,
+                    ),
+                ),
+            )
+
+        override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult = PlaybackNextResult.Ended
     }
 
     private companion object {

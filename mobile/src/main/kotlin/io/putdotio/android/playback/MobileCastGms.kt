@@ -365,6 +365,9 @@ internal class GmsCastRemote : CastRemote {
     /** A refused load, which stands over the receiver's reports until the next load. */
     private var failedLoad: CastRemoteStatus? = null
 
+    /** The latest load's playlist subtitle, until the receiver lists the stream's text tracks. */
+    private var pendingSubtitle: Pair<Long, PlaybackCastPlaylistSubtitle>? = null
+
     /** Whether play was last asked for, which a loading receiver's status does not say. */
     private var playIntent: Boolean? = null
 
@@ -395,11 +398,21 @@ internal class GmsCastRemote : CastRemote {
         if (client?.mediaStatus == null) mutableStatus.value = null
     }
 
+    /**
+     * Sends the latest load's playlist subtitle once that load has answered: before then the
+     * receiver's status still describes the media before it, which can be the same file.
+     */
+    private val showPendingSubtitle = {
+        val remote = client
+        if (loadSettled && remote != null) pendingSubtitle = pendingSubtitle?.let(remote::showPlaylistSubtitle)
+    }
+
     private val callback = object : RemoteMediaClient.Callback() {
         override fun onStatusUpdated() {
             clearIfEmpty()
             markStatusKnown()
             publish()
+            showPendingSubtitle()
         }
 
         override fun onMetadataUpdated() = publish()
@@ -433,6 +446,7 @@ internal class GmsCastRemote : CastRemote {
         // A load still in flight belongs to the session that ended.
         loadRequest++
         failedLoad = null
+        pendingSubtitle = null
         playIntent = null
         endedStatus = mutableStatus.value?.takeUnless { discardHandback }
             ?.copy(endedAtMillis = SystemClock.elapsedRealtime())
@@ -493,6 +507,7 @@ internal class GmsCastRemote : CastRemote {
         val request = ++loadRequest
         loadSettled = false
         failedLoad = null
+        pendingSubtitle = media.playlistSubtitle?.let { media.fileId to it }
         playIntent = autoplay
         remote.load(
             MediaLoadRequestData.Builder()
@@ -505,7 +520,9 @@ internal class GmsCastRemote : CastRemote {
         ).setResultCallback { result ->
             // A refused or timed-out load says so for its file, unless another load followed it.
             if (loadRequest == request) loadSettled = true
+            if (client === remote && loadRequest == request && result.status.isSuccess) showPendingSubtitle()
             if (client === remote && loadRequest == request && !result.status.isSuccess) {
+                pendingSubtitle = null
                 failedLoad = CastRemoteStatus(
                     fileId = media.fileId,
                     state = CastRemoteState.Failed,
@@ -586,6 +603,22 @@ private fun PlaybackCastMedia.toMediaInfo(): MediaInfo {
         .setCustomData(JSONObject().put(FILE_ID_KEY, fileId))
         .apply { durationMillis?.let(::setStreamDuration) }
         .build()
+}
+
+/**
+ * Turns on the playlist subtitle a load asked for, once the receiver lists the text tracks of that
+ * file's stream: an HLS playlist's own tracks exist only after it loads. Returns what still waits.
+ */
+private fun RemoteMediaClient.showPlaylistSubtitle(
+    pending: Pair<Long, PlaybackCastPlaylistSubtitle>,
+): Pair<Long, PlaybackCastPlaylistSubtitle>? {
+    val (fileId, wanted) = pending
+    val tracks = mediaInfo?.takeIf { it.customData?.optLong(FILE_ID_KEY) == fileId }
+        ?.mediaTracks.orEmpty().filter { it.type == MediaTrack.TYPE_TEXT }
+    if (tracks.isEmpty()) return pending
+    playlistSubtitleTrack(tracks.map { CastTextTrack(it.id, it.language) }, wanted)
+        ?.let { setActiveMediaTracks(longArrayOf(it)) }
+    return null
 }
 
 /** Ties the receiver's media to the put.io file; another sender's media carries none. */

@@ -79,6 +79,9 @@ keyboard steps. Run it only on an emulator you booted.
 ## Gotchas
 
 - Captures of playback are dark: pass `--allow-dark` to `capture.sh`.
+- A Cast receiver keeps the cast picture out of its own screencap. To check
+  subtitles there, look at the TV, or read the receiver's logcat: an
+  `EDIT_TRACKS_INFO` line after the load shows the phone turned a track on.
 - Headless emulators decode video in software; the first frames can take a
   few seconds. Wait for `Preparing video` to go, not a fixed time.
 - Controls auto-hide: tap the video before looking for a control, and look
