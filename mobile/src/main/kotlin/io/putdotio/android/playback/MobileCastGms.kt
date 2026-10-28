@@ -403,7 +403,7 @@ internal class GmsCastRemote : CastRemote {
             clearIfEmpty()
             markStatusKnown()
             publish()
-            showPlaylistSubtitle()
+            pendingSubtitle = pendingSubtitle?.let { pending -> client?.showPlaylistSubtitle(pending) ?: pending }
         }
 
         override fun onMetadataUpdated() = publish()
@@ -478,21 +478,6 @@ internal class GmsCastRemote : CastRemote {
             title = info?.metadata?.getString(MediaMetadata.KEY_TITLE) ?: previous?.title,
             audio = previous?.audio ?: (info?.metadata?.mediaType == MediaMetadata.MEDIA_TYPE_MUSIC_TRACK),
         )
-    }
-
-    /**
-     * Turns on the playlist subtitle the latest load asked for, once the receiver lists the text
-     * tracks of that file's stream: an HLS playlist's own tracks exist only after it loads.
-     */
-    private fun showPlaylistSubtitle() {
-        val (fileId, wanted) = pendingSubtitle ?: return
-        val remote = client ?: return
-        val info = remote.mediaInfo?.takeIf { it.customData?.optLong(FILE_ID_KEY) == fileId } ?: return
-        val tracks = info.mediaTracks.orEmpty().filter { it.type == MediaTrack.TYPE_TEXT }
-        if (tracks.isEmpty()) return
-        pendingSubtitle = null
-        playlistSubtitleTrack(tracks.map { CastTextTrack(it.id, it.language) }, wanted)
-            ?.let { remote.setActiveMediaTracks(longArrayOf(it)) }
     }
 
     /**
@@ -607,6 +592,22 @@ private fun PlaybackCastMedia.toMediaInfo(): MediaInfo {
         .setCustomData(JSONObject().put(FILE_ID_KEY, fileId))
         .apply { durationMillis?.let(::setStreamDuration) }
         .build()
+}
+
+/**
+ * Turns on the playlist subtitle a load asked for, once the receiver lists the text tracks of that
+ * file's stream: an HLS playlist's own tracks exist only after it loads. Returns what still waits.
+ */
+private fun RemoteMediaClient.showPlaylistSubtitle(
+    pending: Pair<Long, PlaybackCastPlaylistSubtitle>,
+): Pair<Long, PlaybackCastPlaylistSubtitle>? {
+    val (fileId, wanted) = pending
+    val tracks = mediaInfo?.takeIf { it.customData?.optLong(FILE_ID_KEY) == fileId }
+        ?.mediaTracks.orEmpty().filter { it.type == MediaTrack.TYPE_TEXT }
+    if (tracks.isEmpty()) return pending
+    playlistSubtitleTrack(tracks.map { CastTextTrack(it.id, it.language) }, wanted)
+        ?.let { setActiveMediaTracks(longArrayOf(it)) }
+    return null
 }
 
 /** Ties the receiver's media to the put.io file; another sender's media carries none. */

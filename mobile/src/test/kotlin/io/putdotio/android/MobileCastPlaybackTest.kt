@@ -271,7 +271,9 @@ class MobileCastPlaybackTest {
                     PlaybackSource(
                         fileId = target.fileId.value,
                         kind = PlaybackSourceKind.HLS,
-                        url = PutioCredentialUrl.of("https://api.put.io/v2/files/${target.fileId.value}/hls/media.m3u8"),
+                        url = PutioCredentialUrl.of(
+                            "https://api.put.io/v2/files/${target.fileId.value}/hls/media.m3u8",
+                        ),
                         startFromSeconds = 0.0,
                         subtitles = PlaybackSubtitles.Embedded,
                     ),
