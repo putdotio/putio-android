@@ -1,1 +1,15 @@
-put.io application for the Android TV platform. You can watch video files in your put.io account with subtitles!
+put.io for Android phones, tablets and Android TV. Sign in with your put.io account to reach your files from anywhere.
+
+On phones and tablets:
+• Browse, search and manage your files, with layouts made for tablets
+• Stream video and audio with subtitles, track choice, picture-in-picture and resume
+• Download files to watch offline
+• Add transfers from magnet links, .torrent files and shared links
+• Play on Google Cast devices
+
+On Android TV:
+• Sign in with a QR code
+• Browse, search and play your files with the remote
+• Continue watching from the Watch Next row and find files with system search
+
+Your watch positions sync with put.io on every device.

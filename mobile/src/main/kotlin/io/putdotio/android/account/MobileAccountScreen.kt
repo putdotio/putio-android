@@ -282,35 +282,43 @@ private fun LazyListScope.playbackItems(
     }
 }
 
+/**
+ * Subtitles and History need the account settings; Privacy controls stays reachable without them,
+ * because its page owns the loading and failure states.
+ */
 private fun LazyListScope.privacyItems(
     settingsState: AccountSettingsState,
     rows: AccountRows,
     onPrivacyControls: () -> Unit,
 ) {
-    val preferences = (settingsState.content as? AccountSettingsContent.Ready)?.preferences ?: return
-    // Picking subtitles means nothing while they are hidden.
-    val pickSubtitles = SettingsRow {
-        rows.AccountSwitch(it, R.string.mobile_settings_auto_select_subtitles, R.drawable.ic_ph_list_checks,
-            AccountSettingsKey.AutoSelectSubtitles, preferences.autoSelectSubtitles)
-    }.takeIf { preferences.showSubtitles }
-    settingsGroup(
-        key = SUBTITLES_KEY,
-        label = R.string.mobile_settings_section_subtitles,
-        rows = listOfNotNull(
-            SettingsRow {
-                rows.AccountSwitch(it, R.string.mobile_settings_show_subtitles, R.drawable.ic_ph_subtitles,
-                    AccountSettingsKey.ShowSubtitles, preferences.showSubtitles)
-            },
-            pickSubtitles,
-        ),
-    )
+    val preferences = (settingsState.content as? AccountSettingsContent.Ready)?.preferences
+    if (preferences != null) {
+        // Picking subtitles means nothing while they are hidden.
+        val pickSubtitles = SettingsRow {
+            rows.AccountSwitch(it, R.string.mobile_settings_auto_select_subtitles, R.drawable.ic_ph_list_checks,
+                AccountSettingsKey.AutoSelectSubtitles, preferences.autoSelectSubtitles)
+        }.takeIf { preferences.showSubtitles }
+        settingsGroup(
+            key = SUBTITLES_KEY,
+            label = R.string.mobile_settings_section_subtitles,
+            rows = listOfNotNull(
+                SettingsRow {
+                    rows.AccountSwitch(it, R.string.mobile_settings_show_subtitles, R.drawable.ic_ph_subtitles,
+                        AccountSettingsKey.ShowSubtitles, preferences.showSubtitles)
+                },
+                pickSubtitles,
+            ),
+        )
+    }
     settingsGroup(
         key = PRIVACY_KEY,
         label = R.string.mobile_settings_section_privacy,
-        rows = listOf(
-            SettingsRow {
-                rows.AccountSwitch(it, R.string.mobile_settings_history, R.drawable.ic_ph_clock_counter_clockwise,
-                    AccountSettingsKey.History, preferences.historyEnabled)
+        rows = listOfNotNull(
+            preferences?.let {
+                SettingsRow { segment ->
+                    rows.AccountSwitch(segment, R.string.mobile_settings_history,
+                        R.drawable.ic_ph_clock_counter_clockwise, AccountSettingsKey.History, it.historyEnabled)
+                }
             },
             SettingsRow { rows.PrivacyControls(it, preferences, onPrivacyControls) },
         ),
@@ -552,22 +560,23 @@ private class AccountRows(
     }
 
     @Composable
-    fun PrivacyControls(segment: SettingsSegment, preferences: AccountSettingsPreferences, onOpen: () -> Unit) {
-        val diagnostics = stringResource(
-            if (preferences.diagnosticsEnabled) R.string.mobile_settings_diagnostics_on
-            else R.string.mobile_settings_diagnostics_off,
-        )
-        val analytics = stringResource(
-            if (preferences.productAnalyticsEnabled) R.string.mobile_settings_analytics_on
-            else R.string.mobile_settings_analytics_off,
-        )
+    fun PrivacyControls(segment: SettingsSegment, preferences: AccountSettingsPreferences?, onOpen: () -> Unit) {
+        val state = preferences?.let {
+            val diagnostics = stringResource(
+                if (it.diagnosticsEnabled) R.string.mobile_settings_diagnostics_on
+                else R.string.mobile_settings_diagnostics_off,
+            )
+            val analytics = stringResource(
+                if (it.productAnalyticsEnabled) R.string.mobile_settings_analytics_on
+                else R.string.mobile_settings_analytics_off,
+            )
+            settingsValue(stringResource(R.string.mobile_settings_privacy_controls_state, diagnostics, analytics))
+        }
         Link(
             segment = segment,
             title = R.string.mobile_settings_privacy_controls,
             icon = R.drawable.ic_ph_shield_check,
-            value = settingsValue(
-                stringResource(R.string.mobile_settings_privacy_controls_state, diagnostics, analytics),
-            ),
+            value = state,
             onClick = onOpen,
             tag = MOBILE_PRIVACY_CONTROLS_ROW_TAG,
         )
