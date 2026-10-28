@@ -38,11 +38,12 @@ public fun AndroidAppConfigState.canRecordProductAnalyticsAnswer(): Boolean? {
 /** Each product analytics choice put.io accepts, from the prompt or Privacy controls. */
 public fun Flow<AccountSettingsState>.acceptedProductAnalyticsChoices(): Flow<Boolean> =
     flow {
-        var previous: AccountSettingsState? = null
+        var previous: SaveStep<AccountSettingsChange>? = null
         collect { state ->
-            val change = previous?.let(state::savedChange) as? AccountSettingsChange.Toggle
+            val now = state.mutation.step()
+            val change = previous?.let(now::savedAfter) as? AccountSettingsChange.Toggle
             if (change?.key == AccountSettingsKey.ProductAnalytics) emit(change.enabled)
-            previous = state
+            previous = now
         }
     }
 
