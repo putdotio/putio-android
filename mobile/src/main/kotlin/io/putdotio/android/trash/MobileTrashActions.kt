@@ -42,6 +42,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.MobileDialogDismissButton
+import io.putdotio.android.MobileSheetHandle
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
@@ -70,6 +71,7 @@ internal fun MobileTrashItemSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        dragHandle = { MobileSheetHandle() },
         modifier = Modifier.testTag(MOBILE_TRASH_ITEM_SHEET_TAG),
     ) {
         Column(Modifier.verticalScroll(rememberScrollState())) {

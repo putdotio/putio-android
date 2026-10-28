@@ -74,6 +74,7 @@ import androidx.media3.common.util.Util
 import androidx.media3.ui.compose.state.rememberPlayPauseButtonState
 import io.putdotio.android.MobileMiddleCutText
 import io.putdotio.android.MobileRow
+import io.putdotio.android.MobileSheetHandle
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.design.R as DesignR
@@ -534,6 +535,7 @@ private fun NowPlayingSheets(
     ModalBottomSheet(
         onDismissRequest = close,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        dragHandle = { MobileSheetHandle() },
     ) {
         Column(
             Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = 24.dp)

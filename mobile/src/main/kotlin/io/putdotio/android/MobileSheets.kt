@@ -12,22 +12,35 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioRadius
 
-/** A sheet's 32x4dp handle in `--solid`, 16dp under the sheet's top edge and 8dp over its content. */
+/**
+ * A sheet's 32x4dp handle in `--solid`, 16dp under the sheet's top edge. Material's sheet hangs its
+ * expand and dismiss actions on the handle, so it is a labelled 48dp touch target.
+ */
 @Composable
 internal fun MobileSheetHandle() {
+    val description = stringResource(R.string.mobile_sheet_handle_description)
     Box(
-        Modifier
-            .padding(top = 16.dp, bottom = 8.dp)
-            .size(width = 32.dp, height = 4.dp)
-            .clip(RoundedCornerShape(PutioRadius.progress))
-            .background(PutioDesignTokens.solid),
-    )
+        Modifier.size(48.dp).semantics { contentDescription = description },
+        contentAlignment = Alignment.TopCenter,
+    ) {
+        Box(
+            Modifier
+                .padding(top = 16.dp)
+                .size(width = 32.dp, height = 4.dp)
+                .clip(RoundedCornerShape(PutioRadius.progress))
+                .background(PutioDesignTokens.solid),
+        )
+    }
 }
 
 /**

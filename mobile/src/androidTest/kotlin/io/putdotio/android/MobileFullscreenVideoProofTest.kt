@@ -19,6 +19,7 @@ import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isSelectable
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.junit4.accessibility.enableAccessibilityChecks
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -59,6 +60,7 @@ import io.putdotio.sdk.files.PlaybackSubtitles
 import io.putdotio.sdk.files.PutioCredentialUrl
 import java.io.File
 import java.util.UUID
+import org.junit.Before
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotSame
@@ -88,6 +90,8 @@ class MobileFullscreenVideoProofTest {
         }
     }
     @get:Rule val rules: RuleChain = RuleChain.outerRule(optIn).around(compose)
+
+    @Before fun checkAccessibility() = compose.enableAccessibilityChecks()
 
     @Test
     fun landscapePlaybackUsesDirectControlsAndRestoresThePreviousWindow() {
