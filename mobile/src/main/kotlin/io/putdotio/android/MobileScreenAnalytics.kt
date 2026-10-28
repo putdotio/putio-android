@@ -29,10 +29,13 @@ internal fun analyticsScreen(
         }
     }
 
-/** Once per screen entered, not per folder; saved, so recreating the activity sends nothing. */
+/**
+ * Once per screen entered, not per folder; saved, so recreating the activity sends nothing, and
+ * keyed to the session, so another account's first screen still counts.
+ */
 @Composable
-internal fun ScreenViewedEffect(screen: AnalyticsEvent.Screen?) {
-    var sent by rememberSaveable { mutableStateOf<AnalyticsEvent.Screen?>(null) }
+internal fun ScreenViewedEffect(screen: AnalyticsEvent.Screen?, sessionKey: Any) {
+    var sent by rememberSaveable(sessionKey) { mutableStateOf<AnalyticsEvent.Screen?>(null) }
     LaunchedEffect(screen) {
         if (screen != null && screen != sent) ProductAnalytics.capture(AnalyticsEvent.ScreenViewed(screen))
         sent = screen

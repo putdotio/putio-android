@@ -13,6 +13,7 @@ public object ProductAnalytics {
     @Volatile
     private var gate: ProductAnalyticsGate? = null
     private var appSession: AppSessionAnalytics? = null
+    private var accountId: Long? = null
 
     /** Once per process, from `Application.onCreate`; a null [configuration] keeps PostHog off. */
     @Synchronized
@@ -36,8 +37,11 @@ public object ProductAnalytics {
     }
 
     /** The account's answer: a null [accountId] is signed out, which counts as off. */
+    @Synchronized
     public fun update(accountId: Long?, enabled: Boolean) {
-        if (accountId == null) updateRoute(null)
+        // Another account's route must not reach this one's first open.
+        if (accountId != this.accountId) updateRoute(null)
+        this.accountId = accountId
         gate?.update(accountId, enabled)
     }
 
@@ -111,8 +115,8 @@ internal class ProductAnalyticsGate(
     private fun send(event: AnalyticsEvent, at: Long) {
         if (running == null) return
         when (event) {
-            is AnalyticsEvent.AppOpened -> hasSentOpen = true
-            is AnalyticsEvent.AppBackgrounded -> if (!hasSentOpen) return
+            is AppOpened -> hasSentOpen = true
+            is AppBackgrounded -> if (!hasSentOpen) return
             else -> Unit
         }
         val name = event.name

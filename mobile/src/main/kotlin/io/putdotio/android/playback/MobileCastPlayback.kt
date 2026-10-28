@@ -162,8 +162,10 @@ internal fun MobileCastPlayback(
     onPlay: (PlaybackTarget) -> Unit,
     autoplayNextVideo: Boolean,
     onPlaybackEnded: () -> Unit,
+    analytics: PlaybackAnalyticsReporter,
 ) {
     val context = LocalContext.current
+    val currentAnalytics by rememberUpdatedState(analytics)
     val target = state.target
     val fileId = target.fileId.value
     val source = (state.content as? PlaybackContent.Ready)?.source
@@ -183,12 +185,17 @@ internal fun MobileCastPlayback(
             castMedia(source, source?.let { castSubtitleKey(it, preferences.subtitleSelection, currentPolicy) })
         }
         failed = !cast.handOver(state, load, preferences, playerFactory, currentOnSourceRequired)
+        if (failed) currentAnalytics.castFailed() else currentAnalytics.castStarted()
     }
     // A file that finished on the receiver ends as one that finished here: the next one is cast in turn.
     val currentAutoplayNextVideo by rememberUpdatedState(autoplayNextVideo)
     val currentOnPlaybackEnded by rememberUpdatedState(onPlaybackEnded)
     LaunchedEffect(cast, fileId) {
-        cast.finished.collect { if (it == fileId && currentAutoplayNextVideo) currentOnPlaybackEnded() }
+        cast.finished.collect {
+            if (it != fileId) return@collect
+            currentAnalytics.reachedEnd()
+            if (currentAutoplayNextVideo) currentOnPlaybackEnded()
+        }
     }
 
     val player = cast.remotePlayer

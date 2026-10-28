@@ -79,7 +79,7 @@ internal fun TvPlaybackRoute(
         subtitleStartupPolicy = subtitleStartupPolicy,
         autoplayNextVideo = autoplayNextVideo,
         onPlaybackEnded = { controller.dispatch(PlaybackEvent.PlayerEnded) },
-        onReachedEnd = controller::playerReachedEnd,
+        analytics = controller.analyticsReporter,
     )
 }
 

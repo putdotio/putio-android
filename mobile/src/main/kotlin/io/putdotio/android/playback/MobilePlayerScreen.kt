@@ -114,8 +114,8 @@ internal fun MobilePlayerScreen(
     modifier: Modifier = Modifier,
     autoplayNextVideo: Boolean = false,
     onPlaybackEnded: () -> Unit = {},
-    /** The player played the file to its end, whatever autoplay does next. */
-    onReachedEnd: () -> Unit = {},
+    /** The file's end, whatever autoplay does next, and Cast handovers. */
+    analytics: PlaybackAnalyticsReporter = PlaybackAnalyticsReporter.None,
     playerFactory: MobilePlayerFactory = DefaultMobilePlayerFactory,
     subtitleStartupPolicy: SubtitleStartupPolicy? = null,
     seekClock: () -> Long = SystemClock::uptimeMillis,
@@ -158,7 +158,7 @@ internal fun MobilePlayerScreen(
             onPlayerFailure = onPlayerFailure,
             autoplayNextVideo = autoplayNextVideo,
             onPlaybackEnded = onPlaybackEnded,
-            onReachedEnd = onReachedEnd,
+            analytics = analytics,
             seekClock = seekClock,
             onSourceRequired = onSourceRequired,
             onBack = onBack,
@@ -278,7 +278,7 @@ private fun MobileReadyContent(
     onPlayerFailure: (PlaybackFailure, Long) -> Unit,
     autoplayNextVideo: Boolean,
     onPlaybackEnded: () -> Unit,
-    onReachedEnd: () -> Unit,
+    analytics: PlaybackAnalyticsReporter,
     seekClock: () -> Long,
     onSourceRequired: (Long?) -> Unit,
     onBack: () -> Unit,
@@ -306,6 +306,7 @@ private fun MobileReadyContent(
             onPlay = onPlay,
             autoplayNextVideo = autoplayNextVideo,
             onPlaybackEnded = onPlaybackEnded,
+            analytics = analytics,
         )
         return
     }
@@ -339,7 +340,7 @@ private fun MobileReadyContent(
             onPlayerFailure = onPlayerFailure,
             autoplayNextVideo = autoplayNextVideo,
             onPlaybackEnded = onPlaybackEnded,
-            onReachedEnd = onReachedEnd,
+            analytics = analytics,
             playerFactory = playerFactory,
             seekClock = seekClock,
             onSourceRequired = onSourceRequired,
@@ -432,7 +433,7 @@ private fun MobileReadyPlayer(
     onPlayerFailure: (PlaybackFailure, Long) -> Unit,
     autoplayNextVideo: Boolean,
     onPlaybackEnded: () -> Unit,
-    onReachedEnd: () -> Unit,
+    analytics: PlaybackAnalyticsReporter,
     playerFactory: MobilePlayerFactory,
     seekClock: () -> Long,
     onSourceRequired: (Long?) -> Unit,
@@ -477,7 +478,7 @@ private fun MobileReadyPlayer(
     val currentOnPlayerFailure = rememberUpdatedState(onPlayerFailure)
     val currentAutoplayNextVideo = rememberUpdatedState(autoplayNextVideo)
     val currentOnPlaybackEnded = rememberUpdatedState(onPlaybackEnded)
-    val currentOnReachedEnd = rememberUpdatedState(onReachedEnd)
+    val currentOnReachedEnd = rememberUpdatedState<() -> Unit> { analytics.reachedEnd() }
     val currentOnPlaybackRetained = rememberUpdatedState(onPlaybackRetained)
     val currentOnPositionChanged = rememberUpdatedState(onPositionChanged)
     val currentSubtitleStartupPolicy = rememberUpdatedState(subtitleStartupPolicy)

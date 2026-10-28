@@ -34,15 +34,15 @@ internal class AppSessionAnalytics(
     override fun onActivityResumed(activity: Activity) {
         if (!opensOnResume) return
         val entry = when {
-            openedFromLink -> AnalyticsEvent.Entry.Deeplink
-            hasOpened -> AnalyticsEvent.Entry.Resume
-            else -> AnalyticsEvent.Entry.Direct
+            openedFromLink -> Entry.Deeplink
+            hasOpened -> Entry.Resume
+            else -> Entry.Direct
         }
         opensOnResume = false
         openedFromLink = false
         hasOpened = true
         activeSince = now()
-        capture(AnalyticsEvent.AppOpened(entry, route))
+        capture(AppOpened(entry, route))
     }
 
     override fun onActivityStopped(activity: Activity) {
@@ -52,7 +52,7 @@ internal class AppSessionAnalytics(
         openedFromLink = false
         val since = activeSince ?: return
         activeSince = null
-        capture(AnalyticsEvent.AppBackgrounded(AnalyticsEvent.SessionDuration.of(now() - since)))
+        capture(AppBackgrounded(SessionDuration.of(now() - since)))
     }
 
     override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?): Unit = Unit

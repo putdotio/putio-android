@@ -20,7 +20,7 @@ class ProductAnalyticsGateTest {
 
     @Test
     fun eventsBeforeTheFirstAnswerWaitAndKeepTheirTime() {
-        gate.capture(AnalyticsEvent.AppOpened(AnalyticsEvent.Entry.Direct))
+        gate.capture(AppOpened(Entry.Direct))
         clock = 5_000L
 
         gate.update(accountId = 7, enabled = true)
@@ -49,9 +49,9 @@ class ProductAnalyticsGateTest {
     @Test
     fun aBackgroundWithoutAnOpenSinceTheStartSendsNothing() {
         gate.update(accountId = 7, enabled = true)
-        gate.capture(AnalyticsEvent.AppBackgrounded(AnalyticsEvent.SessionDuration.Under1m))
-        gate.capture(AnalyticsEvent.AppOpened(AnalyticsEvent.Entry.Resume))
-        gate.capture(AnalyticsEvent.AppBackgrounded(AnalyticsEvent.SessionDuration.Under1m))
+        gate.capture(AppBackgrounded(SessionDuration.Under1m))
+        gate.capture(AppOpened(Entry.Resume))
+        gate.capture(AppBackgrounded(SessionDuration.Under1m))
 
         assertEquals(
             listOf("app_opened {entry=resume} @1000", "app_backgrounded {session_duration=lt_1m} @1000"),

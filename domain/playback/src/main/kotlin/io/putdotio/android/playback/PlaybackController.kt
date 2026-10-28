@@ -34,14 +34,12 @@ public class PlaybackController(
     private val analyticsTracker =
         if (analytics) PlaybackAnalyticsTracker(ProductAnalytics::capture, System::currentTimeMillis) else null
 
+    /** Where the players report what the controller's states don't show. */
+    public val analyticsReporter: PlaybackAnalyticsReporter = analyticsTracker ?: PlaybackAnalyticsReporter.None
+
     init {
         initial.effect?.let(::launchEffect)
         analyticsTracker?.let { tracker -> controllerScope.launch { state.collect(tracker::onState) } }
-    }
-
-    /** The player played the current file to its end, whether or not autoplay moves on. */
-    public fun playerReachedEnd() {
-        analyticsTracker?.onReachedEnd()
     }
 
     public fun dispatch(event: PlaybackEvent): Boolean {

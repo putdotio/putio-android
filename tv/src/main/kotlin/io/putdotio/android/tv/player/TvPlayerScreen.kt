@@ -63,6 +63,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import io.putdotio.android.R
 import io.putdotio.android.design.R as DesignR
+import io.putdotio.android.playback.PlaybackAnalyticsReporter
 import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackMediaType
@@ -148,8 +149,8 @@ internal fun TvPlayerScreen(
     subtitleStartupPolicy: SubtitleStartupPolicy? = null,
     autoplayNextVideo: Boolean = false,
     onPlaybackEnded: () -> Boolean = { false },
-    /** The player played the file to its end, whatever autoplay does next. */
-    onReachedEnd: () -> Unit = {},
+    /** The file's end, whatever autoplay does next. */
+    analytics: PlaybackAnalyticsReporter = PlaybackAnalyticsReporter.None,
 ) {
     // Ready playback registers its own Back for the overlay stack.
     BackHandler(enabled = state.content !is PlaybackContent.Ready, onBack = onBack)
@@ -168,7 +169,7 @@ internal fun TvPlayerScreen(
                     onExit = onBack,
                     autoplayNextVideo = autoplayNextVideo,
                     onPlaybackEnded = onPlaybackEnded,
-                    onReachedEnd = onReachedEnd,
+                    analytics = analytics,
                 )
 
             is PlaybackContent.AwaitingResume -> {
@@ -227,7 +228,7 @@ private fun TvReadyPlayer(
     onExit: () -> Unit,
     autoplayNextVideo: Boolean,
     onPlaybackEnded: () -> Boolean,
-    onReachedEnd: () -> Unit,
+    analytics: PlaybackAnalyticsReporter,
 ) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -252,7 +253,7 @@ private fun TvReadyPlayer(
     val currentOnExit by rememberUpdatedState(onExit)
     val currentAutoplayNextVideo by rememberUpdatedState(autoplayNextVideo)
     val currentOnPlaybackEnded by rememberUpdatedState(onPlaybackEnded)
-    val currentOnReachedEnd by rememberUpdatedState(onReachedEnd)
+    val currentAnalytics by rememberUpdatedState(analytics)
     var overlay by remember(player) { mutableStateOf(TvPlayerOverlay()) }
     val apply: (TvPlayerTransition) -> Unit = remember(player) {
         { transition ->
@@ -289,7 +290,7 @@ private fun TvReadyPlayer(
             override fun onPlaybackStateChanged(value: Int) {
                 playbackState = value
                 if (value == Player.STATE_ENDED) {
-                    currentOnReachedEnd()
+                    currentAnalytics.reachedEnd()
                     apply(overlay.ended(autoplayNext = currentAutoplayNextVideo))
                 }
             }

@@ -24,20 +24,39 @@ class PlaybackAnalyticsTrackerTest {
         state = state.after(PlaybackEvent.Retry)
         state = state.after(resolved(2L, 42L))
         clock = 40 * 60_000L
-        tracker.onReachedEnd()
-        tracker.onReachedEnd()
+        tracker.reachedEnd()
+        tracker.reachedEnd()
         state = state.after(PlaybackEvent.PlayerEnded)
         val next = PlaybackTarget(FilesItemId(43L), "next.mkv")
         state = state.after(PlaybackEvent.NextFound(PlaybackRequestId(3L), next))
         state.after(resolved(4L, 43L))
 
-        val video = Playback(AnalyticsEvent.Media.Video, AnalyticsEvent.StreamMethod.Hls)
         assertEquals(
             listOf(
-                AnalyticsEvent.PlaybackStarted(video),
-                AnalyticsEvent.PlaybackFailed(video, AnalyticsEvent.PlaybackError.Unsupported),
-                AnalyticsEvent.PlaybackEnded(video, AnalyticsEvent.PlaybackDuration.From30mTo90m),
-                AnalyticsEvent.PlaybackStarted(video),
+                AnalyticsEvent.PlaybackStarted(Local),
+                AnalyticsEvent.PlaybackFailed(Local, AnalyticsEvent.PlaybackError.Unsupported),
+                AnalyticsEvent.PlaybackEnded(Local, AnalyticsEvent.PlaybackDuration.From30mTo90m),
+                AnalyticsEvent.PlaybackStarted(Local),
+            ),
+            events,
+        )
+    }
+
+    @Test
+    fun aHandoverStartsTheFileOnTheReceiverOnceAndItsEndCountsThere() {
+        PlaybackReducer.start(Target).state.also(tracker::onState).after(resolved(1L, 42L))
+        tracker.castStarted()
+        tracker.castStarted()
+        tracker.reachedEnd()
+        tracker.castFailed()
+
+        val cast = Local.copy(player = AnalyticsEvent.Player.Chromecast)
+        assertEquals(
+            listOf(
+                AnalyticsEvent.PlaybackStarted(Local),
+                AnalyticsEvent.PlaybackStarted(cast),
+                AnalyticsEvent.PlaybackEnded(cast, AnalyticsEvent.PlaybackDuration.Under5m),
+                AnalyticsEvent.PlaybackFailed(cast, AnalyticsEvent.PlaybackError.Unknown),
             ),
             events,
         )
@@ -60,5 +79,7 @@ class PlaybackAnalyticsTrackerTest {
 
     private companion object {
         val Target = PlaybackTarget(FilesItemId(42L), "episode.mkv")
+        val Local =
+            Playback(AnalyticsEvent.Media.Video, AnalyticsEvent.StreamMethod.Hls, AnalyticsEvent.Player.ExoPlayer)
     }
 }

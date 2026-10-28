@@ -498,7 +498,7 @@ private fun MobilePlaybackRoute(
         subtitleStartupPolicy = subtitleStartupPolicy,
         autoplayNextVideo = autoplayNextVideo,
         onPlaybackEnded = { controller.dispatch(PlaybackEvent.PlayerEnded) },
-        onReachedEnd = controller::playerReachedEnd,
+        analytics = controller.analyticsReporter,
         playerFactory = playerFactory,
         onSourceRequired = { controller.dispatch(PlaybackEvent.SourceRequired(it)) },
         onResume = { controller.dispatch(PlaybackEvent.Resume) },

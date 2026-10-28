@@ -6,8 +6,6 @@ package io.putdotio.android.telemetry
  * `app_opened`'s route, which [AnalyticsAllowlist] checks by shape.
  */
 public sealed interface AnalyticsEvent {
-    public enum class Entry(internal val value: String) { Direct("direct"), Deeplink("deeplink"), Resume("resume") }
-
     public enum class Screen(internal val value: String) {
         Files("files"),
         Transfers("transfers"),
@@ -16,26 +14,6 @@ public sealed interface AnalyticsEvent {
         History("history"),
         Account("account"),
         Player("player"),
-    }
-
-    public enum class SessionDuration(internal val value: String) {
-        Under1m("lt_1m"),
-        From1mTo5m("1m_5m"),
-        From5mTo15m("5m_15m"),
-        From15mTo60m("15m_60m"),
-        Over60m("gt_60m"),
-        ;
-
-        public companion object {
-            public fun of(millis: Long): SessionDuration =
-                when {
-                    millis < MINUTE -> Under1m
-                    millis < FIVE_MINUTES -> From1mTo5m
-                    millis < FIFTEEN_MINUTES -> From5mTo15m
-                    millis < SIXTY_MINUTES -> From15mTo60m
-                    else -> Over60m
-                }
-        }
     }
 
     /** Account and app settings this app saves, minus the privacy controls: consent stays out of events. */
@@ -101,13 +79,11 @@ public sealed interface AnalyticsEvent {
         Unknown("unknown"),
     }
 
-    /** Media3 ExoPlayer is the only engine, so `player` is always `exoplayer`. A failed load may have no stream yet. */
-    public data class Playback(val media: Media, val streamMethod: StreamMethod?)
+    /** Media3 ExoPlayer plays locally; a Cast receiver is `chromecast`. */
+    public enum class Player(internal val value: String) { ExoPlayer("exoplayer"), Chromecast("chromecast") }
 
-    /** [route] is the account's tunnel route name, null while settings aren't loaded. */
-    public data class AppOpened(val entry: Entry, val route: String? = null) : AnalyticsEvent
-
-    public data class AppBackgrounded(val duration: SessionDuration) : AnalyticsEvent
+    /** A failed load may have no stream yet. */
+    public data class Playback(val media: Media, val streamMethod: StreamMethod?, val player: Player)
 
     public data class ScreenViewed(val screen: Screen) : AnalyticsEvent
 
@@ -120,6 +96,33 @@ public sealed interface AnalyticsEvent {
     public data class PlaybackFailed(val playback: Playback, val error: PlaybackError) : AnalyticsEvent
 }
 
+internal enum class Entry(val value: String) { Direct("direct"), Deeplink("deeplink"), Resume("resume") }
+
+internal enum class SessionDuration(val value: String) {
+    Under1m("lt_1m"),
+    From1mTo5m("1m_5m"),
+    From5mTo15m("5m_15m"),
+    From15mTo60m("15m_60m"),
+    Over60m("gt_60m"),
+    ;
+
+    companion object {
+        fun of(millis: Long): SessionDuration =
+            when {
+                millis < MINUTE -> Under1m
+                millis < FIVE_MINUTES -> From1mTo5m
+                millis < FIFTEEN_MINUTES -> From5mTo15m
+                millis < SIXTY_MINUTES -> From15mTo60m
+                else -> Over60m
+            }
+    }
+}
+
+/** [route] is the account's tunnel route name, null while settings aren't loaded. */
+internal data class AppOpened(val entry: Entry, val route: String? = null) : AnalyticsEvent
+
+internal data class AppBackgrounded(val duration: SessionDuration) : AnalyticsEvent
+
 private const val MINUTE = 60_000L
 private const val FIVE_MINUTES = 5 * MINUTE
 private const val FIFTEEN_MINUTES = 15 * MINUTE
@@ -130,8 +133,8 @@ private const val NINETY_MINUTES = 90 * MINUTE
 internal val AnalyticsEvent.name: String
     get() =
         when (this) {
-            is AnalyticsEvent.AppOpened -> "app_opened"
-            is AnalyticsEvent.AppBackgrounded -> "app_backgrounded"
+            is AppOpened -> "app_opened"
+            is AppBackgrounded -> "app_backgrounded"
             is AnalyticsEvent.ScreenViewed -> "screen_viewed"
             is AnalyticsEvent.SettingsChanged -> "settings_changed"
             is AnalyticsEvent.PlaybackStarted -> "playback_started"
@@ -142,9 +145,9 @@ internal val AnalyticsEvent.name: String
 internal val AnalyticsEvent.properties: Map<String, String>
     get() =
         when (this) {
-            is AnalyticsEvent.AppOpened ->
+            is AppOpened ->
                 mapOf("entry" to entry.value) + route?.let { mapOf("route" to it.ifEmpty { "default" }) }.orEmpty()
-            is AnalyticsEvent.AppBackgrounded -> mapOf("session_duration" to duration.value)
+            is AppBackgrounded -> mapOf("session_duration" to duration.value)
             is AnalyticsEvent.ScreenViewed -> mapOf("screen" to screen.value)
             is AnalyticsEvent.SettingsChanged -> mapOf("setting" to setting.value, "value" to value.value)
             is AnalyticsEvent.PlaybackStarted -> playback.properties
@@ -153,7 +156,7 @@ internal val AnalyticsEvent.properties: Map<String, String>
         }
 
 private val AnalyticsEvent.Playback.properties: Map<String, String>
-    get() = mapOf("media" to media.value, "player" to "exoplayer") +
+    get() = mapOf("media" to media.value, "player" to player.value) +
         streamMethod?.let { mapOf("stream_method" to it.value) }.orEmpty()
 
 /**
@@ -165,7 +168,7 @@ internal object AnalyticsAllowlist {
     private val playback = mapOf(
         "media" to setOf("video", "audio"),
         "stream_method" to setOf("hls", "progressive", "mp4", "local_file"),
-        "player" to setOf("exoplayer"),
+        "player" to setOf("exoplayer", "chromecast"),
     )
 
     private val eventProperties: Map<String, Map<String, Set<String>>> = mapOf(
@@ -205,12 +208,13 @@ internal object AnalyticsAllowlist {
         "runtime_version" to Regex("""[0-9]+(\.[0-9]+){0,2}"""),
     )
 
+    private val VERSION = Regex("""[0-9]+(\.[0-9]+){1,3}""")
     private val UUID = Regex("""[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}""")
 
     /** The SDK's own keys that ingestion needs, each checked for its shape. */
     private val sdkProperties: Map<String, (Any) -> Boolean> = mapOf(
         "\$lib" to { it == "posthog-android" },
-        "\$lib_version" to { it is String && Regex("""[0-9]+(\.[0-9]+){1,3}""").matches(it) },
+        "\$lib_version" to { it is String && VERSION.matches(it) },
         "\$session_id" to { it is String && UUID.matches(it) },
         "\$is_identified" to { it is Boolean },
         "\$process_person_profile" to { it is Boolean },
