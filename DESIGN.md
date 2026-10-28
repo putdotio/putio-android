@@ -793,6 +793,9 @@ the navigation bar: **Welcome!** as a 40sp medium title on a 48sp line, then
 
 ## Accessibility
 
+- Text follows the system font size up to a 1.3 font scale, two steps above
+  the default, as the iOS app caps at Extra Extra Large; larger settings
+  render at 1.3. Widgets and notifications keep the system scale.
 - Every target is at least 48dp, including chips, breadcrumbs, menu rows and
   the widget's refresh.
 - Colour never carries a state alone: each state dot has a word next to it,
