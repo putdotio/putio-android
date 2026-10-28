@@ -2,13 +2,13 @@
   "schemaVersion": 1,
   "package": {
     "name": "@putdotio/design",
-    "version": "3.6.2",
-    "tarball": "https://registry.npmjs.org/@putdotio/design/-/design-3.6.2.tgz",
-    "integrity": "sha512-Or3FwoEX3rdF8jgy+8bzfpg1BnHzCErymfYugwl+Hbqr5fIeh2wTS7B27jtepY4ctG1lwmQ5uZSRVEsMYQAhZg=="
+    "version": "5.2.0",
+    "tarball": "https://registry.npmjs.org/@putdotio/design/-/design-5.2.0.tgz",
+    "integrity": "sha512-F318PfHIv8YKfHrKfC0YZlkMng9jBlHbmIal//ghM8uY/B18fJWLf3IdNS8gji+Q6G/pxjzTPVC/ao7vYxl7sw=="
   },
   "tokens": {
     "asset": "dist/tokens.dtcg.json",
-    "sourceSha256": "95d28a2c6eba8000bdae9627835dfe6765ae73c2a7f8b8b5f3f27c5e5c91a803"
+    "sourceSha256": "809cfe8edc9772fc3bd7eb67cbd2009d44409fd6b89bf134a1786177f5cbe7af"
   },
   "productionIcon": {
     "asset": "system/assets/app-icon-prod-dark.png",
@@ -30,20 +30,20 @@
   },
   "nightlyIcon": {
     "asset": "system/assets/app-icon-nightly-stars.png",
-    "sourceSha256": "b36d0be8f67f4244fc3b1daaddc42b9d020671196519d9afa93eeb5baa7606be",
+    "sourceSha256": "f51f8b251f08d5f8891c3a20219c00d6199e6006eb71d31316afdf2215a48425",
     "outputs": [
-      { "density": "mdpi", "size": 48, "sha256": "5a4dd2cc7857e82654298175bff01ec9f1766d74453a7a78fe59082cf89634d0" },
-      { "density": "hdpi", "size": 72, "sha256": "8aa27a1a64b6507467141a5ccf0c55dd18cd3090e2f5c0e21799c70dcf2b5243" },
-      { "density": "xhdpi", "size": 96, "sha256": "f086ebae75e75f0b685e3236a0442d6734355fa56c22f0b971d146f6778d6279" },
-      { "density": "xxhdpi", "size": 144, "sha256": "9a00c3398e6cdd6fb24379a74853e8f993fb6fd8242df1e1bc9ee27f8db5fd93" },
-      { "density": "xxxhdpi", "size": 192, "sha256": "55586eec7ea76b9c2da8858971fa6643c6502e98a29d11877e5e258bbe3ce2aa" }
+      { "density": "mdpi", "size": 48, "sha256": "6b5ecb71ef8076abd4825fa81d80a983ea95d99f2c200b04cccd0a80cd4d1055" },
+      { "density": "hdpi", "size": 72, "sha256": "977fc64abf37a71d6a306c43725c68f7d83118a9cd4474b7c67e3e762980395d" },
+      { "density": "xhdpi", "size": 96, "sha256": "1ab58c4c00d495e822318249554823b0f246648565946b81be40e564d523bc9c" },
+      { "density": "xxhdpi", "size": 144, "sha256": "89433bf24632035420d43e401b5c2848d12343cb0f79e40afbf8e052b3c6a8ec" },
+      { "density": "xxxhdpi", "size": 192, "sha256": "19360568bfd4abf501198a72dfd59fcf38da0b5c617073eb5cd750d8df0a420a" }
     ],
     "artOutputs": [
-      { "density": "mdpi", "size": 72, "sha256": "8aa27a1a64b6507467141a5ccf0c55dd18cd3090e2f5c0e21799c70dcf2b5243" },
-      { "density": "hdpi", "size": 108, "sha256": "ab45d2cd23b03c02ecbdc7a4d89603d773665a5eef6c8fff689c90e9de935e29" },
-      { "density": "xhdpi", "size": 144, "sha256": "9a00c3398e6cdd6fb24379a74853e8f993fb6fd8242df1e1bc9ee27f8db5fd93" },
-      { "density": "xxhdpi", "size": 216, "sha256": "9620e480135c87a14f3e211a072964d49ced111430da1d84ee9568a002e343ed" },
-      { "density": "xxxhdpi", "size": 288, "sha256": "64d3716cd9d67055cfaa707700ce1d43d6d4c8301f4b043f8bbb8a802057907e" }
+      { "density": "mdpi", "size": 72, "sha256": "977fc64abf37a71d6a306c43725c68f7d83118a9cd4474b7c67e3e762980395d" },
+      { "density": "hdpi", "size": 108, "sha256": "095a75db41041635718ded095e69190d716781fffcaa4db238ebe699c70c1c22" },
+      { "density": "xhdpi", "size": 144, "sha256": "89433bf24632035420d43e401b5c2848d12343cb0f79e40afbf8e052b3c6a8ec" },
+      { "density": "xxhdpi", "size": 216, "sha256": "8e3a9e8788b9ec37759376db47fddd61f000791c66c205f1536eb5b97ba3b23a" },
+      { "density": "xxxhdpi", "size": 288, "sha256": "682a4cf12da3a30d75ba9b2400afd63e7a2528ac4aeed0521856991f29126325" }
     ]
   },
   "devIcon": {
@@ -67,6 +67,11 @@
   "wordmark": {
     "asset": "system/assets/logo-retro-dark.svg",
     "sourceSha256": "81ed5dbe0baa5f18f4d200354894cab07e17b541eea4fa4cdc39397a44be3e46",
-    "outputSha256": "a9d8b3f507825ff62e586581c2a3634e5701dbd1bfc922403cef3289af952a87"
+    "outputSha256": "4f87fa0eb1ae33be97a09f985cc59cf4bc227e970d381d19a08f0122a8103e9a"
+  },
+  "monochromeIcon": {
+    "asset": "system/assets/app-icon-monochrome.svg",
+    "sourceSha256": "abe4cef155430dcc5d6c1efe8c053cddcbf0bc87f207e001c8f8cc9f0fcf3012",
+    "outputSha256": "94c0026da79250017d062722209151f8bfad7907118e54d07d2f21210bd2b681"
   }
 }

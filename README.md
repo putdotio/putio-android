@@ -25,8 +25,9 @@ Mobile, on the emulator harness against the live API:
 - Offline downloads with offline playback, also after a start with no
   network; the session is checked again when the network returns
 - Transfer intake from magnet links, `.torrent` files and shared links
-- Launcher shortcuts, a Transfers widget and the system file picker; the
-  widget and picker are proven only on an emulator with faked data so far
+- A themed launcher icon, launcher shortcuts, a Transfers widget and the
+  system file picker; the widget and picker are proven only on an emulator
+  with faked data so far
 - Google Cast from the players, resuming locally where the receiver stopped
 
 TV:

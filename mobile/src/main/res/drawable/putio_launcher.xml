@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- The launcher icon: the channel's locked putio-design art over the 72dp each launcher masks to
-     its own shape. The art is full bleed, so the same art, larger, backs any parallax or zoom. -->
+     its own shape. The art is full bleed, so the same art, larger, backs any parallax or zoom.
+     Themed launchers draw the putio-design monochrome mark instead. -->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
     <background android:drawable="@drawable/putio_launcher_art" />
     <foreground>
@@ -8,4 +9,5 @@
             android:drawable="@drawable/putio_launcher_art"
             android:inset="16.667%" />
     </foreground>
+    <monochrome android:drawable="@drawable/putio_launcher_monochrome" />
 </adaptive-icon>
