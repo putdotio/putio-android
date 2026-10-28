@@ -71,8 +71,15 @@ internal fun MobileTabTitle(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            TabTitleText(title, MaterialTheme.typography.titleLarge)
-            Box(Modifier.weight(1f)) { summary?.let { TabSummaryText(it, Modifier) } }
+            // The actions keep their width; the title and then the summary give way in a narrow window.
+            Row(
+                Modifier.weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TabTitleText(title, MaterialTheme.typography.titleLarge, maxLines = 1)
+                Box(Modifier.weight(1f)) { summary?.let { TabSummaryText(it, Modifier) } }
+            }
             Row(verticalAlignment = Alignment.CenterVertically, content = actions)
         }
         return
@@ -97,11 +104,18 @@ internal fun MobileTabTitle(
 }
 
 @Composable
-private fun TabTitleText(title: String, style: TextStyle, modifier: Modifier = Modifier) {
+private fun TabTitleText(
+    title: String,
+    style: TextStyle,
+    modifier: Modifier = Modifier,
+    maxLines: Int = Int.MAX_VALUE,
+) {
     Text(
         text = title,
         style = style,
         color = MaterialTheme.colorScheme.onSurface,
+        maxLines = maxLines,
+        overflow = TextOverflow.Ellipsis,
         modifier = modifier.semantics { heading() }.testTag(MOBILE_TAB_TITLE_TAG),
     )
 }
