@@ -56,7 +56,6 @@ import io.putdotio.android.files.MobileFilesItemActions
 import io.putdotio.android.files.FilesSelection
 import io.putdotio.android.files.MobileFilesRoute
 import io.putdotio.android.files.MobileMoveTargetStore
-import io.putdotio.android.playback.MobileAudioAnalytics
 import io.putdotio.android.playback.MobileCast
 import io.putdotio.android.playback.MobileCastController
 import io.putdotio.android.playback.MobileCastMediaLoader
@@ -474,9 +473,6 @@ private fun MobilePlaybackRoute(
 
     LaunchedEffect(authenticationFailure) {
         if (authenticationFailure != null) onAuthenticationRequired()
-    }
-    if (state.target.mediaType == PlaybackMediaType.AUDIO) {
-        LaunchedEffect(controller) { MobileAudioAnalytics.reporter = controller.analyticsReporter }
     }
     // A picture-in-picture window never shows the shell: the finished video waits for the viewer to leave it.
     val pictureInPicture by rememberPictureInPictureMode()

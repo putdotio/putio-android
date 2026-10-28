@@ -38,6 +38,20 @@ class ProductAnalyticsGateTest {
     }
 
     @Test
+    fun aCaptureStillQueuedAtAnOptOutIsDropped() {
+        val queued = ArrayDeque<Runnable>()
+        val sdk = RecordingSdk()
+        val gate = ProductAnalyticsGate(sdk, { queued.addLast(it) }, now = { clock })
+        gate.update(accountId = 7, enabled = true)
+        gate.capture(AnalyticsEvent.ScreenViewed(AnalyticsEvent.Screen.Files))
+        gate.update(accountId = 7, enabled = false)
+
+        while (queued.isNotEmpty()) queued.removeFirst().run()
+
+        assertEquals(listOf("stop", "stop", "start 7", "stop"), sdk.calls)
+    }
+
+    @Test
     fun anAccountSwitchStartsAFreshIdentity() {
         gate.update(accountId = 7, enabled = true)
         gate.update(accountId = 7, enabled = true)

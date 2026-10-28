@@ -19,7 +19,8 @@ internal class MobilePlaybackViewModel(
         } else {
             PlaybackStartup.Resolve
         },
-        analytics = true,
+        // Audio plays on the session service, whose player reports its own analytics.
+        analytics = target.mediaType == PlaybackMediaType.VIDEO,
     )
 
     override fun onCleared() {

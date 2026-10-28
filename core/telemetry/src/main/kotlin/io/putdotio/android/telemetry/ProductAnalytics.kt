@@ -3,6 +3,7 @@ package io.putdotio.android.telemetry
 import android.app.Application
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * The app's only PostHog entry point: detekt rejects `com.posthog` imports anywhere else, so every
@@ -74,6 +75,9 @@ internal class ProductAnalyticsGate(
     private var answered = false
     private var running: Long? = null
 
+    // Bumped on every start or stop, so a capture queued before an opt-out drops instead of draining.
+    private val generation = AtomicInteger()
+
     // Without an open since the start, a background would time a session that began before consent.
     private var hasSentOpen = false
     private val held = ArrayDeque<Pair<AnalyticsEvent, Long>>()
@@ -90,6 +94,7 @@ internal class ProductAnalyticsGate(
         if (target != running) {
             running = target
             hasSentOpen = false
+            generation.incrementAndGet()
             submit {
                 sdk.stop()
                 if (target != null) sdk.start(target)
@@ -121,7 +126,8 @@ internal class ProductAnalyticsGate(
         }
         val name = event.name
         val properties = event.properties
-        submit { sdk.capture(name, properties, at) }
+        val queuedIn = generation.get()
+        submit { if (generation.get() == queuedIn) sdk.capture(name, properties, at) }
     }
 
     // PostHog failing never breaks a flow.
