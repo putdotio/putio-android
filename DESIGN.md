@@ -785,7 +785,8 @@ the navigation bar: **Welcome!** as a 40sp medium title on a 48sp line, then
   the same HLS rendition, or a browser, whose history would keep the
   tokened link.
 - **Drop zone:** dragging a link, magnet or .torrent over Transfers shows one
-  dashed yellow area: "Drop to add a transfer".
+  dashed yellow area with a 48dp yellow magnet glyph, "Drop to add a transfer"
+  at 20sp, and one `on-surface-variant` line naming what it accepts.
 - **Trash:** days left in each row's meta, **Restore** on the row (it confirms,
   like every Trash action), **Empty trash** in the overflow.
 - **App info:** version, channel, device, API level and player as value rows,
