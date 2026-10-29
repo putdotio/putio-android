@@ -174,7 +174,9 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
     /**
      * Both apps share `io.put.putio`, so one version name gives each its own code:
      * `major * 1_000_000 + minor * 10_000 + patch * 10`, plus 1 for TV. TVs can install either app
-     * and Google Play serves the highest code, so TV must take the higher one.
+     * and Google Play serves the highest code, so TV must take the higher one. Slot 2 belongs to
+     * putdotio/putio-tv-native-legacy until it retires; its 3000002 outranks TV 3.0.0, so TV ships
+     * from 3.0.1.
      */
     private fun Project.putioVersionCode(versionName: String): Int {
         val (major, minor, patch) = versionName.split('.').map(String::toInt)
