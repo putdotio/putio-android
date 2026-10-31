@@ -28,6 +28,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.style.BaselineShift
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -119,10 +120,26 @@ private fun String.runPerCharacter(style: TextStyle): AnnotatedString = buildAnn
     var index = 0
     while (index < text.length) {
         val next = text.offsetByCodePoints(index, 1)
-        withStyle(SpanStyle(fontFamily = style.fontFamily)) { append(text, index, next) }
+        val runStyle = if (text[index] in FULL_WIDTH_PUNCTUATION) {
+            style.fullWidthPunctuationRun()
+        } else {
+            SpanStyle(fontFamily = style.fontFamily)
+        }
+        withStyle(runStyle) { append(text, index, next) }
         index = next
     }
 }
+
+private fun TextStyle.fullWidthPunctuationRun(): SpanStyle = SpanStyle(
+    fontFamily = fontFamily,
+    fontSize = fontSize * FULL_WIDTH_SCALE,
+    letterSpacing = fontSize * (1f - FULL_WIDTH_SCALE),
+    baselineShift = BaselineShift(FULL_WIDTH_RAISE),
+)
+
+private val FULL_WIDTH_PUNCTUATION = '\u3000'..'\u30FF'
+private const val FULL_WIDTH_SCALE = 0.75f
+private const val FULL_WIDTH_RAISE = 0.1f
 
 internal data class TvEmptyStateAction(
     val label: String,

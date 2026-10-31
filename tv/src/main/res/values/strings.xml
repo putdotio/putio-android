@@ -93,8 +93,8 @@
     <string name="tv_files_loading_more">Loading more files</string>
     <string name="tv_files_paging_error">Couldn’t load more files.</string>
     <string name="tv_files_retry">Try again</string>
-    <string name="tv_files_error_title">Couldn’t load your files.</string>
-    <string name="tv_files_error_message">put.io didn’t answer. Check the TV’s connection and try again.</string>
+    <string name="tv_files_error_title">Couldn\'t load your files.</string>
+    <string name="tv_files_error_message">put.io didn\'t answer. Check the TV\'s connection and try again.</string>
     <string name="tv_files_open_folder">Open %1$s</string>
     <string name="tv_files_play_media">Play %1$s</string>
     <string name="tv_files_watched">Watched</string>

@@ -152,8 +152,8 @@ class TvFilesScreenTest {
         val events = mutableListOf<FilesBrowserEvent>()
         val failure = PutioFailure.ServerUnavailable(503, PutioConfigurationException("x"))
         compose.showFiles(state = { state(FilesContent.Failed(failure)) }, onEvent = { events += it; true })
-        compose.onNodeWithText("Couldn’t load your files.").assertIsDisplayed()
-        compose.onNodeWithText("put.io didn’t answer. Check the TV’s connection and try again.").assertIsDisplayed()
+        compose.onNodeWithText("Couldn't load your files.").assertIsDisplayed()
+        compose.onNodeWithText("put.io didn't answer. Check the TV's connection and try again.").assertIsDisplayed()
         compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.Retry), events)
     }
