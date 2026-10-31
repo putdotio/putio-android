@@ -37,7 +37,10 @@ TV:
 - A startup that checks the session and, offline, retries when the network
   returns
 - A top bar of Home, Files, Search, History and Account tabs, each with its
-  own Back history; Home is a placeholder until Continue watching lands
+  own Back history
+- Home with Continue watching, on the phone's store and recorded by the TV
+  player, and Pinned folders and files kept in the account's config; a
+  first-run state points to Files, and Account › Library can hide Home
 - Files and folders as a list beside the focused item's detail: Resume from
   the saved position or Start over, a folder's count and size, and a sort
   side sheet with the phone's Sort by, Order and Videos groups; skeleton rows

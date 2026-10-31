@@ -48,6 +48,7 @@ internal fun TvEmptyState(
     actionFocus: FocusRequester = remember { FocusRequester() },
     claimFocus: Boolean = true,
     glyphRunPerCharacter: Boolean = false,
+    glyphText: String? = glyph?.text,
 ) {
     LaunchedEffect(action != null, claimFocus) {
         if (action == null || !claimFocus) return@LaunchedEffect
@@ -59,18 +60,18 @@ internal fun TvEmptyState(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
     ) {
-        if (glyph != null) {
+        if (glyphText != null) {
             val glyphStyle = PutioTypeScale.mono.copy(
                 fontSize = PutioTypeScale.headlineLg.fontSize,
                 lineHeight = GLYPH_LINE,
             ).withFullLineBox()
-            val glyphText = if (glyphRunPerCharacter) {
-                glyph.text.runPerCharacter(glyphStyle)
+            val glyphAnnotated = if (glyphRunPerCharacter) {
+                glyphText.runPerCharacter(glyphStyle)
             } else {
-                AnnotatedString(glyph.text)
+                AnnotatedString(glyphText)
             }
             Text(
-                text = glyphText,
+                text = glyphAnnotated,
                 style = glyphStyle,
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,

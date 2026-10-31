@@ -12,7 +12,7 @@ import io.putdotio.android.downloads.MobileDownloadNotifications
 import io.putdotio.android.downloads.OfflinePlaybackPositions
 import io.putdotio.android.downloads.PositionRemote
 import io.putdotio.android.downloads.downloadPreferences
-import io.putdotio.android.files.MobileContinueWatchingStore
+import io.putdotio.android.files.DeviceContinueWatchingStore
 import io.putdotio.android.files.MobileMoveTargetStore
 import io.putdotio.android.share.MobileFileDrags
 import io.putdotio.android.settings.SdkAccountSettingsRepository
@@ -264,7 +264,7 @@ internal class MobileOAuthRuntime(
         /** What sign-out removes from this device for every account: move targets and Continue watching. */
         private fun clearAccountLocalState(context: Context) {
             MobileMoveTargetStore.clearAll(context)
-            MobileContinueWatchingStore.clearAll(context)
+            DeviceContinueWatchingStore.clearAll(context)
         }
     }
 }

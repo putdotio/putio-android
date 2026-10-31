@@ -5,11 +5,13 @@ import io.putdotio.android.auth.KeystoreAuthTokenStore
 import io.putdotio.android.auth.PendingTokenRevocations
 import io.putdotio.android.auth.PutioAuthTokenRevoker
 import io.putdotio.android.auth.watchNetworkReturns
+import io.putdotio.android.files.DeviceContinueWatchingStore
 import io.putdotio.android.search.SdkSearchRepository
 import io.putdotio.android.settings.SdkAccountSettingsRepository
 import io.putdotio.android.settings.confirmProductAnalytics
 import io.putdotio.android.telemetry.ProductAnalytics
 import io.putdotio.android.telemetry.PutioDiagnostics
+import io.putdotio.android.tv.home.TvDeviceShowHomeStore
 import io.putdotio.android.tv.search.TvGlobalSearch
 import io.putdotio.android.tv.search.tvGlobalSearch
 import io.putdotio.android.tv.watchnext.TvProviderWatchNextStore
@@ -108,7 +110,11 @@ internal class TvAuthRuntime(
             applicationScope.launch {
                 authController.quietSignOuts.filter { it > 0 }.collect {
                     ProductAnalytics.update(null, enabled = false)
+                    clearHome(context)
                 }
+            }
+            applicationScope.launch {
+                authController.state.filter { it is TvAuthState.Linking }.collect { clearHome(context) }
             }
             return TvAuthRuntime(
                 putioClient = putioClient,
@@ -123,6 +129,11 @@ internal class TvAuthRuntime(
             )
         }
     }
+}
+
+private fun clearHome(context: Context) {
+    DeviceContinueWatchingStore.clearAll(context)
+    TvDeviceShowHomeStore.clearAll(context)
 }
 
 /** Null while restoring, validating, signing out, or unable to read or clear the token, so the last answer stands. */

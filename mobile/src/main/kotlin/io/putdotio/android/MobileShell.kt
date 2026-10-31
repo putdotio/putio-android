@@ -79,7 +79,7 @@ import io.putdotio.android.files.FilesRepository
 import io.putdotio.android.files.FilesSubtitleLanguages
 import io.putdotio.android.files.isFilesListDetail
 import io.putdotio.android.files.showsFilesListDetail
-import io.putdotio.android.files.MobileContinueWatching
+import io.putdotio.android.files.ContinueWatching
 import io.putdotio.android.files.MobileFilesActionsController
 import io.putdotio.android.files.FilesSelection
 import io.putdotio.android.files.MOBILE_FILES_SELECTION_BAR_TAG
@@ -200,7 +200,7 @@ internal fun MobileShell(
     transferDraft: MobileTransferDraft = remember { MobileTransferDraft() },
     fileDragOut: MobileFileDragOut? = null,
     folderCreator: FilesFolderCreator? = null,
-    continueWatching: MobileContinueWatching? = null,
+    continueWatching: ContinueWatching? = null,
     subtitleLanguages: FilesSubtitleLanguages? = null,
     filesActions: MobileFilesActionsController? = null,
 ) {
@@ -842,7 +842,7 @@ private fun NavHostController.returnTo(origin: FilesOpenOrigin, openSearch: () -
         FilesOpenOrigin.SEARCH -> openSearch()
         FilesOpenOrigin.HISTORY -> navigateTo(MobileDestination.History)
         FilesOpenOrigin.TRANSFERS -> navigateTo(MobileDestination.Transfers)
-        FilesOpenOrigin.LINK -> Unit
+        FilesOpenOrigin.LINK, FilesOpenOrigin.HOME -> Unit
     }
 }
 

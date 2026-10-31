@@ -59,6 +59,8 @@ import io.putdotio.android.trash.TrashRepository
 import io.putdotio.android.tv.auth.TvAccount
 import io.putdotio.android.tv.auth.TvAuthSessionId
 import io.putdotio.android.tv.auth.TvAuthState
+import io.putdotio.android.tv.home.TvMemoryContinueWatchingStore
+import io.putdotio.android.tv.home.TvShowHomeStore
 import io.putdotio.android.tv.watchnext.TvWatchNextMedia
 import io.putdotio.android.tv.watchnext.TvWatchNextRecorder
 import io.putdotio.sdk.errors.PutioConfigurationException
@@ -568,6 +570,50 @@ class TvSessionViewModelTest {
 
         val media = TvWatchNextMedia(9L, "clip.mp4", 600.0, "https://api.put.io/screenshots/9.jpg", isVideo = true)
         assertEquals(listOf(media to 120.0, media to 600.0), recorder.saved)
+    }
+
+    @Test
+    fun `a video played on TV joins the account's Continue watching and marking it watched removes it`() = runTest {
+        val stores = mutableMapOf<Long, TvMemoryContinueWatchingStore>()
+        val session = checkNotNull(
+            TvSessionViewModel(auth).sessionFor(
+                account(),
+                TvAuthSessionId(1),
+                dependencies.copy(
+                    continueWatchingStore = { userId -> stores.getOrPut(userId) { TvMemoryContinueWatchingStore() } },
+                ),
+            ),
+        )
+        val video = media(9, "clip.mp4", PutioFileType.VIDEO).copy(playback = FilesPlaybackProgress(0.0, 600.0))
+
+        session.play(video)
+        session.stopPlayback()
+        session.positionSaved(9L, 120.0)
+
+        val entry = session.continueWatching.entries.value.single()
+        assertEquals("clip.mp4" to 480L, entry.name to entry.remainingSeconds)
+        assertEquals(listOf(entry), stores.getValue(42L).read())
+
+        session.setWatched(video, watched = true)
+        assertTrue(session.continueWatching.entries.value.isEmpty())
+    }
+
+    @Test
+    fun `Show Home is kept per account on this TV`() {
+        val store = TvShowHomeStore.Memory()
+        val session = checkNotNull(
+            TvSessionViewModel(auth).sessionFor(
+                account(),
+                TvAuthSessionId(1),
+                dependencies.copy(showHomeStore = { store }),
+            ),
+        )
+        assertTrue(session.showHome.value)
+
+        session.setShowHome(false)
+
+        assertFalse(session.showHome.value)
+        assertFalse(store.read())
     }
 
     @Test

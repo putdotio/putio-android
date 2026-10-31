@@ -50,7 +50,7 @@ import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesRepository
 import io.putdotio.android.files.FilesSubtitleLanguages
 import io.putdotio.android.files.MobileFileOpener
-import io.putdotio.android.files.MobileContinueWatching
+import io.putdotio.android.files.ContinueWatching
 import io.putdotio.android.files.MobileFilesActionsController
 import io.putdotio.android.files.MobileFilesItemActions
 import io.putdotio.android.files.FilesSelection
@@ -161,7 +161,7 @@ internal fun MobileNavHost(
     searchForward: Boolean = true,
     filesBackPreview: MobileBackPreview = rememberMobileBackPreview(),
     fileDragOut: MobileFileDragOut? = null,
-    continueWatching: MobileContinueWatching? = null,
+    continueWatching: ContinueWatching? = null,
     onNewFolder: (() -> Unit)? = null,
     /** From 840dp, the Files bar over the list pane; Files then shows the selected file beside the list. */
     filesListPaneTopBar: (@Composable () -> Unit)? = null,
@@ -609,7 +609,7 @@ internal fun NavHostController.navigateToPlayback(
 
 /** Each video the player resolves, autoplay's next ones included, can join Continue watching. */
 @Composable
-private fun RecordOpenedVideos(controller: PlaybackController, continueWatching: MobileContinueWatching) {
+private fun RecordOpenedVideos(controller: PlaybackController, continueWatching: ContinueWatching) {
     LaunchedEffect(controller, continueWatching) {
         controller.state.map { it.target }.distinctUntilChanged().collect { target ->
             if (target.mediaType == PlaybackMediaType.VIDEO) {

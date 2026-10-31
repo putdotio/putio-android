@@ -123,6 +123,7 @@ private object RowKey {
     const val TRASH = "trash"
     const val DEFAULT_SORT = "default-sort"
     const val HISTORY = "history"
+    const val SHOW_HOME = "show-home"
     const val RESUME = "resume"
     const val AUTOPLAY = "autoplay"
     const val VIDEO_PLAYBACK = "video-playback"
@@ -164,6 +165,7 @@ internal fun TvAccountScreen(
         )
     },
     sessionKey: Any? = null,
+    showHome: TvShowHome? = null,
 ) = key(sessionKey) {
     var showingTrash by rememberSaveable { mutableStateOf(false) }
     val group = rememberSaveable { mutableStateOf(TvAccountGroup.Library) }
@@ -189,9 +191,12 @@ internal fun TvAccountScreen(
             opened = opened,
             lastFocus = lastFocus,
             loadTunnelRoutes = loadTunnelRoutes,
+            showHome = showHome,
         )
     }
 }
+
+internal class TvShowHome(val shown: Boolean, val onChange: (Boolean) -> Unit)
 
 private class TvAccountFocus {
     private val requesters = mutableMapOf<String, FocusRequester>()
@@ -255,6 +260,7 @@ private fun TvAccountBody(
     opened: MutableState<TvAccountGroup>,
     lastFocus: MutableState<String?>,
     loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>>,
+    showHome: TvShowHome?,
 ) {
     var sheet by rememberSaveable { mutableStateOf<TvAccountSheet?>(null) }
     val focus = remember { TvAccountFocus() }
@@ -323,6 +329,7 @@ private fun TvAccountBody(
                 onSettingsEvent = onSettingsEvent,
                 onAppConfigEvent = onAppConfigEvent,
                 open = open,
+                showHome = showHome,
             ),
             trashSizeBytes = trashSizeBytes,
             onManageTrash = onManageTrash,
@@ -533,6 +540,7 @@ private class TvAccountRowsScope(
     val onSettingsEvent: (AccountSettingsEvent) -> Boolean,
     val onAppConfigEvent: (AndroidAppConfigEvent) -> Boolean,
     val open: (TvAccountSheet, String) -> Unit,
+    val showHome: TvShowHome?,
 ) {
     private val settings = (settingsState.content as? AccountSettingsContent.Ready)?.preferences
     private val config = (appConfigState.content as? AndroidAppConfigContent.Ready)?.preferences
@@ -600,6 +608,18 @@ private class TvAccountRowsScope(
                         segment = segment,
                         onToggle = { toggle(AccountSettingsKey.History, it) },
                         modifier = Modifier.accountFocus(this@TvAccountRowsScope.context, RowKey.HISTORY),
+                    )
+                }
+            }
+            showHome?.let { home ->
+                add { segment ->
+                    TvSwitchSettingRow(
+                        title = stringResource(R.string.tv_account_show_home),
+                        icon = R.drawable.ic_ph_house,
+                        checked = home.shown,
+                        segment = segment,
+                        onToggle = home.onChange,
+                        modifier = Modifier.accountFocus(this@TvAccountRowsScope.context, RowKey.SHOW_HOME),
                     )
                 }
             }

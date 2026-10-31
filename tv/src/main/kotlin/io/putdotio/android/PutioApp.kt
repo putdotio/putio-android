@@ -18,6 +18,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import io.putdotio.android.design.PutioTvTheme
+import io.putdotio.android.files.AppConfigPinnedFiles
+import io.putdotio.android.files.DeviceContinueWatchingStore
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
@@ -81,6 +83,10 @@ import io.putdotio.android.tv.auth.TvAuthState
 import io.putdotio.android.tv.files.TvFilesDetailSources
 import io.putdotio.android.tv.files.TvFilesScreen
 import io.putdotio.android.tv.history.TvHistoryScreen
+import io.putdotio.android.tv.account.TvShowHome
+import io.putdotio.android.tv.home.TvDeviceShowHomeStore
+import io.putdotio.android.tv.home.TvHomeActions
+import io.putdotio.android.tv.home.TvHomeScreen
 import io.putdotio.android.tv.trash.TvTrashScreen
 import io.putdotio.android.trash.SdkTrashRepository
 import io.putdotio.android.trash.TrashEvent
@@ -140,7 +146,8 @@ private fun TvSignedInApp(
     onSignOut: () -> Unit,
     onSessionRejected: suspend () -> Unit,
 ) {
-    val dependencies = remember(runtime.putioClient) {
+    val appContext = LocalContext.current.applicationContext
+    val dependencies = remember(runtime.putioClient, appContext) {
         val filesRepository = SdkFilesRepository(runtime.putioClient)
         TvSessionDependencies(
             filesRepository = filesRepository,
@@ -158,6 +165,9 @@ private fun TvSignedInApp(
             watchNext = runtime.watchNext::recorder,
             folderCounts = SdkFilesFolderCounts(runtime.putioClient),
             subtitleLanguages = SdkFilesSubtitleLanguages(runtime.putioClient),
+            pinnedFiles = { scope -> AppConfigPinnedFiles(runtime.putioClient, scope) },
+            continueWatchingStore = { userId -> DeviceContinueWatchingStore(appContext, userId) },
+            showHomeStore = { userId -> TvDeviceShowHomeStore(appContext, userId) },
         )
     }
     val pendingLaunch by launchRequests.pending.collectAsStateWithLifecycle()
@@ -205,6 +215,11 @@ internal fun TvSessionShell(
     val settingsState by session.settings.state.collectAsStateWithLifecycle()
     val appConfigState by session.appConfig.state.collectAsStateWithLifecycle()
     val positionWriteRejected by session.playbackReporting.authenticationRejected.collectAsStateWithLifecycle()
+    val continueWatching by session.continueWatching.entries.collectAsStateWithLifecycle()
+    val pinnedRow by session.homePins.row.collectAsStateWithLifecycle()
+    val pinsFailure by session.pins.failure.collectAsStateWithLifecycle()
+    val pinRejected by session.homePins.rejected.collectAsStateWithLifecycle()
+    val showHome by session.showHome.collectAsStateWithLifecycle()
     // A 401 from the proxy list is as authoritative as one from any controller.
     var tunnelRoutesRejected by remember(session) { mutableStateOf(false) }
     val controllerRejected = listOf(
@@ -215,8 +230,9 @@ internal fun TvSessionShell(
         searchState.authoritativeSessionFailure(),
         historyState.authoritativeSessionFailure(),
     ).any { it != null }
-    val sideActionRejected = listOf(recentSearchFailure, fileActionFailure, historyOpenFailure, linkOpenFailure)
-        .any { it is PutioFailure.AuthenticationRequired }
+    val sideActionRejected =
+        listOf(recentSearchFailure, fileActionFailure, historyOpenFailure, linkOpenFailure, pinsFailure, pinRejected)
+            .any { it is PutioFailure.AuthenticationRequired }
     val sessionRejected = controllerRejected || tunnelRoutesRejected || positionWriteRejected || sideActionRejected
     LaunchedEffect(sessionRejected) { if (sessionRejected) onSessionRejected() }
     // The controller starts from the setting read at validation; each confirmed value from
@@ -285,6 +301,28 @@ internal fun TvSessionShell(
         TvShell(
             account = account,
             onSignOut = onSignOut,
+            showHome = showHome,
+            homePane = { paneFocus ->
+                TvHomeScreen(
+                    continueWatching = continueWatching,
+                    pinned = pinnedRow,
+                    actions = remember(session) {
+                        TvHomeActions(
+                            onResume = { entry ->
+                                session.openExternal(entry.toFilesItem(), FilesOpenOrigin.HOME, continueWatching = true)
+                            },
+                            onOpen = { item ->
+                                session.openPick(item, FilesOpenOrigin.HOME) {
+                                    requestedDestination = TvDestination.Files
+                                }
+                            },
+                            onBrowseFiles = { requestedDestination = TvDestination.Files },
+                        )
+                    },
+                    paneFocus = paneFocus,
+                    onShown = session.homePins::refresh,
+                )
+            },
             requestedDestination = requestedDestination,
             onDestinationRequestHandled = { requestedDestination = null },
             // Back from a folder opened from Search or History returns to that pane.
@@ -339,6 +377,7 @@ internal fun TvSessionShell(
                     settingsState = settingsState,
                     appConfigState = appConfigState,
                     trashState = trashState,
+                    showHome = showHome,
                     onSignOut = onSignOut,
                     loadTunnelRoutes = loadTunnelRoutes,
                     onTunnelRoutesRejected = { tunnelRoutesRejected = true },
@@ -593,6 +632,7 @@ private fun TvAccountPane(
     settingsState: AccountSettingsState,
     appConfigState: AndroidAppConfigState,
     trashState: TrashState,
+    showHome: Boolean,
     onSignOut: () -> Unit,
     loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>>,
     onTunnelRoutesRejected: () -> Unit,
@@ -610,6 +650,7 @@ private fun TvAccountPane(
         onSettingsEvent = session.settings::dispatch,
         onAppConfigEvent = session.appConfig::dispatch,
         onSignOut = onSignOut,
+        showHome = TvShowHome(showHome, session::setShowHome),
         paneFocus = paneFocus,
         trashSizeBytes = (trashState.content as? TrashContent.Loaded)?.trashSizeBytes,
         trashPane = { trashFocus ->

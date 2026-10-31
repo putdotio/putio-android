@@ -13,10 +13,10 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-class MobileContinueWatchingTest {
+class ContinueWatchingTest {
     private val store = MemoryStore()
     private var now = 1_000L
-    private val row = MobileContinueWatching(store, clock = { now++ })
+    private val row = ContinueWatching(store, clock = { now++ })
 
     @Test
     fun aSavedPositionOfAnOpenedVideoJoinsNewestFirstAndFinishingRemovesIt() {
@@ -98,7 +98,7 @@ class MobileContinueWatchingTest {
         assertEquals(null, stale)
         assertEquals(120.0, row.entries.value.single().positionSeconds, 0.0)
 
-        val rejected = MobileContinueWatching(MemoryStore(row.entries.value))
+        val rejected = ContinueWatching(MemoryStore(row.entries.value))
             .reconcile { PutioResult.Failure(PutioFailure.AuthenticationRequired(apiException(401))) }
         assertTrue(rejected is PutioFailure.AuthenticationRequired)
     }
@@ -198,7 +198,7 @@ class MobileContinueWatchingTest {
     @Test
     fun startsFromWhatTheStoreKept() {
         val kept = ContinueWatchingEntry(Tears, "Tears.of.Steel.mkv", 60.0, 600.0, watchedAt = 5L)
-        val restored = MobileContinueWatching(MemoryStore(listOf(kept)))
+        val restored = ContinueWatching(MemoryStore(listOf(kept)))
 
         assertEquals(listOf(kept), restored.entries.value)
         // A position for a kept entry updates it without the player resolving it again.
