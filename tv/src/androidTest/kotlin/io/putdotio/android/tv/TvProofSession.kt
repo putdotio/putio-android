@@ -5,7 +5,17 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.runtime.Composable
+import android.view.KeyEvent
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.SemanticsNodeInteractionsProvider
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.AndroidComposeTestRule
+import androidx.compose.ui.test.junit4.ComposeTestRule
+import androidx.compose.ui.test.assertIsFocused
+import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.ext.junit.rules.ActivityScenarioRule
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
@@ -56,6 +66,7 @@ import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlin.math.abs
 
 /**
  * Fake account repositories for the controlled-state TV proofs: Files serves [listings] and
@@ -131,15 +142,12 @@ internal fun tvProofDependencies(
     writePlaybackPosition = { _, _ -> PlaybackRepositoryResult.Success(Unit) },
 )
 
-/**
- * Mounts the production TV session and signed-in shell on [dependencies]. [onExit] stands in for
- * the system leaving the app; it is registered before the shell. [overlay] draws over the shell.
- */
 internal fun AndroidComposeTestRule<ActivityScenarioRule<ComponentActivity>, ComponentActivity>.mountTvProofSession(
     dependencies: TvSessionDependencies,
     onExit: (() -> Unit)? = null,
     account: TvAccount = TvAccount(userId = 1, username = "proof", email = "proof@example.invalid", historyEnabled = true),
     overlay: @Composable BoxScope.() -> Unit = {},
+    tab: String? = "Files",
 ): TvSession {
     val auth = MutableStateFlow<TvAuthState>(TvAuthState.SignedIn(account, TvAuthSessionId(1)))
     lateinit var session: TvSession
@@ -162,8 +170,51 @@ internal fun AndroidComposeTestRule<ActivityScenarioRule<ComponentActivity>, Com
             }
         }
     }
+    tab?.let(::openTvTab)
     return session
 }
+
+internal fun SemanticsNodeInteractionsProvider.onTvTab(label: String) =
+    onNode(hasText(label) and SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab))
+
+internal fun ComposeTestRule.openTvTab(label: String) {
+    focusTvTab(label)
+    pressDpad(KeyEvent.KEYCODE_DPAD_DOWN)
+}
+
+internal fun ComposeTestRule.focusTvTab(label: String) {
+    waitForIdle()
+    var climbs = 0
+    while (tvTabs().none { it.focused }) {
+        check(climbs++ < MAX_TAB_BAR_CLIMB) { "No tab took focus after $MAX_TAB_BAR_CLIMB Up presses" }
+        pressDpad(KeyEvent.KEYCODE_DPAD_UP)
+    }
+    val tabs = tvTabs()
+    val from = tabs.indexOfFirst { it.focused }
+    val to = tabs.indexOfFirst { it.label == label }
+    check(to >= 0) { "No $label tab in ${tabs.map { it.label }}" }
+    repeat(abs(to - from)) { pressDpad(if (to > from) KeyEvent.KEYCODE_DPAD_RIGHT else KeyEvent.KEYCODE_DPAD_LEFT) }
+    onTvTab(label).assertIsFocused()
+}
+
+private class TvTabNode(val label: String, val focused: Boolean)
+
+private fun ComposeTestRule.tvTabs() =
+    onAllNodes(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab)).fetchSemanticsNodes()
+        .sortedBy { it.boundsInRoot.left }
+        .map { node ->
+            TvTabNode(
+                label = node.config.getOrNull(SemanticsProperties.Text).orEmpty().joinToString(" ") { it.text },
+                focused = node.config.getOrNull(SemanticsProperties.Focused) == true,
+            )
+        }
+
+private fun ComposeTestRule.pressDpad(keyCode: Int) {
+    InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(keyCode)
+    waitForIdle()
+}
+
+private const val MAX_TAB_BAR_CLIMB = 30
 
 internal fun proofItem(id: Long, name: String, type: PutioFileType, parentId: FilesItemId) = FilesItem(
     id = FilesItemId(id),

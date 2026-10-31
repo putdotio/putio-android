@@ -79,9 +79,7 @@ class TvExternalOpenProofTest {
         compose.waitUntil(5_000) { hasContentDescription("Play Old clip.mp4") }
         screenshot("01-files-prior-location")
 
-        press(KeyEvent.KEYCODE_DPAD_LEFT)
-        press(KeyEvent.KEYCODE_DPAD_DOWN)
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.openTvTab("Search")
         // Typed into the field, as `adb shell input text` does; the pane owns the field's text.
         compose.onNodeWithContentDescription("Search files").assertIsFocused().performTextInput("proof")
         compose.waitUntil(5_000) { hasContentDescription("Play $VIDEO") }
@@ -125,78 +123,58 @@ class TvExternalOpenProofTest {
         compose.waitUntil(5_000) { isFocused("Open $FOLDER") }
 
         // Files still holds the location the viewer left.
-        press(KeyEvent.KEYCODE_DPAD_LEFT)
-        press(KeyEvent.KEYCODE_DPAD_UP)
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.openTvTab("Files")
         compose.waitUntil(5_000) { hasContentDescription("Play Old clip.mp4") }
         compose.onNodeWithTag(io.putdotio.android.tv.files.TV_FILES_LIST_TAG).assertExists()
         screenshot("09-files-prior-location-kept")
     }
 
     @Test
-    fun backOnTheDrawerReturnsToThePaneThenThePaneRulesApply() {
+    fun backMovesToTheTabBarThenHomeAndEachTabKeepsItsPlace() {
         var exits = 0
         mount(onExit = { exits += 1 })
         press(KeyEvent.KEYCODE_DPAD_DOWN)
         compose.onNodeWithContentDescription("Open $FOLDER").assertIsFocused()
         screenshot("10-files-row-focused")
 
-        // Search: Back on the drawer returns to the field, then Back returns to Files.
-        openFromDrawer(steps = 1)
-        compose.onNodeWithContentDescription(SEARCH_FIELD).assertIsFocused()
-        press(KeyEvent.KEYCODE_DPAD_LEFT)
-        screenshot("11-search-drawer-focused")
-        press(KeyEvent.KEYCODE_BACK)
-        compose.onNodeWithContentDescription(SEARCH_FIELD).assertIsFocused()
-        screenshot("12-drawer-back-returns-to-the-search-field")
-        press(KeyEvent.KEYCODE_BACK)
-        compose.waitUntil(5_000) { isFocused("Open $FOLDER") }
-        screenshot("13-back-from-search-on-the-files-row")
-        returnToFilesPane(steps = 1)
-
-        // An empty History keeps Clear focusable: Back on the drawer returns to it, then Back
-        // returns to Files.
-        openFromDrawer(steps = 2)
-        compose.waitUntil(5_000) { compose.onAllNodesWithText(NO_HISTORY).fetchSemanticsNodes().isNotEmpty() }
-        compose.onNode(hasText(CLEAR) and hasClickAction()).assertIsFocused()
-        press(KeyEvent.KEYCODE_DPAD_LEFT)
-        compose.onNode(hasText(HISTORY) and hasClickAction()).assertIsFocused()
-        screenshot("14-empty-history-drawer-focused")
-        press(KeyEvent.KEYCODE_BACK)
-        compose.onNode(hasText(CLEAR) and hasClickAction()).assertIsFocused()
-        screenshot("15-drawer-back-returns-to-clear")
-        press(KeyEvent.KEYCODE_BACK)
-        compose.waitUntil(5_000) { isFocused("Open $FOLDER") }
-        screenshot("16-back-from-history-on-the-files-row")
-        returnToFilesPane(steps = 2)
-
-        // Account: Back on the drawer returns to its row, then Back returns to Files.
-        openFromDrawer(steps = 3)
-        compose.waitUntil(5_000) { compose.onAllNodesWithText(PROXY_ROW).fetchSemanticsNodes().isNotEmpty() }
-        compose.onNodeWithText(PROXY_ROW).assertIsFocused()
-        press(KeyEvent.KEYCODE_DPAD_LEFT)
-        press(KeyEvent.KEYCODE_BACK)
-        compose.onNodeWithText(PROXY_ROW).assertIsFocused()
-        screenshot("17-drawer-back-returns-to-the-account-row")
-        press(KeyEvent.KEYCODE_BACK)
-        compose.waitUntil(5_000) { isFocused("Open $FOLDER") }
-        screenshot("18-back-from-account-on-the-files-row")
-        returnToFilesPane(steps = 3)
+        listOf(
+            "Search" to { compose.onNodeWithContentDescription(SEARCH_FIELD).assertIsFocused() },
+            HISTORY to {
+                compose.waitUntil(5_000) { compose.onAllNodesWithText(NO_HISTORY).fetchSemanticsNodes().isNotEmpty() }
+                compose.onNode(hasText(CLEAR) and hasClickAction()).assertIsFocused()
+            },
+            "Account" to {
+                compose.waitUntil(5_000) { compose.onAllNodesWithText(PROXY_ROW).fetchSemanticsNodes().isNotEmpty() }
+                compose.onNodeWithText(PROXY_ROW).assertIsFocused()
+            },
+        ).forEachIndexed { index, (tab, assertEntry) ->
+            press(KeyEvent.KEYCODE_BACK)
+            compose.onTvTab("Files").assertIsFocused()
+            compose.openTvTab(tab)
+            assertEntry()
+            screenshot("${11 + index * 3}-${tab.lowercase()}-entered")
+            press(KeyEvent.KEYCODE_BACK)
+            compose.onTvTab(tab).assertIsFocused()
+            screenshot("${12 + index * 3}-${tab.lowercase()}-back-focuses-its-tab")
+            press(KeyEvent.KEYCODE_BACK)
+            compose.onTvTab("Home").assertIsFocused()
+            screenshot("${13 + index * 3}-${tab.lowercase()}-tab-bar-back-goes-home")
+            compose.openTvTab("Files")
+            compose.waitUntil(5_000) { isFocused("Open $FOLDER") }
+        }
         assertEquals(0, exits)
 
-        // In a folder, Back on the drawer returns to its row; then Back pops it, then leaves.
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(5_000) { isFocused(FIRST_SCAN) }
-        press(KeyEvent.KEYCODE_DPAD_LEFT)
-        screenshot("19-folder-drawer-focused")
-        press(KeyEvent.KEYCODE_BACK)
-        compose.onNodeWithContentDescription(FIRST_SCAN).assertIsFocused()
-        assertEquals(0, exits)
-        screenshot("20-drawer-back-returns-to-the-folder-row")
+        screenshot("20-folder-under-its-crumb")
         press(KeyEvent.KEYCODE_BACK)
         compose.waitUntil(5_000) { isFocused("Open $FOLDER") }
-        assertEquals(0, exits)
         screenshot("21-folder-popped-to-its-row")
+        press(KeyEvent.KEYCODE_BACK)
+        compose.onTvTab("Files").assertIsFocused()
+        press(KeyEvent.KEYCODE_BACK)
+        compose.onTvTab("Home").assertIsFocused()
+        assertEquals(0, exits)
         press(KeyEvent.KEYCODE_BACK)
         assertEquals(1, exits)
     }
@@ -205,9 +183,7 @@ class TvExternalOpenProofTest {
     fun aPickOnALaterPageOfItsFolderOpensFocusedOnIt() {
         val session = compose.mountTvProofSession(pagedDependencies())
         compose.waitUntil(5_000) { hasContentDescription("Open $PAGED_FOLDER") }
-        press(KeyEvent.KEYCODE_DPAD_LEFT)
-        press(KeyEvent.KEYCODE_DPAD_DOWN)
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.openTvTab("Search")
         compose.onNodeWithContentDescription(SEARCH_FIELD).assertIsFocused().performTextInput("harbor")
         compose.waitUntil(5_000) { hasContentDescription("Open $PAGED_DOCUMENT") }
         focus("Open $PAGED_DOCUMENT")
@@ -230,21 +206,6 @@ class TvExternalOpenProofTest {
         press(KeyEvent.KEYCODE_DPAD_UP)
         compose.onNodeWithContentDescription("Scan $PAGED_DOCUMENT_INDEX.jpg").assertIsFocused()
         screenshot("26-rows-above-it-loaded")
-    }
-
-    /** From the Files pane, opens the destination [steps] below Files in the drawer. */
-    private fun openFromDrawer(steps: Int) {
-        press(KeyEvent.KEYCODE_DPAD_LEFT)
-        repeat(steps) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
-    }
-
-    /** The drawer re-enters on the destination it was left from, [steps] below Files. */
-    private fun returnToFilesPane(steps: Int) {
-        press(KeyEvent.KEYCODE_DPAD_LEFT)
-        repeat(steps) { press(KeyEvent.KEYCODE_DPAD_UP) }
-        press(KeyEvent.KEYCODE_DPAD_RIGHT)
-        compose.waitUntil(5_000) { isFocused("Open $FOLDER") }
     }
 
     private fun mount(onExit: (() -> Unit)? = null): TvSession {

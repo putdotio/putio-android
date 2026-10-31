@@ -26,10 +26,12 @@
     <string name="tv_session_retry">Try again</string>
     <string name="tv_session_signing_out">Signing out</string>
 
+    <string name="tv_destination_home">Home</string>
     <string name="tv_destination_files">Files</string>
     <string name="tv_destination_search">Search</string>
     <string name="tv_destination_history">History</string>
     <string name="tv_destination_account">Account</string>
+    <string name="tv_placeholder_home">Continue watching and pinned files will show up here.</string>
     <string name="tv_placeholder_files">Your files will show up here.</string>
     <string name="tv_placeholder_search">Search your files from here.</string>
     <string name="tv_placeholder_history">Recent activity will show up here.</string>
@@ -122,7 +124,6 @@
     <string name="tv_search_history_disable">Disable search history</string>
     <string name="tv_search_history_enable">Show search history</string>
     <string name="tv_search_history_clear">Clear search history</string>
-    <string name="tv_history_title">History</string>
     <string name="tv_history_clear">Clear</string>
     <string name="tv_history_today">Today</string>
     <string name="tv_history_yesterday">Yesterday</string>

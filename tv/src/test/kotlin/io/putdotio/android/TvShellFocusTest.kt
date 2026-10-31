@@ -4,7 +4,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import io.putdotio.android.tv.setTvContent
-import io.putdotio.android.tv.pressCenter
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -34,6 +33,7 @@ import io.putdotio.android.history.HistoryEventKind
 import io.putdotio.android.history.HistoryFileId
 import io.putdotio.android.history.HistoryItem
 import io.putdotio.android.history.HistoryPaging
+import io.putdotio.android.tv.TvDestination
 import io.putdotio.android.tv.TvShell
 import io.putdotio.android.tv.auth.TvAccount
 import io.putdotio.android.tv.files.TvFilesScreen
@@ -57,7 +57,7 @@ class TvShellFocusTest {
     val compose = createAndroidComposeRule<androidx.activity.ComponentActivity>()
 
     @Test
-    fun railRoundTripWithoutLeavingFilesReturnsToTheLiveRow() {
+    fun tabBarRoundTripWithoutLeavingFilesReturnsToTheLiveRow() {
         val files = filesBrowserState(
             stack = listOf(
                 FilesFolderState(
@@ -84,19 +84,18 @@ class TvShellFocusTest {
                 },
             )
         }
+        compose.openTab(TvDestination.Files)
         compose.onNodeWithContentDescription("first.txt").assertIsFocused().performKeyInput {
             pressKey(Key.DirectionDown)
             pressKey(Key.DirectionDown)
-            pressKey(Key.DirectionLeft)
         }
-        compose.onNode(hasText("Files") and hasClickAction()).assertIsFocused().performKeyInput {
-            pressKey(Key.DirectionRight)
-        }
+        compose.pressBack()
+        compose.onTab("Files").assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
         compose.onNodeWithContentDescription("third.txt").assertIsFocused()
     }
 
     @Test
-    fun railRoundTripOnAnEmptyPageReturnsToItsPagingControl() {
+    fun tabBarRoundTripOnAnEmptyPageReturnsToItsPagingControl() {
         val files = filesBrowserState(
             stack = listOf(
                 FilesFolderState(FilesFolder.Root, FilesContent.Empty(FilesPaging.Available(FilesCursor("c")))),
@@ -117,15 +116,15 @@ class TvShellFocusTest {
                 },
             )
         }
-        compose.onNodeWithText("Load more").assertIsFocused().performKeyInput { pressKey(Key.DirectionLeft) }
-        compose.onNode(hasText("Files") and hasClickAction()).assertIsFocused().performKeyInput {
-            pressKey(Key.DirectionRight)
-        }
+        compose.openTab(TvDestination.Files)
+        compose.onNodeWithText("Load more").assertIsFocused()
+        compose.pressBack()
+        compose.onTab("Files").assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
         compose.onNodeWithText("Load more").assertIsFocused()
     }
 
     @Test
-    fun railRoundTripFromLoadMoreReturnsToLoadMore() {
+    fun tabBarRoundTripFromLoadMoreReturnsToLoadMore() {
         val files = filesBrowserState(
             stack = listOf(
                 FilesFolderState(
@@ -149,18 +148,18 @@ class TvShellFocusTest {
                 },
             )
         }
+        compose.openTab(TvDestination.Files)
         compose.onNodeWithContentDescription("first.txt")
             .assertIsFocused()
             .performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithText("Load more").assertIsFocused().performKeyInput { pressKey(Key.DirectionLeft) }
-        compose.onNode(hasText("Files") and hasClickAction()).assertIsFocused().performKeyInput {
-            pressKey(Key.DirectionRight)
-        }
+        compose.onNodeWithText("Load more").assertIsFocused()
+        compose.pressBack()
+        compose.onTab("Files").assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
         compose.onNodeWithText("Load more").assertIsFocused()
     }
 
     @Test
-    fun theLastPageLandingWhileOnTheRailDoesNotStealFocus() {
+    fun theLastPageLandingWhileOnTheTabBarDoesNotStealFocus() {
         var files by mutableStateOf(
             filesBrowserState(
                 stack = listOf(
@@ -186,9 +185,11 @@ class TvShellFocusTest {
                 },
             )
         }
+        compose.openTab(TvDestination.Files)
         compose.onNodeWithContentDescription("first.txt").performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithText("Load more").assertIsFocused().performKeyInput { pressKey(Key.DirectionLeft) }
-        compose.onNode(hasText("Files") and hasClickAction()).assertIsFocused()
+        compose.onNodeWithText("Load more").assertIsFocused()
+        compose.pressBack()
+        compose.onTab("Files").assertIsFocused()
 
         files = filesBrowserState(
             stack = listOf(
@@ -200,14 +201,14 @@ class TvShellFocusTest {
             nextRequestValue = 11L,
         )
         compose.waitForIdle()
-        compose.onNode(hasText("Files") and hasClickAction())
+        compose.onTab("Files")
             .assertIsFocused()
-            .performKeyInput { pressKey(Key.DirectionRight) }
+            .performKeyInput { pressKey(Key.DirectionDown) }
         compose.onNodeWithContentDescription("file-30.txt").assertIsFocused()
     }
 
     @Test
-    fun aFolderThatFinishesLoadingWhileOnTheRailDoesNotStealFocus() {
+    fun aFolderThatFinishesLoadingWhileOnTheTabBarDoesNotStealFocus() {
         val loading = filesBrowserState(
             stack = listOf(FilesFolderState(FilesFolder.Root, FilesContent.Loading(FilesRequestId(1)))),
             nextRequestValue = 10L,
@@ -241,25 +242,25 @@ class TvShellFocusTest {
                 mount = index
                 files = loading
             }
-            compose.onNode(hasText("Refresh") and hasClickAction())
-                .assertIsFocused()
-                .performKeyInput { pressKey(Key.DirectionLeft) }
-            compose.onNode(hasText("Files") and hasClickAction()).assertIsFocused()
+            compose.openTab(TvDestination.Files)
+            compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused()
+            compose.pressBack()
+            compose.onTab("Files").assertIsFocused()
 
             files = filesBrowserState(
                 stack = listOf(FilesFolderState(FilesFolder.Root, content)),
                 nextRequestValue = 11L,
             )
             compose.waitForIdle()
-            compose.onNode(hasText("Files") and hasClickAction())
+            compose.onTab("Files")
                 .assertIsFocused()
-                .performKeyInput { pressKey(Key.DirectionRight) }
+                .performKeyInput { pressKey(Key.DirectionDown) }
             rightTarget().assertIsFocused()
         }
     }
 
     @Test
-    fun historyRowsThatGoWhileTheUserIsOnTheDrawerLeaveClearAsTheEntryPoint() {
+    fun historyRowsThatGoWhileTheUserIsOnTheTabBarLeaveClearAsTheEntryPoint() {
         var history by mutableStateOf(
             historyState(
                 HistoryContent.Ready(
@@ -287,22 +288,15 @@ class TvShellFocusTest {
                 },
             )
         }
-        compose.onNodeWithText("Your files will show up here.").performKeyInput { pressKey(Key.DirectionLeft) }
-        compose.onNode(hasText("Files") and hasClickAction()).performKeyInput {
-            pressKey(Key.DirectionDown)
-            pressKey(Key.DirectionDown)
-            pressCenter()
-        }
-        compose.onNodeWithContentDescription("Open Sintel.mp4").assertIsFocused().performKeyInput {
-            pressKey(Key.DirectionLeft)
-        }
-        compose.onNode(hasText("History") and hasClickAction()).assertIsFocused()
+        compose.openTab(TvDestination.History)
+        compose.onNodeWithContentDescription("Open Sintel.mp4").assertIsFocused()
+        compose.pressBack()
+        compose.onTab("History").assertIsFocused()
 
         compose.runOnIdle { history = historyState(HistoryContent.Empty) }
         compose.onNodeWithText("No activity yet.").assertIsDisplayed()
-        // The rows went while the drawer held focus: nothing pulled it back.
-        compose.onNode(hasText("History") and hasClickAction()).assertIsFocused().performKeyInput {
-            pressKey(Key.DirectionRight)
+        compose.onTab("History").assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionDown)
         }
         compose.onNode(hasText("Clear") and hasClickAction()).assertIsFocused()
     }

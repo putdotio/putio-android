@@ -41,6 +41,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -86,6 +87,7 @@ import io.putdotio.android.search.SearchPaging
 import io.putdotio.android.search.SearchState
 import io.putdotio.android.search.SearchTerm
 import io.putdotio.android.tv.TvButton
+import io.putdotio.android.tv.rememberTvPaneHasFocus
 import io.putdotio.android.tv.TvFocus
 import io.putdotio.android.tv.TvPaneFocusOwner
 import io.putdotio.android.tv.TvPickedRow
@@ -133,11 +135,10 @@ internal fun TvSearchScreen(
     notice: FilesFailure? = null,
     /** Changes with the signed-in session so one account's typed text never reaches the next. */
     sessionKey: Any? = null,
-    /** The result the viewer last opened; it takes focus again when the pane comes back. */
     pickedRow: TvPickedRow = remember(sessionKey) { TvPickedRow() },
 ) = key(sessionKey) {
     // Only the results the viewer came back to restore the pick; a new search starts as usual.
-    var restoreRowId by remember { mutableStateOf(pickedRow.take()) }
+    var restoreRowId by remember { mutableStateOf(pickedRow.id) }
     val resultsShown = state.content is SearchContent.Ready
     LaunchedEffect(resultsShown) { if (!resultsShown) restoreRowId = null }
     // The shell asks the pane for focus on entry, and Right from the drawer enters it by
@@ -146,8 +147,18 @@ internal fun TvSearchScreen(
     val entryTarget = remember { mutableStateOf(fieldFocus) }
     // Whether D-pad focus belongs to this pane. Only a directional exit clears it: a node
     // being disposed also drops focus, but the pane still owns it and may re-place it.
-    val paneHasFocus = remember { mutableStateOf(true) }
-    val owner = remember { TvPaneFocusOwner(entryTarget, paneHasFocus, home = { fieldFocus }) }
+    val paneHasFocus = rememberTvPaneHasFocus()
+    val resultsFocus = remember { FocusRequester() }
+    val lastSection = rememberSaveable { mutableStateOf<Long?>(null) }
+    val owner = remember {
+        TvPaneFocusOwner(
+            entryTarget,
+            paneHasFocus,
+            lastSection,
+            onEnter = pickedRow.keptOnlyBy(resultsFocus),
+            home = { fieldFocus },
+        )
+    }
     // The field's text is owned here, not mirrored from the controller: a query the
     // controller reports is at best one edit behind the IME, so it is never written back.
     // The two rewrites the pane makes itself, a chip replay and the trimmed submit, are
@@ -224,13 +235,12 @@ internal fun TvSearchScreen(
                     items = content.items,
                     paging = content.paging,
                     restoreRowId = restoreRowId,
-                    onResult = { item ->
-                        pickedRow.pick(item.id.value)
-                        actions.onResult(item)
-                    },
+                    onResult = actions.onResult,
+                    onResultFocused = { pickedRow.pick(it.id.value) },
                     onNextPage = actions.onNextPage,
                     onRetry = actions.onRetry,
                     owner = owner,
+                    listFocus = resultsFocus,
                     modifier = Modifier.weight(1f),
                 )
             is SearchContent.Failed -> {
@@ -252,6 +262,7 @@ internal fun TvSearchScreen(
             }
         }
     }
+    LaunchedEffect(owner) { owner.restoreLastSection() }
 }
 
 /**
@@ -578,16 +589,17 @@ private fun TvSearchResults(
     paging: SearchPaging,
     restoreRowId: Long?,
     onResult: (FilesItem) -> Unit,
+    onResultFocused: (FilesItem) -> Unit,
     onNextPage: () -> Unit,
     onRetry: () -> Unit,
     owner: TvPaneFocusOwner,
+    listFocus: FocusRequester,
     modifier: Modifier = Modifier,
 ) {
     // The restorer's fallback must name a composed row: the first visible one, since a lazy
     // list composes neither a first row scrolled away nor a last row not yet reached.
     val anchorRow = remember { FocusRequester() }
     val lastRow = remember { FocusRequester() }
-    val listFocus = remember { FocusRequester() }
     // The paging control leaves the list when the last page lands; if it still held focus,
     // the last row takes over once it is on screen. A move to a row or the drawer clears the
     // latch first; the blur its disposal reports arrives after this composition decides.
@@ -652,6 +664,7 @@ private fun TvSearchResults(
                 onClick = { onResult(item) },
                 label = stringResource(item.resultLabel(), item.name),
                 modifier = Modifier
+                    .onFocusChanged { if (it.isFocused) onResultFocused(item) }
                     .focusRequesterIf(index == anchorIndex, anchorRow)
                     .focusRequesterIf(index == items.lastIndex, lastRow)
                     .focusRequesterIf(item.id.value == restoreRowId, restoreRow),

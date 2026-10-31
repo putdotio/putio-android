@@ -863,6 +863,41 @@
       "asset": "assets/regular/speaker-hifi.svg",
       "sourceSha256": "582ba467cd79b96d3c4baae867223ae906c64c46f71e2f5268f89a62bf934427",
       "outputSha256": "14c3d14b051677eb30ef76a3ffc440301a65173296fa835697cf47d91b338f22"
+    },
+    {
+      "resDir": "tv/src/main/res",
+      "resource": "ic_ph_house",
+      "asset": "assets/regular/house.svg",
+      "sourceSha256": "180e9259e99e23da197b59b19394d006d6a5d33e384cc2b9c8381cb0214a5716",
+      "outputSha256": "23db9dc514beef4e8fffa30beab536a71bea9a8fac6a40bf7eac210d7e57935d"
+    },
+    {
+      "resDir": "tv/src/main/res",
+      "resource": "ic_ph_house_fill",
+      "asset": "assets/fill/house-fill.svg",
+      "sourceSha256": "4783cdf0ae5f5ec363df6f77167a41642aac42fe8d73251b9a61232ab43f355d",
+      "outputSha256": "85aee87dff968d9605bc47da304de76382c7fc4228645cdd62e0442496d5e14f"
+    },
+    {
+      "resDir": "tv/src/main/res",
+      "resource": "ic_ph_folder",
+      "asset": "assets/regular/folder.svg",
+      "sourceSha256": "4a882bcd4a91ae0a01887024f08d358932f183b6b171e87a3e48c5910364d507",
+      "outputSha256": "a92b95b4c51e4d49eeef4927c633adef0cc60897b7cf3dc8b9d9f10e467e78f4"
+    },
+    {
+      "resDir": "tv/src/main/res",
+      "resource": "ic_ph_user_circle",
+      "asset": "assets/regular/user-circle.svg",
+      "sourceSha256": "5aee25838c1915058940900df322afc36b76f4ea7e48499c33603cf121258b2a",
+      "outputSha256": "323cc60328b68258d1d4769385f3072a6b936345e95fce41891d041352074067"
+    },
+    {
+      "resDir": "tv/src/main/res",
+      "resource": "ic_ph_arrow_left",
+      "asset": "assets/regular/arrow-left.svg",
+      "sourceSha256": "3c2001cf957d182fc54927e4b286cc8cf66dd97830f441ca2650d42a63a9006a",
+      "outputSha256": "fbd4030ac270365580ac8035afefbcbf5d010947cf7eed5ac7b807444e71e10f"
     }
   ]
 }

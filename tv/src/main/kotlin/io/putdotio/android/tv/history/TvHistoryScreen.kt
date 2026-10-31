@@ -25,6 +25,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
@@ -59,6 +60,7 @@ import io.putdotio.android.history.HistoryItem
 import io.putdotio.android.history.HistoryPaging
 import io.putdotio.android.history.HistoryState
 import io.putdotio.android.tv.TvButton
+import io.putdotio.android.tv.rememberTvPaneHasFocus
 import io.putdotio.android.tv.TvPaneFocusOwner
 import io.putdotio.android.tv.TvPickedRow
 import io.putdotio.android.tv.TvStatusScreen
@@ -94,10 +96,9 @@ internal fun TvHistoryScreen(
     /** Changes with the signed-in session so one account's list position never greets the next. */
     sessionKey: Any? = null,
     clock: Clock = Clock.systemDefaultZone(),
-    /** The event the viewer last opened; it takes focus again when the pane comes back. */
     pickedRow: TvPickedRow = remember(sessionKey) { TvPickedRow() },
 ) = key(sessionKey) {
-    val restoreRowId = remember { pickedRow.take() }
+    val restoreRowId = remember { pickedRow.id }
     val content = state.content
     // Clear stays composed and enabled in every state, like Refresh in Files: a disabled
     // TV button drops focus, and it is the one node that outlives every content change.
@@ -107,7 +108,7 @@ internal fun TvHistoryScreen(
     val retryFocus = remember { FocusRequester() }
     // Whether D-pad focus belongs to this pane. Only a directional exit clears it: a node
     // being disposed also drops focus, but the pane still owns it and must re-place it.
-    val paneHasFocus = remember { mutableStateOf(true) }
+    val paneHasFocus = rememberTvPaneHasFocus()
     // Where the shell's entry request and the window's initial focus land: the rows while
     // there are any, Try again on a failure, Clear otherwise. Sections move it as they take
     // focus; the effects below set it as content changes, before any focus can arrive.
@@ -115,8 +116,14 @@ internal fun TvHistoryScreen(
     // The home section follows the content, read when a section leaves: by then the
     // content is already the one replacing it, and its own nodes are attached.
     val currentContent = rememberUpdatedState(content)
+    val lastSection = rememberSaveable { mutableStateOf<Long?>(null) }
     val owner = remember {
-        TvPaneFocusOwner(entryTarget, paneHasFocus) {
+        TvPaneFocusOwner(
+            entryTarget,
+            paneHasFocus,
+            lastSection,
+            onEnter = pickedRow.keptOnlyBy(listFocus),
+        ) {
             if (currentContent.value is HistoryContent.Ready) listFocus else clearFocus
         }
     }
@@ -194,10 +201,8 @@ internal fun TvHistoryScreen(
                 TvHistoryList(
                     content = content,
                     restoreRowId = restoreRowId,
-                    onOpen = { item, fileId ->
-                        pickedRow.pick(item.id.value)
-                        onEvent(HistoryEvent.OpenFile(fileId))
-                    },
+                    onOpen = { onEvent(HistoryEvent.OpenFile(it)) },
+                    onRowFocused = { pickedRow.pick(it.id.value) },
                     onNextPage = { onEvent(HistoryEvent.LoadNextPage) },
                     onRetry = { onEvent(HistoryEvent.Retry) },
                     owner = owner,
@@ -211,6 +216,7 @@ internal fun TvHistoryScreen(
         }
     }
     TvHistoryClearDialog(state.clearing, onEvent)
+    LaunchedEffect(owner) { owner.restoreLastSection() }
 }
 
 private val HistoryContent.hasNothingToFocus: Boolean
@@ -225,14 +231,9 @@ private fun TvHistoryHeader(
         modifier = Modifier
             .fillMaxWidth()
             .padding(bottom = 16.dp),
+        horizontalArrangement = Arrangement.End,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = stringResource(R.string.tv_history_title),
-            style = MaterialTheme.typography.headlineLarge,
-            color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.weight(1f),
-        )
         TvButton(onClick = onClear, modifier = modifier) {
             Icon(
                 painter = painterResource(R.drawable.ic_ph_backspace),
@@ -316,7 +317,8 @@ private suspend fun LazyListState.awaitMountRow(
 private fun TvHistoryList(
     content: HistoryContent.Ready,
     restoreRowId: Long?,
-    onOpen: (HistoryItem, HistoryFileId) -> Unit,
+    onOpen: (HistoryFileId) -> Unit,
+    onRowFocused: (HistoryItem) -> Unit,
     onNextPage: () -> Unit,
     onRetry: () -> Unit,
     owner: TvPaneFocusOwner,
@@ -394,6 +396,7 @@ private fun TvHistoryList(
                 first = index == 0,
                 now = now,
                 onOpen = onOpen,
+                onRowFocused = onRowFocused,
                 modifier = Modifier
                     .focusRequesterIf(index == anchorIndex, anchorRow)
                     .focusRequesterIf(index == lastIndex, lastRow)
@@ -418,7 +421,8 @@ private fun TvHistoryListEntry(
     entry: TvHistoryEntry,
     first: Boolean,
     now: Instant,
-    onOpen: (HistoryItem, HistoryFileId) -> Unit,
+    onOpen: (HistoryFileId) -> Unit,
+    onRowFocused: (HistoryItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     when (entry) {
@@ -433,8 +437,8 @@ private fun TvHistoryListEntry(
             TvHistoryRow(
                 item = entry.item,
                 now = now,
-                onOpen = { onOpen(entry.item, it) },
-                modifier = modifier,
+                onOpen = onOpen,
+                modifier = modifier.onFocusChanged { if (it.isFocused) onRowFocused(entry.item) },
             )
     }
 }

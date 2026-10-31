@@ -5,6 +5,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -59,6 +60,7 @@ import io.putdotio.android.tv.player.TvPlaybackLayer
 import io.putdotio.android.tv.player.TvPlaybackRoute
 import io.putdotio.android.tv.account.TvAccountScreen
 import io.putdotio.android.tv.TvDestination
+import io.putdotio.android.tv.returnDestination
 import io.putdotio.android.tv.TvExternalOpen
 import io.putdotio.android.tv.TvLaunchRequest
 import io.putdotio.android.tv.TvLaunchRequests
@@ -229,6 +231,7 @@ internal fun TvSessionShell(
     var requestedDestination by remember(session) { mutableStateOf<TvDestination?>(null) }
     var openRejected by remember(session) { mutableStateOf(false) }
     var historyOpenRejected by remember(session) { mutableStateOf(false) }
+    var searchLaunches by remember(session) { mutableIntStateOf(0) }
     val openExternal: (FilesItem, FilesOpenOrigin) -> Boolean = { item, origin ->
         session.openPick(item, origin, onInFiles = { requestedDestination = TvDestination.Files })
     }
@@ -248,7 +251,10 @@ internal fun TvSessionShell(
         onLaunchHandled = onLaunchHandled,
         linkOpenFailure = linkOpenFailure,
         onDestination = { requestedDestination = it },
-        onSearchLaunched = { openRejected = false },
+        onSearchLaunched = {
+            openRejected = false
+            searchLaunches++
+        },
     )
     // A restore changes Files behind the browser's cache: one item's folder, or every folder.
     LaunchedEffect(session, trashState.restoredVersion) {
@@ -308,7 +314,7 @@ internal fun TvSessionShell(
                     openRejected = openRejected,
                     recentSearchFailure = recentSearchFailure,
                     onQueryEdited = { openRejected = false },
-                    sessionKey = sessionKey,
+                    sessionKey = sessionKey to searchLaunches,
                     paneFocus = paneFocus,
                 )
             },
@@ -350,14 +356,6 @@ private fun TvSession.openPick(item: FilesItem, origin: FilesOpenOrigin, onInFil
             true
         }
         TvExternalOpen.REFUSED -> false
-    }
-
-/** The pane Back from a folder returns to: the one that opened it, or none to stay in Files. */
-private fun FilesOpenOrigin?.returnDestination(): TvDestination? =
-    when (this) {
-        FilesOpenOrigin.SEARCH -> TvDestination.Search
-        FilesOpenOrigin.HISTORY -> TvDestination.History
-        FilesOpenOrigin.TRANSFERS, FilesOpenOrigin.LINK, null -> null
     }
 
 @Composable

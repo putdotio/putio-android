@@ -87,6 +87,7 @@ import io.putdotio.android.settings.putioFailure
 import io.putdotio.android.telemetry.AnalyticsEvent
 import io.putdotio.android.telemetry.ProductAnalytics
 import io.putdotio.android.tv.TvButton
+import io.putdotio.android.tv.rememberTvPaneHasFocus
 import io.putdotio.android.tv.TvChoice
 import io.putdotio.android.tv.TvChoiceDialog
 import io.putdotio.android.tv.TvConfirmDialog
@@ -144,8 +145,8 @@ internal fun TvAccountScreen(
     /** Changes with the signed-in session so one account's dialogs never greet the next. */
     sessionKey: Any? = null,
 ) = key(sessionKey) {
-    // Saved across recreation, forgotten with the pane: leaving for another destination and
-    // coming back lands on Account itself, and the row that opened Trash takes focus on Back.
+    // Saved with the pane, so another tab and back still shows Trash; Back from Trash lands
+    // on the row that opened it.
     var showingTrash by rememberSaveable { mutableStateOf(false) }
     // Set by Back only, so a first visit to Account never pulls focus off the drawer.
     val returningFromTrash = remember { mutableStateOf(false) }
@@ -225,7 +226,7 @@ private fun TvAccountBody(
             -> true
         }
     }
-    val paneHasFocus = remember { mutableStateOf(true) }
+    val paneHasFocus = rememberTvPaneHasFocus()
     // Losing the Trash pane's focused node makes the window re-enter this pane on its own;
     // the entry point is the row that opened Trash from the first composition, so that
     // re-entry lands there rather than on the first row. A dialog restored with the pane
@@ -240,8 +241,11 @@ private fun TvAccountBody(
         )
     }
     val rowsPresent = rememberUpdatedState(settingsReady != null)
+    val lastSection = rememberSaveable { mutableStateOf<Long?>(null) }
     val owner = remember {
-        TvPaneFocusOwner(entryTarget, paneHasFocus) { if (rowsPresent.value) firstRowFocus else signOutFocus }
+        TvPaneFocusOwner(entryTarget, paneHasFocus, lastSection) {
+            if (rowsPresent.value) firstRowFocus else signOutFocus
+        }
     }
     val dialogOpen = shownDialog != null
     val dialogShowing = rememberUpdatedState(dialogOpen)
@@ -479,6 +483,7 @@ private fun TvAccountBody(
             destructive = true,
         )
     }
+    LaunchedEffect(owner) { if (!returningFromTrash.value && !dialogShowing.value) owner.restoreLastSection() }
 }
 
 @Composable

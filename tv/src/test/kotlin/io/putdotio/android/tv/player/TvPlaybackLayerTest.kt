@@ -32,6 +32,8 @@ import io.putdotio.android.files.FilesFolderState
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPaging
+import io.putdotio.android.openTab
+import io.putdotio.android.tv.TvDestination
 import io.putdotio.android.tv.TvShell
 import io.putdotio.android.tv.auth.TvAccount
 import io.putdotio.android.tv.files.TvFilesScreen
@@ -74,6 +76,7 @@ class TvPlaybackLayerTest {
         val focusMemory = mutableMapOf<Long, Long>()
         var playing by mutableStateOf<FilesItem?>(null)
         setFilesWithPlayback(files, focusMemory, player, playing = { playing }, onPlaying = { playing = it })
+        compose.openTab(TvDestination.Files)
         compose.onNodeWithContentDescription("notes.txt").assertIsFocused().performKeyInput {
             pressKey(Key.DirectionDown)
         }

@@ -72,9 +72,7 @@ class TvSearchHistoryProofTest {
         compose.mountTvProofSession(dependencies())
         compose.waitUntil(5_000) { hasContentDescription("Open $HOME_FOLDER") }
 
-        press(KeyEvent.KEYCODE_DPAD_LEFT)
-        press(KeyEvent.KEYCODE_DPAD_DOWN)
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.openTvTab("Search")
         compose.waitUntil(5_000) { hasContentDescription("Search again for earlier") }
         screenshot("01-stored-term")
 

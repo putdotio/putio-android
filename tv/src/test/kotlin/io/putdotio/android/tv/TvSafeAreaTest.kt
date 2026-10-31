@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsNode
@@ -19,8 +18,6 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
-import androidx.compose.ui.test.performKeyInput
-import androidx.compose.ui.test.pressKey
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.tv.auth.TvAccount
@@ -52,10 +49,9 @@ class TvSafeAreaTest {
     }
 
     @Test
-    fun theExpandedDrawerStaysInsideTheSafeArea() {
+    fun theTabBarStaysInsideTheSafeArea() {
         showShell()
-        compose.onNodeWithText("Your files will show up here.").performKeyInput { pressKey(Key.DirectionLeft) }
-        compose.onNode(hasText("Files") and hasClickAction()).assertExists()
+        compose.onNode(hasText("Account") and hasClickAction()).assertExists()
         assertContentInsideSafeArea()
     }
 
@@ -106,7 +102,7 @@ class TvSafeAreaTest {
 
     private fun assertContentInsideSafeArea() {
         val placed = compose.onAllNodes(visibleContent, useUnmergedTree = true).fetchSemanticsNodes()
-        assertTrue("expected the wordmark, drawer items and pane, found ${placed.size} nodes", placed.size >= 6)
+        assertTrue("expected the wordmark, tabs and pane, found ${placed.size} nodes", placed.size >= 6)
         compose.assertInsideTvSafeArea(placed)
     }
 

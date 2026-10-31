@@ -40,9 +40,11 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Icon
 import androidx.tv.material3.ListItem
 import androidx.tv.material3.ListItemDefaults
@@ -69,10 +71,12 @@ import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.files.canStartOperation
 import io.putdotio.android.files.items
 import io.putdotio.android.tv.TvButton
+import io.putdotio.android.tv.rememberTvPaneHasFocus
 import io.putdotio.android.tv.TvDialog
 import io.putdotio.android.tv.TvEmptyState
 import io.putdotio.android.tv.TvEmptyStateAction
 import io.putdotio.android.tv.TvNoticeDialog
+import io.putdotio.android.tv.returnDestination
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -86,12 +90,6 @@ import kotlin.math.roundToInt
 internal const val TV_FILES_LIST_TAG = "tv-files-list"
 internal const val TV_FILES_ROW_TAG = "tv-files-row"
 
-/**
- * Files per the oracle (04-06b): a title row with Refresh and Sort, then
- * full-width rows that open folders, play media, or explain an unsupported
- * type. Focus starts on the first row and the header is reachable with Up.
- * Back pops the folder stack; the shell owns Back when the stack is at root.
- */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 internal fun TvFilesScreen(
@@ -123,7 +121,7 @@ internal fun TvFilesScreen(
     // focused row being disposed (folder change, overlay) also drops focus, but the pane is
     // still the owner and must re-request. Remembered above the unsupported overlay so
     // dismissing it does not read as a fresh entry.
-    val paneHasFocus = remember { mutableStateOf(true) }
+    val paneHasFocus = rememberTvPaneHasFocus()
     val trackPaneFocus = Modifier
         .onFocusChanged { if (it.hasFocus) paneHasFocus.value = true }
         .focusProperties {
@@ -252,6 +250,42 @@ internal fun TvFilesScreen(
         )
     }
 }
+
+@Composable
+private fun TvFolderHeading(name: String, crumb: String) {
+    Column(modifier = Modifier.semantics(mergeDescendants = true) { heading() }) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                painter = painterResource(R.drawable.ic_ph_arrow_left),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(11.dp),
+            )
+            Spacer(Modifier.width(3.dp))
+            Text(
+                text = crumb,
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Text(
+            text = name,
+            style = MaterialTheme.typography.headlineLarge.copy(fontSize = 27.sp, lineHeight = 31.sp),
+            color = MaterialTheme.colorScheme.onBackground,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 3.dp),
+        )
+    }
+}
+
+@Composable
+private fun FilesBrowserState.crumbLabel(): String =
+    current.openedFrom.returnDestination()?.let { stringResource(it.label) }
+        ?: stack.dropLast(1).lastOrNull()?.folder?.name
+        ?: stringResource(R.string.tv_files_title)
 
 private fun FilesContent.headerOwnsFocus(): Boolean =
     this is FilesContent.Loading || (this is FilesContent.Empty && paging is FilesPaging.Complete)
@@ -502,16 +536,11 @@ private fun TvFilesHeader(
         modifier = Modifier
             .fillMaxWidth()
             .padding(bottom = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment = Alignment.Bottom,
     ) {
-        Text(
-            text = current.folder.name ?: stringResource(R.string.tv_files_title),
-            style = MaterialTheme.typography.headlineLarge,
-            color = MaterialTheme.colorScheme.onBackground,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
+        Box(modifier = Modifier.weight(1f)) {
+            current.folder.name?.let { name -> TvFolderHeading(name, crumb = state.crumbLabel()) }
+        }
         Row(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier

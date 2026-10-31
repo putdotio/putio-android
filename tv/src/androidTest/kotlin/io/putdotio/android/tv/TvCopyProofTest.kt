@@ -61,16 +61,14 @@ class TvCopyProofTest {
     fun historyKeepsSharedFilesAndTransfersAndTheQuotaAndTrashUseTheReferenceCopy() {
         mount(account(historyEnabled = true, optimistic = false), trash = listOf(trashItem()))
 
-        openFromDrawer(steps = 2)
+        compose.openTvTab("History")
         compose.waitUntil(5_000) { hasDescription("Open $SHARED") }
         assertTrue(hasDescription("Open $TRANSFER"))
         assertTrue(compose.onAllNodesWithText(UPLOAD, substring = true).fetchSemanticsNodes().isEmpty())
         assertTrue(compose.onAllNodesWithText(FAILED, substring = true).fetchSemanticsNodes().isEmpty())
         screenshot("01-tv-history-shared-and-completed")
 
-        press(KeyEvent.KEYCODE_DPAD_LEFT)
-        press(KeyEvent.KEYCODE_DPAD_DOWN)
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.openTvTab("Account")
         compose.waitUntil(5_000) { hasText("${size(USED)} of ${size(SIZE)} used") }
         screenshot("02-tv-quota-used")
 
@@ -84,13 +82,11 @@ class TvCopyProofTest {
     fun historyOffNamesTheToggleAndTheQuotaStatesWhatIsFree() {
         mount(account(historyEnabled = false, optimistic = true), trash = emptyList())
 
-        openFromDrawer(steps = 2)
+        compose.openTvTab("History")
         compose.waitUntil(5_000) { hasText("Turn on “Keep account history” in Account to see activity here.") }
         screenshot("04-tv-history-off")
 
-        press(KeyEvent.KEYCODE_DPAD_LEFT)
-        press(KeyEvent.KEYCODE_DPAD_DOWN)
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.openTvTab("Account")
         compose.waitUntil(5_000) { hasText("${size(SIZE - USED)} of ${size(SIZE)} free") }
         screenshot("05-tv-quota-free")
     }
@@ -137,12 +133,6 @@ class TvCopyProofTest {
         FilesItemId(241), FilesFolder.Root.id, "Harbor film.mp4", PutioFileType.VIDEO,
         52_428_800, "2026-09-28T12:00:00Z", "2026-10-12T12:00:00Z",
     )
-
-    private fun openFromDrawer(steps: Int) {
-        press(KeyEvent.KEYCODE_DPAD_LEFT)
-        repeat(steps) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
-    }
 
     /** Walks the D-pad down until the row reading [label] holds focus. */
     private fun focusText(label: String) {

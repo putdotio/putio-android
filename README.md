@@ -33,7 +33,8 @@ Mobile, on the emulator harness against the live API:
 TV:
 
 - Device-code sign-in with a QR code
-- Files, Search, History and Account
+- A top bar of Home, Files, Search, History and Account tabs, each with its
+  own Back history; Home is a placeholder until Continue watching lands
 - Full-screen playback with D-pad scrubbing, resume and track pickers
 - The launcher's Play Next row and Android TV system search, with the
   wordmark for files without a screenshot
