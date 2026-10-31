@@ -13,6 +13,7 @@ import io.putdotio.android.MainActivity
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.tv.TvLaunchRequest
 import io.putdotio.android.tv.toUri
+import io.putdotio.android.tv.tvLauncherFallbackArt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -29,6 +30,7 @@ internal data class TvStoredWatchNextProgram(
     val owner: TvWatchNextOwner?,
     val program: TvWatchNextProgram,
     val engagedAtMillis: Long,
+    val missingArt: Boolean = false,
 )
 
 /** The system's Watch Next programs this app owns; the provider refuses anyone else's. */
@@ -50,10 +52,11 @@ internal interface TvWatchNextStore {
 internal class TvProviderWatchNextStore(context: Context) : TvWatchNextStore {
     private val context = context.applicationContext
     private val resolver = this.context.contentResolver
+    private val fallbackArt = tvLauncherFallbackArt(this.context)
 
     override suspend fun programs(): List<TvStoredWatchNextProgram> = provider(emptyList()) {
         resolver.query(WatchNextPrograms.CONTENT_URI, PROJECTION, null, null, null)
-            ?.use { cursor -> buildList { while (cursor.moveToNext()) add(cursor.toStored()) } }
+            ?.use { cursor -> buildList { while (cursor.moveToNext()) add(cursor.toStored(fallbackArt)) } }
             .orEmpty()
     }
 
@@ -123,7 +126,7 @@ internal fun watchNextProgramValues(
         put(WatchNextPrograms.COLUMN_LAST_PLAYBACK_POSITION_MILLIS, program.positionMillis.toIntMillis())
         put(WatchNextPrograms.COLUMN_DURATION_MILLIS, program.durationMillis.toIntMillis())
         put(WatchNextPrograms.COLUMN_POSTER_ART_ASPECT_RATIO, WatchNextPrograms.ASPECT_RATIO_16_9)
-        put(WatchNextPrograms.COLUMN_POSTER_ART_URI, program.posterUrl)
+        put(WatchNextPrograms.COLUMN_POSTER_ART_URI, program.posterUrl ?: tvLauncherFallbackArt(context))
         put(
             WatchNextPrograms.COLUMN_INTENT_URI,
             watchNextIntent(context, program.fileId).toUri(Intent.URI_INTENT_SCHEME),
@@ -136,19 +139,21 @@ internal fun watchNextIntent(context: Context, fileId: Long): Intent =
     Intent(Intent.ACTION_VIEW, TvLaunchRequest.OpenFile(FilesItemId(fileId), continueWatching = true).toUri())
         .setComponent(ComponentName(context, MainActivity::class.java))
 
-private fun Cursor.toStored(): TvStoredWatchNextProgram {
+private fun Cursor.toStored(fallbackArt: String): TvStoredWatchNextProgram {
     val owner = string(WatchNextPrograms.COLUMN_INTERNAL_PROVIDER_ID)?.toOwner()
+    val posterArt = string(WatchNextPrograms.COLUMN_POSTER_ART_URI)
     return TvStoredWatchNextProgram(
         rowId = getLong(getColumnIndexOrThrow(BaseColumns._ID)),
         owner = owner,
         program = TvWatchNextProgram(
             fileId = owner?.fileId ?: 0L,
             title = string(WatchNextPrograms.COLUMN_TITLE).orEmpty(),
-            posterUrl = string(WatchNextPrograms.COLUMN_POSTER_ART_URI),
+            posterUrl = posterArt?.takeUnless { it == fallbackArt },
             positionMillis = long(WatchNextPrograms.COLUMN_LAST_PLAYBACK_POSITION_MILLIS),
             durationMillis = long(WatchNextPrograms.COLUMN_DURATION_MILLIS),
         ),
         engagedAtMillis = long(WatchNextPrograms.COLUMN_LAST_ENGAGEMENT_TIME_UTC_MILLIS),
+        missingArt = posterArt == null,
     )
 }
 

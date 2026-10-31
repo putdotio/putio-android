@@ -114,9 +114,7 @@ internal class TvWatchNext(
             val change = when (result) {
                 is PutioResult.Success ->
                     watchNextChange(card.media(result.value), result.value.playback?.startFromSeconds ?: 0.0)
-                        // Moves only a card whose position changed elsewhere; when the viewer
-                        // engaged with it stays as it was.
-                        .takeUnless { it is TvWatchNextChange.Publish && it.program == card.program }
+                        .takeUnless { it.isNoOpFor(card) }
                 is PutioResult.Failure -> when {
                     result.failure is PutioFailure.AuthenticationRequired ->
                         return result.failure as PutioFailure.AuthenticationRequired
@@ -192,6 +190,9 @@ private fun TvStoredWatchNextProgram.media(file: FilesItem): TvWatchNextMedia =
         posterUrl = file.screenshotUrl ?: program.posterUrl,
         isVideo = true,
     )
+
+private fun TvWatchNextChange.isNoOpFor(card: TvStoredWatchNextProgram): Boolean =
+    this is TvWatchNextChange.Publish && program == card.program && !card.missingArt
 
 /** Bounds the cards one user keeps, so each sign-in's reconcile reads at most this many files. */
 private const val MAX_CARDS = 20

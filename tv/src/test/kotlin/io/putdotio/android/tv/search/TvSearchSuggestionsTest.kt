@@ -64,7 +64,7 @@ class TvSearchSuggestionsTest {
         assertEquals(
             listOf(
                 listOf(55L, "Harbor film.mp4", "55", "https://api.put.io/screenshots/55.jpg", "video/*", 600_000L),
-                listOf(56L, "Harbor stills", "56", null, null, 0L),
+                listOf(56L, "Harbor stills", "56", "content://${context.packageName}.launcherart/card.png", null, 0L),
             ),
             rows,
         )
@@ -116,8 +116,8 @@ class TvSearchSuggestionsTest {
     fun `the system's row limit caps the list`() {
         val many = (1L..30L).map { video.copy(id = FilesItemId(it)) }
 
-        assertEquals(5, tvSearchSuggestions(many, limit = 5).count)
-        assertEquals(20, tvSearchSuggestions(many, limit = null).count)
+        assertEquals(5, tvSearchSuggestions(many, limit = 5, fallbackArt = null).count)
+        assertEquals(20, tvSearchSuggestions(many, limit = null, fallbackArt = null).count)
     }
 
     @Test
@@ -153,7 +153,8 @@ class TvSearchSuggestionsTest {
     private fun globalSearch(search: suspend (SearchTerm) -> PutioResult<SearchPage>) =
         TvGlobalSearch(session = { signedIn }, search = search, reject = { error("not ended") })
 
-    private fun provider(search: TvGlobalSearch) = TvSearchSuggestionsProvider { search }
+    private fun provider(search: TvGlobalSearch) =
+        TvSearchSuggestionsProvider { search }.also { it.attachInfo(context, null) }
 
     /** An attribute of searchable.xml as written, with string references resolved. */
     private fun searchableAttribute(name: String): String? {
