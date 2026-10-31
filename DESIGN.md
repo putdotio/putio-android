@@ -421,9 +421,11 @@ start padding:
   the extension ("Blue.Lights.S04E01…ORGANiC.mkv"). Every list that shows a
   filename or a transfer name cuts it this way, and so do the player's title
   and the mini player.
-- Meta: size in mono, `·`, date. Then, only when true: a grey outline eye when
-  the video or audio was played (one glyph, started or finished alike), a
-  yellow arrow-circle-down when the file is on this device.
+- Meta: size in mono, `·`, date. A file's date is when it was added; a
+  folder's is its last change, "3 days ago", until a week has passed, then
+  "Oct 7". The shared folders show no size. Then, only when true:
+  a grey outline eye when the video or audio was played (one glyph, started or
+  finished alike), a yellow arrow-circle-down when the file is on this device.
 - Trailing: an overflow button for any row with actions; a folder without
   them shows a chevron.
 - No progress bars or percentages in file rows.
