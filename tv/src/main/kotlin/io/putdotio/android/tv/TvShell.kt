@@ -269,7 +269,7 @@ private fun TvTab(
                 tint = glyphTint,
                 modifier = Modifier.size(14.dp),
             )
-            Text(stringResource(destination.label), style = MaterialTheme.typography.bodyLarge)
+            Text(stringResource(destination.label), style = MaterialTheme.typography.labelMedium)
         }
     }
 }

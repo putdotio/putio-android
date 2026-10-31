@@ -44,6 +44,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Icon
 import androidx.tv.material3.ListItem
 import androidx.tv.material3.ListItemDefaults
@@ -258,12 +259,12 @@ private fun TvFolderHeading(name: String, crumb: String) {
                 painter = painterResource(R.drawable.ic_ph_arrow_left),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(12.dp),
+                modifier = Modifier.size(11.dp),
             )
-            Spacer(Modifier.width(4.dp))
+            Spacer(Modifier.width(3.dp))
             Text(
                 text = crumb,
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
