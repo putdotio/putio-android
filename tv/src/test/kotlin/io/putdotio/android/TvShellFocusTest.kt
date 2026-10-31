@@ -211,7 +211,10 @@ class TvShellFocusTest {
     fun aLoadingPaneHoldsFocusOnItsSkeletonUntilTheRowsArrive() {
         val ready = filesBrowserState(
             stack = listOf(
-                FilesFolderState(FilesFolder.Root, FilesContent.Ready(listOf(row(1, "first.txt")), FilesPaging.Complete)),
+                FilesFolderState(
+                    FilesFolder.Root,
+                    FilesContent.Ready(listOf(row(1, "first.txt")), FilesPaging.Complete),
+                ),
             ),
             nextRequestValue = 10L,
         )

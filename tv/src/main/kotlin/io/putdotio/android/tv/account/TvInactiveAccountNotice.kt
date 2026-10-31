@@ -78,5 +78,8 @@ private val NOTICE_GLYPH = 16.dp
 private val NOTICE_GLYPH_TOP = 1.dp
 private val NOTICE_GLYPH_GAP = 10.dp
 private val NOTICE_LINE_GAP = 2.dp
-private val NOTICE_TITLE = PutioTypeScale.tvBody.copy(fontWeight = FontWeight.Medium, lineHeight = 20.sp).withFullLineBox()
+private val NOTICE_TITLE_LINE = 20.sp
+private val NOTICE_TITLE = PutioTypeScale.tvBody
+    .copy(fontWeight = FontWeight.Medium, lineHeight = NOTICE_TITLE_LINE)
+    .withFullLineBox()
 private val NOTICE_MESSAGE = PutioTypeScale.tvMeta.withFullLineBox()

@@ -7,6 +7,7 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -209,7 +210,7 @@ internal fun TvFilesScreen(
             .then(trackPaneFocus)
             .focusGroup(),
     ) {
-        if (content is FilesContent.Failed || content is FilesContent.Empty) {
+        if (content.fillsPane()) {
             TvFilesStatePane(
                 state = state,
                 onEvent = onEvent,
@@ -238,49 +239,38 @@ internal fun TvFilesScreen(
                     )
                     TvFilesOperationStatus(current, onEvent)
                     TvFilesDeleteStatus(current, onEvent)
-                    if (content is FilesContent.Ready) {
-                        TvFilesList(
-                            folderId = current.folder.id.value,
-                            content = content,
-                            pagingEnabled = current.operation.canStartOperation,
-                            focusMemory = focusMemory,
-                            paneHasFocus = paneHasFocus,
-                            headerHasFocus = headerHasFocus,
-                            detailOwnsFocus = detailFocus.owns,
-                            onEntryTarget = { listEntry.value = it },
-                            modifier = Modifier.weight(1f),
-                            onEvent = onEvent,
-                            onOpen = open,
-                            onActions = openActions,
-                            onRowFocused = {
-                                detailId = it.id.value
-                                detailFocus.onListFocusChanged(true)
-                            },
-                        )
-                    } else {
-                        LaunchedEffect(folderId) { if (paneHasFocus.value) skeletonFocus.requestFocus() }
-                        TvListSkeleton(Modifier.focusRequester(skeletonFocus).focusable())
-                    }
+                    TvFilesRows(
+                        current = current,
+                        focusMemory = focusMemory,
+                        paneHasFocus = paneHasFocus,
+                        headerHasFocus = headerHasFocus,
+                        detailOwnsFocus = detailFocus.owns,
+                        skeletonFocus = skeletonFocus,
+                        onEntryTarget = { listEntry.value = it },
+                        modifier = Modifier.weight(1f),
+                        onEvent = onEvent,
+                        onOpen = open,
+                        onActions = openActions,
+                        onRowFocused = {
+                            detailId = it.id.value
+                            detailFocus.onListFocusChanged(true)
+                        },
+                    )
                 },
                 detail = {
-                    if (content is FilesContent.Loading) TvDetailSkeleton()
-                    detailItem?.let { item ->
-                        TvFilesDetail(
-                            item = item,
-                            detailHasFocus = detailFocus.hasFocus,
-                            primaryFocus = detailFocus.primary,
-                            resumePlayback = resumePlayback,
-                            sources = detailSources,
-                            listing = listing,
-                            actions = TvFilesDetailActions(
-                                onOpenFolder = open,
-                                onPlay = onPlay,
-                                onUnsupported = { unsupported = it.id.value },
-                                onMore = openActions.takeIf { actionsOf(item).isNotEmpty() },
-                            ),
-                            moreFocus = detailFocus.more,
-                        )
-                    }
+                    TvFilesDetailPane(
+                        loading = content is FilesContent.Loading,
+                        item = detailItem,
+                        detailFocus = detailFocus,
+                        resumePlayback = resumePlayback,
+                        sources = detailSources,
+                        listing = listing,
+                        onOpenFolder = open,
+                        onPlay = onPlay,
+                        onUnsupported = { unsupported = it.id.value },
+                        onMore = openActions,
+                        offersMore = { actionsOf(it).isNotEmpty() },
+                    )
                 },
             )
         }
@@ -390,6 +380,81 @@ private fun FilesContent.paneEntryTarget(
         is FilesContent.Empty -> if (paging is FilesPaging.Complete) FocusRequester.Default else pagingControl
         is FilesContent.Ready -> listEntry.value
     }
+
+private fun FilesContent.fillsPane(): Boolean = this is FilesContent.Failed || this is FilesContent.Empty
+
+@Composable
+private fun TvFilesRows(
+    current: FilesFolderState,
+    focusMemory: MutableMap<Long, Long>,
+    paneHasFocus: State<Boolean>,
+    headerHasFocus: State<Boolean>,
+    detailOwnsFocus: State<Boolean>,
+    skeletonFocus: FocusRequester,
+    onEntryTarget: (FocusRequester) -> Unit,
+    onEvent: (FilesBrowserEvent) -> Boolean,
+    onOpen: (FilesItem) -> Unit,
+    onActions: (FilesItem) -> Unit,
+    onRowFocused: (FilesItem) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val folderId = current.folder.id.value
+    when (val content = current.content) {
+        is FilesContent.Ready -> TvFilesList(
+            folderId = folderId,
+            content = content,
+            pagingEnabled = current.operation.canStartOperation,
+            focusMemory = focusMemory,
+            paneHasFocus = paneHasFocus,
+            headerHasFocus = headerHasFocus,
+            detailOwnsFocus = detailOwnsFocus,
+            onEntryTarget = onEntryTarget,
+            modifier = modifier,
+            onEvent = onEvent,
+            onOpen = onOpen,
+            onActions = onActions,
+            onRowFocused = onRowFocused,
+        )
+        is FilesContent.Loading -> {
+            LaunchedEffect(folderId) { if (paneHasFocus.value) skeletonFocus.requestFocus() }
+            TvListSkeleton(modifier.focusRequester(skeletonFocus).focusable())
+        }
+        is FilesContent.Empty, is FilesContent.Failed -> Unit
+    }
+}
+
+@Composable
+private fun ColumnScope.TvFilesDetailPane(
+    loading: Boolean,
+    item: FilesItem?,
+    detailFocus: TvFilesDetailFocus,
+    resumePlayback: Boolean,
+    sources: TvFilesDetailSources,
+    listing: Any,
+    onOpenFolder: (FilesItem) -> Unit,
+    onPlay: (FilesItem, TvPlayStart) -> Unit,
+    onUnsupported: (FilesItem) -> Unit,
+    onMore: (FilesItem) -> Unit,
+    offersMore: (FilesItem) -> Boolean,
+) {
+    if (loading) TvDetailSkeleton()
+    if (item == null) return
+    TvFilesDetail(
+        item = item,
+        detailHasFocus = detailFocus.hasFocus,
+        primaryFocus = detailFocus.primary,
+        resumePlayback = resumePlayback,
+        sources = sources,
+        listing = listing,
+        actions = TvFilesDetailActions(
+            onOpenFolder = onOpenFolder,
+            onPlay = onPlay,
+            onUnsupported = onUnsupported,
+            onMore = onMore.takeIf { offersMore(item) },
+        ),
+        moreFocus = detailFocus.more,
+    )
+}
 
 @Composable
 private fun TvFilesStatePane(

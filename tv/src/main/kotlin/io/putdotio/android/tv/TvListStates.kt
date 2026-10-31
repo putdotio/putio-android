@@ -46,7 +46,7 @@ internal fun TvListSkeleton(modifier: Modifier = Modifier) {
                 horizontalArrangement = Arrangement.spacedBy(SKELETON_ROW_GAP),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                SkeletonBlock(SKELETON_GLYPH, SKELETON_GLYPH, RoundedCornerShape(SKELETON_GLYPH_RADIUS))
+                SkeletonBlock(SKELETON_GLYPH, SKELETON_GLYPH, shape = RoundedCornerShape(SKELETON_GLYPH_RADIUS))
                 Column {
                     SkeletonBlock(nameWidth, SKELETON_NAME_HEIGHT)
                     SkeletonBlock(
@@ -73,8 +73,8 @@ internal fun TvDetailSkeleton(modifier: Modifier = Modifier) {
             modifier = Modifier.padding(top = SKELETON_DETAIL_ACTIONS_GAP),
             horizontalArrangement = Arrangement.spacedBy(SKELETON_DETAIL_ACTION_SPACING),
         ) {
-            SkeletonBlock(SKELETON_DETAIL_PRIMARY_WIDTH, TvButtonSize.Detail.height, CircleShape)
-            SkeletonBlock(SKELETON_DETAIL_SECONDARY_WIDTH, TvButtonSize.Detail.height, CircleShape)
+            SkeletonBlock(SKELETON_DETAIL_PRIMARY_WIDTH, TvButtonSize.Detail.height, shape = CircleShape)
+            SkeletonBlock(SKELETON_DETAIL_SECONDARY_WIDTH, TvButtonSize.Detail.height, shape = CircleShape)
         }
     }
 }
@@ -109,8 +109,8 @@ internal fun TvLoadFailedState(
 private fun SkeletonBlock(
     width: Dp,
     height: Dp,
-    shape: Shape = RoundedCornerShape(SKELETON_RADIUS),
     modifier: Modifier = Modifier,
+    shape: Shape = RoundedCornerShape(SKELETON_RADIUS),
 ) {
     Box(modifier.size(width, height).background(PutioDesignTokens.componentBgHover, shape))
 }
