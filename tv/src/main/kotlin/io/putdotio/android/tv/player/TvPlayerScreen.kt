@@ -29,6 +29,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -366,7 +367,7 @@ private fun TvReadyPlayer(
                     videoAspectRatio = videoSize.displayAspectRatioOrNull(),
                     modifier = Modifier
                         .align(Alignment.Center)
-                        .offset(x = overlay.subtitleShift()),
+                        .offset { IntOffset(overlay.subtitleShift().roundToPx(), 0) },
                     textScale = appearance.textSize.scale,
                     bottomPaddingFraction = subtitleBottomPadding(overlay.controlsVisible),
                 )

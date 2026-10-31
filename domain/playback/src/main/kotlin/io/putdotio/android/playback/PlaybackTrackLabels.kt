@@ -42,7 +42,7 @@ public fun audioTrackDetails(track: PlaybackAudioTrack): String? {
     )
     return parts.takeIf { it.isNotEmpty() }
         ?.joinToString(TRACK_DETAIL_SEPARATOR)
-        ?.replaceFirstChar { it.titlecase(Locale.getDefault()) }
+        ?.replaceFirstChar(Char::titlecaseChar)
 }
 
 private fun PlaybackAudioTrack.isCommentary(): Boolean = identity.roleFlags and C.ROLE_FLAG_COMMENTARY != 0
