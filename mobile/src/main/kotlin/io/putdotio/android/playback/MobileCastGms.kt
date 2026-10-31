@@ -11,8 +11,11 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import androidx.activity.ComponentActivity
 import androidx.annotation.VisibleForTesting
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
 import androidx.mediarouter.media.MediaRouteSelector
 import androidx.mediarouter.media.MediaRouter
 import com.google.android.gms.cast.CastDevice as GmsCastDevice
@@ -75,6 +78,18 @@ internal object MobileCast {
                 }
             }
         }
+    }
+
+    /** Starts Cast for MainActivity, which looks for receivers itself while it shows. */
+    fun follow(activity: ComponentActivity) {
+        val gateway = controller(activity)?.gateway as? GmsCastGateway ?: return
+        activity.lifecycle.addObserver(
+            object : DefaultLifecycleObserver {
+                override fun onStart(owner: LifecycleOwner) = gateway.shown(true)
+
+                override fun onStop(owner: LifecycleOwner) = gateway.shown(false)
+            },
+        )
     }
 
     /**
@@ -180,6 +195,7 @@ internal class GmsCastGateway private constructor(
 
     init {
         remote.onAttachedChanged = { updateAvailability() }
+        routes.onDevicesChanged = { updateAvailability() }
     }
 
     private val mutableAvailability = MutableStateFlow<CastAvailability>(CastAvailability.Unsupported)
@@ -219,7 +235,7 @@ internal class GmsCastGateway private constructor(
         val device = cast.sessionManager.currentCastSession?.castDevice?.friendlyName
         mutableAvailability.value = when {
             remote.attached -> CastAvailability.Connected(device.orEmpty())
-            cast.castState == CastState.NO_DEVICES_AVAILABLE ->
+            cast.castState == CastState.NO_DEVICES_AVAILABLE && routes.devices.value.isEmpty() ->
                 if (localNetworkBlocked()) CastAvailability.NeedsLocalNetwork else CastAvailability.NoDevices
             cast.castState == CastState.CONNECTING || cast.castState == CastState.CONNECTED ->
                 CastAvailability.Connecting(device)
@@ -275,6 +291,14 @@ internal class GmsCastGateway private constructor(
 
     private var stopOnBind = false
 
+    /**
+     * Once the app has been in the background, as on the trip to the sign-in tab, Cast on some
+     * phones never sees it return: it stops looking for receivers and reports none until the
+     * process restarts. So the app looks for them itself while it shows, and a receiver it finds
+     * offers Cast whatever Cast's own state says.
+     */
+    fun shown(shown: Boolean) = if (shown) routes.watch() else routes.unwatch()
+
     override fun localNetworkAnswered(granted: Boolean) {
         if (!granted) localNetworkRefused = true
         updateAvailability()
@@ -293,7 +317,9 @@ internal class GmsCastRoutes(private val context: Context) : CastRoutes {
     private val mutableDevices = MutableStateFlow<List<CastDevice>>(emptyList())
     override val devices: StateFlow<List<CastDevice>> = mutableDevices
     var selector: MediaRouteSelector? = null
+    var onDevicesChanged: () -> Unit = {}
     private var discovering = false
+    private var watching = false
 
     private val callback = object : MediaRouter.Callback() {
         override fun onRouteAdded(router: MediaRouter, route: MediaRouter.RouteInfo) = refresh()
@@ -308,17 +334,40 @@ internal class GmsCastRoutes(private val context: Context) : CastRoutes {
     }
 
     override fun startDiscovery() {
-        val selector = selector ?: return
-        if (discovering) return
+        if (selector == null || discovering) return
         discovering = true
-        MediaRouter.getInstance(context).addCallback(selector, callback, MediaRouter.CALLBACK_FLAG_PERFORM_ACTIVE_SCAN)
-        refresh()
+        updateCallback()
     }
 
     override fun stopDiscovery() {
         if (!discovering) return
         discovering = false
-        MediaRouter.getInstance(context).removeCallback(callback)
+        updateCallback()
+    }
+
+    /** The passive search while the app shows; the picker's active scan rides on the same callback. */
+    fun watch() {
+        if (selector == null || watching) return
+        watching = true
+        updateCallback()
+    }
+
+    fun unwatch() {
+        if (!watching) return
+        watching = false
+        updateCallback()
+    }
+
+    private fun updateCallback() {
+        val selector = selector ?: return
+        val router = MediaRouter.getInstance(context)
+        // Adding a callback again only widens its flags, so the scan narrows by starting over.
+        router.removeCallback(callback)
+        when {
+            discovering -> router.addCallback(selector, callback, MediaRouter.CALLBACK_FLAG_PERFORM_ACTIVE_SCAN)
+            watching -> router.addCallback(selector, callback, MediaRouter.CALLBACK_FLAG_REQUEST_DISCOVERY)
+        }
+        refresh()
     }
 
     private fun refresh() {
@@ -341,6 +390,7 @@ internal class GmsCastRoutes(private val context: Context) : CastRoutes {
                     selected = route.isSelected,
                 )
             }
+        onDevicesChanged()
     }
 
     override fun select(deviceId: String) {
