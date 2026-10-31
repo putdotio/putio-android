@@ -122,7 +122,7 @@ internal fun TvAccountGroupRow(
         else -> colors.onSurface
     }
     val secondary = when {
-        focused -> TvFocus.contentVariant
+        focused -> TvFocus.secondaryContent
         danger -> PutioDesignTokens.redTextSecondary
         else -> colors.onSurfaceVariant
     }
@@ -199,7 +199,7 @@ internal fun TvSettingRow(
     val shape = segment.shape()
     val body: @Composable (Boolean) -> Unit = { isFocused ->
         val content = if (isFocused) TvFocus.content else colors.onSurface
-        val secondary = if (isFocused) TvFocus.contentVariant else colors.onSurfaceVariant
+        val secondary = if (isFocused) TvFocus.secondaryContent else colors.onSurfaceVariant
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -283,7 +283,7 @@ internal fun RowScope.TvSettingValue(value: AnnotatedString, focused: Boolean) {
     Text(
         value,
         style = TvAccountType.rowValue,
-        color = if (focused) TvFocus.contentVariant else MaterialTheme.colorScheme.onSurfaceVariant,
+        color = if (focused) TvFocus.secondaryContent else MaterialTheme.colorScheme.onSurfaceVariant,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
     )

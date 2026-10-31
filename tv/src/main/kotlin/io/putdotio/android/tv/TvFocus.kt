@@ -16,10 +16,7 @@ internal object TvFocus {
         get() = MaterialTheme.colorScheme.inverseOnSurface
 
     val secondaryContent: Color = Color(ON_FOCUS_SECONDARY)
-    val contentVariant: Color = Color(CONTENT_VARIANT_ARGB)
 }
-
-private const val CONTENT_VARIANT_ARGB = 0xFF4D4D4D
 
 @Composable
 @ReadOnlyComposable

@@ -180,7 +180,7 @@ private fun <T> TvSheetRadioOption(
                     Text(
                         choice.description,
                         style = TvAccountType.optionDetail,
-                        color = if (focused) TvFocus.contentVariant else colors.onSurfaceVariant,
+                        color = if (focused) TvFocus.secondaryContent else colors.onSurfaceVariant,
                         modifier = Modifier.padding(top = 1.dp),
                     )
                 }
@@ -193,7 +193,7 @@ private fun <T> TvSheetRadioOption(
 private fun TvRadio(checked: Boolean, focused: Boolean, modifier: Modifier = Modifier) {
     val ring = when {
         focused && checked -> TvFocus.content
-        focused -> TvFocus.contentVariant
+        focused -> TvFocus.secondaryContent
         checked -> PutioDesignTokens.yellowSolid
         else -> PutioDesignTokens.solid
     }
