@@ -13,6 +13,8 @@ import io.putdotio.sdk.errors.PutioApiException
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.errors.PutioRequestData
 import io.putdotio.sdk.files.PutioFileType
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.TestTimeSource
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -34,10 +36,11 @@ class TvHomePinsTest {
         }
     }
     private val counts = FilesFolderCounts { PutioResult.Success(12) }
+    private val clock = TestTimeSource()
 
     @Test
     fun pinsBecomeCardsInOrderAndAFileGoneIsUnpinned() = runTest(UnconfinedTestDispatcher()) {
-        val home = TvHomePins(pins, resolver, counts, backgroundScope)
+        val home = TvHomePins(pins, resolver, counts, backgroundScope, clock)
 
         val cards = (home.row.value as TvPinnedRow.Ready).cards
         assertEquals(listOf("Series", "clip.mp4"), cards.map { it.item.name })
@@ -48,6 +51,10 @@ class TvHomePinsTest {
         assertEquals(listOf("clip.mp4", "Series"), (home.row.value as TvPinnedRow.Ready).cards.map { it.item.name })
         assertEquals("Known cards are not read again", 3, reads.size)
 
+        home.refresh()
+        assertEquals("A Home shown again within a minute reads nothing", 0, pins.reloads)
+
+        clock += 1.minutes
         home.refresh()
         assertEquals(1, pins.reloads)
         assertEquals(5, reads.size)
@@ -78,9 +85,10 @@ class TvHomePinsTest {
             override suspend fun resolveItem(itemId: FilesItemId): PutioResult<FilesItem> =
                 if (reachable) resolver.resolveItem(itemId) else PutioResult.Failure(offline)
         }
-        val home = TvHomePins(FakePinnedFiles(listOf(Series)), flaky, counts, backgroundScope)
+        val home = TvHomePins(FakePinnedFiles(listOf(Series)), flaky, counts, backgroundScope, clock)
 
         reachable = false
+        clock += 1.minutes
         home.refresh()
         assertEquals(listOf("Series"), (home.row.value as TvPinnedRow.Ready).cards.map { it.item.name })
 
@@ -110,6 +118,14 @@ class TvHomePinsTest {
         )
         assertEquals(rejected, locked.rejected.value)
         assertEquals(TvPinnedRow.Failed(rejected), locked.row.value)
+
+        val countLocked = TvHomePins(
+            FakePinnedFiles(listOf(Series)),
+            resolver,
+            { PutioResult.Failure(rejected) },
+            backgroundScope,
+        )
+        assertEquals(rejected, countLocked.rejected.value)
     }
 
     private fun item(id: FilesItemId, name: String, type: PutioFileType) = FilesItem(

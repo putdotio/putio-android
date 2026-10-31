@@ -8,6 +8,8 @@ import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesItemResolver
 import io.putdotio.android.files.PinnedFiles
 import io.putdotio.android.isNotFound
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.TimeSource
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -35,7 +37,9 @@ internal class TvHomePins(
     private val resolver: FilesItemResolver,
     private val folderCounts: FilesFolderCounts?,
     scope: CoroutineScope,
+    private val clock: TimeSource = TimeSource.Monotonic,
 ) {
+    private var lastRead = clock.markNow()
     private val cards = mutableMapOf<FilesItemId, TvPinnedCard>()
     private val gone = mutableSetOf<FilesItemId>()
     private val refreshes = MutableStateFlow(0)
@@ -64,6 +68,8 @@ internal class TvHomePins(
     fun refresh() {
         when {
             pins.pins.value != null -> {
+                if (lastRead.elapsedNow() < REFRESH_AFTER) return
+                lastRead = clock.markNow()
                 pins.reload()
                 refreshes.update { it + 1 }
             }
@@ -87,7 +93,7 @@ internal class TvHomePins(
         when (val result = resolver.resolveItem(id)) {
             is PutioResult.Success -> {
                 val item = result.value
-                val count = if (item.isFolder) (folderCounts?.itemCount(id) as? PutioResult.Success)?.value else null
+                val count = if (item.isFolder) folderCount(id) else null
                 gone.remove(id)
                 Resolved.Card(TvPinnedCard(item, count).also { cards[id] = it })
             }
@@ -108,6 +114,16 @@ internal class TvHomePins(
             }
         }
 
+    private suspend fun folderCount(id: FilesItemId): Int? =
+        when (val result = folderCounts?.itemCount(id)) {
+            is PutioResult.Success -> result.value
+            is PutioResult.Failure -> {
+                (result.failure as? PutioFailure.AuthenticationRequired)?.let { mutableRejected.value = it }
+                null
+            }
+            null -> null
+        }
+
     private sealed interface Resolved {
         data class Card(val card: TvPinnedCard) : Resolved
 
@@ -116,3 +132,5 @@ internal class TvHomePins(
         data class Failed(val failure: PutioFailure) : Resolved
     }
 }
+
+private val REFRESH_AFTER = 1.minutes

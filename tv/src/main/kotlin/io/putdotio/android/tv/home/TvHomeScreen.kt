@@ -120,8 +120,7 @@ internal fun TvHomeScreen(
     }
     if (continueWatching.isEmpty() && pinnedCards?.isEmpty() == true) {
         TvEmptyState(
-            glyph = null,
-            glyphText = HOME_GLYPH,
+            glyph = PutioEmptyGlyph.NothingYet,
             headline = stringResource(R.string.tv_home_first_run_title),
             message = stringResource(R.string.tv_home_first_run_message),
             action = TvEmptyStateAction(
@@ -169,7 +168,7 @@ internal fun TvHomeScreen(
             is TvPinnedRow.Ready -> if (pinned.cards.isEmpty()) {
                 TvHomeSection(stringResource(R.string.tv_home_pinned), cardsGap = EMPTY_GAP) {
                     TvHomeInlineState(
-                        glyph = HOME_GLYPH,
+                        glyph = PutioEmptyGlyph.NothingYet.text,
                         headline = stringResource(R.string.tv_home_pinned_empty_title),
                         message = stringResource(R.string.tv_home_pinned_empty_message),
                     )
@@ -364,8 +363,6 @@ private fun TvHomeProgress(progress: Float?, focused: Boolean) {
     }
 }
 
-internal const val HOME_GLYPH = "( ˘▽˘)っ"
-
 private val FocusedTrack = Color(FOCUSED_TRACK)
 private const val FOCUSED_TRACK = 0x24000000
 private val HOME_TOP = 4.dp
@@ -385,7 +382,7 @@ private val PROGRESS_HEIGHT = 3.dp
 private val INLINE_STATE_GAP = 8.dp
 private val INLINE_MESSAGE_NUDGE = 1.5.dp
 private val SECTION_LABEL = PutioTypeScale.tvLabel.withFullLineBox()
-private val CARD_NAME = PutioTypeScale.tvMeta.copy(lineHeight = 16.sp).withFullLineBox()
+private val CARD_NAME = PutioTypeScale.tvMeta.withFullLineBox()
 private val CARD_META = PutioTypeScale.tvMeta.copy(lineHeight = 18.sp).withFullLineBox()
 private val CARD_META_MONO = PutioTypeScale.tvMono.copy(lineHeight = 18.sp).withFullLineBox()
 private val INLINE_GLYPH = PutioTypeScale.tvMono.copy(fontSize = 24.sp, lineHeight = 28.sp).withFullLineBox()
