@@ -280,8 +280,9 @@ private fun Modifier.focusOutline(focused: Boolean, color: Color): Modifier =
     if (focused) border(FILES_FOCUS_OUTLINE, color) else this
 
 /**
- * Decimal units as put.io's web app writes them: one decimal below 100 ("3.2 GB", "19.4 GB"),
- * none from 100 or when it is a zero ("31 MB"). Android's short formatter drops the decimal from 10.
+ * Decimal units as put.io's web app counts them: one decimal below 100 ("3.2GB", "19.4GB"), none
+ * from 100 or when it is a zero ("31MB"). Android's short formatter drops the decimal from 10. No
+ * space before the unit: in mono a space is a full cell, which sets the unit too far off.
  */
 internal fun formatFileSize(bytes: Long, locale: Locale = Locale.getDefault()): String {
     var value = bytes.coerceAtLeast(0L).toDouble()
@@ -293,7 +294,7 @@ internal fun formatFileSize(bytes: Long, locale: Locale = Locale.getDefault()): 
     val tenths = Math.round(value * TENTHS)
     val whole = unit == 0 || value >= ONE_DECIMAL_BELOW || tenths % TENTHS.toLong() == 0L
     val rounded = String.format(locale, if (whole) "%.0f" else "%.1f", if (whole) value else tenths / TENTHS)
-    return "$rounded ${SIZE_UNITS[unit]}"
+    return "$rounded${SIZE_UNITS[unit]}"
 }
 
 private val SIZE_UNITS = listOf("B", "kB", "MB", "GB", "TB", "PB")
