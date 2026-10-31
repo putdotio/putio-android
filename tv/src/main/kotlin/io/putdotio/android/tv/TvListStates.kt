@@ -103,6 +103,7 @@ internal fun TvLoadFailedState(
         modifier = modifier,
         actionFocus = actionFocus,
         claimFocus = claimFocus,
+        glyphRunPerCharacter = true,
     )
 }
 

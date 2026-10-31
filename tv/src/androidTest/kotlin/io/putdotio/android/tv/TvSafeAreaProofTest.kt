@@ -99,7 +99,7 @@ class TvSafeAreaProofTest {
             }
         }
         compose.waitForIdle()
-        compose.onNodeWithText("Your files are still here, but they are scheduled to be deleted in 14 days.")
+        compose.onNodeWithText("Your files are deleted in 14 days unless you renew.")
             .assertExists()
         compose.onTvTab("Home").assertIsFocused()
         val label = compose.onRoot().fetchSemanticsNode().boundsInRoot.let { "${it.width.toInt()}x${it.height.toInt()}" }

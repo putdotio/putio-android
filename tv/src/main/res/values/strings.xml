@@ -142,6 +142,11 @@
     <string name="tv_files_trash_limit_confirm">Delete</string>
     <string name="tv_files_delete_skipped">The request was incomplete. %1$s was not confirmed removed.</string>
     <string name="tv_state_loading">Loading</string>
+    <string name="tv_account_inactive_title">Your account has been deactivated.</string>
+    <plurals name="tv_account_inactive_files_deletion">
+        <item quantity="one">Your files are deleted in %d day unless you renew.</item>
+        <item quantity="other">Your files are deleted in %d days unless you renew.</item>
+    </plurals>
     <string name="tv_state_offline_title">Can’t reach put.io.</string>
     <string name="tv_state_try_now">Try now</string>
     <string name="tv_state_try_again">Try again</string>

@@ -12,6 +12,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -22,7 +24,7 @@ import androidx.tv.material3.Text
 import io.putdotio.android.R
 import io.putdotio.android.account.InactiveAccountNotice
 import io.putdotio.android.account.daysUntilFilesDeleted
-import io.putdotio.android.account.deactivatedAccountNoticeText
+import io.putdotio.android.account.InactiveAccountNoticeText
 import io.putdotio.android.account.familyPlanExpiredNoticeText
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioRadius
@@ -37,7 +39,10 @@ internal fun TvInactiveAccountNotice(
 ) {
     val days = (notice as? InactiveAccountNotice.Deactivated)?.daysUntilFilesDeleted()
     val text = when (notice) {
-        is InactiveAccountNotice.Deactivated -> deactivatedAccountNoticeText(days)
+        is InactiveAccountNotice.Deactivated -> InactiveAccountNoticeText(
+            title = stringResource(R.string.tv_account_inactive_title),
+            message = days?.toInt()?.let { pluralStringResource(R.plurals.tv_account_inactive_files_deletion, it, it) },
+        )
         InactiveAccountNotice.FamilyPlanExpired -> familyPlanExpiredNoticeText()
     }
     Row(
