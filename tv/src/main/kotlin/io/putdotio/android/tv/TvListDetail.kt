@@ -157,6 +157,8 @@ internal fun ColumnScope.TvDetailBody(
         text = remember(title) { title.breakableAtDots() },
         style = DETAIL_TITLE,
         color = MaterialTheme.colorScheme.onSurface,
+        maxLines = DETAIL_TITLE_MAX_LINES,
+        overflow = TextOverflow.Ellipsis,
         modifier = Modifier.clearAndSetSemantics {
             heading()
             text = AnnotatedString(title)
@@ -259,6 +261,7 @@ private val SECTION_PILL_ICON_GAP = 5.dp
 private val SECTION_PILL_ICON = 12.dp
 private val SECTION_PILL_LABEL = PutioTypeScale.tvButton.copy(fontSize = 11.sp, lineHeight = 16.sp)
 private val DETAIL_TITLE = PutioTypeScale.tvDetailTitle.copy(lineHeight = 22.sp)
+private const val DETAIL_TITLE_MAX_LINES = 5
 private val DETAIL_META_GAP = 5.dp
 private val DETAIL_ACTIONS_GAP = 16.dp
 private val DETAIL_ACTION_SPACING = 4.dp
