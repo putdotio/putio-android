@@ -858,8 +858,10 @@ the React Native app shared with Apple TV.
   shows its name under a back crumb naming its parent.
 - Files, folders, Search and History are list-detail: a 544dp list, and beside
   it the focused item's detail with no card and no preview. The detail shows the
-  full name uncut, its meta, the actions (a filled **Resume from 18:42**,
-  **Start over**, and More), then at most three facts.
+  full name uncut, its meta, the actions (**Resume from 18:42**, **Start
+  over**, and More), then at most three facts. The actions stay tonal while
+  focus is in the list, so the focused row is the only bright thing; Resume
+  fills yellow once focus moves into the detail.
 - Home shows **Continue watching**, then **Pinned**. Both use the Continue
   watching card: glyph and name, then the progress line or the item's meta.
   Pins live in the account's config (`/v2/config`), so they follow the account.
