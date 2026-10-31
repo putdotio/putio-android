@@ -47,6 +47,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.media3.common.C
 import androidx.media3.common.Player
 import androidx.tv.material3.Icon
@@ -242,17 +243,19 @@ private fun TvPlayerCircle(
 @Composable
 private fun TvPlayerTimes(elapsed: String, remaining: String?) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().height(TIMES_HEIGHT),
         horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         val color = MaterialTheme.colorScheme.onSurface
+        val style = PutioTypeScale.tvMono.copy(fontSize = TIMES_SIZE)
         Text(
             text = elapsed,
-            style = PutioTypeScale.tvMono,
+            style = style,
             color = color,
             modifier = Modifier.testTag(TV_PLAYER_ELAPSED_TAG),
         )
-        if (remaining != null) Text(text = remaining, style = PutioTypeScale.tvMono, color = color)
+        if (remaining != null) Text(text = remaining, style = style, color = color)
     }
 }
 
@@ -412,6 +415,8 @@ private val CIRCLE_GAP = 56.dp
 private val CHIP_HEIGHT = 32.dp
 private val CHIP_PADDING = 13.dp
 private val PLAYER_EDGE_EXTRA = 3.dp
+private val TIMES_HEIGHT = 19.dp
+private val TIMES_SIZE = 13.sp
 private val CHIP_MAX_WIDTH = 240.dp
 private val SEEK_TRACK = 4.dp
 private val SEEK_KNOB = 16.dp

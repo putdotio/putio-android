@@ -272,7 +272,7 @@ private fun TvSpeedSheet(speed: Float, focus: FocusRequester, onSpeed: (Float) -
     TvStepper(
         value = value,
         valueStyle = PutioTypeScale.tvMono.copy(fontSize = SPEED_VALUE_SIZE, lineHeight = SPEED_VALUE_LINE),
-        buttons = TvStepButtons(SPEED_STEP_LABEL, SPEED_STEP_BUTTON_WIDTH),
+        buttons = TvStepButtons(SPEED_STEP_LABEL, SPEED_STEP_BUTTON_WIDTH, SPEED_STEPPER_HEIGHT),
         less = "−",
         lessDescription = stringResource(
             PlaybackR.string.playback_speed_slower,
@@ -306,8 +306,9 @@ private fun TvSpeedSheet(speed: Float, focus: FocusRequester, onSpeed: (Float) -
         }
     }
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+        modifier = Modifier.fillMaxWidth().height(SPEED_RANGE_HEIGHT).padding(horizontal = 12.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         listOf(PLAYBACK_SPEEDS.first(), PLAYBACK_SPEEDS.last()).forEach { end ->
             Text(
@@ -365,7 +366,7 @@ private fun ColumnScope.TvSizeAndTimingSheet(
     TvStepper(
         value = formatSubtitleOffset(offsetMillis),
         valueStyle = PutioTypeScale.tvMono.copy(fontSize = OFFSET_VALUE_SIZE, lineHeight = OFFSET_VALUE_LINE),
-        buttons = TvStepButtons(OFFSET_STEP_LABEL, width = null),
+        buttons = TvStepButtons(OFFSET_STEP_LABEL, width = null, height = null),
         less = "−0.1",
         lessDescription = stringResource(PlaybackR.string.playback_subtitle_earlier),
         more = "+0.1",
@@ -412,7 +413,10 @@ private fun TvStepper(
     focusMore: Boolean,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 4.dp)
+            .then(buttons.height?.let { Modifier.height(it) } ?: Modifier),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         TvStepButton(less, lessDescription, buttons, onLess, if (!focusMore) focus else null)
@@ -447,7 +451,7 @@ private fun TvStepButton(
     }
 }
 
-private class TvStepButtons(val label: TextStyle, val width: Dp?)
+private class TvStepButtons(val label: TextStyle, val width: Dp?, val height: Dp?)
 
 @Composable
 private fun ColumnScope.TvSheetRows(content: @Composable ColumnScope.() -> Unit) {
@@ -504,7 +508,7 @@ private fun TvSheetOption(
         interactionSource = interactions,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            modifier = Modifier.heightIn(min = OPTION_MIN_HEIGHT).padding(horizontal = 12.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -597,6 +601,8 @@ private val QUICK_CHIP_HEIGHT = 28.dp
 private val SIZE_CHIP_HEIGHT = 32.dp
 private val STEP_BUTTON_WIDTH = 56.dp
 private val SPEED_VALUE_SIZE = 32.sp
-private val SPEED_VALUE_LINE = 47.sp
+private val SPEED_VALUE_LINE = 40.sp
+private val SPEED_STEPPER_HEIGHT = 47.dp
+private val SPEED_RANGE_HEIGHT = 16.dp
 private val OFFSET_VALUE_SIZE = 22.sp
 private val OFFSET_VALUE_LINE = 28.sp
