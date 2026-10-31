@@ -372,11 +372,7 @@ private fun TvReadyPlayer(
                     videoAspectRatio = videoSize.displayAspectRatioOrNull(),
                     modifier = Modifier.align(Alignment.Center),
                     textScale = appearance.textSize.scale,
-                    bottomPaddingFraction = if (overlay.controlsVisible) {
-                        SUBTITLES_ABOVE_CONTROLS
-                    } else {
-                        SubtitleView.DEFAULT_BOTTOM_PADDING_FRACTION
-                    },
+                    bottomPaddingFraction = subtitleBottomPadding(overlay.controlsVisible),
                 )
             }
         }
@@ -462,6 +458,10 @@ private fun rememberShownCues(
 
 private const val DELAYED_CUE_TICK_MILLIS = 50L
 private const val SUBTITLES_ABOVE_CONTROLS = 0.22f
+
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+private fun subtitleBottomPadding(controlsVisible: Boolean): Float =
+    if (controlsVisible) SUBTITLES_ABOVE_CONTROLS else SubtitleView.DEFAULT_BOTTOM_PADDING_FRACTION
 
 private fun Player.perform(command: TvPlayerCommand, exit: () -> Unit, playNext: () -> Boolean) {
     when (command) {
