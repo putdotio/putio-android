@@ -11,8 +11,8 @@
         </shape>
     </item>
     <item
-        android:width="235dp"
-        android:height="70dp"
+        android:width="191dp"
+        android:height="57dp"
         android:drawable="@drawable/putio_wordmark"
         android:gravity="center" />
 </layer-list>

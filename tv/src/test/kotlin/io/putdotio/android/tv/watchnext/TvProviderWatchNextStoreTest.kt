@@ -86,6 +86,20 @@ class TvProviderWatchNextStoreTest {
     }
 
     @Test
+    fun `a card without a screenshot shows the wordmark art and reads back without a poster`() = runTest {
+        val store = TvProviderWatchNextStore(context)
+        val bare = program.copy(posterUrl = null)
+
+        store.insert(TvWatchNextOwner(42L, 7L), bare, engagedAtMillis = 1_234L)
+
+        assertEquals(
+            "android.resource://${context.packageName}/drawable/tv_launcher_card",
+            provider.rows.single().getAsString(TvContract.WatchNextPrograms.COLUMN_POSTER_ART_URI),
+        )
+        assertEquals(bare, store.programs().single().program)
+    }
+
+    @Test
     fun `a row another build wrote is read without an owner and can be deleted`() = runTest {
         provider.rows += ContentValues().apply {
             put("_id", 9L)

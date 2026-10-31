@@ -17,6 +17,7 @@ import io.putdotio.android.tv.auth.TvAuthController
 import io.putdotio.android.tv.auth.TvAuthRuntime
 import io.putdotio.android.tv.auth.TvAuthSessionId
 import io.putdotio.android.tv.auth.TvAuthState
+import io.putdotio.android.tv.tvLauncherFallbackArt
 import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
@@ -44,10 +45,10 @@ internal class TvSearchSuggestionsProvider internal constructor(
         val query = selectionArgs?.firstOrNull()
             ?: uri.lastPathSegment?.takeIf { it != SearchManager.SUGGEST_URI_PATH_QUERY }
         val limit = uri.getQueryParameter(SearchManager.SUGGEST_PARAMETER_LIMIT)?.toIntOrNull()
-        val search = globalSearch(context) ?: return tvSearchSuggestions(emptyList(), limit)
+        val search = globalSearch(context) ?: return tvSearchSuggestions(emptyList(), limit, fallbackArt = null)
         // A binder thread: the system search waits on this answer, so it is bounded.
         val items = runBlocking { withTimeoutOrNull(QUERY_TIMEOUT_MILLIS) { search.files(query) } }
-        return tvSearchSuggestions(items.orEmpty(), limit)
+        return tvSearchSuggestions(items.orEmpty(), limit, context?.let(::tvLauncherFallbackArt))
     }
 
     override fun getType(uri: Uri): String = SearchManager.SUGGEST_MIME_TYPE
@@ -96,10 +97,10 @@ internal fun tvGlobalSearch(
     TvGlobalSearch(session, search) { controller.rejectAuthoritativeSession(it, quiet = true) }
 
 /**
- * The rows the system search shows: the file's name, its kind, put.io's still when it has one,
- * and a duration for media. The intent data id completes `putio://files/<id>`.
+ * The rows the system search shows: the file's name, its kind, put.io's still or else
+ * [fallbackArt], and a duration for media. The intent data id completes `putio://files/<id>`.
  */
-internal fun tvSearchSuggestions(items: List<FilesItem>, limit: Int?): Cursor {
+internal fun tvSearchSuggestions(items: List<FilesItem>, limit: Int?, fallbackArt: String?): Cursor {
     val cursor = MatrixCursor(SUGGESTION_COLUMNS)
     items.take(limit?.takeIf { it > 0 } ?: DEFAULT_LIMIT).forEach { item ->
         cursor.addRow(
@@ -108,7 +109,7 @@ internal fun tvSearchSuggestions(items: List<FilesItem>, limit: Int?): Cursor {
                 item.name,
                 item.type.suggestionKind(),
                 item.id.value.toString(),
-                item.screenshotUrl,
+                item.screenshotUrl ?: fallbackArt,
                 item.playback?.durationSeconds?.let { (it * MILLIS_PER_SECOND).toLong() },
                 SearchManager.SUGGEST_NEVER_MAKE_SHORTCUT,
             ),

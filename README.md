@@ -35,7 +35,8 @@ TV:
 - Device-code sign-in with a QR code
 - Files, Search, History and Account
 - Full-screen playback with D-pad scrubbing, resume and track pickers
-- The launcher's Watch Next row and Android TV system search
+- The launcher's Play Next row and Android TV system search, with the
+  wordmark for files without a screenshot
 
 Both apps follow the system font size up to a 1.3 font scale, as the iOS app
 caps it; widgets and notifications keep the system scale.
