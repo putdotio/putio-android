@@ -213,8 +213,8 @@ class TvShellBackTest {
             )
         }
         compose.openTab(TvDestination.Account)
-        compose.onNodeWithText("Choose your proxy").assertIsFocused().performKeyInput {
-            repeat(5) { pressKey(Key.DirectionDown) }
+        compose.onNode(hasText("Library") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionRight)
         }
         compose.onNodeWithText("Manage your trash").assertIsFocused().performKeyInput { pressCenter() }
         compose.onNodeWithText("Your trash is empty").assertIsDisplayed()
@@ -378,13 +378,15 @@ class TvShellBackTest {
             )
         }
         compose.openTab(TvDestination.Account)
-        compose.onNodeWithText("Choose your proxy").assertIsFocused().performKeyInput {
-            repeat(3) { pressKey(Key.DirectionDown) }
+        compose.onNode(hasText("Library") and hasClickAction()).assertIsFocused().performKeyInput {
+            repeat(2) { pressKey(Key.DirectionDown) }
+            pressKey(Key.DirectionRight)
         }
-        compose.onNodeWithText("Do not select subtitles by default").assertIsFocused()
+        compose.onNodeWithText("Show subtitles").assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithText("Pick matching subtitles").assertIsFocused()
         compose.pressBack()
         visitNeighbourAndReturn("Account", TvDestination.History)
-        compose.onNodeWithText("Do not select subtitles by default").assertIsFocused()
+        compose.onNodeWithText("Pick matching subtitles").assertIsFocused()
     }
 
     @Test
@@ -423,8 +425,8 @@ class TvShellBackTest {
             )
         }
         compose.openTab(TvDestination.Account)
-        compose.onNodeWithText("Choose your proxy").assertIsFocused().performKeyInput {
-            repeat(5) { pressKey(Key.DirectionDown) }
+        compose.onNode(hasText("Library") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionRight)
         }
         compose.onNodeWithText("Manage your trash").assertIsFocused().performKeyInput { pressCenter() }
         compose.onNodeWithContentDescription("Actions for trashed-1.txt").assertIsFocused().performKeyInput {

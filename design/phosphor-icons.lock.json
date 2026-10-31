@@ -317,27 +317,6 @@
     },
     {
       "resDir": "tv/src/main/res",
-      "resource": "ic_ph_tree_structure",
-      "asset": "assets/regular/tree-structure.svg",
-      "sourceSha256": "b44cc8e3cfb16309ee80aa43bb581427d57796a702ddace498ba41ff0709c461",
-      "outputSha256": "d00f6159511ae008b4f50034f23a218ad43f93ea73bd169fea7b04faffa5b8d0"
-    },
-    {
-      "resDir": "tv/src/main/res",
-      "resource": "ic_ph_bookmark_simple",
-      "asset": "assets/regular/bookmark-simple.svg",
-      "sourceSha256": "493a836009ab98f8d4ca84f088cc03f2785cdee86daa1643e003865ff3168b41",
-      "outputSha256": "5a62eb5fc71b1c8f5a973602d4e3e14abee786996363d50ede30e524c9fda4a7"
-    },
-    {
-      "resDir": "tv/src/main/res",
-      "resource": "ic_ph_monitor_play",
-      "asset": "assets/regular/monitor-play.svg",
-      "sourceSha256": "7534556c726dfd4f291fd7fb4ab3b4a9ea6e8c7aaeec39a731dda6eecd0f6258",
-      "outputSha256": "99f5b85326c74418becee1f2eba0be8466115b874d953119e2ca000b32719900"
-    },
-    {
-      "resDir": "tv/src/main/res",
       "resource": "ic_ph_subtitles",
       "asset": "assets/regular/subtitles.svg",
       "sourceSha256": "830b60f447804704071506de91ee161dd721813d795968faaa5a42be85e88cf1",
@@ -352,13 +331,6 @@
     },
     {
       "resDir": "tv/src/main/res",
-      "resource": "ic_ph_recycle",
-      "asset": "assets/regular/recycle.svg",
-      "sourceSha256": "85e74a2e58dae5cb178dc23e73216edad052da022c401c676a294245c6093965",
-      "outputSha256": "72064060dd62d39b0a5020ceddbe9fe5478e6e1d145a8fbc17b531985737e9af"
-    },
-    {
-      "resDir": "tv/src/main/res",
       "resource": "ic_ph_android_logo",
       "asset": "assets/regular/android-logo.svg",
       "sourceSha256": "a7913ed07623ade21545cc0d271021e30753a370b2b9e96251cb521b591cc371",
@@ -370,13 +342,6 @@
       "asset": "assets/regular/television.svg",
       "sourceSha256": "db6c3b07832e504d5634abfacd740e8aa45358bfc29b884f3ffd6819ec3ed124",
       "outputSha256": "fe9c191ea5235c231086ba503a12f9f0d88ffe7395601aa73c7f4f989dc67db1"
-    },
-    {
-      "resDir": "tv/src/main/res",
-      "resource": "ic_ph_circles_four",
-      "asset": "assets/regular/circles-four.svg",
-      "sourceSha256": "f090eb563b7cd379c4d92b8e9332d6614800f3c549d8fc2689a58a3c646fdc0c",
-      "outputSha256": "9e82dfb09accf05fd2934318914d07dc1f4322d71f8800e21b37474add98abb4"
     },
     {
       "resDir": "tv/src/main/res",
@@ -947,6 +912,90 @@
       "asset": "assets/regular/arrow-square-out.svg",
       "sourceSha256": "8610e8f5c7d4952ae1ada34ef56fa7cbab1780bc85f25a5c9482b74144790fc8",
       "outputSha256": "67236fd143d351547ce1d22d225c30e2e7bb24f02346afc2e7f074b7800221c6"
+    },
+    {
+      "resDir": "tv/src/main/res",
+      "resource": "ic_ph_play_circle",
+      "asset": "assets/regular/play-circle.svg",
+      "sourceSha256": "378c08eea12bc0dc63ee7914bcfe8b9764716abb7f760fe044c90381a3e9c3c2",
+      "outputSha256": "bf8a275818ae62a2d4cd2491d1f2c9fc6b9ab9a966c5532f3b972a447b5bb65e"
+    },
+    {
+      "resDir": "tv/src/main/res",
+      "resource": "ic_ph_shield_check",
+      "asset": "assets/regular/shield-check.svg",
+      "sourceSha256": "bb04d552c0baaaabd90f7eb60760cb0c7ddb7e9f47e4b76e9599ddd7dfd8eaa7",
+      "outputSha256": "19f2a01c68e149713ce61ff5f56cda1dc010fb616e04ce8d566e22ea9e4ae30d"
+    },
+    {
+      "resDir": "tv/src/main/res",
+      "resource": "ic_ph_info",
+      "asset": "assets/regular/info.svg",
+      "sourceSha256": "438a1f319d53d86e840af73fb7b1d224c9224a437b9fa449a4e2cb45a82a3552",
+      "outputSha256": "c7f7962704d410bfe3435e501da3a58feb5cc954d43ebc6831ef5f8285c87a82"
+    },
+    {
+      "resDir": "tv/src/main/res",
+      "resource": "ic_ph_film_strip",
+      "asset": "assets/regular/film-strip.svg",
+      "sourceSha256": "6d079e87432258b9fe9eff9d10ababcfbca7a400537277a215360a436581987f",
+      "outputSha256": "224bd60898b6b1e7f8bf1495b1952af110e5361d1e15f77ccd6662d4f4536b16"
+    },
+    {
+      "resDir": "tv/src/main/res",
+      "resource": "ic_ph_globe_simple",
+      "asset": "assets/regular/globe-simple.svg",
+      "sourceSha256": "ef674261414661350af7d83642fd842650988a5b2e6df6c7a3b5871f147435b7",
+      "outputSha256": "b700b076b77044fedba36856796aeec74db6126e05d9c1eab71656ff27033403"
+    },
+    {
+      "resDir": "tv/src/main/res",
+      "resource": "ic_ph_trash_simple",
+      "asset": "assets/regular/trash-simple.svg",
+      "sourceSha256": "4bba1f6bd6a5b969a1ddca0bddfd5a68764b29c7c7b9600251e96f551ade1171",
+      "outputSha256": "56e086324090500657605a7f160369c456ffac730b8952d390ab79c3512a6f43"
+    },
+    {
+      "resDir": "tv/src/main/res",
+      "resource": "ic_ph_file_text",
+      "asset": "assets/regular/file-text.svg",
+      "sourceSha256": "9a580a038cce9f6dd223597864abe1b5c5c03bf8176d2f7171574598468b16f7",
+      "outputSha256": "068d20ec3125d366983b59faf1d656f9885c278dd9a05ce06a2e27fae1f2ce7f"
+    },
+    {
+      "resDir": "tv/src/main/res",
+      "resource": "ic_ph_list_bullets",
+      "asset": "assets/regular/list-bullets.svg",
+      "sourceSha256": "5c685a673fbd053a3c548039725d1a9f902938fbcddaef3c5f958f0a64c19341",
+      "outputSha256": "fd8bdb5be0ae164faede4a6fa9fc77f5c2c1924add0a1d0ce5c4f0c9498c723a"
+    },
+    {
+      "resDir": "tv/src/main/res",
+      "resource": "ic_ph_play",
+      "asset": "assets/regular/play.svg",
+      "sourceSha256": "885b3ed2095889c4ff063dac35dc424cb9f6c00273ab44e2f90dc9dadbee661a",
+      "outputSha256": "d66850ef924af812cb0d947f5ffaaf7d36f5e9406c79fd3b292b9311af943989"
+    },
+    {
+      "resDir": "tv/src/main/res",
+      "resource": "ic_ph_lock_simple",
+      "asset": "assets/regular/lock-simple.svg",
+      "sourceSha256": "b99d3713ac86cb610eb66974d69de2aa1223c4f6387fb1053e3d375e62f5dc1c",
+      "outputSha256": "f0996ba9b5de4199b02eb6323127d683d6d8b36708948a73e5f0b22d4dff456a"
+    },
+    {
+      "resDir": "tv/src/main/res",
+      "resource": "ic_ph_chart_bar",
+      "asset": "assets/regular/chart-bar.svg",
+      "sourceSha256": "d161e503af4f5386a370ffd742d19d85e98625fd6d6eadbabbdb36d58dcca22c",
+      "outputSha256": "1d78ef25d9fe9686d9404c93919d22713d498cb324faddc9ee824f9ec5169e15"
+    },
+    {
+      "resDir": "tv/src/main/res",
+      "resource": "ic_ph_broadcast",
+      "asset": "assets/regular/broadcast.svg",
+      "sourceSha256": "e8377f3bf952fc637ca1ca31d5ea6f0917f9195d0bca9b2bfa3d6201b09c59e9",
+      "outputSha256": "2cb80365f3f46870e28e18ca3f8db030db3f50c6ca33d040cec577c6232d6215"
     }
   ]
 }

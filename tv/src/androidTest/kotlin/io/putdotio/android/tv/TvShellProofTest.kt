@@ -181,7 +181,7 @@ class TvShellProofTest {
         const val VIDEO = "Big Buck Bunny.mp4"
         const val SUBTITLES = "Big Buck Bunny.en.srt"
         const val LIVE_ISO = "ubuntu-24.04.3-live-server-amd64.iso"
-        const val PROXY_ROW = "Choose your proxy"
+        const val PROXY_ROW = "Manage your trash"
         const val USED_BYTES = 2_000_000_000_000L
         const val TOTAL_BYTES = 11_000_000_000_000L
         val STAMP: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss")
