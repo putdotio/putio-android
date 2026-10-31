@@ -44,6 +44,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextMotion
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Icon
@@ -269,7 +270,10 @@ private fun TvTab(
                 tint = glyphTint,
                 modifier = Modifier.size(14.dp),
             )
-            Text(stringResource(destination.label), style = MaterialTheme.typography.labelMedium)
+            Text(
+                stringResource(destination.label),
+                style = MaterialTheme.typography.labelMedium.copy(textMotion = TextMotion.Animated),
+            )
         }
     }
 }
