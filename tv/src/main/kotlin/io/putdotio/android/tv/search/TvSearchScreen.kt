@@ -86,6 +86,7 @@ import io.putdotio.android.search.SearchPaging
 import io.putdotio.android.search.SearchState
 import io.putdotio.android.search.SearchTerm
 import io.putdotio.android.tv.TvButton
+import io.putdotio.android.tv.rememberTvPaneHasFocus
 import io.putdotio.android.tv.TvFocus
 import io.putdotio.android.tv.TvPaneFocusOwner
 import io.putdotio.android.tv.TvPickedRow
@@ -146,7 +147,7 @@ internal fun TvSearchScreen(
     val entryTarget = remember { mutableStateOf(fieldFocus) }
     // Whether D-pad focus belongs to this pane. Only a directional exit clears it: a node
     // being disposed also drops focus, but the pane still owns it and may re-place it.
-    val paneHasFocus = remember { mutableStateOf(true) }
+    val paneHasFocus = rememberTvPaneHasFocus()
     val owner = remember { TvPaneFocusOwner(entryTarget, paneHasFocus, home = { fieldFocus }) }
     // The field's text is owned here, not mirrored from the controller: a query the
     // controller reports is at best one edit behind the IME, so it is never written back.

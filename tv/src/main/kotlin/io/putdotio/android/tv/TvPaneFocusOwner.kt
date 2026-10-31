@@ -6,6 +6,9 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
@@ -127,4 +130,26 @@ internal suspend fun refocusAfterDialog(
     if (!closing || !paneHasFocus.value) return
     withFrameNanos {}
     if (paneHasFocus.value) entryTarget.value.requestFocus()
+}
+
+internal val LocalTvTabBarHasFocus = staticCompositionLocalOf<State<Boolean>> { mutableStateOf(false) }
+
+@Composable
+internal fun rememberTvPaneHasFocus(): MutableState<Boolean> {
+    val tabBarHasFocus = LocalTvTabBarHasFocus.current
+    return remember(tabBarHasFocus) { TvPaneHasFocus(tabBarHasFocus) }
+}
+
+private class TvPaneHasFocus(private val tabBarHasFocus: State<Boolean>) : MutableState<Boolean> {
+    private val own = mutableStateOf(true)
+
+    override var value: Boolean
+        get() = own.value && !tabBarHasFocus.value
+        set(value) {
+            own.value = value
+        }
+
+    override fun component1(): Boolean = value
+
+    override fun component2(): (Boolean) -> Unit = { value = it }
 }

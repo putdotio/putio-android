@@ -10,20 +10,16 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsFocused
-import androidx.compose.ui.test.hasClickAction
-import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
-import androidx.compose.ui.test.performKeyInput
-import androidx.compose.ui.test.pressKey
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.putdotio.android.account.InactiveAccountNotice
@@ -81,10 +77,9 @@ class TvSafeAreaProofTest {
         screenshot("shell-$label")
         assertContentInsideSafeArea()
 
-        compose.onNodeWithText("Your files will show up here.").performKeyInput { pressKey(Key.DirectionLeft) }
-        compose.onNode(hasText("Files") and hasClickAction()).assertExists()
+        compose.onTvTab("Account").performSemanticsAction(SemanticsActions.RequestFocus)
         compose.waitForIdle()
-        screenshot("drawer-$label")
+        screenshot("account-tab-$label")
         assertContentInsideSafeArea()
     }
 
@@ -108,7 +103,7 @@ class TvSafeAreaProofTest {
         compose.waitForIdle()
         compose.onNodeWithText("Your files are still here, but they are scheduled to be deleted in 14 days.")
             .assertExists()
-        compose.onNodeWithText("Your files will show up here.").assertIsFocused()
+        compose.onTvTab("Home").assertIsFocused()
         val label = compose.onRoot().fetchSemanticsNode().boundsInRoot.let { "${it.width.toInt()}x${it.height.toInt()}" }
         screenshot("inactive-$label")
         assertContentInsideSafeArea()

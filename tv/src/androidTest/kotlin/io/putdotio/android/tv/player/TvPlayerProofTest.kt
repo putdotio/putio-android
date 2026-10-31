@@ -61,6 +61,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.tv.TvShell
+import io.putdotio.android.tv.openTvTab
 import io.putdotio.android.tv.auth.TvAccount
 import io.putdotio.android.tv.files.TvFilesScreen
 import io.putdotio.sdk.files.PlaybackConversionState
@@ -767,6 +768,7 @@ class TvPlayerProofTest {
                 }
             }
         }
+        compose.openTvTab("Files")
         return factory
     }
 
@@ -866,6 +868,7 @@ class TvPlayerProofTest {
                 }
             }
         }
+        compose.openTvTab("Files")
         return factory
     }
 
@@ -942,6 +945,7 @@ class TvPlayerProofTest {
                 }
             }
         }
+        compose.openTvTab("Files")
         return factory
     }
 

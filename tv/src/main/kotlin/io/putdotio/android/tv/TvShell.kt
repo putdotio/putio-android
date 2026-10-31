@@ -1,167 +1,293 @@
 package io.putdotio.android.tv
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Icon
 import androidx.tv.material3.ListItem
 import androidx.tv.material3.ListItemScale
 import androidx.tv.material3.MaterialTheme
-import androidx.tv.material3.NavigationDrawer
-import androidx.tv.material3.NavigationDrawerItem
-import androidx.tv.material3.NavigationDrawerItemScale
+import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import io.putdotio.android.R
-import io.putdotio.android.design.PutioDesignTokens
+import io.putdotio.android.design.R as DesignR
 import io.putdotio.android.telemetry.AnalyticsEvent
 import io.putdotio.android.telemetry.ProductAnalytics
 import io.putdotio.android.tv.account.TvInactiveAccountNotice
 import io.putdotio.android.tv.auth.TvAccount
 
 /**
- * Signed-in shell per putio-design platforms/android/DESIGN.md §Android TV: the
- * M3 TV navigation drawer (80dp icon rail, labels while focus is inside) on the
- * left, one destination pane on the right. Focus starts in the pane; on
- * re-entry the drawer restores focus to the item that last held it, and on
- * first entry to the selected destination.
+ * Signed-in shell per DESIGN.md › Android TV: a top bar with the wordmark and the tabs, then the
+ * selected tab's pane. The app opens on Home. A tab selects when it takes focus; Down enters the
+ * pane on its last-focused row, and Up from the pane's top lands on the selected tab.
  *
- * Files is home. Back with the drawer focused returns focus to the pane. In the pane,
- * a pane's own Back (an overlay, a sub-screen) comes first; then another destination
- * returns to Files, and Files takes [onFilesBack] or, at its root, falls through to the
- * system and leaves the app.
+ * Each tab keeps its own back stack, and its saved UI state while another tab shows. Back runs
+ * the pane's own step first (an overlay, a sub-screen, a Files folder), then moves focus to the
+ * tab bar. Back in the tab bar selects Home, and on Home leaves the app.
  *
  * An inactive account's notice sits above every pane and takes no focus.
- *
- * The background reaches the screen edges; the drawer and pane sit inside the
- * layout margins ([tvSafeAreaPadding]), and the pane adds one `space.sm`
- * step (16dp) from the drawer.
  */
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 internal fun TvShell(
     account: TvAccount,
     onSignOut: () -> Unit,
     modifier: Modifier = Modifier,
+    homePane: (@Composable (paneFocus: FocusRequester) -> Unit)? = null,
     filesPane: @Composable (paneFocus: FocusRequester) -> Unit = { TvPlaceholderPane(TvDestination.Files, it) },
     searchPane: @Composable (paneFocus: FocusRequester) -> Unit = { TvPlaceholderPane(TvDestination.Search, it) },
     historyPane: @Composable (paneFocus: FocusRequester) -> Unit = { TvPlaceholderPane(TvDestination.History, it) },
     accountPane: @Composable (paneFocus: FocusRequester) -> Unit = { TvAccountFallbackPane(account, onSignOut, it) },
-    /** Set by a pane that wants another destination shown, such as Search opening a result in Files. */
+    /** Set by a pane that wants another tab shown, such as Search opening a result in Files. */
     requestedDestination: TvDestination? = null,
     onDestinationRequestHandled: () -> Unit = {},
     /** Files' own Back step, such as leaving a folder; null when Files has none. */
     onFilesBack: (() -> Unit)? = null,
 ) {
-    var destination by rememberSaveable { mutableStateOf(TvDestination.Files) }
-    var drawerHasFocus by remember { mutableStateOf(false) }
+    var destination by rememberSaveable { mutableStateOf(TvDestination.Home) }
+    val tabBarFocus = remember { mutableStateOf(false) }
+    var tabBarHasFocus by tabBarFocus
+    var focusPaneOf by remember { mutableStateOf<TvDestination?>(destination) }
+    val tabFocus = remember { TvDestination.entries.associateWith { FocusRequester() } }
+    val paneFocus = remember { FocusRequester() }
+    val paneStates = rememberSaveableStateHolder()
+    val panes = TvShellPanes(homePane, filesPane, searchPane, historyPane, accountPane)
+
     // Registered before any pane composes, so each pane's own Back handlers take precedence.
-    BackHandler(enabled = destination != TvDestination.Files) { destination = TvDestination.Files }
-    BackHandler(enabled = destination == TvDestination.Files && onFilesBack != null) { onFilesBack?.invoke() }
-    // Composed each time the drawer takes focus, so it registers after every pane handler and
-    // Back closes the drawer before any pane rule runs. Focus re-enters the pane as D-pad Right
-    // does, landing on its last-focused row; a pane with nothing to focus takes its own step
-    // at once.
-    val focusManager = LocalFocusManager.current
-    if (drawerHasFocus) {
-        BackHandler {
-            if (!focusManager.moveFocus(FocusDirection.Right)) {
-                if (destination != TvDestination.Files) destination = TvDestination.Files else onFilesBack?.invoke()
-            }
-        }
+    BackHandler(enabled = !tabBarHasFocus) { tabFocus.getValue(destination).requestFocus() }
+    BackHandler(enabled = !tabBarHasFocus && destination == TvDestination.Files && onFilesBack != null) {
+        onFilesBack?.invoke()
     }
     LaunchedEffect(requestedDestination) {
         if (requestedDestination != null) {
             destination = requestedDestination
+            focusPaneOf = requestedDestination
             onDestinationRequestHandled()
         }
     }
     LaunchedEffect(destination) { ProductAnalytics.capture(AnalyticsEvent.ScreenViewed(destination.analyticsScreen)) }
-    val paneFocus = remember { FocusRequester() }
-    val selectedItemFocus = remember { FocusRequester() }
 
-    NavigationDrawer(
+    Column(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .tvSafeAreaPadding(),
-        drawerContent = {
-            Column(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .focusRestorer(selectedItemFocus)
-                    .onFocusChanged { drawerHasFocus = it.hasFocus }
-                    .focusGroup(),
-            ) {
-                Text(
-                    text = stringResource(R.string.tv_wordmark),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = PutioDesignTokens.yellowSolid,
-                    modifier = Modifier.padding(start = 16.dp, bottom = 24.dp),
-                )
-                TvDestination.entries.forEach { entry ->
-                    NavigationDrawerItem(
-                        selected = entry == destination,
-                        onClick = { destination = entry },
-                        modifier = if (entry == destination) Modifier.focusRequester(selectedItemFocus) else Modifier,
-                        scale = NavigationDrawerItemScale.None,
-                        leadingContent = {
-                            Icon(
-                                painter = painterResource(entry.icon),
-                                contentDescription = null,
-                                modifier = Modifier.size(24.dp),
-                            )
-                        },
-                    ) {
-                        Text(stringResource(entry.label))
-                    }
-                }
-            }
-        },
     ) {
-        Column(
+        TvTabBar(
+            selected = destination,
+            tabFocus = tabFocus,
+            onSelect = { destination = it },
             modifier = Modifier
-                .fillMaxSize()
-                .padding(start = PANE_INSET),
+                .onFocusChanged { tabBarHasFocus = it.hasFocus }
+                .focusProperties { enter = { tabBarEntry(it, tabFocus.getValue(destination)) } },
+            paneFocus = paneFocus,
+        )
+        account.inactiveNotice?.let { notice ->
+            TvInactiveAccountNotice(notice, Modifier.padding(top = TAB_BAR_GAP))
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .padding(top = TAB_BAR_GAP),
         ) {
-            account.inactiveNotice?.let { notice ->
-                TvInactiveAccountNotice(notice, Modifier.padding(bottom = PANE_INSET))
-            }
-            Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
-                when (destination) {
-                    TvDestination.Files -> filesPane(paneFocus)
-                    TvDestination.Search -> searchPane(paneFocus)
-                    TvDestination.History -> historyPane(paneFocus)
-                    TvDestination.Account -> accountPane(paneFocus)
-                }
+            CompositionLocalProvider(LocalTvTabBarHasFocus provides tabBarFocus) {
+                paneStates.SaveableStateProvider(destination.name) { panes.Pane(destination, paneFocus) }
             }
         }
     }
 
-    // Runs after the chosen pane has composed, so its requester is attached.
-    LaunchedEffect(destination) { paneFocus.requestFocus() }
+    // Composed after the pane, so it registers after every pane handler: Back in the tab bar
+    // selects Home before any pane rule runs. Keyed on the tab so a newly shown pane's handlers
+    // cannot register after it.
+    if (tabBarHasFocus) {
+        key(destination) {
+            BackHandler(enabled = destination != TvDestination.Home) {
+                tabFocus.getValue(TvDestination.Home).requestFocus()
+            }
+        }
+    }
+    // Runs after the composition that shows [shown], so its pane's requester is attached; the
+    // keys, not the live state, say which tab that was. Home's placeholder has nothing to focus,
+    // so focus goes to its tab.
+    val shown = destination
+    val focusWanted = focusPaneOf == shown
+    LaunchedEffect(shown, focusWanted) {
+        if (focusWanted && focusPaneOf == shown) {
+            focusPaneOf = null
+            if (shown == TvDestination.Home && homePane == null) {
+                tabFocus.getValue(shown).requestFocus()
+            } else {
+                paneFocus.requestFocus()
+            }
+        }
+    }
+}
+
+private fun tabBarEntry(direction: FocusDirection, selectedTab: FocusRequester): FocusRequester =
+    if (direction == FocusDirection.Enter) FocusRequester.Default else selectedTab
+
+private class TvShellPanes(
+    val home: (@Composable (paneFocus: FocusRequester) -> Unit)?,
+    val files: @Composable (paneFocus: FocusRequester) -> Unit,
+    val search: @Composable (paneFocus: FocusRequester) -> Unit,
+    val history: @Composable (paneFocus: FocusRequester) -> Unit,
+    val account: @Composable (paneFocus: FocusRequester) -> Unit,
+) {
+    @Composable
+    fun Pane(destination: TvDestination, paneFocus: FocusRequester) {
+        when (destination) {
+            TvDestination.Home -> if (home != null) home(paneFocus) else TvHomePlaceholderPane()
+            TvDestination.Files -> files(paneFocus)
+            TvDestination.Search -> search(paneFocus)
+            TvDestination.History -> history(paneFocus)
+            TvDestination.Account -> account(paneFocus)
+        }
+    }
+}
+
+@Composable
+private fun TvTabBar(
+    selected: TvDestination,
+    tabFocus: Map<TvDestination, FocusRequester>,
+    onSelect: (TvDestination) -> Unit,
+    paneFocus: FocusRequester,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = Modifier.height(TAB_BAR_HEIGHT),
+        horizontalArrangement = Arrangement.spacedBy(20.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Image(
+            painter = painterResource(DesignR.drawable.putio_wordmark),
+            contentDescription = stringResource(R.string.tv_wordmark),
+            modifier = Modifier.height(22.dp),
+        )
+        Row(
+            modifier = modifier.focusGroup(),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TvDestination.entries.forEach { entry ->
+                TvTab(
+                    destination = entry,
+                    selected = entry == selected,
+                    onFocused = { if (entry != selected) onSelect(entry) },
+                    modifier = Modifier
+                        .focusRequester(tabFocus.getValue(entry))
+                        .focusProperties { down = paneFocus },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TvTab(
+    destination: TvDestination,
+    selected: Boolean,
+    onFocused: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val interactions = remember { MutableInteractionSource() }
+    val focused by interactions.collectIsFocusedAsState()
+    val colors = MaterialTheme.colorScheme
+    val glyphTint = when {
+        focused -> TvFocus.content
+        selected -> colors.onSecondaryContainer
+        else -> colors.onSurfaceVariant
+    }
+    Surface(
+        onClick = onFocused,
+        modifier = modifier
+            .height(TAB_HEIGHT)
+            .onFocusChanged { if (it.isFocused) onFocused() }
+            .semantics {
+                this.selected = selected
+                role = Role.Tab
+            },
+        shape = ClickableSurfaceDefaults.shape(CircleShape),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = if (selected) colors.secondaryContainer else Color.Transparent,
+            contentColor = if (selected) colors.onSurface else colors.onSurfaceVariant,
+            focusedContainerColor = TvFocus.container,
+            focusedContentColor = TvFocus.content,
+            pressedContainerColor = TvFocus.container,
+            pressedContentColor = TvFocus.content,
+        ),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f, pressedScale = 1f),
+        interactionSource = interactions,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxHeight()
+                .padding(TAB_PADDING),
+            horizontalArrangement = Arrangement.spacedBy(7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                painter = painterResource(if (selected) destination.selectedIcon else destination.icon),
+                contentDescription = null,
+                tint = glyphTint,
+                modifier = Modifier.size(14.dp),
+            )
+            Text(stringResource(destination.label), style = MaterialTheme.typography.bodyLarge)
+        }
+    }
+}
+
+@Composable
+private fun TvHomePlaceholderPane() {
+    Box(modifier = Modifier.fillMaxSize()) {
+        Text(
+            text = stringResource(R.string.tv_placeholder_home),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
 }
 
 @Composable
@@ -169,24 +295,20 @@ private fun TvPlaceholderPane(
     destination: TvDestination,
     paneFocus: FocusRequester,
 ) {
-    Column(modifier = Modifier.fillMaxSize()) {
-        PaneTitle(stringResource(destination.label))
-        val placeholder = when (destination) {
-            TvDestination.Files -> R.string.tv_placeholder_files
-            TvDestination.Search -> R.string.tv_placeholder_search
-            TvDestination.History -> R.string.tv_placeholder_history
-            TvDestination.Account -> R.string.tv_destination_account
-        }
-        ListItem(
-            selected = false,
-            onClick = {},
-            headlineContent = { Text(stringResource(placeholder)) },
-            scale = ListItemScale.None,
-            modifier = Modifier
-                .padding(top = 32.dp)
-                .focusRequester(paneFocus),
-        )
+    val placeholder = when (destination) {
+        TvDestination.Home -> R.string.tv_placeholder_home
+        TvDestination.Files -> R.string.tv_placeholder_files
+        TvDestination.Search -> R.string.tv_placeholder_search
+        TvDestination.History -> R.string.tv_placeholder_history
+        TvDestination.Account -> R.string.tv_destination_account
     }
+    ListItem(
+        selected = false,
+        onClick = {},
+        headlineContent = { Text(stringResource(placeholder)) },
+        scale = ListItemScale.None,
+        modifier = Modifier.focusRequester(paneFocus),
+    )
 }
 
 /** The default Account pane: who is signed in, and Sign out. */
@@ -197,12 +319,10 @@ private fun TvAccountFallbackPane(
     paneFocus: FocusRequester,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
-        PaneTitle(stringResource(R.string.tv_destination_account))
         Text(
             text = stringResource(R.string.tv_account_signed_in_as, account.username),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 8.dp),
         )
         ListItem(
             selected = false,
@@ -210,26 +330,22 @@ private fun TvAccountFallbackPane(
             headlineContent = { Text(stringResource(R.string.tv_account_sign_out)) },
             scale = ListItemScale.None,
             modifier = Modifier
-                .padding(top = 32.dp)
+                .padding(top = 16.dp)
                 .focusRequester(paneFocus),
         )
     }
 }
 
-@Composable
-private fun PaneTitle(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.headlineLarge,
-        color = MaterialTheme.colorScheme.onBackground,
-    )
-}
-
 internal val PANE_INSET = 16.dp
+private val TAB_BAR_HEIGHT = 40.dp
+private val TAB_BAR_GAP = 20.dp
+private val TAB_HEIGHT = 28.dp
+private val TAB_PADDING = PaddingValues(horizontal = 12.dp)
 
 private val TvDestination.analyticsScreen: AnalyticsEvent.Screen
     get() =
         when (this) {
+            TvDestination.Home -> AnalyticsEvent.Screen.Home
             TvDestination.Files -> AnalyticsEvent.Screen.Files
             TvDestination.Search -> AnalyticsEvent.Screen.Search
             TvDestination.History -> AnalyticsEvent.Screen.History

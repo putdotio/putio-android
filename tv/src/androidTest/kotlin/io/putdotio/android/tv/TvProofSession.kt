@@ -5,7 +5,17 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.runtime.Composable
+import android.view.KeyEvent
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.SemanticsNodeInteractionsProvider
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.AndroidComposeTestRule
+import androidx.compose.ui.test.junit4.ComposeTestRule
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.ext.junit.rules.ActivityScenarioRule
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
@@ -132,14 +142,16 @@ internal fun tvProofDependencies(
 )
 
 /**
- * Mounts the production TV session and signed-in shell on [dependencies]. [onExit] stands in for
- * the system leaving the app; it is registered before the shell. [overlay] draws over the shell.
+ * Mounts the production TV session and signed-in shell on [dependencies], then opens [tab] (null
+ * stays on Home). [onExit] stands in for the system leaving the app; it is registered before the
+ * shell. [overlay] draws over the shell.
  */
 internal fun AndroidComposeTestRule<ActivityScenarioRule<ComponentActivity>, ComponentActivity>.mountTvProofSession(
     dependencies: TvSessionDependencies,
     onExit: (() -> Unit)? = null,
     account: TvAccount = TvAccount(userId = 1, username = "proof", email = "proof@example.invalid", historyEnabled = true),
     overlay: @Composable BoxScope.() -> Unit = {},
+    tab: String? = "Files",
 ): TvSession {
     val auth = MutableStateFlow<TvAuthState>(TvAuthState.SignedIn(account, TvAuthSessionId(1)))
     lateinit var session: TvSession
@@ -162,7 +174,19 @@ internal fun AndroidComposeTestRule<ActivityScenarioRule<ComponentActivity>, Com
             }
         }
     }
+    tab?.let(::openTvTab)
     return session
+}
+
+internal fun SemanticsNodeInteractionsProvider.onTvTab(label: String) =
+    onNode(hasText(label) and SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab))
+
+internal fun ComposeTestRule.openTvTab(label: String) {
+    waitForIdle()
+    onTvTab(label).performSemanticsAction(SemanticsActions.RequestFocus)
+    waitForIdle()
+    InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_DOWN)
+    waitForIdle()
 }
 
 internal fun proofItem(id: Long, name: String, type: PutioFileType, parentId: FilesItemId) = FilesItem(

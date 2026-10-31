@@ -59,6 +59,7 @@ import io.putdotio.android.history.HistoryItem
 import io.putdotio.android.history.HistoryPaging
 import io.putdotio.android.history.HistoryState
 import io.putdotio.android.tv.TvButton
+import io.putdotio.android.tv.rememberTvPaneHasFocus
 import io.putdotio.android.tv.TvPaneFocusOwner
 import io.putdotio.android.tv.TvPickedRow
 import io.putdotio.android.tv.TvStatusScreen
@@ -107,7 +108,7 @@ internal fun TvHistoryScreen(
     val retryFocus = remember { FocusRequester() }
     // Whether D-pad focus belongs to this pane. Only a directional exit clears it: a node
     // being disposed also drops focus, but the pane still owns it and must re-place it.
-    val paneHasFocus = remember { mutableStateOf(true) }
+    val paneHasFocus = rememberTvPaneHasFocus()
     // Where the shell's entry request and the window's initial focus land: the rows while
     // there are any, Try again on a failure, Clear otherwise. Sections move it as they take
     // focus; the effects below set it as content changes, before any focus can arrive.
@@ -225,14 +226,9 @@ private fun TvHistoryHeader(
         modifier = Modifier
             .fillMaxWidth()
             .padding(bottom = 16.dp),
+        horizontalArrangement = Arrangement.End,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = stringResource(R.string.tv_history_title),
-            style = MaterialTheme.typography.headlineLarge,
-            color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.weight(1f),
-        )
         TvButton(onClick = onClear, modifier = modifier) {
             Icon(
                 painter = painterResource(R.drawable.ic_ph_backspace),

@@ -69,6 +69,7 @@ import io.putdotio.android.trash.TrashRestoreSubmission
 import io.putdotio.android.trash.TrashState
 import io.putdotio.android.parsePutioTimestamp
 import io.putdotio.android.tv.TvButton
+import io.putdotio.android.tv.rememberTvPaneHasFocus
 import io.putdotio.android.tv.TvPaneFocusOwner
 import io.putdotio.android.tv.TvStatusScreen
 import io.putdotio.android.tv.bringIntoComposition
@@ -109,7 +110,7 @@ internal fun TvTrashScreen(
     val emptyFocus = remember { FocusRequester() }
     val listFocus = remember { FocusRequester() }
     val retryFocus = remember { FocusRequester() }
-    val paneHasFocus = remember { mutableStateOf(true) }
+    val paneHasFocus = rememberTvPaneHasFocus()
     val entryTarget = remember { mutableStateOf(refreshFocus) }
     val rowsPresent = rememberUpdatedState(hasRows)
     val owner = remember {

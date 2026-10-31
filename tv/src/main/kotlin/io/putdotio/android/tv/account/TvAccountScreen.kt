@@ -87,6 +87,7 @@ import io.putdotio.android.settings.putioFailure
 import io.putdotio.android.telemetry.AnalyticsEvent
 import io.putdotio.android.telemetry.ProductAnalytics
 import io.putdotio.android.tv.TvButton
+import io.putdotio.android.tv.rememberTvPaneHasFocus
 import io.putdotio.android.tv.TvChoice
 import io.putdotio.android.tv.TvChoiceDialog
 import io.putdotio.android.tv.TvConfirmDialog
@@ -225,7 +226,7 @@ private fun TvAccountBody(
             -> true
         }
     }
-    val paneHasFocus = remember { mutableStateOf(true) }
+    val paneHasFocus = rememberTvPaneHasFocus()
     // Losing the Trash pane's focused node makes the window re-enter this pane on its own;
     // the entry point is the row that opened Trash from the first composition, so that
     // re-entry lands there rather than on the first row. A dialog restored with the pane

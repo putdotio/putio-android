@@ -131,9 +131,7 @@ class TvFoundationsProofTest {
     @Test
     fun signOut() {
         mount(listings = rootListing())
-        press(KeyEvent.KEYCODE_DPAD_LEFT)
-        repeat(ACCOUNT_STEPS) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.openTvTab("Account")
         compose.waitUntil(5_000) { compose.onAllNodesWithText("Sign out").fetchSemanticsNodes().isNotEmpty() }
         compose.onAllNodesWithText("Sign out")[0].performSemanticsAction(SemanticsActions.OnClick)
         waitForText("Sign out of put.io?")
@@ -231,7 +229,6 @@ class TvFoundationsProofTest {
     private companion object {
         const val STEP_MILLIS = 400L
         const val PROOF_EMAIL = "proof@example.invalid"
-        const val ACCOUNT_STEPS = 3
     }
 }
 

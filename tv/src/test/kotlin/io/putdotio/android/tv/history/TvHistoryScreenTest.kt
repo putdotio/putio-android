@@ -235,7 +235,7 @@ class TvHistoryScreenTest {
                 clock = clock,
             )
         }
-        compose.onNodeWithText("History").assertIsDisplayed()
+        compose.onNodeWithText("History").assertDoesNotExist()
     }
 
     private fun items() = listOf(

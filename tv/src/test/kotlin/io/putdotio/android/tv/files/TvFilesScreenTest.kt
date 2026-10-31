@@ -68,7 +68,7 @@ class TvFilesScreenTest {
             onEvent = { events += it; true },
         )
 
-        compose.onNodeWithText("Your Files").assertIsDisplayed()
+        compose.onNodeWithText("Your Files").assertDoesNotExist()
         compose.onNodeWithContentDescription("Open tears_of_steel").assertIsFocused()
         compose.onNodeWithText("33% watched").assertIsDisplayed()
         compose.onNodeWithText("1.1 kB").assertIsDisplayed()
