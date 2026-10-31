@@ -96,13 +96,15 @@ internal fun MobilePlaybackFailureState(
  * Converting to MP4 over the player: a line that it keeps going, a bar with its percentage while it
  * runs, and the one action the state allows. Opening a video with no conversion requested starts
  * one; queued and running conversions poll. After a failure the viewer converts again, and checks
- * again where the status waits.
+ * again where the status waits. With VLC on the phone, Play in VLC plays the original now, while
+ * the conversion goes on for this player.
  */
 @Composable
 internal fun MobileConversionState(
     conversion: PlaybackContent.Conversion,
     onRefresh: () -> Unit,
     onStart: () -> Unit,
+    onPlayInVlc: (() -> Unit)? = null,
 ) {
     PlaybackConversionPolling(conversion, onRefresh)
     val state = conversion.state
@@ -159,13 +161,16 @@ internal fun MobileConversionState(
                     )
                 }
             }
+            if (action != null || onPlayInVlc != null) Spacer(Modifier.height(14.dp))
             if (action != null) {
-                Spacer(Modifier.height(14.dp))
                 MobilePlayerStateAction(
                     label = stringResource(action.first),
                     enabled = conversion.refreshRequestId == null,
                     onClick = action.second,
                 )
+            }
+            if (onPlayInVlc != null) {
+                MobilePlayerStateAction(stringResource(R.string.mobile_playback_play_in_vlc), onClick = onPlayInVlc)
             }
         }
     }

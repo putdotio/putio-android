@@ -720,7 +720,9 @@ A video that needs **MP4 conversion** keeps the player's frame with the video
 dimmed: "Converting to MP4", one line saying it keeps going if you leave, and a
 progress bar with a mono percentage. The one tonal action follows the state: Check again while it
 waits for the viewer, Convert again after a failure, and only Back for a video
-that can't be converted.
+that can't be converted. With VLC on the phone, a tonal **Play in VLC now**
+follows in every state: it plays the original at once, and the conversion
+goes on for the next time.
 
 Audio keeps playing while you browse: a mini player card above the nav bar on
 every tab, on `surface-container-high` with 16dp corners, 8dp from the sides

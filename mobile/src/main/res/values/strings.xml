@@ -132,6 +132,7 @@
     <string name="mobile_playback_finding_next">Finding next video</string>
     <string name="mobile_playback_next_error_title">Couldn’t find the next video</string>
     <string name="mobile_playback_conversion_title">Converting to MP4</string>
+    <string name="mobile_playback_play_in_vlc">Play in VLC now</string>
     <string name="mobile_playback_conversion_completed">Conversion finished. Check again to play.</string>
     <string name="mobile_playback_conversion_failed">Conversion failed. Try again later.</string>
     <string name="mobile_playback_conversion_unavailable">This video cannot be converted.</string>
