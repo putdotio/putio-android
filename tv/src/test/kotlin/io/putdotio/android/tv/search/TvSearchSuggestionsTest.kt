@@ -154,7 +154,7 @@ class TvSearchSuggestionsTest {
         TvGlobalSearch(session = { signedIn }, search = search, reject = { error("not ended") })
 
     private fun provider(search: TvGlobalSearch) =
-        TvSearchSuggestionsProvider { search }.apply { attachInfo(context, null) }
+        TvSearchSuggestionsProvider { search }.also { it.attachInfo(context, null) }
 
     /** An attribute of searchable.xml as written, with string references resolved. */
     private fun searchableAttribute(name: String): String? {
