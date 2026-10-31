@@ -114,9 +114,11 @@ internal class TvWatchNext(
             val change = when (result) {
                 is PutioResult.Success ->
                     watchNextChange(card.media(result.value), result.value.playback?.startFromSeconds ?: 0.0)
-                        // Moves only a card whose position changed elsewhere; when the viewer
-                        // engaged with it stays as it was.
-                        .takeUnless { it is TvWatchNextChange.Publish && it.program == card.program }
+                        // Moves only a card whose position changed elsewhere or that lacks art;
+                        // when the viewer engaged with it stays as it was.
+                        .takeUnless {
+                            it is TvWatchNextChange.Publish && it.program == card.program && !card.missingArt
+                        }
                 is PutioResult.Failure -> when {
                     result.failure is PutioFailure.AuthenticationRequired ->
                         return result.failure as PutioFailure.AuthenticationRequired

@@ -186,6 +186,18 @@ class TvWatchNextTest {
         }
 
     @Test
+    fun `reconciling gives a card stored without art the wordmark`() = runTest(UnconfinedTestDispatcher()) {
+        val program = TvWatchNextProgram(7L, "film-7.mp4", null, 120_000L, 600_000L)
+        store.rows += FakeWatchNextStore.Row(5L, TvWatchNextOwner(1L, 7L), program, 0L, missingArt = true)
+        val recorder = watchNext().recorder(1L, TvAuthSessionId(1L))
+
+        recorder.reconcile { PutioResult.Success(file(7L, startFrom = 120.0).copy(screenshotUrl = null)) }
+
+        assertEquals(listOf(7L), store.updates)
+        assertEquals(false, store.rows.single().missingArt)
+    }
+
+    @Test
     fun `a 401 while reconciling stops the pass and is returned as the session's verdict`() =
         runTest(UnconfinedTestDispatcher()) {
             val recorder = watchNext().recorder(1L, TvAuthSessionId(1L))
@@ -251,6 +263,7 @@ private class FakeWatchNextStore : TvWatchNextStore {
         val program: TvWatchNextProgram,
         val engagedAtMillis: Long,
         val browsable: Boolean = true,
+        val missingArt: Boolean = false,
     )
 
     val rows = mutableListOf<Row>()
@@ -258,7 +271,7 @@ private class FakeWatchNextStore : TvWatchNextStore {
     private var nextId = 100L
 
     override suspend fun programs() =
-        rows.map { TvStoredWatchNextProgram(it.rowId, it.owner, it.program, it.engagedAtMillis) }
+        rows.map { TvStoredWatchNextProgram(it.rowId, it.owner, it.program, it.engagedAtMillis, it.missingArt) }
 
     override suspend fun insert(owner: TvWatchNextOwner, program: TvWatchNextProgram, engagedAtMillis: Long) {
         rows += Row(nextId++, owner, program, engagedAtMillis)
@@ -272,7 +285,12 @@ private class FakeWatchNextStore : TvWatchNextStore {
     ) {
         updates += program.fileId
         val index = rows.indexOfFirst { it.rowId == rowId }
-        rows[index] = rows[index].copy(owner = owner, program = program, engagedAtMillis = engagedAtMillis)
+        rows[index] = rows[index].copy(
+            owner = owner,
+            program = program,
+            engagedAtMillis = engagedAtMillis,
+            missingArt = false,
+        )
     }
 
     override suspend fun delete(rowId: Long) {

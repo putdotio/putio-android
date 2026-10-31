@@ -30,6 +30,7 @@ internal data class TvStoredWatchNextProgram(
     val owner: TvWatchNextOwner?,
     val program: TvWatchNextProgram,
     val engagedAtMillis: Long,
+    val missingArt: Boolean = false,
 )
 
 /** The system's Watch Next programs this app owns; the provider refuses anyone else's. */
@@ -141,17 +142,19 @@ internal fun watchNextIntent(context: Context, fileId: Long): Intent =
 
 private fun Cursor.toStored(fallbackArt: String): TvStoredWatchNextProgram {
     val owner = string(WatchNextPrograms.COLUMN_INTERNAL_PROVIDER_ID)?.toOwner()
+    val posterArt = string(WatchNextPrograms.COLUMN_POSTER_ART_URI)
     return TvStoredWatchNextProgram(
         rowId = getLong(getColumnIndexOrThrow(BaseColumns._ID)),
         owner = owner,
         program = TvWatchNextProgram(
             fileId = owner?.fileId ?: 0L,
             title = string(WatchNextPrograms.COLUMN_TITLE).orEmpty(),
-            posterUrl = string(WatchNextPrograms.COLUMN_POSTER_ART_URI)?.takeUnless { it == fallbackArt },
+            posterUrl = posterArt?.takeUnless { it == fallbackArt },
             positionMillis = long(WatchNextPrograms.COLUMN_LAST_PLAYBACK_POSITION_MILLIS),
             durationMillis = long(WatchNextPrograms.COLUMN_DURATION_MILLIS),
         ),
         engagedAtMillis = long(WatchNextPrograms.COLUMN_LAST_ENGAGEMENT_TIME_UTC_MILLIS),
+        missingArt = posterArt == null,
     )
 }
 

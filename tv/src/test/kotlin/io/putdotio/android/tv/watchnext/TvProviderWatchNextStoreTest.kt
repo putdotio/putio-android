@@ -97,6 +97,17 @@ class TvProviderWatchNextStoreTest {
             provider.rows.single().getAsString(TvContract.WatchNextPrograms.COLUMN_POSTER_ART_URI),
         )
         assertEquals(bare, store.programs().single().program)
+        assertEquals(false, store.programs().single().missingArt)
+    }
+
+    @Test
+    fun `a row written without poster art reads as missing art`() = runTest {
+        provider.rows += watchNextProgramValues(context, TvWatchNextOwner(42L, 7L), program, 1_234L).apply {
+            putNull(TvContract.WatchNextPrograms.COLUMN_POSTER_ART_URI)
+            put("_id", 9L)
+        }
+
+        assertEquals(true, TvProviderWatchNextStore(context).programs().single().missingArt)
     }
 
     @Test

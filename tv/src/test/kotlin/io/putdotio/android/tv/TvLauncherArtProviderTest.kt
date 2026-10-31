@@ -5,6 +5,7 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import java.io.File
 import java.io.FileNotFoundException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
@@ -27,6 +28,18 @@ class TvLauncherArtProviderTest {
         val art = context.contentResolver.openInputStream(Uri.parse(tvLauncherFallbackArt(context))).use {
             BitmapFactory.decodeStream(it)
         }
+
+        assertEquals(art.width * 9, art.height * 16)
+    }
+
+    @Test
+    fun `the art is rendered again after the cache is cleared`() {
+        Robolectric.setupContentProvider(TvLauncherArtProvider::class.java, "${context.packageName}.launcherart")
+        val uri = Uri.parse(tvLauncherFallbackArt(context))
+        context.contentResolver.openInputStream(uri).use { it?.read() }
+
+        File(context.cacheDir, "card.png").delete()
+        val art = context.contentResolver.openInputStream(uri).use { BitmapFactory.decodeStream(it) }
 
         assertEquals(art.width * 9, art.height * 16)
     }

@@ -31,12 +31,14 @@ internal class TvLauncherArtProvider : ContentProvider() {
 
     override fun openFile(uri: Uri, mode: String): ParcelFileDescriptor {
         if (uri.pathSegments != listOf(CARD_ART) || mode != "r") throw FileNotFoundException(uri.toString())
-        return ParcelFileDescriptor.open(rendered ?: render(), ParcelFileDescriptor.MODE_READ_ONLY)
+        return ParcelFileDescriptor.open(current() ?: render(), ParcelFileDescriptor.MODE_READ_ONLY)
     }
+
+    private fun current(): File? = rendered?.takeIf(File::exists)
 
     @Synchronized
     private fun render(): File {
-        rendered?.let { return it }
+        current()?.let { return it }
         val context = requireNotNull(context)
         val art = requireNotNull(ContextCompat.getDrawable(context, R.drawable.tv_launcher_card)).toBitmap()
         val file = File(context.cacheDir, CARD_ART)
