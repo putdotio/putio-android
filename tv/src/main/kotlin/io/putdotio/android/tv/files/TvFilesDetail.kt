@@ -268,8 +268,7 @@ private fun TvFilesPrimaryActions(
 private class PrimaryAction(val label: AnnotatedString, @param:DrawableRes val icon: Int, val onClick: () -> Unit)
 
 internal fun FilesItem.resumePosition(resumePlayback: Boolean): Double? {
-    if (type != PutioFileType.VIDEO) return null
-    val playback = playback ?: return null
+    val playback = playback?.takeIf { type == PutioFileType.VIDEO } ?: return null
     val position = playback.startFromSeconds
     val duration = playback.durationSeconds
     val unfinished = duration == null || position < duration - FINISHED_WITHIN_SECONDS
