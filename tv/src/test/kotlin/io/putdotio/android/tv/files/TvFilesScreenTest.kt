@@ -430,6 +430,27 @@ class TvFilesScreenTest {
     }
 
     @Test
+    fun aStartedSongOffersPlayWithoutStartOver() {
+        val played = mutableListOf<TvPlayStart>()
+        compose.setTvContent {
+            TvFilesScreen(
+                state = ready(
+                    item(1, "notes.txt", PutioFileType.TEXT),
+                    item(2, "Tree Rings.mp3", PutioFileType.AUDIO, playback = FilesPlaybackProgress(600.0, 3_000.0)),
+                ),
+                onEvent = { true },
+                onPlayMedia = {},
+                onPlay = { _, start -> played += start },
+            )
+        }
+        compose.onNodeWithContentDescription("notes.txt").performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithContentDescription("Play Tree Rings.mp3").performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNode(hasText("Play") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
+        compose.onAllNodesWithText("Start over").assertCountEquals(0)
+        assertEquals(listOf(TvPlayStart.Ask), played)
+    }
+
+    @Test
     fun aListingChangeLeavesFocusInTheDetail() {
         var position by mutableStateOf(1_122.0)
         compose.setTvContent {

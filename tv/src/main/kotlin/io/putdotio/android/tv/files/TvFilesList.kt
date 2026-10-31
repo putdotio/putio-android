@@ -70,9 +70,6 @@ internal fun TvFilesList(
     // attached to a row that is still listed.
     val listedIds = remember(content.items) { content.items.mapTo(HashSet()) { it.id.value } }
     val liveRowListed = focusedRowId.value != null && focusedRowId.value in listedIds
-    // A listing change refocuses a row only when a row was what the user was on. A row being
-    // disposed by that change also reports losing focus, so ownership is inferred from the
-    // other in-pane owners instead: the header controls, the detail and the paging latch.
     val rowOwnsFocus = focusedRowId.value != null &&
         !headerHasFocus.value &&
         !detailOwnsFocus.value &&

@@ -229,7 +229,7 @@ private fun TvFilesPrimaryActions(
             R.drawable.ic_ph_folder,
             { actions.onOpenFolder(current()) },
         )
-        item.isPlayable && resumeAt != null -> {
+        resumeAt != null -> {
             val time = tvClock(resumeAt)
             PrimaryAction(
                 resumeLabel(stringResource(R.string.tv_files_detail_resume, time), time),
@@ -256,7 +256,7 @@ private fun TvFilesPrimaryActions(
         primary = true,
         detailHasFocus = detailHasFocus,
     )
-    if (item.isPlayable && resumeAt != null) {
+    if (resumeAt != null) {
         TvDetailButton(
             label = AnnotatedString(stringResource(R.string.tv_files_detail_start_over)),
             icon = R.drawable.ic_ph_arrow_counter_clockwise,
@@ -268,6 +268,7 @@ private fun TvFilesPrimaryActions(
 private class PrimaryAction(val label: AnnotatedString, @param:DrawableRes val icon: Int, val onClick: () -> Unit)
 
 internal fun FilesItem.resumePosition(resumePlayback: Boolean): Double? {
+    if (type != PutioFileType.VIDEO) return null
     val playback = playback ?: return null
     val position = playback.startFromSeconds
     val duration = playback.durationSeconds
