@@ -4,7 +4,7 @@ import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-class MobileFileSizeTest {
+class FilesFileSizeTest {
     @Test
     fun keepsOneDecimalBelowAHundredAndDropsAZeroOne() {
         val sizes = mapOf(

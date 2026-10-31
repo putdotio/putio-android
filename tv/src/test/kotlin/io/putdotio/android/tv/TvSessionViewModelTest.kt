@@ -500,6 +500,27 @@ class TvSessionViewModelTest {
     }
 
     @Test
+    fun `the detail's Resume and Start over answer the resume prompt the row asks`() = runTest {
+        playbackRepository.savedSeconds = 45.0
+        val video = media(55, "Blue.Lights.mkv", PutioFileType.VIDEO)
+            .copy(playback = FilesPlaybackProgress(45.0, 600.0))
+        val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
+
+        session.play(video)
+        assertTrue(checkNotNull(session.playback.value).state.value.content is PlaybackContent.AwaitingResume)
+
+        session.play(video, TvPlayStart.Resume)
+        val resumed = checkNotNull(session.playback.value).state.value
+        assertTrue(resumed.content is PlaybackContent.Ready)
+        assertEquals(45_000L, resumed.resumePositionMillis)
+
+        session.play(video, TvPlayStart.StartOver)
+        val restarted = checkNotNull(session.playback.value).state.value
+        assertTrue(restarted.content is PlaybackContent.Ready)
+        assertEquals(0L, restarted.resumePositionMillis)
+    }
+
+    @Test
     fun `a Watch Next card whose file is gone leaves the row and Files explains why`() = runTest {
         val gone = PutioFailure.ApiRejected(404, "NotFound", PutioConfigurationException("404"))
         val recorder = FakeWatchNextRecorder()

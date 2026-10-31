@@ -99,6 +99,10 @@ internal enum class TvButtonSize(
 ) {
     Regular(height = 36.dp, padding = 18.dp, icon = 14.dp),
     Compact(height = 32.dp, padding = 14.dp, icon = 12.dp),
+
+    Detail(height = 30.dp, padding = 11.dp, icon = 12.dp),
+
+    DetailIcon(height = 30.dp, padding = 9.dp, icon = 12.dp),
 }
 
 internal enum class TvButtonStyle {

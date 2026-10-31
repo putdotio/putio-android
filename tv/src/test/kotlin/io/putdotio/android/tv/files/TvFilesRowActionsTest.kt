@@ -283,7 +283,7 @@ class TvFilesRowActionsTest {
             performKeyInput { pressCenter() }
         }
         compose.onNodeWithText(message).assertIsDisplayed()
-        compose.onAllNodesWithText("Renamed folder").assertCountEquals(2)
+        compose.onAllNodesWithText("Renamed folder").assertCountEquals(3)
         compose.onAllNodesWithText("Sample folder").assertCountEquals(0)
     }
 

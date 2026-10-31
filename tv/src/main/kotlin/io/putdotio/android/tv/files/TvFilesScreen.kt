@@ -1,12 +1,8 @@
 package io.putdotio.android.tv.files
 
-import android.text.format.Formatter
 import androidx.annotation.StringRes
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,9 +20,9 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -34,11 +30,8 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -46,14 +39,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Icon
-import androidx.tv.material3.ListItem
-import androidx.tv.material3.ListItemDefaults
-import androidx.tv.material3.ListItemScale
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioEmptyGlyph
-import io.putdotio.android.design.fileTypeIconRes
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
@@ -67,9 +56,20 @@ import io.putdotio.android.files.FilesFolderOperationIntent
 import io.putdotio.android.files.FilesFolderOperationPhase
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesPaging
-import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.files.canStartOperation
 import io.putdotio.android.files.items
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import io.putdotio.android.design.PutioTypeScale
+import io.putdotio.android.files.formatFileSize
+import io.putdotio.android.tv.ROW_BLEED
+import io.putdotio.android.tv.TvListDetail
+import io.putdotio.android.tv.TvPlayStart
+import io.putdotio.android.tv.TV_MONO_RUN
+import io.putdotio.android.tv.TvSectionLine
+import io.putdotio.android.tv.TvSectionPill
 import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.rememberTvPaneHasFocus
 import io.putdotio.android.tv.TvDialog
@@ -77,18 +77,10 @@ import io.putdotio.android.tv.TvEmptyState
 import io.putdotio.android.tv.TvEmptyStateAction
 import io.putdotio.android.tv.TvNoticeDialog
 import io.putdotio.android.tv.returnDestination
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onKeyEvent
-import androidx.compose.ui.input.key.type
 import io.putdotio.android.tv.TvStatusScreen
 import io.putdotio.android.tv.refocusAfterDialog
-import io.putdotio.android.tv.tvAccent
-import kotlin.math.roundToInt
 
 internal const val TV_FILES_LIST_TAG = "tv-files-list"
-internal const val TV_FILES_ROW_TAG = "tv-files-row"
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -114,6 +106,9 @@ internal fun TvFilesScreen(
      * change and after the unsupported screen, so Compose's own restorer has no history.
      */
     focusMemory: MutableMap<Long, Long> = remember(sessionKey) { mutableMapOf() },
+    onPlay: (FilesItem, TvPlayStart) -> Unit = { item, _ -> onPlayMedia(item) },
+    resumePlayback: Boolean = true,
+    detailSources: TvFilesDetailSources = remember(sessionKey) { TvFilesDetailSources.None },
 ) {
     val current = state.current
     // Whether D-pad focus belongs to this pane. A content change while the user is on the
@@ -176,13 +171,11 @@ internal fun TvFilesScreen(
         }
     }
     val dialogOpen = actionsItem != null || notice != null
-    // Loading and complete-empty folders have no focusable content, so the header's Refresh
-    // takes focus; a failed folder focuses its own Retry, an empty page its paging control.
-    val refreshFocus = remember { FocusRequester() }
+    val sortFocus = remember { FocusRequester() }
     val content = current.content
     val headerOwnsFocus = content.headerOwnsFocus()
     LaunchedEffect(current.folder.id.value, headerOwnsFocus) {
-        refreshFocus.requestFocusIfPaneFocused(headerOwnsFocus, paneHasFocus)
+        sortFocus.requestFocusIfPaneFocused(headerOwnsFocus, paneHasFocus)
     }
     // The shell asks the pane for focus on entry. A Column is not a target itself, so the
     // request is redirected to whichever control this pane currently wants focused.
@@ -190,10 +183,23 @@ internal fun TvFilesScreen(
     val pagingFocus = remember { FocusRequester() }
     val headerHasFocus = remember { mutableStateOf(false) }
     val entryTarget = remember { mutableStateOf(FocusRequester.Default) }
-    entryTarget.value = content.paneEntryTarget(refreshFocus, retryFocus, pagingFocus, entryTarget)
-    // A closed dialog hands focus back to the row that opened it (the pane's live entry).
+    val listEntry = remember { mutableStateOf(FocusRequester.Default) }
+    entryTarget.value = content.paneEntryTarget(sortFocus, retryFocus, pagingFocus, listEntry)
+    val folderId = current.folder.id.value
+    var detailId by remember(sessionKey, folderId) { mutableStateOf(focusMemory[folderId]) }
+    val detailItem = content.detailItem(detailId, focusMemory[folderId])
+    val detailFocus = remember { TvFilesDetailFocus() }
+    val listing = rememberTvFilesListing(current)
+    val actionsOf = { item: FilesItem ->
+        item.tvActions(watchedToggleEnabled, confirmedTrashEnabled, current.operation.canStartOperation)
+    }
+    val dialogReturn = remember { mutableStateOf(FocusRequester.Default) }
+    dialogReturn.value = detailFocus.dialogReturn(detailItem.offersActions(actionsOf), entryTarget.value)
     val dialogWasOpen = remember { mutableStateOf(false) }
-    LaunchedEffect(dialogOpen) { refocusAfterDialog(dialogOpen, dialogWasOpen, paneHasFocus, entryTarget) }
+    LaunchedEffect(dialogOpen) { refocusAfterDialog(dialogOpen, dialogWasOpen, paneHasFocus, dialogReturn) }
+    // As in tv-native, a row with nothing to offer opens no menu.
+    val openActions = { item: FilesItem -> if (actionsOf(item).isNotEmpty()) actionsFor = item.id.value }
+    val open = { item: FilesItem -> item.open(onEvent, onPlayMedia, onUnsupported = { unsupported = it.id.value }) }
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -201,28 +207,62 @@ internal fun TvFilesScreen(
             .then(trackPaneFocus)
             .focusGroup(),
     ) {
-        TvFilesHeader(state, onEvent, refreshFocus, sessionKey, onFocusChanged = { headerHasFocus.value = it })
-        TvFilesDeleteStatus(current, onEvent)
-        TvFilesContent(
-            current = current,
-            focusMemory = focusMemory,
-            paneHasFocus = paneHasFocus,
-            headerHasFocus = headerHasFocus,
-            retryFocus = retryFocus,
-            pagingFocus = pagingFocus,
-            onEntryTarget = { entryTarget.value = it },
+        TvFilesFolderHeader(state)
+        TvListDetail(
             modifier = Modifier.weight(1f),
-            onEvent = onEvent,
-            onPlayMedia = onPlayMedia,
-            onUnsupported = { unsupported = it.id.value },
-            // As in tv-native, a row with nothing to offer opens no menu.
-            onActions = { item ->
-                val actions = item.tvActions(
-                    watchedToggleEnabled,
-                    confirmedTrashEnabled,
-                    current.operation.canStartOperation,
+            detailFocus = detailFocus.primary,
+            listFocus = listEntry.value,
+            onDetailFocusChanged = detailFocus::onDetailFocusChanged,
+            list = {
+                TvFilesSectionLine(
+                    state = state,
+                    onEvent = onEvent,
+                    sortFocus = sortFocus,
+                    sessionKey = sessionKey,
+                    onFocusChanged = {
+                        headerHasFocus.value = it
+                        detailFocus.onListFocusChanged(it)
+                    },
                 )
-                if (actions.isNotEmpty()) actionsFor = item.id.value
+                TvFilesOperationStatus(current, onEvent)
+                TvFilesDeleteStatus(current, onEvent)
+                TvFilesContent(
+                    current = current,
+                    focusMemory = focusMemory,
+                    paneHasFocus = paneHasFocus,
+                    headerHasFocus = headerHasFocus,
+                    detailOwnsFocus = detailFocus.owns,
+                    retryFocus = retryFocus,
+                    pagingFocus = pagingFocus,
+                    onEntryTarget = { listEntry.value = it },
+                    modifier = Modifier.weight(1f),
+                    onEvent = onEvent,
+                    onOpen = open,
+                    onActions = openActions,
+                    onRowFocused = {
+                        detailId = it.id.value
+                        detailFocus.onListFocusChanged(true)
+                    },
+                )
+            },
+            detail = {
+                detailItem?.let { item ->
+                    TvFilesDetail(
+                        item = item,
+                        detailHasFocus = detailFocus.hasFocus,
+                        primaryFocus = detailFocus.primary,
+                        resumePlayback = resumePlayback,
+                        sources = detailSources,
+                        listing = listing,
+                        actions = TvFilesDetailActions(
+                            onOpenFolder = open,
+                            onPlay = onPlay,
+                            onUnsupported = { unsupported = it.id.value },
+                            onMore = openActions.takeIf { actionsOf(item).isNotEmpty() },
+                        ),
+                        moreFocus = detailFocus.more,
+                    )
+                }
             },
         )
     }
@@ -248,6 +288,18 @@ internal fun TvFilesScreen(
                 trashPressed = false
             },
         )
+    }
+}
+
+@Composable
+private fun TvFilesFolderHeader(state: FilesBrowserState) {
+    val folderName = state.current.folder.name
+    if (folderName != null) {
+        Box(modifier = Modifier.height(FOLDER_HEADER_HEIGHT)) {
+            TvFolderHeading(folderName, crumb = state.crumbLabel())
+        }
+    } else {
+        Spacer(Modifier.height(ROOT_TOP_GAP))
     }
 }
 
@@ -287,18 +339,37 @@ private fun FilesBrowserState.crumbLabel(): String =
         ?: stack.dropLast(1).lastOrNull()?.folder?.name
         ?: stringResource(R.string.tv_files_title)
 
+private fun FilesContent.detailItem(focusedId: Long?, rememberedId: Long?): FilesItem? =
+    (this as? FilesContent.Ready)?.items?.let { items ->
+        items.firstOrNull { it.id.value == focusedId }
+            ?: items.firstOrNull { it.id.value == rememberedId }
+            ?: items.first()
+    }
+
+private fun FilesItem.open(
+    onEvent: (FilesBrowserEvent) -> Boolean,
+    onPlayMedia: (FilesItem) -> Unit,
+    onUnsupported: (FilesItem) -> Unit,
+) {
+    when {
+        isFolder -> onEvent(FilesBrowserEvent.OpenFolder(id))
+        isPlayable -> onPlayMedia(this)
+        else -> onUnsupported(this)
+    }
+}
+
 private fun FilesContent.headerOwnsFocus(): Boolean =
     this is FilesContent.Loading || (this is FilesContent.Empty && paging is FilesPaging.Complete)
 
 /** For a listing, the target is the row the list last reported in [listEntry]. */
 private fun FilesContent.paneEntryTarget(
-    refresh: FocusRequester,
+    sort: FocusRequester,
     retry: FocusRequester,
     paging: FocusRequester,
     listEntry: State<FocusRequester>,
 ): FocusRequester =
     when {
-        headerOwnsFocus() -> refresh
+        headerOwnsFocus() -> sort
         this is FilesContent.Failed -> retry
         this is FilesContent.Empty -> paging
         this is FilesContent.Ready -> listEntry.value
@@ -315,13 +386,14 @@ private fun TvFilesContent(
     focusMemory: MutableMap<Long, Long>,
     paneHasFocus: State<Boolean>,
     headerHasFocus: State<Boolean>,
+    detailOwnsFocus: State<Boolean>,
     retryFocus: FocusRequester,
     pagingFocus: FocusRequester,
     onEntryTarget: (FocusRequester) -> Unit,
     onEvent: (FilesBrowserEvent) -> Boolean,
-    onPlayMedia: (FilesItem) -> Unit,
-    onUnsupported: (FilesItem) -> Unit,
+    onOpen: (FilesItem) -> Unit,
     onActions: (FilesItem) -> Unit,
+    onRowFocused: (FilesItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     when (val content = current.content) {
@@ -362,17 +434,13 @@ private fun TvFilesContent(
                 focusMemory = focusMemory,
                 paneHasFocus = paneHasFocus,
                 headerHasFocus = headerHasFocus,
+                detailOwnsFocus = detailOwnsFocus,
                 onEntryTarget = onEntryTarget,
                 modifier = modifier,
                 onEvent = onEvent,
-                onOpen = { item ->
-                    when {
-                        item.isFolder -> onEvent(FilesBrowserEvent.OpenFolder(item.id))
-                        item.isPlayable -> onPlayMedia(item)
-                        else -> onUnsupported(item)
-                    }
-                },
+                onOpen = onOpen,
                 onActions = onActions,
+                onRowFocused = onRowFocused,
             )
     }
 }
@@ -492,11 +560,12 @@ private fun TvFilesNotice(
     text: String,
     action: String? = null,
     onAction: () -> Unit = {},
+    error: Boolean = false,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 8.dp)
+            .padding(start = ROW_BLEED, end = ROW_BLEED, bottom = 8.dp)
             .focusGroup(),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -504,7 +573,7 @@ private fun TvFilesNotice(
         Text(
             text = text,
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = if (error) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
@@ -514,102 +583,82 @@ private fun TvFilesNotice(
 }
 
 @Composable
-private fun TvFilesHeader(
+private fun TvFilesSectionLine(
     state: FilesBrowserState,
     onEvent: (FilesBrowserEvent) -> Boolean,
-    refreshFocus: FocusRequester,
+    sortFocus: FocusRequester,
     sessionKey: Any?,
     onFocusChanged: (Boolean) -> Unit,
 ) {
     val current = state.current
-    // The buttons stay focusable while a load runs, since a disabled TV button drops focus
-    // and Refresh is the one holding it when a refresh starts. Clicks are ignored locally
-    // outside a loaded, idle folder; a failed folder acts only through its Retry.
     val idle = current.operation.canStartOperation &&
         current.content !is FilesContent.Loading &&
         current.content !is FilesContent.Failed
     var sorting by rememberSaveable(sessionKey, current.folder.id.value) { mutableStateOf(false) }
-    // A dialog left open across a folder change or a running operation would offer choices
-    // the reducer rejects, so it closes as soon as the header stops being idle.
     LaunchedEffect(idle) { if (!idle) sorting = false }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 16.dp),
-        verticalAlignment = Alignment.Bottom,
-    ) {
-        Box(modifier = Modifier.weight(1f)) {
-            current.folder.name?.let { name -> TvFolderHeading(name, crumb = state.crumbLabel()) }
-        }
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier
-                .onFocusChanged { onFocusChanged(it.hasFocus) }
-                .focusGroup(),
-        ) {
-            TvButton(
-                onClick = { if (idle) onEvent(FilesBrowserEvent.Refresh) },
-                modifier = Modifier.focusRequester(refreshFocus),
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_ph_arrow_clockwise),
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp),
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.tv_files_refresh))
-            }
-            TvButton(onClick = { if (idle) sorting = true }) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_ph_sort_ascending),
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp),
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(current.folder.sort?.tvLabel() ?: R.string.tv_files_sort_account_default))
-            }
-        }
-    }
-    if (current.operation.reloadsListing()) {
-        Text(
-            text = stringResource(R.string.tv_files_loading),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 8.dp),
-        )
-    }
-    // A failed delete reports through its own status line, with Check status or Retry.
-    val failed = (current.operation as? FilesFolderOperation.Failed)
-        ?.takeUnless { it.intent is FilesFolderOperationIntent.Delete }
-    if (failed != null) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = stringResource(failed.tvHeaderError()),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.error,
+    TvSectionLine(
+        modifier = Modifier.onFocusChanged { onFocusChanged(it.hasFocus) },
+        pill = {
+            TvSectionPill(
+                icon = R.drawable.ic_ph_sort_ascending,
+                label = stringResource(current.folder.sort?.tvLabel() ?: R.string.tv_files_sort_account_default),
+                onClick = { if (idle) sorting = true },
+                modifier = Modifier.focusRequester(sortFocus),
+                showFocus = !sorting,
             )
-            TvButton(onClick = { onEvent(FilesBrowserEvent.Retry) }) {
-                Text(stringResource(R.string.tv_files_retry))
-            }
+        },
+    ) {
+        val summary = current.summary
+        if (current.folder.name == null) {
+            Text(stringResource(R.string.tv_files_all_files), style = SECTION_LABEL)
+        } else if (summary != null) {
+            val count = summary.itemCount.toString()
+            val label = pluralStringResource(R.plurals.tv_files_item_count, summary.itemCount, count)
+            Text(monoNumber(label, count), style = SECTION_LABEL)
+            summary.sizeBytes?.let { Text(formatFileSize(it), style = SECTION_LABEL_MONO) }
         }
     }
     if (sorting) {
-        TvSortDialog(
+        TvSortSheet(
             selected = current.folder.sort,
             onSelect = { sort ->
                 sorting = false
                 onEvent(FilesBrowserEvent.SelectSort(sort))
             },
             onDismiss = { sorting = false },
+            returnFocus = sortFocus,
         )
     }
 }
+
+@Composable
+private fun TvFilesOperationStatus(
+    current: FilesFolderState,
+    onEvent: (FilesBrowserEvent) -> Boolean,
+) {
+    if (current.operation.reloadsListing()) {
+        TvFilesNotice(text = stringResource(R.string.tv_files_loading))
+    }
+    val failed = (current.operation as? FilesFolderOperation.Failed)
+        ?.takeUnless { it.intent is FilesFolderOperationIntent.Delete }
+    if (failed != null) {
+        TvFilesNotice(
+            text = stringResource(failed.tvHeaderError()),
+            action = stringResource(R.string.tv_files_retry),
+            onAction = { onEvent(FilesBrowserEvent.Retry) },
+            error = true,
+        )
+    }
+}
+
+private fun monoNumber(label: String, number: String): AnnotatedString =
+    buildAnnotatedString {
+        append(label)
+        val start = label.indexOf(number)
+        if (start >= 0) {
+            addStyle(TV_MONO_RUN, start, start + number.length)
+        }
+    }
 
 private fun FilesFolderOperation.reloadsListing(): Boolean =
     this is FilesFolderOperation.Loading &&
@@ -622,105 +671,6 @@ private fun FilesFolderOperation.Failed.tvHeaderError(): Int =
         phase == FilesFolderOperationPhase.PERSISTING_SORT -> R.string.tv_files_sort_error
         else -> R.string.tv_files_reload_error
     }
-
-@Composable
-internal fun TvFilesRow(
-    item: FilesItem,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    /** Long-press Center or the Menu key; null when the row offers nothing beyond opening. */
-    onActions: (() -> Unit)? = null,
-    /** What Center does here, when it is not the Files default of open, play, or explain. */
-    label: String = when {
-        item.isFolder -> stringResource(R.string.tv_files_open_folder, item.name)
-        item.isPlayable -> stringResource(R.string.tv_files_play_media, item.name)
-        else -> item.name
-    },
-) {
-    val context = LocalContext.current
-    val size = remember(context, item.sizeBytes) {
-        Formatter.formatShortFileSize(context, item.sizeBytes.coerceAtLeast(0L))
-    }
-    val interactions = remember { MutableInteractionSource() }
-    val focused by interactions.collectIsFocusedAsState()
-    ListItem(
-        selected = false,
-        onClick = onClick,
-        onLongClick = onActions,
-        headlineContent = { Text(item.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        supportingContent = {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(size, maxLines = 1)
-                item.playback?.takeIf { it.isWatched }?.let { TvWatchedIndicator(it, focused) }
-            }
-        },
-        leadingContent = {
-            Icon(
-                painter = painterResource(fileTypeIconRes(item.type)),
-                contentDescription = null,
-                tint = tvAccent(focused),
-                modifier = Modifier.size(ListItemDefaults.IconSize),
-            )
-        },
-        trailingContent = if (item.isFolder) {
-            {
-                Icon(
-                    painter = painterResource(R.drawable.ic_ph_caret_right),
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp),
-                )
-            }
-        } else {
-            null
-        },
-        scale = ListItemScale.None,
-        interactionSource = interactions,
-        modifier = modifier
-            .fillMaxWidth()
-            // Remotes with a Menu key open the actions without holding Center.
-            .onKeyEvent { event ->
-                if (onActions != null && event.type == KeyEventType.KeyUp && event.key == Key.Menu) {
-                    onActions()
-                    true
-                } else {
-                    false
-                }
-            }
-            .semantics { contentDescription = label }
-            .testTag(TV_FILES_ROW_TAG),
-    )
-}
-
-@Composable
-private fun TvWatchedIndicator(progress: FilesPlaybackProgress, focused: Boolean) {
-    val accent = tvAccent(focused)
-    val track = if (focused) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.surfaceVariant
-    val fraction = progress.fraction
-    val label = if (fraction == null) {
-        stringResource(R.string.tv_files_watched)
-    } else {
-        stringResource(R.string.tv_files_watched_percent, (fraction * PERCENT_SCALE).roundToInt())
-    }
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (fraction != null) {
-            Box(
-                modifier = Modifier
-                    .width(120.dp)
-                    .height(4.dp)
-                    .background(track)
-                    .clearAndSetSemantics {},
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(fraction)
-                        .height(4.dp)
-                        .background(accent),
-                )
-            }
-        }
-        Text(label, style = MaterialTheme.typography.labelSmall, color = accent)
-    }
-}
 
 @Composable
 internal fun TvFilesPaging(
@@ -815,4 +765,8 @@ private fun TvUnsupportedFileScreen(
     }
 }
 
-private const val PERCENT_SCALE = 100f
+private val FOLDER_HEADER_HEIGHT = 76.dp
+
+private val ROOT_TOP_GAP = 4.dp
+private val SECTION_LABEL = PutioTypeScale.tvLabel
+private val SECTION_LABEL_MONO = PutioTypeScale.tvMono.copy(fontWeight = FontWeight.Medium)

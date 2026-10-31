@@ -54,8 +54,26 @@
     <string name="tv_dialog_ok">OK</string>
 
     <string name="tv_files_title">Your Files</string>
-    <string name="tv_files_refresh">Refresh</string>
-    <string name="tv_files_sort_title">Sort by</string>
+    <string name="tv_files_all_files">All files</string>
+    <plurals name="tv_files_item_count">
+        <item quantity="one">%1$s item</item>
+        <item quantity="other">%1$s items</item>
+    </plurals>
+    <string name="tv_files_sort_title">Sort</string>
+    <string name="tv_files_sort_by">Sort by</string>
+    <string name="tv_files_sort_order">Order</string>
+    <string name="tv_files_sort_videos">Videos</string>
+    <string name="tv_files_sort_field_name">Name</string>
+    <string name="tv_files_sort_field_size">Size</string>
+    <string name="tv_files_sort_field_date_added">Date added</string>
+    <string name="tv_files_sort_field_date_modified">Date modified</string>
+    <string name="tv_files_sort_field_type">Type</string>
+    <string name="tv_files_sort_a_to_z">A to Z</string>
+    <string name="tv_files_sort_z_to_a">Z to A</string>
+    <string name="tv_files_sort_smallest_first">Smallest first</string>
+    <string name="tv_files_sort_largest_first">Largest first</string>
+    <string name="tv_files_sort_oldest_first">Oldest first</string>
+    <string name="tv_files_sort_newest_first">Newest first</string>
     <string name="tv_files_sort_account_default">Account default</string>
     <string name="tv_files_sort_name_ascending">Name, A–Z</string>
     <string name="tv_files_sort_name_descending">Name, Z–A</string>
@@ -79,7 +97,18 @@
     <string name="tv_files_open_folder">Open %1$s</string>
     <string name="tv_files_play_media">Play %1$s</string>
     <string name="tv_files_watched">Watched</string>
-    <string name="tv_files_watched_percent">%1$d%% watched</string>
+    <string name="tv_files_detail_resume">Resume from %1$s</string>
+    <string name="tv_files_detail_play">Play</string>
+    <string name="tv_files_detail_start_over">Start over</string>
+    <string name="tv_files_detail_open">Open</string>
+    <string name="tv_files_detail_more">More actions</string>
+    <string name="tv_files_detail_length">Length</string>
+    <string name="tv_files_detail_added">Added</string>
+    <string name="tv_files_detail_subtitles">Subtitles</string>
+    <plurals name="tv_files_detail_subtitle_files">
+        <item quantity="one">%1$s file</item>
+        <item quantity="other">%1$s files</item>
+    </plurals>
     <string name="tv_files_unsupported_title">Unsupported file type</string>
     <string name="tv_files_unsupported_message">This app plays video and audio. Other files stay in your account.</string>
     <string name="tv_files_go_back">Go back</string>
