@@ -1,5 +1,9 @@
 package io.putdotio.android.tv
 
+import android.content.ContentResolver
+import android.database.ContentObserver
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.withInfiniteAnimationFrameMillis
@@ -13,8 +17,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -104,10 +110,26 @@ internal fun TvWelcomeStage(modifier: Modifier = Modifier) {
 @Composable
 private fun rememberAnimationsOff(): Boolean {
     val resolver = LocalContext.current.contentResolver
-    return remember(resolver) {
-        Settings.Global.getFloat(resolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
+    val off = remember(resolver) { mutableStateOf(resolver.animationsOff()) }
+    DisposableEffect(resolver) {
+        val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
+            override fun onChange(selfChange: Boolean) {
+                off.value = resolver.animationsOff()
+            }
+        }
+        resolver.registerContentObserver(
+            Settings.Global.getUriFor(Settings.Global.ANIMATOR_DURATION_SCALE),
+            false,
+            observer,
+        )
+        off.value = resolver.animationsOff()
+        onDispose { resolver.unregisterContentObserver(observer) }
     }
+    return off.value
 }
+
+private fun ContentResolver.animationsOff(): Boolean =
+    Settings.Global.getFloat(this, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
 
 @Composable
 private fun WelcomeFrame(

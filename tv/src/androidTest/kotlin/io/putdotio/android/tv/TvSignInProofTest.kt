@@ -22,7 +22,6 @@ import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
 
-/** Controlled-state captures of the sign-in and startup boards. No API calls. */
 @RunWith(AndroidJUnit4::class)
 class TvSignInProofTest {
     private val arguments = InstrumentationRegistry.getArguments()

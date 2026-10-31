@@ -140,7 +140,7 @@ private fun LinkColumns(
                 )
             }
             CodeTiles(code = code, dimmed = dimmed)
-            NewCodeButton(onClick = onRequestNewCode)
+            NewCodeButton(enabled = phase !is TvLinkPhase.Validating, onClick = onRequestNewCode)
         }
     }
 }
@@ -231,13 +231,19 @@ private fun CodeTiles(
 }
 
 @Composable
-private fun NewCodeButton(onClick: () -> Unit) {
+private fun NewCodeButton(enabled: Boolean, onClick: () -> Unit) {
     val focus = remember { FocusRequester() }
-    LaunchedEffect(Unit) {
+    LaunchedEffect(enabled) {
+        if (!enabled) return@LaunchedEffect
         withFrameNanos {}
         focus.requestFocus()
     }
-    TvButton(onClick = onClick, style = TvButtonStyle.Text, modifier = Modifier.focusRequester(focus)) {
+    TvButton(
+        onClick = onClick,
+        enabled = enabled,
+        style = TvButtonStyle.Text,
+        modifier = Modifier.focusRequester(focus),
+    ) {
         Icon(
             painter = painterResource(R.drawable.ic_ph_arrows_clockwise),
             contentDescription = null,
