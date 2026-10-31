@@ -141,6 +141,8 @@ class TvSearchHistoryProofTest {
         compose.waitUntil(5_000) { hasContentDescription("Search again for lantern") }
         assertChips("lantern")
         screenshot("09-on-again")
+        focus("Search again for lantern")
+        screenshot("10-chip-focused")
 
         compose.waitUntil(5_000) { writes.size == EXPECTED_WRITES.size }
         assertEquals(EXPECTED_WRITES, writes.toList())
