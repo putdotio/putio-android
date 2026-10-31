@@ -78,7 +78,7 @@ private fun TvPlayerOverlay.keyUp(key: Key, player: Player, focused: TvPlayerCon
                 } else {
                     reveal()
                 }
-            TvPlayerControl.NextEpisode -> playNext()
+            TvPlayerControl.NextEpisode -> chooseNext()
             else -> openSheet(focused)
         }
         Key.MediaPlayPause -> select(player.playWhenReady)

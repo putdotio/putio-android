@@ -1,6 +1,7 @@
 package io.putdotio.android.tv.player
 
 import androidx.compose.runtime.getValue
+import io.putdotio.android.playback.R as PlaybackR
 import androidx.compose.runtime.setValue
 import android.text.format.DateUtils
 import androidx.annotation.DrawableRes
@@ -47,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.media3.common.C
 import androidx.media3.common.Player
 import androidx.tv.material3.Icon
+import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
@@ -116,7 +118,7 @@ internal fun TvPlayerControls(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(TvPlayerShade)
+            .background(tvPlayerShade(MaterialTheme.colorScheme.scrim))
             .testTag(TV_PLAYER_CONTROLS_TAG),
     ) {
         Box(Modifier.fillMaxSize().tvSafeAreaPadding()) {
@@ -150,13 +152,13 @@ internal fun TvPlayerTopBar(title: String, modifier: Modifier = Modifier) {
         Icon(
             painter = painterResource(R.drawable.ic_ph_arrow_left),
             contentDescription = null,
-            tint = Color.White,
+            tint = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.size(22.dp),
         )
         Text(
             text = title,
             style = PutioTypeScale.tvDetailTitle,
-            color = Color.White,
+            color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -205,12 +207,12 @@ private fun TvPlayerCircle(
     restAlpha: Float,
     seconds: Boolean = false,
 ) {
-    val content = if (focused) TvFocus.content else Color.White
+    val content = if (focused) TvFocus.content else MaterialTheme.colorScheme.onSurface
     Box(
         modifier = Modifier
             .size(size)
             .clip(CircleShape)
-            .background(if (focused) TvFocus.container else Color.Black.copy(alpha = restAlpha))
+            .background(if (focused) TvFocus.container else MaterialTheme.colorScheme.scrim.copy(alpha = restAlpha))
             .clearAndSetSemantics {
                 contentDescription = description
                 role = Role.Button
@@ -241,13 +243,14 @@ private fun TvPlayerTimes(elapsed: String, remaining: String?) {
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
+        val color = MaterialTheme.colorScheme.onSurface
         Text(
             text = elapsed,
             style = PutioTypeScale.tvMono,
-            color = Color.White,
+            color = color,
             modifier = Modifier.testTag(TV_PLAYER_ELAPSED_TAG),
         )
-        if (remaining != null) Text(text = remaining, style = PutioTypeScale.tvMono, color = Color.White)
+        if (remaining != null) Text(text = remaining, style = PutioTypeScale.tvMono, color = color)
     }
 }
 
@@ -278,7 +281,7 @@ private fun TvSeekBar(
                 .fillMaxWidth()
                 .height(SEEK_TRACK)
                 .clip(RoundedCornerShape(SEEK_TRACK / 2))
-                .background(Color.White.copy(alpha = TRACK_ALPHA)),
+                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = TRACK_ALPHA)),
         ) {
             Box(Modifier.fillMaxWidth(fraction).height(SEEK_TRACK).background(yellow))
         }
@@ -307,19 +310,19 @@ private fun TvPlayerChips(chips: List<TvPlayerControl>, labels: TvPlayerChipLabe
                 TvPlayerControl.Audio -> Triple(
                     R.drawable.ic_ph_speaker_high,
                     labels.audio,
-                    stringResource(R.string.tv_player_audio_chip, labels.audio),
+                    stringResource(PlaybackR.string.playback_audio_chip, labels.audio),
                 )
                 TvPlayerControl.Subtitles -> Triple(
                     R.drawable.ic_ph_subtitles,
                     labels.subtitles,
-                    stringResource(R.string.tv_player_subtitles_chip, labels.subtitles),
+                    stringResource(PlaybackR.string.playback_subtitles_chip, labels.subtitles),
                 )
                 TvPlayerControl.Speed -> Triple(
                     R.drawable.ic_ph_gauge,
                     labels.speed,
-                    stringResource(R.string.tv_player_speed_chip, labels.speed),
+                    stringResource(PlaybackR.string.playback_speed_chip, labels.speed),
                 )
-                else -> stringResource(R.string.tv_player_next_episode).let {
+                else -> stringResource(PlaybackR.string.playback_next_episode).let {
                     Triple(R.drawable.ic_ph_skip_forward, it, it)
                 }
             }
@@ -337,13 +340,14 @@ private fun TvPlayerChips(chips: List<TvPlayerControl>, labels: TvPlayerChipLabe
 @Composable
 private fun TvPlayerChip(@DrawableRes icon: Int, label: String, description: String, focused: Boolean, mono: Boolean) {
     val shape = RoundedCornerShape(PutioRadius.small)
-    val content = if (focused) TvFocus.content else Color.White
+    val rest = MaterialTheme.colorScheme.onSurface
+    val content = if (focused) TvFocus.content else rest
     Row(
         modifier = Modifier
             .height(CHIP_HEIGHT)
             .clip(shape)
             .background(if (focused) TvFocus.container else Color.Transparent)
-            .border(1.dp, if (focused) TvFocus.container else Color.White.copy(alpha = TRACK_ALPHA), shape)
+            .border(1.dp, if (focused) TvFocus.container else rest.copy(alpha = TRACK_ALPHA), shape)
             .padding(horizontal = 12.dp)
             .clearAndSetSemantics {
                 contentDescription = description
@@ -370,11 +374,11 @@ internal fun playerTime(millis: Long): String =
     DateUtils.formatElapsedTime(millis / MILLIS_PER_SECOND)
         .let { if (it.length == MINUTES_LENGTH) it.removePrefix("0") else it }
 
-private val TvPlayerShade = Brush.verticalGradient(
-    0f to Color.Black.copy(alpha = SHADE_TOP_ALPHA),
+private fun tvPlayerShade(scrim: Color) = Brush.verticalGradient(
+    0f to scrim.copy(alpha = SHADE_TOP_ALPHA),
     SHADE_TOP_END to Color.Transparent,
     SHADE_BOTTOM_START to Color.Transparent,
-    1f to Color.Black.copy(alpha = SHADE_BOTTOM_ALPHA),
+    1f to scrim.copy(alpha = SHADE_BOTTOM_ALPHA),
 )
 
 private const val SHADE_TOP_ALPHA = 0.6f

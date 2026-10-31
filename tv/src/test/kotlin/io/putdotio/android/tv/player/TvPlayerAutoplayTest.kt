@@ -3,6 +3,11 @@ package io.putdotio.android.tv.player
 import androidx.activity.ComponentActivity
 import io.putdotio.android.tv.setTvContent
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -128,6 +133,47 @@ class TvPlayerAutoplayTest {
         compose.runOnIdle { assertEquals("No player before the choice", 1, players.size) }
     }
 
+    @Test
+    fun nextEpisodeFollowsTheAccountsSettingAndPlaysTheFoundVideoWithoutAutoplay() {
+        val players = mutableListOf<FakePlayer>()
+        var exits = 0
+        val lookups = showAutoplayRoute(
+            autoplay = false,
+            players = players,
+            folder = AutoplayFolder(
+                next = mapOf(9L to PlaybackTarget(FilesItemId(10), "Harbor film 2.mp4")),
+                nextEpisode = true,
+            ),
+            onExit = { exits += 1 },
+        )
+
+        compose.onNodeWithContentDescription(NEXT_EPISODE).assertExists()
+        listOf(Key.DirectionDown, Key.DirectionDown, Key.DirectionRight, Key.DirectionRight, Key.DirectionRight)
+            .forEach { key -> compose.onNodeWithTag(TV_PLAYER_TAG).performKeyInput { pressKey(key) } }
+        compose.onNodeWithContentDescription(NEXT_EPISODE).assertIsSelected()
+        compose.onNodeWithTag(TV_PLAYER_TAG).performKeyInput { pressKey(Key.DirectionCenter) }
+        compose.waitForIdle()
+        compose.runOnIdle {
+            assertEquals(0, exits)
+            assertEquals(2, players.size)
+            assertEquals("10", players.last().mediaItems.single().mediaId)
+        }
+        compose.onNodeWithContentDescription(NEXT_EPISODE).assertDoesNotExist()
+        compose.runOnIdle { assertEquals(listOf(9L, 10L), lookups) }
+    }
+
+    @Test
+    fun nextEpisodeStaysOffWithoutTheSettingEvenWithAutoplay() {
+        val lookups = showAutoplayRoute(
+            autoplay = true,
+            players = mutableListOf(),
+            folder = AutoplayFolder(next = mapOf(9L to PlaybackTarget(FilesItemId(10), "Harbor film 2.mp4"))),
+        )
+
+        compose.onNodeWithContentDescription(NEXT_EPISODE).assertDoesNotExist()
+        compose.runOnIdle { assertTrue(lookups.isEmpty()) }
+    }
+
     private fun showAutoplayRoute(
         autoplay: Boolean,
         players: MutableList<FakePlayer>,
@@ -136,24 +182,25 @@ class TvPlayerAutoplayTest {
         onExit: () -> Unit = {},
     ): List<Long> {
         val lookups = mutableListOf<Long>()
+        val repository = object : PlaybackRepository {
+            override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> {
+                val id = target.fileId.value
+                return PlaybackRepositoryResult.Success(
+                    PlaybackResolution.Ready(
+                        source(folder.savedSeconds[id] ?: 0.0, fileId = id),
+                        useStartFrom = true,
+                    ),
+                )
+            }
+
+            override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult {
+                lookups += target.fileId.value
+                return folder.next[target.fileId.value]?.let(PlaybackNextResult::Found) ?: PlaybackNextResult.Ended
+            }
+        }
         val controller = PlaybackController(
             PlaybackTarget(FilesItemId(9), "Harbor film.mp4", PlaybackMediaType.VIDEO),
-            object : PlaybackRepository {
-                override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> {
-                    val id = target.fileId.value
-                    return PlaybackRepositoryResult.Success(
-                        PlaybackResolution.Ready(
-                            source(folder.savedSeconds[id] ?: 0.0, fileId = id),
-                            useStartFrom = true,
-                        ),
-                    )
-                }
-
-                override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult {
-                    lookups += target.fileId.value
-                    return folder.next[target.fileId.value]?.let(PlaybackNextResult::Found) ?: PlaybackNextResult.Ended
-                }
-            },
+            repository,
             CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
         )
         compose.setTvContent {
@@ -164,6 +211,7 @@ class TvPlayerAutoplayTest {
                 playerFactory = { _, _ -> FakePlayer().also { players += it } },
                 reporter = reporting,
                 autoplayNextVideo = autoplay,
+                findNextEpisode = repository::findNextVideo.takeIf { folder.nextEpisode },
             )
         }
         compose.waitForIdle()
@@ -173,5 +221,8 @@ class TvPlayerAutoplayTest {
     private class AutoplayFolder(
         val next: Map<Long, PlaybackTarget>,
         val savedSeconds: Map<Long, Double> = emptyMap(),
+        val nextEpisode: Boolean = false,
     )
 }
+
+private const val NEXT_EPISODE = "Next episode"

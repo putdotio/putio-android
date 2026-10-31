@@ -1,6 +1,7 @@
 package io.putdotio.android.playback
 
 import android.content.Context
+import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
@@ -57,11 +58,15 @@ private const val SOURCE_FOLDER = "folder"
 public fun PlaybackSubtitles?.sidecarTracks(): List<PlaybackSubtitle> =
     (this as? PlaybackSubtitles.Sidecar)?.tracks.orEmpty()
 
-public enum class SubtitleTextSize(public val scale: Float, public val short: String) {
-    Small(SMALL_SCALE, "S"),
-    Medium(1f, "M"),
-    Large(LARGE_SCALE, "L"),
-    ExtraLarge(EXTRA_LARGE_SCALE, "XL"),
+public enum class SubtitleTextSize(
+    public val scale: Float,
+    public val short: String,
+    @get:StringRes public val label: Int,
+) {
+    Small(SMALL_SCALE, "S", R.string.playback_size_small),
+    Medium(1f, "M", R.string.playback_size_medium),
+    Large(LARGE_SCALE, "L", R.string.playback_size_large),
+    ExtraLarge(EXTRA_LARGE_SCALE, "XL", R.string.playback_size_extra_large),
 }
 
 private const val SMALL_SCALE = 0.75f

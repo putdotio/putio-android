@@ -7,6 +7,7 @@ internal data class TvPlayerOverlay(
     val exited: Boolean = false,
     val focus: TvPlayerControl = TvPlayerControl.PlayPause,
     val sheet: TvPlayerSheet? = null,
+    val backFromSizeAndTiming: Boolean = false,
 )
 
 internal enum class TvPlayerSheet { Audio, Subtitles, Speed, SizeAndTiming }
@@ -21,6 +22,8 @@ internal sealed interface TvPlayerCommand {
     data object Exit : TvPlayerCommand
 
     data object PlayNext : TvPlayerCommand
+
+    data object ChooseNext : TvPlayerCommand
 }
 
 internal data class TvPlayerTransition(
@@ -80,7 +83,9 @@ internal fun TvPlayerOverlay.back(): TvPlayerTransition {
     return when {
         exited -> TvPlayerTransition(this)
         sheet == TvPlayerSheet.SizeAndTiming ->
-            TvPlayerTransition(copy(sheet = TvPlayerSheet.Subtitles, activity = activity + 1))
+            TvPlayerTransition(
+                copy(sheet = TvPlayerSheet.Subtitles, backFromSizeAndTiming = true, activity = activity + 1),
+            )
         sheet != null -> closeSheet()
         pending != null -> TvPlayerTransition(
             copy(scrub = null, activity = activity + 1),

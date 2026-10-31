@@ -1,6 +1,7 @@
 package io.putdotio.android.tv.player
 
 import androidx.compose.runtime.getValue
+import io.putdotio.android.playback.R as PlaybackR
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -137,6 +138,7 @@ internal class TvPlayerSheetActions(
 @Composable
 internal fun TvPlayerSheets(
     sheet: TvPlayerSheet?,
+    backFromSizeAndTiming: Boolean,
     returnFocus: FocusRequester,
     choices: TvTrackChoices,
     sidecar: List<PlaybackSubtitle>,
@@ -152,14 +154,22 @@ internal fun TvPlayerSheets(
         TvPlayerSheet.Audio -> R.string.tv_player_audio
         TvPlayerSheet.Subtitles -> R.string.tv_player_subtitles
         TvPlayerSheet.Speed -> R.string.tv_player_speed
-        TvPlayerSheet.SizeAndTiming -> R.string.tv_player_size_and_timing
+        TvPlayerSheet.SizeAndTiming -> PlaybackR.string.playback_size_and_timing
     }
     key(sheet) {
         TvSideSheet(onDismiss = onDismiss, returnFocus = returnFocus, title = stringResource(title)) { focus ->
             when (sheet) {
                 TvPlayerSheet.Audio -> TvAudioSheet(choices, focus, actions.onAudio)
                 TvPlayerSheet.Subtitles ->
-                    TvSubtitlesSheet(choices, sidecar, textSize, offsetMillis, focus, actions)
+                    TvSubtitlesSheet(
+                        choices = choices,
+                        sidecar = sidecar,
+                        textSize = textSize,
+                        offsetMillis = offsetMillis,
+                        focus = focus,
+                        focusSizeAndTiming = backFromSizeAndTiming,
+                        actions = actions,
+                    )
                 TvPlayerSheet.Speed -> TvSpeedSheet(speed, focus, actions.onSpeed)
                 TvPlayerSheet.SizeAndTiming ->
                     TvSizeAndTimingSheet(textSize, offsetMillis, focus, actions.onTextSize, actions.onOffset)
@@ -197,9 +207,11 @@ private fun ColumnScope.TvSubtitlesSheet(
     textSize: SubtitleTextSize,
     offsetMillis: Long,
     focus: FocusRequester,
+    focusSizeAndTiming: Boolean,
     actions: TvPlayerSheetActions,
 ) {
     val current = choices.currentSubtitle
+    val focusRow = Modifier.focusRequester(focus)
     val labels = subtitleTrackLabels(choices.subtitles, sidecar)
     val rows = choices.subtitles.mapIndexed { index, track -> Triple(index, track, track.putioSubtitle(sidecar)) }
     val inFile = rows.filter { it.third.origin() == SubtitleOrigin.File }
@@ -210,9 +222,12 @@ private fun ColumnScope.TvSubtitlesSheet(
             detail = null,
             selected = current == null,
             onClick = { actions.onSubtitles(SubtitleSelection.Off) },
-            modifier = if (current == null) Modifier.focusRequester(focus) else Modifier,
+            modifier = if (current == null && !focusSizeAndTiming) focusRow else Modifier,
         )
-        listOf(R.string.tv_player_subtitles_in_file to inFile, R.string.tv_player_subtitles_found to found)
+        listOf(
+            PlaybackR.string.playback_subtitles_in_file to inFile,
+            PlaybackR.string.playback_subtitles_found to found,
+        )
             .filter { it.second.isNotEmpty() }
             .forEach { (heading, group) ->
                 TvSheetLabel(stringResource(heading))
@@ -222,13 +237,13 @@ private fun ColumnScope.TvSubtitlesSheet(
                         detail = subtitleTrackDetails(track, subtitle)?.let(::AnnotatedString),
                         selected = track == current,
                         onClick = { actions.onSubtitles(SubtitleSelection.Track(track.identity)) },
-                        modifier = if (track == current) Modifier.focusRequester(focus) else Modifier,
+                        modifier = if (track == current && !focusSizeAndTiming) focusRow else Modifier,
                     )
                 }
             }
         val size = stringResource(textSize.label)
         TvSheetOption(
-            label = stringResource(R.string.tv_player_size_and_timing),
+            label = stringResource(PlaybackR.string.playback_size_and_timing),
             detail = buildAnnotatedString {
                 append(size)
                 append(TRACK_DETAIL_SEPARATOR)
@@ -241,7 +256,7 @@ private fun ColumnScope.TvSubtitlesSheet(
             trailingIcon = R.drawable.ic_ph_caret_right,
             role = Role.Button,
             onClick = actions.onSizeAndTiming,
-            modifier = Modifier.padding(top = 4.dp),
+            modifier = Modifier.padding(top = 4.dp).then(if (focusSizeAndTiming) focusRow else Modifier),
         )
     }
 }
@@ -256,12 +271,12 @@ private fun TvSpeedSheet(speed: Float, focus: FocusRequester, onSpeed: (Float) -
         valueStyle = PutioTypeScale.tvMono.copy(fontSize = SPEED_VALUE_SIZE, lineHeight = SPEED_VALUE_LINE),
         less = "−",
         lessDescription = stringResource(
-            R.string.tv_player_speed_slower,
+            PlaybackR.string.playback_speed_slower,
             stringResource(R.string.tv_player_speed_value, formatPlaybackSpeed(slower ?: speed)),
         ),
         more = "+",
         moreDescription = stringResource(
-            R.string.tv_player_speed_faster,
+            PlaybackR.string.playback_speed_faster,
             stringResource(R.string.tv_player_speed_value, formatPlaybackSpeed(faster ?: speed)),
         ),
         onLess = slower?.let { { onSpeed(it) } },
@@ -321,7 +336,7 @@ private fun ColumnScope.TvSizeAndTimingSheet(
     onTextSize: (SubtitleTextSize) -> Unit,
     onOffset: (Long) -> Unit,
 ) {
-    TvSheetLabel(stringResource(R.string.tv_player_text_size))
+    TvSheetLabel(stringResource(PlaybackR.string.playback_text_size))
     Row(
         modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -342,14 +357,14 @@ private fun ColumnScope.TvSizeAndTimingSheet(
             )
         }
     }
-    TvSheetLabel(stringResource(R.string.tv_player_timing))
+    TvSheetLabel(stringResource(PlaybackR.string.playback_subtitle_timing))
     TvStepper(
         value = formatSubtitleOffset(offsetMillis),
         valueStyle = PutioTypeScale.tvMono.copy(fontSize = OFFSET_VALUE_SIZE, lineHeight = OFFSET_VALUE_LINE),
         less = "−0.1",
-        lessDescription = stringResource(R.string.tv_player_subtitle_earlier),
+        lessDescription = stringResource(PlaybackR.string.playback_subtitle_earlier),
         more = "+0.1",
-        moreDescription = stringResource(R.string.tv_player_subtitle_later),
+        moreDescription = stringResource(PlaybackR.string.playback_subtitle_later),
         onLess = { onOffset(offsetMillis - SUBTITLE_OFFSET_STEP_MILLIS) }
             .takeIf { offsetMillis > -SUBTITLE_OFFSET_LIMIT_MILLIS },
         onMore = { onOffset(offsetMillis + SUBTITLE_OFFSET_STEP_MILLIS) }
@@ -359,7 +374,7 @@ private fun ColumnScope.TvSizeAndTimingSheet(
     )
     TvSheetRows {
         TvSheetOption(
-            label = stringResource(R.string.tv_player_subtitle_reset),
+            label = stringResource(PlaybackR.string.playback_subtitle_reset),
             detail = null,
             selected = false,
             leadingIcon = R.drawable.ic_ph_arrow_counter_clockwise,
@@ -547,14 +562,6 @@ private fun TvSheetChip(
         }
     }
 }
-
-private val SubtitleTextSize.label: Int
-    get() = when (this) {
-        SubtitleTextSize.Small -> R.string.tv_player_size_small
-        SubtitleTextSize.Medium -> R.string.tv_player_size_medium
-        SubtitleTextSize.Large -> R.string.tv_player_size_large
-        SubtitleTextSize.ExtraLarge -> R.string.tv_player_size_extra_large
-    }
 
 private val OPTION_MIN_HEIGHT = 48.dp
 private val LEADING_SLOT = 20.dp

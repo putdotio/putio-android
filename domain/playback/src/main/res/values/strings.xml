@@ -13,4 +13,25 @@
     <string name="playback_subtitles_from_folder">This folder</string>
     <string name="playback_subtitles_from_opensubtitles">OpenSubtitles</string>
     <string name="playback_subtitle_sdh">SDH</string>
+    <string name="playback_next_episode">Next episode</string>
+    <string name="playback_audio_chip">Audio: %1$s</string>
+    <string name="playback_subtitles_chip">Subtitles: %1$s</string>
+    <string name="playback_speed_chip">Playback speed %1$s</string>
+    <string name="playback_speed_slower">Slower, %1$s</string>
+    <string name="playback_speed_faster">Faster, %1$s</string>
+    <string name="playback_subtitles_in_file">In this file</string>
+    <string name="playback_subtitles_found">Found by put.io</string>
+    <string name="playback_size_and_timing">Size and timing</string>
+    <string name="playback_text_size">Text size</string>
+    <string name="playback_size_small">Small</string>
+    <string name="playback_size_medium">Medium</string>
+    <string name="playback_size_large">Large</string>
+    <string name="playback_size_extra_large">Extra large</string>
+    <string name="playback_subtitle_timing">Timing</string>
+    <string name="playback_subtitle_earlier">Earlier by 0.1 seconds</string>
+    <string name="playback_subtitle_later">Later by 0.1 seconds</string>
+    <string name="playback_subtitle_reset">Reset</string>
+    <string name="playback_resume_title">Resume from %1$s?</string>
+    <string name="playback_resume">Resume</string>
+    <string name="playback_start_over">Start over</string>
 </resources>

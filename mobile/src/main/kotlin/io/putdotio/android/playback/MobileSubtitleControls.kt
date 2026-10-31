@@ -1,6 +1,6 @@
 package io.putdotio.android.playback
 
-import androidx.annotation.StringRes
+import io.putdotio.android.playback.R as PlaybackR
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -69,7 +69,7 @@ internal fun MobileSubtitlesChip(
         ?: stringResource(R.string.mobile_playback_subtitles_disabled)
     MobilePlayerChip(
         label = label,
-        description = stringResource(R.string.mobile_playback_subtitles_chip, label),
+        description = stringResource(PlaybackR.string.playback_subtitles_chip, label),
         onClick = onClick,
         leadingIcon = R.drawable.ic_ph_subtitles,
         modifier = modifier,
@@ -126,7 +126,10 @@ internal fun MobileSubtitlesSheetContent(
         val names = subtitleTrackLabels(snapshot.subtitleTracks, sidecar)
         val inFile = tracks.filter { it.third.origin() == SubtitleOrigin.File }
         val found = tracks.filter { it.third.origin() != SubtitleOrigin.File }.sortedBy { it.third.origin() }
-        listOf(R.string.mobile_playback_subtitles_in_file to inFile, R.string.mobile_playback_subtitles_found to found)
+        listOf(
+            PlaybackR.string.playback_subtitles_in_file to inFile,
+            PlaybackR.string.playback_subtitles_found to found,
+        )
             .filter { it.second.isNotEmpty() }
             .forEach { (heading, group) ->
                 MobileSideSheetLabel(stringResource(heading))
@@ -174,7 +177,7 @@ private fun MobileSubtitleAppearanceRow(textSize: SubtitleTextSize, offsetMillis
     ) {
         Icon(painterResource(R.drawable.ic_ph_text_aa), contentDescription = null, modifier = Modifier.size(24.dp))
         Column(Modifier.weight(1f)) {
-            Text(stringResource(R.string.mobile_playback_subtitle_appearance), style = PutioTypeScale.bodyMd)
+            Text(stringResource(PlaybackR.string.playback_size_and_timing), style = PutioTypeScale.bodyMd)
             val sizeName = stringResource(textSize.label)
             Text(
                 buildAnnotatedString {
@@ -208,7 +211,7 @@ internal fun MobileSubtitleAppearanceContent(
     onTextSize: (SubtitleTextSize) -> Unit,
     onOffset: (Long) -> Unit,
 ) {
-    MobileSideSheetLabel(stringResource(R.string.mobile_playback_subtitle_text_size))
+    MobileSideSheetLabel(stringResource(PlaybackR.string.playback_text_size))
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 24.dp).selectableGroup(),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -236,7 +239,7 @@ internal fun MobileSubtitleAppearanceContent(
             }
         }
     }
-    MobileSideSheetLabel(stringResource(R.string.mobile_playback_subtitle_timing), Modifier.padding(top = 12.dp))
+    MobileSideSheetLabel(stringResource(PlaybackR.string.playback_subtitle_timing), Modifier.padding(top = 12.dp))
     // The 48dp touch bands of the steps and Reset already hold the board's spacing.
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 24.dp),
@@ -245,7 +248,7 @@ internal fun MobileSubtitleAppearanceContent(
     ) {
         OffsetStep(
             label = "−0.1",
-            description = stringResource(R.string.mobile_playback_subtitle_earlier),
+            description = stringResource(PlaybackR.string.playback_subtitle_earlier),
             enabled = offsetMillis > -SUBTITLE_OFFSET_LIMIT_MILLIS,
             onClick = { onOffset(offsetMillis - SUBTITLE_OFFSET_STEP_MILLIS) },
         )
@@ -257,7 +260,7 @@ internal fun MobileSubtitleAppearanceContent(
         )
         OffsetStep(
             label = "+0.1",
-            description = stringResource(R.string.mobile_playback_subtitle_later),
+            description = stringResource(PlaybackR.string.playback_subtitle_later),
             enabled = offsetMillis < SUBTITLE_OFFSET_LIMIT_MILLIS,
             onClick = { onOffset(offsetMillis + SUBTITLE_OFFSET_STEP_MILLIS) },
         )
@@ -267,7 +270,7 @@ internal fun MobileSubtitleAppearanceContent(
         enabled = offsetMillis != 0L,
         modifier = Modifier.padding(horizontal = 12.dp),
         colors = neutralTextButtonColors(),
-    ) { Text(stringResource(R.string.mobile_playback_subtitle_reset)) }
+    ) { Text(stringResource(PlaybackR.string.playback_subtitle_reset)) }
     Text(
         stringResource(R.string.mobile_playback_subtitle_caption_settings),
         style = MaterialTheme.typography.bodySmall.copy(fontSize = PutioTypeScale.labelSm.fontSize),
@@ -342,12 +345,3 @@ internal fun subtitleArea(frame: DpSize, aspectRatio: Float?, coveredWidth: Dp):
 
 // Between the controls and the lowest subtitle line.
 private val SUBTITLE_AIR = 8.dp
-
-@get:StringRes
-internal val SubtitleTextSize.label: Int
-    get() = when (this) {
-        SubtitleTextSize.Small -> R.string.mobile_playback_subtitle_size_small
-        SubtitleTextSize.Medium -> R.string.mobile_playback_subtitle_size_medium
-        SubtitleTextSize.Large -> R.string.mobile_playback_subtitle_size_large
-        SubtitleTextSize.ExtraLarge -> R.string.mobile_playback_subtitle_size_extra_large
-    }

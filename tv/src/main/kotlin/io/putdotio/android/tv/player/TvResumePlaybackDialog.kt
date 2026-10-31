@@ -1,6 +1,7 @@
 package io.putdotio.android.tv.player
 
 import androidx.compose.foundation.layout.Arrangement
+import io.putdotio.android.playback.R as PlaybackR
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -29,7 +30,7 @@ internal fun TvResumePlaybackDialog(
     Box(Modifier.fillMaxSize().tvSafeAreaPadding()) { TvPlayerTopBar(title) }
     val time = playerTime((startFromSeconds * MILLIS_PER_SECOND).toLong())
     TvDialog(
-        title = stringResource(R.string.tv_player_resume_title, time),
+        title = stringResource(PlaybackR.string.playback_resume_title, time),
         message = null,
         onDismiss = onDismiss,
     ) { focus ->
@@ -39,10 +40,10 @@ internal fun TvResumePlaybackDialog(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             TvButton(onClick = onRestart, style = TvButtonStyle.Text) {
-                Text(stringResource(R.string.tv_player_start_over))
+                Text(stringResource(PlaybackR.string.playback_start_over))
             }
             TvButton(onClick = onResume, style = TvButtonStyle.Filled, modifier = Modifier.focusRequester(focus)) {
-                Text(stringResource(R.string.tv_player_resume))
+                Text(stringResource(PlaybackR.string.playback_resume))
             }
         }
     }

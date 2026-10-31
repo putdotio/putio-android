@@ -10,9 +10,12 @@ import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackController
 import io.putdotio.android.playback.PlaybackEvent
 import io.putdotio.android.playback.PlaybackFailure
+import io.putdotio.android.playback.PlaybackNextResult
+import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.playback.SubtitleStartupPolicy
 import io.putdotio.android.playback.playerFailureTelemetry
 import io.putdotio.android.playback.putioFailure
+import io.putdotio.android.playback.rememberNextEpisode
 import io.putdotio.android.telemetry.AnalyticsEvent
 import io.putdotio.android.telemetry.ProductAnalytics
 import io.putdotio.android.telemetry.PutioDiagnostics
@@ -40,7 +43,8 @@ internal fun TvPlaybackLayer(
 /**
  * One session playback: the shared controller's state on the TV player screen. With
  * [autoplayNextVideo] a finished video moves on to the next one in its folder, by the rules
- * mobile uses, and playback leaves after the folder's last.
+ * mobile uses, and playback leaves after the folder's last. With [findNextEpisode], the account's
+ * next_episode, a playing video offers the next one as a chip.
  */
 @Composable
 internal fun TvPlaybackRoute(
@@ -51,8 +55,10 @@ internal fun TvPlaybackRoute(
     reporter: TvPlaybackReporter = TvPlaybackReporter.None,
     subtitleStartupPolicy: SubtitleStartupPolicy? = null,
     autoplayNextVideo: Boolean = false,
+    findNextEpisode: (suspend (PlaybackTarget) -> PlaybackNextResult)? = null,
 ) {
     val state by controller.state.collectAsStateWithLifecycle()
+    val nextEpisode = rememberNextEpisode(state, findNextEpisode, onSessionRejected)
     val failure = when (val content = state.content) {
         is PlaybackContent.Failed -> content.failure
         is PlaybackContent.NextFailed -> content.failure
@@ -79,6 +85,8 @@ internal fun TvPlaybackRoute(
         subtitleStartupPolicy = subtitleStartupPolicy,
         autoplayNextVideo = autoplayNextVideo,
         onPlaybackEnded = { controller.dispatch(PlaybackEvent.PlayerEnded) },
+        nextEpisode = nextEpisode,
+        onNextEpisode = { nextEpisode?.let { controller.dispatch(PlaybackEvent.NextChosen(it)) } },
         analytics = controller.analyticsReporter,
     )
 }

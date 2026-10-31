@@ -121,7 +121,10 @@ class TvPlayerOverlayTest {
 
         val timing = open.openSizeAndTiming().overlay
         assertEquals(TvPlayerSheet.SizeAndTiming, timing.sheet)
-        assertEquals("Back returns to Subtitles", TvPlayerSheet.Subtitles, timing.back().overlay.sheet)
+        val returned = timing.back().overlay
+        assertEquals("Back returns to Subtitles", TvPlayerSheet.Subtitles, returned.sheet)
+        assertTrue("on the row that opened Size and timing", returned.backFromSizeAndTiming)
+        assertFalse(returned.closeSheet().overlay.openSheet(TvPlayerControl.Subtitles).overlay.backFromSizeAndTiming)
 
         val closed = open.back()
         assertNull(closed.overlay.sheet)
@@ -182,6 +185,10 @@ class TvPlayerOverlayTest {
         val next = TvPlayerOverlay().playNext()
         assertEquals(listOf(PlayNext), next.commands)
         assertEquals(emptyList<TvPlayerCommand>(), next.overlay.playNext().commands)
+
+        val chosen = TvPlayerOverlay().chooseNext()
+        assertEquals(listOf(TvPlayerCommand.ChooseNext), chosen.commands)
+        assertFalse("The controller leaves only once the next video resolves", chosen.overlay.exited)
     }
 
     private fun TvPlayerOverlay.scrubForward(nowMillis: Long, playing: Boolean = true, repeat: Boolean = false) =

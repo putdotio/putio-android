@@ -93,6 +93,8 @@ internal fun TvPlayerScreen(
     subtitleStartupPolicy: SubtitleStartupPolicy? = null,
     autoplayNextVideo: Boolean = false,
     onPlaybackEnded: () -> Boolean = { false },
+    nextEpisode: PlaybackTarget? = null,
+    onNextEpisode: () -> Unit = {},
     analytics: PlaybackAnalyticsReporter = PlaybackAnalyticsReporter.None,
 ) {
     BackHandler(enabled = state.content !is PlaybackContent.Ready, onBack = onBack)
@@ -111,6 +113,8 @@ internal fun TvPlayerScreen(
                     onExit = onBack,
                     autoplayNextVideo = autoplayNextVideo,
                     onPlaybackEnded = onPlaybackEnded,
+                    nextEpisode = nextEpisode != null && state.target.mediaType == PlaybackMediaType.VIDEO,
+                    onNextEpisode = onNextEpisode,
                     analytics = analytics,
                 )
 
@@ -167,6 +171,8 @@ private fun TvReadyPlayer(
     onExit: () -> Unit,
     autoplayNextVideo: Boolean,
     onPlaybackEnded: () -> Boolean,
+    nextEpisode: Boolean,
+    onNextEpisode: () -> Unit,
     analytics: PlaybackAnalyticsReporter,
 ) {
     val context = LocalContext.current
@@ -188,13 +194,19 @@ private fun TvReadyPlayer(
     val currentOnExit by rememberUpdatedState(onExit)
     val currentAutoplayNextVideo by rememberUpdatedState(autoplayNextVideo)
     val currentOnPlaybackEnded by rememberUpdatedState(onPlaybackEnded)
+    val currentOnNextEpisode by rememberUpdatedState(onNextEpisode)
     val currentAnalytics by rememberUpdatedState(analytics)
     var overlay by remember(player) { mutableStateOf(TvPlayerOverlay()) }
     val apply: (TvPlayerTransition) -> Unit = remember(player) {
         { transition ->
             overlay = transition.overlay
             transition.commands.forEach { command ->
-                player.perform(command, exit = { currentOnExit() }, playNext = { currentOnPlaybackEnded() })
+                player.perform(
+                    command,
+                    exit = { currentOnExit() },
+                    playNext = { currentOnPlaybackEnded() },
+                    chooseNext = { currentOnNextEpisode() },
+                )
             }
         }
     }
@@ -309,7 +321,7 @@ private fun TvReadyPlayer(
 
     val choices = TvTrackChoices(tracks, parameters, subtitleStartupPolicy)
     val subtitlesHidden = choices.subtitlesHidden
-    val chips = choices.chips(nextEpisode = autoplayNextVideo)
+    val chips = choices.chips(nextEpisode = nextEpisode)
     LaunchedEffect(subtitlesHidden, overlay.sheet) {
         val subtitleSheet = overlay.sheet == TvPlayerSheet.Subtitles || overlay.sheet == TvPlayerSheet.SizeAndTiming
         if (subtitlesHidden && subtitleSheet) apply(overlay.closeSheet())
@@ -367,6 +379,7 @@ private fun TvReadyPlayer(
     val closeSheet = { apply(overlay.closeSheet()) }
     TvPlayerSheets(
         sheet = overlay.sheet,
+        backFromSizeAndTiming = overlay.backFromSizeAndTiming,
         returnFocus = focus,
         choices = choices,
         sidecar = source.subtitles.sidecarTracks(),
@@ -436,13 +449,19 @@ private const val SUBTITLES_ABOVE_CONTROLS = 0.22f
 private fun subtitleBottomPadding(controlsVisible: Boolean): Float =
     if (controlsVisible) SUBTITLES_ABOVE_CONTROLS else SubtitleView.DEFAULT_BOTTOM_PADDING_FRACTION
 
-private fun Player.perform(command: TvPlayerCommand, exit: () -> Unit, playNext: () -> Boolean) {
+private fun Player.perform(
+    command: TvPlayerCommand,
+    exit: () -> Unit,
+    playNext: () -> Boolean,
+    chooseNext: () -> Unit,
+) {
     when (command) {
         TvPlayerCommand.Play -> play()
         TvPlayerCommand.Pause -> pause()
         is TvPlayerCommand.SeekTo -> seekTo(command.positionMillis)
         TvPlayerCommand.Exit -> exit()
         TvPlayerCommand.PlayNext -> if (!playNext()) exit()
+        TvPlayerCommand.ChooseNext -> chooseNext()
     }
 }
 

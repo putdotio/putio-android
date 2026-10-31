@@ -40,19 +40,32 @@ internal fun TvPlayerOverlay.openSheet(chip: TvPlayerControl): TvPlayerTransitio
     return if (exited || sheet == null) {
         TvPlayerTransition(this)
     } else {
-        TvPlayerTransition(copy(controlsVisible = true, sheet = sheet, focus = chip, activity = activity + 1))
+        TvPlayerTransition(
+            copy(
+                controlsVisible = true,
+                sheet = sheet,
+                backFromSizeAndTiming = false,
+                focus = chip,
+                activity = activity + 1,
+            ),
+        )
     }
 }
 
 internal fun TvPlayerOverlay.openSizeAndTiming(): TvPlayerTransition =
     if (sheet == TvPlayerSheet.Subtitles) {
-        TvPlayerTransition(copy(sheet = TvPlayerSheet.SizeAndTiming, activity = activity + 1))
+        TvPlayerTransition(
+            copy(sheet = TvPlayerSheet.SizeAndTiming, backFromSizeAndTiming = false, activity = activity + 1),
+        )
     } else {
         TvPlayerTransition(this)
     }
 
 internal fun TvPlayerOverlay.closeSheet(): TvPlayerTransition =
-    TvPlayerTransition(copy(sheet = null, activity = activity + 1))
+    TvPlayerTransition(copy(sheet = null, backFromSizeAndTiming = false, activity = activity + 1))
+
+internal fun TvPlayerOverlay.chooseNext(): TvPlayerTransition =
+    if (exited) TvPlayerTransition(this) else TvPlayerTransition(this, listOf(TvPlayerCommand.ChooseNext))
 
 internal fun TvPlayerOverlay.playNext(): TvPlayerTransition =
     if (exited) {

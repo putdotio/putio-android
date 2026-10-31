@@ -212,6 +212,7 @@ class TvPlayerOptionsTest {
         choose("L")
         backInDialog()
         compose.onNodeWithText("Large · +0.2 s").assertIsDisplayed()
+        compose.onNode(hasText("Size and timing") and hasClickAction()).assertIsFocused()
         backInDialog()
         compose.onNodeWithText("In this file").assertDoesNotExist()
         chip(SUBTITLES).assertIsSelected()

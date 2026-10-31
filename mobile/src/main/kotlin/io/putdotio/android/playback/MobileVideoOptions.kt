@@ -1,6 +1,7 @@
 package io.putdotio.android.playback
 
 import androidx.annotation.DrawableRes
+import io.putdotio.android.playback.R as PlaybackR
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.text.BasicText
@@ -119,7 +120,7 @@ internal fun MobileAudioChip(snapshot: PlayerOptionsSnapshot, onClick: () -> Uni
         ?: stringResource(R.string.mobile_playback_audio_control)
     MobilePlayerChip(
         label = current,
-        description = stringResource(R.string.mobile_playback_audio_chip, current),
+        description = stringResource(PlaybackR.string.playback_audio_chip, current),
         onClick = onClick,
         leadingIcon = R.drawable.ic_ph_speaker_high,
         modifier = modifier,
@@ -136,7 +137,7 @@ internal fun MobileSpeedChip(
     val value = stringResource(R.string.mobile_playback_speed_value, formatPlaybackSpeed(snapshot.speed))
     MobilePlayerChip(
         label = value,
-        description = stringResource(R.string.mobile_playback_speed_chip, value),
+        description = stringResource(PlaybackR.string.playback_speed_chip, value),
         onClick = onClick,
         leadingIcon = R.drawable.ic_ph_gauge,
         mono = true,
@@ -195,7 +196,7 @@ internal fun MobileSpeedSheetContent(player: Media3Player, snapshot: PlayerOptio
         SpeedStepButton(
             icon = R.drawable.ic_ph_minus,
             description = stringResource(
-                R.string.mobile_playback_speed_slower,
+                PlaybackR.string.playback_speed_slower,
                 stringResource(R.string.mobile_playback_speed_value, formatPlaybackSpeed(slower ?: speed)),
             ),
             enabled = enabled && slower != null,
@@ -225,7 +226,7 @@ internal fun MobileSpeedSheetContent(player: Media3Player, snapshot: PlayerOptio
         SpeedStepButton(
             icon = R.drawable.ic_ph_plus,
             description = stringResource(
-                R.string.mobile_playback_speed_faster,
+                PlaybackR.string.playback_speed_faster,
                 stringResource(R.string.mobile_playback_speed_value, formatPlaybackSpeed(faster ?: speed)),
             ),
             enabled = enabled && faster != null,
