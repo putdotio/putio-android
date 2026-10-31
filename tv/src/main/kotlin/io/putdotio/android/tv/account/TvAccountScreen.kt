@@ -898,7 +898,7 @@ private fun TvAccountIdentity(account: TvAccount) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 2.dp),
+                modifier = Modifier.padding(top = 5.dp),
             )
         }
     }
@@ -966,7 +966,7 @@ private fun TvStorageCard(account: TvAccount) {
         }
         Box(
             modifier = Modifier
-                .padding(top = 10.dp)
+                .padding(top = STORAGE_BAR_TOP)
                 .fillMaxWidth()
                 .height(4.dp)
                 .clip(RoundedCornerShape(PutioRadius.progress))
@@ -1067,6 +1067,7 @@ private val GROUP_INSET = 12.dp
 private val LEFT_WIDTH = 372.dp
 private val RIGHT_START = 432.dp
 private val AVATAR_SIZE = 40.dp
+private val STORAGE_BAR_TOP = 13.dp
 private val SUPPORT_QR_SIZE = 80.dp
 private val SUPPORT_QR_RADIUS = 10.dp
 private val SUPPORT_QR_PADDING = 5.dp

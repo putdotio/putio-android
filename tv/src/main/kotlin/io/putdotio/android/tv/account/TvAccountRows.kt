@@ -83,7 +83,7 @@ internal fun TvGroupLabel(text: String, modifier: Modifier = Modifier) {
         text = text,
         style = TvAccountType.groupLabel,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = modifier.padding(start = 16.dp, end = 16.dp, bottom = 6.dp),
+        modifier = modifier.padding(start = 16.dp, top = 1.dp, end = 16.dp, bottom = 7.5.dp),
     )
 }
 
@@ -167,7 +167,7 @@ internal fun TvAccountGroupRow(
                     painterResource(R.drawable.ic_ph_caret_right),
                     contentDescription = null,
                     tint = secondary,
-                    modifier = Modifier.padding(start = 8.dp).size(15.dp),
+                    modifier = Modifier.size(15.dp),
                 )
             }
         }
@@ -197,7 +197,7 @@ internal fun TvSettingRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = ROW_HEIGHT)
-                .padding(horizontal = 16.dp, vertical = if (description == null) 0.dp else 8.dp),
+                .padding(horizontal = 16.dp, vertical = if (description == null) 0.dp else 9.dp),
             horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -214,8 +214,8 @@ internal fun TvSettingRow(
                     Text(
                         description,
                         style = TvAccountType.description,
-                        color = secondary,
-                        modifier = Modifier.padding(top = 2.dp),
+                        color = colors.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 3.dp),
                     )
                 }
             }
