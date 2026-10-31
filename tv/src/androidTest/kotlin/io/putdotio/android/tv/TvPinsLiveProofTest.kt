@@ -19,6 +19,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -58,9 +59,16 @@ class TvPinsLiveProofTest {
             val pins = AppConfigPinnedFiles(client, scope)
             withTimeout(TIMEOUT_MILLIS) { pins.pins.first { it != null } }
             withContext(Dispatchers.Main) { pins.pin(FilesItemId(checkNotNull(fixture))) }
-            withTimeout(TIMEOUT_MILLIS) { pins.pins.first { it?.firstOrNull()?.value == fixture } }
-
-            val after = client.appConfig.get()
+            val after = withTimeout(TIMEOUT_MILLIS) {
+                var read = client.appConfig.get()
+                while (read[PINNED_FILES_KEY] == prior && pins.failure.value == null) {
+                    delay(POLL_MILLIS)
+                    read = client.appConfig.get()
+                }
+                read
+            }
+            assertEquals(null, pins.failure.value)
+            assertEquals(fixture, pins.pins.value?.firstOrNull()?.value)
             val priorIds = (prior as? JsonArray).orEmpty().filterNot { (it as? JsonPrimitive)?.content == "$fixture" }
             assertEquals(JsonArray(listOf(JsonPrimitive(fixture)) + priorIds), after[PINNED_FILES_KEY])
             assertEquals(before.values - PINNED_FILES_KEY, after.values - PINNED_FILES_KEY)
@@ -115,5 +123,6 @@ class TvPinsLiveProofTest {
     private companion object {
         const val TIMEOUT_MILLIS = 20_000L
         const val HOME_SETTLE_MILLIS = 8_000L
+        const val POLL_MILLIS = 500L
     }
 }
