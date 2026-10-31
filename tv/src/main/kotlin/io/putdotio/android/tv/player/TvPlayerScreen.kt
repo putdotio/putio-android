@@ -62,6 +62,7 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import io.putdotio.android.R
+import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.design.R as DesignR
 import io.putdotio.android.playback.PlaybackAnalyticsReporter
 import io.putdotio.android.playback.PlaybackContent
@@ -706,7 +707,7 @@ private fun TvPlayerTimes(elapsed: String, paused: Boolean, knownDurationMillis:
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
                 text = elapsed,
-                style = MaterialTheme.typography.labelLarge,
+                style = PutioTypeScale.tvMono,
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.testTag(TV_PLAYER_ELAPSED_TAG),
             )
@@ -724,7 +725,7 @@ private fun TvPlayerTimes(elapsed: String, paused: Boolean, knownDurationMillis:
         if (knownDurationMillis != null) {
             Text(
                 text = knownDurationMillis.elapsedLabel(),
-                style = MaterialTheme.typography.labelLarge,
+                style = PutioTypeScale.tvMono,
                 color = MaterialTheme.colorScheme.onSurface,
             )
         }

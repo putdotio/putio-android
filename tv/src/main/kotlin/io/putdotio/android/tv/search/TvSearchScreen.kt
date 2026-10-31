@@ -86,6 +86,7 @@ import io.putdotio.android.search.SearchPaging
 import io.putdotio.android.search.SearchState
 import io.putdotio.android.search.SearchTerm
 import io.putdotio.android.tv.TvButton
+import io.putdotio.android.tv.TvFocus
 import io.putdotio.android.tv.TvPaneFocusOwner
 import io.putdotio.android.tv.TvPickedRow
 import io.putdotio.android.tv.TvStatusScreen
@@ -510,13 +511,11 @@ private fun TvRecentSearches(
                 scale = ClickableChipScale.None,
                 onClick = { onSearch(term) },
                 onLongClick = { onRemove(term) },
-                // Focused chips fill `primary` like buttons: the stock focused pair binds to
-                // the same light token in the put.io scheme, so the label would vanish.
                 colors = AssistChipDefaults.colors(
-                    focusedContainerColor = MaterialTheme.colorScheme.primary,
-                    focusedContentColor = MaterialTheme.colorScheme.onPrimary,
-                    pressedContainerColor = MaterialTheme.colorScheme.primary,
-                    pressedContentColor = MaterialTheme.colorScheme.onPrimary,
+                    focusedContainerColor = TvFocus.container,
+                    focusedContentColor = TvFocus.content,
+                    pressedContainerColor = TvFocus.container,
+                    pressedContentColor = TvFocus.content,
                 ),
                 leadingIcon = {
                     Icon(

@@ -58,7 +58,7 @@ import io.putdotio.android.tv.auth.TvAccount
  *
  * The background reaches the screen edges; the drawer and pane sit inside the
  * layout margins ([tvSafeAreaPadding]), and the pane adds one `space.sm`
- * step (16dp) from the drawer and the safe edges.
+ * step (16dp) from the drawer.
  */
 @Composable
 internal fun TvShell(
@@ -111,7 +111,6 @@ internal fun TvShell(
             Column(
                 modifier = Modifier
                     .fillMaxHeight()
-                    .padding(horizontal = 12.dp, vertical = 24.dp)
                     .focusRestorer(selectedItemFocus)
                     .onFocusChanged { drawerHasFocus = it.hasFocus }
                     .focusGroup(),
@@ -145,7 +144,7 @@ internal fun TvShell(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(PANE_INSET),
+                .padding(start = PANE_INSET),
         ) {
             account.inactiveNotice?.let { notice ->
                 TvInactiveAccountNotice(notice, Modifier.padding(bottom = PANE_INSET))
