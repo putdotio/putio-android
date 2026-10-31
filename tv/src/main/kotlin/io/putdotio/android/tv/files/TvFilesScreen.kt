@@ -60,7 +60,6 @@ import io.putdotio.android.files.canStartOperation
 import io.putdotio.android.files.items
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import io.putdotio.android.design.PutioTypeScale
@@ -68,6 +67,7 @@ import io.putdotio.android.files.formatFileSize
 import io.putdotio.android.tv.ROW_BLEED
 import io.putdotio.android.tv.TvListDetail
 import io.putdotio.android.tv.TvPlayStart
+import io.putdotio.android.tv.TV_MONO_RUN
 import io.putdotio.android.tv.TvSectionLine
 import io.putdotio.android.tv.TvSectionPill
 import io.putdotio.android.tv.TvButton
@@ -656,14 +656,7 @@ private fun monoNumber(label: String, number: String): AnnotatedString =
         append(label)
         val start = label.indexOf(number)
         if (start >= 0) {
-            addStyle(
-                SpanStyle(
-                    fontFamily = PutioTypeScale.tvMono.fontFamily,
-                    fontFeatureSettings = PutioTypeScale.tvMono.fontFeatureSettings,
-                ),
-                start,
-                start + number.length,
-            )
+            addStyle(TV_MONO_RUN, start, start + number.length)
         }
     }
 

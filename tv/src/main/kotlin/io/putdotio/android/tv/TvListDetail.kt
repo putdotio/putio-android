@@ -31,8 +31,13 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.text
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Icon
@@ -181,13 +186,13 @@ internal fun ColumnScope.TvDetailBody(
             Row(modifier = Modifier.semantics(mergeDescendants = true) {}) {
                 Text(
                     text = fact.label,
-                    style = PutioTypeScale.tvMeta,
+                    style = DETAIL_FACT,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.width(DETAIL_FACT_LABEL_WIDTH),
                 )
                 Text(
-                    text = fact.value,
-                    style = if (fact.mono) PutioTypeScale.tvMono else PutioTypeScale.tvMeta,
+                    text = if (fact.mono) fact.value.asMonoRun() else AnnotatedString(fact.value),
+                    style = DETAIL_FACT,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f),
                 )
@@ -216,6 +221,23 @@ internal fun TvDetailButton(
     }
 }
 
+internal val TV_MONO_RUN: SpanStyle = SpanStyle(
+    fontFamily = PutioTypeScale.tvMono.fontFamily,
+    fontSize = MONO_RUN_SCALE.em,
+    letterSpacing = MONO_RUN_TRACKING.em,
+    fontFeatureSettings = PutioTypeScale.tvMono.fontFeatureSettings,
+)
+
+internal fun String.asMonoRun(): AnnotatedString =
+    buildAnnotatedString { withStyle(TV_MONO_RUN) { append(this@asMonoRun) } }
+
+internal fun TextStyle.asMonoRun(): TextStyle = copy(
+    fontFamily = PutioTypeScale.tvMono.fontFamily,
+    fontSize = fontSize * MONO_RUN_SCALE,
+    letterSpacing = MONO_RUN_TRACKING.em,
+    fontFeatureSettings = PutioTypeScale.tvMono.fontFeatureSettings,
+)
+
 private fun String.breakableAtDots(): String = replace(".", ".​").removeSuffix("​")
 
 internal val TV_LIST_WIDTH = 544.dp
@@ -236,8 +258,11 @@ private val DETAIL_TITLE = PutioTypeScale.tvDetailTitle.copy(lineHeight = 22.sp)
 private val DETAIL_META_GAP = 5.dp
 private val DETAIL_ACTIONS_GAP = 16.dp
 private val DETAIL_ACTION_SPACING = 4.dp
-private val DETAIL_FACTS_GAP = 19.5.dp
-private val DETAIL_FACT_SPACING = 7.5.dp
+private val DETAIL_FACTS_GAP = 17.5.dp
+private val DETAIL_FACT_SPACING = 6.dp
+private val DETAIL_FACT = PutioTypeScale.tvMeta.copy(lineHeight = 17.4.sp).withFullLineBox()
 private val DETAIL_FACT_LABEL_WIDTH = 70.dp
 private val DETAIL_BUTTON_LABEL = PutioTypeScale.tvButton.copy(fontSize = 12.sp)
 private const val MAX_DETAIL_FACTS = 3
+private const val MONO_RUN_SCALE = 0.92f
+private const val MONO_RUN_TRACKING = -0.01f

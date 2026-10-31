@@ -22,7 +22,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.sp
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
@@ -46,6 +45,8 @@ import io.putdotio.android.tv.TvDetailBody
 import io.putdotio.android.tv.TvDetailButton
 import io.putdotio.android.tv.TvDetailFact
 import io.putdotio.android.tv.TvPlayStart
+import io.putdotio.android.tv.TV_MONO_RUN
+import io.putdotio.android.tv.asMonoRun
 import io.putdotio.android.design.R as DesignR
 import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.delay
@@ -226,7 +227,7 @@ private fun detailMeta(item: FilesItem, count: Int?): AnnotatedString {
     val itemCount = count?.let { pluralStringResource(R.plurals.tv_files_item_count, it, it.toString()) }
     val parts = buildList {
         itemCount?.let { add(AnnotatedString(it)) }
-        add(mono(formatFileSize(item.sizeBytes)))
+        add(formatFileSize(item.sizeBytes).asMonoRun())
         if (!item.isFolder) {
             date?.let { add(AnnotatedString(it)) }
             if (item.playback?.isWatched == true) add(AnnotatedString(watched))
@@ -340,9 +341,6 @@ internal fun tvClock(seconds: Double): String {
     }
 }
 
-private fun mono(text: String): AnnotatedString =
-    buildAnnotatedString { withStyle(MONO_SPAN) { append(text) } }
-
 private fun resumeLabel(label: String, time: String): AnnotatedString =
     buildAnnotatedString {
         val start = label.lastIndexOf(time)
@@ -353,11 +351,7 @@ private fun resumeLabel(label: String, time: String): AnnotatedString =
         }
     }
 
-private val MONO_SPAN = SpanStyle(
-    fontFamily = PutioTypeScale.tvMono.fontFamily,
-    fontFeatureSettings = PutioTypeScale.tvMono.fontFeatureSettings,
-)
-private val RESUME_TIME_SPAN = MONO_SPAN.merge(SpanStyle(fontWeight = PutioTypeScale.tvMono.fontWeight))
+private val RESUME_TIME_SPAN = TV_MONO_RUN.merge(SpanStyle(fontWeight = PutioTypeScale.tvMono.fontWeight))
 private val RESUME_GAP_SPAN = SpanStyle(letterSpacing = 3.sp)
 private const val META_SEPARATOR = " · "
 private const val LOOKUP_DELAY_MILLIS = 300L

@@ -45,7 +45,9 @@ import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.formatFileSize
 import io.putdotio.android.files.toDisplayDate
 import io.putdotio.android.tv.TvFocus
+import io.putdotio.android.tv.asMonoRun
 import io.putdotio.android.tv.tvAccent
+import io.putdotio.android.tv.withFullLineBox
 
 internal const val TV_FILES_ROW_TAG = "tv-files-row"
 
@@ -165,6 +167,6 @@ private val ROW_GLYPH = 20.dp
 private val ROW_CARET = 16.dp
 private val ROW_META_GAP = 5.dp
 private val ROW_META_ICON = 13.dp
-private val ROW_TITLE = PutioTypeScale.tvBody.copy(lineHeight = 16.sp)
-private val ROW_META = PutioTypeScale.tvMeta.copy(lineHeight = 14.sp)
-private val ROW_META_MONO = PutioTypeScale.tvMono.copy(lineHeight = 14.sp)
+private val ROW_TITLE = PutioTypeScale.tvBody.copy(lineHeight = 16.sp).withFullLineBox()
+private val ROW_META = PutioTypeScale.tvMeta.copy(lineHeight = 14.sp).withFullLineBox()
+private val ROW_META_MONO = ROW_META.asMonoRun()
