@@ -75,9 +75,9 @@ typography:
     lineHeight: 18px
   tv-button:
     fontFamily: GT America
-    fontSize: 13px
+    fontSize: 14px
     fontWeight: 500
-    lineHeight: 18px
+    lineHeight: 20px
   tv-label:
     fontFamily: GT America
     fontSize: 12px
@@ -925,7 +925,7 @@ the React Native app shared with Apple TV.
   fill: a focused card's progress line turns dark, and a focused file row's
   glyph turns dark. Nothing scales on focus.
 - Filled buttons, yellow or red, keep their fill on focus and gain a 2dp light
-  ring outside a 2dp gap.
+  ring outside a 2dp `surface-container-high` gap.
 - A tab selects when it takes focus. Down from the tab bar lands on that tab's
   last-focused row; Up from a tab's first row reaches the tab bar.
 - Returning from the player focuses the last file played. A closed sheet

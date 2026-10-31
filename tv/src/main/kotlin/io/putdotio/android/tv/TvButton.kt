@@ -18,6 +18,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Button
@@ -45,6 +46,7 @@ internal fun TvButton(
     }
     val keepsFill = style == TvButtonStyle.Filled || style == TvButtonStyle.Destructive
     val ring = TvFocus.container
+    val gap = PutioDesignTokens.componentBgHover
     Button(
         onClick = onClick,
         modifier = modifier
@@ -52,14 +54,8 @@ internal fun TvButton(
             .drawWithContent {
                 drawContent()
                 if (keepsFill && focused) {
-                    val reach = (RING_GAP + RING_WIDTH / 2).toPx()
-                    drawRoundRect(
-                        color = ring,
-                        topLeft = Offset(-reach, -reach),
-                        size = Size(size.width + 2 * reach, size.height + 2 * reach),
-                        cornerRadius = CornerRadius(size.height / 2 + reach),
-                        style = Stroke(RING_WIDTH.toPx()),
-                    )
+                    drawPillOutline(gap, RING_GAP.toPx() / 2, RING_GAP.toPx())
+                    drawPillOutline(ring, (RING_GAP + RING_WIDTH / 2).toPx(), RING_WIDTH.toPx())
                 }
             },
         enabled = enabled,
@@ -82,6 +78,16 @@ internal fun TvButton(
             content = content,
         )
     }
+}
+
+private fun DrawScope.drawPillOutline(color: Color, reach: Float, width: Float) {
+    drawRoundRect(
+        color = color,
+        topLeft = Offset(-reach, -reach),
+        size = Size(size.width + 2 * reach, size.height + 2 * reach),
+        cornerRadius = CornerRadius(size.height / 2 + reach),
+        style = Stroke(width),
+    )
 }
 
 internal enum class TvButtonStyle {
