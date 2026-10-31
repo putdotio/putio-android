@@ -1,14 +1,14 @@
 package io.putdotio.android.auth
 
-/**
- * Turns default-network callbacks into returns: only a network that was missing or unvalidated and
- * then validates counts, so capability updates on a working network and put.io outages never retry.
- */
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+
 public class NetworkReturns(
-    initiallyValidated: Boolean,
     private val onReturn: () -> Unit,
 ) {
-    private var waiting = !initiallyValidated
+    private var waiting = false
 
     @Synchronized
     public fun onLost() {
@@ -16,14 +16,49 @@ public class NetworkReturns(
     }
 
     public fun onCapabilities(validated: Boolean) {
-        val returned = synchronized(this) {
-            if (!validated) {
-                waiting = true
-                false
-            } else {
-                waiting.also { waiting = false }
-            }
+        report(synchronized(this) { settle(validated) })
+    }
+
+    public fun onRegistered(currentlyValidated: () -> Boolean) {
+        report(synchronized(this) { settle(currentlyValidated()) })
+    }
+
+    private fun settle(validated: Boolean): Boolean =
+        if (!validated) {
+            waiting = true
+            false
+        } else {
+            waiting.also { waiting = false }
         }
+
+    private fun report(returned: Boolean) {
         if (returned) onReturn()
+    }
+}
+
+public fun watchNetworkReturns(
+    context: Context,
+    onValidated: () -> Unit = {},
+    onReturn: () -> Unit,
+) {
+    val connectivity = context.getSystemService(ConnectivityManager::class.java) ?: return
+    val returns = NetworkReturns(onReturn)
+    connectivity.registerDefaultNetworkCallback(
+        object : ConnectivityManager.NetworkCallback() {
+            override fun onLost(network: Network) {
+                returns.onLost()
+            }
+
+            override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
+                val validated = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+                if (validated) onValidated()
+                returns.onCapabilities(validated)
+            }
+        },
+    )
+    returns.onRegistered {
+        connectivity.activeNetwork
+            ?.let(connectivity::getNetworkCapabilities)
+            ?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true
     }
 }

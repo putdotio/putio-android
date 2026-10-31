@@ -36,7 +36,6 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -149,11 +148,7 @@ private fun LinkColumns(
 private fun ColumnTitle(text: String) {
     Text(
         text = text,
-        style = MaterialTheme.typography.bodyMedium.copy(
-            fontSize = 15.sp,
-            lineHeight = 20.sp,
-            fontWeight = FontWeight.Medium,
-        ),
+        style = PutioTypeScale.bodyMd.copy(fontWeight = FontWeight.Medium),
         color = MaterialTheme.colorScheme.onSurface,
     )
 }
@@ -165,9 +160,14 @@ private fun BrowserInstruction() {
     val start = sentence.indexOf(url)
     Text(
         text = buildAnnotatedString {
-            append(sentence.substring(0, start))
-            withStyle(SpanStyle(color = PutioDesignTokens.yellowSolid, fontWeight = FontWeight.Medium)) { append(url) }
-            append(sentence.substring(start + url.length))
+            append(sentence)
+            if (start >= 0) {
+                addStyle(
+                    SpanStyle(color = PutioDesignTokens.yellowSolid, fontWeight = FontWeight.Medium),
+                    start,
+                    start + url.length,
+                )
+            }
         },
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,

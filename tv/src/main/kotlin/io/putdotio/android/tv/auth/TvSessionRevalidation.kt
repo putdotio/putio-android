@@ -1,10 +1,5 @@
 package io.putdotio.android.tv.auth
 
-import android.content.Context
-import android.net.ConnectivityManager
-import android.net.Network
-import android.net.NetworkCapabilities
-import io.putdotio.android.auth.NetworkReturns
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -62,27 +57,3 @@ internal class TvSessionRevalidation(
 
 private fun TvAuthState.isCheckingSession(): Boolean =
     this == TvAuthState.Initializing || this == TvAuthState.RestoringSession || this is TvAuthState.ValidatingSession
-
-internal fun watchNetworkReturns(
-    context: Context,
-    onReturn: () -> Unit,
-) {
-    val connectivity = context.getSystemService(ConnectivityManager::class.java) ?: return
-    val returns = NetworkReturns(
-        initiallyValidated = connectivity.activeNetwork
-            ?.let(connectivity::getNetworkCapabilities)
-            ?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true,
-        onReturn = onReturn,
-    )
-    connectivity.registerDefaultNetworkCallback(
-        object : ConnectivityManager.NetworkCallback() {
-            override fun onLost(network: Network) {
-                returns.onLost()
-            }
-
-            override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
-                returns.onCapabilities(capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED))
-            }
-        },
-    )
-}

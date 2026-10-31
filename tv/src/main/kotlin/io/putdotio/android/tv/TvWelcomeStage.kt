@@ -1,12 +1,5 @@
 package io.putdotio.android.tv
 
-import android.content.ContentResolver
-import android.database.ContentObserver
-import android.os.Handler
-import android.os.Looper
-import android.provider.Settings
-import androidx.compose.animation.core.CubicBezierEasing
-import androidx.compose.animation.core.withInfiniteAnimationFrameMillis
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,16 +10,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -37,7 +24,8 @@ import androidx.tv.material3.Text
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioTypeScale
-import kotlinx.coroutines.delay
+import io.putdotio.android.design.rememberAnimationsOff
+import io.putdotio.android.design.rememberWelcomeSequencePosition
 import io.putdotio.android.design.R as DesignR
 
 private val TvWelcomeSequence: List<Pair<Int, Int>> = listOf(
@@ -46,17 +34,6 @@ private val TvWelcomeSequence: List<Pair<Int, Int>> = listOf(
     R.string.tv_welcome_kaomoji_stream to R.string.tv_welcome_caption_stream,
     R.string.tv_welcome_kaomoji_offline to R.string.tv_welcome_caption_offline,
 )
-
-private const val WELCOME_HOLD_MS = 1_900L
-private const val WELCOME_ROLL_MS = 600L
-private const val WELCOME_FRAME_MS = WELCOME_HOLD_MS + WELCOME_ROLL_MS
-private val WelcomeRollEasing = CubicBezierEasing(a = 0.7f, b = 0f, c = 0.2f, d = 1f)
-
-private fun tvWelcomePosition(elapsedMs: Long, frameCount: Int): Float {
-    val frame = (elapsedMs / WELCOME_FRAME_MS) % frameCount
-    val roll = (elapsedMs % WELCOME_FRAME_MS - WELCOME_HOLD_MS).coerceAtLeast(0L)
-    return frame + WelcomeRollEasing.transform(roll.toFloat() / WELCOME_ROLL_MS)
-}
 
 private val FRAME_HEIGHT = 64.dp
 private val KAOMOJI_LINE = 42.dp
@@ -75,19 +52,7 @@ internal fun TvWordmark(modifier: Modifier = Modifier) {
 @Composable
 internal fun TvWelcomeStage(modifier: Modifier = Modifier) {
     val frames = TvWelcomeSequence
-    val animates = !rememberAnimationsOff()
-    val position = remember { mutableFloatStateOf(0f) }
-    LaunchedEffect(animates) {
-        position.floatValue = 0f
-        if (!animates) return@LaunchedEffect
-        val start = withInfiniteAnimationFrameMillis { it }
-        while (true) {
-            val elapsed = withInfiniteAnimationFrameMillis { it } - start
-            position.floatValue = tvWelcomePosition(elapsed, frames.size)
-            val hold = WELCOME_HOLD_MS - elapsed % WELCOME_FRAME_MS
-            if (hold > 0) delay(hold)
-        }
-    }
+    val position = rememberWelcomeSequencePosition(frames, animates = !rememberAnimationsOff())
     Column(
         modifier = modifier.fillMaxWidth().clearAndSetSemantics {},
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -106,30 +71,6 @@ internal fun TvWelcomeStage(modifier: Modifier = Modifier) {
         }
     }
 }
-
-@Composable
-private fun rememberAnimationsOff(): Boolean {
-    val resolver = LocalContext.current.contentResolver
-    val off = remember(resolver) { mutableStateOf(resolver.animationsOff()) }
-    DisposableEffect(resolver) {
-        val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
-            override fun onChange(selfChange: Boolean) {
-                off.value = resolver.animationsOff()
-            }
-        }
-        resolver.registerContentObserver(
-            Settings.Global.getUriFor(Settings.Global.ANIMATOR_DURATION_SCALE),
-            false,
-            observer,
-        )
-        off.value = resolver.animationsOff()
-        onDispose { resolver.unregisterContentObserver(observer) }
-    }
-    return off.value
-}
-
-private fun ContentResolver.animationsOff(): Boolean =
-    Settings.Global.getFloat(this, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
 
 @Composable
 private fun WelcomeFrame(
