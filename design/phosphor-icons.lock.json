@@ -379,6 +379,13 @@
       "outputSha256": "5647de7b61944beb5db3b03f905331ff9d38cd9d57b26a56d3a1eb88fdca6216"
     },
     {
+      "resDir": "tv/src/main/res",
+      "resource": "ic_ph_warning_circle_fill",
+      "asset": "assets/fill/warning-circle-fill.svg",
+      "sourceSha256": "29199dd3ff20a7fc36380dc366c9004fafa98d979649dc2311c5b1f8fd968dac",
+      "outputSha256": "c38bbd5fae3c4a5ac87df6748f2be0475f0e287ba9eefcaaff038d566e80fcd3"
+    },
+    {
       "resDir": "mobile/src/main/res",
       "resource": "ic_ph_warning_circle",
       "asset": "assets/regular/warning-circle.svg",

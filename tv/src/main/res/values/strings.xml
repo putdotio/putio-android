@@ -88,12 +88,14 @@
     <string name="tv_files_sort_watch_ascending">Unwatched first</string>
     <string name="tv_files_sort_watch_descending">Watched first</string>
     <string name="tv_files_loading">Loading</string>
-    <string name="tv_files_empty">This folder is empty.</string>
+    <string name="tv_files_empty_title">Empty folder.</string>
+    <string name="tv_files_empty_message">Files you add to this folder on put.io show up here.</string>
     <string name="tv_files_load_more">Load more</string>
     <string name="tv_files_loading_more">Loading more files</string>
     <string name="tv_files_paging_error">Couldn’t load more files.</string>
     <string name="tv_files_retry">Try again</string>
     <string name="tv_files_error_title">Couldn’t load your files.</string>
+    <string name="tv_files_error_message">put.io didn’t answer. Check the TV’s connection and try again.</string>
     <string name="tv_files_open_folder">Open %1$s</string>
     <string name="tv_files_play_media">Play %1$s</string>
     <string name="tv_files_watched">Watched</string>
@@ -140,6 +142,10 @@
     <string name="tv_files_trash_limit_message">This folder contains too many files. Delete it permanently?</string>
     <string name="tv_files_trash_limit_confirm">Delete</string>
     <string name="tv_files_delete_skipped">The request was incomplete. %1$s was not confirmed removed.</string>
+    <string name="tv_state_loading">Loading</string>
+    <string name="tv_state_offline_title">Can’t reach put.io.</string>
+    <string name="tv_state_try_now">Try now</string>
+    <string name="tv_state_try_again">Try again</string>
     <string name="tv_error_navigation_blocked">This item can’t be opened right now. Check Files, then try again.</string>
     <string name="tv_error_network">Check the network and try again.</string>
     <string name="tv_error_session">Your session expired. Sign in again.</string>

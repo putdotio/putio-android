@@ -126,14 +126,13 @@ internal fun TvShell(
                 .focusProperties { enter = { tabBarEntry(it, tabFocus.getValue(destination)) } },
             paneFocus = paneFocus,
         )
-        account.inactiveNotice?.let { notice ->
-            TvInactiveAccountNotice(notice, Modifier.padding(top = TAB_BAR_GAP))
-        }
+        val notice = account.inactiveNotice
+        if (notice != null) TvInactiveAccountNotice(notice, Modifier.padding(top = NOTICE_TOP_GAP))
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
-                .padding(top = TAB_BAR_GAP)
+                .padding(top = if (notice != null) NOTICE_PANE_GAP else TAB_BAR_GAP)
                 .onFocusChanged { if (it.hasFocus) paneReleased.value = false },
         ) {
             CompositionLocalProvider(LocalTvPaneReleased provides paneReleased) {
@@ -333,6 +332,8 @@ private fun TvAccountFallbackPane(
 internal val PANE_INSET = 16.dp
 private val TAB_BAR_HEIGHT = 40.dp
 private val TAB_BAR_GAP = 20.dp
+private val NOTICE_TOP_GAP = 24.dp
+private val NOTICE_PANE_GAP = 6.dp
 private val TAB_HEIGHT = 28.dp
 private val TAB_PADDING = PaddingValues(horizontal = 12.dp)
 

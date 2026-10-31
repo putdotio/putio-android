@@ -40,7 +40,10 @@ TV:
   own Back history; Home is a placeholder until Continue watching lands
 - Files and folders as a list beside the focused item's detail: Resume from
   the saved position or Start over, a folder's count and size, and a sort
-  side sheet with the phone's Sort by, Order and Videos groups
+  side sheet with the phone's Sort by, Order and Videos groups; skeleton rows
+  while a folder loads, and empty, couldn't-load and offline states in the
+  empty-state voice
+- An inactive-account notice under the tabs that never takes focus
 - Full-screen playback with the phone's controls: D-pad scrubbing, a Resume
   prompt, and Audio, Subtitles (with size and timing) and Speed side sheets
 - Account as groups beside their rows: Library, Playback, Subtitles, the
