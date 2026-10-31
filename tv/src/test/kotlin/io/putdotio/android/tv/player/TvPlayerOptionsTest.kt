@@ -238,7 +238,11 @@ class TvPlayerOptionsTest {
     @Test
     fun audioTracksOfUndeterminedLanguageTakeTheirNumbers() {
         val player = TrackPlayer(
-            audio = TrackGroup("audio-und", audioFormat("a-1", C.LANGUAGE_UNDETERMINED), audioFormat("a-2", "und", label = " ")),
+            audio = TrackGroup(
+                "audio-und",
+                audioFormat("a-1", C.LANGUAGE_UNDETERMINED),
+                audioFormat("a-2", "und", label = " "),
+            ),
             text = null,
         )
         show(player)
