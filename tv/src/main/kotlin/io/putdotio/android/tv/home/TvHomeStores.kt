@@ -58,6 +58,19 @@ internal class TvDeviceShowHomeStore(context: Context, userId: Long) : TvShowHom
     }
 }
 
+internal class TvHomeReturn {
+    private val mutableFile = MutableStateFlow<FilesItemId?>(null)
+    val file: StateFlow<FilesItemId?> = mutableFile.asStateFlow()
+
+    fun played(fileId: FilesItemId) {
+        mutableFile.value = fileId
+    }
+
+    fun handled() {
+        mutableFile.value = null
+    }
+}
+
 internal class TvMemoryContinueWatchingStore : ContinueWatchingStore {
     private var entries = emptyList<ContinueWatchingEntry>()
 
@@ -76,7 +89,7 @@ internal object TvNoPinnedFiles : PinnedFiles {
 
     override fun unpin(id: FilesItemId) = Unit
 
-    override fun retry() = Unit
+    override fun reload() = Unit
 
     override fun close() = Unit
 }

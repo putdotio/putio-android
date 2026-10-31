@@ -8,6 +8,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -104,6 +105,38 @@ class TvHomeScreenTest {
         compose.onNodeWithText("Pinned").assertIsDisplayed()
         compose.onNodeWithContentDescription("Big Buck Bunny").performSemanticsAction(SemanticsActions.OnClick)
         assertEquals(listOf("open Big Buck Bunny"), opened)
+    }
+
+    @Test
+    fun returningFromThePlayerFocusesTheCardThatPlayed() {
+        val cards = (1L..8L).map { id ->
+            TvPinnedCard(
+                FilesItem(
+                    id = FilesItemId(100L + id),
+                    parentId = FilesItemId(0L),
+                    name = "clip-$id.mp4",
+                    type = PutioFileType.VIDEO,
+                    sizeBytes = 1L,
+                    createdAt = "2026-10-23T10:00:00Z",
+                ),
+                itemCount = null,
+            )
+        }
+        var returned = 0
+        compose.setTvContent {
+            TvHomeScreen(
+                listOf(entry),
+                TvPinnedRow.Ready(cards),
+                actions,
+                remember { FocusRequester() },
+                onShown = {},
+                returnTo = FilesItemId(107L),
+                onReturned = { returned++ },
+            )
+        }
+
+        compose.onNodeWithContentDescription("clip-7.mp4").assertIsFocused()
+        assertEquals(1, returned)
     }
 
     private val entry = ContinueWatchingEntry(FilesItemId(7L), "Sintel.2010.1080p.mkv", 356.0, 891.0, 5L)

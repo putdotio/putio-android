@@ -37,7 +37,9 @@ internal class TvHomePins(
     scope: CoroutineScope,
 ) {
     private val cards = mutableMapOf<FilesItemId, TvPinnedCard>()
+    private val gone = mutableSetOf<FilesItemId>()
     private val refreshes = MutableStateFlow(0)
+    private var resolvedRefresh = 0
     private val mutableRow = MutableStateFlow<TvPinnedRow>(TvPinnedRow.Loading)
     private val mutableRejected = MutableStateFlow<PutioFailure.AuthenticationRequired?>(null)
 
@@ -46,10 +48,13 @@ internal class TvHomePins(
 
     init {
         scope.launch {
-            combine(pins.pins, pins.failure, refreshes) { ids, failure, _ -> ids to failure }
-                .collectLatest { (ids, failure) ->
+            combine(pins.pins, pins.failure, refreshes) { ids, failure, refresh -> Triple(ids, failure, refresh) }
+                .collectLatest { (ids, failure, refresh) ->
                     when {
-                        ids != null -> mutableRow.value = TvPinnedRow.Ready(cardsFor(ids))
+                        ids != null -> {
+                            mutableRow.value = rowFor(ids, fresh = refresh != resolvedRefresh)
+                            resolvedRefresh = refresh
+                        }
                         failure != null -> mutableRow.value = TvPinnedRow.Failed(failure)
                     }
                 }
@@ -57,32 +62,57 @@ internal class TvHomePins(
     }
 
     fun refresh() {
-        if (pins.pins.value == null) {
-            pins.retry()
-        } else {
-            cards.clear()
-            refreshes.update { it + 1 }
+        when {
+            pins.pins.value != null -> {
+                pins.reload()
+                refreshes.update { it + 1 }
+            }
+            pins.failure.value != null -> pins.reload()
         }
     }
 
-    private suspend fun cardsFor(ids: List<FilesItemId>): List<TvPinnedCard> = coroutineScope {
-        ids.map { id -> async { cards[id] ?: card(id)?.also { cards[id] = it } } }.awaitAll().filterNotNull()
+    private suspend fun rowFor(ids: List<FilesItemId>, fresh: Boolean): TvPinnedRow = coroutineScope {
+        val resolved = ids.map { id -> async { resolve(id, fresh) } }.awaitAll()
+        val shown = resolved.filterIsInstance<Resolved.Card>().map { it.card }
+        val failure = resolved.filterIsInstance<Resolved.Failed>().firstOrNull()?.failure
+        if (shown.isEmpty() && failure != null) TvPinnedRow.Failed(failure) else TvPinnedRow.Ready(shown)
     }
 
-    private suspend fun card(id: FilesItemId): TvPinnedCard? =
+    private suspend fun resolve(id: FilesItemId, fresh: Boolean): Resolved {
+        val known = cards[id]?.let(Resolved::Card) ?: Resolved.Gone.takeIf { id in gone }
+        return if (fresh || known == null) read(id) else known
+    }
+
+    private suspend fun read(id: FilesItemId): Resolved =
         when (val result = resolver.resolveItem(id)) {
             is PutioResult.Success -> {
                 val item = result.value
                 val count = if (item.isFolder) (folderCounts?.itemCount(id) as? PutioResult.Success)?.value else null
-                TvPinnedCard(item, count)
+                gone.remove(id)
+                Resolved.Card(TvPinnedCard(item, count).also { cards[id] = it })
             }
             is PutioResult.Failure -> {
                 val failure = result.failure
                 when {
-                    failure is PutioFailure.AuthenticationRequired -> mutableRejected.value = failure
-                    failure.isNotFound -> pins.unpin(id)
+                    failure is PutioFailure.AuthenticationRequired -> {
+                        mutableRejected.value = failure
+                        Resolved.Failed(failure)
+                    }
+                    failure.isNotFound -> {
+                        cards.remove(id)
+                        if (gone.add(id)) pins.unpin(id)
+                        Resolved.Gone
+                    }
+                    else -> cards[id]?.let(Resolved::Card) ?: Resolved.Failed(failure)
                 }
-                null
             }
         }
+
+    private sealed interface Resolved {
+        data class Card(val card: TvPinnedCard) : Resolved
+
+        data object Gone : Resolved
+
+        data class Failed(val failure: PutioFailure) : Resolved
+    }
 }

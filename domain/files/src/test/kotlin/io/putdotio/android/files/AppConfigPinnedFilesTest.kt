@@ -64,7 +64,7 @@ class AppConfigPinnedFilesTest {
     }
 
     @Test
-    fun aFailedReadWaitsForRetryAndInvalidScopeIsNoSessionVerdict() = runTest {
+    fun aFailedReadWaitsForReloadAndInvalidScopeIsNoSessionVerdict() = runTest {
         server.readFailure = apiException(401, "invalid_scope")
         val pins = store()
         advanceUntilIdle()
@@ -72,11 +72,24 @@ class AppConfigPinnedFilesTest {
         assertTrue(pins.failure.value is PutioFailure.AccessDenied)
 
         server.readFailure = null
-        pins.retry()
+        pins.reload()
         advanceUntilIdle()
 
         assertEquals(listOf(7L, 9L), pins.pins.value?.map { it.value })
         assertNull(pins.failure.value)
+        pins.close()
+    }
+
+    @Test
+    fun reloadingPicksUpPinsAnotherTvChanged() = runTest {
+        val pins = store()
+        advanceUntilIdle()
+
+        server.values[PINNED_FILES_KEY] = ids(5L, 7L)
+        pins.reload()
+        advanceUntilIdle()
+
+        assertEquals(listOf(5L, 7L), pins.pins.value?.map { it.value })
         pins.close()
     }
 

@@ -31,12 +31,6 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/**
- * Live proof of pins on an install signed in with `devs-auto`: reports the account's prior
- * `pinned_files` value, pins the caller's fixture through the app's store, checks that only that
- * key changed and that Home shows the card, then writes the prior value back, or deletes the key
- * when it had none. Opt-in with `putio.tv.pins.fixture` and `putio.tv.pins.runId`.
- */
 @RunWith(AndroidJUnit4::class)
 class TvPinsLiveProofTest {
     private val arguments = InstrumentationRegistry.getArguments()
@@ -49,7 +43,10 @@ class TvPinsLiveProofTest {
         assumeTrue("TV pins live proof requires a fixture id and a run id", fixture != null && runId != null)
         val runtime = withContext(Dispatchers.Main) { TvAuthRuntime.get(instrumentation.targetContext) }
         withContext(Dispatchers.Main) { runtime.authController.restoreSession(interactive = false) }
-        withTimeout(TIMEOUT_MILLIS) { runtime.authController.state.first { it is TvAuthState.SignedIn } }
+        val signedIn = withTimeout(TIMEOUT_MILLIS) {
+            runtime.authController.state.first { it is TvAuthState.SignedIn } as TvAuthState.SignedIn
+        }
+        assertEquals(SHARED_ACCOUNT, signedIn.account.username)
         val client = runtime.putioClient
         val before = client.appConfig.get()
         val prior = before[PINNED_FILES_KEY]
@@ -94,6 +91,8 @@ class TvPinsLiveProofTest {
     private fun deleteKey(baseUrl: String, token: String) {
         val connection = URL("${baseUrl.trimEnd('/')}/config/$PINNED_FILES_KEY").openConnection() as HttpURLConnection
         try {
+            connection.connectTimeout = HTTP_TIMEOUT_MILLIS
+            connection.readTimeout = HTTP_TIMEOUT_MILLIS
             connection.requestMethod = "DELETE"
             connection.setRequestProperty("Authorization", "Token $token")
             check(connection.responseCode in 200..299) { "DELETE config key answered ${connection.responseCode}" }
@@ -124,5 +123,7 @@ class TvPinsLiveProofTest {
         const val TIMEOUT_MILLIS = 20_000L
         const val HOME_SETTLE_MILLIS = 8_000L
         const val POLL_MILLIS = 500L
+        const val HTTP_TIMEOUT_MILLIS = 10_000
+        const val SHARED_ACCOUNT = "devs-auto"
     }
 }

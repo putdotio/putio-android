@@ -23,7 +23,10 @@ import io.putdotio.android.files.FilesStreamUrls
 import io.putdotio.android.files.FilesSubtitleLanguages
 import io.putdotio.android.files.FilesWatchedRepository
 import io.putdotio.android.files.PinnedFiles
+import io.putdotio.android.files.FilesDeleteOutcome
+import io.putdotio.android.files.confirmedGone
 import io.putdotio.android.tv.home.TvHomePins
+import io.putdotio.android.tv.home.TvHomeReturn
 import io.putdotio.android.tv.home.TvMemoryContinueWatchingStore
 import io.putdotio.android.tv.home.TvNoPinnedFiles
 import io.putdotio.android.tv.home.TvShowHomeSetting
@@ -182,6 +185,8 @@ internal class TvSession internal constructor(
     private var durationLookup: Job? = null
     private var continueSaved: Job? = null
     private var continueWatchingFollow: Job? = null
+    private var playingFromHome = false
+    val homeReturn = TvHomeReturn()
 
     /** Pairs saved positions with the videos they belong to, for Watch Next. */
     internal val watchNextPlayback = TvWatchNextPlayback(watchNext, scope)
@@ -241,6 +246,17 @@ internal class TvSession internal constructor(
         scope.launch {
             continueWatching.reconcile(filesItemResolver::resolveItem)?.let { mutableFileActionFailure.value = it }
         }
+        scope.launch {
+            files.state
+                .map { state -> state.stack.mapNotNull { it.deleteOutcome?.takeIf(::confirmsAnyGone) } }
+                .distinctUntilChanged()
+                .collect(continueWatching::removed)
+        }
+        scope.launch {
+            continueWatching.recheckAfterDeletes(filesItemResolver::resolveItem)?.let {
+                mutableFileActionFailure.value = it
+            }
+        }
         scope.launch { settings.state.captureSavedSettings() }
         scope.launch { appConfig.state.captureSavedAppConfig() }
         scope.launch {
@@ -264,7 +280,7 @@ internal class TvSession internal constructor(
 
     fun play(item: FilesItem, start: TvPlayStart = TvPlayStart.Ask) {
         durationLookup?.cancel()
-        startPlayback(item, start)
+        startPlayback(item, start, fromHome = false)
     }
 
     /**
@@ -281,11 +297,12 @@ internal class TvSession internal constructor(
         return when {
             item.isPlayable -> {
                 val start = if (continueWatching) TvPlayStart.Resume else TvPlayStart.Ask
+                val fromHome = origin == FilesOpenOrigin.HOME
                 if (item.playback?.durationSeconds != null) {
-                    startPlayback(item, start)
+                    startPlayback(item, start, fromHome)
                 } else {
                     durationLookup = scope.launch {
-                        startPlayback(filesRepository.withListedDuration(item), start)
+                        startPlayback(filesRepository.withListedDuration(item), start, fromHome)
                     }
                 }
                 TvExternalOpen.PLAYING
@@ -298,9 +315,10 @@ internal class TvSession internal constructor(
         }
     }
 
-    private fun startPlayback(item: FilesItem, start: TvPlayStart) {
+    private fun startPlayback(item: FilesItem, start: TvPlayStart, fromHome: Boolean) {
         val mediaType = PlaybackMediaType.fromFileType(item.type) ?: return
         if (!scope.isActive) return
+        playingFromHome = fromHome
         val target = PlaybackTarget(item.id, item.name, mediaType, item.playback?.durationSeconds, item.screenshotUrl)
         // Audio playback analytics are not wired yet, here or on mobile.
         val analytics = mediaType == PlaybackMediaType.VIDEO
@@ -331,8 +349,10 @@ internal class TvSession internal constructor(
         continueSaved?.cancel()
         watchNextPlayback.stopFollowing()
         continueWatchingFollow?.cancel()
-        val stopped = mutablePlayback.getAndUpdate { null } ?: return
+        val stopped = mutablePlayback.value ?: return
         val last = stopped.state.value.target.fileId
+        if (playingFromHome) homeReturn.played(last)
+        mutablePlayback.value = null
         val start = playbackStart
         val folder = start?.parentId
         if (folder != null && last != start.id) {
@@ -485,3 +505,5 @@ private suspend fun FilesRepository.withListedDuration(item: FilesItem): FilesIt
 
 internal fun tvSessionViewModelFactory(authState: StateFlow<TvAuthState>): ViewModelProvider.Factory =
     viewModelFactory { initializer { TvSessionViewModel(authState) } }
+
+private fun confirmsAnyGone(outcome: FilesDeleteOutcome): Boolean = outcome.confirmedGone().isNotEmpty()

@@ -18,12 +18,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -56,16 +58,20 @@ import androidx.tv.material3.Text
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioEmptyGlyph
+import io.putdotio.android.design.PutioRadius
 import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.design.fileTypeIconRes
 import io.putdotio.android.files.ContinueWatchingEntry
 import io.putdotio.android.files.FilesItem
+import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.formatFileSize
 import io.putdotio.android.files.toDisplayDate
 import io.putdotio.android.tv.TvEmptyState
 import io.putdotio.android.tv.TvEmptyStateAction
 import io.putdotio.android.tv.TvFocus
 import io.putdotio.android.tv.asMonoRun
+import io.putdotio.android.tv.bringIntoComposition
+import io.putdotio.android.tv.focusRequesterIf
 import io.putdotio.android.tv.files.tvClock
 import io.putdotio.android.tv.files.tvMessageText
 import io.putdotio.android.tv.tvAccent
@@ -88,9 +94,30 @@ internal fun TvHomeScreen(
     paneFocus: FocusRequester,
     onShown: () -> Unit,
     modifier: Modifier = Modifier,
+    returnTo: FilesItemId? = null,
+    onReturned: () -> Unit = {},
 ) {
     LaunchedEffect(Unit) { onShown() }
     val pinnedCards = (pinned as? TvPinnedRow.Ready)?.cards
+    val continueRow = rememberLazyListState()
+    val pinnedRow = rememberLazyListState()
+    val returnFocus = remember { FocusRequester() }
+    val continueReturn = continueWatching.indexOfFirst { it.fileId == returnTo }
+    val pinnedReturn = if (continueReturn >= 0) -1 else pinnedCards.orEmpty().indexOfFirst { it.item.id == returnTo }
+    LaunchedEffect(returnTo) {
+        val id = returnTo ?: return@LaunchedEffect
+        val row = when {
+            continueReturn >= 0 -> continueRow to continueReturn
+            pinnedReturn >= 0 -> pinnedRow to pinnedReturn
+            else -> null
+        }
+        row?.let { (state, index) ->
+            state.bringIntoComposition(id.value, index)
+            withFrameNanos {}
+            returnFocus.requestFocus()
+        }
+        onReturned()
+    }
     if (continueWatching.isEmpty() && pinnedCards?.isEmpty() == true) {
         TvEmptyState(
             glyph = null,
@@ -119,9 +146,13 @@ internal fun TvHomeScreen(
     ) {
         if (continueWatching.isNotEmpty()) {
             TvHomeSection(stringResource(R.string.tv_home_continue_watching)) {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(CARD_GAP)) {
-                    items(continueWatching, key = { it.fileId.value }) { entry ->
-                        TvContinueWatchingCard(entry, onClick = { actions.onResume(entry) })
+                LazyRow(state = continueRow, horizontalArrangement = Arrangement.spacedBy(CARD_GAP)) {
+                    itemsIndexed(continueWatching, key = { _, entry -> entry.fileId.value }) { index, entry ->
+                        TvContinueWatchingCard(
+                            entry,
+                            onClick = { actions.onResume(entry) },
+                            modifier = Modifier.focusRequesterIf(index == continueReturn, returnFocus),
+                        )
                     }
                 }
             }
@@ -145,9 +176,13 @@ internal fun TvHomeScreen(
                 }
             } else {
                 TvHomeSection(stringResource(R.string.tv_home_pinned)) {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(CARD_GAP)) {
-                        items(pinned.cards, key = { it.item.id.value }) { card ->
-                            TvPinnedFileCard(card, onClick = { actions.onOpen(card.item) })
+                    LazyRow(state = pinnedRow, horizontalArrangement = Arrangement.spacedBy(CARD_GAP)) {
+                        itemsIndexed(pinned.cards, key = { _, card -> card.item.id.value }) { index, card ->
+                            TvPinnedFileCard(
+                                card,
+                                onClick = { actions.onOpen(card.item) },
+                                modifier = Modifier.focusRequesterIf(index == pinnedReturn, returnFocus),
+                            )
                         }
                     }
                 }
@@ -196,7 +231,7 @@ private fun TvHomeInlineState(glyph: String, headline: String, message: String) 
 }
 
 @Composable
-private fun TvContinueWatchingCard(entry: ContinueWatchingEntry, onClick: () -> Unit) {
+private fun TvContinueWatchingCard(entry: ContinueWatchingEntry, onClick: () -> Unit, modifier: Modifier) {
     val left = tvClock(entry.remainingSeconds.toDouble())
     val leftLabel = stringResource(R.string.tv_home_left, left)
     TvHomeCard(
@@ -207,11 +242,12 @@ private fun TvContinueWatchingCard(entry: ContinueWatchingEntry, onClick: () -> 
         meta = AnnotatedString(leftLabel),
         metaStyle = CARD_META_MONO,
         onClick = onClick,
+        modifier = modifier,
     )
 }
 
 @Composable
-private fun TvPinnedFileCard(card: TvPinnedCard, onClick: () -> Unit) {
+private fun TvPinnedFileCard(card: TvPinnedCard, onClick: () -> Unit, modifier: Modifier) {
     val meta = pinnedMeta(card)
     TvHomeCard(
         icon = fileTypeIconRes(card.item.type),
@@ -220,6 +256,7 @@ private fun TvPinnedFileCard(card: TvPinnedCard, onClick: () -> Unit) {
         progress = null,
         meta = meta,
         onClick = onClick,
+        modifier = modifier,
     )
 }
 
@@ -250,6 +287,7 @@ private fun TvHomeCard(
     progress: Float?,
     meta: AnnotatedString,
     onClick: () -> Unit,
+    modifier: Modifier,
     metaStyle: TextStyle = CARD_META,
 ) {
     val interactions = remember { MutableInteractionSource() }
@@ -257,7 +295,7 @@ private fun TvHomeCard(
     val colors = MaterialTheme.colorScheme
     Surface(
         onClick = onClick,
-        modifier = Modifier
+        modifier = modifier
             .width(CARD_WIDTH)
             .height(CARD_HEIGHT)
             .semantics { contentDescription = description }
@@ -308,7 +346,7 @@ private fun TvHomeProgress(progress: Float?, focused: Boolean) {
         Spacer(Modifier.height(PROGRESS_HEIGHT))
         return
     }
-    val shape = RoundedCornerShape(PROGRESS_RADIUS)
+    val shape = RoundedCornerShape(PutioRadius.progress)
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -344,7 +382,6 @@ private val CARD_GLYPH = 17.dp
 private val CARD_NAME_GAP = 8.dp
 private val CARD_INNER_GAP = 7.dp
 private val PROGRESS_HEIGHT = 3.dp
-private val PROGRESS_RADIUS = 2.dp
 private val INLINE_STATE_GAP = 8.dp
 private val INLINE_MESSAGE_NUDGE = 1.5.dp
 private val SECTION_LABEL = PutioTypeScale.tvLabel.withFullLineBox()

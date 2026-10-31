@@ -220,6 +220,7 @@ internal fun TvSessionShell(
     val pinsFailure by session.pins.failure.collectAsStateWithLifecycle()
     val pinRejected by session.homePins.rejected.collectAsStateWithLifecycle()
     val showHome by session.showHome.shown.collectAsStateWithLifecycle()
+    val homeReturn by session.homeReturn.file.collectAsStateWithLifecycle()
     // A 401 from the proxy list is as authoritative as one from any controller.
     var tunnelRoutesRejected by remember(session) { mutableStateOf(false) }
     val controllerRejected = listOf(
@@ -302,6 +303,7 @@ internal fun TvSessionShell(
             account = account,
             onSignOut = onSignOut,
             showHome = showHome,
+            focusHomePane = homeReturn != null,
             homePane = { paneFocus ->
                 TvHomeScreen(
                     continueWatching = continueWatching,
@@ -321,6 +323,8 @@ internal fun TvSessionShell(
                     },
                     paneFocus = paneFocus,
                     onShown = session.homePins::refresh,
+                    returnTo = homeReturn,
+                    onReturned = session.homeReturn::handled,
                 )
             },
             requestedDestination = requestedDestination,

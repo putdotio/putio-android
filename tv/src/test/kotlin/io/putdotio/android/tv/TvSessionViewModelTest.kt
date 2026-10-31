@@ -12,6 +12,11 @@ import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesItemResolver
 import io.putdotio.android.files.FilesOpenOrigin
 import io.putdotio.android.files.FilesPage
+import io.putdotio.sdk.errors.PutioRequestData
+import io.putdotio.sdk.errors.PutioApiException
+import io.putdotio.sdk.errors.PutioApiErrorEnvelope
+import io.putdotio.sdk.files.FileDeleteResult
+import io.putdotio.android.files.FilesDeleteMode
 import io.putdotio.android.files.FilesStreamUrlResult
 import io.putdotio.android.files.FilesStreamUrls
 import io.putdotio.android.files.FilesWatchedRepository
@@ -599,6 +604,60 @@ class TvSessionViewModelTest {
     }
 
     @Test
+    fun `deleting a folder in Files takes its videos out of Continue watching`() = runTest {
+        var deleted = false
+        rootPages = listOf(FilesPage(listOf(media(30, "Season 1", PutioFileType.FOLDER)), nextCursor = null))
+        val session = checkNotNull(
+            TvSessionViewModel(auth).sessionFor(
+                account(),
+                TvAuthSessionId(1),
+                dependencies.copy(
+                    filesRepository = object : StubFilesRepository() {
+                        override suspend fun loadFolder(folderId: FilesItemId) = PutioResult.Success(rootPages.single())
+
+                        override suspend fun delete(itemIds: List<FilesItemId>, mode: FilesDeleteMode) =
+                            PutioResult.Success(FileDeleteResult(status = "OK")).also { deleted = true }
+
+                        override suspend fun resolveItem(itemId: FilesItemId) = PutioResult.Failure(notFound())
+                    },
+                    filesItemResolver = object : FilesItemResolver {
+                        override suspend fun resolveItem(itemId: FilesItemId): PutioResult<FilesItem> =
+                            if (deleted) {
+                                PutioResult.Failure(notFound())
+                            } else {
+                                PutioResult.Success(media(itemId.value, "clip.mp4", PutioFileType.VIDEO))
+                            }
+                    },
+                ),
+            ),
+        )
+        val video = media(9, "clip.mp4", PutioFileType.VIDEO).copy(playback = FilesPlaybackProgress(0.0, 600.0))
+        session.play(video)
+        session.stopPlayback()
+        session.positionSaved(9L, 120.0)
+        assertEquals(listOf(FilesItemId(9)), session.continueWatching.entries.value.map { it.fileId })
+
+        session.files.dispatch(FilesBrowserEvent.Delete(FilesFolder.Root.id, FilesItemId(30), FilesDeleteMode.TRASH))
+
+        assertTrue(session.continueWatching.entries.value.isEmpty())
+    }
+
+    @Test
+    fun `leaving a video started from Home hands Home the file that played last`() {
+        val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
+        val video = media(9, "clip.mp4", PutioFileType.VIDEO).copy(playback = FilesPlaybackProgress(0.0, 600.0))
+
+        session.openExternal(video, FilesOpenOrigin.HOME)
+        session.stopPlayback()
+        assertEquals(FilesItemId(9), session.homeReturn.file.value)
+
+        session.homeReturn.handled()
+        session.play(video)
+        session.stopPlayback()
+        assertEquals(null, session.homeReturn.file.value)
+    }
+
+    @Test
     fun `Show Home is kept per account on this TV`() {
         val store = TvShowHomeStore.Memory()
         val session = checkNotNull(
@@ -664,6 +723,20 @@ class TvSessionViewModelTest {
         type = type,
         sizeBytes = 1L,
         createdAt = "2026-04-20T10:00:00Z",
+    )
+
+    private fun notFound(): PutioFailure = PutioFailure.ApiRejected(
+        statusCode = 404,
+        errorType = "NotFound",
+        cause = PutioApiException(
+            request = PutioRequestData("GET", "https://api.put.io/v2/files/9"),
+            resolvedStatusCode = 404,
+            httpStatusCode = 404,
+            resolvedErrorType = null,
+            envelope = PutioApiErrorEnvelope(statusCode = 404, errorType = null),
+            responseBody = "{}",
+            message = "Not found",
+        ),
     )
 
     private fun account(userId: Long = 42) =

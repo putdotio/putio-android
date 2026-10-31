@@ -82,6 +82,7 @@ internal fun TvShell(
     /** Files' own Back step, such as leaving a folder; null when Files has none. */
     onFilesBack: (() -> Unit)? = null,
     showHome: Boolean = true,
+    focusHomePane: Boolean = false,
 ) {
     val start = if (showHome) TvDestination.Home else TvDestination.Files
     var destination by rememberSaveable { mutableStateOf(start) }
@@ -104,8 +105,9 @@ internal fun TvShell(
     }
     LaunchedEffect(requestedDestination) {
         if (requestedDestination != null) {
-            destination = requestedDestination
-            focusPaneOf = requestedDestination
+            val shown = requestedDestination.within(tabs, start)
+            destination = shown
+            focusPaneOf = shown
             paneReleased.value = false
             onDestinationRequestHandled()
         }
@@ -161,14 +163,19 @@ internal fun TvShell(
     LaunchedEffect(shown, focusWanted) {
         if (focusWanted && focusPaneOf == shown) {
             focusPaneOf = null
-            if (shown == TvDestination.Home) {
-                tabFocus.getValue(shown).requestFocus()
-            } else {
-                paneFocus.requestFocus()
-            }
+            shown.entryFocus(focusHomePane, tabFocus, paneFocus).requestFocus()
         }
     }
 }
+
+private fun TvDestination.within(tabs: List<TvDestination>, start: TvDestination): TvDestination =
+    if (this in tabs) this else start
+
+private fun TvDestination.entryFocus(
+    focusHomePane: Boolean,
+    tabFocus: Map<TvDestination, FocusRequester>,
+    paneFocus: FocusRequester,
+): FocusRequester = if (this == TvDestination.Home && !focusHomePane) tabFocus.getValue(this) else paneFocus
 
 private fun tabBarEntry(direction: FocusDirection, selectedTab: FocusRequester): FocusRequester =
     if (direction == FocusDirection.Enter) FocusRequester.Default else selectedTab

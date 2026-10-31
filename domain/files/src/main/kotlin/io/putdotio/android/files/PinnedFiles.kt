@@ -35,8 +35,8 @@ public interface PinnedFiles : Closeable {
 
     public fun unpin(id: FilesItemId)
 
-    /** Reads the config again after a failed read. */
-    public fun retry()
+    /** Reads the config again, for pins another TV changed or after a failed read. */
+    public fun reload()
 }
 
 /**
@@ -68,7 +68,7 @@ public class AppConfigPinnedFiles(
             read()
             for (command in commands) {
                 when (command) {
-                    PinCommand.Retry -> if (mutablePins.value == null) read()
+                    PinCommand.Reload -> read()
                     is PinCommand.Edit -> edit(command)
                 }
             }
@@ -83,8 +83,8 @@ public class AppConfigPinnedFiles(
         commands.trySend(PinCommand.Edit(id, pinned = false))
     }
 
-    override fun retry() {
-        commands.trySend(PinCommand.Retry)
+    override fun reload() {
+        commands.trySend(PinCommand.Reload)
     }
 
     override fun close() {
@@ -126,7 +126,7 @@ public class AppConfigPinnedFiles(
 private sealed interface PinCommand {
     data class Edit(val id: FilesItemId, val pinned: Boolean) : PinCommand
 
-    data object Retry : PinCommand
+    data object Reload : PinCommand
 }
 
 internal fun AppConfig.pinnedFiles(): List<FilesItemId> =
