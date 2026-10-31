@@ -3,6 +3,7 @@ package io.putdotio.android.tv.files
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import io.putdotio.android.R
 import io.putdotio.android.files.FilesSort
@@ -26,6 +27,7 @@ internal fun TvSortSheet(
         onDismiss = onDismiss,
         returnFocus = returnFocus,
         title = stringResource(R.string.tv_files_sort_title),
+        scrim = SORT_SCRIM,
     ) { initialFocus ->
         TvSheetRows {
             TvSheetLabel(stringResource(R.string.tv_files_sort_by))
@@ -64,3 +66,5 @@ internal fun TvSortSheet(
         }
     }
 }
+
+private val SORT_SCRIM = Color.Black.copy(alpha = 0.72f)

@@ -23,6 +23,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.sp
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
 import io.putdotio.android.R
@@ -36,6 +37,7 @@ import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesRequestId
 import io.putdotio.android.files.FilesSubtitleLanguages
+import io.putdotio.android.files.FilesSubtitles
 import io.putdotio.android.files.formatFileSize
 import io.putdotio.android.files.items
 import io.putdotio.android.files.toDisplayDate
@@ -56,13 +58,13 @@ internal class TvFilesDetailSources(
     private val onAuthenticationRequired: suspend () -> Unit = {},
 ) {
     private val counts = mutableMapOf<Long, Int?>()
-    private val subtitles = mutableMapOf<Long, List<String>>()
+    private val subtitles = mutableMapOf<Long, FilesSubtitles>()
     private val countListings = mutableMapOf<Long, Any>()
     private val subtitleListings = mutableMapOf<Long, Any>()
 
     fun knownCount(id: FilesItemId): Int? = counts[id.value]
 
-    fun knownSubtitles(id: FilesItemId): List<String>? = subtitles[id.value]
+    fun knownSubtitles(id: FilesItemId): FilesSubtitles? = subtitles[id.value]
 
     fun countSettled(id: FilesItemId, listing: Any): Boolean = countListings[id.value] === listing
 
@@ -78,7 +80,7 @@ internal class TvFilesDetailSources(
             }
         }
 
-    suspend fun subtitles(id: FilesItemId, listing: Any): List<String>? =
+    suspend fun subtitles(id: FilesItemId, listing: Any): FilesSubtitles? =
         if (subtitlesSettled(id, listing)) {
             subtitles[id.value]
         } else {
@@ -239,16 +241,29 @@ private fun detailMeta(item: FilesItem, count: Int?): AnnotatedString {
 }
 
 @Composable
-private fun detailFacts(item: FilesItem, subtitles: List<String>?): List<TvDetailFact> {
+private fun detailFacts(item: FilesItem, subtitles: FilesSubtitles?): List<TvDetailFact> {
     val context = LocalContext.current
     val fullDate = remember(item.createdAt, context) { item.createdAt.toFullDate(context) }
     val length = stringResource(R.string.tv_files_detail_length)
     val added = stringResource(R.string.tv_files_detail_added)
     val subtitlesLabel = stringResource(R.string.tv_files_detail_subtitles)
+    val subtitlesValue = subtitles?.takeIf { it.languages.isNotEmpty() }?.let { found ->
+        val languages = found.languages.joinToString(", ")
+        if (found.sidecarFiles > 0) {
+            val files = pluralStringResource(
+                R.plurals.tv_files_detail_subtitle_files,
+                found.sidecarFiles,
+                found.sidecarFiles.toString(),
+            )
+            "$languages$META_SEPARATOR$files"
+        } else {
+            languages
+        }
+    }
     return listOfNotNull(
         item.playback?.durationSeconds?.let { TvDetailFact(length, tvClock(it), mono = true) },
         fullDate?.let { TvDetailFact(added, it) },
-        subtitles?.takeIf { it.isNotEmpty() }?.let { TvDetailFact(subtitlesLabel, it.joinToString(", ")) },
+        subtitlesValue?.let { TvDetailFact(subtitlesLabel, it) },
     )
 }
 
@@ -332,13 +347,18 @@ private fun resumeLabel(label: String, time: String): AnnotatedString =
     buildAnnotatedString {
         val start = label.lastIndexOf(time)
         append(label)
-        if (start >= 0) addStyle(MONO_SPAN, start, start + time.length)
+        if (start >= 0) {
+            addStyle(RESUME_TIME_SPAN, start, start + time.length)
+            if (start > 0 && label[start - 1] == ' ') addStyle(RESUME_GAP_SPAN, start - 1, start)
+        }
     }
 
 private val MONO_SPAN = SpanStyle(
     fontFamily = PutioTypeScale.tvMono.fontFamily,
     fontFeatureSettings = PutioTypeScale.tvMono.fontFeatureSettings,
 )
+private val RESUME_TIME_SPAN = MONO_SPAN.merge(SpanStyle(fontWeight = PutioTypeScale.tvMono.fontWeight))
+private val RESUME_GAP_SPAN = SpanStyle(letterSpacing = 3.sp)
 private const val META_SEPARATOR = " · "
 private const val LOOKUP_DELAY_MILLIS = 300L
 private const val FINISHED_WITHIN_SECONDS = 10.0

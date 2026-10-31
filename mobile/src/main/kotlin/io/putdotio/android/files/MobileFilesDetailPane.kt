@@ -354,7 +354,7 @@ private fun MobileFilesDetailFacts(
         value = null
         val reader = subtitleLanguages?.takeIf { item.type == PutioFileType.VIDEO && item.id.value > 0L }
         when (val result = reader?.subtitleLanguages(item.id)) {
-            is PutioResult.Success -> value = result.value
+            is PutioResult.Success -> value = result.value.languages
             is PutioResult.Failure ->
                 if (result.failure is PutioFailure.AuthenticationRequired) currentOnAuthenticationRequired()
             null -> Unit

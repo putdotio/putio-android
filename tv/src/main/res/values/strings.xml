@@ -105,6 +105,10 @@
     <string name="tv_files_detail_length">Length</string>
     <string name="tv_files_detail_added">Added</string>
     <string name="tv_files_detail_subtitles">Subtitles</string>
+    <plurals name="tv_files_detail_subtitle_files">
+        <item quantity="one">%1$s file</item>
+        <item quantity="other">%1$s files</item>
+    </plurals>
     <string name="tv_files_unsupported_title">Unsupported file type</string>
     <string name="tv_files_unsupported_message">This app plays video and audio. Other files stay in your account.</string>
     <string name="tv_files_go_back">Go back</string>

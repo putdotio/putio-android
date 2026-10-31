@@ -20,6 +20,7 @@ import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.files.FilesSort
 import io.putdotio.android.files.FilesSubtitleLanguages
+import io.putdotio.android.files.FilesSubtitles
 import io.putdotio.sdk.files.PutioFileType
 import java.io.File
 import java.util.UUID
@@ -70,7 +71,7 @@ class TvFilesProofTest {
         compose.waitUntil(5_000) { isFocused(SUBTITLES) }
         press(KeyEvent.KEYCODE_DPAD_DOWN)
         compose.waitUntil(5_000) { isFocused("Play $BBB_VIDEO") }
-        waitForText("English")
+        waitForText("English · 1 file")
         screenshot("androidtv-rde2-05-folder")
     }
 
@@ -123,14 +124,19 @@ class TvFilesProofTest {
                 total = 3,
             ),
         )
-        val subtitles = mapOf(14L to listOf("English", "English · SDH"), 22L to listOf("English"))
+        val subtitles = mapOf(
+            14L to FilesSubtitles(listOf("English", "English · SDH")),
+            22L to FilesSubtitles(listOf("English"), sidecarFiles = 1),
+        )
         val dependencies = tvProofDependencies(
             listings = listings,
             searchResults = emptyList(),
             recentSearchStore = { ProofRecentSearchStore() },
         ).copy(
             folderCounts = FilesFolderCounts { id -> PutioResult.Success(listings[id]?.items?.size ?: 0) },
-            subtitleLanguages = FilesSubtitleLanguages { id -> PutioResult.Success(subtitles[id.value].orEmpty()) },
+            subtitleLanguages = FilesSubtitleLanguages { id ->
+                PutioResult.Success(subtitles[id.value] ?: FilesSubtitles(emptyList()))
+            },
         )
         compose.mountTvProofSession(dependencies)
         compose.waitUntil(5_000) { isFocused("Open $BBB") }

@@ -35,6 +35,8 @@ import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.files.FilesRequestId
 import io.putdotio.android.files.FilesSort
+import io.putdotio.android.files.FilesSubtitleLanguages
+import io.putdotio.android.files.FilesSubtitles
 import io.putdotio.android.tv.TvPlayStart
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
@@ -428,6 +430,35 @@ class TvFilesScreenTest {
         compose.onNode(hasText("Play") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
         compose.onAllNodesWithText("Start over").assertCountEquals(0)
         assertEquals(listOf(TvPlayStart.Ask), played)
+    }
+
+    @Test
+    fun aVideoNamesItsSubtitleLanguagesAndHowManyAreSidecarFiles() {
+        val subtitles = mapOf(
+            1L to FilesSubtitles(listOf("English"), sidecarFiles = 1),
+            2L to FilesSubtitles(listOf("English", "Turkish")),
+        )
+        compose.setTvContent {
+            TvFilesScreen(
+                state = ready(
+                    item(1, "Big Buck Bunny.mp4", PutioFileType.VIDEO),
+                    item(2, "Sintel.2010.1080p.mkv", PutioFileType.VIDEO),
+                ),
+                onEvent = { true },
+                onPlayMedia = {},
+                onPlay = { _, _ -> },
+                detailSources = TvFilesDetailSources(
+                    subtitleLanguages = FilesSubtitleLanguages { id ->
+                        PutioResult.Success(subtitles.getValue(id.value))
+                    },
+                ),
+            )
+        }
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("English · 1 file").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithContentDescription("Play Big Buck Bunny.mp4").performKeyInput {
+            pressKey(Key.DirectionDown)
+        }
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("English, Turkish").fetchSemanticsNodes().isNotEmpty() }
     }
 
     @Test
