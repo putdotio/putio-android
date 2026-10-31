@@ -1,94 +1,55 @@
 package io.putdotio.android.tv.player
 
-import android.text.format.DateUtils
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import io.putdotio.android.R
 import io.putdotio.android.tv.TvButton
+import io.putdotio.android.tv.TvButtonStyle
 import io.putdotio.android.tv.TvDialog
-
-internal const val TV_PLAYER_RESUME_PROGRESS_TAG = "tv-player-resume-progress"
+import io.putdotio.android.tv.tvSafeAreaPadding
 
 /**
- * The play-time resume choice, as the RN player's (putio-web `apps/tv-native`
- * `withResumePlaybackPrompt.tsx`): the raw file name, a progress bar, and stacked Continue
- * and Start from the beginning buttons. Continue takes focus; the bar previews where the
- * focused choice starts. Back leaves playback, as the RN prompt and mobile's do.
+ * "Resume from 18:42?" over the player's top bar, with Start over and a filled Resume, as the
+ * phone asks. Resume takes focus; Back leaves playback, as the phone's does.
  */
 @Composable
 internal fun TvResumePlaybackDialog(
     title: String,
     startFromSeconds: Double,
-    durationSeconds: Double,
     onResume: () -> Unit,
     onRestart: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var restartFocused by remember { mutableStateOf(false) }
-    val previewSeconds = if (restartFocused) 0.0 else startFromSeconds
-    val fraction = (previewSeconds / durationSeconds).coerceIn(0.0, 1.0).toFloat()
-    val progressDescription = stringResource(
-        R.string.tv_player_resume_progress,
-        previewSeconds.elapsedLabel(),
-        durationSeconds.elapsedLabel(),
-    )
+    Box(Modifier.fillMaxSize().tvSafeAreaPadding()) { TvPlayerTopBar(title) }
+    val time = playerTime((startFromSeconds * MILLIS_PER_SECOND).toLong())
     TvDialog(
-        title = title,
+        title = stringResource(R.string.tv_player_resume_title, time),
         message = null,
         onDismiss = onDismiss,
-        body = {
-            LinearProgressIndicator(
-                progress = { fraction },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 12.dp)
-                    .height(8.dp)
-                    .testTag(TV_PLAYER_RESUME_PROGRESS_TAG)
-                    .semantics { contentDescription = progressDescription },
-                color = MaterialTheme.colorScheme.primary,
-                trackColor = MaterialTheme.colorScheme.surface,
-                strokeCap = StrokeCap.Round,
-                gapSize = 0.dp,
-                drawStopIndicator = {},
-            )
-        },
     ) { focus ->
-        TvButton(
-            onClick = onResume,
-            modifier = Modifier
-                .fillMaxWidth()
-                .focusRequester(focus)
-                .onFocusChanged { if (it.isFocused) restartFocused = false },
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(stringResource(R.string.tv_player_resume_continue, startFromSeconds.elapsedLabel()))
-        }
-        TvButton(
-            onClick = onRestart,
-            modifier = Modifier
-                .fillMaxWidth()
-                .onFocusChanged { if (it.isFocused) restartFocused = true },
-        ) {
-            Text(stringResource(R.string.tv_player_resume_restart))
+            TvButton(onClick = onRestart, style = TvButtonStyle.Text) {
+                Text(stringResource(R.string.tv_player_start_over))
+            }
+            TvButton(onClick = onResume, style = TvButtonStyle.Filled, modifier = Modifier.focusRequester(focus)) {
+                Text(stringResource(R.string.tv_player_resume))
+            }
         }
     }
 }
 
-private fun Double.elapsedLabel(): String = DateUtils.formatElapsedTime(toLong())
+private const val MILLIS_PER_SECOND = 1_000L

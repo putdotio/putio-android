@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tv_player_play">Play</string>
+    <string name="tv_player_pause">Pause</string>
+    <string name="tv_player_seek_back">Back 10 seconds</string>
+    <string name="tv_player_seek_forward">Forward 10 seconds</string>
+    <string name="tv_player_audio">Audio</string>
+    <string name="tv_player_audio_chip">Audio: %1$s</string>
+    <string name="tv_player_subtitles_chip">Subtitles: %1$s</string>
+    <string name="tv_player_speed_chip">Playback speed %1$s</string>
+    <string name="tv_player_next_episode">Next episode</string>
+    <string name="tv_player_audio_mono">Mono</string>
+    <string name="tv_player_audio_stereo">Stereo</string>
+    <plurals name="tv_player_audio_channels">
+        <item quantity="one">%1$d channel</item>
+        <item quantity="other">%1$d channels</item>
+    </plurals>
+    <string name="tv_player_audio_commentary">Commentary</string>
+    <string name="tv_player_subtitles_in_file">In this file</string>
+    <string name="tv_player_subtitles_found">Found by put.io</string>
+    <string name="tv_player_subtitles_from_folder">This folder</string>
+    <string name="tv_player_subtitles_from_opensubtitles">OpenSubtitles</string>
+    <string name="tv_player_subtitle_sdh">SDH</string>
+    <string name="tv_player_size_and_timing">Size and timing</string>
+    <string name="tv_player_text_size">Text size</string>
+    <string name="tv_player_size_small">Small</string>
+    <string name="tv_player_size_medium">Medium</string>
+    <string name="tv_player_size_large">Large</string>
+    <string name="tv_player_size_extra_large">Extra large</string>
+    <string name="tv_player_timing">Timing</string>
+    <string name="tv_player_subtitle_earlier">Earlier by 0.1 seconds</string>
+    <string name="tv_player_subtitle_later">Later by 0.1 seconds</string>
+    <string name="tv_player_subtitle_reset">Reset</string>
+    <string name="tv_player_caption_settings">Font and colours follow your TV’s caption settings.</string>
+    <string name="tv_player_speed_slower">Slower, %1$s</string>
+    <string name="tv_player_speed_faster">Faster, %1$s</string>
+    <string name="tv_player_resume_title">Resume from %1$s?</string>
+    <string name="tv_player_resume">Resume</string>
+    <string name="tv_player_start_over">Start over</string>
+</resources>

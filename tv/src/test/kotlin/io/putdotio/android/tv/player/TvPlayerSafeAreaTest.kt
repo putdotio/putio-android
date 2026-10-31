@@ -76,13 +76,13 @@ class TvPlayerSafeAreaTest {
     private fun assertControlsInsideSafeArea() {
         val controls = listOf(
             compose.onNodeWithText(TITLE),
-            compose.onNodeWithContentDescription("Language"),
-            compose.onNodeWithContentDescription("Subtitles"),
-            compose.onNodeWithContentDescription("Speed"),
+            compose.onNodeWithContentDescription("Audio:", substring = true),
+            compose.onNodeWithContentDescription("Subtitles:", substring = true),
+            compose.onNodeWithContentDescription("Playback speed", substring = true),
             compose.onNodeWithTag(TV_PLAYER_SEEK_BAR_TAG),
             compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG),
-            compose.onNodeWithContentDescription("Playing"),
-            compose.onNodeWithText("14:00"),
+            compose.onNodeWithContentDescription("Pause"),
+            compose.onNodeWithText("-14:00"),
         ).map { it.fetchSemanticsNode() }
         compose.assertInsideTvSafeArea(controls)
     }

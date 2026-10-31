@@ -1,11 +1,11 @@
 package io.putdotio.android.tv.player
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import android.os.Looper
 import io.putdotio.android.tv.setTvContent
 import androidx.activity.ComponentActivity
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
@@ -116,7 +116,10 @@ class TvPlayerMediaSessionTest {
         val player = FakePlayer()
         val sessions = mutableListOf<MediaSession>()
         compose.showReady(player, resumePositionMillis = 42_000L, playerFactory = sessionFactory(player, sessions))
-        compose.onNodeWithTag(TV_PLAYER_TAG).performKeyInput { pressKey(Key.DirectionLeft) }
+        compose.onNodeWithTag(TV_PLAYER_TAG).performKeyInput {
+            pressKey(Key.DirectionDown)
+            pressKey(Key.DirectionLeft)
+        }
         compose.settle()
         compose.runOnIdle { assertFalse(player.playWhenReady) }
 
@@ -124,7 +127,7 @@ class TvPlayerMediaSessionTest {
         val controller = connect(sessions.single())
         controller.pause()
         idleSession()
-        compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("00:27")
+        compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("0:27")
 
         compose.back()
         compose.runOnIdle {
@@ -139,14 +142,17 @@ class TvPlayerMediaSessionTest {
         val player = FakePlayer()
         val sessions = mutableListOf<MediaSession>()
         compose.showReady(player, resumePositionMillis = 42_000L, playerFactory = sessionFactory(player, sessions))
-        compose.onNodeWithTag(TV_PLAYER_TAG).performKeyInput { pressKey(Key.DirectionLeft) }
+        compose.onNodeWithTag(TV_PLAYER_TAG).performKeyInput {
+            pressKey(Key.DirectionDown)
+            pressKey(Key.DirectionLeft)
+        }
         compose.settle()
-        compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("00:27")
+        compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("0:27")
 
         val controller = connect(sessions.single())
         controller.seekTo(90_000L)
         idleSession()
-        compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("01:30")
+        compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("1:30")
 
         compose.onNodeWithTag(TV_PLAYER_TAG).performKeyInput { pressKey(Key.DirectionCenter) }
         compose.settle()
@@ -190,13 +196,13 @@ class TvPlayerMediaSessionTest {
         // The media session drives the player directly, as for a Now Playing pause.
         compose.runOnIdle { player.pause() }
         compose.settle()
-        compose.onNodeWithContentDescription("Paused").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Play").assertIsDisplayed()
         compose.mainClock.advanceTimeBy(TV_PLAYER_CONTROLS_HIDE_DELAY_MILLIS * 2)
-        compose.onNodeWithContentDescription("Paused").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Play").assertIsDisplayed()
 
         compose.runOnIdle { player.play() }
         compose.settle()
-        compose.onNodeWithContentDescription("Playing").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Pause").assertIsDisplayed()
         compose.mainClock.advanceTimeBy(TV_PLAYER_CONTROLS_HIDE_DELAY_MILLIS + 100L)
         compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertDoesNotExist()
     }

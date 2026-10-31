@@ -125,7 +125,7 @@ class TvPlayerAutoplayTest {
         compose.waitForIdle()
 
         compose.onNodeWithText("Harbor film 2.mp4").assertIsDisplayed()
-        compose.onNodeWithText(CONTINUE_LABEL).assertIsFocused()
+        compose.onNodeWithText(RESUME_LABEL).assertIsFocused()
         compose.runOnIdle { assertEquals("No player before the choice", 1, players.size) }
     }
 

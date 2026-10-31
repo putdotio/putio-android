@@ -88,3 +88,14 @@ private fun TvScrubDirection.step(fromMillis: Long, byMillis: Long): Long =
         TvScrubDirection.Backward -> fromMillis - byMillis
         TvScrubDirection.Forward -> fromMillis + byMillis
     }
+
+internal fun TvPlayerOverlay.skip(forward: Boolean, positionMillis: Long, durationMillis: Long): TvPlayerTransition {
+    if (exited || durationMillis <= 0L) return TvPlayerTransition(this)
+    val step = if (forward) TV_SKIP_MILLIS else -TV_SKIP_MILLIS
+    return TvPlayerTransition(
+        copy(controlsVisible = true, scrub = null, activity = activity + 1),
+        listOf(TvPlayerCommand.SeekTo((positionMillis + step).coerceIn(0L, durationMillis))),
+    )
+}
+
+internal const val TV_SKIP_MILLIS = 10_000L

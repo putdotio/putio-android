@@ -31,13 +31,13 @@ private val TV_PLAYER_KEYS = setOf(
 internal fun TvPlayerOverlay.onPlayerKey(
     event: KeyEvent,
     player: Player,
-    buttons: List<TvPlayerControl>,
+    chips: List<TvPlayerControl>,
     apply: (TvPlayerTransition) -> Unit,
 ): Boolean {
     if (event.key == Key.Back || event.key !in TV_PLAYER_KEYS) return false
-    val focused = if (controlsVisible) focusIn(buttons) else TvPlayerControl.SeekBar
+    val focused = if (controlsVisible) focusIn(chips) else TvPlayerControl.SeekBar
     if (event.type == KeyEventType.KeyDown) {
-        apply(keyDown(event, player, focused, buttons))
+        apply(keyDown(event, player, focused, chips))
     } else if (event.type == KeyEventType.KeyUp) {
         keyUp(event.key, player, focused)?.let(apply)
     }
@@ -48,7 +48,7 @@ private fun TvPlayerOverlay.keyDown(
     event: KeyEvent,
     player: Player,
     focused: TvPlayerControl,
-    buttons: List<TvPlayerControl>,
+    chips: List<TvPlayerControl>,
 ): TvPlayerTransition {
     val direction = event.key.scrubDirection(onSeekBar = focused == TvPlayerControl.SeekBar)
     val move = event.key.focusMove()
@@ -64,15 +64,28 @@ private fun TvPlayerOverlay.keyDown(
                 durationMillis = player.duration,
                 playing = player.playWhenReady,
             )
-        move != null -> moveFocus(move, buttons)
+        move != null -> moveFocus(move, chips)
         else -> reveal()
     }
 }
 
 private fun TvPlayerOverlay.keyUp(key: Key, player: Player, focused: TvPlayerControl): TvPlayerTransition? =
     when (key) {
-        Key.DirectionCenter, Key.Enter, Key.NumPadEnter ->
-            if (focused == TvPlayerControl.SeekBar) select(player.playWhenReady) else openPicker(focused)
+        Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> when (focused) {
+            TvPlayerControl.SeekBar, TvPlayerControl.PlayPause -> select(player.playWhenReady)
+            TvPlayerControl.Back, TvPlayerControl.Forward ->
+                if (player.canScrub()) {
+                    skip(
+                        forward = focused == TvPlayerControl.Forward,
+                        positionMillis = player.currentPosition.coerceAtLeast(0L),
+                        durationMillis = player.duration,
+                    )
+                } else {
+                    reveal()
+                }
+            TvPlayerControl.NextEpisode -> playNext()
+            else -> openSheet(focused)
+        }
         Key.MediaPlayPause -> select(player.playWhenReady)
         Key.MediaPlay -> setPlaying(play = true)
         Key.MediaPause -> setPlaying(play = false)
@@ -81,7 +94,7 @@ private fun TvPlayerOverlay.keyUp(key: Key, player: Player, focused: TvPlayerCon
 
 /**
  * Rewind and fast-forward scrub from anywhere, pulling focus back to the seek bar, as the RN
- * player's did; Left and Right scrub only on the seek bar and move between buttons otherwise.
+ * player's did; Left and Right scrub only on the seek bar and move within a row otherwise.
  */
 private fun Key.scrubDirection(onSeekBar: Boolean): TvScrubDirection? =
     when (this) {

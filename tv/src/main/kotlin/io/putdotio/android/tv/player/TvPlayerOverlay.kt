@@ -1,7 +1,7 @@
 package io.putdotio.android.tv.player
 
 /**
- * The player's dismissible layers, topmost first: an open picker, seek mode, then the
+ * The player's dismissible layers, topmost first: an open sheet, seek mode, then the
  * controls. Back dismisses the topmost one and only exits once nothing is left. The resume
  * dialog comes before the player, so it is not a layer here.
  */
@@ -11,10 +11,11 @@ internal data class TvPlayerOverlay(
     /** Bumped on every reveal so the auto-hide timer restarts. */
     val activity: Int = 0,
     val exited: Boolean = false,
-    val focus: TvPlayerControl = TvPlayerControl.SeekBar,
-    /** The option button whose picker is open; focus returns to it when the picker closes. */
-    val picker: TvPlayerControl? = null,
+    val focus: TvPlayerControl = TvPlayerControl.PlayPause,
+    val sheet: TvPlayerSheet? = null,
 )
+
+internal enum class TvPlayerSheet { Audio, Subtitles, Speed, SizeAndTiming }
 
 internal sealed interface TvPlayerCommand {
     data object Play : TvPlayerCommand
@@ -39,15 +40,15 @@ internal fun TvPlayerOverlay.reveal(): TvPlayerTransition =
     TvPlayerTransition(copy(controlsVisible = true, activity = activity + 1))
 
 /**
- * The auto-hide timer ran out; seek mode and an open picker keep the controls up. Hidden
- * controls come back on the seek bar, where Left and Right scrub.
+ * The auto-hide timer ran out; seek mode and an open sheet keep the controls up. Hidden
+ * controls come back on play and pause; while hidden, Left and Right scrub.
  */
 internal fun TvPlayerOverlay.hideTimedOut(): TvPlayerTransition =
-    TvPlayerTransition(if (scrub == null && picker == null) hidden() else this)
+    TvPlayerTransition(if (scrub == null && sheet == null) hidden() else this)
 
-/** Shown controls that neither seek mode nor an open picker holds up; while playing they time out. */
+/** Shown controls that neither seek mode nor an open sheet holds up; while playing they time out. */
 internal val TvPlayerOverlay.autoHides: Boolean
-    get() = controlsVisible && scrub == null && picker == null
+    get() = controlsVisible && scrub == null && sheet == null
 
 /** Center, Enter or play/pause: commits a scrub and plays from there, otherwise toggles playback. */
 internal fun TvPlayerOverlay.select(playing: Boolean): TvPlayerTransition {
@@ -99,16 +100,18 @@ internal fun TvPlayerOverlay.playingChanged(playing: Boolean): TvPlayerTransitio
     }
 
 /**
- * Back dismisses the topmost layer: an open picker (no change; focus back on its button), seek
- * mode (the position never moved; playback resumes only if the scrub paused it), then the
- * controls (pause state untouched). With nothing open it exits once; Backs that arrive before
- * the player leaves are ignored.
+ * Back dismisses the topmost layer: an open sheet (no change; Size and timing returns to
+ * Subtitles, any other sheet hands focus back to its chip), seek mode (the position never moved;
+ * playback resumes only if the scrub paused it), then the controls (pause state untouched). With
+ * nothing open it exits once; Backs that arrive before the player leaves are ignored.
  */
 internal fun TvPlayerOverlay.back(): TvPlayerTransition {
     val pending = scrub
     return when {
         exited -> TvPlayerTransition(this)
-        picker != null -> closePicker()
+        sheet == TvPlayerSheet.SizeAndTiming ->
+            TvPlayerTransition(copy(sheet = TvPlayerSheet.Subtitles, activity = activity + 1))
+        sheet != null -> closeSheet()
         pending != null -> TvPlayerTransition(
             copy(scrub = null, activity = activity + 1),
             if (pending.wasPlaying) listOf(TvPlayerCommand.Play) else emptyList(),
@@ -125,14 +128,11 @@ internal fun TvPlayerOverlay.back(): TvPlayerTransition {
 internal fun TvPlayerOverlay.ended(autoplayNext: Boolean = false): TvPlayerTransition =
     when {
         exited -> TvPlayerTransition(this)
-        autoplayNext -> TvPlayerTransition(
-            copy(exited = true, scrub = null, picker = null),
-            listOf(TvPlayerCommand.PlayNext),
-        )
+        autoplayNext -> playNext()
         else -> exit()
     }
 
-private fun TvPlayerOverlay.hidden() = copy(controlsVisible = false, focus = TvPlayerControl.SeekBar)
+private fun TvPlayerOverlay.hidden() = copy(controlsVisible = false, focus = TvPlayerControl.PlayPause)
 
 private fun TvPlayerOverlay.exit() =
-    TvPlayerTransition(copy(exited = true, scrub = null, picker = null), listOf(TvPlayerCommand.Exit))
+    TvPlayerTransition(copy(exited = true, scrub = null, sheet = null), listOf(TvPlayerCommand.Exit))

@@ -68,7 +68,6 @@ import io.putdotio.android.playback.MobileSubtitleAppearanceContent
 import io.putdotio.android.playback.MobileSubtitlesChip
 import io.putdotio.android.playback.MobileSubtitlesSheetContent
 import io.putdotio.android.playback.SubtitleTextSize
-import io.putdotio.android.playback.formatSubtitleOffset
 import io.putdotio.android.playback.rememberPlayerOptionsSnapshot
 import io.putdotio.sdk.files.PlaybackSubtitle
 import io.putdotio.sdk.files.PutioCredentialUrl
@@ -233,9 +232,6 @@ class MobileSubtitleControlsTest {
         compose.onNodeWithText("0.0 s").assertIsDisplayed()
         compose.onNodeWithText("Reset").assertIsNotEnabled()
         compose.runOnIdle { assertEquals(0L, offset) }
-        assertEquals("0.0 s", formatSubtitleOffset(0L))
-        assertEquals("\u22121.3 s", formatSubtitleOffset(-1_300L))
-        assertEquals("+10.0 s", formatSubtitleOffset(10_000L))
     }
 
     @androidx.annotation.OptIn(markerClass = [UnstableApi::class])

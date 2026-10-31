@@ -1,44 +1,75 @@
 package io.putdotio.android.tv.player
 
 /**
- * What the overlay's D-pad focus is on: the seek bar, or one of the option buttons above it
- * (tv-native `VideoPlayer.android.tsx`: Language, Subtitles, Speed, left to right).
+ * What the overlay's D-pad focus is on: the centre circles, the seek bar, or one of the chips under
+ * it (Audio, Subtitles, Speed, then Next episode on the right).
  */
-internal enum class TvPlayerControl { SeekBar, Language, Subtitles, Speed }
+internal enum class TvPlayerControl { Back, PlayPause, Forward, SeekBar, Audio, Subtitles, Speed, NextEpisode }
 
 internal enum class TvFocusMove { Up, Down, Left, Right }
 
+private val TV_PLAYER_CIRCLES = listOf(TvPlayerControl.Back, TvPlayerControl.PlayPause, TvPlayerControl.Forward)
+
 /**
- * Up from the seek bar reaches the first option button, Down returns to the seek bar, and
- * Left and Right walk the [buttons] shown. Hidden controls only come back, and seek mode keeps
- * the seek bar. A focused button that is no longer shown counts as the seek bar.
+ * The circles sit above the seek bar and the [chips] below it. Up and Down step between the three
+ * rows, entering the circles on play and pause and the chips on the first; Left and Right walk a
+ * row. Hidden controls only come back, and seek mode keeps the seek bar. A focused chip that is no
+ * longer shown counts as the seek bar.
  */
-internal fun TvPlayerOverlay.moveFocus(move: TvFocusMove, buttons: List<TvPlayerControl>): TvPlayerTransition {
+internal fun TvPlayerOverlay.moveFocus(move: TvFocusMove, chips: List<TvPlayerControl>): TvPlayerTransition {
     val revealed = reveal().overlay
     if (!controlsVisible || exited || scrub != null) return TvPlayerTransition(revealed)
-    val current = focusIn(buttons)
-    val index = buttons.indexOf(current)
+    val current = focusIn(chips)
+    val rows = listOf(TV_PLAYER_CIRCLES, listOf(TvPlayerControl.SeekBar), chips)
+    val rowIndex = rows.indexOfFirst { current in it }
+    val row = rows[rowIndex]
+    val index = row.indexOf(current)
     val next = when (move) {
-        TvFocusMove.Up -> if (current == TvPlayerControl.SeekBar) buttons.firstOrNull() else null
-        TvFocusMove.Down -> TvPlayerControl.SeekBar
-        TvFocusMove.Left -> buttons.getOrNull(index - 1).takeIf { index > 0 }
-        TvFocusMove.Right -> buttons.getOrNull(index + 1).takeIf { index >= 0 }
+        TvFocusMove.Up -> rows.getOrNull(rowIndex - 1)?.entry()
+        TvFocusMove.Down -> rows.getOrNull(rowIndex + 1)?.entry()
+        TvFocusMove.Left -> row.getOrNull(index - 1)
+        TvFocusMove.Right -> row.getOrNull(index + 1)
     } ?: current
     return TvPlayerTransition(revealed.copy(focus = next))
 }
 
-/** The focused control, falling back to the seek bar when its button is not shown. */
-internal fun TvPlayerOverlay.focusIn(buttons: List<TvPlayerControl>): TvPlayerControl =
-    focus.takeIf { it == TvPlayerControl.SeekBar || it in buttons } ?: TvPlayerControl.SeekBar
+private fun List<TvPlayerControl>.entry(): TvPlayerControl? =
+    if (this == TV_PLAYER_CIRCLES) TvPlayerControl.PlayPause else firstOrNull()
 
-/** Center on a focused option button opens its picker above the controls. */
-internal fun TvPlayerOverlay.openPicker(button: TvPlayerControl): TvPlayerTransition =
-    if (exited || button == TvPlayerControl.SeekBar) {
+/** The focused control, falling back to the seek bar when its chip is not shown. */
+internal fun TvPlayerOverlay.focusIn(chips: List<TvPlayerControl>): TvPlayerControl =
+    focus.takeIf { it in TV_PLAYER_CIRCLES || it == TvPlayerControl.SeekBar || it in chips }
+        ?: TvPlayerControl.SeekBar
+
+/** Center on Audio, Subtitles or Speed opens its side sheet over the controls. */
+internal fun TvPlayerOverlay.openSheet(chip: TvPlayerControl): TvPlayerTransition {
+    val sheet = when (chip) {
+        TvPlayerControl.Audio -> TvPlayerSheet.Audio
+        TvPlayerControl.Subtitles -> TvPlayerSheet.Subtitles
+        TvPlayerControl.Speed -> TvPlayerSheet.Speed
+        else -> null
+    }
+    return if (exited || sheet == null) {
         TvPlayerTransition(this)
     } else {
-        TvPlayerTransition(copy(controlsVisible = true, picker = button, focus = button, activity = activity + 1))
+        TvPlayerTransition(copy(controlsVisible = true, sheet = sheet, focus = chip, activity = activity + 1))
+    }
+}
+
+internal fun TvPlayerOverlay.openSizeAndTiming(): TvPlayerTransition =
+    if (sheet == TvPlayerSheet.Subtitles) {
+        TvPlayerTransition(copy(sheet = TvPlayerSheet.SizeAndTiming, activity = activity + 1))
+    } else {
+        TvPlayerTransition(this)
     }
 
-/** A choice was made or the picker was dismissed: focus stays on the button that opened it. */
-internal fun TvPlayerOverlay.closePicker(): TvPlayerTransition =
-    TvPlayerTransition(copy(picker = null, activity = activity + 1))
+/** A choice was made or the sheet was dismissed: focus stays on the chip that opened it. */
+internal fun TvPlayerOverlay.closeSheet(): TvPlayerTransition =
+    TvPlayerTransition(copy(sheet = null, activity = activity + 1))
+
+internal fun TvPlayerOverlay.playNext(): TvPlayerTransition =
+    if (exited) {
+        TvPlayerTransition(this)
+    } else {
+        TvPlayerTransition(copy(exited = true, scrub = null, sheet = null), listOf(TvPlayerCommand.PlayNext))
+    }

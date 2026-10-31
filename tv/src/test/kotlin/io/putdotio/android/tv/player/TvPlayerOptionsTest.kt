@@ -1,13 +1,13 @@
 package io.putdotio.android.tv.player
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import android.os.Looper
 import io.putdotio.android.design.PutioTvTheme
 import io.putdotio.android.tv.setTvContent
 import android.view.KeyEvent as AndroidKeyEvent
 import androidx.activity.ComponentActivity
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
@@ -71,7 +71,7 @@ import org.robolectric.annotation.GraphicsMode
 import org.robolectric.shadows.ShadowDialog
 import io.putdotio.android.playback.PlaybackState
 
-/** Language, Subtitles and Speed on the TV player, over a fake Media3 player with tracks. */
+/** The TV player's circles, chips and side sheets, over a fake Media3 player with tracks. */
 @OptIn(ExperimentalTestApi::class)
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -82,87 +82,106 @@ class TvPlayerOptionsTest {
     val compose = createAndroidComposeRule<ComponentActivity>()
 
     @Test
-    fun theButtonsFollowTheTracksAndSpeedIsAlwaysThere() {
-        val player = TrackPlayer(audio = oneAudio(), text = null)
+    fun theChipsFollowTheTracksAndSpeedIsAlwaysThere() {
+        val player = TrackPlayer(audio = null, text = null)
         show(player)
-        compose.onNodeWithContentDescription(SPEED).assertIsDisplayed()
-        compose.onNodeWithContentDescription(LANGUAGE).assertDoesNotExist()
-        compose.onNodeWithContentDescription(SUBTITLES).assertDoesNotExist()
+        chip(SPEED).assertIsDisplayed()
+        chip(AUDIO).assertDoesNotExist()
+        chip(SUBTITLES).assertIsDisplayed().assert(describedAs("Subtitles: Off"))
 
         compose.runOnIdle { player.replaceTracks(audio = twoAudio(period = 2), text = oneText()) }
         settle()
-        compose.onNodeWithContentDescription(LANGUAGE).assertIsDisplayed()
-        compose.onNodeWithContentDescription(SUBTITLES).assertIsDisplayed()
-        compose.onNodeWithContentDescription(SPEED).assertIsDisplayed()
+        chip(AUDIO).assertIsDisplayed().assert(describedAs("Audio: Italiano"))
+        chip(SPEED).assertIsDisplayed().assert(describedAs("Playback speed 1×"))
     }
 
     @Test
-    fun upReachesTheButtonsLeftAndRightWalkThemAndDownReturnsToScrubbing() {
+    fun downReachesTheChipsLeftAndRightWalkThemAndUpReturnsToScrubbing() {
         val player = TrackPlayer()
         show(player, readyState(resumePositionMillis = 60_000L))
-
-        key(Key.DirectionUp)
-        compose.onNodeWithContentDescription(LANGUAGE).assertIsSelected()
-        key(Key.DirectionRight)
-        compose.onNodeWithContentDescription(SUBTITLES).assertIsSelected()
-        key(Key.DirectionRight)
-        key(Key.DirectionRight)
-        compose.onNodeWithContentDescription(SPEED).assertIsSelected()
-        compose.onNodeWithContentDescription(LANGUAGE).assertIsNotSelected()
-        compose.runOnIdle { assertTrue("Walking the buttons never scrubs", player.playWhenReady) }
+        compose.onNodeWithContentDescription("Pause").assertIsSelected()
 
         key(Key.DirectionDown)
-        compose.onNodeWithContentDescription(SPEED).assertIsNotSelected()
+        key(Key.DirectionDown)
+        chip(AUDIO).assertIsSelected()
+        key(Key.DirectionRight)
+        chip(SUBTITLES).assertIsSelected()
+        key(Key.DirectionRight)
+        key(Key.DirectionRight)
+        chip(SPEED).assertIsSelected()
+        chip(AUDIO).assertIsNotSelected()
+        compose.runOnIdle { assertTrue("Walking the chips never scrubs", player.playWhenReady) }
+
+        key(Key.DirectionUp)
+        chip(SPEED).assertIsNotSelected()
         key(Key.DirectionLeft)
-        compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("00:45")
+        compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("0:45")
         compose.runOnIdle { assertFalse("Left on the seek bar scrubs", player.playWhenReady) }
     }
 
     @Test
-    fun rewindOnAButtonPullsFocusBackToTheSeekBarAndScrubs() {
+    fun theCirclesSkipTenSecondsAndToggle() {
         val player = TrackPlayer()
         show(player, readyState(resumePositionMillis = 60_000L))
-        key(Key.DirectionUp)
-        compose.onNodeWithContentDescription(LANGUAGE).assertIsSelected()
+        key(Key.DirectionLeft)
+        compose.onNodeWithContentDescription("Back 10 seconds").assertIsSelected()
+        key(Key.DirectionCenter)
+        compose.runOnIdle { assertTrue("Back 10 s", player.currentPosition in 50_000L..51_000L) }
+        key(Key.DirectionRight)
+        key(Key.DirectionRight)
+        compose.onNodeWithContentDescription("Forward 10 seconds").assertIsSelected()
+        key(Key.DirectionCenter)
+        compose.runOnIdle { assertTrue("Forward 10 s", player.currentPosition in 60_000L..61_500L) }
+        key(Key.DirectionLeft)
+        key(Key.DirectionCenter)
+        compose.runOnIdle { assertFalse(player.playWhenReady) }
+        compose.onNodeWithContentDescription("Play").assertIsSelected()
+    }
+
+    @Test
+    fun rewindOnAChipPullsFocusBackToTheSeekBarAndScrubs() {
+        val player = TrackPlayer()
+        show(player, readyState(resumePositionMillis = 60_000L))
+        key(Key.DirectionDown)
+        key(Key.DirectionDown)
+        chip(AUDIO).assertIsSelected()
 
         key(Key.MediaRewind)
-        compose.onNodeWithContentDescription(LANGUAGE).assertIsNotSelected()
-        compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("00:45")
+        chip(AUDIO).assertIsNotSelected()
+        compose.onNodeWithTag(TV_PLAYER_SEEK_BAR_TAG).assertIsSelected()
+        compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("0:45")
         compose.runOnIdle { assertFalse(player.playWhenReady) }
     }
 
     @Test
-    fun speedSetsThePlayerAndBackClosesThePickerBeforeTheControlsThenExits() {
+    fun speedStepsThroughThePresetsAndBackClosesTheSheetBeforeTheControlsThenExits() {
         val player = TrackPlayer()
         var exits = 0
         show(player, onBack = { exits += 1 })
-        openPicker(SPEED, rightPresses = 2)
-        compose.onNodeWithText("Playback speed").assertIsDisplayed()
+        openSheet(SPEED, rightPresses = 2)
+        compose.onNodeWithText("Speed").assertIsDisplayed()
         settle()
-        compose.onNode(hasText("1×") and hasClickAction()).assertIsFocused()
+        compose.onNodeWithContentDescription("Faster, 1.25×").assertIsFocused()
+        choose("+")
+        compose.runOnIdle { assertEquals(1.25f, player.playbackParameters.speed) }
         choose("1.5×")
-        settle()
-        compose.onNodeWithText("Playback speed").assertDoesNotExist()
         compose.runOnIdle { assertEquals(1.5f, player.playbackParameters.speed) }
-        compose.onNodeWithContentDescription(SPEED).assertIsSelected().assert(stateIs("1.5×"))
+        compose.onNodeWithText("Speed").assertIsDisplayed()
+        chip(SPEED).assert(describedAs("Playback speed 1.5×"))
 
-        // Back with a picker open dismisses only the picker: playback, speed and focus stay.
-        key(Key.DirectionCenter)
-        compose.onNodeWithText("Playback speed").assertIsDisplayed()
-        settle()
-        compose.onNode(hasText("1.5×") and hasClickAction()).assertIsFocused()
+        // Back with a sheet open dismisses only the sheet: playback, speed and focus stay.
         backInDialog()
-        compose.onNodeWithText("Playback speed").assertDoesNotExist()
+        compose.onNodeWithText("Speed").assertDoesNotExist()
         compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertIsDisplayed()
-        compose.onNodeWithContentDescription(SPEED).assertIsSelected()
+        chip(SPEED).assertIsSelected()
         compose.runOnIdle {
             assertEquals(0, exits)
             assertTrue(player.playWhenReady)
             assertEquals(1.5f, player.playbackParameters.speed)
         }
-        // The picker's keys went back to the player: Left moves between the buttons again.
+        // The sheet's keys went back to the player: Left moves between the chips again.
         key(Key.DirectionLeft)
-        compose.onNodeWithContentDescription(SUBTITLES).assertIsSelected()
+        chip(SUBTITLES).assertIsSelected()
 
         back()
         compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertDoesNotExist()
@@ -172,21 +191,41 @@ class TvPlayerOptionsTest {
     }
 
     @Test
-    fun anOpenPickerKeepsTheControlsPastTheAutoHideDelay() {
+    fun anOpenSheetKeepsTheControlsPastTheAutoHideDelay() {
         val player = TrackPlayer()
         show(player)
-        openPicker(SPEED, rightPresses = 2)
+        openSheet(SPEED, rightPresses = 2)
         compose.mainClock.advanceTimeBy(TV_PLAYER_CONTROLS_HIDE_DELAY_MILLIS * 2)
         compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertIsDisplayed()
-        compose.onNodeWithText("Playback speed").assertIsDisplayed()
+        compose.onNodeWithText("Speed").assertIsDisplayed()
+    }
+
+    @Test
+    fun sizeAndTimingOpensFromSubtitlesAndBackReturnsThere() {
+        val player = TrackPlayer()
+        show(player, policy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = true))
+        openSheet(SUBTITLES, rightPresses = 1)
+        compose.onNodeWithText("In this file").assertIsDisplayed()
+        compose.onNodeWithText("Medium · 0.0 s").assertIsDisplayed()
+        choose("Size and timing")
+        compose.onNodeWithText("Text size").assertIsDisplayed()
+        choose("+0.1")
+        choose("+0.1")
+        compose.onNodeWithText("+0.2 s").assertIsDisplayed()
+        choose("L")
+        backInDialog()
+        compose.onNodeWithText("Large · +0.2 s").assertIsDisplayed()
+        backInDialog()
+        compose.onNodeWithText("In this file").assertDoesNotExist()
+        chip(SUBTITLES).assertIsSelected()
     }
 
     @Test
     fun theChosenAudioTrackSurvivesATrackChange() {
         val player = TrackPlayer()
         show(player)
-        openPicker(LANGUAGE)
-        compose.onNodeWithText("Audio tracks").assertIsDisplayed()
+        openSheet(AUDIO)
+        compose.onNodeWithText("Audio").assertIsDisplayed()
         choose("English")
         settle()
         compose.runOnIdle { assertEquals(1, player.selectedAudioIndex()) }
@@ -204,7 +243,7 @@ class TvPlayerOptionsTest {
             text = null,
         )
         show(player)
-        openPicker(LANGUAGE)
+        openSheet(AUDIO)
         compose.onNodeWithText("Audio track 1").assertIsDisplayed()
         compose.onNodeWithText("Audio track 2").assertIsDisplayed()
         compose.onNodeWithText("und").assertDoesNotExist()
@@ -217,14 +256,14 @@ class TvPlayerOptionsTest {
         compose.runOnIdle { player.emitCue("Automatic cue") }
         settle()
         compose.onNodeWithTag(SUBTITLE_CUES_TAG).assertIsDisplayed()
-        compose.onNodeWithContentDescription(SUBTITLES).assert(stateIs("Subtitles on"))
+        chip(SUBTITLES).assert(describedAs("Subtitles: English"))
 
-        openPicker(SUBTITLES, rightPresses = 1)
+        openSheet(SUBTITLES, rightPresses = 1)
         choose("Off")
         settle()
         // The renderer's last cues are still there; Off draws none of them.
         compose.onNodeWithTag(SUBTITLE_CUES_TAG).assertDoesNotExist()
-        compose.onNodeWithContentDescription(SUBTITLES).assert(stateIs("Subtitles off"))
+        chip(SUBTITLES).assert(describedAs("Subtitles: Off"))
 
         compose.runOnIdle {
             player.seekTo(300_000L)
@@ -240,7 +279,7 @@ class TvPlayerOptionsTest {
 
         // A picked track is found again in the next track list.
         key(Key.DirectionCenter)
-        choose("German")
+        choose("Deutsch")
         settle()
         compose.runOnIdle { player.replaceTracks(audio = twoAudio(period = 3), text = twoText(period = 3)) }
         settle()
@@ -281,7 +320,7 @@ class TvPlayerOptionsTest {
             assertEquals(0, player.selectedTextIndex())
         }
 
-        openPicker(SUBTITLES, rightPresses = 1)
+        openSheet(SUBTITLES, rightPresses = 1)
         choose("Off")
         settle()
         // Settings that change after a pick no longer decide.
@@ -317,8 +356,8 @@ class TvPlayerOptionsTest {
         val player = TrackPlayer()
         show(player, readyState(subtitlesHidden = true), policy = null)
 
-        compose.onNodeWithContentDescription(LANGUAGE).assertIsDisplayed()
-        compose.onNodeWithContentDescription(SUBTITLES).assertDoesNotExist()
+        chip(AUDIO).assertIsDisplayed()
+        chip(SUBTITLES).assertDoesNotExist()
         compose.runOnIdle { assertNull(player.selectedTextIndex()) }
     }
 
@@ -328,17 +367,17 @@ class TvPlayerOptionsTest {
         var policy by mutableStateOf<SubtitleStartupPolicy?>(null)
         show(player, policyProvider = { policy })
         // Settings still loading: the viewer picks a track, then opens the picker again.
-        openPicker(SUBTITLES, rightPresses = 1)
-        choose("German")
+        openSheet(SUBTITLES, rightPresses = 1)
+        choose("Deutsch")
         compose.runOnIdle { assertEquals(1, player.selectedTextIndex()) }
         key(Key.DirectionCenter)
-        compose.onNode(hasText("German") and hasClickAction()).assertExists()
+        compose.onNode(hasText("Deutsch") and hasClickAction()).assertExists()
 
         policy = SubtitleStartupPolicy(showSubtitles = false, autoSelectSubtitles = true)
         settle()
         // hide_subtitles outranks the pick and takes its picker with it.
-        compose.onNode(hasText("German") and hasClickAction()).assertDoesNotExist()
-        compose.onNodeWithContentDescription(SUBTITLES).assertDoesNotExist()
+        compose.onNode(hasText("Deutsch") and hasClickAction()).assertDoesNotExist()
+        chip(SUBTITLES).assertDoesNotExist()
         compose.runOnIdle {
             assertTrue(C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes)
             assertNull(player.selectedTextIndex())
@@ -368,9 +407,9 @@ class TvPlayerOptionsTest {
             }
         }
         settle()
-        openPicker(SPEED, rightPresses = 2)
+        openSheet(SPEED, rightPresses = 2)
         choose("2×")
-        settle()
+        backInDialog()
         key(Key.DirectionLeft)
         key(Key.DirectionCenter)
         choose("Off")
@@ -411,7 +450,7 @@ class TvPlayerOptionsTest {
         show(player, readyState(resumePositionMillis = 420_000L, durationSeconds = 840.0))
         // No poll has run yet; the listing's duration places the bar where playback starts.
         assertSeekBar(0.5f)
-        compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("07:00")
+        compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("7:00")
 
         // The stream's own duration replaces it as soon as the timeline arrives, not at the next poll.
         compose.runOnIdle { player.loadDuration(1_680_000L) }
@@ -442,14 +481,22 @@ class TvPlayerOptionsTest {
         settle()
     }
 
-    private fun openPicker(button: String, rightPresses: Int = 0) {
-        key(Key.DirectionUp)
+    private fun openSheet(chip: String, rightPresses: Int = 0) {
+        key(Key.DirectionDown)
+        key(Key.DirectionDown)
         repeat(rightPresses) { key(Key.DirectionRight) }
-        compose.onNodeWithContentDescription(button).assertIsSelected()
+        chip(chip).assertIsSelected()
         key(Key.DirectionCenter)
     }
 
-    /** Center on a picker row: the dialog's rows are TV list items that act on the select key. */
+    private fun chip(prefix: String) = compose.onNodeWithContentDescription(prefix, substring = true)
+
+    private fun describedAs(value: String) =
+        SemanticsMatcher("described as $value") {
+            it.config.getOrNull(SemanticsProperties.ContentDescription)?.contains(value) == true
+        }
+
+    /** Center on a sheet row: the rows are TV surfaces that act on the select key. */
     private fun choose(label: String) {
         compose.onNode(hasText(label) and hasClickAction()).performSemanticsAction(SemanticsActions.OnClick)
         settle()
@@ -465,7 +512,7 @@ class TvPlayerOptionsTest {
         settle()
     }
 
-    /** Back reaches the picker's own window, as the remote's does. */
+    /** Back reaches the sheet's own window, as the remote's does. */
     private fun backInDialog() {
         compose.runOnUiThread {
             val dialog = ShadowDialog.getLatestDialog()
@@ -481,9 +528,6 @@ class TvPlayerOptionsTest {
         compose.waitForIdle()
         compose.mainClock.advanceTimeBy(SETTLE_MILLIS)
     }
-
-    private fun stateIs(value: String) =
-        SemanticsMatcher("state $value") { it.config.getOrNull(SemanticsProperties.StateDescription) == value }
 
     private fun assertSeekBar(fraction: Float) {
         compose.onNodeWithTag(TV_PLAYER_SEEK_BAR_TAG).assert(
@@ -521,9 +565,9 @@ class TvPlayerOptionsTest {
 
     private companion object {
         const val SETTLE_MILLIS = 50L
-        const val LANGUAGE = "Language"
-        const val SUBTITLES = "Subtitles"
-        const val SPEED = "Speed"
+        const val AUDIO = "Audio:"
+        const val SUBTITLES = "Subtitles:"
+        const val SPEED = "Playback speed"
     }
 }
 
@@ -538,8 +582,6 @@ private fun textFormat(id: String, language: String, label: String?, selectionFl
         .setSampleMimeType(MimeTypes.TEXT_VTT)
         .setSelectionFlags(selectionFlags)
         .build()
-
-private fun oneAudio() = TrackGroup(audioFormat("a-it", "it"))
 
 private fun oneText() = TrackGroup("text-one", textFormat("t-en", "en", "English SDH"))
 
