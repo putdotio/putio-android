@@ -232,6 +232,11 @@ internal fun TvTunnelRouteSheet(
         bottomPadding = SHEET_BOTTOM,
     ) { initialFocus ->
         val loaded = result
+        LaunchedEffect(loaded) {
+            if (loaded is AccountSettingsRepositoryResult.Success) return@LaunchedEffect
+            withFrameNanos {}
+            runCatching { initialFocus.requestFocus() }
+        }
         when (loaded) {
             is AccountSettingsRepositoryResult.Success -> {
                 val choices = loaded.value.map { route ->
