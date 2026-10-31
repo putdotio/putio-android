@@ -73,6 +73,11 @@ typography:
     fontSize: 13px
     fontWeight: 400
     lineHeight: 18px
+  tv-button:
+    fontFamily: GT America
+    fontSize: 13px
+    fontWeight: 500
+    lineHeight: 18px
   tv-label:
     fontFamily: GT America
     fontSize: 12px
@@ -919,8 +924,8 @@ the React Native app shared with Apple TV.
   `#EDEDED` with `on-focus` text and glyph. Nothing yellow sits on the focus
   fill: a focused card's progress line turns dark, and a focused file row's
   glyph turns dark. Nothing scales on focus.
-- Filled buttons, yellow or red, keep their fill on focus and gain a 4dp light
-  ring.
+- Filled buttons, yellow or red, keep their fill on focus and gain a 2dp light
+  ring outside a 2dp gap.
 - A tab selects when it takes focus. Down from the tab bar lands on that tab's
   last-focused row; Up from a tab's first row reaches the tab bar.
 - Returning from the player focuses the last file played. A closed sheet
@@ -931,8 +936,9 @@ the React Native app shared with Apple TV.
 
 The `tv-*` roles in the front matter: `tv-title` for sheet and dialog titles,
 `tv-detail-title` for the detail's name and empty-state headlines, `tv-body` for
-rows, tabs, buttons and dialog bodies, `tv-label` for section labels, `tv-meta`
-for row meta, and `tv-mono` for numbers. Numbers never go below 12sp.
+rows, tabs and dialog bodies, `tv-button` for button labels, `tv-label` for
+section labels, `tv-meta` for row meta, and `tv-mono` for numbers. Numbers
+never go below 12sp.
 
 ### TV components
 

@@ -52,7 +52,7 @@ internal fun TvButton(
             .drawWithContent {
                 drawContent()
                 if (keepsFill && focused) {
-                    val reach = (RING_WIDTH / 2).toPx()
+                    val reach = (RING_GAP + RING_WIDTH / 2).toPx()
                     drawRoundRect(
                         color = ring,
                         topLeft = Offset(-reach, -reach),
@@ -92,4 +92,5 @@ internal enum class TvButtonStyle {
 }
 
 private val BUTTON_HEIGHT = 36.dp
-private val RING_WIDTH = 4.dp
+private val RING_GAP = 2.dp
+private val RING_WIDTH = 2.dp
