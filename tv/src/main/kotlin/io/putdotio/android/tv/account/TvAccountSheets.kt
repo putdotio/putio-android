@@ -69,7 +69,12 @@ internal fun <T> TvChoiceSheet(
     onDismiss: () -> Unit,
     returnFocus: FocusRequester?,
 ) {
-    TvSideSheet(onDismiss = onDismiss, returnFocus = returnFocus, title = title) { initialFocus ->
+    TvSideSheet(
+        onDismiss = onDismiss,
+        returnFocus = returnFocus,
+        title = title,
+        bottomPadding = SHEET_BOTTOM,
+    ) { initialFocus ->
         TvChoiceSheetBody(choices, selected, onSave, onDismiss, initialFocus)
     }
 }
@@ -158,7 +163,9 @@ private fun <T> TvSheetRadioOption(
         interactionSource = interactions,
     ) {
         Row(
-            modifier = Modifier.heightIn(min = ROW_HEIGHT).padding(horizontal = 12.dp, vertical = 6.dp),
+            modifier = Modifier
+                .heightIn(min = ROW_HEIGHT)
+                .padding(start = 12.dp, top = 5.dp, end = 12.dp, bottom = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -222,6 +229,7 @@ internal fun TvTunnelRouteSheet(
         onDismiss = onDismiss,
         returnFocus = returnFocus,
         title = stringResource(R.string.tv_account_tunnel_route),
+        bottomPadding = SHEET_BOTTOM,
     ) { initialFocus ->
         val loaded = result
         when (loaded) {
@@ -328,7 +336,12 @@ internal fun TvQrSheet(
     onDismiss: () -> Unit,
     returnFocus: FocusRequester?,
 ) {
-    TvSideSheet(onDismiss = onDismiss, returnFocus = returnFocus, title = title) { initialFocus ->
+    TvSideSheet(
+        onDismiss = onDismiss,
+        returnFocus = returnFocus,
+        title = title,
+        bottomPadding = SHEET_BOTTOM,
+    ) { initialFocus ->
         val light = MaterialTheme.colorScheme.inverseSurface
         Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             TvQrCode(
@@ -364,6 +377,7 @@ internal fun TvQrSheet(
 internal fun TunnelRouteName.tvLabel(): String =
     if (this == TunnelRouteName.DEFAULT) stringResource(R.string.tv_account_tunnel_route_default) else value
 
+private val SHEET_BOTTOM = 27.dp
 private val RADIO_SIZE = 16.dp
 private val RADIO_BORDER = 1.5.dp
 private val RADIO_GAP = 3.dp

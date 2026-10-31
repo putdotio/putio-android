@@ -8,7 +8,6 @@ import androidx.compose.ui.text.buildAnnotatedString
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.apiReason
-import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.settings.AccountSettingsFailure
 import io.putdotio.android.settings.VideoPlaybackType
 import io.putdotio.android.settings.apiReason
@@ -60,7 +59,7 @@ internal fun VideoPlaybackType.tvDescription(): Int =
 @Composable
 internal fun tvMonoArguments(@StringRes template: Int, vararg values: String): AnnotatedString {
     val text = stringResource(template, *values)
-    val mono = PutioTypeScale.tvMono.toSpanStyle()
+    val mono = TvAccountType.mono.toSpanStyle()
     return buildAnnotatedString {
         append(text)
         var from = 0

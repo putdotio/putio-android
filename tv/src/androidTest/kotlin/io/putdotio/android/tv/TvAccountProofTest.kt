@@ -198,7 +198,7 @@ class TvAccountProofTest {
         val ROUTES = listOf(
             TunnelRouteOption(TunnelRouteName("cdn77"), "Fastest for most places. The default."),
             TunnelRouteOption(TunnelRouteName.DEFAULT, "Amsterdam"),
-            TunnelRouteOption(TunnelRouteName("bunny"), "A second CDN, for when cdn77 is slow."),
+            TunnelRouteOption(TunnelRouteName("Bunny"), "A second CDN, for when cdn77 is slow."),
         )
     }
 }

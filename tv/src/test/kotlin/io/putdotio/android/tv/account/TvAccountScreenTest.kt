@@ -197,7 +197,7 @@ class TvAccountScreenTest {
 
         openPlaybackRow("Proxy", downs = 3)
         compose.onNodeWithText("Choose your proxy").assertIsDisplayed()
-        compose.onNodeWithText("Straight from put.io’s servers in Amsterdam.").assertIsDisplayed()
+        compose.onNodeWithText("Straight from put.io's servers in Amsterdam.").assertIsDisplayed()
         compose.onNode(inSheet("cdn77")).performKeyInput {
             pressKey(Key.DirectionDown)
             pressKey(Key.DirectionDown)

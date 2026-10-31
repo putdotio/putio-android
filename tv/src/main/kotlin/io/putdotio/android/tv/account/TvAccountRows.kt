@@ -12,17 +12,18 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
@@ -34,8 +35,11 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Icon
@@ -108,8 +112,10 @@ internal fun TvAccountGroupRow(
     caret: Boolean = true,
 ) {
     val interactions = remember { MutableInteractionSource() }
-    val focused by interactions.collectIsFocusedAsState()
+    val windowFocused = LocalWindowInfo.current.isWindowFocused
+    val focused = interactions.collectIsFocusedAsState().value && windowFocused
     val colors = MaterialTheme.colorScheme
+    val container = if (selected) PutioDesignTokens.componentBgActive else Color.Transparent
     val content = when {
         focused -> TvFocus.content
         danger -> PutioDesignTokens.redTextSecondary
@@ -128,9 +134,9 @@ internal fun TvAccountGroupRow(
             .semantics { this.selected = selected },
         shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(PutioRadius.medium)),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = if (selected) PutioDesignTokens.componentBgActive else Color.Transparent,
+            containerColor = container,
             contentColor = content,
-            focusedContainerColor = TvFocus.container,
+            focusedContainerColor = if (windowFocused) TvFocus.container else container,
             focusedContentColor = content,
             pressedContainerColor = TvFocus.container,
             pressedContentColor = content,
@@ -153,21 +159,21 @@ internal fun TvAccountGroupRow(
             }
             Text(
                 title,
-                style = PutioTypeScale.tvBody,
+                style = TvAccountType.row,
                 color = content,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
             if (value != null) {
-                Text(value, style = PutioTypeScale.tvMeta, color = secondary, maxLines = 1)
+                Text(value, style = TvAccountType.rowValue, color = secondary, maxLines = 1)
             }
             if (caret) {
                 Icon(
                     painterResource(R.drawable.ic_ph_caret_right),
                     contentDescription = null,
                     tint = secondary,
-                    modifier = Modifier.size(15.dp),
+                    modifier = Modifier.offset(y = CARET_RISE).size(15.dp),
                 )
             }
         }
@@ -187,7 +193,8 @@ internal fun TvSettingRow(
     trailing: @Composable RowScope.(focused: Boolean) -> Unit = {},
 ) {
     val interactions = remember { MutableInteractionSource() }
-    val focused by interactions.collectIsFocusedAsState()
+    val windowFocused = LocalWindowInfo.current.isWindowFocused
+    val focused = interactions.collectIsFocusedAsState().value && windowFocused
     val colors = MaterialTheme.colorScheme
     val shape = segment.shape()
     val body: @Composable (Boolean) -> Unit = { isFocused ->
@@ -197,7 +204,7 @@ internal fun TvSettingRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = ROW_HEIGHT)
-                .padding(horizontal = 16.dp, vertical = if (description == null) 0.dp else 9.dp),
+                .padding(horizontal = 16.dp, vertical = if (description == null) 0.dp else 8.dp),
             horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -205,7 +212,7 @@ internal fun TvSettingRow(
             Column(Modifier.weight(1f)) {
                 Text(
                     title,
-                    style = PutioTypeScale.tvBody,
+                    style = if (description == null) TvAccountType.row else TvAccountType.rowTitle,
                     color = content,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -215,7 +222,7 @@ internal fun TvSettingRow(
                         description,
                         style = TvAccountType.description,
                         color = colors.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 3.dp),
+                        modifier = Modifier.padding(top = 1.5.dp),
                     )
                 }
             }
@@ -238,10 +245,10 @@ internal fun TvSettingRow(
             .semantics { if (role != null) this.role = role },
         shape = ClickableSurfaceDefaults.shape(shape),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+            containerColor = colors.surfaceVariant,
             contentColor = colors.onSurface,
-            focusedContainerColor = TvFocus.container,
-            focusedContentColor = TvFocus.content,
+            focusedContainerColor = if (windowFocused) TvFocus.container else colors.surfaceVariant,
+            focusedContentColor = if (windowFocused) TvFocus.content else colors.onSurface,
             pressedContainerColor = TvFocus.container,
             pressedContentColor = TvFocus.content,
         ),
@@ -275,7 +282,7 @@ internal fun TvSwitchSettingRow(
 internal fun RowScope.TvSettingValue(value: AnnotatedString, focused: Boolean) {
     Text(
         value,
-        style = PutioTypeScale.tvMeta,
+        style = TvAccountType.rowValue,
         color = if (focused) TvFocus.contentVariant else MaterialTheme.colorScheme.onSurfaceVariant,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
@@ -320,16 +327,37 @@ internal fun TvAccountNotice(
 
 internal object TvAccountType {
     val groupLabel: TextStyle = PutioTypeScale.tvLabel.copy(fontSize = 13.sp, lineHeight = 19.sp)
-    val description: TextStyle = PutioTypeScale.tvMeta.copy(fontSize = 11.sp, lineHeight = 16.sp)
-    val footnote: TextStyle = PutioTypeScale.tvMeta.copy(fontSize = 11.sp, lineHeight = 15.sp)
+    val row: TextStyle = PutioTypeScale.tvBody.boardLines()
+    val rowValue: TextStyle = PutioTypeScale.tvMeta.boardLines()
+    val rowTitle: TextStyle = PutioTypeScale.tvBody.boardLines(BOARD_LEADING)
+    val description: TextStyle = PutioTypeScale.tvMeta.copy(fontSize = 11.sp).boardLines(BOARD_LEADING)
+    val footnote: TextStyle = PutioTypeScale.tvMeta.copy(fontSize = 11.sp, lineHeight = 15.sp).boardLines()
     val name: TextStyle =
-        PutioTypeScale.tvBody.copy(fontSize = 15.sp, lineHeight = 18.sp, fontWeight = FontWeight.Medium)
+        PutioTypeScale.tvBody.copy(fontSize = 15.sp, fontWeight = FontWeight.Medium).boardLines(BOARD_LEADING)
+    val email: TextStyle = PutioTypeScale.tvMeta.boardLines(BOARD_LEADING)
     val initial: TextStyle =
         PutioTypeScale.tvBody.copy(fontSize = 16.sp, lineHeight = 20.sp, fontWeight = FontWeight.Medium)
-    val storageTitle: TextStyle = PutioTypeScale.tvBody.copy(fontSize = 14.sp, lineHeight = 20.sp)
-    val option: TextStyle = PutioTypeScale.tvBody.copy(fontSize = 15.sp, lineHeight = 18.sp)
-    val optionDetail: TextStyle = PutioTypeScale.tvMeta.copy(lineHeight = 15.sp)
+    val storageTitle: TextStyle = PutioTypeScale.tvBody.copy(fontSize = 14.sp).boardLines(BOARD_LEADING)
+    val storageValue: TextStyle = PutioTypeScale.tvMeta.boardLines(BOARD_LEADING)
+    val option: TextStyle = PutioTypeScale.tvBody.copy(fontSize = 15.sp, lineHeight = 18.sp).boardLines()
+    val optionDetail: TextStyle = PutioTypeScale.tvMeta.copy(lineHeight = 15.sp).boardLines()
+    val mono: TextStyle = PutioTypeScale.tvMono.copy(
+        fontSize = PutioTypeScale.tvMono.fontSize * MONO_SCALE,
+        letterSpacing = MONO_TRACKING,
+    )
+    val dialogTitle: TextStyle = PutioTypeScale.tvTitle
 }
+
+private fun TextStyle.boardLines(leading: TextUnit = lineHeight): TextStyle =
+    copy(
+        lineHeight = leading,
+        lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.None),
+    )
+
+private val BOARD_LEADING = 1.45.em
+private const val MONO_SCALE = 0.92f
+private val MONO_TRACKING = -0.01.em
 
 internal val ROW_HEIGHT: Dp = 40.dp
 private val SEGMENT_GAP = 2.dp
+private val CARET_RISE = -1.5.dp

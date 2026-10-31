@@ -65,7 +65,6 @@ import io.putdotio.android.R
 import io.putdotio.android.account.PrivacyLinks
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioRadius
-import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.isSupportedAvatarUrl
 import io.putdotio.android.playback.playbackPreference
 import io.putdotio.android.settings.AccountSettingsChange
@@ -499,6 +498,7 @@ private fun TvAccountSheets(
             onConfirm = { change(AccountSettingsChange(AccountSettingsKey.Trash, enabled = false)) },
             onDismiss = onClose,
             destructive = true,
+            titleStyle = TvAccountType.dialogTitle,
         )
         TvAccountSheet.SignOut -> TvConfirmDialog(
             title = stringResource(R.string.tv_account_sign_out_title),
@@ -510,6 +510,7 @@ private fun TvAccountSheets(
             },
             onDismiss = onClose,
             destructive = true,
+            titleStyle = TvAccountType.dialogTitle,
         )
         null -> Unit
     }
@@ -896,11 +897,11 @@ private fun TvAccountIdentity(account: TvAccount) {
             )
             Text(
                 account.email,
-                style = PutioTypeScale.tvMeta,
+                style = TvAccountType.email,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 5.dp),
+                modifier = Modifier.padding(top = 1.5.dp),
             )
         }
     }
@@ -954,17 +955,23 @@ private fun TvStorageCard(account: TvAccount) {
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(PutioRadius.large))
-            .padding(horizontal = 16.dp, vertical = 14.dp)
+            .padding(start = 16.dp, top = 13.dp, end = 16.dp, bottom = 14.dp)
             .semantics(mergeDescendants = true) { contentDescription = "${account.username}. $description" },
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row {
             Text(
                 stringResource(R.string.tv_account_storage),
                 style = TvAccountType.storageTitle,
                 color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).alignByBaseline(),
             )
-            Text(label, style = PutioTypeScale.tvMeta, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+            Text(
+                label,
+                style = TvAccountType.storageValue,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                modifier = Modifier.alignByBaseline(),
+            )
         }
         Box(
             modifier = Modifier
@@ -1015,7 +1022,7 @@ private fun TvSupportQr(supportText: String) {
 private fun monoText(text: String): AnnotatedString =
     AnnotatedString(text, spanStyles = listOf(AnnotatedString.Range(monoSpan(), 0, text.length)))
 
-private fun monoSpan(): SpanStyle = PutioTypeScale.tvMono.toSpanStyle()
+private fun monoSpan(): SpanStyle = TvAccountType.mono.toSpanStyle()
 
 private fun AccountSettingsState.controlsEnabled(): Boolean =
     when (val current = mutation) {
@@ -1069,7 +1076,7 @@ private val GROUP_INSET = 12.dp
 private val LEFT_WIDTH = 372.dp
 private val RIGHT_START = 432.dp
 private val AVATAR_SIZE = 40.dp
-private val STORAGE_BAR_TOP = 13.dp
+private val STORAGE_BAR_TOP = 11.dp
 private val SUPPORT_QR_SIZE = 80.dp
 private val SUPPORT_QR_RADIUS = 10.dp
 private val SUPPORT_QR_PADDING = 5.dp

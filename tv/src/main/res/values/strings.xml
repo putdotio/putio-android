@@ -206,7 +206,7 @@
     <string name="tv_account_proxy">Proxy</string>
     <string name="tv_account_tunnel_route">Choose your proxy</string>
     <string name="tv_account_tunnel_route_default">Amsterdam (Direct)</string>
-    <string name="tv_account_tunnel_route_default_description">Straight from put.io’s servers in Amsterdam.</string>
+    <string name="tv_account_tunnel_route_default_description">Straight from put.io\'s servers in Amsterdam.</string>
     <string name="tv_account_tunnel_route_loading">Loading proxies</string>
     <string name="tv_account_tunnel_route_error">Couldn’t load proxies</string>
     <string name="tv_account_resume_playback">Resume where you left off</string>
