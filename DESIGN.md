@@ -936,8 +936,8 @@ the React Native app shared with Apple TV.
 
 The `tv-*` roles in the front matter: `tv-title` for sheet and dialog titles,
 `tv-detail-title` for the detail's name and empty-state headlines, `tv-body` for
-rows, tabs and dialog bodies, `tv-button` for button labels, `tv-label` for
-section labels, `tv-meta` for row meta, and `tv-mono` for numbers. Numbers
+rows and tabs, `tv-button` for button labels, `tv-label` for section labels,
+`tv-meta` for row meta and dialog bodies, and `tv-mono` for numbers. Numbers
 never go below 12sp.
 
 ### TV components

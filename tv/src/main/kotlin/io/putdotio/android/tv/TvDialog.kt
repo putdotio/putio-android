@@ -139,7 +139,7 @@ private fun TvDialogFrame(
                 // Bounded so a long server-supplied name cannot push the actions off screen.
                 Text(
                     text = message,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 4,
                     overflow = TextOverflow.Ellipsis,
