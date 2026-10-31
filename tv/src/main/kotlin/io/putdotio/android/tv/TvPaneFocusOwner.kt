@@ -132,19 +132,19 @@ internal suspend fun refocusAfterDialog(
     if (paneHasFocus.value) entryTarget.value.requestFocus()
 }
 
-internal val LocalTvTabBarHasFocus = staticCompositionLocalOf<State<Boolean>> { mutableStateOf(false) }
+internal val LocalTvPaneReleased = staticCompositionLocalOf<State<Boolean>> { mutableStateOf(false) }
 
 @Composable
 internal fun rememberTvPaneHasFocus(): MutableState<Boolean> {
-    val tabBarHasFocus = LocalTvTabBarHasFocus.current
-    return remember(tabBarHasFocus) { TvPaneHasFocus(tabBarHasFocus) }
+    val released = LocalTvPaneReleased.current
+    return remember(released) { TvPaneHasFocus(released) }
 }
 
-private class TvPaneHasFocus(private val tabBarHasFocus: State<Boolean>) : MutableState<Boolean> {
+private class TvPaneHasFocus(private val released: State<Boolean>) : MutableState<Boolean> {
     private val own = mutableStateOf(true)
 
     override var value: Boolean
-        get() = own.value && !tabBarHasFocus.value
+        get() = own.value && !released.value
         set(value) {
             own.value = value
         }

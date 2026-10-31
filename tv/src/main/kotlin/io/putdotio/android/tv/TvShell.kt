@@ -87,8 +87,8 @@ internal fun TvShell(
     onFilesBack: (() -> Unit)? = null,
 ) {
     var destination by rememberSaveable { mutableStateOf(TvDestination.Home) }
-    val tabBarFocus = remember { mutableStateOf(false) }
-    var tabBarHasFocus by tabBarFocus
+    var tabBarHasFocus by remember { mutableStateOf(false) }
+    val paneReleased = remember { mutableStateOf(false) }
     var focusPaneOf by remember { mutableStateOf<TvDestination?>(destination) }
     val tabFocus = remember { TvDestination.entries.associateWith { FocusRequester() } }
     val paneFocus = remember { FocusRequester() }
@@ -96,7 +96,10 @@ internal fun TvShell(
     val panes = TvShellPanes(homePane, filesPane, searchPane, historyPane, accountPane)
 
     // Registered before any pane composes, so each pane's own Back handlers take precedence.
-    BackHandler(enabled = !tabBarHasFocus) { tabFocus.getValue(destination).requestFocus() }
+    BackHandler(enabled = !tabBarHasFocus) {
+        paneReleased.value = true
+        tabFocus.getValue(destination).requestFocus()
+    }
     BackHandler(enabled = !tabBarHasFocus && destination == TvDestination.Files && onFilesBack != null) {
         onFilesBack?.invoke()
     }
@@ -104,6 +107,7 @@ internal fun TvShell(
         if (requestedDestination != null) {
             destination = requestedDestination
             focusPaneOf = requestedDestination
+            paneReleased.value = false
             onDestinationRequestHandled()
         }
     }
@@ -118,7 +122,10 @@ internal fun TvShell(
         TvTabBar(
             selected = destination,
             tabFocus = tabFocus,
-            onSelect = { destination = it },
+            onSelect = {
+                destination = it
+                paneReleased.value = true
+            },
             modifier = Modifier
                 .onFocusChanged { tabBarHasFocus = it.hasFocus }
                 .focusProperties { enter = { tabBarEntry(it, tabFocus.getValue(destination)) } },
@@ -131,9 +138,10 @@ internal fun TvShell(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
-                .padding(top = TAB_BAR_GAP),
+                .padding(top = TAB_BAR_GAP)
+                .onFocusChanged { if (it.hasFocus) paneReleased.value = false },
         ) {
-            CompositionLocalProvider(LocalTvTabBarHasFocus provides tabBarFocus) {
+            CompositionLocalProvider(LocalTvPaneReleased provides paneReleased) {
                 paneStates.SaveableStateProvider(destination.name) { panes.Pane(destination, paneFocus) }
             }
         }
