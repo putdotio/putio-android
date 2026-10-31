@@ -352,7 +352,7 @@ private fun resumeLabel(label: String, time: String): AnnotatedString =
     }
 
 private val RESUME_TIME_SPAN = TV_MONO_RUN.merge(SpanStyle(fontWeight = PutioTypeScale.tvMono.fontWeight))
-private val RESUME_GAP_SPAN = SpanStyle(letterSpacing = 3.sp)
+private val RESUME_GAP_SPAN = SpanStyle(letterSpacing = 2.sp)
 private const val META_SEPARATOR = " · "
 private const val LOOKUP_DELAY_MILLIS = 300L
 private const val FINISHED_WITHIN_SECONDS = 10.0

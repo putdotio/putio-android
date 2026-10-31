@@ -188,13 +188,17 @@ internal fun ColumnScope.TvDetailBody(
                     text = fact.label,
                     style = DETAIL_FACT,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.width(DETAIL_FACT_LABEL_WIDTH),
+                    modifier = Modifier
+                        .width(DETAIL_FACT_LABEL_WIDTH)
+                        .alignByBaseline(),
                 )
                 Text(
-                    text = if (fact.mono) fact.value.asMonoRun() else AnnotatedString(fact.value),
-                    style = DETAIL_FACT,
+                    text = fact.value,
+                    style = if (fact.mono) DETAIL_FACT_MONO else DETAIL_FACT,
                     color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .alignByBaseline(),
                 )
             }
         }
@@ -261,6 +265,7 @@ private val DETAIL_ACTION_SPACING = 4.dp
 private val DETAIL_FACTS_GAP = 17.5.dp
 private val DETAIL_FACT_SPACING = 6.dp
 private val DETAIL_FACT = PutioTypeScale.tvMeta.copy(lineHeight = 17.4.sp).withFullLineBox()
+private val DETAIL_FACT_MONO = DETAIL_FACT.asMonoRun()
 private val DETAIL_FACT_LABEL_WIDTH = 70.dp
 private val DETAIL_BUTTON_LABEL = PutioTypeScale.tvButton.copy(fontSize = 12.sp)
 private const val MAX_DETAIL_FACTS = 3
