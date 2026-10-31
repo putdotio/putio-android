@@ -273,11 +273,11 @@ private fun OrDivider() {
     ) {
         Text(
             text = stringResource(R.string.tv_link_or),
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.bodySmall.copy(lineHeight = OR_LINE).withFullLineBox(),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier
                 .background(MaterialTheme.colorScheme.background)
-                .padding(vertical = 6.dp),
+                .padding(vertical = OR_PADDING),
         )
     }
 }
@@ -325,6 +325,8 @@ private val QR_SIZE: Dp = 170.dp
 private val QR_PADDING = 12.dp
 private val COLUMN_TITLE_LINE = 22.sp
 private val STATUS_LINE = 17.sp
+private val OR_LINE = 18.sp
+private val OR_PADDING = 6.dp
 private val SESSION_EXPIRED_TOP = 202.dp
 private val TILE_WIDTH = 48.dp
 private val TILE_HEIGHT = 60.dp

@@ -113,7 +113,7 @@ class TvShellTest {
         var tries = 0
         compose.setTvContent { TvOfflineScreen(onTryNow = { tries += 1 }) }
 
-        compose.onNodeWithText("Can’t reach put.io.").assertIsDisplayed()
+        compose.onNodeWithText("Can't reach put.io.").assertIsDisplayed()
         compose.onNodeWithText("Your sign-in is saved. The app tries again on its own when the network is back.")
             .assertIsDisplayed()
         compose.onNodeWithText("Try now").assertIsFocused().performKeyInput { pressCenter() }

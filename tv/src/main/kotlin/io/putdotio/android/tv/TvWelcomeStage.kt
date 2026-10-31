@@ -36,6 +36,7 @@ private val TvWelcomeSequence: List<Pair<Int, Int>> = listOf(
 )
 
 private val KAOMOJI_LINE = 42.dp
+private val KAOMOJI_SIZE = 41.sp
 private val CAPTION_GAP = 6.dp
 private val CAPTION_LINE = 18.dp
 private val FRAME_HEIGHT = KAOMOJI_LINE + CAPTION_GAP + CAPTION_LINE
@@ -88,7 +89,7 @@ private fun WelcomeFrame(
             text = stringResource(frame.first),
             style = MaterialTheme.typography.titleLarge.copy(
                 color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 36.sp,
+                fontSize = KAOMOJI_SIZE,
                 lineHeight = 42.sp,
                 letterSpacing = 0.sp,
             ),

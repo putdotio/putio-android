@@ -32,7 +32,7 @@
     <string name="tv_link_open_error">Couldn’t open that file. %1$s</string>
 
     <string name="tv_session_checking">Checking your session</string>
-    <string name="tv_session_unavailable_title">Can’t reach put.io.</string>
+    <string name="tv_session_unavailable_title">Can\'t reach put.io.</string>
     <string name="tv_session_unavailable_message">Your sign-in is saved. The app tries again on its own when the network is back.</string>
     <string name="tv_session_retry">Try now</string>
     <string name="tv_session_signing_out">Signing out</string>
