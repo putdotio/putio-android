@@ -20,6 +20,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -74,8 +75,9 @@ internal fun TvConfirmDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
     destructive: Boolean = false,
+    titleStyle: TextStyle? = null,
 ) {
-    TvDialogFrame(AnnotatedString(title), message, onDismiss, focusesAction = true) { focus ->
+    TvDialogFrame(AnnotatedString(title), message, onDismiss, focusesAction = true, titleStyle) { focus ->
         TvDialogActions {
             TvButton(
                 onClick = onDismiss,
@@ -124,6 +126,7 @@ private fun TvDialogFrame(
     message: String?,
     onDismiss: () -> Unit,
     focusesAction: Boolean,
+    titleStyle: TextStyle? = null,
     content: @Composable ColumnScope.(focus: FocusRequester) -> Unit,
 ) {
     val actionFocus = remember { FocusRequester() }
@@ -143,7 +146,8 @@ private fun TvDialogFrame(
         ) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.headlineSmall.copy(fontSize = TITLE_SIZE, lineHeight = TITLE_LINE),
+                style = titleStyle
+                    ?: MaterialTheme.typography.headlineSmall.copy(fontSize = TITLE_SIZE, lineHeight = TITLE_LINE),
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,

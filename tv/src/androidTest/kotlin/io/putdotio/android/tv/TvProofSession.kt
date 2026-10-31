@@ -83,7 +83,17 @@ internal fun tvProofDependencies(
     playback: () -> PlaybackResolution = { error("No playback in this proof") },
     history: List<HistoryItem> = emptyList(),
     trash: List<TrashItem> = emptyList(),
+    trashSizeBytes: Long? = null,
     historyEnabled: Boolean = true,
+    settings: AccountSettingsPreferences = AccountSettingsPreferences(
+        historyEnabled = historyEnabled,
+        trashEnabled = true,
+        showSubtitles = true,
+        autoSelectSubtitles = true,
+        resumePlayback = true,
+    ),
+    appConfig: AndroidAppConfigPreferences = AndroidAppConfigPreferences(),
+    tunnelRoutes: List<TunnelRouteOption> = emptyList(),
 ) = TvSessionDependencies(
     filesRepository = ProofFilesRepository(listings, continuations, pageDelayMillis),
     searchRepository = object : SearchRepository {
@@ -98,25 +108,16 @@ internal fun tvProofDependencies(
 
         override suspend fun clear() = PutioResult.Success(Unit)
     },
-    trashRepository = ProofTrashRepository(trash),
+    trashRepository = ProofTrashRepository(trash, trashSizeBytes),
     settingsRepository = object : AccountSettingsRepository {
-        override suspend fun load() = AccountSettingsRepositoryResult.Success(
-            AccountSettingsPreferences(
-                historyEnabled = historyEnabled,
-                trashEnabled = true,
-                showSubtitles = true,
-                autoSelectSubtitles = true,
-                resumePlayback = true,
-            ),
-        )
+        override suspend fun load() = AccountSettingsRepositoryResult.Success(settings)
 
         override suspend fun save(change: AccountSettingsChange) = AccountSettingsRepositoryResult.Success(Unit)
 
-        override suspend fun loadTunnelRoutes() =
-            AccountSettingsRepositoryResult.Success(emptyList<TunnelRouteOption>())
+        override suspend fun loadTunnelRoutes() = AccountSettingsRepositoryResult.Success(tunnelRoutes)
     },
     appConfigRepository = object : AndroidAppConfigRepository {
-        override suspend fun load() = PutioResult.Success(AndroidAppConfigPreferences())
+        override suspend fun load() = PutioResult.Success(appConfig)
 
         override suspend fun save(change: AndroidAppConfigChange) = PutioResult.Success(Unit)
     },
@@ -148,6 +149,7 @@ internal fun AndroidComposeTestRule<ActivityScenarioRule<ComponentActivity>, Com
     account: TvAccount = TvAccount(userId = 1, username = "proof", email = "proof@example.invalid", historyEnabled = true),
     overlay: @Composable BoxScope.() -> Unit = {},
     tab: String? = "Files",
+    tunnelRoutes: List<TunnelRouteOption> = emptyList(),
 ): TvSession {
     val auth = MutableStateFlow<TvAuthState>(TvAuthState.SignedIn(account, TvAuthSessionId(1)))
     lateinit var session: TvSession
@@ -164,7 +166,7 @@ internal fun AndroidComposeTestRule<ActivityScenarioRule<ComponentActivity>, Com
                     sessionKey = 1L,
                     onSignOut = {},
                     onSessionRejected = { error("Unexpected rejection") },
-                    loadTunnelRoutes = { AccountSettingsRepositoryResult.Success(emptyList<TunnelRouteOption>()) },
+                    loadTunnelRoutes = { AccountSettingsRepositoryResult.Success(tunnelRoutes) },
                 )
                 overlay()
             }
@@ -259,8 +261,12 @@ internal class ProofFilesRepository(
     override suspend fun checkCopy(copyId: FilesCopyId) = error("No copies")
 }
 
-internal class ProofTrashRepository(private val items: List<TrashItem>) : TrashRepository {
-    override suspend fun load() = PutioResult.Success(TrashPage(items, nextCursor = null))
+internal class ProofTrashRepository(
+    private val items: List<TrashItem>,
+    private val trashSizeBytes: Long? = null,
+) : TrashRepository {
+    override suspend fun load() =
+        PutioResult.Success(TrashPage(items, nextCursor = null, trashSizeBytes = trashSizeBytes))
 
     override suspend fun loadNextPage(cursor: FilesCursor) = error("One page")
 

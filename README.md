@@ -43,6 +43,10 @@ TV:
   side sheet with the phone's Sort by, Order and Videos groups
 - Full-screen playback with the phone's controls: D-pad scrubbing, a Resume
   prompt, and Audio, Subtitles (with size and timing) and Speed side sheets
+- Account as groups beside their rows: Library, Playback, Subtitles, the
+  phone's Privacy controls with the policy and services list as QR codes,
+  About with a support QR code, and Sign out; choices open as side sheets
+  with Cancel and Save
 - The launcher's Play Next row and Android TV system search, with the
   wordmark for files without a screenshot
 - The redesign's foundations: GT America and Berkeley Mono type, one light

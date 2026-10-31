@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -41,6 +42,7 @@ internal fun TvSideSheet(
     returnFocus: FocusRequester?,
     modifier: Modifier = Modifier,
     title: String? = null,
+    bottomPadding: Dp? = null,
     backdrop: (@Composable BoxScope.() -> Unit)? = null,
     scrim: Color? = null,
     content: @Composable ColumnScope.(initialFocus: FocusRequester) -> Unit,
@@ -82,7 +84,7 @@ internal fun TvSideSheet(
                         start = 16.dp,
                         top = margins.vertical + TITLE_TOP_EXTRA,
                         end = margins.side,
-                        bottom = margins.vertical,
+                        bottom = bottomPadding ?: margins.vertical,
                     )
                     .focusGroup(),
             ) {

@@ -72,6 +72,7 @@ class TvCopyProofTest {
         compose.waitUntil(5_000) { hasText("${size(USED)} of ${size(SIZE)} used") }
         screenshot("02-tv-quota-used")
 
+        press(KeyEvent.KEYCODE_DPAD_RIGHT)
         focusText(MANAGE_TRASH)
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(5_000) { hasText(TRASH_INFO) }
