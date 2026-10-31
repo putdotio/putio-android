@@ -58,6 +58,10 @@ class TvHomePinsTest {
         home.refresh()
         assertEquals(1, pins.reloads)
         assertEquals(5, reads.size)
+
+        home.retry()
+        assertEquals("Try again reads now, inside the minute", 2, pins.reloads)
+        assertEquals(7, reads.size)
     }
 
     @Test
@@ -106,6 +110,8 @@ class TvHomePinsTest {
 
         home.refresh()
         assertEquals(1, unread.reloads)
+        home.retry()
+        assertEquals(2, unread.reloads)
 
         val rejected = PutioFailure.AuthenticationRequired(PutioConfigurationException("401"))
         val locked = TvHomePins(

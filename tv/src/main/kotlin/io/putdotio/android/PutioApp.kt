@@ -319,6 +319,7 @@ internal fun TvSessionShell(
                                 }
                             },
                             onBrowseFiles = { requestedDestination = TvDestination.Files },
+                            onRetryPinned = session.homePins::retry,
                         )
                     },
                     paneFocus = paneFocus,

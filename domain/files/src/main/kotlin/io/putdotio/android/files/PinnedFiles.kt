@@ -23,27 +23,18 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.longOrNull
 
-/** The folders and files the account pinned to TV's Home. */
 public interface PinnedFiles : Closeable {
-    /** Pinned items, newest first; null until the account's config has been read. */
     public val pins: StateFlow<List<FilesItemId>?>
 
-    /** Why the last read or write failed; cleared by the next one that succeeds. */
     public val failure: StateFlow<PutioFailure?>
 
     public fun pin(id: FilesItemId)
 
     public fun unpin(id: FilesItemId)
 
-    /** Reads the config again, for pins another TV changed or after a failed read. */
     public fun reload()
 }
 
-/**
- * Pins in the account's config for this OAuth app, under one key. Each edit reads the config
- * again and writes only that key with `PUT /config/<key>`, so a pin made on another TV stays and
- * no other key is touched. A refused write rolls the row back. Edits run one at a time, in order.
- */
 public class AppConfigPinnedFiles(
     private val loadConfig: suspend () -> AppConfig,
     private val saveConfig: suspend (AppConfigUpdate) -> Unit,

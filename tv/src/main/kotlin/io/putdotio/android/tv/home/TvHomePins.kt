@@ -67,14 +67,15 @@ internal class TvHomePins(
 
     fun refresh() {
         when {
-            pins.pins.value != null -> {
-                if (lastRead.elapsedNow() < REFRESH_AFTER) return
-                lastRead = clock.markNow()
-                pins.reload()
-                refreshes.update { it + 1 }
-            }
+            pins.pins.value != null -> if (lastRead.elapsedNow() >= REFRESH_AFTER) retry()
             pins.failure.value != null -> pins.reload()
         }
+    }
+
+    fun retry() {
+        lastRead = clock.markNow()
+        pins.reload()
+        if (pins.pins.value != null) refreshes.update { it + 1 }
     }
 
     private suspend fun rowFor(ids: List<FilesItemId>, fresh: Boolean): TvPinnedRow = coroutineScope {

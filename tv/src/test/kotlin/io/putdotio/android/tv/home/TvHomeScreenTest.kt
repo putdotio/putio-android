@@ -17,10 +17,12 @@ import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertCountEquals
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.files.ContinueWatchingEntry
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.tv.setTvContent
+import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -37,10 +39,12 @@ class TvHomeScreenTest {
 
     private val opened = mutableListOf<String>()
     private var browsed = 0
+    private var retried = 0
     private val actions = TvHomeActions(
         onResume = { opened += "resume ${it.name}" },
         onOpen = { opened += "open ${it.name}" },
         onBrowseFiles = { browsed++ },
+        onRetryPinned = { retried++ },
     )
 
     @Test
@@ -79,6 +83,23 @@ class TvHomeScreenTest {
         compose.onNodeWithText("Pin a folder or file from its actions to keep it here.").assertIsDisplayed()
         compose.onAllNodesWithText("Nothing here yet.").assertCountEquals(0)
         assertEquals(listOf("resume Sintel.2010.1080p.mkv"), opened)
+    }
+
+    @Test
+    fun aPinnedRowThatFailedOffersTryAgain() {
+        compose.setTvContent {
+            TvHomeScreen(
+                listOf(entry),
+                TvPinnedRow.Failed(PutioFailure.NetworkUnavailable(PutioConfigurationException("offline"))),
+                actions,
+                remember { FocusRequester() },
+                onShown = {},
+            )
+        }
+
+        compose.onNodeWithText("Couldn’t load your pins.").assertIsDisplayed()
+        compose.onNodeWithText("Try again").performSemanticsAction(SemanticsActions.OnClick)
+        assertEquals(1, retried)
     }
 
     @Test

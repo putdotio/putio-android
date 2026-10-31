@@ -66,6 +66,8 @@ import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.formatFileSize
 import io.putdotio.android.files.toDisplayDate
+import io.putdotio.android.tv.TvButton
+import io.putdotio.android.tv.TvButtonSize
 import io.putdotio.android.tv.TvEmptyState
 import io.putdotio.android.tv.TvEmptyStateAction
 import io.putdotio.android.tv.TvFocus
@@ -84,6 +86,7 @@ internal class TvHomeActions(
     val onResume: (ContinueWatchingEntry) -> Unit,
     val onOpen: (FilesItem) -> Unit,
     val onBrowseFiles: () -> Unit,
+    val onRetryPinned: () -> Unit,
 )
 
 @Composable
@@ -163,6 +166,7 @@ internal fun TvHomeScreen(
                     glyph = PutioEmptyGlyph.CouldNotLoad.text,
                     headline = stringResource(R.string.tv_home_pinned_error_title),
                     message = pinned.failure.tvMessageText(),
+                    retry = actions.onRetryPinned,
                 )
             }
             is TvPinnedRow.Ready -> if (pinned.cards.isEmpty()) {
@@ -209,7 +213,7 @@ private fun TvHomeSection(
 }
 
 @Composable
-private fun TvHomeInlineState(glyph: String, headline: String, message: String) {
+private fun TvHomeInlineState(glyph: String, headline: String, message: String, retry: (() -> Unit)? = null) {
     Column(verticalArrangement = Arrangement.spacedBy(INLINE_STATE_GAP)) {
         Text(
             glyph,
@@ -226,6 +230,19 @@ private fun TvHomeInlineState(glyph: String, headline: String, message: String) 
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = INLINE_MESSAGE_NUDGE),
         )
+        if (retry != null) {
+            TvButton(onClick = retry, modifier = Modifier.padding(top = INLINE_ACTION_GAP)) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_ph_arrow_clockwise),
+                    contentDescription = null,
+                    modifier = Modifier.size(TvButtonSize.Regular.icon),
+                )
+                Text(
+                    stringResource(R.string.tv_files_retry),
+                    style = PutioTypeScale.bodySm.copy(fontWeight = FontWeight.Medium),
+                )
+            }
+        }
     }
 }
 
@@ -381,6 +398,7 @@ private val CARD_INNER_GAP = 7.dp
 private val PROGRESS_HEIGHT = 3.dp
 private val INLINE_STATE_GAP = 8.dp
 private val INLINE_MESSAGE_NUDGE = 1.5.dp
+private val INLINE_ACTION_GAP = 10.dp
 private val SECTION_LABEL = PutioTypeScale.tvLabel.withFullLineBox()
 private val CARD_NAME = PutioTypeScale.tvMeta.withFullLineBox()
 private val CARD_META = PutioTypeScale.tvMeta.copy(lineHeight = 18.sp).withFullLineBox()
