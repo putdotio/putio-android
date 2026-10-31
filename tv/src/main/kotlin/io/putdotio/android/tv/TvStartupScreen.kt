@@ -26,7 +26,7 @@ internal fun TvStartupScreen(
 ) {
     StartupFrame(modifier) {
         Column(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().padding(bottom = SPINNER_LIFT * 2),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
         ) {
@@ -80,5 +80,6 @@ private fun StartupFrame(
 }
 
 private val CONTENT_TOP = 64.dp
+private val SPINNER_LIFT = 14.dp
 private val SPINNER_SIZE = 28.dp
 private val SPINNER_STROKE = 3.dp
