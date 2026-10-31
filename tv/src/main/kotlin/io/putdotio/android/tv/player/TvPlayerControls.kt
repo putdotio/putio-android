@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -332,19 +333,28 @@ private fun TvPlayerChips(chips: List<TvPlayerControl>, labels: TvPlayerChipLabe
                 description = description,
                 focused = chip == focused,
                 mono = chip == TvPlayerControl.Speed,
+                bounded = chip == TvPlayerControl.Audio || chip == TvPlayerControl.Subtitles,
             )
         }
     }
 }
 
 @Composable
-private fun TvPlayerChip(@DrawableRes icon: Int, label: String, description: String, focused: Boolean, mono: Boolean) {
+private fun TvPlayerChip(
+    @DrawableRes icon: Int,
+    label: String,
+    description: String,
+    focused: Boolean,
+    mono: Boolean,
+    bounded: Boolean,
+) {
     val shape = RoundedCornerShape(PutioRadius.small)
     val rest = MaterialTheme.colorScheme.onSurface
     val content = if (focused) TvFocus.content else rest
     Row(
         modifier = Modifier
             .height(CHIP_HEIGHT)
+            .then(if (bounded) Modifier.widthIn(max = CHIP_MAX_WIDTH) else Modifier)
             .clip(shape)
             .background(if (focused) TvFocus.container else Color.Transparent)
             .border(1.dp, if (focused) TvFocus.container else rest.copy(alpha = TRACK_ALPHA), shape)
@@ -363,6 +373,8 @@ private fun TvPlayerChip(@DrawableRes icon: Int, label: String, description: Str
             style = if (mono) PutioTypeScale.tvMono else PutioTypeScale.tvBody.copy(fontWeight = FontWeight.Medium),
             color = content,
             maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false),
         )
     }
 }
@@ -397,6 +409,7 @@ private val CIRCLE = 56.dp
 private val BIG_CIRCLE = 72.dp
 private val CIRCLE_GAP = 56.dp
 private val CHIP_HEIGHT = 32.dp
+private val CHIP_MAX_WIDTH = 240.dp
 private val SEEK_TRACK = 4.dp
 private val SEEK_KNOB = 16.dp
 private val SEEK_KNOB_SCRUBBING = 20.dp

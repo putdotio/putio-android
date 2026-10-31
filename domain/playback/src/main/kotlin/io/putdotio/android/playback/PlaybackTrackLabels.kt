@@ -13,7 +13,7 @@ public const val TRACK_DETAIL_SEPARATOR: String = " · "
 @Composable
 public fun audioTrackLabels(tracks: List<PlaybackAudioTrack>): List<String> {
     val names = tracks.mapIndexed { index, track ->
-        languageName(track.identity.language) ?: track.label
+        languageName(track.identity.language) ?: track.label?.takeIf(String::isNotBlank)
             ?: stringResource(R.string.playback_audio_track_number, index + 1)
     }
     return numberRepeatedRows(names, tracks.map { audioTrackDetails(it) })
@@ -51,7 +51,7 @@ public fun subtitleTrackLabels(tracks: List<PlaybackSubtitleTrack>, sidecar: Lis
 
 @Composable
 public fun subtitleTrackName(track: PlaybackSubtitleTrack, index: Int): String {
-    val name = languageName(track.identity.language) ?: track.label
+    val name = languageName(track.identity.language) ?: track.label?.takeIf(String::isNotBlank)
         ?: stringResource(R.string.playback_subtitle_track, index + 1)
     return if (track.identity.roleFlags and C.ROLE_FLAG_DESCRIBES_MUSIC_AND_SOUND != 0) {
         name + TRACK_DETAIL_SEPARATOR + stringResource(R.string.playback_subtitle_sdh)

@@ -15,6 +15,8 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertWidthIsAtLeast
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
@@ -236,7 +238,7 @@ class TvPlayerOptionsTest {
     @Test
     fun audioTracksOfUndeterminedLanguageTakeTheirNumbers() {
         val player = TrackPlayer(
-            audio = TrackGroup("audio-und", audioFormat("a-1", C.LANGUAGE_UNDETERMINED), audioFormat("a-2", "und")),
+            audio = TrackGroup("audio-und", audioFormat("a-1", C.LANGUAGE_UNDETERMINED), audioFormat("a-2", "und", label = " ")),
             text = null,
         )
         show(player)
@@ -244,6 +246,20 @@ class TvPlayerOptionsTest {
         compose.onNodeWithText("Audio track 1").assertIsDisplayed()
         compose.onNodeWithText("Audio track 2").assertIsDisplayed()
         compose.onNodeWithText("und").assertDoesNotExist()
+    }
+
+    @Test
+    fun aLongTrackNameLeavesRoomForTheOtherChips() {
+        val player = TrackPlayer(
+            audio = TrackGroup(
+                "audio-long",
+                audioFormat("a-1", C.LANGUAGE_UNDETERMINED, label = "Director commentary ".repeat(12)),
+            ),
+        )
+        show(player)
+        listOf(SUBTITLES, SPEED).forEach { prefix ->
+            chip(prefix).assertIsDisplayed().assertWidthIsAtLeast(48.dp)
+        }
     }
 
     @Test
@@ -589,8 +605,8 @@ class TvPlayerOptionsTest {
     }
 }
 
-private fun audioFormat(id: String, language: String) =
-    Format.Builder().setId(id).setLanguage(language).setSampleMimeType(MimeTypes.AUDIO_AAC).build()
+private fun audioFormat(id: String, language: String, label: String? = null) =
+    Format.Builder().setId(id).setLanguage(language).setLabel(label).setSampleMimeType(MimeTypes.AUDIO_AAC).build()
 
 private fun textFormat(id: String, language: String, label: String?, selectionFlags: Int = 0) =
     Format.Builder()

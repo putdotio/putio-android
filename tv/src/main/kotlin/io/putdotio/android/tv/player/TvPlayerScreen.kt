@@ -472,4 +472,3 @@ private fun MediaItem.leasedBy(reporter: TvPlaybackReporter, fileId: Long, useSt
 
 private fun keepsScreenOn(playWhenReady: Boolean, playbackState: Int): Boolean =
     playWhenReady && playbackState != Player.STATE_ENDED && playbackState != Player.STATE_IDLE
-

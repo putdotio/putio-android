@@ -17,7 +17,7 @@ import io.putdotio.sdk.files.PlaybackSubtitles
 import java.util.Locale
 import kotlin.math.abs
 
-public fun subtitleFormatName(mimeType: String?): String? =
+internal fun subtitleFormatName(mimeType: String?): String? =
     when (mimeType) {
         MimeTypes.APPLICATION_SUBRIP -> "SRT"
         MimeTypes.TEXT_VTT -> "VTT"
@@ -33,7 +33,7 @@ public fun subtitleFormatName(mimeType: String?): String? =
     }
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-public fun PlaybackSubtitleTrack.formatName(): String? =
+internal fun PlaybackSubtitleTrack.formatName(): String? =
     group.getFormat(trackIndex).let { format ->
         subtitleFormatName(format.codecs?.let(MimeTypes::getTextMediaMimeType) ?: format.sampleMimeType)
     }

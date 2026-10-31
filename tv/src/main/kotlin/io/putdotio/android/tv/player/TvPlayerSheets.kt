@@ -296,7 +296,7 @@ private fun TvSpeedSheet(speed: Float, focus: FocusRequester, onSpeed: (Float) -
                     .height(4.dp)
                     .background(
                         if (index == stop) PutioDesignTokens.yellowSolid else PutioDesignTokens.componentBgActive,
-                        RoundedCornerShape(2.dp),
+                        RoundedCornerShape(PutioRadius.progress),
                     ),
             )
         }
