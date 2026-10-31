@@ -27,6 +27,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.R
+import io.putdotio.android.account.R as AccountR
 import io.putdotio.android.design.PutioSwitch
 import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.settings.AccountSettingsChange
@@ -40,7 +41,6 @@ internal const val MOBILE_PRIVACY_CONTROLS_ROUTE = "account/privacy-controls"
 internal const val MOBILE_PRIVACY_CONTROLS_LIST_TAG = "mobile-privacy-controls-list"
 internal const val MOBILE_PRIVACY_CONTROLS_ROW_TAG = "mobile-privacy-controls-row"
 internal const val MOBILE_STRICTLY_NECESSARY_TAG = "mobile-strictly-necessary"
-internal const val MOBILE_SERVICES_WE_USE_URL = "https://put.io/services-we-use"
 
 // Purpose-based opt-outs per the frontend analytics contract. Strictly necessary
 // processing is disclosed, never toggled; both account keys are cross-client.
@@ -90,12 +90,12 @@ internal fun MobilePrivacyControlsScreen(
                                 .testTag(MOBILE_STRICTLY_NECESSARY_TAG),
                         ) {
                             PrivacyLine(
-                                title = R.string.mobile_settings_strictly_necessary,
-                                description = R.string.mobile_settings_strictly_necessary_description,
+                                title = AccountR.string.privacy_strictly_necessary,
+                                description = AccountR.string.privacy_strictly_necessary_description,
                                 icon = R.drawable.ic_ph_shield_check,
                             ) {
                                 Text(
-                                    stringResource(R.string.mobile_settings_strictly_necessary_state),
+                                    stringResource(AccountR.string.privacy_strictly_necessary_state),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.padding(top = 2.dp),
@@ -104,8 +104,8 @@ internal fun MobilePrivacyControlsScreen(
                         }
                         PrivacyToggle(
                             segment = SettingsSegment.Middle,
-                            title = R.string.mobile_settings_diagnostics,
-                            description = R.string.mobile_settings_diagnostics_description,
+                            title = AccountR.string.privacy_diagnostics,
+                            description = AccountR.string.privacy_diagnostics_description,
                             icon = R.drawable.ic_ph_bug,
                             checked = content.preferences.diagnosticsEnabled,
                             key = AccountSettingsKey.Diagnostics,
@@ -116,8 +116,8 @@ internal fun MobilePrivacyControlsScreen(
                         )
                         PrivacyToggle(
                             segment = SettingsSegment.Last,
-                            title = R.string.mobile_settings_product_analytics,
-                            description = R.string.mobile_settings_product_analytics_description,
+                            title = AccountR.string.privacy_product_analytics,
+                            description = AccountR.string.privacy_product_analytics_description,
                             icon = R.drawable.ic_ph_chart_line,
                             checked = content.preferences.productAnalyticsEnabled,
                             key = AccountSettingsKey.ProductAnalytics,
@@ -130,7 +130,7 @@ internal fun MobilePrivacyControlsScreen(
                 }
                 item(key = PRIVACY_CONTROLS_FOOTER_KEY) {
                     Text(
-                        text = stringResource(R.string.mobile_settings_privacy_controls_footer),
+                        text = stringResource(AccountR.string.privacy_controls_footer),
                         modifier = Modifier.padding(start = 32.dp, end = 32.dp, top = 12.dp, bottom = 16.dp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodySmall,
@@ -142,15 +142,15 @@ internal fun MobilePrivacyControlsScreen(
             MobileSettingsGroup {
                 PrivacyLink(
                     segment = SettingsSegment.First,
-                    title = R.string.mobile_settings_privacy_policy,
+                    title = AccountR.string.privacy_policy,
                     icon = R.drawable.ic_ph_file_text,
-                    onClick = { openUrl(MOBILE_PRIVACY_POLICY_URL) },
+                    onClick = { openUrl(PrivacyLinks.POLICY) },
                 )
                 PrivacyLink(
                     segment = SettingsSegment.Last,
-                    title = R.string.mobile_settings_services_we_use,
+                    title = AccountR.string.privacy_services_we_use,
                     icon = R.drawable.ic_ph_list_bullets,
-                    onClick = { openUrl(MOBILE_SERVICES_WE_USE_URL) },
+                    onClick = { openUrl(PrivacyLinks.SERVICES_WE_USE) },
                 )
             }
         }

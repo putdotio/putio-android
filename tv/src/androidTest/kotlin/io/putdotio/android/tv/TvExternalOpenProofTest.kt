@@ -11,7 +11,9 @@ import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isFocused as hasFocus
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodes
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
@@ -144,8 +146,9 @@ class TvExternalOpenProofTest {
                 compose.onNode(hasText(CLEAR) and hasClickAction()).assertIsFocused()
             },
             "Account" to {
-                compose.waitUntil(5_000) { compose.onAllNodesWithText(PROXY_ROW).fetchSemanticsNodes().isNotEmpty() }
-                compose.onNodeWithText(PROXY_ROW).assertIsFocused()
+                compose.waitUntil(5_000) {
+                    compose.onAllNodes(hasText(ACCOUNT_ENTRY) and hasFocus()).fetchSemanticsNodes().isNotEmpty()
+                }
             },
         ).forEachIndexed { index, (tab, assertEntry) ->
             press(KeyEvent.KEYCODE_BACK)
@@ -345,7 +348,7 @@ class TvExternalOpenProofTest {
         const val NO_HISTORY = "No activity yet."
         const val HISTORY = "History"
         const val CLEAR = "Clear"
-        const val PROXY_ROW = "Choose your proxy"
+        const val ACCOUNT_ENTRY = "Library"
         const val SAVED_SECONDS = 45.0
         const val CONTINUE_LABEL = "Continue playing from 00:45"
         const val PAGED_FOLDER_ID = 45L

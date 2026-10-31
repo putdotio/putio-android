@@ -224,16 +224,6 @@
     <string name="mobile_settings_diagnostics_off">Diagnostics off</string>
     <string name="mobile_settings_analytics_on">Analytics on</string>
     <string name="mobile_settings_analytics_off">Analytics off</string>
-    <string name="mobile_settings_privacy_policy">Privacy policy</string>
-    <string name="mobile_settings_services_we_use">Services we use</string>
-    <string name="mobile_settings_privacy_controls_footer">Diagnostics and product analytics never send filenames, media titles, URLs, search text, or tokens.</string>
-    <string name="mobile_settings_strictly_necessary">Strictly necessary</string>
-    <string name="mobile_settings_strictly_necessary_description">Needed for sign-in, security, transfers, downloads, playback, billing, and saving your choices.</string>
-    <string name="mobile_settings_strictly_necessary_state">Always on</string>
-    <string name="mobile_settings_diagnostics">Diagnostics</string>
-    <string name="mobile_settings_diagnostics_description">Crash reports, error details, and limited playback diagnostics, so we can fix problems.</string>
-    <string name="mobile_settings_product_analytics">Product analytics</string>
-    <string name="mobile_settings_product_analytics_description">Limited usage, device, billing, and playback data that shows which apps and features work.</string>
     <string name="mobile_settings_section_playback">Playback</string>
     <string name="mobile_settings_section_about">About</string>
     <string name="mobile_settings_about">App info</string>
