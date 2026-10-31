@@ -97,8 +97,8 @@ internal fun tvGlobalSearch(
     TvGlobalSearch(session, search) { controller.rejectAuthoritativeSession(it, quiet = true) }
 
 /**
- * The rows the system search shows: the file's name, its kind, put.io's still when it has one,
- * and a duration for media. The intent data id completes `putio://files/<id>`.
+ * The rows the system search shows: the file's name, its kind, put.io's still or else
+ * [fallbackArt], and a duration for media. The intent data id completes `putio://files/<id>`.
  */
 internal fun tvSearchSuggestions(items: List<FilesItem>, limit: Int?, fallbackArt: String?): Cursor {
     val cursor = MatrixCursor(SUGGESTION_COLUMNS)
