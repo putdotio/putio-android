@@ -13,6 +13,7 @@ import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 import com.google.zxing.qrcode.encoder.Encoder
 import kotlin.math.floor
+import kotlin.math.roundToInt
 
 /**
  * Encodes [text] at error correction M, which a phone camera reads from across a room: the
@@ -24,8 +25,8 @@ internal fun encodeTvQr(text: String): Array<BooleanArray> {
 }
 
 /**
- * [text] as a QR code: [dark] modules on a [light] square that includes the four-module quiet
- * zone scanners need. Modules snap to whole pixels so no seam blurs them.
+ * [text] as a QR code: [dark] modules on a [light] square with a quiet zone of about four
+ * modules. Modules snap to the nearest whole pixel so no seam blurs them.
  */
 @Composable
 internal fun TvQrCode(
@@ -39,7 +40,10 @@ internal fun TvQrCode(
     Canvas(modifier.semantics { contentDescription = description }) {
         drawRect(light)
         val span = modules.size + 2 * QR_QUIET_ZONE_MODULES
-        val cell = floor(size.minDimension / span).coerceAtLeast(1f)
+        val cell = (size.minDimension / span).roundToInt()
+            .coerceAtMost(floor(size.minDimension / modules.size).toInt())
+            .coerceAtLeast(1)
+            .toFloat()
         val left = floor((size.width - cell * modules.size) / 2)
         val top = floor((size.height - cell * modules.size) / 2)
         for (y in modules.indices) {

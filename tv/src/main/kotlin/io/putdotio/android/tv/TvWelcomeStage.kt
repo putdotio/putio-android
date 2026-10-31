@@ -35,8 +35,10 @@ private val TvWelcomeSequence: List<Pair<Int, Int>> = listOf(
     R.string.tv_welcome_kaomoji_offline to R.string.tv_welcome_caption_offline,
 )
 
-private val FRAME_HEIGHT = 64.dp
 private val KAOMOJI_LINE = 42.dp
+private val CAPTION_GAP = 6.dp
+private val CAPTION_LINE = 18.dp
+private val FRAME_HEIGHT = KAOMOJI_LINE + CAPTION_GAP + CAPTION_LINE
 
 @Composable
 internal fun TvWordmark(modifier: Modifier = Modifier) {
@@ -79,7 +81,7 @@ private fun WelcomeFrame(
 ) {
     Column(
         modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.Top),
+        verticalArrangement = Arrangement.spacedBy(CAPTION_GAP, Alignment.Top),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         BasicText(
@@ -96,7 +98,7 @@ private fun WelcomeFrame(
         )
         Text(
             text = stringResource(frame.second),
-            style = PutioTypeScale.tvMono.copy(fontSize = 13.sp, lineHeight = 16.sp),
+            style = PutioTypeScale.tvMono.copy(fontSize = 13.sp, lineHeight = 18.sp).withFullLineBox(),
             color = PutioDesignTokens.yellowSolid,
         )
     }

@@ -12,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
@@ -24,11 +25,11 @@ internal fun TvStartupScreen(
     message: String,
     modifier: Modifier = Modifier,
 ) {
-    StartupFrame(modifier) {
+    StartupFrame(top = CHECKING_TOP, modifier = modifier) {
         Column(
-            modifier = Modifier.fillMaxSize().padding(bottom = SPINNER_LIFT * 2),
+            modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
+            verticalArrangement = Arrangement.spacedBy(SPINNER_GAP, Alignment.CenterVertically),
         ) {
             CircularProgressIndicator(
                 color = MaterialTheme.colorScheme.primary,
@@ -38,7 +39,7 @@ internal fun TvStartupScreen(
             )
             Text(
                 text = message,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodySmall.withFullLineBox(),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
@@ -50,7 +51,7 @@ internal fun TvOfflineScreen(
     onTryNow: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    StartupFrame(modifier) {
+    StartupFrame(top = EMPTY_STATE_TOP, modifier = modifier) {
         TvEmptyState(
             glyph = PutioEmptyGlyph.Offline,
             headline = stringResource(R.string.tv_session_unavailable_title),
@@ -66,6 +67,7 @@ internal fun TvOfflineScreen(
 
 @Composable
 private fun StartupFrame(
+    top: Dp,
     modifier: Modifier,
     content: @Composable () -> Unit,
 ) {
@@ -75,11 +77,13 @@ private fun StartupFrame(
             .background(MaterialTheme.colorScheme.background),
     ) {
         TvWordmark(Modifier.padding(top = TV_VERTICAL_MARGIN))
-        Box(Modifier.fillMaxSize().padding(top = CONTENT_TOP)) { content() }
+        Box(Modifier.fillMaxSize().padding(top = top, bottom = CONTENT_BOTTOM)) { content() }
     }
 }
 
-private val CONTENT_TOP = 64.dp
-private val SPINNER_LIFT = 14.dp
+private val CHECKING_TOP = 64.dp
+private val EMPTY_STATE_TOP = 88.dp
+private val CONTENT_BOTTOM = 27.dp
+private val SPINNER_GAP = 14.dp
 private val SPINNER_SIZE = 28.dp
-private val SPINNER_STROKE = 3.dp
+private val SPINNER_STROKE = 2.5.dp

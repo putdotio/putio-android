@@ -20,6 +20,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
@@ -33,6 +34,7 @@ internal fun TvButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     style: TvButtonStyle = TvButtonStyle.Tonal,
+    size: TvButtonSize = TvButtonSize.Regular,
     interactions: MutableInteractionSource = remember { MutableInteractionSource() },
     content: @Composable RowScope.() -> Unit,
 ) {
@@ -50,7 +52,7 @@ internal fun TvButton(
     Button(
         onClick = onClick,
         modifier = modifier
-            .height(BUTTON_HEIGHT)
+            .height(size.height)
             .drawWithContent {
                 drawContent()
                 if (keepsFill && focused) {
@@ -69,7 +71,7 @@ internal fun TvButton(
             pressedContainerColor = if (keepsFill) rest else TvFocus.container,
             pressedContentColor = if (keepsFill) restContent else TvFocus.content,
         ),
-        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 0.dp),
+        contentPadding = PaddingValues(horizontal = size.padding, vertical = 0.dp),
         interactionSource = interactions,
     ) {
         Row(
@@ -90,6 +92,15 @@ private fun DrawScope.drawPillOutline(color: Color, reach: Float, width: Float) 
     )
 }
 
+internal enum class TvButtonSize(
+    val height: Dp,
+    val padding: Dp,
+    val icon: Dp,
+) {
+    Regular(height = 36.dp, padding = 18.dp, icon = 14.dp),
+    Compact(height = 32.dp, padding = 14.dp, icon = 12.dp),
+}
+
 internal enum class TvButtonStyle {
     Tonal,
     Text,
@@ -97,6 +108,5 @@ internal enum class TvButtonStyle {
     Destructive,
 }
 
-private val BUTTON_HEIGHT = 36.dp
 private val RING_GAP = 2.dp
 private val RING_WIDTH = 2.dp

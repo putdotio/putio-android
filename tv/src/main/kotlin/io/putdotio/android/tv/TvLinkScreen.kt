@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -75,14 +76,15 @@ internal fun TvLinkScreen(
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(top = TITLE_TOP).semantics { heading() },
             )
-            if (sessionExpired) {
-                Text(
-                    text = stringResource(R.string.tv_link_session_expired),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 13.dp),
-                )
-            }
+        }
+        if (sessionExpired) {
+            Text(
+                text = stringResource(R.string.tv_link_session_expired),
+                style = MaterialTheme.typography.bodyMedium.withFullLineBox(),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(top = SESSION_EXPIRED_TOP),
+            )
         }
         LinkColumns(
             phase = phase,
@@ -132,7 +134,7 @@ private fun LinkColumns(
             phase.statusText()?.let { status ->
                 Text(
                     text = status,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodySmall.copy(lineHeight = STATUS_LINE).withFullLineBox(),
                     color = MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
@@ -148,7 +150,8 @@ private fun LinkColumns(
 private fun ColumnTitle(text: String) {
     Text(
         text = text,
-        style = PutioTypeScale.bodyMd.copy(fontWeight = FontWeight.Medium),
+        style = PutioTypeScale.bodyMd.copy(fontWeight = FontWeight.Medium, lineHeight = COLUMN_TITLE_LINE)
+            .withFullLineBox(),
         color = MaterialTheme.colorScheme.onSurface,
     )
 }
@@ -169,7 +172,7 @@ private fun BrowserInstruction() {
                 )
             }
         },
-        style = MaterialTheme.typography.bodyMedium,
+        style = MaterialTheme.typography.bodyMedium.withFullLineBox(),
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
 }
@@ -180,21 +183,25 @@ private fun LinkQr(
     dimmed: Boolean,
 ) {
     val shape = RoundedCornerShape(PutioRadius.largeIncreased)
-    val modifier = Modifier
-        .size(QR_SIZE)
-        .alpha(if (dimmed) DIMMED_ALPHA else 1f)
-        .clip(shape)
-    if (code == null) {
-        Box(modifier.background(MaterialTheme.colorScheme.inverseSurface))
-        return
+    val light = MaterialTheme.colorScheme.inverseSurface
+    Box(
+        modifier = Modifier
+            .size(QR_SIZE)
+            .alpha(if (dimmed) DIMMED_ALPHA else 1f)
+            .clip(shape)
+            .background(light)
+            .padding(QR_PADDING),
+    ) {
+        if (code != null) {
+            TvQrCode(
+                text = tvLinkPageUrl(code),
+                description = stringResource(R.string.tv_link_qr_description),
+                dark = MaterialTheme.colorScheme.background,
+                light = light,
+                modifier = Modifier.fillMaxSize().testTag(TV_LINK_QR_TAG),
+            )
+        }
     }
-    TvQrCode(
-        text = tvLinkPageUrl(code),
-        description = stringResource(R.string.tv_link_qr_description),
-        dark = MaterialTheme.colorScheme.background,
-        light = MaterialTheme.colorScheme.inverseSurface,
-        modifier = modifier.testTag(TV_LINK_QR_TAG),
-    )
 }
 
 internal fun tvLinkPageUrl(code: String): String = "https://app.put.io/link?code=${Uri.encode(code)}"
@@ -217,12 +224,12 @@ private fun CodeTiles(
             Box(
                 modifier = Modifier
                     .size(width = TILE_WIDTH, height = TILE_HEIGHT)
-                    .background(PutioDesignTokens.componentBgActive, RoundedCornerShape(PutioRadius.small)),
+                    .background(PutioDesignTokens.componentBgActive, RoundedCornerShape(PutioRadius.medium)),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     text = character,
-                    style = PutioTypeScale.tvMono.copy(fontSize = 32.sp, lineHeight = 36.sp),
+                    style = PutioTypeScale.tvMono.copy(fontSize = 30.sp, lineHeight = 36.sp),
                     color = textColor,
                 )
             }
@@ -242,26 +249,28 @@ private fun NewCodeButton(enabled: Boolean, onClick: () -> Unit) {
         onClick = onClick,
         enabled = enabled,
         style = TvButtonStyle.Text,
+        size = TvButtonSize.Compact,
         modifier = Modifier.focusRequester(focus),
     ) {
         Icon(
             painter = painterResource(R.drawable.ic_ph_arrows_clockwise),
             contentDescription = null,
-            modifier = Modifier.size(ICON_SIZE),
+            modifier = Modifier.size(TvButtonSize.Compact.icon),
         )
-        Text(stringResource(R.string.tv_link_new_code))
+        Text(stringResource(R.string.tv_link_new_code), style = PutioTypeScale.tvLabel)
     }
 }
 
 @Composable
 private fun OrDivider() {
-    Box(modifier = Modifier.fillMaxHeight(), contentAlignment = Alignment.Center) {
-        Box(
-            Modifier
-                .width(DIVIDER_WIDTH)
-                .fillMaxHeight()
-                .background(MaterialTheme.colorScheme.borderVariant),
-        )
+    Box(
+        modifier = Modifier
+            .width(DIVIDER_WIDTH)
+            .fillMaxHeight()
+            .background(MaterialTheme.colorScheme.borderVariant)
+            .wrapContentWidth(unbounded = true),
+        contentAlignment = Alignment.Center,
+    ) {
         Text(
             text = stringResource(R.string.tv_link_or),
             style = MaterialTheme.typography.bodySmall,
@@ -313,9 +322,12 @@ private val COLUMN_GAP = 12.dp
 private val DIVIDER_GAP = 40.dp
 private val DIVIDER_WIDTH = 1.dp
 private val QR_SIZE: Dp = 170.dp
+private val QR_PADDING = 12.dp
+private val COLUMN_TITLE_LINE = 22.sp
+private val STATUS_LINE = 17.sp
+private val SESSION_EXPIRED_TOP = 202.dp
 private val TILE_WIDTH = 48.dp
 private val TILE_HEIGHT = 60.dp
 private val TILE_GAP = 4.dp
-private val ICON_SIZE = 16.dp
 private const val PLACEHOLDER_TILES = 6
 private const val DIMMED_ALPHA = 0.35f
