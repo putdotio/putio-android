@@ -24,8 +24,10 @@ import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesOpenOrigin
 import io.putdotio.android.files.FilesStreamUrlResult
+import io.putdotio.android.files.SdkFilesFolderCounts
 import io.putdotio.android.files.SdkFilesRepository
 import io.putdotio.android.files.SdkFilesStreamUrls
+import io.putdotio.android.files.SdkFilesSubtitleLanguages
 import io.putdotio.android.files.SdkFilesWatchedRepository
 import io.putdotio.android.files.authoritativeSessionFailure
 import io.putdotio.android.files.canStartOperation
@@ -76,6 +78,7 @@ import io.putdotio.android.tv.TvStartupScreen
 import io.putdotio.android.tv.auth.TvAccount
 import io.putdotio.android.tv.auth.TvAuthRuntime
 import io.putdotio.android.tv.auth.TvAuthState
+import io.putdotio.android.tv.files.TvFilesDetailSources
 import io.putdotio.android.tv.files.TvFilesScreen
 import io.putdotio.android.tv.history.TvHistoryScreen
 import io.putdotio.android.tv.trash.TvTrashScreen
@@ -153,6 +156,8 @@ private fun TvSignedInApp(
             playbackRepository = { preference -> ConvertingPlaybackRepository(runtime.putioClient, preference) },
             writePlaybackPosition = SdkPlaybackPositionRepository(runtime.putioClient)::write,
             watchNext = runtime.watchNext::recorder,
+            folderCounts = SdkFilesFolderCounts(runtime.putioClient),
+            subtitleLanguages = SdkFilesSubtitleLanguages(runtime.putioClient),
         )
     }
     val pendingLaunch by launchRequests.pending.collectAsStateWithLifecycle()
@@ -302,6 +307,7 @@ internal fun TvSessionShell(
                     linkNotice = linkNotice,
                     sessionKey = sessionKey,
                     paneFocus = paneFocus,
+                    onSessionRejected = onSessionRejected,
                 )
             },
             searchPane = { paneFocus ->
@@ -364,6 +370,7 @@ private fun TvFilesPane(
     linkNotice: TvLinkNotice,
     sessionKey: Any,
     paneFocus: FocusRequester,
+    onSessionRejected: suspend () -> Unit,
 ) {
     // A restore from Trash marks its folder stale; the listing reloads when Files shows
     // again, or once a refresh or operation running at that moment has settled.
@@ -391,12 +398,17 @@ private fun TvFilesPane(
     TvFilesScreen(
         state = filesState,
         onEvent = session.files::dispatch,
-        onPlayMedia = session::play,
+        onPlayMedia = { session.play(it) },
+        onPlay = session::play,
         modifier = Modifier.focusRequester(paneFocus),
         sessionKey = sessionKey,
         focusMemory = session.filesFocusMemory,
         confirmedTrashEnabled = settingsState.confirmedTrashEnabled(),
         watchedToggleEnabled = settingsState.confirmedResumePlayback() == true,
+        resumePlayback = settingsState.confirmedResumePlayback() != false,
+        detailSources = remember(session) {
+            TvFilesDetailSources(session.folderCounts, session.subtitleLanguages, onSessionRejected)
+        },
         onOpenInVlc = { item ->
             streamScope.launch {
                 val stream = session.originalStreamUrl(item)

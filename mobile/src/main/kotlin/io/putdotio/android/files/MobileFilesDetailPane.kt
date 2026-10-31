@@ -65,7 +65,6 @@ import io.putdotio.android.design.PutioRadius
 import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.design.putioMono
 import io.putdotio.android.downloads.DownloadStatus
-import io.putdotio.android.parsePutioTimestamp
 import io.putdotio.sdk.files.PutioFileType
 import io.putdotio.android.design.R as DesignR
 
@@ -400,16 +399,6 @@ private fun MobileFilesDetailFact(fact: DetailFact, style: TextStyle) {
         )
     }
 }
-
-/** "Oct 13, 2026": the facts give the year the row's meta leaves out. */
-private fun String.toFullDate(context: Context): String? =
-    parsePutioTimestamp(this)?.toEpochMilli()?.let { timestamp ->
-        DateUtils.formatDateTime(
-            context,
-            timestamp,
-            DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_YEAR or DateUtils.FORMAT_ABBREV_MONTH,
-        )
-    }
 
 /**
  * The listed folder's path from the root, root left out: "Series / Blue Lights". The stack is where

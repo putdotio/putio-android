@@ -1,7 +1,6 @@
 package io.putdotio.android.tv.files
 
 import androidx.compose.foundation.focusGroup
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -25,7 +24,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.unit.dp
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesItem
@@ -48,6 +46,7 @@ internal fun TvFilesList(
     onOpen: (FilesItem) -> Unit,
     onActions: (FilesItem) -> Unit,
     modifier: Modifier = Modifier,
+    onRowFocused: (FilesItem) -> Unit = {},
 ) {
     val viewport = content.viewport
     val listState = key(folderId) {
@@ -139,7 +138,6 @@ internal fun TvFilesList(
 
     LazyColumn(
         state = listState,
-        verticalArrangement = Arrangement.spacedBy(8.dp),
         modifier = modifier
             .fillMaxWidth()
             .focusRestorer(entryFocus)
@@ -159,6 +157,7 @@ internal fun TvFilesList(
                             focusMemory[folderId] = item.id.value
                             focusedRowId.value = item.id.value
                             pagingHeldFocus.value = false
+                            onRowFocused(item)
                         }
                     },
             )

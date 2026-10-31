@@ -38,6 +38,9 @@ TV:
   returns
 - A top bar of Home, Files, Search, History and Account tabs, each with its
   own Back history; Home is a placeholder until Continue watching lands
+- Files and folders as a list beside the focused item's detail: Resume from
+  the saved position or Start over, a folder's count and size, and a sort
+  side sheet with the phone's Sort by, Order and Videos groups
 - Full-screen playback with the phone's controls: D-pad scrubbing, a Resume
   prompt, and Audio, Subtitles (with size and timing) and Speed side sheets
 - The launcher's Play Next row and Android TV system search, with the

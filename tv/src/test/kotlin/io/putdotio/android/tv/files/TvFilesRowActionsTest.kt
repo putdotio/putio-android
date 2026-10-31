@@ -283,7 +283,8 @@ class TvFilesRowActionsTest {
             performKeyInput { pressCenter() }
         }
         compose.onNodeWithText(message).assertIsDisplayed()
-        compose.onAllNodesWithText("Renamed folder").assertCountEquals(2)
+        // The row, the detail's name and the confirmation.
+        compose.onAllNodesWithText("Renamed folder").assertCountEquals(3)
         compose.onAllNodesWithText("Sample folder").assertCountEquals(0)
     }
 

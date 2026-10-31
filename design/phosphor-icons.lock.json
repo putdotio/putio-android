@@ -926,6 +926,27 @@
       "asset": "assets/regular/check.svg",
       "sourceSha256": "cbb89a8c42f283d4f846eb935e05d88c1be04462f16480e068c0f82b9ce40b12",
       "outputSha256": "3883f553f4afa50518f14b47c013d8c816f48299f824b508ffb9a3d3a795e698"
+    },
+    {
+      "resDir": "tv/src/main/res",
+      "resource": "ic_ph_eye",
+      "asset": "assets/regular/eye.svg",
+      "sourceSha256": "91d39f20bf95e0f36c07bd79b83a85fe6ff4ca20e2759c4afee7419ef80403fe",
+      "outputSha256": "7e3b564548d533a736db6fbd95db132dd0f923ed0dbe92081a77ae61de26982c"
+    },
+    {
+      "resDir": "tv/src/main/res",
+      "resource": "ic_ph_dots_three",
+      "asset": "assets/regular/dots-three.svg",
+      "sourceSha256": "ca4e748007101155641ec3041cd129bb03a8030d0eed16e313b9dd75e6beac77",
+      "outputSha256": "4caea555cd84b9dd15a7ffd9e982881400deb3e13419bb61a4078ff2f010dd2f"
+    },
+    {
+      "resDir": "tv/src/main/res",
+      "resource": "ic_ph_arrow_square_out",
+      "asset": "assets/regular/arrow-square-out.svg",
+      "sourceSha256": "8610e8f5c7d4952ae1ada34ef56fa7cbab1780bc85f25a5c9482b74144790fc8",
+      "outputSha256": "67236fd143d351547ce1d22d225c30e2e7bb24f02346afc2e7f074b7800221c6"
     }
   ]
 }

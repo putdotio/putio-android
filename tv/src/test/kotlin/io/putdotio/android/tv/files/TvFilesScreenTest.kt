@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.hasClickAction
@@ -33,6 +34,13 @@ import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.files.FilesRequestId
 import io.putdotio.android.files.FilesSort
+import io.putdotio.android.tv.TvPlayStart
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.test.onNodeWithTag
+import io.putdotio.android.PutioResult
+import io.putdotio.android.files.FilesFolderCounts
+import io.putdotio.android.tv.setTvContent
 import io.putdotio.sdk.files.PutioFileType
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -51,7 +59,7 @@ class TvFilesScreenTest {
     val compose = createAndroidComposeRule<androidx.activity.ComponentActivity>()
 
     @Test
-    fun rootListsRowsWithSizeAndWatchedProgressAndFocusesTheFirstRow() {
+    fun rootListsRowsWithSizeAndTheWatchedEyeAndFocusesTheFirstRow() {
         val events = mutableListOf<FilesBrowserEvent>()
         compose.showFiles(
             state = {
@@ -70,8 +78,10 @@ class TvFilesScreenTest {
         )
 
         compose.onNodeWithText("Your Files").assertDoesNotExist()
+        compose.onNodeWithText("All files").assertIsDisplayed()
         compose.onNodeWithContentDescription("Open tears_of_steel").assertIsFocused()
-        compose.onNodeWithText("33% watched").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Watched", useUnmergedTree = true).assertIsDisplayed()
+        compose.onAllNodesWithText("33%", substring = true).assertCountEquals(0)
         compose.onNodeWithText("1.1 kB").assertIsDisplayed()
 
         compose.onNodeWithContentDescription("Open tears_of_steel").performKeyInput { pressCenter() }
@@ -115,15 +125,15 @@ class TvFilesScreenTest {
     }
 
     @Test
-    fun anEmptyFolderFocusesRefreshSoThePaneStaysReachable() {
+    fun anEmptyFolderFocusesTheSortPillSoThePaneStaysReachable() {
         compose.showFiles(state = { state(FilesContent.Empty(FilesPaging.Complete)) })
         compose.onNodeWithText("This folder is empty.").assertIsDisplayed()
-        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused()
-        compose.onNode(hasText("Account default") and hasClickAction()).assertIsDisplayed()
+        compose.onNode(hasText("Account default") and hasClickAction()).assertIsFocused()
+        compose.onAllNodesWithText("Refresh").assertCountEquals(0)
     }
 
     @Test
-    fun aRefreshKeepsFocusOnTheHeaderWhileTheFolderReloads() {
+    fun aReloadKeepsFocusOnTheSortPillAndIgnoresItsPress() {
         var operation by mutableStateOf<FilesFolderOperation>(FilesFolderOperation.Idle)
         val events = mutableListOf<FilesBrowserEvent>()
         compose.showFiles(
@@ -136,14 +146,16 @@ class TvFilesScreenTest {
             onEvent = { events += it; true },
         )
         compose.onNodeWithContentDescription("a.txt").performKeyInput { pressKey(Key.DirectionUp) }
-        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
+        compose.onNode(hasText("Account default") and hasClickAction()).assertIsFocused()
         operation = FilesFolderOperation.Loading(
             FilesRequestId(3),
             FilesFolderOperationIntent.Refresh,
             FilesFolderOperationPhase.RELOADING,
         )
-        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
-        assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.Refresh), events)
+        compose.onNode(hasText("Account default") and hasClickAction()).assertIsFocused()
+            .performKeyInput { pressCenter() }
+        compose.onAllNodesWithText("Sort by").assertCountEquals(0)
+        assertEquals(emptyList<FilesBrowserEvent>(), events)
     }
 
     @Test
@@ -205,7 +217,6 @@ class TvFilesScreenTest {
             },
         )
         compose.onNodeWithContentDescription("a.txt").performKeyInput { pressKey(Key.DirectionUp) }
-        compose.onNode(hasText("Refresh") and hasClickAction()).performKeyInput { pressKey(Key.DirectionRight) }
         compose.onNode(hasText("Account default") and hasClickAction()).performKeyInput { pressCenter() }
         compose.onNodeWithText("Sort by").assertIsDisplayed()
 
@@ -218,17 +229,13 @@ class TvFilesScreenTest {
     }
 
     @Test
-    fun aFailedFolderKeepsRefreshAndSortInert() {
+    fun aFailedFolderKeepsSortInert() {
         val events = mutableListOf<FilesBrowserEvent>()
         compose.showFiles(state = { state(FilesContent.Failed(networkFailure())) }, onEvent = { events += it; true })
         compose.onNodeWithText("Check the network and try again.").assertIsDisplayed()
         compose.onNodeWithText("Try again").assertIsFocused().performKeyInput {
             pressCenter()
             pressKey(Key.DirectionUp)
-        }
-        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused().performKeyInput {
-            pressCenter()
-            pressKey(Key.DirectionRight)
         }
         compose.onNode(hasText("Account default") and hasClickAction()).assertIsFocused().performKeyInput {
             pressCenter()
@@ -306,7 +313,7 @@ class TvFilesScreenTest {
     }
 
     @Test
-    fun aRefreshWhileOnTheHeaderKeepsFocusOnTheHeader() {
+    fun aRefreshWhileOnTheSortPillKeepsFocusThere() {
         var state by mutableStateOf(ready(item(1, "a.txt", PutioFileType.TEXT), item(2, "b.txt", PutioFileType.TEXT)))
         compose.showFiles(state = { state })
         compose.onNodeWithContentDescription("a.txt").performKeyInput {
@@ -314,18 +321,18 @@ class TvFilesScreenTest {
             pressKey(Key.DirectionUp)
             pressKey(Key.DirectionUp)
         }
-        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused()
+        compose.onNode(hasText("Account default") and hasClickAction()).assertIsFocused()
 
         state = ready(
             item(1, "a.txt", PutioFileType.TEXT),
             item(2, "b.txt", PutioFileType.TEXT),
             item(3, "c.txt", PutioFileType.TEXT),
         )
-        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused()
+        compose.onNode(hasText("Account default") and hasClickAction()).assertIsFocused()
     }
 
     @Test
-    fun headerOffersRefreshAndSortAndTheSortDialogDispatchesTheChoice() {
+    fun theSortPillOpensTheSortSheetAndItsGroupsDispatchTheChoice() {
         val events = mutableListOf<FilesBrowserEvent>()
         compose.showFiles(
             state = { ready(item(1, "a.txt", PutioFileType.TEXT), sort = FilesSort.NAME_ASCENDING) },
@@ -333,16 +340,117 @@ class TvFilesScreenTest {
         )
 
         compose.onNodeWithContentDescription("a.txt").performKeyInput { pressKey(Key.DirectionUp) }
-        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
-        assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.Refresh), events)
-
-        compose.onNode(hasText("Refresh") and hasClickAction()).performKeyInput { pressKey(Key.DirectionRight) }
         compose.onNode(hasText("Name, A–Z") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
+        compose.onNodeWithText("Sort").assertIsDisplayed()
         compose.onNodeWithText("Sort by").assertIsDisplayed()
-        compose.onNode(hasText("Name, A–Z") and hasClickAction() and hasSelectedState()).assertIsFocused()
-            .performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNode(hasText("Name, Z–A") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
-        assertEquals(FilesBrowserEvent.SelectSort(FilesSort.NAME_DESCENDING), events.last())
+        compose.onNode(hasText("A to Z") and hasClickAction() and hasSelectedState()).assertIsDisplayed()
+        compose.onNode(hasText("Name") and hasClickAction() and hasSelectedState()).assertIsFocused()
+            .performKeyInput { repeat(6) { pressKey(Key.DirectionDown) } }
+        compose.onNode(hasText("Z to A") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
+        assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.SelectSort(FilesSort.NAME_DESCENDING)), events)
+        compose.onAllNodesWithText("Sort by").assertCountEquals(0)
+        compose.onNode(hasText("Name, A–Z") and hasClickAction()).assertIsFocused()
+    }
+
+    @Test
+    fun theDetailFollowsTheFocusedRowAndItsActionsResumeOrStartOver() {
+        val played = mutableListOf<Pair<FilesItemId, TvPlayStart>>()
+        compose.setTvContent {
+            TvFilesScreen(
+                state = ready(
+                    item(1, "notes.txt", PutioFileType.TEXT),
+                    item(
+                        2,
+                        "Blue.Lights.S04E01.mkv",
+                        PutioFileType.VIDEO,
+                        playback = FilesPlaybackProgress(1_122.0, 2_989.0),
+                    ),
+                ),
+                onEvent = { true },
+                onPlayMedia = {},
+                onPlay = { item, start -> played += item.id to start },
+            )
+        }
+        compose.onNodeWithTag(TV_FILES_DETAIL_PRIMARY_TAG).assert(hasText("Open"))
+        compose.onNodeWithContentDescription("notes.txt").performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithText("Length").assertIsDisplayed()
+        compose.onNodeWithText("49:49").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Play Blue.Lights.S04E01.mkv").performKeyInput {
+            pressKey(Key.DirectionRight)
+        }
+        compose.onNode(hasText("Resume from 18:42") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressCenter()
+            pressKey(Key.DirectionRight)
+        }
+        compose.onNode(hasText("Start over") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressCenter()
+            pressKey(Key.DirectionLeft)
+            pressKey(Key.DirectionLeft)
+        }
+        compose.onNodeWithContentDescription("Play Blue.Lights.S04E01.mkv").assertIsFocused()
+        assertEquals(
+            listOf(FilesItemId(2) to TvPlayStart.Resume, FilesItemId(2) to TvPlayStart.StartOver),
+            played,
+        )
+    }
+
+    @Test
+    fun anUnstartedVideoOffersPlayAndAFolderNamesItsCountAndOpens() {
+        val events = mutableListOf<FilesBrowserEvent>()
+        val played = mutableListOf<TvPlayStart>()
+        val counts = FilesFolderCounts { PutioResult.Success(3) }
+        compose.setTvContent {
+            TvFilesScreen(
+                state = ready(
+                    item(1, "Big Buck Bunny", PutioFileType.FOLDER, sizeBytes = 276_000_000),
+                    item(2, "Sintel.2010.1080p.mkv", PutioFileType.VIDEO),
+                ),
+                onEvent = { events += it; true },
+                onPlayMedia = {},
+                onPlay = { _, start -> played += start },
+                detailSources = TvFilesDetailSources(folderCounts = counts),
+            )
+        }
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("3 items · 276 MB").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithContentDescription("Open Big Buck Bunny").performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNode(hasText("Open") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressCenter()
+            pressKey(Key.DirectionLeft)
+        }
+        assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.OpenFolder(FilesItemId(1))), events)
+
+        compose.onNodeWithContentDescription("Open Big Buck Bunny").performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithContentDescription("Play Sintel.2010.1080p.mkv").performKeyInput {
+            pressKey(Key.DirectionRight)
+        }
+        compose.onNode(hasText("Play") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
+        compose.onAllNodesWithText("Start over").assertCountEquals(0)
+        assertEquals(listOf(TvPlayStart.Ask), played)
+    }
+
+    @Test
+    fun comingBackFromThePlayerFocusesTheRowThatPlayed() {
+        var mount by mutableIntStateOf(0)
+        val memory = mutableMapOf<Long, Long>()
+        compose.setTvContent {
+            key(mount) {
+                TvFilesScreen(
+                    state = ready(
+                        item(1, "first.mp4", PutioFileType.VIDEO),
+                        item(2, "second.mp4", PutioFileType.VIDEO),
+                    ),
+                    onEvent = { true },
+                    onPlayMedia = {},
+                    onPlay = { _, _ -> mount++ },
+                    focusMemory = memory,
+                )
+            }
+        }
+        compose.onNodeWithContentDescription("Play first.mp4").performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithContentDescription("Play second.mp4").performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNode(hasText("Play") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
+
+        compose.onNodeWithContentDescription("Play second.mp4").assertIsFocused()
     }
 
     private fun hasSelectedState() = androidx.compose.ui.test.isSelected()

@@ -243,7 +243,7 @@ class TvShellFocusTest {
                 files = loading
             }
             compose.openTab(TvDestination.Files)
-            compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused()
+            compose.onNode(hasText("Account default") and hasClickAction()).assertIsFocused()
             compose.pressBack()
             compose.onTab("Files").assertIsFocused()
 
