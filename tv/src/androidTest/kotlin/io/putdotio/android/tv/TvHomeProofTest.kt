@@ -4,8 +4,13 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
-import androidx.compose.ui.focus.FocusManager
-import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -13,6 +18,7 @@ import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import io.putdotio.android.AccountStorage
 import io.putdotio.android.PutioResult
 import io.putdotio.android.files.ContinueWatchingEntry
 import io.putdotio.android.files.ContinueWatchingStore
@@ -52,7 +58,7 @@ class TvHomeProofTest {
             }
         }
     }
-    private var focusManager: FocusManager? = null
+    private val focusSink = FocusRequester()
 
     @get:Rule
     val rules: RuleChain = RuleChain.outerRule(optIn).around(compose)
@@ -77,7 +83,7 @@ class TvHomeProofTest {
     fun homeWithNothingPinned() {
         mount(entries = CONTINUE_WATCHING, pins = emptyList())
         compose.waitUntil(5_000) { hasText("Nothing pinned yet.") }
-        compose.runOnUiThread { checkNotNull(focusManager).clearFocus(force = true) }
+        compose.runOnUiThread { focusSink.requestFocus() }
         screenshot("androidtv-rde2-03-home-empty")
     }
 
@@ -122,9 +128,20 @@ class TvHomeProofTest {
         )
         compose.mountTvProofSession(
             dependencies,
-            account = TvAccount(userId = 1, username = "devs-auto", email = "devs+auto@put.io", historyEnabled = true),
+            account = TvAccount(
+                userId = 1,
+                username = "devs-auto",
+                email = "devs+auto@put.io",
+                historyEnabled = true,
+                storage = AccountStorage(
+                    availableBytes = 9_000_000_000_000L,
+                    sizeBytes = 11_000_000_000_000L,
+                    usedBytes = 2_000_000_000_000L,
+                    showOptimisticUsage = false,
+                ),
+            ),
             tab = tab,
-            overlay = { focusManager = LocalFocusManager.current },
+            overlay = { Box(Modifier.size(1.dp).focusRequester(focusSink).focusable()) },
         )
     }
 
@@ -189,7 +206,7 @@ class TvHomeProofTest {
         val PINNED = listOf(
             pinned(201, "Series", PutioFileType.FOLDER, 1_210_000_000_000L),
             pinned(202, "Big Buck Bunny", PutioFileType.FOLDER, 276_000_000L),
-            pinned(203, "Items shared with you", PutioFileType.FOLDER, 0L),
+            pinned(203, "Items shared with you", PutioFileType.FOLDER, 18_400_000_000L),
             pinned(204, "FFTT Tree Rings October 23, 2026.mp3", PutioFileType.AUDIO, 48_000_000L),
         )
 

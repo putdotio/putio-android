@@ -62,7 +62,13 @@ class TvHomeScreenTest {
     @Test
     fun continueWatchingShowsTimeLeftAndAnEmptyPinnedRowSaysHowToPin() {
         compose.setTvContent {
-            TvHomeScreen(listOf(entry), TvPinnedRow.Ready(emptyList()), actions, remember { FocusRequester() }) {}
+            TvHomeScreen(
+                listOf(entry),
+                TvPinnedRow.Ready(emptyList()),
+                actions,
+                remember { FocusRequester() },
+                onShown = {},
+            )
         }
 
         compose.onNodeWithText("Continue watching").assertIsDisplayed()
@@ -90,7 +96,8 @@ class TvHomeScreenTest {
                 TvPinnedRow.Ready(listOf(TvPinnedCard(folder, itemCount = 3))),
                 actions,
                 remember { FocusRequester() },
-            ) {}
+                onShown = {},
+            )
         }
 
         compose.onAllNodesWithText("Continue watching").assertCountEquals(0)

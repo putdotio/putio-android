@@ -41,6 +41,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -185,7 +186,12 @@ private fun TvHomeInlineState(glyph: String, headline: String, message: String) 
             modifier = Modifier.clearAndSetSemantics {},
         )
         Text(headline, style = INLINE_HEADLINE, color = MaterialTheme.colorScheme.onSurface)
-        Text(message, style = INLINE_MESSAGE, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            message,
+            style = INLINE_MESSAGE,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = INLINE_MESSAGE_NUDGE),
+        )
     }
 }
 
@@ -198,7 +204,8 @@ private fun TvContinueWatchingCard(entry: ContinueWatchingEntry, onClick: () -> 
         name = entry.name,
         description = stringResource(R.string.tv_home_resume_description, entry.name, left),
         progress = entry.fraction,
-        meta = leftLabel.asMonoRun(),
+        meta = AnnotatedString(leftLabel),
+        metaStyle = CARD_META_MONO,
         onClick = onClick,
     )
 }
@@ -243,6 +250,7 @@ private fun TvHomeCard(
     progress: Float?,
     meta: AnnotatedString,
     onClick: () -> Unit,
+    metaStyle: TextStyle = CARD_META,
 ) {
     val interactions = remember { MutableInteractionSource() }
     val focused by interactions.collectIsFocusedAsState()
@@ -285,7 +293,7 @@ private fun TvHomeCard(
             Spacer(Modifier.height(CARD_INNER_GAP))
             Text(
                 meta,
-                style = CARD_META,
+                style = metaStyle,
                 color = if (focused) TvFocus.secondaryContent else colors.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -324,7 +332,7 @@ private val FocusedTrack = Color(0x24000000)
 private val HOME_TOP = 4.dp
 private val SECTION_GAP = 21.dp
 private val LABEL_GAP = 9.dp
-private val EMPTY_GAP = 20.dp
+private val EMPTY_GAP = 14.5.dp
 private val CARD_GAP = 8.dp
 private val CARD_WIDTH = 200.dp
 private val CARD_HEIGHT = 72.dp
@@ -337,9 +345,11 @@ private val CARD_INNER_GAP = 7.dp
 private val PROGRESS_HEIGHT = 3.dp
 private val PROGRESS_RADIUS = 2.dp
 private val INLINE_STATE_GAP = 8.dp
+private val INLINE_MESSAGE_NUDGE = 1.5.dp
 private val SECTION_LABEL = PutioTypeScale.tvLabel.withFullLineBox()
 private val CARD_NAME = PutioTypeScale.tvMeta.copy(lineHeight = 16.sp).withFullLineBox()
 private val CARD_META = PutioTypeScale.tvMeta.copy(lineHeight = 18.sp).withFullLineBox()
+private val CARD_META_MONO = PutioTypeScale.tvMono.copy(lineHeight = 18.sp).withFullLineBox()
 private val INLINE_GLYPH = PutioTypeScale.tvMono.copy(fontSize = 24.sp, lineHeight = 28.sp).withFullLineBox()
 private val INLINE_HEADLINE =
     PutioTypeScale.tvDetailTitle.copy(fontSize = 16.sp, lineHeight = 19.sp, fontWeight = FontWeight.Medium)
