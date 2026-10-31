@@ -30,6 +30,7 @@ object DesignTokenCodegen {
         "redTextSecondary" to "red-text-secondary",
         "greenSolid" to "green-solid",
         "solid" to "solid",
+        "sheetScrim" to "sheet-scrim",
     )
 
     /**
@@ -98,7 +99,9 @@ object DesignTokenCodegen {
      * androidx.tv.material3 role → token property. The TV ColorScheme predates
      * the surfaceContainer tiers and names its outline roles border/borderVariant.
      * Its stock components still read the container and inverse roles: notably,
-     * a focused ListItem uses inverseSurface.
+     * a focused ListItem fills inverseSurface and takes contentColorFor(inverseSurface),
+     * which matches secondary first. While both are `text`, onSecondary must equal
+     * inverseOnSurface.
      */
     val TV_ROLES: List<Pair<String, String>> = listOf(
         "primary" to "yellowSolid",
@@ -107,6 +110,7 @@ object DesignTokenCodegen {
         "onPrimaryContainer" to "primaryForeground",
         "inversePrimary" to "yellowTextSecondary",
         "secondary" to "text",
+        "onSecondary" to "appBg",
         "secondaryContainer" to "yellowSolid:0.26",
         "onSecondaryContainer" to "yellowSolid",
         "background" to "appBg",
@@ -121,6 +125,7 @@ object DesignTokenCodegen {
         "borderVariant" to "line",
         "error" to "redSolid",
         "onError" to "appBg",
+        "scrim" to "sheetScrim",
     )
 
     /** Token cssNames DESIGN.md lists after the M3 roles: put.io colors with no M3 role. */

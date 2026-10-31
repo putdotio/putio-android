@@ -53,7 +53,7 @@ internal fun TvSideSheet(
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.scrim.copy(alpha = SCRIM_ALPHA)),
+                .background(MaterialTheme.colorScheme.scrim),
         ) {
             val margins = with(LocalDensity.current) { tvSafeAreaMargins(constraints) }
             Column(
@@ -65,7 +65,7 @@ internal fun TvSideSheet(
                         PutioDesignTokens.componentBgHover,
                         RoundedCornerShape(topStart = PutioRadius.extraLarge, bottomStart = PutioRadius.extraLarge),
                     )
-                    .padding(start = 16.dp, top = 28.dp, end = margins.side, bottom = margins.vertical)
+                    .padding(start = 16.dp, top = margins.vertical, end = margins.side, bottom = margins.vertical)
                     .focusGroup(),
             ) {
                 if (title != null) {
@@ -93,4 +93,3 @@ private fun FocusRequester.returnFocusFromSheet() {
 }
 
 private val SHEET_WIDTH = 360.dp
-private const val SCRIM_ALPHA = 0.72f
