@@ -165,11 +165,11 @@ class TvAccountScreenTest {
         show(settingsState = { ready(preferences) }, appConfigState = { readyConfig(VideoPlaybackType.Hls) })
 
         openPlaybackRow("Video playback", downs = 2)
-        compose.onNode(hasText("HLS stream") and isFocused()).performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNode(hasText("Direct MP4") and isFocused()).performKeyInput { pressCenter() }
+        compose.onNode(inSheet("HLS stream")).performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNode(inSheet("Direct MP4")).performKeyInput { pressCenter() }
         compose.onNodeWithText("Original quality when the file is already MP4.").assertIsDisplayed()
         assertEquals(emptyList<AndroidAppConfigEvent>(), appConfigEvents)
-        compose.onNode(hasText("Save") and hasClickAction()).performKeyInput { pressCenter() }
+        compose.onNode(inSheet("Save")).performKeyInput { pressCenter() }
         assertEquals(
             listOf<AndroidAppConfigEvent>(
                 AndroidAppConfigEvent.ChangeRequested(AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Mp4)),
@@ -198,19 +198,20 @@ class TvAccountScreenTest {
         openPlaybackRow("Proxy", downs = 3)
         compose.onNodeWithText("Choose your proxy").assertIsDisplayed()
         compose.onNodeWithText("Straight from put.io’s servers in Amsterdam.").assertIsDisplayed()
-        compose.onNode(hasText("cdn77") and isFocused()).performKeyInput {
+        compose.onNode(inSheet("cdn77")).performKeyInput {
             pressKey(Key.DirectionDown)
             pressKey(Key.DirectionDown)
         }
-        compose.onNode(hasText("lon") and isFocused()).performKeyInput { pressCenter() }
-        compose.onNode(hasText("Cancel") and hasClickAction()).performKeyInput { pressCenter() }
+        compose.onNode(inSheet("lon")).performKeyInput { pressCenter() }
+        compose.onNode(inSheet("Save")).performKeyInput { pressKey(Key.DirectionLeft) }
+        compose.onNode(inSheet("Cancel")).performKeyInput { pressCenter() }
         assertEquals(emptyList<AccountSettingsEvent>(), settingsEvents)
         compose.onNodeWithText("Proxy").assertIsFocused().performKeyInput { pressCenter() }
-        compose.onNode(hasText("cdn77") and isFocused()).performKeyInput {
+        compose.onNode(inSheet("cdn77")).performKeyInput {
             repeat(2) { pressKey(Key.DirectionDown) }
             pressCenter()
         }
-        compose.onNode(hasText("Save") and hasClickAction()).performKeyInput { pressCenter() }
+        compose.onNode(inSheet("Save")).performKeyInput { pressCenter() }
         assertEquals(
             listOf<AccountSettingsEvent>(
                 AccountSettingsEvent.ChangeRequested(AccountSettingsChange.Route(TunnelRouteName("lon"))),
@@ -226,11 +227,11 @@ class TvAccountScreenTest {
         group("Library").performKeyInput { pressKey(Key.DirectionRight) }
         compose.onNodeWithText("Manage your trash").performKeyInput { repeat(2) { pressKey(Key.DirectionDown) } }
         compose.onNodeWithText("Default sort order").assertIsFocused().performKeyInput { pressCenter() }
-        compose.onNode(hasText("Name, A–Z") and isFocused()).performKeyInput {
+        compose.onNode(inSheet("Name, A–Z")).performKeyInput {
             pressKey(Key.DirectionDown)
             pressCenter()
         }
-        compose.onNode(hasText("Save") and hasClickAction()).performKeyInput { pressCenter() }
+        compose.onNode(inSheet("Save")).performKeyInput { pressCenter() }
         assertEquals(
             listOf<AccountSettingsEvent>(
                 AccountSettingsEvent.ChangeRequested(AccountSettingsChange.Sort(FilesSort.NAME_DESCENDING)),
@@ -278,7 +279,7 @@ class TvAccountScreenTest {
         compose.onNodeWithText("Privacy policy").assertIsFocused().performKeyInput { pressCenter() }
         compose.onNodeWithContentDescription("QR code for Privacy policy").assertIsDisplayed()
         compose.onNodeWithText("https://put.io/privacy-policy").assertIsDisplayed()
-        compose.onNode(hasText("Done") and isFocused()).performKeyInput { pressCenter() }
+        compose.onNode(inSheet("Done")).performKeyInput { pressCenter() }
         compose.onNodeWithText("Privacy policy").assertIsFocused()
         assertEquals(
             listOf<AccountSettingsEvent>(
@@ -366,6 +367,8 @@ class TvAccountScreenTest {
         compose.onNode(hasText("Try again") and isFocused()).performKeyInput { pressCenter() }
         assertEquals(listOf<AccountSettingsEvent>(AccountSettingsEvent.RetryLoad), settingsEvents)
     }
+
+    private fun inSheet(label: String) = hasText(label) and isFocused() and hasAnyAncestor(isDialog())
 
     private fun group(label: String): SemanticsNodeInteraction = compose.onNode(hasText(label) and hasClickAction())
 

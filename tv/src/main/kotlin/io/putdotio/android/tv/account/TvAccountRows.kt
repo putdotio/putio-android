@@ -50,6 +50,12 @@ import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.TvFocus
 import io.putdotio.android.tv.TvSwitch
 
+internal data class TvSheetChoice<T>(
+    val value: T,
+    val label: String,
+    val description: String? = null,
+)
+
 internal enum class TvSegment { Only, First, Middle, Last }
 
 internal fun segmentOf(index: Int, count: Int): TvSegment =
@@ -220,7 +226,7 @@ internal fun TvSettingRow(
         Box(
             modifier
                 .fillMaxWidth()
-                .background(PutioDesignTokens.componentBg, shape)
+                .background(MaterialTheme.colorScheme.surfaceVariant, shape)
                 .semantics(mergeDescendants = true) {},
         ) { body(false) }
         return
@@ -232,7 +238,7 @@ internal fun TvSettingRow(
             .semantics { if (role != null) this.role = role },
         shape = ClickableSurfaceDefaults.shape(shape),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = PutioDesignTokens.componentBg,
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
             contentColor = colors.onSurface,
             focusedContainerColor = TvFocus.container,
             focusedContentColor = TvFocus.content,
@@ -313,7 +319,7 @@ internal fun TvAccountNotice(
 }
 
 internal object TvAccountColors {
-    val focusSecondary: Color = Color(0xFF4D4D4D)
+    val focusSecondary: Color = Color(FOCUS_SECONDARY_ARGB)
 }
 
 internal object TvAccountType {
@@ -331,3 +337,4 @@ internal object TvAccountType {
 
 internal val ROW_HEIGHT: Dp = 40.dp
 private val SEGMENT_GAP = 2.dp
+private const val FOCUS_SECONDARY_ARGB = 0xFF4D4D4D

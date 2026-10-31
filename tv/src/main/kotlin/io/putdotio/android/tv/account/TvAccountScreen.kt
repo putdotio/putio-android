@@ -299,82 +299,30 @@ private fun TvAccountBody(
             }
             .focusGroup(),
     ) {
-        Column(
-            modifier = Modifier
-                .offset(x = -GROUP_INSET)
-                .width(LEFT_WIDTH)
-                .focusProperties { right = rightPane },
-        ) {
-            TvAccountIdentity(account)
-            TvStorageCard(account)
-            Spacer(Modifier.height(12.dp))
-            val androidContext = LocalContext.current
-            val libraryValue = trashSizeBytes?.let {
-                val size = Formatter.formatShortFileSize(androidContext, it.coerceAtLeast(0L))
-                tvMonoArguments(R.string.tv_account_library_value, size)
-            }
-            TvAccountGroup.entries.forEach { item ->
-                TvAccountGroupRow(
-                    title = stringResource(item.label),
-                    icon = item.icon,
-                    selected = group.value == item,
-                    onClick = { rightPane.requestFocus() },
-                    value = when (item) {
-                        TvAccountGroup.Library -> libraryValue
-                        TvAccountGroup.About -> monoText(BuildConfig.VERSION_NAME)
-                        else -> null
-                    },
-                    modifier = Modifier
-                        .accountFocus(context, item.focusKey)
-                        .onFocusChanged { if (it.isFocused) group.value = item },
-                )
-            }
-            Spacer(Modifier.height(8.dp))
-            TvAccountGroupRow(
-                title = stringResource(R.string.tv_account_sign_out),
-                icon = R.drawable.ic_ph_sign_out,
-                selected = false,
-                onClick = { open(TvAccountSheet.SignOut, RowKey.SIGN_OUT) },
-                danger = true,
-                caret = false,
-                modifier = Modifier.accountFocus(context, RowKey.SIGN_OUT, group.value.focusKey),
-            )
-        }
-        Column(
-            modifier = Modifier
-                .padding(start = RIGHT_START)
-                .fillMaxWidth()
-                .focusRequester(rightPane)
-                .focusProperties {
-                    exit = { direction ->
-                        if (direction == FocusDirection.Left) {
-                            focus.requester(group.value.focusKey)
-                        } else {
-                            FocusRequester.Default
-                        }
-                    }
-                }
-                .focusGroup()
-                .verticalScroll(rememberScrollState()),
-        ) {
-            TvGroupLabel(stringResource(group.value.label))
-            val rows = TvAccountRowsScope(
+        TvAccountGroups(
+            account = account,
+            trashSizeBytes = trashSizeBytes,
+            group = group,
+            context = context,
+            rightPane = rightPane,
+            onSignOut = { open(TvAccountSheet.SignOut, RowKey.SIGN_OUT) },
+        )
+        TvAccountGroupRows(
+            group = group,
+            focus = focus,
+            rightPane = rightPane,
+            rows = TvAccountRowsScope(
                 context = context,
                 settingsState = settingsState,
                 appConfigState = appConfigState,
                 onSettingsEvent = onSettingsEvent,
                 onAppConfigEvent = onAppConfigEvent,
                 open = open,
-            )
-            when (group.value) {
-                TvAccountGroup.Library -> rows.Library(trashSizeBytes, onManageTrash)
-                TvAccountGroup.Playback -> rows.Playback()
-                TvAccountGroup.Subtitles -> rows.Subtitles()
-                TvAccountGroup.Privacy -> rows.Privacy(open)
-                TvAccountGroup.About -> rows.About(appConfigState.playbackPreference())
-            }
-            Spacer(Modifier.height(24.dp))
-        }
+            ),
+            trashSizeBytes = trashSizeBytes,
+            onManageTrash = onManageTrash,
+            playbackPreference = appConfigState.playbackPreference(),
+        )
     }
 
     TvAccountSheets(
@@ -388,6 +336,98 @@ private fun TvAccountBody(
         returnFocus = { key -> focus.requester(key) },
         onClose = { sheet = null },
     )
+}
+
+@Composable
+private fun TvAccountGroups(
+    account: TvAccount,
+    trashSizeBytes: Long?,
+    group: MutableState<TvAccountGroup>,
+    context: TvAccountContext,
+    rightPane: FocusRequester,
+    onSignOut: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .offset(x = -GROUP_INSET)
+            .width(LEFT_WIDTH)
+            .focusProperties { right = rightPane },
+    ) {
+        TvAccountIdentity(account)
+        TvStorageCard(account)
+        Spacer(Modifier.height(12.dp))
+        val androidContext = LocalContext.current
+        val libraryValue = trashSizeBytes?.let {
+            val size = Formatter.formatShortFileSize(androidContext, it.coerceAtLeast(0L))
+            tvMonoArguments(R.string.tv_account_library_value, size)
+        }
+        TvAccountGroup.entries.forEach { item ->
+            TvAccountGroupRow(
+                title = stringResource(item.label),
+                icon = item.icon,
+                selected = group.value == item,
+                onClick = { rightPane.requestFocus() },
+                value = when (item) {
+                    TvAccountGroup.Library -> libraryValue
+                    TvAccountGroup.About -> monoText(BuildConfig.VERSION_NAME)
+                    else -> null
+                },
+                modifier = Modifier
+                    .accountFocus(context, item.focusKey)
+                    .onFocusChanged { if (it.isFocused) group.value = item },
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        TvAccountGroupRow(
+            title = stringResource(R.string.tv_account_sign_out),
+            icon = R.drawable.ic_ph_sign_out,
+            selected = false,
+            onClick = onSignOut,
+            danger = true,
+            caret = false,
+            modifier = Modifier.accountFocus(context, RowKey.SIGN_OUT, group.value.focusKey),
+        )
+    }
+}
+
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+private fun TvAccountGroupRows(
+    group: MutableState<TvAccountGroup>,
+    focus: TvAccountFocus,
+    rightPane: FocusRequester,
+    rows: TvAccountRowsScope,
+    trashSizeBytes: Long?,
+    onManageTrash: (() -> Unit)?,
+    playbackPreference: PlaybackPreference,
+) {
+    Column(
+        modifier = Modifier
+            .padding(start = RIGHT_START)
+            .fillMaxWidth()
+            .focusRequester(rightPane)
+            .focusProperties {
+                exit = { direction ->
+                    if (direction == FocusDirection.Left) {
+                        focus.requester(group.value.focusKey)
+                    } else {
+                        FocusRequester.Default
+                    }
+                }
+            }
+            .focusGroup()
+            .verticalScroll(rememberScrollState()),
+    ) {
+        TvGroupLabel(stringResource(group.value.label))
+        when (group.value) {
+            TvAccountGroup.Library -> rows.Library(trashSizeBytes, onManageTrash)
+            TvAccountGroup.Playback -> rows.Playback()
+            TvAccountGroup.Subtitles -> rows.Subtitles()
+            TvAccountGroup.Privacy -> rows.Privacy(rows.open)
+            TvAccountGroup.About -> rows.About(playbackPreference)
+        }
+        Spacer(Modifier.height(24.dp))
+    }
 }
 
 @Composable
@@ -911,7 +951,7 @@ private fun TvStorageCard(account: TvAccount) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(PutioDesignTokens.componentBg, RoundedCornerShape(PutioRadius.large))
+            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(PutioRadius.large))
             .padding(horizontal = 16.dp, vertical = 14.dp)
             .semantics(mergeDescendants = true) { contentDescription = "${account.username}. $description" },
     ) {

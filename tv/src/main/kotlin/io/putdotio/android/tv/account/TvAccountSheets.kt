@@ -60,12 +60,6 @@ import io.putdotio.android.tv.TvSideSheet
 import io.putdotio.android.tv.files.tvLabel
 import io.putdotio.android.tv.focusRequesterIf
 
-internal data class TvSheetChoice<T>(
-    val value: T,
-    val label: String,
-    val description: String? = null,
-)
-
 @Composable
 internal fun <T> TvChoiceSheet(
     title: String,
@@ -89,7 +83,12 @@ private fun <T> ColumnScope.TvChoiceSheetBody(
     initialFocus: FocusRequester,
 ) {
     var pending by remember(selected) { mutableStateOf(selected) }
+    val saveFocus = remember { FocusRequester() }
     val focusIndex = choices.indexOfFirst { it.value == selected }.coerceAtLeast(0)
+    LaunchedEffect(Unit) {
+        withFrameNanos {}
+        runCatching { initialFocus.requestFocus() }
+    }
     Column(
         modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
     ) {
@@ -97,7 +96,10 @@ private fun <T> ColumnScope.TvChoiceSheetBody(
             TvSheetRadioOption(
                 choice = choice,
                 checked = choice.value == pending,
-                onClick = { pending = choice.value },
+                onClick = {
+                    pending = choice.value
+                    saveFocus.requestFocus()
+                },
                 modifier = Modifier.focusRequesterIf(index == focusIndex, initialFocus),
             )
         }
@@ -106,9 +108,12 @@ private fun <T> ColumnScope.TvChoiceSheetBody(
         TvButton(onClick = onDismiss, style = TvButtonStyle.Text) {
             Text(stringResource(R.string.tv_account_cancel))
         }
-        TvButton(onClick = { pending?.let(onSave) }, style = TvButtonStyle.Filled, enabled = pending != null) {
-            Text(stringResource(R.string.tv_account_save))
-        }
+        TvButton(
+            onClick = { pending?.let(onSave) },
+            style = TvButtonStyle.Filled,
+            enabled = pending != null,
+            modifier = Modifier.focusRequester(saveFocus),
+        ) { Text(stringResource(R.string.tv_account_save)) }
     }
 }
 
@@ -219,10 +224,6 @@ internal fun TvTunnelRouteSheet(
         title = stringResource(R.string.tv_account_tunnel_route),
     ) { initialFocus ->
         val loaded = result
-        LaunchedEffect(loaded == null) {
-            withFrameNanos {}
-            runCatching { initialFocus.requestFocus() }
-        }
         when (loaded) {
             is AccountSettingsRepositoryResult.Success -> {
                 val choices = loaded.value.map { route ->
