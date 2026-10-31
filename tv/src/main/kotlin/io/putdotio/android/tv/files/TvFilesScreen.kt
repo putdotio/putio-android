@@ -665,6 +665,7 @@ internal fun TvFilesRow(
 @Composable
 private fun TvWatchedIndicator(progress: FilesPlaybackProgress, focused: Boolean) {
     val accent = tvAccent(focused)
+    val track = if (focused) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.surfaceVariant
     val fraction = progress.fraction
     val label = if (fraction == null) {
         stringResource(R.string.tv_files_watched)
@@ -677,9 +678,7 @@ private fun TvWatchedIndicator(progress: FilesPlaybackProgress, focused: Boolean
                 modifier = Modifier
                     .width(120.dp)
                     .height(4.dp)
-                    .background(
-                        if (focused) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.surfaceVariant,
-                    )
+                    .background(track)
                     .clearAndSetSemantics {},
             ) {
                 Box(
