@@ -433,7 +433,7 @@ private fun TvStepButton(
         onClick = { onClick?.invoke() },
         enabled = onClick != null,
         modifier = Modifier
-            .then(if (buttons.width != null) Modifier.width(buttons.width) else Modifier.widthIn(min = STEP_BUTTON_WIDTH))
+            .then(buttons.width?.let { Modifier.width(it) } ?: Modifier.widthIn(min = STEP_BUTTON_WIDTH))
             .then(if (focus != null) Modifier.focusRequester(focus) else Modifier)
             .semantics { contentDescription = description },
     ) {

@@ -28,6 +28,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -360,12 +361,12 @@ private fun TvReadyPlayer(
                         cues = cues,
                         history = cueHistory,
                         delayMillis = options.subtitleOffsetMillis,
-                        preview = overlay.sheet == TvPlayerSheet.SizeAndTiming && !playWhenReady,
+                        preview = overlay.previewsTiming(playWhenReady),
                     ),
                     videoAspectRatio = videoSize.displayAspectRatioOrNull(),
                     modifier = Modifier
                         .align(Alignment.Center)
-                        .offset(x = if (overlay.sheet != null) -SUBTITLES_BESIDE_SHEET else 0.dp),
+                        .offset(x = overlay.subtitleShift()),
                     textScale = appearance.textSize.scale,
                     bottomPaddingFraction = subtitleBottomPadding(overlay.controlsVisible),
                 )
@@ -458,6 +459,11 @@ private fun rememberShownCues(
 private const val DELAYED_CUE_TICK_MILLIS = 50L
 private const val SUBTITLES_ABOVE_CONTROLS = 0.22f
 private val SUBTITLES_BESIDE_SHEET = 180.dp
+
+private fun TvPlayerOverlay.previewsTiming(playing: Boolean): Boolean =
+    sheet == TvPlayerSheet.SizeAndTiming && !playing
+
+private fun TvPlayerOverlay.subtitleShift(): Dp = if (sheet != null) -SUBTITLES_BESIDE_SHEET else 0.dp
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 private fun subtitleBottomPadding(controlsVisible: Boolean): Float =
