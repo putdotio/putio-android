@@ -6,7 +6,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -14,33 +17,40 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioRadius
+import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.tv.auth.TvLinkFailure
 import io.putdotio.android.tv.auth.TvLinkPhase
 import io.putdotio.android.tv.auth.TvLinkStop
 
-/**
- * Device-code sign-in per the oracle (01-auth-code, 02-auth-logging-in): code tiles,
- * put.io/link, and a "Get new code" action that is the only focusable thing on screen. Beside
- * the code, a QR code of put.io's `/link?code=` page lets a phone open the approval with the
- * code filled in.
- */
 @Composable
 internal fun TvLinkScreen(
     phase: TvLinkPhase,
@@ -48,161 +58,258 @@ internal fun TvLinkScreen(
     onRequestNewCode: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val newCodeFocus = remember { FocusRequester() }
-    val canRequestNewCode = phase != TvLinkPhase.Validating && phase != TvLinkPhase.RequestingCode
-    LaunchedEffect(canRequestNewCode) {
-        if (canRequestNewCode) newCodeFocus.requestFocus()
-    }
-
-    Column(
+    Box(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .padding(horizontal = 80.dp, vertical = 48.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
+            .background(MaterialTheme.colorScheme.background),
     ) {
-        Text(
-            text = stringResource(R.string.tv_link_title),
-            style = MaterialTheme.typography.displaySmall,
-            color = MaterialTheme.colorScheme.onBackground,
-            textAlign = TextAlign.Center,
-        )
+        TvWordmark(Modifier.padding(top = TV_VERTICAL_MARGIN))
         Column(
-            modifier = Modifier.padding(top = 40.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = STAGE_TOP),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            TvWelcomeStage()
+            Text(
+                text = stringResource(if (sessionExpired) R.string.tv_link_back_title else R.string.tv_link_title),
+                style = MaterialTheme.typography.titleLarge.copy(fontSize = 26.sp, lineHeight = 30.sp),
+                color = MaterialTheme.colorScheme.onSurface,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = TITLE_TOP).semantics { heading() },
+            )
             if (sessionExpired) {
-                StatusLine(stringResource(R.string.tv_link_session_expired))
-            }
-            when (phase) {
-                TvLinkPhase.RequestingCode -> StatusLine(stringResource(R.string.tv_link_requesting))
-                is TvLinkPhase.AwaitingLink -> AwaitingLinkBody(phase.code)
-                TvLinkPhase.Validating -> StatusLine(stringResource(R.string.tv_link_validating))
-                is TvLinkPhase.Stopped -> StoppedBody(phase.reason)
-            }
-        }
-        if (canRequestNewCode) {
-            TvButton(
-                onClick = onRequestNewCode,
-                modifier = Modifier
-                    .padding(top = 40.dp)
-                    .focusRequester(newCodeFocus),
-            ) {
-                Text(stringResource(R.string.tv_link_new_code))
+                Text(
+                    text = stringResource(R.string.tv_link_session_expired),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 13.dp),
+                )
             }
         }
+        LinkColumns(
+            phase = phase,
+            onRequestNewCode = onRequestNewCode,
+            modifier = Modifier.padding(
+                start = TV_SIDE_MARGIN,
+                end = TV_SIDE_MARGIN,
+                top = if (sessionExpired) COLUMNS_TOP_EXPIRED else COLUMNS_TOP,
+                bottom = COLUMNS_BOTTOM,
+            ),
+        )
     }
 }
 
 @Composable
-private fun AwaitingLinkBody(code: String) {
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(64.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
+private fun LinkColumns(
+    phase: TvLinkPhase,
+    onRequestNewCode: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val code = phase.shownCode()
+    val dimmed = phase is TvLinkPhase.Stopped || code == null
+    Row(modifier = modifier.fillMaxSize()) {
         Column(
+            modifier = Modifier.weight(1f),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(COLUMN_GAP),
         ) {
-            CodeInstructions(code)
-        }
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            TvQrCode(
-                text = tvLinkPageUrl(code),
-                description = stringResource(R.string.tv_link_qr_description),
-                dark = MaterialTheme.colorScheme.background,
-                light = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier
-                    .size(184.dp)
-                    .clip(RoundedCornerShape(PutioRadius.small))
-                    .testTag(TV_LINK_QR_TAG),
-            )
+            ColumnTitle(stringResource(R.string.tv_link_phone_title))
+            LinkQr(code = code, dimmed = dimmed)
             Text(
-                text = stringResource(R.string.tv_link_qr_caption),
-                style = MaterialTheme.typography.titleMedium,
+                text = stringResource(R.string.tv_link_phone_caption),
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        Spacer(Modifier.width(DIVIDER_GAP))
+        OrDivider()
+        Spacer(Modifier.width(DIVIDER_GAP))
+        Column(
+            modifier = Modifier.weight(1f),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(COLUMN_GAP),
+        ) {
+            ColumnTitle(stringResource(R.string.tv_link_browser_title))
+            BrowserInstruction()
+            phase.statusText()?.let { status ->
+                Text(
+                    text = status,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                )
+            }
+            CodeTiles(code = code, dimmed = dimmed)
+            NewCodeButton(onClick = onRequestNewCode)
+        }
     }
 }
 
-/**
- * put.io's approval page with [code] filled in: what put.io's own QR image for the code (the
- * SDK's `qrCodeUrl`, a PNG) encodes, drawn here instead of downloaded.
- */
+@Composable
+private fun ColumnTitle(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodyMedium.copy(
+            fontSize = 15.sp,
+            lineHeight = 20.sp,
+            fontWeight = FontWeight.Medium,
+        ),
+        color = MaterialTheme.colorScheme.onSurface,
+    )
+}
+
+@Composable
+private fun BrowserInstruction() {
+    val url = stringResource(R.string.tv_link_url)
+    val sentence = stringResource(R.string.tv_link_browser_instruction, url)
+    val start = sentence.indexOf(url)
+    Text(
+        text = buildAnnotatedString {
+            append(sentence.substring(0, start))
+            withStyle(SpanStyle(color = PutioDesignTokens.yellowSolid, fontWeight = FontWeight.Medium)) { append(url) }
+            append(sentence.substring(start + url.length))
+        },
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+@Composable
+private fun LinkQr(
+    code: String?,
+    dimmed: Boolean,
+) {
+    val shape = RoundedCornerShape(PutioRadius.largeIncreased)
+    val modifier = Modifier
+        .size(QR_SIZE)
+        .alpha(if (dimmed) DIMMED_ALPHA else 1f)
+        .clip(shape)
+    if (code == null) {
+        Box(modifier.background(MaterialTheme.colorScheme.inverseSurface))
+        return
+    }
+    TvQrCode(
+        text = tvLinkPageUrl(code),
+        description = stringResource(R.string.tv_link_qr_description),
+        dark = MaterialTheme.colorScheme.background,
+        light = MaterialTheme.colorScheme.inverseSurface,
+        modifier = modifier.testTag(TV_LINK_QR_TAG),
+    )
+}
+
 internal fun tvLinkPageUrl(code: String): String = "https://app.put.io/link?code=${Uri.encode(code)}"
 
 @Composable
-private fun CodeInstructions(code: String) {
-    Text(
-        text = stringResource(R.string.tv_link_instruction),
-        style = MaterialTheme.typography.titleLarge,
-        color = MaterialTheme.colorScheme.onBackground,
-    )
-    val description = stringResource(R.string.tv_link_code_description, code)
+private fun CodeTiles(
+    code: String?,
+    dimmed: Boolean,
+) {
+    val characters = code?.map(Char::toString) ?: List(PLACEHOLDER_TILES) { "" }
+    val description = code?.let { stringResource(R.string.tv_link_code_description, it) }
+    val textColor = if (dimmed) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
     Row(
-        modifier = Modifier.semantics(mergeDescendants = true) { contentDescription = description },
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.semantics(mergeDescendants = true) {
+            if (description != null) contentDescription = description
+        },
+        horizontalArrangement = Arrangement.spacedBy(TILE_GAP),
     ) {
-        code.forEach { character ->
+        characters.forEach { character ->
             Box(
                 modifier = Modifier
-                    .size(56.dp)
-                    .background(MaterialTheme.colorScheme.onBackground, RoundedCornerShape(PutioRadius.small)),
+                    .size(width = TILE_WIDTH, height = TILE_HEIGHT)
+                    .background(PutioDesignTokens.componentBgActive, RoundedCornerShape(PutioRadius.small)),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = character.toString(),
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.background,
+                    text = character,
+                    style = PutioTypeScale.tvMono.copy(fontSize = 32.sp, lineHeight = 36.sp),
+                    color = textColor,
                 )
             }
         }
     }
-    Text(
-        text = stringResource(R.string.tv_link_follow),
-        style = MaterialTheme.typography.titleLarge,
-        color = MaterialTheme.colorScheme.onBackground,
-        modifier = Modifier.padding(top = 24.dp),
-    )
-    Text(
-        text = stringResource(R.string.tv_link_url),
-        style = MaterialTheme.typography.headlineMedium,
-        fontWeight = FontWeight.Bold,
-        color = PutioDesignTokens.yellowSolid,
-    )
 }
 
 @Composable
-private fun StoppedBody(reason: TvLinkStop) {
-    val message = when (reason) {
+private fun NewCodeButton(onClick: () -> Unit) {
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        withFrameNanos {}
+        focus.requestFocus()
+    }
+    TvButton(onClick = onClick, style = TvButtonStyle.Text, modifier = Modifier.focusRequester(focus)) {
+        Icon(
+            painter = painterResource(R.drawable.ic_ph_arrows_clockwise),
+            contentDescription = null,
+            modifier = Modifier.size(ICON_SIZE),
+        )
+        Text(stringResource(R.string.tv_link_new_code))
+    }
+}
+
+@Composable
+private fun OrDivider() {
+    Box(modifier = Modifier.fillMaxHeight(), contentAlignment = Alignment.Center) {
+        Box(
+            Modifier
+                .width(DIVIDER_WIDTH)
+                .fillMaxHeight()
+                .background(MaterialTheme.colorScheme.borderVariant),
+        )
+        Text(
+            text = stringResource(R.string.tv_link_or),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier
+                .background(MaterialTheme.colorScheme.background)
+                .padding(vertical = 6.dp),
+        )
+    }
+}
+
+private fun TvLinkPhase.shownCode(): String? =
+    when (this) {
+        TvLinkPhase.RequestingCode -> null
+        is TvLinkPhase.AwaitingLink -> code
+        is TvLinkPhase.Validating -> code
+        is TvLinkPhase.Stopped -> code
+    }
+
+@Composable
+private fun TvLinkPhase.statusText(): String? =
+    when (this) {
+        TvLinkPhase.RequestingCode -> stringResource(R.string.tv_link_requesting)
+        is TvLinkPhase.AwaitingLink -> null
+        is TvLinkPhase.Validating -> stringResource(R.string.tv_link_validating)
+        is TvLinkPhase.Stopped -> stringResource(reason.message())
+    }
+
+private fun TvLinkStop.message(): Int =
+    when (this) {
         TvLinkStop.CodeExpired -> R.string.tv_link_expired
         TvLinkStop.StorageUnavailable -> R.string.tv_link_failed_storage
         is TvLinkStop.Failed ->
-            when (reason.failure) {
+            when (failure) {
                 TvLinkFailure.NETWORK -> R.string.tv_link_failed_network
                 TvLinkFailure.MISCONFIGURED -> R.string.tv_link_failed_misconfigured
                 TvLinkFailure.SERVER -> R.string.tv_link_failed_server
             }
     }
-    StatusLine(stringResource(message))
-}
-
-@Composable
-private fun StatusLine(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.titleLarge,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        textAlign = TextAlign.Center,
-        modifier = Modifier.width(720.dp),
-    )
-}
 
 internal const val TV_LINK_QR_TAG = "tv-link-qr"
+
+private val STAGE_TOP = 75.dp
+private val TITLE_TOP = 20.dp
+private val COLUMNS_TOP = 235.dp
+private val COLUMNS_TOP_EXPIRED = 245.dp
+private val COLUMNS_BOTTOM = 27.dp
+private val COLUMN_GAP = 12.dp
+private val DIVIDER_GAP = 40.dp
+private val DIVIDER_WIDTH = 1.dp
+private val QR_SIZE: Dp = 170.dp
+private val TILE_WIDTH = 48.dp
+private val TILE_HEIGHT = 60.dp
+private val TILE_GAP = 4.dp
+private val ICON_SIZE = 16.dp
+private const val PLACEHOLDER_TILES = 6
+private const val DIMMED_ALPHA = 0.35f

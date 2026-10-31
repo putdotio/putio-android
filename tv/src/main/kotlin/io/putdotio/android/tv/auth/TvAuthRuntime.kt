@@ -96,6 +96,8 @@ internal class TvAuthRuntime(
                     }
                 }
             }
+            val revalidation = TvSessionRevalidation(authController, applicationScope)
+            watchNetworkReturns(context) { applicationScope.launch { revalidation.onNetworkReturned() } }
             val accountSettings = SdkAccountSettingsRepository(putioClient)
             ProductAnalytics.setConsentCheck { check ->
                 val accountId = (authController.state.value as? TvAuthState.SignedIn)?.account?.userId
@@ -132,7 +134,8 @@ internal fun TvAuthState.diagnosticsAllowed(): Boolean? =
         TvAuthState.SigningOut,
         -> null
 
-        is TvAuthState.Linking -> true.takeUnless { phase == TvLinkPhase.Stopped(TvLinkStop.StorageUnavailable) }
+        is TvAuthState.Linking ->
+            true.takeUnless { (phase as? TvLinkPhase.Stopped)?.reason == TvLinkStop.StorageUnavailable }
         is TvAuthState.SignedIn -> account.diagnosticsEnabled
     }
 

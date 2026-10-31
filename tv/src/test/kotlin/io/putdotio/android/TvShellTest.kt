@@ -27,6 +27,7 @@ import io.putdotio.android.search.SearchContent
 import io.putdotio.android.search.SearchTerm
 import io.putdotio.android.tv.TvDestination
 import io.putdotio.android.tv.TvLinkScreen
+import io.putdotio.android.tv.TvOfflineScreen
 import io.putdotio.android.tv.search.TV_SEARCH_FIELD_TAG
 import io.putdotio.android.tv.search.TvRecentSearchActions
 import io.putdotio.android.tv.search.TvSearchActions
@@ -64,7 +65,7 @@ class TvShellTest {
     val compose = createAndroidComposeRule<androidx.activity.ComponentActivity>()
 
     @Test
-    fun linkScreenShowsCodeAndLinkUrlWithNewCodeFocused() {
+    fun linkScreenShowsBothWaysInWithNewCodeFocused() {
         var sessionExpired by mutableStateOf(false)
         compose.setTvContent {
             TvLinkScreen(
@@ -74,31 +75,49 @@ class TvShellTest {
             )
         }
 
+        compose.onNodeWithText("Sign in to put.io").assertIsDisplayed()
+        compose.onNodeWithText("With your phone").assertIsDisplayed()
+        compose.onNodeWithText("Scan with your camera and approve.").assertIsDisplayed()
+        compose.onNodeWithText("In a browser").assertIsDisplayed()
+        compose.onNodeWithText("Go to put.io/link and enter").assertIsDisplayed()
         compose.onNodeWithContentDescription("Activation code GIQTKN").assertIsDisplayed()
-        compose.onNodeWithText("put.io/link").assertIsDisplayed()
-        compose.onNodeWithText("Get new code").assertIsFocused()
+        compose.onNodeWithText("Get a new code").assertIsFocused()
+        compose.onNodeWithText("This code expired.").assertDoesNotExist()
         compose.onNodeWithText("Your session expired. Sign in again to continue.").assertDoesNotExist()
 
         compose.runOnIdle { sessionExpired = true }
+        compose.onNodeWithText("Welcome back!").assertIsDisplayed()
         compose.onNodeWithText("Your session expired. Sign in again to continue.").assertIsDisplayed()
         compose.onNodeWithContentDescription("Activation code GIQTKN").assertIsDisplayed()
     }
 
     @Test
-    fun expiredCodeExplainsAndOffersANewOne() {
+    fun expiredCodeStaysOnScreenUnderTheNoticeAndOffersANewOne() {
         var requests = 0
         compose.setTvContent {
             TvLinkScreen(
-                phase = TvLinkPhase.Stopped(TvLinkStop.CodeExpired),
-                sessionExpired = true,
+                phase = TvLinkPhase.Stopped(TvLinkStop.CodeExpired, code = "GIQTKN"),
+                sessionExpired = false,
                 onRequestNewCode = { requests += 1 },
             )
         }
 
-        compose.onNodeWithText("Your session expired. Sign in again to continue.").assertIsDisplayed()
-        compose.onNodeWithText("That code expired. Get a new one to continue.").assertIsDisplayed()
-        compose.onNodeWithText("Get new code").assertIsFocused().performKeyInput { pressCenter() }
+        compose.onNodeWithText("This code expired.").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Activation code GIQTKN").assertIsDisplayed()
+        compose.onNodeWithText("Get a new code").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(1, requests)
+    }
+
+    @Test
+    fun offlineStartSaysTheSignInIsSavedAndTriesNowOnRequest() {
+        var tries = 0
+        compose.setTvContent { TvOfflineScreen(onTryNow = { tries += 1 }) }
+
+        compose.onNodeWithText("Can’t reach put.io.").assertIsDisplayed()
+        compose.onNodeWithText("Your sign-in is saved. The app tries again on its own when the network is back.")
+            .assertIsDisplayed()
+        compose.onNodeWithText("Try now").assertIsFocused().performKeyInput { pressCenter() }
+        assertEquals(1, tries)
     }
 
     @Test

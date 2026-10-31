@@ -39,12 +39,11 @@ class TvLinkQrTest {
         show(TvLinkPhase.AwaitingLink("GIQTKN"))
 
         compose.onNodeWithContentDescription("Activation code GIQTKN").assertIsDisplayed()
-        compose.onNodeWithText("Or scan with your phone").assertIsDisplayed()
+        compose.onNodeWithText("Scan with your camera and approve.").assertIsDisplayed()
         val qr = compose.onNodeWithTag(TV_LINK_QR_TAG)
         qr.assertIsDisplayed()
         // The payload put.io's own QR image for a code (the SDK's qrCodeUrl) carries.
         assertEquals("https://app.put.io/link?code=GIQTKN", scan(qr.captureToImage()))
-        // Get new code stays the only focus target.
         assertFalse(isFocusable().matches(qr.fetchSemanticsNode()))
     }
 

@@ -32,7 +32,10 @@ Mobile, on the emulator harness against the live API:
 
 TV:
 
-- Device-code sign-in with a QR code
+- Device-code sign-in: the phone's rolling Welcome stage, a QR code or the
+  code at put.io/link, and expired codes renewed silently up to three times
+- A startup that checks the session and, offline, retries when the network
+  returns
 - A top bar of Home, Files, Search, History and Account tabs, each with its
   own Back history; Home is a placeholder until Continue watching lands
 - Full-screen playback with the phone's controls: D-pad scrubbing, a Resume

@@ -40,6 +40,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.IOException
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -237,8 +238,9 @@ class TvAuthControllerTest {
         val harness = Harness()
         harness.controller.restoreSession()
 
+        harness.gateway.emit(DeviceCodeAuthState.AwaitingLink("ABCDEF", "https://put.io/link", budget = BUDGET))
         harness.gateway.emit(DeviceCodeAuthState.Validating)
-        assertEquals(TvAuthState.Linking(TvLinkPhase.Validating), harness.controller.state.value)
+        assertEquals(TvAuthState.Linking(TvLinkPhase.Validating("ABCDEF")), harness.controller.state.value)
         harness.gateway.emit(DeviceCodeAuthState.Linked("fresh-token", accountInfo()))
 
         assertEquals("fresh-token", harness.tokenStore.stored?.reveal())
@@ -247,19 +249,48 @@ class TvAuthControllerTest {
     }
 
     @Test
-    fun `an expired code stops polling until the user asks for a new one`() = runTest {
+    fun `an expired code is renewed silently three times in a row, then dims until the user asks again`() = runTest {
         val harness = Harness()
         harness.controller.restoreSession()
 
+        repeat(MAX_SILENT_RENEWALS) { renewal ->
+            val code = "CODE$renewal"
+            harness.gateway.emit(DeviceCodeAuthState.AwaitingLink(code, "https://put.io/link", budget = BUDGET))
+            harness.gateway.emit(DeviceCodeAuthState.Expired(DeviceCodeAuthState.Expired.Reason.BUDGET_ELAPSED))
+            harness.gateway.emit(DeviceCodeAuthState.Requesting)
+            assertEquals(TvAuthState.Linking(TvLinkPhase.AwaitingLink(code)), harness.controller.state.value)
+        }
+        harness.gateway.emit(DeviceCodeAuthState.AwaitingLink("LASTCD", "https://put.io/link", budget = BUDGET))
         harness.gateway.emit(DeviceCodeAuthState.Expired(DeviceCodeAuthState.Expired.Reason.BUDGET_ELAPSED))
+
         assertEquals(
-            TvAuthState.Linking(TvLinkPhase.Stopped(TvLinkStop.CodeExpired)),
+            TvAuthState.Linking(TvLinkPhase.Stopped(TvLinkStop.CodeExpired, code = "LASTCD")),
             harness.controller.state.value,
         )
+        assertEquals(MAX_SILENT_RENEWALS + 1, harness.gateway.linkAttempts)
 
         assertTrue(harness.controller.requestNewCode())
         assertEquals(TvAuthState.Linking(TvLinkPhase.RequestingCode), harness.controller.state.value)
-        assertEquals(2, harness.gateway.linkAttempts)
+        repeat(MAX_SILENT_RENEWALS) {
+            harness.gateway.emit(DeviceCodeAuthState.Expired(DeviceCodeAuthState.Expired.Reason.BUDGET_ELAPSED))
+        }
+        assertEquals(TvAuthState.Linking(TvLinkPhase.RequestingCode), harness.controller.state.value)
+        assertEquals(2 * MAX_SILENT_RENEWALS + 2, harness.gateway.linkAttempts)
+    }
+
+    @Test
+    fun `a code put io rejects dims at once without a silent renewal`() = runTest {
+        val harness = Harness()
+        harness.controller.restoreSession()
+
+        harness.gateway.emit(DeviceCodeAuthState.AwaitingLink("ABCDEF", "https://put.io/link", budget = BUDGET))
+        harness.gateway.emit(DeviceCodeAuthState.Expired(DeviceCodeAuthState.Expired.Reason.CODE_REJECTED))
+
+        assertEquals(
+            TvAuthState.Linking(TvLinkPhase.Stopped(TvLinkStop.CodeExpired, code = "ABCDEF")),
+            harness.controller.state.value,
+        )
+        assertEquals(1, harness.gateway.linkAttempts)
     }
 
     @Test
@@ -545,6 +576,59 @@ class TvAuthControllerTest {
             harness.controller.state.value,
         )
     }
+
+    @Test
+    fun `an offline start checks again when the network returns and opens the shell`() = runTest {
+        val harness = offlineHarness()
+        val revalidation = TvSessionRevalidation(harness.controller, harness.scope)
+        harness.controller.restoreSession()
+        assertEquals(
+            TvAuthState.ValidationUnavailable(TvSessionValidationSource.RESTORE),
+            harness.controller.state.value,
+        )
+
+        harness.gateway.validation = TvSessionValidation.Valid(accountInfo().toTvAccount())
+        revalidation.onNetworkReturned()
+        harness.scope.testScheduler.runCurrent()
+
+        assertTrue(harness.controller.state.value is TvAuthState.SignedIn)
+    }
+
+    @Test
+    fun `a network return retries three times at most while put io stays out of reach`() = runTest {
+        val harness = offlineHarness()
+        val revalidation = TvSessionRevalidation(harness.controller, harness.scope)
+        harness.controller.restoreSession()
+
+        harness.scope.testScheduler.advanceTimeBy(5.minutes)
+        assertEquals(1, harness.gateway.calls.count { it == "validate" })
+
+        revalidation.onNetworkReturned()
+        harness.scope.testScheduler.advanceUntilIdle()
+
+        assertEquals(4, harness.gateway.calls.count { it == "validate" })
+        assertEquals(TvAuthState.ValidationUnavailable(TvSessionValidationSource.RETRY), harness.controller.state.value)
+    }
+
+    @Test
+    fun `a network return during the start's check retries once that check fails`() = runTest {
+        val harness = offlineHarness()
+        val revalidation = TvSessionRevalidation(harness.controller, harness.scope)
+        val gate = CompletableDeferred<Unit>()
+        harness.gateway.validationGate = gate
+        harness.scope.launch { harness.controller.restoreSession() }
+        assertTrue(harness.controller.state.value is TvAuthState.ValidatingSession)
+
+        revalidation.onNetworkReturned()
+        harness.gateway.validationGate = null
+        gate.complete(Unit)
+        harness.scope.testScheduler.advanceUntilIdle()
+
+        assertEquals(4, harness.gateway.calls.count { it == "validate" })
+    }
+
+    private fun offlineHarness() =
+        Harness(storedToken = "stored-token", validation = TvSessionValidation.Unavailable(IOException("offline")))
 
     private inner class Harness(
         storedToken: String? = null,
