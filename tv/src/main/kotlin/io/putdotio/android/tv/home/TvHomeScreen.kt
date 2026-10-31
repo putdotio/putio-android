@@ -94,7 +94,7 @@ internal fun TvHomeScreen(
     if (continueWatching.isEmpty() && pinnedCards?.isEmpty() == true) {
         TvEmptyState(
             glyph = null,
-            glyphText = TvHomeGlyph,
+            glyphText = HOME_GLYPH,
             headline = stringResource(R.string.tv_home_first_run_title),
             message = stringResource(R.string.tv_home_first_run_message),
             action = TvEmptyStateAction(
@@ -138,7 +138,7 @@ internal fun TvHomeScreen(
             is TvPinnedRow.Ready -> if (pinned.cards.isEmpty()) {
                 TvHomeSection(stringResource(R.string.tv_home_pinned), cardsGap = EMPTY_GAP) {
                     TvHomeInlineState(
-                        glyph = TvHomeGlyph,
+                        glyph = HOME_GLYPH,
                         headline = stringResource(R.string.tv_home_pinned_empty_title),
                         message = stringResource(R.string.tv_home_pinned_empty_message),
                     )
@@ -326,9 +326,10 @@ private fun TvHomeProgress(progress: Float?, focused: Boolean) {
     }
 }
 
-internal const val TvHomeGlyph = "( ˘▽˘)っ"
+internal const val HOME_GLYPH = "( ˘▽˘)っ"
 
-private val FocusedTrack = Color(0x24000000)
+private val FocusedTrack = Color(FOCUSED_TRACK)
+private const val FOCUSED_TRACK = 0x24000000
 private val HOME_TOP = 4.dp
 private val SECTION_GAP = 21.dp
 private val LABEL_GAP = 9.dp

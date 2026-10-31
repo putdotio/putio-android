@@ -62,9 +62,9 @@ public interface ContinueWatchingStore {
 
 /**
  * put.io keeps a position per file but has no list of started videos, so the row comes from videos
- * played on this device, on the phone and on TV alike. It records a video once the player has resolved its name and duration and
- * put.io has accepted a position for it, newest first, at most [MAX_ENTRIES]. Finished, unwatched
- * and deleted videos leave. Main-thread only.
+ * played on this device, on the phone and on TV alike. It records a video once the player has
+ * resolved its name and duration and put.io has accepted a position for it, newest first, at most
+ * [MAX_ENTRIES]. Finished, unwatched and deleted videos leave. Main-thread only.
  */
 public class ContinueWatching(
     private val store: ContinueWatchingStore,

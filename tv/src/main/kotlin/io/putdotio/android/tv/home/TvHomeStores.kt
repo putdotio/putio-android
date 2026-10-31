@@ -10,6 +10,7 @@ import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.PinnedFiles
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 internal interface TvShowHomeStore {
     fun read(): Boolean
@@ -25,7 +26,16 @@ internal interface TvShowHomeStore {
     }
 }
 
-/** Show Home for one account on this TV, on until turned off; sign-out clears every account's. */
+internal class TvShowHomeSetting(private val store: TvShowHomeStore) {
+    private val mutableShown = MutableStateFlow(store.read())
+    val shown: StateFlow<Boolean> = mutableShown.asStateFlow()
+
+    fun set(show: Boolean) {
+        store.write(show)
+        mutableShown.value = show
+    }
+}
+
 internal class TvDeviceShowHomeStore(context: Context, userId: Long) : TvShowHomeStore {
     private val preferences = preferences(context)
     private val key = "show-home-$userId"

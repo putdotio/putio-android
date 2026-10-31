@@ -26,6 +26,7 @@ import io.putdotio.android.files.PinnedFiles
 import io.putdotio.android.tv.home.TvHomePins
 import io.putdotio.android.tv.home.TvMemoryContinueWatchingStore
 import io.putdotio.android.tv.home.TvNoPinnedFiles
+import io.putdotio.android.tv.home.TvShowHomeSetting
 import io.putdotio.android.tv.home.TvShowHomeStore
 import io.putdotio.android.history.HistoryController
 import io.putdotio.android.history.HistoryFileOpener
@@ -142,9 +143,7 @@ internal class TvSession internal constructor(
     private val recentSearches = dependencies.recentSearchStore(parentScope)
     val continueWatching = ContinueWatching(dependencies.continueWatchingStore(accountId ?: 0L))
     val pins: PinnedFiles = dependencies.pinnedFiles(parentScope)
-    private val showHomeStore = dependencies.showHomeStore(accountId ?: 0L)
-    private val mutableShowHome = MutableStateFlow(showHomeStore.read())
-    val showHome: StateFlow<Boolean> = mutableShowHome.asStateFlow()
+    val showHome = TvShowHomeSetting(dependencies.showHomeStore(accountId ?: 0L))
     val files = FilesBrowserController(dependencies.filesRepository, parentScope)
     val search = SearchController(dependencies.searchRepository, recentSearches, parentScope)
     val history = HistoryController(
@@ -189,13 +188,19 @@ internal class TvSession internal constructor(
 
     val homePins = TvHomePins(pins, dependencies.filesItemResolver, dependencies.folderCounts, scope)
 
+    internal val positionSaved: (fileId: Long, seconds: Double) -> Unit = { fileId, seconds ->
+        files.dispatch(FilesBrowserEvent.PlaybackPositionReported(FilesItemId(fileId), seconds))
+        watchNextPlayback.saved(fileId, seconds)
+        continueWatching.positionSaved(FilesItemId(fileId), seconds)
+    }
+
     /** Start-from write-back for this session's playback; see [TvPlaybackReporting]. */
     val playbackReporting = TvPlaybackReporting(
         scope = scope,
         settings = settings.state,
         sessionCurrent = sessionCurrent,
         write = dependencies.writePlaybackPosition,
-        onSaved = ::positionSaved,
+        onSaved = positionSaved,
     )
 
     /**
@@ -247,17 +252,6 @@ internal class TvSession internal constructor(
     }
 
     fun retryRecentSearches() = recentSearches.retry()
-
-    fun setShowHome(show: Boolean) {
-        showHomeStore.write(show)
-        mutableShowHome.value = show
-    }
-
-    internal fun positionSaved(fileId: Long, seconds: Double) {
-        files.dispatch(FilesBrowserEvent.PlaybackPositionReported(FilesItemId(fileId), seconds))
-        watchNextPlayback.saved(fileId, seconds)
-        continueWatching.positionSaved(FilesItemId(fileId), seconds)
-    }
 
     /**
      * The file playing full-screen, or null while the shell shows. It lives here so playback

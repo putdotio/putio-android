@@ -198,6 +198,8 @@ internal fun TvAccountScreen(
 
 internal class TvShowHome(val shown: Boolean, val onChange: (Boolean) -> Unit)
 
+private class TvLibraryRows(val trashSizeBytes: Long?, val onManageTrash: (() -> Unit)?, val showHome: TvShowHome?)
+
 private class TvAccountFocus {
     private val requesters = mutableMapOf<String, FocusRequester>()
     private val present = mutableSetOf<String>()
@@ -329,10 +331,8 @@ private fun TvAccountBody(
                 onSettingsEvent = onSettingsEvent,
                 onAppConfigEvent = onAppConfigEvent,
                 open = open,
-                showHome = showHome,
             ),
-            trashSizeBytes = trashSizeBytes,
-            onManageTrash = onManageTrash,
+            library = TvLibraryRows(trashSizeBytes, onManageTrash, showHome),
             playbackPreference = appConfigState.playbackPreference(),
         )
     }
@@ -413,8 +413,7 @@ private fun TvAccountGroupRows(
     focus: TvAccountFocus,
     rightPane: FocusRequester,
     rows: TvAccountRowsScope,
-    trashSizeBytes: Long?,
-    onManageTrash: (() -> Unit)?,
+    library: TvLibraryRows,
     playbackPreference: PlaybackPreference,
 ) {
     Column(
@@ -437,7 +436,7 @@ private fun TvAccountGroupRows(
     ) {
         TvGroupLabel(stringResource(group.value.label))
         when (group.value) {
-            TvAccountGroup.Library -> rows.Library(trashSizeBytes, onManageTrash)
+            TvAccountGroup.Library -> rows.Library(library)
             TvAccountGroup.Playback -> rows.Playback()
             TvAccountGroup.Subtitles -> rows.Subtitles()
             TvAccountGroup.Privacy -> rows.Privacy(rows.open)
@@ -540,7 +539,6 @@ private class TvAccountRowsScope(
     val onSettingsEvent: (AccountSettingsEvent) -> Boolean,
     val onAppConfigEvent: (AndroidAppConfigEvent) -> Boolean,
     val open: (TvAccountSheet, String) -> Unit,
-    val showHome: TvShowHome?,
 ) {
     private val settings = (settingsState.content as? AccountSettingsContent.Ready)?.preferences
     private val config = (appConfigState.content as? AndroidAppConfigContent.Ready)?.preferences
@@ -552,7 +550,10 @@ private class TvAccountRowsScope(
     }
 
     @Composable
-    fun Library(trashSizeBytes: Long?, onManageTrash: (() -> Unit)?) {
+    fun Library(library: TvLibraryRows) {
+        val trashSizeBytes = library.trashSizeBytes
+        val onManageTrash = library.onManageTrash
+        val showHome = library.showHome
         val context = LocalContext.current
         val rows = buildList<@Composable (TvSegment) -> Unit> {
             if (onManageTrash != null) {

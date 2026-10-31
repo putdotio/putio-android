@@ -30,11 +30,6 @@ internal sealed interface TvPinnedRow {
 
 internal data class TvPinnedCard(val item: FilesItem, val itemCount: Int?)
 
-/**
- * Home's Pinned row: each pinned id read as its file, and a folder's item count. A file put.io no
- * longer has is unpinned; other failures leave its card out until the next [refresh]. A 401 is
- * kept in [rejected] for the session to act on.
- */
 internal class TvHomePins(
     private val pins: PinnedFiles,
     private val resolver: FilesItemResolver,

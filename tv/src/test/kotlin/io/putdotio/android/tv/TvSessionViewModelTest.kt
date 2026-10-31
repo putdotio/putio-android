@@ -608,11 +608,11 @@ class TvSessionViewModelTest {
                 dependencies.copy(showHomeStore = { store }),
             ),
         )
-        assertTrue(session.showHome.value)
+        assertTrue(session.showHome.shown.value)
 
-        session.setShowHome(false)
+        session.showHome.set(false)
 
-        assertFalse(session.showHome.value)
+        assertFalse(session.showHome.shown.value)
         assertFalse(store.read())
     }
 
