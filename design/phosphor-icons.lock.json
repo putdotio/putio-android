@@ -394,20 +394,6 @@
     },
     {
       "resDir": "tv/src/main/res",
-      "resource": "ic_ph_headphones",
-      "asset": "assets/regular/headphones.svg",
-      "sourceSha256": "992d04ff6759f1f12d40259298a92589c18556bf5b2ea6f82bc23e74d9c48185",
-      "outputSha256": "ab3e4cd46aff1ff1779134c59be76dae4b9e5e434175dacfad25012ec3751dae"
-    },
-    {
-      "resDir": "tv/src/main/res",
-      "resource": "ic_ph_subtitles_slash",
-      "asset": "assets/regular/subtitles-slash.svg",
-      "sourceSha256": "21b21248cee12eedfe0ab754c0a350f8a709a0eec2087470b688ef18c0d6f5bb",
-      "outputSha256": "a396cf68e2a148ad6d60e83db814a307408c97593a5f8ddc1fac719efc551f85"
-    },
-    {
-      "resDir": "tv/src/main/res",
       "resource": "ic_ph_gauge",
       "asset": "assets/regular/gauge.svg",
       "sourceSha256": "053e22a3b54c3baa7997bd0fddbf2cc35cbdd2662842b553d13d9f2a58c67f4a",
@@ -898,6 +884,41 @@
       "asset": "assets/regular/arrow-left.svg",
       "sourceSha256": "3c2001cf957d182fc54927e4b286cc8cf66dd97830f441ca2650d42a63a9006a",
       "outputSha256": "fbd4030ac270365580ac8035afefbcbf5d010947cf7eed5ac7b807444e71e10f"
+    },
+    {
+      "resDir": "tv/src/main/res",
+      "resource": "ic_ph_arrow_counter_clockwise",
+      "asset": "assets/regular/arrow-counter-clockwise.svg",
+      "sourceSha256": "4eb160d5ae781107c674481ac081962e6bce6281a646129e6c3f960b9dd5dac6",
+      "outputSha256": "734d5522f09320e99143627120ec77a95d06e062a0ae2ecf96607c397aa5d498"
+    },
+    {
+      "resDir": "tv/src/main/res",
+      "resource": "ic_ph_speaker_high",
+      "asset": "assets/regular/speaker-high.svg",
+      "sourceSha256": "caca5fc1ee8489ac19232301d2c96f6d4048802491d75d761bbb89d5c98e459d",
+      "outputSha256": "a8e8a877a4790de86fc1d51c4928f20cc2d6729308a2cd0c74a858c632e475ec"
+    },
+    {
+      "resDir": "tv/src/main/res",
+      "resource": "ic_ph_skip_forward",
+      "asset": "assets/regular/skip-forward.svg",
+      "sourceSha256": "52f1ed5a89f1a38bf8537b38bd2da0501e396fc4cb03a2cdde38d248ceb03fbe",
+      "outputSha256": "e4f57bcff2327f4b22d22eed8bbc6c3f1bc6c85011087672e8c229d458c7f304"
+    },
+    {
+      "resDir": "tv/src/main/res",
+      "resource": "ic_ph_text_aa",
+      "asset": "assets/regular/text-aa.svg",
+      "sourceSha256": "e964560ce335191f6bfc660ee8be894d6459561516152f9fceaddb0b8d00b0d2",
+      "outputSha256": "5f8aec347a0dd1df8a41c8d34ababb2689afd61eb3db6e1d1b881b20e63ce591"
+    },
+    {
+      "resDir": "tv/src/main/res",
+      "resource": "ic_ph_check",
+      "asset": "assets/regular/check.svg",
+      "sourceSha256": "cbb89a8c42f283d4f846eb935e05d88c1be04462f16480e068c0f82b9ce40b12",
+      "outputSha256": "3883f553f4afa50518f14b47c013d8c816f48299f824b508ffb9a3d3a795e698"
     }
   ]
 }

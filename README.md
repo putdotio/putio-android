@@ -35,7 +35,8 @@ TV:
 - Device-code sign-in with a QR code
 - A top bar of Home, Files, Search, History and Account tabs, each with its
   own Back history; Home is a placeholder until Continue watching lands
-- Full-screen playback with D-pad scrubbing, resume and track pickers
+- Full-screen playback with the phone's controls: D-pad scrubbing, a Resume
+  prompt, and Audio, Subtitles (with size and timing) and Speed side sheets
 - The launcher's Play Next row and Android TV system search, with the
   wordmark for files without a screenshot
 - The redesign's foundations: GT America and Berkeley Mono type, one light

@@ -78,8 +78,6 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player as Media3Player
-import androidx.media3.common.C
-import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.Tracks
 import androidx.media3.common.VideoSize
@@ -649,7 +647,7 @@ private class ReadyPlayerState(
 
     /** What showed, by position, for subtitles the viewer delayed. */
     val cueHistory = DelayedSubtitleCues()
-    var textChoice = player.trackSelectionParameters.textChoice()
+    var trackSelection = player.trackSelectionParameters
     var videoSize by mutableStateOf(player.videoSize)
     var playbackState by mutableIntStateOf(player.playbackState)
     var keepScreenOn by mutableStateOf(keepScreenOn)
@@ -1030,9 +1028,8 @@ private fun PlayerListenerEffect(
 
                 override fun onTrackSelectionParametersChanged(parameters: TrackSelectionParameters) {
                     // Off or another subtitle track: what showed before must not replay after a delay.
-                    val text = parameters.textChoice()
-                    if (text != playerState.textChoice) playerState.cueHistory.clear()
-                    playerState.textChoice = text
+                    if (!parameters.sameSubtitleChoice(playerState.trackSelection)) playerState.cueHistory.clear()
+                    playerState.trackSelection = parameters
                 }
 
                 override fun onPositionDiscontinuity(
@@ -1387,10 +1384,6 @@ private fun BoxScope.MobileSeekFeedbackLayer(request: PendingSeek?) {
         )
     }
 }
-
-/** The subtitle part of a track selection: whether text is on, and which text track it pins. */
-private fun TrackSelectionParameters.textChoice(): Pair<Boolean, List<TrackSelectionOverride>> =
-    (C.TRACK_TYPE_TEXT in disabledTrackTypes) to overrides.values.filter { it.type == C.TRACK_TYPE_TEXT }
 
 /** Hands the window's seek actions to the composed screen's seek. */
 private class SeekRelay {

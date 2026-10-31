@@ -74,6 +74,7 @@ import io.putdotio.android.playback.PlaybackNextResult
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
 import io.putdotio.android.playback.PlaybackState
+import io.putdotio.android.playback.rememberNextEpisode
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.playback.SubtitleStartupPolicy
 import io.putdotio.android.playback.confirmedAutoplayNextVideo
@@ -521,30 +522,6 @@ private fun castMediaFor(
     target: PlaybackTarget,
 ): MobileCastMediaLoader? =
     if (load == null) null else { source, subtitleKey -> load(target, source, subtitleKey) }
-
-/**
- * With the account's next_episode on, a playing video asks autoplay's folder walk for the one after
- * it, once. A failed walk offers none; a rejected session still ends.
- */
-@Composable
-private fun rememberNextEpisode(
-    state: PlaybackState,
-    findNextEpisode: (suspend (PlaybackTarget) -> PlaybackNextResult)?,
-    onAuthenticationRequired: suspend () -> Unit,
-): PlaybackTarget? {
-    val ready = state.content is PlaybackContent.Ready && state.target.mediaType == PlaybackMediaType.VIDEO
-    val nextEpisode by produceState<PlaybackTarget?>(null, state.target.fileId, ready, findNextEpisode != null) {
-        value = null
-        val find = findNextEpisode ?: return@produceState
-        if (!ready) return@produceState
-        when (val next = find(state.target)) {
-            is PlaybackNextResult.Found -> value = next.target
-            is PlaybackNextResult.Failure -> if (next.failure.rejectsSession) onAuthenticationRequired()
-            PlaybackNextResult.Ended -> Unit
-        }
-    }
-    return nextEpisode
-}
 
 /**
  * Playing audio asks for its folder once: the files around it for the skip buttons and Up next, and

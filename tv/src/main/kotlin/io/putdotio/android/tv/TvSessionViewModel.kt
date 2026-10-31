@@ -28,6 +28,7 @@ import io.putdotio.android.settings.captureSavedSettings
 import io.putdotio.android.tv.history.isShownOnTv
 import io.putdotio.android.playback.PlaybackController
 import io.putdotio.android.playback.PlaybackMediaType
+import io.putdotio.android.playback.PlaybackNextResult
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
 import io.putdotio.android.playback.PlaybackTarget
@@ -228,6 +229,9 @@ internal class TvSession internal constructor(
      * survives configuration changes and ends with the session.
      */
     val playback: StateFlow<PlaybackController?> = mutablePlayback.asStateFlow()
+
+    /** The video after a target in its folder, by autoplay's walk; Next episode offers it. */
+    val findNextVideo: suspend (PlaybackTarget) -> PlaybackNextResult = playbackRepository::findNextVideo
 
     /** Starts resolving [item] for playback, replacing whatever was playing. */
     fun play(item: FilesItem) {
