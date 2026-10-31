@@ -116,7 +116,7 @@ internal fun TvAccountGroupRow(
         else -> colors.onSurface
     }
     val secondary = when {
-        focused -> TvAccountColors.focusSecondary
+        focused -> TvFocus.contentVariant
         danger -> PutioDesignTokens.redTextSecondary
         else -> colors.onSurfaceVariant
     }
@@ -192,7 +192,7 @@ internal fun TvSettingRow(
     val shape = segment.shape()
     val body: @Composable (Boolean) -> Unit = { isFocused ->
         val content = if (isFocused) TvFocus.content else colors.onSurface
-        val secondary = if (isFocused) TvAccountColors.focusSecondary else colors.onSurfaceVariant
+        val secondary = if (isFocused) TvFocus.contentVariant else colors.onSurfaceVariant
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -276,7 +276,7 @@ internal fun RowScope.TvSettingValue(value: AnnotatedString, focused: Boolean) {
     Text(
         value,
         style = PutioTypeScale.tvMeta,
-        color = if (focused) TvAccountColors.focusSecondary else MaterialTheme.colorScheme.onSurfaceVariant,
+        color = if (focused) TvFocus.contentVariant else MaterialTheme.colorScheme.onSurfaceVariant,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
     )
@@ -318,10 +318,6 @@ internal fun TvAccountNotice(
     }
 }
 
-internal object TvAccountColors {
-    val focusSecondary: Color = Color(FOCUS_SECONDARY_ARGB)
-}
-
 internal object TvAccountType {
     val groupLabel: TextStyle = PutioTypeScale.tvLabel.copy(fontSize = 13.sp, lineHeight = 19.sp)
     val description: TextStyle = PutioTypeScale.tvMeta.copy(fontSize = 11.sp, lineHeight = 16.sp)
@@ -337,4 +333,3 @@ internal object TvAccountType {
 
 internal val ROW_HEIGHT: Dp = 40.dp
 private val SEGMENT_GAP = 2.dp
-private const val FOCUS_SECONDARY_ARGB = 0xFF4D4D4D

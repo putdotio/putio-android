@@ -237,6 +237,7 @@ private fun Modifier.accountFocus(context: TvAccountContext, key: String, fallba
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
+// The body owns the pane's focus and sheet state, so it takes the screen's hoisted state and callbacks directly.
 @Suppress("LongParameterList")
 private fun TvAccountBody(
     account: TvAccount,
@@ -431,6 +432,7 @@ private fun TvAccountGroupRows(
 }
 
 @Composable
+// One exhaustive when maps every TvAccountSheet to its sheet; each branch needs the settings and config callbacks.
 @Suppress("LongParameterList", "CyclomaticComplexMethod")
 private fun TvAccountSheets(
     sheet: TvAccountSheet?,
