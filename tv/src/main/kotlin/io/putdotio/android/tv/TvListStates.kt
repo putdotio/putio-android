@@ -23,6 +23,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import io.putdotio.android.FilesFailure
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
@@ -81,7 +82,7 @@ internal fun TvDetailSkeleton(modifier: Modifier = Modifier) {
 
 @Composable
 internal fun TvLoadFailedState(
-    failure: PutioFailure?,
+    failure: FilesFailure,
     headline: String,
     message: String,
     onRetry: () -> Unit,

@@ -87,7 +87,6 @@
     <string name="tv_files_sort_type_descending">Type, Z–A</string>
     <string name="tv_files_sort_watch_ascending">Unwatched first</string>
     <string name="tv_files_sort_watch_descending">Watched first</string>
-    <string name="tv_files_loading">Loading</string>
     <string name="tv_files_empty_title">Empty folder.</string>
     <string name="tv_files_empty_message">Files you add to this folder on put.io show up here.</string>
     <string name="tv_files_load_more">Load more</string>

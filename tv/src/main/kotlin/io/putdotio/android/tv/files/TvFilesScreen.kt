@@ -78,7 +78,6 @@ import io.putdotio.android.tv.TvListSkeleton
 import io.putdotio.android.tv.TvDetailSkeleton
 import io.putdotio.android.tv.TvLoadFailedState
 import io.putdotio.android.tv.TV_LIST_WIDTH
-import io.putdotio.android.PutioFailure
 import androidx.compose.foundation.layout.offset
 import io.putdotio.android.tv.TvNoticeDialog
 import io.putdotio.android.tv.returnDestination
@@ -483,7 +482,7 @@ private fun TvFilesStatePane(
         }
         when (val content = current.content) {
             is FilesContent.Failed -> TvLoadFailedState(
-                failure = content.failure as? PutioFailure,
+                failure = content.failure,
                 headline = stringResource(R.string.tv_files_error_title),
                 message = content.failure.tvLoadFailedMessage(),
                 onRetry = { onEvent(FilesBrowserEvent.Retry) },
@@ -726,7 +725,7 @@ private fun TvFilesOperationStatus(
     onEvent: (FilesBrowserEvent) -> Boolean,
 ) {
     if (current.operation.reloadsListing()) {
-        TvFilesNotice(text = stringResource(R.string.tv_files_loading))
+        TvFilesNotice(text = stringResource(R.string.tv_state_loading))
     }
     val failed = (current.operation as? FilesFolderOperation.Failed)
         ?.takeUnless { it.intent is FilesFolderOperationIntent.Delete }
