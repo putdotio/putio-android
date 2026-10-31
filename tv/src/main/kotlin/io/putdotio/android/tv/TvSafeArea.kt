@@ -27,10 +27,9 @@ internal data class TvSafeAreaMargins(val side: Dp, val vertical: Dp)
 
 internal fun Density.tvSafeAreaMargins(viewport: Constraints): TvSafeAreaMargins {
     requireBounded(viewport)
-    return TvSafeAreaMargins(
-        side = tvSafeInset(viewport.maxWidth, PutioDesignTokens.tvOverscanX, TV_SIDE_MARGIN.roundToPx()).toDp(),
-        vertical = tvSafeInset(viewport.maxHeight, PutioDesignTokens.tvOverscanY, TV_VERTICAL_MARGIN.roundToPx()).toDp(),
-    )
+    val side = tvSafeInset(viewport.maxWidth, PutioDesignTokens.tvOverscanX, TV_SIDE_MARGIN.roundToPx())
+    val vertical = tvSafeInset(viewport.maxHeight, PutioDesignTokens.tvOverscanY, TV_VERTICAL_MARGIN.roundToPx())
+    return TvSafeAreaMargins(side = side.toDp(), vertical = vertical.toDp())
 }
 
 private fun Modifier.tvInset(minimumX: Dp, minimumY: Dp): Modifier = layout { measurable, constraints ->
