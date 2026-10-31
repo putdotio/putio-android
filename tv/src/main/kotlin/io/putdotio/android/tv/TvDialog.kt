@@ -19,8 +19,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
@@ -37,6 +39,17 @@ import io.putdotio.android.design.PutioRadius
 @Composable
 internal fun TvDialog(
     title: String,
+    message: String?,
+    onDismiss: () -> Unit,
+    body: (@Composable () -> Unit)? = null,
+    actions: (@Composable (focus: FocusRequester) -> Unit)? = null,
+) {
+    TvDialog(AnnotatedString(title), message, onDismiss, body, actions)
+}
+
+@Composable
+internal fun TvDialog(
+    title: AnnotatedString,
     message: String?,
     onDismiss: () -> Unit,
     body: (@Composable () -> Unit)? = null,
@@ -62,7 +75,7 @@ internal fun TvConfirmDialog(
     onDismiss: () -> Unit,
     destructive: Boolean = false,
 ) {
-    TvDialogFrame(title, message, onDismiss, focusesAction = true) { focus ->
+    TvDialogFrame(AnnotatedString(title), message, onDismiss, focusesAction = true) { focus ->
         TvDialogActions {
             TvButton(
                 onClick = onDismiss,
@@ -83,7 +96,7 @@ internal fun TvNoticeDialog(
     onDismiss: () -> Unit,
     message: String? = null,
 ) {
-    TvDialogFrame(title, message, onDismiss, focusesAction = true) { focus ->
+    TvDialogFrame(AnnotatedString(title), message, onDismiss, focusesAction = true) { focus ->
         TvDialogActions {
             TvButton(
                 onClick = onDismiss,
@@ -107,7 +120,7 @@ private fun TvDialogActions(content: @Composable () -> Unit) {
 
 @Composable
 private fun TvDialogFrame(
-    title: String,
+    title: AnnotatedString,
     message: String?,
     onDismiss: () -> Unit,
     focusesAction: Boolean,
@@ -130,7 +143,7 @@ private fun TvDialogFrame(
         ) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.headlineSmall,
+                style = MaterialTheme.typography.headlineSmall.copy(fontSize = TITLE_SIZE, lineHeight = TITLE_LINE),
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
@@ -153,3 +166,5 @@ private fun TvDialogFrame(
 
 private val DIALOG_WIDTH = 380.dp
 private val ACTIONS_GAP = 20.dp
+private val TITLE_SIZE = 20.sp
+private val TITLE_LINE = 24.sp

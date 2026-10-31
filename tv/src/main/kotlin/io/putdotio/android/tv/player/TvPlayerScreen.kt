@@ -7,6 +7,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.runtime.Composable
@@ -126,6 +127,7 @@ internal fun TvPlayerScreen(
                 if (content.source.startFromSeconds > 0.0) {
                     TvResumePlaybackDialog(
                         title = state.target.name,
+                        posterUrl = state.target.posterUrl.takeIf { state.target.mediaType == PlaybackMediaType.VIDEO },
                         startFromSeconds = content.source.startFromSeconds,
                         onResume = onResume,
                         onRestart = onRestart,
@@ -339,6 +341,22 @@ private fun TvReadyPlayer(
             apply(overlay.hideTimedOut())
         }
     }
+    val shownCues = rememberShownCues(
+        player = player,
+        cues = cues,
+        history = cueHistory,
+        delayMillis = options.subtitleOffsetMillis,
+        preview = overlay.previewsTiming(playWhenReady),
+    )
+    val cueLayer: @Composable BoxScope.() -> Unit = {
+        TvSubtitleCues(
+            shown = target.mediaType == PlaybackMediaType.VIDEO && choices.subtitlesOn,
+            cues = shownCues,
+            videoSize = videoSize,
+            overlay = overlay,
+            textScale = appearance.textSize.scale,
+        )
+    }
     val focus = remember { FocusRequester() }
     LaunchedEffect(focus, overlay.sheet == null) { if (overlay.sheet == null) focus.requestFocus() }
     Box(
@@ -355,24 +373,8 @@ private fun TvReadyPlayer(
                 modifier = Modifier.fillMaxSize(),
                 surfaceType = playbackSurfaceType(Build.VERSION.SDK_INT, Build.HARDWARE),
             )
-            if (choices.subtitlesOn) {
-                SubtitleCueOverlay(
-                    cues = rememberShownCues(
-                        player = player,
-                        cues = cues,
-                        history = cueHistory,
-                        delayMillis = options.subtitleOffsetMillis,
-                        preview = overlay.previewsTiming(playWhenReady),
-                    ),
-                    videoAspectRatio = videoSize.displayAspectRatioOrNull(),
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .offset { IntOffset(overlay.subtitleShift().roundToPx(), 0) },
-                    textScale = appearance.textSize.scale,
-                    bottomPaddingFraction = subtitleBottomPadding(overlay.controlsVisible),
-                )
-            }
         }
+        cueLayer.takeUnless { overlay.sheet == TvPlayerSheet.SizeAndTiming }?.invoke(this)
         if (overlay.controlsVisible) {
             TvPlayerControls(
                 player = player,
@@ -422,6 +424,7 @@ private fun TvReadyPlayer(
             onOffset = { offset -> options = options.copy(subtitleOffsetMillis = offset) },
         ),
         onDismiss = { apply(overlay.back()) },
+        timingPreview = cueLayer,
     )
 }
 
@@ -434,6 +437,27 @@ private fun TvSubtitleOffsetEffect(player: Player, offsetMillis: Long) {
         player.setSubtitleLead(lead, reread = applied.value != null)
         applied.value = lead
     }
+}
+
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+@Composable
+private fun BoxScope.TvSubtitleCues(
+    shown: Boolean,
+    cues: List<Cue>,
+    videoSize: VideoSize,
+    overlay: TvPlayerOverlay,
+    textScale: Float,
+) {
+    if (!shown) return
+    SubtitleCueOverlay(
+        cues = cues,
+        videoAspectRatio = videoSize.displayAspectRatioOrNull(),
+        modifier = Modifier
+            .align(Alignment.Center)
+            .offset { IntOffset(overlay.subtitleShift().roundToPx(), 0) },
+        textScale = textScale,
+        bottomPaddingFraction = subtitleBottomPadding(overlay.controlsVisible),
+    )
 }
 
 @Composable

@@ -9,6 +9,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -150,6 +151,7 @@ internal fun TvPlayerSheets(
     offsetMillis: Long,
     actions: TvPlayerSheetActions,
     onDismiss: () -> Unit,
+    timingPreview: @Composable BoxScope.() -> Unit,
 ) {
     if (sheet == null) return
     if (choices.subtitlesHidden && (sheet == TvPlayerSheet.Subtitles || sheet == TvPlayerSheet.SizeAndTiming)) return
@@ -160,7 +162,12 @@ internal fun TvPlayerSheets(
         TvPlayerSheet.SizeAndTiming -> PlaybackR.string.playback_size_and_timing
     }
     key(sheet) {
-        TvSideSheet(onDismiss = onDismiss, returnFocus = returnFocus, title = stringResource(title)) { focus ->
+        TvSideSheet(
+            onDismiss = onDismiss,
+            returnFocus = returnFocus,
+            title = stringResource(title),
+            backdrop = timingPreview.takeIf { sheet == TvPlayerSheet.SizeAndTiming },
+        ) { focus ->
             when (sheet) {
                 TvPlayerSheet.Audio -> TvAudioSheet(choices, focus, actions.onAudio)
                 TvPlayerSheet.Subtitles ->
@@ -420,7 +427,13 @@ private fun TvStepper(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         TvStepButton(less, lessDescription, buttons, onLess, if (!focusMore) focus else null)
-        Text(value, style = valueStyle, textAlign = TextAlign.Center, modifier = Modifier.weight(1f))
+        Text(
+            value,
+            style = valueStyle,
+            color = MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.weight(1f),
+        )
         TvStepButton(more, moreDescription, buttons, onMore, if (focusMore) focus else null)
     }
 }
@@ -508,7 +521,9 @@ private fun TvSheetOption(
         interactionSource = interactions,
     ) {
         Row(
-            modifier = Modifier.heightIn(min = OPTION_MIN_HEIGHT).padding(horizontal = 12.dp, vertical = 6.dp),
+            modifier = Modifier
+                .heightIn(min = OPTION_MIN_HEIGHT)
+                .padding(start = 12.dp, top = 5.dp, end = 12.dp, bottom = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -519,7 +534,7 @@ private fun TvSheetOption(
                 }
             }
             Column(Modifier.weight(1f)) {
-                Text(label, style = PutioTypeScale.tvBody.copy(fontSize = OPTION_LABEL_SIZE))
+                Text(label, style = OPTION_LABEL)
                 if (detail != null) {
                     Text(
                         detail,
@@ -589,7 +604,7 @@ private fun TvSheetChip(
 }
 
 private val OPTION_MIN_HEIGHT = 40.dp
-private val OPTION_LABEL_SIZE = 15.sp
+private val OPTION_LABEL = PutioTypeScale.tvBody.copy(fontSize = 15.sp, lineHeight = 18.sp)
 private val DETAIL_LINE = 15.sp
 private val FOOTNOTE_SIZE = 11.sp
 private val FOOTNOTE_LINE = 15.sp

@@ -124,7 +124,7 @@ internal fun TvPlayerControls(
             .background(tvPlayerShade(MaterialTheme.colorScheme.scrim))
             .testTag(TV_PLAYER_CONTROLS_TAG),
     ) {
-        Box(Modifier.fillMaxSize().tvSafeAreaPadding().padding(vertical = PLAYER_EDGE_EXTRA)) {
+        Box(Modifier.fillMaxSize().tvPlayerEdges()) {
             TvPlayerTopBar(title, Modifier.align(Alignment.TopStart))
             TvPlayerCircles(paused = paused, focused = focused, modifier = Modifier.align(Alignment.Center))
             Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth()) {
@@ -144,6 +144,8 @@ internal fun TvPlayerControls(
         }
     }
 }
+
+internal fun Modifier.tvPlayerEdges(): Modifier = tvSafeAreaPadding().padding(vertical = PLAYER_EDGE_EXTRA)
 
 @Composable
 internal fun TvPlayerTopBar(title: String, modifier: Modifier = Modifier) {

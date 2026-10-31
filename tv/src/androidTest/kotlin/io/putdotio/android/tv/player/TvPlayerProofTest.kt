@@ -359,6 +359,7 @@ class TvPlayerProofTest {
     fun playerControlsAndSheetsFollowTheBoards() {
         val fixture = arguments.getString("putio.tv.player.boardsFixture")
         val found = arguments.getString("putio.tv.player.foundSubtitle")
+        val poster = arguments.getString("putio.tv.player.boardsPoster")?.let { Uri.fromFile(File(it)).toString() }
         assumeTrue("Needs the boards fixture and its found subtitle", fixture != null && found != null)
         val source = localSource(requireNotNull(fixture)).copy(
             startFromSeconds = BOARD_RESUME_SECONDS,
@@ -370,7 +371,12 @@ class TvPlayerProofTest {
             PutioTvTheme {
                 TvPlayerScreen(
                     state = playbackState(
-                        target = PlaybackTarget(FilesItemId(FIXTURE_FILE_ID), BOARD_TITLE, PlaybackMediaType.VIDEO),
+                        target = PlaybackTarget(
+                            FilesItemId(FIXTURE_FILE_ID),
+                            BOARD_TITLE,
+                            PlaybackMediaType.VIDEO,
+                            posterUrl = poster,
+                        ),
                         content = content,
                         nextRequestValue = 2L,
                     ),
@@ -418,6 +424,13 @@ class TvPlayerProofTest {
         press(KeyEvent.KEYCODE_DPAD_RIGHT)
         repeat(BOARD_OFFSET_STEPS) { press(KeyEvent.KEYCODE_DPAD_CENTER) }
         compose.onNodeWithText("+0.5 s").assertExists()
+        compose.onNodeWithContentDescription("Later by 0.1 seconds").assertIsFocused()
+        compose.runOnIdle { factory.current().play() }
+        awaitPlayer(factory) { it.isPlaying && it.currentCues.cues.isNotEmpty() }
+        compose.runOnIdle { factory.current().pause() }
+        awaitPlayer(factory) { !it.playWhenReady }
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag(SUBTITLE_CUES_TAG).fetchSemanticsNodes().isNotEmpty() }
+        elapse(DIALOG_EXIT_MILLIS)
         compose.onNodeWithContentDescription("Later by 0.1 seconds").assertIsFocused()
         screenshot("androidtv-st-p7-timing")
 
