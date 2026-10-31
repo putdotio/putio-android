@@ -1,7 +1,7 @@
 ---
 version: alpha
 name: "put.io on Android"
-description: "Design contract for the Android phone and tablet app: Material 3 Expressive on the put.io token graph."
+description: "Design contract for the Android phone, tablet and TV apps: Material 3 Expressive on the put.io token graph."
 tier: 2
 mode: "dark only"
 reviewed:
@@ -10,7 +10,7 @@ reviewed:
 canvas:
   phone: "412x915dp"
   tablet: "1280x800dp"
-  tv: "1920x1080px"
+  tv: "960x540dp"
 typography:
   headline-lg:
     fontFamily: GT America
@@ -57,6 +57,37 @@ typography:
     fontSize: 13px
     fontWeight: 400
     lineHeight: 18px
+    fontFeature: '"tnum"'
+  tv-title:
+    fontFamily: GT America
+    fontSize: 22px
+    fontWeight: 500
+    lineHeight: 28px
+  tv-detail-title:
+    fontFamily: GT America
+    fontSize: 18px
+    fontWeight: 500
+    lineHeight: 24px
+  tv-body:
+    fontFamily: GT America
+    fontSize: 13px
+    fontWeight: 400
+    lineHeight: 18px
+  tv-label:
+    fontFamily: GT America
+    fontSize: 12px
+    fontWeight: 500
+    lineHeight: 16px
+  tv-meta:
+    fontFamily: GT America
+    fontSize: 12px
+    fontWeight: 400
+    lineHeight: 16px
+  tv-mono:
+    fontFamily: Berkeley Mono
+    fontSize: 12px
+    fontWeight: 400
+    lineHeight: 16px
     fontFeature: '"tnum"'
 rounded:
   progress: 2px
@@ -840,6 +871,148 @@ the navigation bar: **Welcome!** as a 40sp medium title on a 48sp line, then
 
 ## Android TV
 
-The shipped Android TV app is `putio-tv-native-legacy`: the React Native app
-shared with Apple TV, with its own components and `@putdotio/colors`. This
-repository's `tv` module replaces it and has no design contract here yet.
+The target design for the `tv` module, adopted on 2026-10-31. It is this file
+translated to a 960x540dp screen and a D-pad: the same tokens, type, glyphs,
+rows, switch, empty-state voice and copy. Only what differs from the phone is
+written here. The shipped Android TV app is still `putio-tv-native-legacy`,
+the React Native app shared with Apple TV.
+
+### TV layout
+
+- The shared `tv.overscan` token is the minimum inset. Layouts keep a 48dp side
+  margin and 24dp at top and bottom; only the player picture bleeds.
+- A top bar holds the wordmark, then pill tabs: **Home, Files, Search, History,
+  Account**, left-aligned after the wordmark. The selected tab takes the nav
+  indicator: a `secondary-container` pill with the filled glyph in
+  `on-secondary-container`. The app opens on Home.
+- Each tab keeps its own back stack. Back pops within the tab, then moves focus
+  to the tab bar; Back in the tab bar goes to Home, then leaves the app.
+- Tab roots have no page title; the selected tab names the place. A folder
+  shows its name under a back crumb naming its parent.
+- Files, folders, Search and History are list-detail: a 544dp list, and beside
+  it the focused item's detail with no card and no preview. The detail shows the
+  full name uncut, its meta, the actions, then at most three facts. A video's
+  actions are **Resume from 18:42** (or **Play** when unstarted), **Start over**
+  and More; a folder's detail shows "n items · size" and **Open**; other files
+  follow the phone's Open rules. The actions stay tonal while focus is in the
+  list, so the focused row is the only bright thing; Resume fills yellow once
+  focus moves into the detail.
+- Home shows **Continue watching**, then **Pinned**. Both use the Continue
+  watching card: glyph and name, then the progress line or the item's meta.
+  Continue watching comes from the same store as the phone's row, recorded by
+  the TV player too, and hides when empty. Pins live in the account's config
+  (`/v2/config`), so they follow the account. Home is TV-only until mobile takes
+  pins.
+- Account lists its groups on the left (identity, the storage card, then
+  Library, Playback, Subtitles, Privacy, About, and Sign out in red) and shows
+  the selected group's rows on the right. Subtitles holds the phone's two
+  switches. Privacy uses the phone's Privacy controls copy word for word; the
+  privacy policy and the services list open as QR codes. About adds a QR code
+  that carries the support details in place of Copy for support.
+- Sort is a tonal pill on the list's section line that names the current sort.
+  History puts **Clear history** there the same way. Search puts a **Settings**
+  pill after its type chips; Menu on the field opens it too.
+
+### Focus
+
+- One focus style: a focused row, tab, chip, card or tonal button turns
+  `#EDEDED` with `on-focus` text and glyph. Nothing yellow sits on the focus
+  fill: a focused card's progress line turns dark, and a focused file row's
+  glyph turns dark. Nothing scales on focus.
+- Filled buttons, yellow or red, keep their fill on focus and gain a 4dp light
+  ring.
+- A tab selects when it takes focus. Down from the tab bar lands on that tab's
+  last-focused row; Up from a tab's first row reaches the tab bar.
+- Returning from the player focuses the last file played. A closed sheet
+  returns focus to what opened it.
+- The inactive-account notice and the snackbar never take focus on their own.
+
+### TV type
+
+The `tv-*` roles in the front matter: `tv-title` for sheet and dialog titles,
+`tv-detail-title` for the detail's name and empty-state headlines, `tv-body` for
+rows, tabs, buttons and dialog bodies, `tv-label` for section labels, `tv-meta`
+for row meta, and `tv-mono` for numbers. Numbers never go below 12sp.
+
+### TV components
+
+- **Side sheet:** every secondary surface is a 360dp sheet from the right on
+  `surface-container-high`, with 28dp leading corners, dimming the screen: item
+  actions, sort, choices, search settings, Audio, Subtitles, Speed, and Size and
+  timing.
+- **Item actions:** More in the detail, or Menu on a row, opens the sheet. Its
+  header is the glyph, full name and meta. Three tiles follow (Resume, Start
+  over, Subtitles), then rows (Open in VLC, Mark as watched or unwatched, Pin to
+  Home or Unpin), a divider, and **Move to trash** in red, or **Delete
+  permanently** when the account turns Trash off. The Subtitles tile opens the
+  player's Subtitles sheet, then plays with that choice.
+- **Sort:** the phone's three groups (Sort by, Order, Videos) in a side sheet.
+- **Choices** (proxy, video playback, default sort): radio rows with a one-line
+  description, then Cancel and a filled Save.
+- **Search settings:** a side sheet with **Show search history** as a switch and
+  **Clear search history**.
+- **Dialogs** carry only confirms and notices: Resume, destructive confirms with
+  a red filled button, **Clear history?**, **Sign out of put.io?** ("You can
+  sign in again any time with a new code."), and one-line notices with OK ("VLC
+  isn't installed").
+- **Snackbar:** "Moved to Trash" with **Undo**, bottom-left for 6 s. Down from
+  the list reaches Undo while it shows.
+- **Switch:** the phone's neutral switch at 28x16dp, so it sits within a 13sp
+  row.
+
+### TV player
+
+- The phone's player: back and the filename, the centre circles, a yellow
+  scrubber with mono times, then Audio, Subtitles, Speed and Next episode chips.
+- Back closes the open sheet, then seek mode, then the controls, and only then
+  leaves the player.
+- With Autoplay next video on, the end of a video shows an **Up next** card:
+  the next file's name, "Playing in 8" in mono, a draining line, **Play now**
+  and **Cancel**. It counts 10 s.
+- Loading is a spinner over black under the filename. Errors use the
+  empty-state voice over the dimmed frame. MP4 conversion follows the phone.
+- The screen stays on only while a video plays.
+
+### TV sign-in and startup
+
+- Sign-in: the wordmark, the phone's Welcome stage (the four kaomoji frames
+  rolling, with page dots), **Sign in to put.io**, then two columns split by a
+  line marked "or". **With your phone** holds the QR code and "Scan with your
+  camera and approve." **In a browser** holds "Go to put.io/link and enter", the
+  code in mono tiles, and **Get a new code**. There is no countdown.
+- When a code expires, the app fetches a new one silently, up to three times in
+  a row. After that, or when put.io rejects a code, the tiles and the QR code dim
+  under "This code expired." until **Get a new code**.
+- Session expired reads **Welcome back!** over "Your session expired. Sign in
+  again to continue."
+- Startup shows "Checking your session" under a spinner. Offline reads `(x_x)`
+  **Can't reach put.io.** with **Try now**, and retries on its own when the
+  network returns.
+
+### TV states
+
+| State           | Glyph        | Headline                      | Action       |
+| --------------- | ------------ | ----------------------------- | ------------ |
+| Empty folder    | `[ ]`        | Empty folder.                 | none         |
+| No results      | `¯\_(ツ)_/¯` | Nothing matches.              | none         |
+| History off     | `(-_-) zZ`   | History is off.               | Open Account |
+| Couldn't load   | `(・_・;)`   | Couldn't load your files.     | Try again    |
+| Offline         | `(x_x)`      | Can't reach put.io.           | Try now      |
+| Playback failed | `(・_・;)`   | Couldn't play this file.      | Try again    |
+| Can't play here | `¯\_(ツ)_/¯` | This TV can't play this file. | Open in VLC  |
+
+No results uses the phone's message: "No files or folders named “query”. Try
+fewer words." Loading draws skeleton rows in the list and skeleton lines in the
+detail.
+
+### Launcher
+
+- The banner is the wordmark centred on `background`, 320x180dp.
+- Play Next and system search cards show put.io's screenshot when the file has
+  one, else the wordmark on `background`, with the full name and, in Play Next,
+  the progress. A file enters Play Next once started and leaves at 95%.
+
+### Not on TV
+
+Transfers, Downloads, Cast, selection, rename, move, share, exclusive links,
+the viewers and audio's Now Playing stay phone-only.
