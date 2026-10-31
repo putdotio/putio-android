@@ -104,7 +104,11 @@ class TvAccountProofTest {
     @Test
     fun signOutConfirm() {
         mount()
-        repeat(5) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        press(KeyEvent.KEYCODE_DPAD_RIGHT)
+        compose.waitUntil(5_000) { isFocused(RESUME) }
+        press(KeyEvent.KEYCODE_DPAD_LEFT)
+        repeat(4) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
         compose.waitUntil(5_000) { isFocused(SIGN_OUT) }
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(5_000) { compose.onAllNodesWithText(SIGN_OUT_TITLE).fetchSemanticsNodes().isNotEmpty() }

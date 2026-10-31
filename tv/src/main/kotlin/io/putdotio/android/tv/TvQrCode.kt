@@ -9,6 +9,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 import com.google.zxing.qrcode.encoder.Encoder
@@ -25,7 +26,7 @@ internal fun encodeTvQr(text: String): Array<BooleanArray> {
 
 /**
  * [text] as a QR code: [dark] modules on a [light] square with a quiet zone of four and a half
- * modules. Module edges snap to whole pixels so no seam blurs them.
+ * modules, or of [quietZone] when set. Module edges snap to whole pixels so no seam blurs them.
  */
 @Composable
 internal fun TvQrCode(
@@ -34,11 +35,16 @@ internal fun TvQrCode(
     dark: Color,
     light: Color,
     modifier: Modifier = Modifier,
+    quietZone: Dp? = null,
 ) {
     val modules = remember(text) { encodeTvQr(text) }
     Canvas(modifier.semantics { contentDescription = description }) {
         drawRect(light)
-        val cell = size.minDimension / (modules.size + 2 * QR_QUIET_ZONE_MODULES)
+        val cell = if (quietZone == null) {
+            size.minDimension / (modules.size + 2 * QR_QUIET_ZONE_MODULES)
+        } else {
+            (size.minDimension - 2 * quietZone.toPx()) / modules.size
+        }
         val left = (size.width - cell * modules.size) / 2
         val top = (size.height - cell * modules.size) / 2
         fun edge(origin: Float, index: Int): Float = (origin + index * cell).roundToInt().toFloat()

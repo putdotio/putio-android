@@ -167,6 +167,7 @@ internal fun TvAccountScreen(
 ) = key(sessionKey) {
     var showingTrash by rememberSaveable { mutableStateOf(false) }
     val group = rememberSaveable { mutableStateOf(TvAccountGroup.Library) }
+    val opened = rememberSaveable { mutableStateOf(TvAccountGroup.Library) }
     val lastFocus = rememberSaveable { mutableStateOf<String?>(null) }
     if (trashPane != null && showingTrash) {
         LaunchedEffect(Unit) { ProductAnalytics.capture(AnalyticsEvent.ScreenViewed(AnalyticsEvent.Screen.Trash)) }
@@ -185,6 +186,7 @@ internal fun TvAccountScreen(
             trashSizeBytes = trashSizeBytes,
             onManageTrash = if (trashPane == null) null else ({ showingTrash = true }),
             group = group,
+            opened = opened,
             lastFocus = lastFocus,
             loadTunnelRoutes = loadTunnelRoutes,
         )
@@ -250,6 +252,7 @@ private fun TvAccountBody(
     trashSizeBytes: Long?,
     onManageTrash: (() -> Unit)?,
     group: MutableState<TvAccountGroup>,
+    opened: MutableState<TvAccountGroup>,
     lastFocus: MutableState<String?>,
     loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>>,
 ) {
@@ -303,12 +306,14 @@ private fun TvAccountBody(
             account = account,
             trashSizeBytes = trashSizeBytes,
             group = group,
+            opened = opened,
             context = context,
             rightPane = rightPane,
             onSignOut = { open(TvAccountSheet.SignOut, RowKey.SIGN_OUT) },
         )
         TvAccountGroupRows(
             group = group,
+            opened = opened,
             focus = focus,
             rightPane = rightPane,
             rows = TvAccountRowsScope(
@@ -343,6 +348,7 @@ private fun TvAccountGroups(
     account: TvAccount,
     trashSizeBytes: Long?,
     group: MutableState<TvAccountGroup>,
+    opened: MutableState<TvAccountGroup>,
     context: TvAccountContext,
     rightPane: FocusRequester,
     onSignOut: () -> Unit,
@@ -385,7 +391,9 @@ private fun TvAccountGroups(
             onClick = onSignOut,
             danger = true,
             caret = false,
-            modifier = Modifier.accountFocus(context, RowKey.SIGN_OUT, group.value.focusKey),
+            modifier = Modifier
+                .accountFocus(context, RowKey.SIGN_OUT, group.value.focusKey)
+                .onFocusChanged { if (it.isFocused) group.value = opened.value },
         )
     }
 }
@@ -394,6 +402,7 @@ private fun TvAccountGroups(
 @Composable
 private fun TvAccountGroupRows(
     group: MutableState<TvAccountGroup>,
+    opened: MutableState<TvAccountGroup>,
     focus: TvAccountFocus,
     rightPane: FocusRequester,
     rows: TvAccountRowsScope,
@@ -406,6 +415,7 @@ private fun TvAccountGroupRows(
             .padding(start = RIGHT_START)
             .fillMaxWidth()
             .focusRequester(rightPane)
+            .onFocusChanged { if (it.hasFocus) opened.value = group.value }
             .focusProperties {
                 exit = { direction ->
                     if (direction == FocusDirection.Left) {
@@ -1005,6 +1015,7 @@ private fun TvSupportQr(supportText: String) {
             description = stringResource(R.string.tv_account_about_support_description),
             dark = MaterialTheme.colorScheme.background,
             light = light,
+            quietZone = SUPPORT_QR_QUIET_ZONE,
             modifier = Modifier
                 .size(SUPPORT_QR_SIZE)
                 .clip(RoundedCornerShape(SUPPORT_QR_RADIUS))
@@ -1080,4 +1091,5 @@ private val STORAGE_BAR_TOP = 11.dp
 private val SUPPORT_QR_SIZE = 80.dp
 private val SUPPORT_QR_RADIUS = 10.dp
 private val SUPPORT_QR_PADDING = 5.dp
+private val SUPPORT_QR_QUIET_ZONE = 8.dp
 private const val PERCENT = 100

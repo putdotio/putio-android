@@ -324,6 +324,22 @@ class TvAccountScreenTest {
     }
 
     @Test
+    fun signOutKeepsTheLastOpenedGroupBesideIt() {
+        show(settingsState = { ready(preferences) })
+
+        group("Library").performKeyInput {
+            pressKey(Key.DirectionDown)
+            pressKey(Key.DirectionRight)
+        }
+        compose.onNodeWithText("Resume where you left off").assertIsFocused()
+            .performKeyInput { pressKey(Key.DirectionLeft) }
+        group("Playback").assertIsFocused().performKeyInput { repeat(4) { pressKey(Key.DirectionDown) } }
+        compose.onNode(hasText("Sign out") and isFocused()).assertExists()
+        group("Playback").assertIsSelected()
+        compose.onNodeWithText("Autoplay next video").assertIsDisplayed()
+    }
+
+    @Test
     fun aFailedSaveOffersRetryAndHandsFocusBackToItsRow() {
         val failure =
             AccountSettingsFailure.Putio(PutioFailure.NetworkUnavailable(PutioConfigurationException("offline")))
