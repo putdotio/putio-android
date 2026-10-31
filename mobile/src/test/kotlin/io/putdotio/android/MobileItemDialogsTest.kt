@@ -103,7 +103,7 @@ class MobileItemDialogsTest {
         compose.onNodeWithText("Preparing to share").assertIsDisplayed()
         compose.onNodeWithText("Tears.of.Steel.2012.1080p.mkv downloads first, then the share sheet opens.")
             .assertIsDisplayed()
-        compose.onNodeWithText("38% · 456 MB of 1.2 GB").assertIsDisplayed()
+        compose.onNodeWithText("38% · 456MB of 1.2GB").assertIsDisplayed()
         compose.onNodeWithText("Cancel").performClick()
         compose.runOnIdle {
             assertEquals(1, cancelled)

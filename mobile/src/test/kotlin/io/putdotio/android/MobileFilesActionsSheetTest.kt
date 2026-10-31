@@ -94,7 +94,7 @@ class MobileFilesActionsSheetTest {
         }
         // The header keeps the whole name the list cut.
         compose.onNodeWithText(started.name).assertIsDisplayed()
-        compose.onNodeWithText("3.2 GB").assertIsDisplayed()
+        compose.onNodeWithText("3.2GB").assertIsDisplayed()
         compose.onNodeWithText("Resume").assertIsDisplayed()
         compose.onNodeWithText("Download").assertIsDisplayed()
         compose.onNodeWithText("Share").assertIsDisplayed()

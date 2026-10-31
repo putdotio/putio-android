@@ -399,7 +399,7 @@ class MobileFilesScreenTest {
         compose.setContent { PutioTheme { MobileFilesScreen(state, onEvent = {}, onPlayMedia = {}) } }
         compose.onAllNodesWithTag(MOBILE_FILES_WATCHED_TAG, useUnmergedTree = true).assertCountEquals(2)
         // One merged row node carries the name, the size and the watched glyph's name together.
-        compose.onNode(hasText("partly.mkv") and hasText("128 B") and hasContentDescription("Watched"))
+        compose.onNode(hasText("partly.mkv") and hasText("128B") and hasContentDescription("Watched"))
             .assertIsDisplayed()
         compose.onNode(hasText("unknown.mp3") and hasContentDescription("Watched")).assertIsDisplayed()
         compose.onAllNodes(hasProgressBarRangeInfo(ProgressBarRangeInfo(0.25f, 0f..1f))).assertCountEquals(0)

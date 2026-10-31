@@ -1,11 +1,10 @@
 package io.putdotio.android.transfers
 
 import android.content.Context
-import android.text.format.DateUtils
 import android.text.format.Formatter
 import androidx.annotation.StringRes
 import io.putdotio.android.R
-import io.putdotio.android.parsePutioTimestamp
+import io.putdotio.android.files.toAgo
 import java.text.NumberFormat
 import kotlin.math.roundToLong
 
@@ -91,15 +90,7 @@ internal fun TransferItem.ratioText(): String? =
     }
 
 /** "3 hr. ago" from put.io's finish time, in words, as dates read. */
-internal fun TransferItem.finishedAgo(nowMillis: Long): String? =
-    finishedAt?.let(::parsePutioTimestamp)?.toEpochMilli()?.let { finished ->
-        DateUtils.getRelativeTimeSpanString(
-            finished.coerceAtMost(nowMillis),
-            nowMillis,
-            DateUtils.MINUTE_IN_MILLIS,
-            DateUtils.FORMAT_ABBREV_RELATIVE,
-        ).toString()
-    }
+internal fun TransferItem.finishedAgo(nowMillis: Long): String? = finishedAt?.toAgo(nowMillis)
 
 /** "2m 48s", "1h 05m", "3d 04h": the two largest units. */
 internal fun timeLeft(context: Context, seconds: Long): String {
