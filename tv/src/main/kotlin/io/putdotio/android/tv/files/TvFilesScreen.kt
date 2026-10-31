@@ -189,7 +189,7 @@ internal fun TvFilesScreen(
     var detailId by remember(sessionKey, folderId) { mutableStateOf(focusMemory[folderId]) }
     val detailItem = content.detailItem(detailId, focusMemory[folderId])
     val detailFocus = remember { TvFilesDetailFocus() }
-    val listing = remember(folderId, content.items()) { Any() }
+    val listing = rememberTvFilesListing(current)
     val actionsOf = { item: FilesItem ->
         item.tvActions(watchedToggleEnabled, confirmedTrashEnabled, current.operation.canStartOperation)
     }

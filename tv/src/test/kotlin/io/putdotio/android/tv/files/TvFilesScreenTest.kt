@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import io.putdotio.android.tv.pressCenter
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assert
@@ -526,6 +527,57 @@ class TvFilesScreenTest {
         size = 138_000_000L
 
         compose.waitUntil(5_000) { compose.onAllNodesWithText("2 items · 138 MB").fetchSemanticsNodes().isNotEmpty() }
+        assertEquals(2, reads)
+    }
+
+    @Test
+    fun enteringTheDetailWhileTheListingChangesKeepsFocusThere() {
+        var size by mutableStateOf(128L)
+        compose.setTvContent {
+            TvFilesScreen(
+                state = ready(item(2, "clip.mp4", PutioFileType.VIDEO, sizeBytes = size)),
+                onEvent = { true },
+                onPlayMedia = {},
+            )
+        }
+        compose.onNodeWithContentDescription("Play clip.mp4").assertIsFocused()
+
+        compose.mainClock.autoAdvance = false
+        size = 2_048L
+        Snapshot.sendApplyNotifications()
+        compose.mainClock.advanceTimeByFrame()
+        compose.onNodeWithContentDescription("Play clip.mp4").performKeyInput { pressKey(Key.DirectionRight) }
+        compose.mainClock.autoAdvance = true
+        compose.mainClock.advanceTimeBy(1_000)
+
+        compose.onNodeWithTag(TV_FILES_DETAIL_PRIMARY_TAG).assertIsFocused()
+    }
+
+    @Test
+    fun aFolderCountIsReadAgainAfterAReloadReturnsTheSameRows() {
+        var reads = 0
+        val counts = FilesFolderCounts { PutioResult.Success(++reads) }
+        val rows = listOf(item(1, "Big Buck Bunny", PutioFileType.FOLDER, sizeBytes = 276_000_000L))
+        var operation by mutableStateOf<FilesFolderOperation>(FilesFolderOperation.Idle)
+        compose.setTvContent {
+            TvFilesScreen(
+                state = state(FilesContent.Ready(rows, FilesPaging.Complete), operation = operation),
+                onEvent = { true },
+                onPlayMedia = {},
+                detailSources = remember { TvFilesDetailSources(folderCounts = counts) },
+            )
+        }
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("1 item · 276 MB").fetchSemanticsNodes().isNotEmpty() }
+
+        operation = FilesFolderOperation.Loading(
+            FilesRequestId(7),
+            FilesFolderOperationIntent.Refresh,
+            FilesFolderOperationPhase.RELOADING,
+        )
+        compose.waitForIdle()
+        operation = FilesFolderOperation.Idle
+
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("2 items · 276 MB").fetchSemanticsNodes().isNotEmpty() }
         assertEquals(2, reads)
     }
 

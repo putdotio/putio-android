@@ -27,11 +27,17 @@ import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioTypeScale
+import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesFolderCounts
+import io.putdotio.android.files.FilesFolderOperation
+import io.putdotio.android.files.FilesFolderOperationPhase
+import io.putdotio.android.files.FilesFolderState
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.files.FilesRequestId
 import io.putdotio.android.files.FilesSubtitleLanguages
 import io.putdotio.android.files.formatFileSize
+import io.putdotio.android.files.items
 import io.putdotio.android.files.toDisplayDate
 import io.putdotio.android.files.toFullDate
 import io.putdotio.android.tv.TvDetailBody
@@ -93,6 +99,38 @@ internal class TvFilesDetailSources(
 
     companion object {
         val None = TvFilesDetailSources()
+    }
+}
+
+@Composable
+internal fun rememberTvFilesListing(folder: FilesFolderState): Any {
+    val folderId = folder.folder.id.value
+    val reads = remember(folderId) { TvFilesListingReads() }
+    val completedReads = reads.completedAfter(folder.fullReadRequest())
+    return remember(folderId, folder.content.items(), completedReads) { Any() }
+}
+
+private class TvFilesListingReads {
+    private var inFlight: FilesRequestId? = null
+    private var completed = 0L
+
+    fun completedAfter(read: FilesRequestId?): Long {
+        if (read != inFlight) {
+            if (inFlight != null) completed++
+            inFlight = read
+        }
+        return completed
+    }
+}
+
+private fun FilesFolderState.fullReadRequest(): FilesRequestId? {
+    val content = content
+    val operation = operation
+    return when {
+        content is FilesContent.Loading -> content.requestId
+        operation is FilesFolderOperation.Loading && operation.phase == FilesFolderOperationPhase.RELOADING ->
+            operation.requestId
+        else -> null
     }
 }
 
