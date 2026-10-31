@@ -9,18 +9,8 @@
     <string name="tv_player_subtitles_chip">Subtitles: %1$s</string>
     <string name="tv_player_speed_chip">Playback speed %1$s</string>
     <string name="tv_player_next_episode">Next episode</string>
-    <string name="tv_player_audio_mono">Mono</string>
-    <string name="tv_player_audio_stereo">Stereo</string>
-    <plurals name="tv_player_audio_channels">
-        <item quantity="one">%1$d channel</item>
-        <item quantity="other">%1$d channels</item>
-    </plurals>
-    <string name="tv_player_audio_commentary">Commentary</string>
     <string name="tv_player_subtitles_in_file">In this file</string>
     <string name="tv_player_subtitles_found">Found by put.io</string>
-    <string name="tv_player_subtitles_from_folder">This folder</string>
-    <string name="tv_player_subtitles_from_opensubtitles">OpenSubtitles</string>
-    <string name="tv_player_subtitle_sdh">SDH</string>
     <string name="tv_player_size_and_timing">Size and timing</string>
     <string name="tv_player_text_size">Text size</string>
     <string name="tv_player_size_small">Small</string>

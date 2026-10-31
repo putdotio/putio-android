@@ -73,7 +73,6 @@ class TvPlayerAutoplayTest {
         }
         compose.onNodeWithTag(TV_PLAYER_TAG).assertIsFocused()
 
-        // The folder's last video leaves playback, once.
         compose.runOnIdle { players.last().end() }
         compose.waitForIdle()
         compose.runOnIdle {
@@ -129,7 +128,6 @@ class TvPlayerAutoplayTest {
         compose.runOnIdle { assertEquals("No player before the choice", 1, players.size) }
     }
 
-    /** The session route on a real controller over [folder]. Returns the videos next was asked for. */
     private fun showAutoplayRoute(
         autoplay: Boolean,
         players: MutableList<FakePlayer>,
@@ -172,7 +170,6 @@ class TvPlayerAutoplayTest {
         return lookups
     }
 
-    /** [next] maps a video to the one after it; any other video is the folder's last. */
     private class AutoplayFolder(
         val next: Map<Long, PlaybackTarget>,
         val savedSeconds: Map<Long, Double> = emptyMap(),

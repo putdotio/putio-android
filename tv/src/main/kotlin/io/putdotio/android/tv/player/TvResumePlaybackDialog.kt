@@ -18,10 +18,6 @@ import io.putdotio.android.tv.TvButtonStyle
 import io.putdotio.android.tv.TvDialog
 import io.putdotio.android.tv.tvSafeAreaPadding
 
-/**
- * "Resume from 18:42?" over the player's top bar, with Start over and a filled Resume, as the
- * phone asks. Resume takes focus; Back leaves playback, as the phone's does.
- */
 @Composable
 internal fun TvResumePlaybackDialog(
     title: String,

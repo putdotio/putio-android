@@ -271,9 +271,6 @@
     <string name="tv_player_unsupported_title">This file can’t be played</string>
     <string name="tv_player_subtitles">Subtitles</string>
     <string name="tv_player_speed">Speed</string>
-    <string name="tv_player_audio_track_number">Audio track %1$d</string>
-    <string name="tv_player_subtitle_number">Subtitle %1$d</string>
-    <string name="tv_player_track_disambiguated">%1$s (track %2$d)</string>
     <string name="tv_player_subtitles_off">Off</string>
     <string name="tv_player_speed_value">%1$s×</string>
 </resources>

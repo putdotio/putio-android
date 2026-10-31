@@ -37,13 +37,8 @@ public fun PlaybackSubtitleTrack.formatName(): String? =
         subtitleFormatName(format.codecs?.let(MimeTypes::getTextMediaMimeType) ?: format.sampleMimeType)
     }
 
-/** Where a subtitle track comes from, in the order the sheet lists them. */
 public enum class SubtitleOrigin { File, Folder, OpenSubtitles }
 
-/**
- * A track put.io listed is found by its key, which Media3 keeps as the format id (prefixed with the
- * merged period's index). Tracks put.io did not list come with the stream: they are in the file.
- */
 public fun PlaybackSubtitleTrack.putioSubtitle(sidecar: List<PlaybackSubtitle>): PlaybackSubtitle? {
     val id = identity.id ?: return null
     return sidecar.firstOrNull { id == it.key || id.endsWith(":${it.key}") }
@@ -62,7 +57,6 @@ private const val SOURCE_FOLDER = "folder"
 public fun PlaybackSubtitles?.sidecarTracks(): List<PlaybackSubtitle> =
     (this as? PlaybackSubtitles.Sidecar)?.tracks.orEmpty()
 
-/** The text sizes the viewer picks from, relative to Android's caption size. */
 public enum class SubtitleTextSize(public val scale: Float, public val short: String) {
     Small(SMALL_SCALE, "S"),
     Medium(1f, "M"),
@@ -74,11 +68,9 @@ private const val SMALL_SCALE = 0.75f
 private const val LARGE_SCALE = 1.25f
 private const val EXTRA_LARGE_SCALE = 1.5f
 
-/** One timing step, and how far either way the timing goes. */
 public const val SUBTITLE_OFFSET_STEP_MILLIS: Long = 100L
 public const val SUBTITLE_OFFSET_LIMIT_MILLIS: Long = 10_000L
 
-/** "+0.5 s", "−0.3 s", "0.0 s": the offset in seconds with one decimal and a real minus sign. */
 public fun formatSubtitleOffset(offsetMillis: Long): String {
     val seconds = String.format(Locale.ROOT, "%.1f", abs(offsetMillis) / MILLIS_PER_SECOND)
     return when {
@@ -90,7 +82,6 @@ public fun formatSubtitleOffset(offsetMillis: Long): String {
 
 private const val MILLIS_PER_SECOND = 1_000.0
 
-/** The subtitle text size this device keeps across videos. */
 @Stable
 public class SubtitleAppearanceStore(private val context: Context?) {
     public var textSize: SubtitleTextSize by mutableStateOf(read())

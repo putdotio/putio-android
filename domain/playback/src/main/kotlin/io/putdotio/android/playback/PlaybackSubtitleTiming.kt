@@ -2,7 +2,10 @@ package io.putdotio.android.playback
 
 import android.content.Context
 import android.os.Looper
+import androidx.media3.common.C
 import androidx.media3.common.Player
+import androidx.media3.common.TrackSelectionOverride
+import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.text.Cue
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultRenderersFactory
@@ -116,3 +119,9 @@ public class DelayedSubtitleCues(private val retainMillis: Long = DEFAULT_RETAIN
         const val DEFAULT_RETAIN_MILLIS = 12_000L
     }
 }
+
+public fun TrackSelectionParameters.sameSubtitleChoice(other: TrackSelectionParameters): Boolean =
+    subtitleChoice() == other.subtitleChoice()
+
+private fun TrackSelectionParameters.subtitleChoice(): Pair<Boolean, List<TrackSelectionOverride>> =
+    (C.TRACK_TYPE_TEXT in disabledTrackTypes) to overrides.values.filter { it.type == C.TRACK_TYPE_TEXT }

@@ -1,14 +1,8 @@
 package io.putdotio.android.tv.player
 
-/**
- * The player's dismissible layers, topmost first: an open sheet, seek mode, then the
- * controls. Back dismisses the topmost one and only exits once nothing is left. The resume
- * dialog comes before the player, so it is not a layer here.
- */
 internal data class TvPlayerOverlay(
     val controlsVisible: Boolean = true,
     val scrub: TvScrub? = null,
-    /** Bumped on every reveal so the auto-hide timer restarts. */
     val activity: Int = 0,
     val exited: Boolean = false,
     val focus: TvPlayerControl = TvPlayerControl.PlayPause,
@@ -26,7 +20,6 @@ internal sealed interface TvPlayerCommand {
 
     data object Exit : TvPlayerCommand
 
-    /** Hand over to the next video in the folder; the screen exits when there is none to find. */
     data object PlayNext : TvPlayerCommand
 }
 
@@ -35,22 +28,15 @@ internal data class TvPlayerTransition(
     val commands: List<TvPlayerCommand> = emptyList(),
 )
 
-/** Any key shows the controls and restarts the auto-hide timer. */
 internal fun TvPlayerOverlay.reveal(): TvPlayerTransition =
     TvPlayerTransition(copy(controlsVisible = true, activity = activity + 1))
 
-/**
- * The auto-hide timer ran out; seek mode and an open sheet keep the controls up. Hidden
- * controls come back on play and pause; while hidden, Left and Right scrub.
- */
 internal fun TvPlayerOverlay.hideTimedOut(): TvPlayerTransition =
     TvPlayerTransition(if (scrub == null && sheet == null) hidden() else this)
 
-/** Shown controls that neither seek mode nor an open sheet holds up; while playing they time out. */
 internal val TvPlayerOverlay.autoHides: Boolean
     get() = controlsVisible && scrub == null && sheet == null
 
-/** Center, Enter or play/pause: commits a scrub and plays from there, otherwise toggles playback. */
 internal fun TvPlayerOverlay.select(playing: Boolean): TvPlayerTransition {
     if (exited) return TvPlayerTransition(this)
     val pending = scrub
@@ -64,7 +50,6 @@ internal fun TvPlayerOverlay.select(playing: Boolean): TvPlayerTransition {
     }
 }
 
-/** The remote's dedicated play or pause key: a pending scrub is dropped, not committed. */
 internal fun TvPlayerOverlay.setPlaying(play: Boolean): TvPlayerTransition {
     if (exited) return TvPlayerTransition(this)
     return TvPlayerTransition(
@@ -73,11 +58,6 @@ internal fun TvPlayerOverlay.setPlaying(play: Boolean): TvPlayerTransition {
     )
 }
 
-/**
- * The system's controls asked the media session to play or pause. Play is the dedicated play
- * key's. A pause keeps a pending scrub's target, and Back then leaves playback paused: a scrub
- * already holds playback paused, so the player alone would not report it.
- */
 internal fun TvPlayerOverlay.sessionPlaying(play: Boolean): TvPlayerTransition =
     when {
         exited -> TvPlayerTransition(this)
@@ -88,10 +68,6 @@ internal fun TvPlayerOverlay.sessionPlaying(play: Boolean): TvPlayerTransition =
         )
     }
 
-/**
- * Playback started or stopped, whoever asked. A pause shows the paused controls; playing drops a
- * pending scrub, whose target no longer means anything.
- */
 internal fun TvPlayerOverlay.playingChanged(playing: Boolean): TvPlayerTransition =
     when {
         exited -> TvPlayerTransition(this)
@@ -99,12 +75,6 @@ internal fun TvPlayerOverlay.playingChanged(playing: Boolean): TvPlayerTransitio
         else -> reveal()
     }
 
-/**
- * Back dismisses the topmost layer: an open sheet (no change; Size and timing returns to
- * Subtitles, any other sheet hands focus back to its chip), seek mode (the position never moved;
- * playback resumes only if the scrub paused it), then the controls (pause state untouched). With
- * nothing open it exits once; Backs that arrive before the player leaves are ignored.
- */
 internal fun TvPlayerOverlay.back(): TvPlayerTransition {
     val pending = scrub
     return when {
@@ -121,10 +91,6 @@ internal fun TvPlayerOverlay.back(): TvPlayerTransition {
     }
 }
 
-/**
- * Playback reached the end: leave once, however many signals arrive, or with [autoplayNext]
- * move on to the next video instead.
- */
 internal fun TvPlayerOverlay.ended(autoplayNext: Boolean = false): TvPlayerTransition =
     when {
         exited -> TvPlayerTransition(this)

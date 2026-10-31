@@ -1,21 +1,11 @@
 package io.putdotio.android.tv.player
 
-/**
- * What the overlay's D-pad focus is on: the centre circles, the seek bar, or one of the chips under
- * it (Audio, Subtitles, Speed, then Next episode on the right).
- */
 internal enum class TvPlayerControl { Back, PlayPause, Forward, SeekBar, Audio, Subtitles, Speed, NextEpisode }
 
 internal enum class TvFocusMove { Up, Down, Left, Right }
 
 private val TV_PLAYER_CIRCLES = listOf(TvPlayerControl.Back, TvPlayerControl.PlayPause, TvPlayerControl.Forward)
 
-/**
- * The circles sit above the seek bar and the [chips] below it. Up and Down step between the three
- * rows, entering the circles on play and pause and the chips on the first; Left and Right walk a
- * row. Hidden controls only come back, and seek mode keeps the seek bar. A focused chip that is no
- * longer shown counts as the seek bar.
- */
 internal fun TvPlayerOverlay.moveFocus(move: TvFocusMove, chips: List<TvPlayerControl>): TvPlayerTransition {
     val revealed = reveal().overlay
     if (!controlsVisible || exited || scrub != null) return TvPlayerTransition(revealed)
@@ -36,12 +26,10 @@ internal fun TvPlayerOverlay.moveFocus(move: TvFocusMove, chips: List<TvPlayerCo
 private fun List<TvPlayerControl>.entry(): TvPlayerControl? =
     if (this == TV_PLAYER_CIRCLES) TvPlayerControl.PlayPause else firstOrNull()
 
-/** The focused control, falling back to the seek bar when its chip is not shown. */
 internal fun TvPlayerOverlay.focusIn(chips: List<TvPlayerControl>): TvPlayerControl =
     focus.takeIf { it in TV_PLAYER_CIRCLES || it == TvPlayerControl.SeekBar || it in chips }
         ?: TvPlayerControl.SeekBar
 
-/** Center on Audio, Subtitles or Speed opens its side sheet over the controls. */
 internal fun TvPlayerOverlay.openSheet(chip: TvPlayerControl): TvPlayerTransition {
     val sheet = when (chip) {
         TvPlayerControl.Audio -> TvPlayerSheet.Audio
@@ -63,7 +51,6 @@ internal fun TvPlayerOverlay.openSizeAndTiming(): TvPlayerTransition =
         TvPlayerTransition(this)
     }
 
-/** A choice was made or the sheet was dismissed: focus stays on the chip that opened it. */
 internal fun TvPlayerOverlay.closeSheet(): TvPlayerTransition =
     TvPlayerTransition(copy(sheet = null, activity = activity + 1))
 

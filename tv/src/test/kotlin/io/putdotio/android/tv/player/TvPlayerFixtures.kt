@@ -43,7 +43,6 @@ internal const val RESUME_TITLE = "Resume from 3:30?"
 internal const val RESUME_LABEL = "Resume"
 private const val SETTLE_MILLIS = 50L
 
-/** A few frames: the key's state change, then the recomposition it causes. */
 internal fun ComposeContentTestRule.settle() {
     mainClock.advanceTimeBy(SETTLE_MILLIS)
     waitForIdle()
@@ -197,7 +196,6 @@ internal class FakePlayer : SimpleBasePlayer(Looper.getMainLooper()) {
     }
 
     fun advanceTo(positionMillis: Long) {
-        // Pinned: a playing position would otherwise drift with however many frames the test runs.
         state = state.buildUpon().setContentPositionMs(PositionSupplier.getConstant(positionMillis)).build()
         invalidateState()
     }

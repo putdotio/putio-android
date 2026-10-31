@@ -31,7 +31,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -40,6 +39,7 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
@@ -47,7 +47,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.media3.common.C
-import androidx.media3.common.Format
 import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.Tracks
 import androidx.tv.material3.ClickableSurfaceDefaults
@@ -70,26 +69,24 @@ import io.putdotio.android.playback.SubtitleSelection
 import io.putdotio.android.playback.SubtitleStartupPolicy
 import io.putdotio.android.playback.SubtitleTextSize
 import io.putdotio.android.playback.adjacentPlaybackSpeed
-import io.putdotio.android.playback.audioCodecName
-import io.putdotio.android.playback.formatName
+import io.putdotio.android.playback.TRACK_DETAIL_SEPARATOR
+import io.putdotio.android.playback.audioTrackDetails
+import io.putdotio.android.playback.audioTrackLabels
 import io.putdotio.android.playback.formatPlaybackSpeed
 import io.putdotio.android.playback.formatSubtitleOffset
-import io.putdotio.android.playback.languageName
 import io.putdotio.android.playback.origin
 import io.putdotio.android.playback.playbackAudioTracks
 import io.putdotio.android.playback.playbackSubtitleTracks
 import io.putdotio.android.playback.playbackSpeedStop
 import io.putdotio.android.playback.putioSubtitle
+import io.putdotio.android.playback.subtitleTrackDetails
+import io.putdotio.android.playback.subtitleTrackLabels
+import io.putdotio.android.playback.subtitleTrackName
 import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.TvFocus
 import io.putdotio.android.tv.TvSideSheet
 import io.putdotio.sdk.files.PlaybackSubtitle
 
-/**
- * The tracks the player offers and shows. hide_subtitles hides subtitles entirely, as every
- * reference player does. Off is authoritative: nothing is drawn while the text type is
- * disabled, whatever cues the renderer last delivered.
- */
 internal class TvTrackChoices(
     tracks: Tracks,
     private val parameters: TrackSelectionParameters,
@@ -100,11 +97,9 @@ internal class TvTrackChoices(
     val subtitlesHidden = policy?.showSubtitles == false
     val subtitlesOn = C.TRACK_TYPE_TEXT !in parameters.disabledTrackTypes
 
-    /** The track the viewer picked, else the one playing. */
     val currentAudio: PlaybackAudioTrack?
         get() = audio.singleOrNull { parameters.picked(it.group, it.trackIndex) } ?: audio.firstOrNull { it.selected }
 
-    /** The track the viewer picked, else the one showing; null when subtitles are off. */
     val currentSubtitle: PlaybackSubtitleTrack?
         get() = if (!subtitlesOn) {
             null
@@ -121,7 +116,7 @@ private fun TrackSelectionParameters.picked(group: androidx.media3.common.TrackG
 
 @Composable
 internal fun tvPlayerChipLabels(choices: TvTrackChoices, speed: Float): TvPlayerChipLabels {
-    val audioNames = audioTrackNames(choices.audio)
+    val audioNames = audioTrackLabels(choices.audio)
     val audio = choices.currentAudio?.let { audioNames[choices.audio.indexOf(it)] }
         ?: stringResource(R.string.tv_player_audio)
     val subtitles = choices.currentSubtitle?.let { subtitleTrackName(it, choices.subtitles.indexOf(it)) }
@@ -139,7 +134,6 @@ internal class TvPlayerSheetActions(
     val onOffset: (Long) -> Unit,
 )
 
-/** The open side sheet, which returns focus to the player when it closes. */
 @Composable
 internal fun TvPlayerSheets(
     sheet: TvPlayerSheet?,
@@ -180,7 +174,7 @@ private fun ColumnScope.TvAudioSheet(
     focus: FocusRequester,
     onSelect: (PlaybackAudioTrack) -> Unit,
 ) {
-    val names = audioTrackNames(choices.audio)
+    val names = audioTrackLabels(choices.audio)
     val current = choices.currentAudio
     val focusIndex = choices.audio.indexOf(current).coerceAtLeast(0)
     TvSheetRows {
@@ -206,6 +200,7 @@ private fun ColumnScope.TvSubtitlesSheet(
     actions: TvPlayerSheetActions,
 ) {
     val current = choices.currentSubtitle
+    val labels = subtitleTrackLabels(choices.subtitles, sidecar)
     val rows = choices.subtitles.mapIndexed { index, track -> Triple(index, track, track.putioSubtitle(sidecar)) }
     val inFile = rows.filter { it.third.origin() == SubtitleOrigin.File }
     val found = rows.filter { it.third.origin() != SubtitleOrigin.File }.sortedBy { it.third.origin() }
@@ -223,7 +218,7 @@ private fun ColumnScope.TvSubtitlesSheet(
                 TvSheetLabel(stringResource(heading))
                 group.forEach { (index, track, subtitle) ->
                     TvSheetOption(
-                        label = subtitleTrackName(track, index),
+                        label = labels[index],
                         detail = subtitleTrackDetails(track, subtitle)?.let(::AnnotatedString),
                         selected = track == current,
                         onClick = { actions.onSubtitles(SubtitleSelection.Track(track.identity)) },
@@ -236,7 +231,7 @@ private fun ColumnScope.TvSubtitlesSheet(
             label = stringResource(R.string.tv_player_size_and_timing),
             detail = buildAnnotatedString {
                 append(size)
-                append(DETAIL_SEPARATOR)
+                append(TRACK_DETAIL_SEPARATOR)
                 withStyle(SpanStyle(fontFamily = PutioTypeScale.tvMono.fontFamily)) {
                     append(formatSubtitleOffset(offsetMillis))
                 }
@@ -385,7 +380,7 @@ private fun ColumnScope.TvSizeAndTimingSheet(
 @Composable
 private fun TvStepper(
     value: String,
-    valueStyle: androidx.compose.ui.text.TextStyle,
+    valueStyle: TextStyle,
     less: String,
     lessDescription: String,
     more: String,
@@ -553,66 +548,6 @@ private fun TvSheetChip(
     }
 }
 
-@Composable
-private fun audioTrackNames(tracks: List<PlaybackAudioTrack>): List<String> {
-    val names = tracks.mapIndexed { index, track ->
-        languageName(track.identity.language) ?: track.label
-            ?: stringResource(R.string.tv_player_audio_track_number, index + 1)
-    }
-    val details = tracks.map { audioTrackDetails(it) }
-    val rows = names.zip(details)
-    return names.mapIndexed { index, name ->
-        if (rows.count { it == rows[index] } > 1) {
-            stringResource(R.string.tv_player_track_disambiguated, name, index + 1)
-        } else {
-            name
-        }
-    }
-}
-
-@Composable
-private fun audioTrackDetails(track: PlaybackAudioTrack): String? {
-    val identity = track.identity
-    val parts = listOfNotNull(
-        when (identity.channelCount) {
-            Format.NO_VALUE, 0 -> null
-            1 -> stringResource(R.string.tv_player_audio_mono)
-            2 -> stringResource(R.string.tv_player_audio_stereo)
-            SURROUND_5_1 -> "5.1"
-            SURROUND_7_1 -> "7.1"
-            else -> pluralStringResource(
-                R.plurals.tv_player_audio_channels,
-                identity.channelCount,
-                identity.channelCount,
-            )
-        },
-        audioCodecName(identity.sampleMimeType),
-        stringResource(R.string.tv_player_audio_commentary)
-            .takeIf { identity.roleFlags and C.ROLE_FLAG_COMMENTARY != 0 },
-    )
-    return parts.takeIf { it.isNotEmpty() }?.joinToString(DETAIL_SEPARATOR)
-}
-
-@Composable
-private fun subtitleTrackName(track: PlaybackSubtitleTrack, index: Int): String {
-    val name = languageName(track.identity.language) ?: track.label
-        ?: stringResource(R.string.tv_player_subtitle_number, index + 1)
-    return if (track.identity.roleFlags and C.ROLE_FLAG_DESCRIBES_MUSIC_AND_SOUND != 0) {
-        name + DETAIL_SEPARATOR + stringResource(R.string.tv_player_subtitle_sdh)
-    } else {
-        name
-    }
-}
-
-@Composable
-private fun subtitleTrackDetails(track: PlaybackSubtitleTrack, subtitle: PlaybackSubtitle?): String? =
-    when (subtitle.origin()) {
-        SubtitleOrigin.Folder -> stringResource(R.string.tv_player_subtitles_from_folder)
-        SubtitleOrigin.OpenSubtitles -> stringResource(R.string.tv_player_subtitles_from_opensubtitles)
-        SubtitleOrigin.File -> subtitle?.format?.takeIf { it.isNotBlank() }?.uppercase(java.util.Locale.ROOT)
-            ?: track.formatName()
-    }
-
 private val SubtitleTextSize.label: Int
     get() = when (this) {
         SubtitleTextSize.Small -> R.string.tv_player_size_small
@@ -621,9 +556,6 @@ private val SubtitleTextSize.label: Int
         SubtitleTextSize.ExtraLarge -> R.string.tv_player_size_extra_large
     }
 
-private const val DETAIL_SEPARATOR = " · "
-private const val SURROUND_5_1 = 6
-private const val SURROUND_7_1 = 8
 private val OPTION_MIN_HEIGHT = 48.dp
 private val LEADING_SLOT = 20.dp
 private val QUICK_CHIP_HEIGHT = 28.dp

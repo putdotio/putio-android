@@ -71,7 +71,6 @@ import org.robolectric.annotation.GraphicsMode
 import org.robolectric.shadows.ShadowDialog
 import io.putdotio.android.playback.PlaybackState
 
-/** The TV player's circles, chips and side sheets, over a fake Media3 player with tracks. */
 @OptIn(ExperimentalTestApi::class)
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -169,7 +168,6 @@ class TvPlayerOptionsTest {
         compose.onNodeWithText("Speed").assertIsDisplayed()
         chip(SPEED).assert(describedAs("Playback speed 1.5×"))
 
-        // Back with a sheet open dismisses only the sheet: playback, speed and focus stay.
         backInDialog()
         compose.onNodeWithText("Speed").assertDoesNotExist()
         compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertIsDisplayed()
@@ -179,7 +177,6 @@ class TvPlayerOptionsTest {
             assertTrue(player.playWhenReady)
             assertEquals(1.5f, player.playbackParameters.speed)
         }
-        // The sheet's keys went back to the player: Left moves between the chips again.
         key(Key.DirectionLeft)
         chip(SUBTITLES).assertIsSelected()
 
@@ -230,7 +227,6 @@ class TvPlayerOptionsTest {
         settle()
         compose.runOnIdle { assertEquals(1, player.selectedAudioIndex()) }
 
-        // A new period brings new track groups with the same formats; the choice follows them.
         compose.runOnIdle { player.replaceTracks(audio = twoAudio(period = 2), text = twoText(period = 2)) }
         settle()
         compose.runOnIdle { assertEquals(1, player.selectedAudioIndex()) }
@@ -261,7 +257,6 @@ class TvPlayerOptionsTest {
         openSheet(SUBTITLES, rightPresses = 1)
         choose("Off")
         settle()
-        // The renderer's last cues are still there; Off draws none of them.
         compose.onNodeWithTag(SUBTITLE_CUES_TAG).assertDoesNotExist()
         chip(SUBTITLES).assert(describedAs("Subtitles: Off"))
 
@@ -277,7 +272,6 @@ class TvPlayerOptionsTest {
         }
         compose.onNodeWithTag(SUBTITLE_CUES_TAG).assertDoesNotExist()
 
-        // A picked track is found again in the next track list.
         key(Key.DirectionCenter)
         choose("Deutsch")
         settle()
@@ -288,6 +282,39 @@ class TvPlayerOptionsTest {
             assertEquals(1, player.selectedTextIndex())
         }
         compose.onNodeWithTag(SUBTITLE_CUES_TAG).assertIsDisplayed()
+    }
+
+    @Test
+    fun subtitleTracksThatReadTheSameTakeTheirNumbers() {
+        val player = TrackPlayer(
+            text = TrackGroup("text-twins", textFormat("t-en-1", "en", null), textFormat("t-en-2", "en", null)),
+        )
+        show(player, policy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = true))
+        openSheet(SUBTITLES, rightPresses = 1)
+        compose.onNodeWithText("English (track 1)").assertIsDisplayed()
+        compose.onNodeWithText("English (track 2)").assertIsDisplayed()
+    }
+
+    @Test
+    fun aDelayedTrackStopsShowingOnceTheViewerSwitchesTracks() {
+        val player = TrackPlayer()
+        show(player, policy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = true))
+        openSheet(SUBTITLES, rightPresses = 1)
+        choose("Size and timing")
+        repeat(10) { choose("+0.1") }
+        compose.onNodeWithText("+1.0 s").assertIsDisplayed()
+        backInDialog()
+        backInDialog()
+        compose.runOnIdle { player.emitCue("English cue") }
+        settle()
+        compose.runOnIdle { player.advanceTo(2_000L) }
+        settle()
+        compose.onNodeWithTag(SUBTITLE_CUES_TAG).assertIsDisplayed()
+
+        key(Key.DirectionCenter)
+        choose("Deutsch")
+        settle()
+        compose.onNodeWithTag(SUBTITLE_CUES_TAG).assertDoesNotExist()
     }
 
     @Test
@@ -323,7 +350,6 @@ class TvPlayerOptionsTest {
         openSheet(SUBTITLES, rightPresses = 1)
         choose("Off")
         settle()
-        // Settings that change after a pick no longer decide.
         policy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = false)
         settle()
         compose.runOnIdle { assertTrue(C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes) }
@@ -337,10 +363,8 @@ class TvPlayerOptionsTest {
                 player.trackSelectionParameters.buildUpon().setPreferredTextLanguages("de").build()
         }
         show(player, policy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = true))
-        // Without a default the device's caption language decides.
         compose.runOnIdle { assertEquals(1, player.selectedTextIndex()) }
 
-        // The next tracks mark the account's first subtitle language as the default.
         val serverDefault = TrackGroup(
             "text-default",
             textFormat("t-en", "en", "English", C.SELECTION_FLAG_DEFAULT),
@@ -366,7 +390,6 @@ class TvPlayerOptionsTest {
         val player = TrackPlayer()
         var policy by mutableStateOf<SubtitleStartupPolicy?>(null)
         show(player, policyProvider = { policy })
-        // Settings still loading: the viewer picks a track, then opens the picker again.
         openSheet(SUBTITLES, rightPresses = 1)
         choose("Deutsch")
         compose.runOnIdle { assertEquals(1, player.selectedTextIndex()) }
@@ -375,7 +398,6 @@ class TvPlayerOptionsTest {
 
         policy = SubtitleStartupPolicy(showSubtitles = false, autoSelectSubtitles = true)
         settle()
-        // hide_subtitles outranks the pick and takes its picker with it.
         compose.onNode(hasText("Deutsch") and hasClickAction()).assertDoesNotExist()
         chip(SUBTITLES).assertDoesNotExist()
         compose.runOnIdle {
@@ -424,7 +446,6 @@ class TvPlayerOptionsTest {
             assertTrue(C.TRACK_TYPE_TEXT in rebuilt.trackSelectionParameters.disabledTrackTypes)
         }
 
-        // The media session changes speed on the player directly; that choice survives too.
         compose.runOnIdle { players.last().setPlaybackSpeed(1.5f) }
         settle()
         restoration.emulateSavedInstanceStateRestore()
@@ -448,11 +469,9 @@ class TvPlayerOptionsTest {
     fun theSeekBarStartsAtTheResumePositionBeforeTheStreamReportsItsDuration() {
         val player = TrackPlayer(durationKnown = false)
         show(player, readyState(resumePositionMillis = 420_000L, durationSeconds = 840.0))
-        // No poll has run yet; the listing's duration places the bar where playback starts.
         assertSeekBar(0.5f)
         compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("7:00")
 
-        // The stream's own duration replaces it as soon as the timeline arrives, not at the next poll.
         compose.runOnIdle { player.loadDuration(1_680_000L) }
         settle()
         assertSeekBar(0.25f)
@@ -496,7 +515,6 @@ class TvPlayerOptionsTest {
             it.config.getOrNull(SemanticsProperties.ContentDescription)?.contains(value) == true
         }
 
-    /** Center on a sheet row: the rows are TV surfaces that act on the select key. */
     private fun choose(label: String) {
         compose.onNode(hasText(label) and hasClickAction()).performSemanticsAction(SemanticsActions.OnClick)
         settle()
@@ -512,7 +530,6 @@ class TvPlayerOptionsTest {
         settle()
     }
 
-    /** Back reaches the sheet's own window, as the remote's does. */
     private fun backInDialog() {
         compose.runOnUiThread {
             val dialog = ShadowDialog.getLatestDialog()
@@ -585,14 +602,12 @@ private fun textFormat(id: String, language: String, label: String?, selectionFl
 
 private fun oneText() = TrackGroup("text-one", textFormat("t-en", "en", "English SDH"))
 
-/** Each [period] gets distinct track groups carrying the same formats, as a new HLS period does. */
 private fun twoAudio(period: Int = 1) =
     TrackGroup("audio-$period", audioFormat("a-it", "it"), audioFormat("a-en", "en"))
 
 private fun twoText(period: Int = 1) =
     TrackGroup("text-$period", textFormat("t-en", "en", "English SDH"), textFormat("t-de", "de", null))
 
-/** Selects tracks from the parameters roughly as ExoPlayer's default selector would. */
 @UnstableApi
 internal class TrackPlayer(
     private var audio: TrackGroup? = twoAudio(),
@@ -664,6 +679,11 @@ internal class TrackPlayer(
         invalidateState()
     }
 
+    fun advanceTo(positionMillis: Long) {
+        state = state.buildUpon().setContentPositionMs(positionMillis).build()
+        invalidateState()
+    }
+
     fun loadDuration(durationMillis: Long) {
         durationUs = durationMillis * 1_000L
         state = state.buildUpon().setPlaylist(state.playlist.map { refresh(it) }).build()
@@ -709,7 +729,6 @@ internal class TrackPlayer(
         return Tracks(groups)
     }
 
-    /** Media3's order: a preferred language, then the media's default flag, then the first track. */
     private fun TrackGroup.automaticIndex(parameters: TrackSelectionParameters): Int {
         val indices = 0 until length
         return parameters.preferredTextLanguages.firstNotNullOfOrNull { language ->

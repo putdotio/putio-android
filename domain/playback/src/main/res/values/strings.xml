@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="playback_audio_track_number">Audio track %1$d</string>
+    <string name="playback_subtitle_track">Subtitle %1$d</string>
+    <string name="playback_track_disambiguated">%1$s (track %2$d)</string>
+    <string name="playback_audio_mono">Mono</string>
+    <string name="playback_audio_stereo">Stereo</string>
+    <plurals name="playback_audio_channels">
+        <item quantity="one">%1$d channel</item>
+        <item quantity="other">%1$d channels</item>
+    </plurals>
+    <string name="playback_audio_commentary">Commentary</string>
+    <string name="playback_subtitles_from_folder">This folder</string>
+    <string name="playback_subtitles_from_opensubtitles">OpenSubtitles</string>
+    <string name="playback_subtitle_sdh">SDH</string>
+</resources>

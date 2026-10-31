@@ -8,7 +8,6 @@ import androidx.compose.ui.input.key.type
 import androidx.media3.common.C
 import androidx.media3.common.Player
 
-/** Keys the player handles itself: the D-pad (so focus stays put), play/pause and scrubbing. */
 private val TV_PLAYER_KEYS = setOf(
     Key.DirectionCenter,
     Key.Enter,
@@ -24,10 +23,6 @@ private val TV_PLAYER_KEYS = setOf(
     Key.MediaRewind,
 )
 
-/**
- * Hands [event] to the overlay and [apply]s its transition; returns whether the player consumed
- * the key. Back belongs to the BackHandler; everything else is the player's.
- */
 internal fun TvPlayerOverlay.onPlayerKey(
     event: KeyEvent,
     player: Player,
@@ -92,10 +87,6 @@ private fun TvPlayerOverlay.keyUp(key: Key, player: Player, focused: TvPlayerCon
         else -> null
     }
 
-/**
- * Rewind and fast-forward scrub from anywhere, pulling focus back to the seek bar, as the RN
- * player's did; Left and Right scrub only on the seek bar and move within a row otherwise.
- */
 private fun Key.scrubDirection(onSeekBar: Boolean): TvScrubDirection? =
     when (this) {
         Key.MediaRewind -> TvScrubDirection.Backward

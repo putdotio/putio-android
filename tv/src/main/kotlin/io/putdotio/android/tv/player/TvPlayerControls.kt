@@ -68,11 +68,6 @@ internal data class TvPlayerChipLabels(
     val speed: String,
 )
 
-/**
- * The phone's player on a D-pad: back and the filename on top, the centre circles, then the times,
- * a yellow scrubber and the chips. Focus follows the overlay's D-pad state rather than Compose
- * focus, which stays on the player for the scrubbing keys.
- */
 @Composable
 internal fun TvPlayerControls(
     player: Player,
@@ -86,14 +81,12 @@ internal fun TvPlayerControls(
     focused: TvPlayerControl,
     modifier: Modifier = Modifier,
 ) {
-    // Until the player has its item the bar starts where playback will, not at zero.
     var positionMillis by remember(player) {
         mutableLongStateOf(
             if (player.currentMediaItem == null) startPositionMillis else player.currentPosition.coerceAtLeast(0L),
         )
     }
     var durationMillis by remember(player) { mutableLongStateOf(player.duration) }
-    // The timeline and seeks update the bar at once; the poll covers steady playback.
     DisposableEffect(player) {
         val listener = object : Player.Listener {
             override fun onEvents(player: Player, events: Player.Events) {
@@ -106,7 +99,6 @@ internal fun TvPlayerControls(
         player.addListener(listener)
         onDispose { player.removeListener(listener) }
     }
-    // Polls only while shown and playing; the controls hide three seconds into playback.
     LaunchedEffect(player, paused) {
         while (true) {
             if (player.currentMediaItem != null) positionMillis = player.currentPosition.coerceAtLeast(0L)
@@ -115,7 +107,6 @@ internal fun TvPlayerControls(
             delay(TV_PLAYER_POSITION_POLL_MILLIS)
         }
     }
-    // A pending scrub shows its target until it is committed or dismissed.
     val shownMillis = scrubTargetMillis ?: positionMillis
     val knownDuration = knownDurationMillis(durationMillis, listingDurationMillis)
     val elapsed = playerTime(shownMillis)
@@ -149,7 +140,6 @@ internal fun TvPlayerControls(
     }
 }
 
-/** Back and the filename, as the phone's top bar; Back on the remote does what the arrow says. */
 @Composable
 internal fun TvPlayerTopBar(title: String, modifier: Modifier = Modifier) {
     Row(
@@ -261,7 +251,6 @@ private fun TvPlayerTimes(elapsed: String, remaining: String?) {
     }
 }
 
-/** The played part in yellow over a light track, with the playhead's knob; scrubbing enlarges it. */
 @Composable
 private fun TvSeekBar(
     fraction: Float,
@@ -374,7 +363,6 @@ private fun TvPlayerChip(@DrawableRes icon: Int, label: String, description: Str
     }
 }
 
-/** A stream reports its duration once loaded; the listing's stands in until then. */
 private fun knownDurationMillis(playerMillis: Long, listingMillis: Long?): Long? =
     playerMillis.takeIf { it != C.TIME_UNSET && it > 0L } ?: listingMillis?.takeIf { it > 0L }
 

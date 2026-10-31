@@ -1,7 +1,5 @@
 package io.putdotio.android.playback
 
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
@@ -33,10 +31,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.Stable
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
@@ -44,7 +38,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -61,56 +54,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.media3.common.C
-import androidx.media3.common.Format
 import androidx.media3.common.Player as Media3Player
 import androidx.media3.common.util.UnstableApi
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.design.putioMono
-
-internal const val DETAIL_SEPARATOR = " · "
-
-/** What the video's chips and side sheets read from the player, kept current by one listener. */
-@Stable
-internal class PlayerOptionsSnapshot(player: Media3Player) {
-    var speed by mutableStateOf(player.playbackParameters.speed)
-    var audioTracks by mutableStateOf(player.currentTracks.playbackAudioTracks())
-    var subtitleTracks by mutableStateOf(player.currentTracks.playbackSubtitleTracks())
-    var parameters by mutableStateOf(player.trackSelectionParameters)
-    var commands by mutableStateOf(player.availableCommands)
-
-    fun update(player: Media3Player) {
-        speed = player.playbackParameters.speed
-        audioTracks = player.currentTracks.playbackAudioTracks()
-        subtitleTracks = player.currentTracks.playbackSubtitleTracks()
-        parameters = player.trackSelectionParameters
-        commands = player.availableCommands
-    }
-
-    val canChangeSpeed: Boolean get() = commands.contains(Media3Player.COMMAND_SET_SPEED_AND_PITCH)
-    val canSelectTracks: Boolean get() = commands.contains(Media3Player.COMMAND_SET_TRACK_SELECTION_PARAMETERS)
-
-    /** The track the viewer picked, else the one playing. */
-    val currentAudio: PlaybackAudioTrack?
-        get() = audioTracks.singleOrNull { track ->
-            parameters.overrides[track.group]?.trackIndices?.contains(track.trackIndex) == true
-        } ?: audioTracks.firstOrNull { it.selected }
-}
-
-@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-@Composable
-internal fun rememberPlayerOptionsSnapshot(player: Media3Player): PlayerOptionsSnapshot {
-    val snapshot = remember(player) { PlayerOptionsSnapshot(player) }
-    DisposableEffect(player) {
-        val listener = object : Media3Player.Listener {
-            override fun onEvents(player: Media3Player, events: Media3Player.Events) = snapshot.update(player)
-        }
-        player.addListener(listener)
-        onDispose { player.removeListener(listener) }
-    }
-    return snapshot
-}
 
 /**
  * An outlined chip on the video, at least 48dp tall to touch, named for what it changes. On a page
@@ -226,59 +174,6 @@ internal fun MobileAudioSheetContent(
         }
     }
 }
-
-/**
- * A track's language in its own words ("Türkçe"), else its label, else its number. Repeated names
- * stay as they are: the details line tells them apart, and only identical rows get numbers.
- */
-@Composable
-internal fun audioTrackLabels(tracks: List<PlaybackAudioTrack>): List<String> {
-    val names = tracks.mapIndexed { index, track ->
-        languageName(track.identity.language) ?: track.label
-            ?: stringResource(R.string.mobile_playback_audio_track_number, index + 1)
-    }
-    val details = tracks.map { audioTrackDetails(it) }
-    val rows = names.zip(details)
-    val numbered = names.mapIndexed { index, name ->
-        if (rows.count { it == rows[index] } > 1) numberedTrack(name, index) else name
-    }
-    // A numbered row can meet a track already labelled that way; then every row takes its number,
-    // and distinct numbers keep the rows distinct.
-    val numberedRows = numbered.zip(details)
-    if (numberedRows.distinct().size == numberedRows.size) return numbered
-    return names.mapIndexed { index, name -> numberedTrack(name, index) }
-}
-
-@Composable
-private fun numberedTrack(name: String, index: Int): String =
-    stringResource(R.string.mobile_playback_audio_track_disambiguated, name, index + 1)
-
-/** "5.1 · AC3 · Commentary": what the format says about channels, codec and role. */
-@Composable
-private fun audioTrackDetails(track: PlaybackAudioTrack): String? {
-    val identity = track.identity
-    val parts = listOfNotNull(
-        when (identity.channelCount) {
-            Format.NO_VALUE, 0 -> null
-            1 -> stringResource(R.string.mobile_playback_audio_mono)
-            2 -> stringResource(R.string.mobile_playback_audio_stereo)
-            SURROUND_5_1 -> "5.1"
-            SURROUND_7_1 -> "7.1"
-            else -> pluralStringResource(
-                R.plurals.mobile_playback_audio_channels,
-                identity.channelCount,
-                identity.channelCount,
-            )
-        },
-        audioCodecName(identity.sampleMimeType),
-        stringResource(R.string.mobile_playback_audio_commentary)
-            .takeIf { identity.roleFlags and C.ROLE_FLAG_COMMENTARY != 0 },
-    )
-    return parts.takeIf { it.isNotEmpty() }?.joinToString(DETAIL_SEPARATOR)
-}
-
-private const val SURROUND_5_1 = 6
-private const val SURROUND_7_1 = 8
 
 /**
  * Speed: the value large between − and +, which step through the presets; a stepped track over

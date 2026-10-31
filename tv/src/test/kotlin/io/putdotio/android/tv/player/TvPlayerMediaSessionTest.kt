@@ -123,7 +123,6 @@ class TvPlayerMediaSessionTest {
         compose.settle()
         compose.runOnIdle { assertFalse(player.playWhenReady) }
 
-        // The scrub already paused the player, so this pause changes nothing it reports.
         val controller = connect(sessions.single())
         controller.pause()
         idleSession()
@@ -193,7 +192,6 @@ class TvPlayerMediaSessionTest {
         compose.mainClock.advanceTimeBy(TV_PLAYER_CONTROLS_HIDE_DELAY_MILLIS + 100L)
         compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertDoesNotExist()
 
-        // The media session drives the player directly, as for a Now Playing pause.
         compose.runOnIdle { player.pause() }
         compose.settle()
         compose.onNodeWithContentDescription("Play").assertIsDisplayed()
@@ -207,7 +205,6 @@ class TvPlayerMediaSessionTest {
         compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertDoesNotExist()
     }
 
-    /** Publishes [player] through the app's real session, as the default factory does. */
     private fun sessionFactory(player: FakePlayer, sessions: MutableList<MediaSession>) = object : TvPlayerFactory {
         override fun create(context: android.content.Context, mediaType: PlaybackMediaType): Player = player
 
@@ -218,7 +215,6 @@ class TvPlayerMediaSessionTest {
         }
     }
 
-    /** A system controller, as Now Playing or a remote's media keys reach the session. */
     private fun connect(session: MediaSession): MediaController {
         val pending = MediaController.Builder(compose.activity, session.token).buildAsync()
         shadowOf(Looper.getMainLooper()).idle()

@@ -49,7 +49,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.media3.ui.SubtitleView
 import io.putdotio.sdk.files.PlaybackSubtitle
-import java.util.Locale
 
 /** The track the viewer picked, else the one showing; null when subtitles are off. */
 private fun PlayerOptionsSnapshot.currentSubtitle(): PlaybackSubtitleTrack? {
@@ -124,8 +123,8 @@ internal fun MobileSubtitlesSheetContent(
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
             )
         }
-        val names = subtitleRowNames(tracks.map { (_, track, subtitle) -> track to subtitle }, tracks.map { it.first })
-    val inFile = tracks.filter { it.third.origin() == SubtitleOrigin.File }
+        val names = subtitleTrackLabels(snapshot.subtitleTracks, sidecar)
+        val inFile = tracks.filter { it.third.origin() == SubtitleOrigin.File }
         val found = tracks.filter { it.third.origin() != SubtitleOrigin.File }.sortedBy { it.third.origin() }
         listOf(R.string.mobile_playback_subtitles_in_file to inFile, R.string.mobile_playback_subtitles_found to found)
             .filter { it.second.isNotEmpty() }
@@ -161,47 +160,6 @@ internal fun MobileSubtitleTrackOption(
     )
 }
 
-/** Row names, numbered only where two rows would otherwise read the same. */
-@Composable
-private fun subtitleRowNames(
-    rows: List<Pair<PlaybackSubtitleTrack, PlaybackSubtitle?>>,
-    indices: List<Int>,
-): List<String> {
-    val names = rows.mapIndexed { position, (track, _) -> subtitleTrackName(track, indices[position]) }
-    val details = rows.map { (track, subtitle) -> subtitleTrackDetails(track, subtitle) }
-    val keyed = names.zip(details)
-    return names.mapIndexed { position, name ->
-        if (keyed.count { it == keyed[position] } > 1) {
-            stringResource(R.string.mobile_playback_audio_track_disambiguated, name, indices[position] + 1)
-        } else {
-            name
-        }
-    }
-}
-
-/** A track's language in its own words, marked SDH where the format says so. */
-@Composable
-private fun subtitleTrackName(track: PlaybackSubtitleTrack, index: Int): String {
-    val name = languageName(track.identity.language) ?: track.label
-        ?: stringResource(R.string.mobile_playback_subtitle_track, index + 1)
-    return if (track.identity.roleFlags and C.ROLE_FLAG_DESCRIBES_MUSIC_AND_SOUND != 0) {
-        name + DETAIL_SEPARATOR + stringResource(R.string.mobile_playback_subtitle_sdh)
-    } else {
-        name
-    }
-}
-
-/** A track in the file names its format; one put.io found names where it found it. */
-@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-@Composable
-private fun subtitleTrackDetails(track: PlaybackSubtitleTrack, subtitle: PlaybackSubtitle?): String? =
-    when (subtitle.origin()) {
-        SubtitleOrigin.Folder -> stringResource(R.string.mobile_playback_subtitles_from_folder)
-        SubtitleOrigin.OpenSubtitles -> stringResource(R.string.mobile_playback_subtitles_from_opensubtitles)
-        SubtitleOrigin.File -> subtitle?.format?.takeIf { it.isNotBlank() }?.uppercase(Locale.ROOT)
-            ?: track.formatName()
-    }
-
 @Composable
 private fun MobileSubtitleAppearanceRow(textSize: SubtitleTextSize, offsetMillis: Long, onClick: () -> Unit) {
     Row(
@@ -221,7 +179,7 @@ private fun MobileSubtitleAppearanceRow(textSize: SubtitleTextSize, offsetMillis
             Text(
                 buildAnnotatedString {
                     append(sizeName)
-                    append(DETAIL_SEPARATOR)
+                    append(TRACK_DETAIL_SEPARATOR)
                     withStyle(SpanStyle(fontFamily = PutioTypeScale.mono.fontFamily, fontFeatureSettings = "tnum")) {
                         append(formatSubtitleOffset(offsetMillis))
                     }

@@ -90,11 +90,6 @@ import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
 import io.putdotio.android.PutioFailure
 
-/**
- * Controlled-state TV playback proof: a fixed Files listing, the real TV player screen and
- * ExoPlayer streaming a caller-owned local HLS or MP4 fixture, driven with D-pad key events.
- * No API calls; the listing and the resolved source stand in for a signed-in session.
- */
 @RunWith(AndroidJUnit4::class)
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 class TvPlayerProofTest {
@@ -147,7 +142,6 @@ class TvPlayerProofTest {
         pause()
 
         val player = factory.current()
-        // The first Back hides the controls; the second leaves.
         press(KeyEvent.KEYCODE_BACK)
         compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertDoesNotExist()
         press(KeyEvent.KEYCODE_BACK)
@@ -175,8 +169,6 @@ class TvPlayerProofTest {
         compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertDoesNotExist()
         screenshot("10-playing-clean")
 
-        // Right twice: the first press reveals the controls, pauses and targets +15 s; the second
-        // grows the step when it lands inside the press window.
         val before = compose.runOnIdle { factory.current().currentPosition }
         press(KeyEvent.KEYCODE_DPAD_RIGHT)
         press(KeyEvent.KEYCODE_DPAD_RIGHT)
@@ -193,7 +185,6 @@ class TvPlayerProofTest {
         screenshot("12-seek-committed")
         pause()
 
-        // Rewind scrubs back; Back dismisses seek mode without seeking and resumes playback.
         val committed = compose.runOnIdle { factory.current().currentPosition }
         press(KeyEvent.KEYCODE_MEDIA_REWIND)
         awaitPlayer(factory) { !it.playWhenReady }
@@ -208,7 +199,6 @@ class TvPlayerProofTest {
         screenshot("14-seek-dismissed")
         pause()
 
-        // Back hides the playing controls; playback continues and the player keeps focus.
         press(KeyEvent.KEYCODE_BACK)
         compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertDoesNotExist()
         compose.onNodeWithTag(TV_PLAYER_TAG).assertIsFocused()
@@ -217,7 +207,6 @@ class TvPlayerProofTest {
         screenshot("15-controls-dismissed")
         pause()
 
-        // Paused controls dismiss without resuming or leaving.
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         awaitPlayer(factory) { !it.playWhenReady }
         compose.onNodeWithContentDescription("Play").assertExists()
@@ -232,7 +221,6 @@ class TvPlayerProofTest {
         }
         screenshot("17-paused-clean")
 
-        // Nothing left: Back leaves to the row, once.
         val player = factory.current()
         press(KeyEvent.KEYCODE_BACK)
         compose.waitUntil(10_000) { compose.runOnIdle { playing == null } }
@@ -249,7 +237,6 @@ class TvPlayerProofTest {
         compose.onNodeWithContentDescription("Open Documents").assertIsFocused()
         press(KeyEvent.KEYCODE_DPAD_DOWN)
 
-        // A saved position asks first; Resume is preferred.
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(10_000) { compose.onAllNodesWithText(RESUME_TITLE).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText(RESUME_LABEL).assertIsFocused()
@@ -261,7 +248,6 @@ class TvPlayerProofTest {
         screenshot("21-resume-restart-focused")
         pause()
 
-        // Back leaves playback without a player, as mobile's and tv-native's prompts do.
         press(KeyEvent.KEYCODE_BACK)
         compose.waitUntil(10_000) { compose.runOnIdle { controller == null } }
         assertNull("No player after Back", factory.player)
@@ -271,7 +257,6 @@ class TvPlayerProofTest {
         screenshot("22-back-left-playback")
         pause()
 
-        // Asked again, Resume plays from the saved position.
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(10_000) { compose.onAllNodesWithText(RESUME_TITLE).fetchSemanticsNodes().isNotEmpty() }
         press(KeyEvent.KEYCODE_DPAD_CENTER)
@@ -279,7 +264,6 @@ class TvPlayerProofTest {
         compose.onNodeWithTag(TV_PLAYER_TAG).assertIsFocused()
         screenshot("22b-continued")
 
-        // Sixteen seconds of playback write once, not once per tick; leaving writes once more.
         elapse(POSITION_INTERVAL_MILLIS + 1_000L)
         compose.runOnIdle { assertEquals(1, server.writes.size) }
         leavePlayback()
@@ -290,7 +274,6 @@ class TvPlayerProofTest {
         compose.onNodeWithContentDescription("Play $FIXTURE_TITLE").assertIsFocused()
         pause()
 
-        // Again: the server now holds the exit position. Start over plays from zero.
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(10_000) { compose.onAllNodesWithText(RESTART_LABEL).fetchSemanticsNodes().isNotEmpty() }
         press(KeyEvent.KEYCODE_DPAD_LEFT)
@@ -303,7 +286,6 @@ class TvPlayerProofTest {
         compose.waitUntil(10_000) { compose.runOnIdle { server.writes.size == 3 } }
         assertTrue("Starting over writes its own position", server.writes.last() < 10.0)
 
-        // Resume plays from what the last playback saved.
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(10_000) {
             compose.onAllNodesWithText(RESUME_PREFIX, substring = true).fetchSemanticsNodes().isNotEmpty()
@@ -331,7 +313,6 @@ class TvPlayerProofTest {
         awaitPlayer(factory) { it.isPlaying && factory.renderedFrame }
         screenshot("91-playing-to-the-end")
 
-        // Without autoplay the finished video leaves playback; its real end position is written.
         compose.waitUntil(FIXTURE_SECONDS.toLong() * 1_000L) { compose.runOnIdle { controller == null } }
         compose.waitUntil(10_000) {
             compose.runOnIdle { (server.writes.lastOrNull() ?: 0.0) >= FIXTURE_SECONDS - 1.0 }
@@ -340,7 +321,6 @@ class TvPlayerProofTest {
         screenshot("92-finished-back-on-the-row")
         pause()
 
-        // Saved within 10 s of the end, it counts as finished: it starts over without asking.
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         awaitPlayer(factory) { it.isPlaying && factory.renderedFrame }
         compose.onAllNodesWithText(RESUME_PREFIX, substring = true).assertCountEquals(0)
@@ -373,11 +353,6 @@ class TvPlayerProofTest {
         compose.onNodeWithContentDescription("Play $AUDIO_TITLE").assertIsFocused()
     }
 
-    /**
-     * Walks the redesign's player boards on a fixture with two audio tracks, two subtitle tracks
-     * in the file and one put.io found: Resume, the paused controls, then the Audio, Subtitles,
-     * Size and timing, and Speed sheets, each closed with Back before the controls.
-     */
     @Test
     fun playerControlsAndSheetsFollowTheBoards() {
         val fixture = arguments.getString("putio.tv.player.boardsFixture")
@@ -423,7 +398,6 @@ class TvPlayerProofTest {
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         awaitPlayer(factory) { !it.playWhenReady }
 
-        // English in the file, picked from the sheet.
         press(KeyEvent.KEYCODE_DPAD_DOWN)
         press(KeyEvent.KEYCODE_DPAD_DOWN)
         press(KeyEvent.KEYCODE_DPAD_RIGHT)
@@ -434,7 +408,6 @@ class TvPlayerProofTest {
         awaitPlayer(factory) { selectedSubtitleLanguage(it) == "en" }
         elapse(DIALOG_EXIT_MILLIS)
 
-        // Size and timing: the offset steps by 0.1 s from +0.1.
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(10_000) { compose.onAllNodesWithText("In this file").fetchSemanticsNodes().isNotEmpty() }
         compose.onNode(hasText("Size and timing") and hasClickAction()).performSemanticsAction(SemanticsActions.OnClick)
@@ -447,7 +420,6 @@ class TvPlayerProofTest {
         compose.onNodeWithContentDescription("Later by 0.1 seconds").assertIsFocused()
         screenshot("androidtv-st-p7-timing")
 
-        // Back returns to Subtitles on the shown track.
         press(KeyEvent.KEYCODE_BACK)
         compose.waitUntil(10_000) { compose.onAllNodesWithText("Medium · +0.5 s").fetchSemanticsNodes().isNotEmpty() }
         elapse(DIALOG_EXIT_MILLIS)
@@ -457,7 +429,6 @@ class TvPlayerProofTest {
         compose.waitUntil(10_000) { compose.onAllNodesWithText("In this file").fetchSemanticsNodes().isEmpty() }
         compose.onNodeWithContentDescription(SUBTITLES, substring = true).assertIsSelected()
 
-        // Audio: tracks by language with channels and codec; picking one closes the sheet.
         press(KeyEvent.KEYCODE_DPAD_LEFT)
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(10_000) { compose.onAllNodesWithText("Stereo · AAC").fetchSemanticsNodes().isNotEmpty() }
@@ -475,7 +446,6 @@ class TvPlayerProofTest {
         awaitPlayer(factory) { selectedAudioLanguage(it) == "en" }
         elapse(DIALOG_EXIT_MILLIS)
 
-        // Speed: + steps to the next preset and the sheet stays.
         press(KeyEvent.KEYCODE_DPAD_RIGHT)
         press(KeyEvent.KEYCODE_DPAD_RIGHT)
         compose.onNodeWithContentDescription(SPEED, substring = true).assertIsSelected()
@@ -496,7 +466,6 @@ class TvPlayerProofTest {
         press(KeyEvent.KEYCODE_BACK)
         compose.waitUntil(10_000) { compose.onAllNodesWithText("Speed").fetchSemanticsNodes().isEmpty() }
 
-        // Up twice reaches play and pause; the paused controls never hide.
         press(KeyEvent.KEYCODE_DPAD_UP)
         press(KeyEvent.KEYCODE_DPAD_UP)
         compose.onNodeWithContentDescription("Play").assertIsSelected()
@@ -522,10 +491,6 @@ class TvPlayerProofTest {
         )
     }
 
-    /**
-     * The account's default subtitle (the master's `DEFAULT=YES` rendition, German here) starts
-     * on even though the system's captions ask for English.
-     */
     @Test
     fun automaticSubtitlesStartOnTheAccountsDefaultOverTheCaptionLanguage() {
         val fixture = arguments.getString("putio.tv.player.defaultSubtitleFixture")
@@ -555,7 +520,6 @@ class TvPlayerProofTest {
         }
     }
 
-    /** `hide_subtitles` leaves no Subtitles chip and no subtitle on, whatever the stream has. */
     @Test
     fun hideSubtitlesLeavesNoSubtitlesChip() {
         val factory = mountFilesWithPlayer(SubtitleStartupPolicy(showSubtitles = false, autoSelectSubtitles = true))
@@ -565,7 +529,6 @@ class TvPlayerProofTest {
             it.isPlaying && factory.renderedFrame && it.currentPosition > 1_000L &&
                 it.currentTracks.playbackAudioTracks().size == 2
         }
-        // Down brings hidden controls back on play and pause; two more reach Audio, Right goes to Speed.
         press(KeyEvent.KEYCODE_DPAD_DOWN)
         press(KeyEvent.KEYCODE_DPAD_DOWN)
         press(KeyEvent.KEYCODE_DPAD_DOWN)
@@ -588,11 +551,6 @@ class TvPlayerProofTest {
         player.currentTracks.playbackAudioTracks().singleOrNull { it.selected }
             ?.let { it.group.getFormat(it.trackIndex).language }
 
-    /**
-     * The conversion interstitial on a fake conversion source, started once on opening without a
-     * press, then the remote's play/pause key and the system's media controls through the
-     * published session, then a failed resolution that Try again recovers from.
-     */
     @Test
     fun conversionThenSessionControlsAndARecoverableError() {
         val conversionStarts = AtomicInteger()
@@ -601,7 +559,6 @@ class TvPlayerProofTest {
         press(KeyEvent.KEYCODE_DPAD_DOWN)
         compose.onNodeWithContentDescription("Play $CONVERTING_TITLE").assertIsFocused()
 
-        // Opening it starts the conversion without a press; then queued and running, read again every 3 s.
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         awaitConversionStatus("Starting…")
         compose.onNodeWithText(
@@ -621,7 +578,6 @@ class TvPlayerProofTest {
         elapse(TV_PLAYER_CONTROLS_HIDE_DELAY_MILLIS + 1_000L)
         compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertDoesNotExist()
 
-        // The remote's play/pause key, as `adb shell input keyevent` sends it.
         shell("input keyevent KEYCODE_MEDIA_PLAY_PAUSE")
         awaitPlayer(factory) { !it.playWhenReady }
         compose.onNodeWithContentDescription("Play").assertExists()
@@ -631,7 +587,6 @@ class TvPlayerProofTest {
         awaitPlayer(factory) { it.isPlaying }
         screenshot("55-remote-playing")
 
-        // The system sees the session, and its media controls reach the player through it.
         val system = sessionController()
         assertEquals(CONVERTING_TITLE, system.metadata?.getString(android.media.MediaMetadata.METADATA_KEY_TITLE))
         assertEquals(android.media.session.PlaybackState.STATE_PLAYING, system.playbackState?.state)
@@ -649,7 +604,6 @@ class TvPlayerProofTest {
         leavePlayback()
         compose.waitUntil(5_000) { activeSessions().isEmpty() }
 
-        // A failed resolution explains itself; Try again resolves again and plays.
         press(KeyEvent.KEYCODE_DPAD_DOWN)
         compose.onNodeWithContentDescription("Play $OFFLINE_TITLE").assertIsFocused()
         press(KeyEvent.KEYCODE_DPAD_CENTER)
@@ -676,7 +630,6 @@ class TvPlayerProofTest {
         }
     }
 
-    /** Runs [command] as the shell user, as `adb shell` does, and waits for it to finish. */
     private fun shell(command: String) {
         shellOutput(command)
         compose.waitForIdle()
@@ -691,7 +644,6 @@ class TvPlayerProofTest {
             .decodeToString().trim().takeUnless { it == "null" }.orEmpty()
     }
 
-    /** This app's sessions as the system's media controls see them. */
     private fun activeSessions(): List<android.media.session.MediaController> {
         val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
         automation.adoptShellPermissionIdentity(android.Manifest.permission.MEDIA_CONTENT_CONTROL)
@@ -709,12 +661,6 @@ class TvPlayerProofTest {
         return activeSessions().single()
     }
 
-    /**
-     * Two rows on the real session route, without write-back: one with no conversion requested
-     * whose start, counted in [conversionStarts], takes two seconds before it runs (queued,
-     * 35 %, 80 %, then the local fixture), and one whose first resolution fails with a network
-     * error before the fixture resolves.
-     */
     private fun mountFilesWithSessionRoute(conversionStarts: AtomicInteger): ProofPlayerFactory {
         val source = localSource()
         val factory = ProofPlayerFactory()
@@ -815,17 +761,12 @@ class TvPlayerProofTest {
     private var playing by mutableStateOf<FilesItem?>(null)
     private var controller by mutableStateOf<PlaybackController?>(null)
 
-    /** Back hides the controls if they are up, then leaves; never a Back past the player. */
     private fun leavePlayback() {
         press(KeyEvent.KEYCODE_BACK)
         if (compose.runOnIdle { controller != null }) press(KeyEvent.KEYCODE_BACK)
         compose.waitUntil(10_000) { compose.runOnIdle { controller == null } }
     }
 
-    /**
-     * The Files listing on the real session route: a [PlaybackController] per play, resolving
-     * the local fixture with [server]'s saved position, and TV write-back into [server].
-     */
     private fun mountFilesWithResume(
         server: ProofPositionServer,
         source: PlaybackSource = localSource(),
@@ -924,7 +865,6 @@ class TvPlayerProofTest {
             ),
         ).state
 
-    /** A fixed Files listing whose media row plays the local fixture on the production player. */
     private fun mountFilesWithPlayer(
         subtitleStartupPolicy: SubtitleStartupPolicy? = null,
         source: PlaybackSource = localSource(),
@@ -986,7 +926,6 @@ class TvPlayerProofTest {
         return factory
     }
 
-    /** The elapsed label, which shows a pending scrub's target. */
     private fun shownElapsedSeconds(): Long {
         val text = compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).fetchSemanticsNode()
             .config[SemanticsProperties.Text].joinToString("") { it.text }
@@ -998,13 +937,8 @@ class TvPlayerProofTest {
         compose.waitForIdle()
     }
 
-    /** Lets a concurrent screen recording show each step. */
     private fun pause() = elapse(STEP_PAUSE_MILLIS)
 
-    /**
-     * Waits in real time while keeping the rule's virtual clock in step, so the player's
-     * own timers (auto-hide, position polling) run as they would outside a test.
-     */
     private fun elapse(millis: Long) {
         var remaining = millis
         while (remaining > 0) {
@@ -1032,7 +966,6 @@ class TvPlayerProofTest {
         val file = File(fixture).canonicalFile
         require(file.toPath().startsWith(requireNotNull(context.getExternalFilesDir(null)).canonicalFile.toPath()))
         require(file.isFile && file.canRead()) { "Fixture is not readable: $file" }
-        // The SDK owns production URLs. This proof reads only its caller-owned local fixture.
         val url = PutioCredentialUrl::class.java.getDeclaredConstructor(String::class.java)
             .newInstance(Uri.fromFile(file).toString())
         return PlaybackSource(
@@ -1103,7 +1036,6 @@ class TvPlayerProofTest {
     }
 }
 
-/** Stands in for the account's `start_from`: resolutions read it and write-back updates it. */
 private class ProofPositionServer(var startFromSeconds: Double) {
     val writes = mutableListOf<Double>()
 
@@ -1115,7 +1047,6 @@ private class ProofPositionServer(var startFromSeconds: Double) {
     }
 }
 
-/** The production TV player and media session, observed for its first rendered frame and its release. */
 @UnstableApi
 private class ProofPlayerFactory : TvPlayerFactory {
     var player: Player? = null

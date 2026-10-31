@@ -113,7 +113,6 @@ class TvPlayerResumeTest {
         showResumeRoute(player, onExit = { exits += 1 })
         compose.onNodeWithText(RESUME_LABEL).assertIsFocused()
 
-        // Back reaches the dialog's own window, as the remote's does.
         compose.runOnUiThread {
             val dialog = ShadowDialog.getLatestDialog()
             val down = AndroidKeyEvent(AndroidKeyEvent.ACTION_DOWN, AndroidKeyEvent.KEYCODE_BACK)
@@ -157,7 +156,6 @@ class TvPlayerResumeTest {
         compose.back()
         compose.onNodeWithTag(TV_PLAYER_TAG).assertDoesNotExist()
         compose.runOnIdle {
-            // The playing fake's clock moves on a few frames past the jump.
             val (fileId, seconds) = writes.single()
             assertEquals(9L, fileId)
             assertTrue("Exit position $seconds s", seconds in 61.0..62.0)
@@ -196,7 +194,6 @@ class TvPlayerResumeTest {
         reporting.close()
     }
 
-    /** The session route on a real controller whose resolution carries a saved position. */
     private fun showResumeRoute(player: FakePlayer, onExit: () -> Unit = {}) {
         val controller = PlaybackController(
             PlaybackTarget(FilesItemId(9), "Sintel.mp4", PlaybackMediaType.VIDEO, DURATION_SECONDS.toDouble()),

@@ -27,7 +27,6 @@ class TvPlayerOverlayTest {
         val exited = controlsDismissed.overlay.back()
         assertEquals(listOf(Exit), exited.commands)
 
-        // A repeated Back, or playback ending, before the player leaves does nothing more.
         assertEquals(emptyList<TvPlayerCommand>(), exited.overlay.back().commands)
         assertEquals(emptyList<TvPlayerCommand>(), exited.overlay.ended().commands)
     }
@@ -40,7 +39,6 @@ class TvPlayerOverlayTest {
         assertEquals(listOf(PlayNext), advanced.commands)
         assertNull(advanced.overlay.scrub)
 
-        // Repeated end signals, and Backs, before the next video takes over do nothing more.
         assertEquals(emptyList<TvPlayerCommand>(), advanced.overlay.ended(autoplayNext = true).commands)
         assertEquals(emptyList<TvPlayerCommand>(), advanced.overlay.back().commands)
     }
@@ -57,7 +55,6 @@ class TvPlayerOverlayTest {
         assertNull(played.overlay.scrub)
         assertEquals(emptyList<TvPlayerCommand>(), played.commands)
 
-        // A scrub pausing the player keeps its target.
         assertEquals(scrubbing.scrub, scrubbing.playingChanged(playing = false).overlay.scrub)
     }
 
@@ -79,7 +76,6 @@ class TvPlayerOverlayTest {
 
         val held = first.overlay.scrubForward(nowMillis = TV_SCRUB_HOLD_REPEAT_MILLIS, repeat = true)
         assertEquals(2, held.overlay.scrub?.presses)
-        // Repeats keep counting even past the tap window.
         val stillHeld = held.overlay.scrubForward(nowMillis = TV_SCRUB_HOLD_REPEAT_MILLIS + 600L, repeat = true)
         assertEquals(3, stillHeld.overlay.scrub?.presses)
         assertEquals(POSITION + 15_000L + 30_000L + 45_000L, stillHeld.overlay.scrub?.targetMillis)
@@ -163,9 +159,7 @@ class TvPlayerOverlayTest {
         assertEquals(TvPlayerControl.Speed, speed.moveFocus(TvFocusMove.Down, chips).overlay.focus)
         assertEquals(TvPlayerControl.SeekBar, speed.moveFocus(TvFocusMove.Up, chips).overlay.focus)
 
-        // A chip whose tracks went away counts as the seek bar.
         assertEquals(TvPlayerControl.SeekBar, audio.focusIn(listOf(TvPlayerControl.Speed)))
-        // Hidden controls only come back; seek mode keeps the seek bar.
         val hidden = TvPlayerOverlay(controlsVisible = false).moveFocus(TvFocusMove.Down, chips).overlay
         assertTrue(hidden.controlsVisible)
         assertEquals(TvPlayerControl.PlayPause, hidden.focus)

@@ -59,6 +59,7 @@ import io.putdotio.android.playback.playbackSurfaceType
 import io.putdotio.android.playback.preparePlayback
 import io.putdotio.android.playback.rememberSubtitleAppearanceStore
 import io.putdotio.android.playback.restoreSubtitleSelection
+import io.putdotio.android.playback.sameSubtitleChoice
 import io.putdotio.android.playback.setSubtitleLead
 import io.putdotio.android.playback.sidecarTracks
 import io.putdotio.android.playback.toPlaybackFailure
@@ -76,16 +77,6 @@ internal const val TV_PLAYER_TAG = "tv-player"
 internal const val TV_PLAYER_CONTROLS_HIDE_DELAY_MILLIS = 3_000L
 private val PROCESS_KEY = UUID.randomUUID().toString()
 
-/**
- * Full-screen TV playback of one Files item: a saved position first offers Resume or Start over,
- * then the source plays, Center or the remote's play/pause key toggles playback, any key reveals
- * the phone's controls for three seconds (they stay while paused), Left, Right, rewind and
- * fast-forward scrub, Down reaches the Audio, Subtitles and Speed chips and their side sheets,
- * and Back dismisses a sheet, seek mode, then the controls, before it leaves playback. Subtitles
- * start per [subtitleStartupPolicy] until the viewer picks. Positions are written back through
- * [reporter]. A finished video leaves playback, or with [autoplayNextVideo] asks
- * [onPlaybackEnded] for the next one, leaving when it declines; Next episode asks the same.
- */
 @Composable
 internal fun TvPlayerScreen(
     state: PlaybackState,
@@ -102,10 +93,8 @@ internal fun TvPlayerScreen(
     subtitleStartupPolicy: SubtitleStartupPolicy? = null,
     autoplayNextVideo: Boolean = false,
     onPlaybackEnded: () -> Boolean = { false },
-    /** The file's end, whatever autoplay does next. */
     analytics: PlaybackAnalyticsReporter = PlaybackAnalyticsReporter.None,
 ) {
-    // Ready playback registers its own Back for the overlay stack.
     BackHandler(enabled = state.content !is PlaybackContent.Ready, onBack = onBack)
     Box(modifier = modifier.fillMaxSize().background(Color.Black)) {
         when (val content = state.content) {
@@ -182,9 +171,6 @@ private fun TvReadyPlayer(
 ) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    // Recreating the activity (a remote or keyboard connecting, a locale change) rebuilds the
-    // player; the new one continues, paused, from where the old one was stopped. The key is
-    // scoped to this process and file so a position saved before process death never applies.
     var stoppedAtMillis by rememberSaveable(source, key = "tv-player-stopped-at-$PROCESS_KEY-${target.fileId.value}") {
         mutableStateOf<Long?>(null)
     }
@@ -194,7 +180,6 @@ private fun TvReadyPlayer(
         key = "tv-player-options-${target.fileId.value}",
     ) { mutableStateOf(TvPlaybackOptions()) }
     val player = remember(source, playerFactory) { playerFactory.create(context, target.mediaType) }
-    // The player's own text defaults, before any choice narrows them; Automatic returns to these.
     val defaultTrackSelection = remember(player) { player.trackSelectionParameters }
     val prepared = remember(player) {
         source.preparePlayback(target.name, target.mediaType, stoppedAtMillis ?: resumePositionMillis)
@@ -234,7 +219,6 @@ private fun TvReadyPlayer(
                 newPosition: Player.PositionInfo,
                 reason: Int,
             ) {
-                // The overlay's own commit drops its scrub before seeking, so this is anyone else's.
                 if (reason == Player.DISCONTINUITY_REASON_SEEK) {
                     cueHistory.clear()
                     apply(overlay.soughtElsewhere())
@@ -259,12 +243,12 @@ private fun TvReadyPlayer(
             }
 
             override fun onTrackSelectionParametersChanged(value: TrackSelectionParameters) {
+                if (!value.sameSubtitleChoice(parameters)) cueHistory.clear()
                 parameters = value
             }
 
             override fun onPlaybackParametersChanged(value: PlaybackParameters) {
                 speed = value.speed
-                // The media session sets speed on the player directly; keep it like a picked one.
                 if (options.speed != value.speed) options = options.copy(speed = value.speed)
             }
 
@@ -292,9 +276,6 @@ private fun TvReadyPlayer(
         player.playWhenReady = stoppedAtMillis == null
         player.prepare()
         val positions = reporter.observe(player)
-        // The system's play and pause go through the overlay: during a scrub the player is already
-        // paused, so a pause there changes nothing the listener would hear. The session stays
-        // published while the screen is stopped, where a play would run hidden playback.
         val session = playerFactory.publish(
             context,
             tvSessionPlayer(player) { play ->
@@ -304,25 +285,20 @@ private fun TvReadyPlayer(
             },
         )
         onDispose {
-            // Captures the exit position while the player still has it.
             positions.close()
             session.close()
             player.removeListener(listener)
             player.release()
         }
     }
-    // Account settings that arrive after playback started still decide until the viewer picks;
-    // hiding overrides a pick too.
     LaunchedEffect(player, subtitleStartupPolicy, options.subtitles == null) {
         player.followSubtitlePolicy(subtitleStartupPolicy, options.subtitles, defaultTrackSelection)
     }
     BackHandler { apply(overlay.back()) }
-    // Home or another app takes the screen: stop where we are and show the paused controls.
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
         apply(overlay.setPlaying(play = false))
         apply(overlay.reveal())
     }
-    // ON_PAUSE precedes saving instance state on every API level; ON_STOP follows it before API 28.
     LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) { stoppedAtMillis = player.currentPosition.coerceAtLeast(0L) }
     val view = LocalView.current
     val keepScreenOn = keepsScreenOn(playWhenReady, playbackState)
@@ -334,7 +310,6 @@ private fun TvReadyPlayer(
     val choices = TvTrackChoices(tracks, parameters, subtitleStartupPolicy)
     val subtitlesHidden = choices.subtitlesHidden
     val chips = choices.chips(nextEpisode = autoplayNextVideo)
-    // A Subtitles sheet opened before the settings arrived closes once they hide subtitles.
     LaunchedEffect(subtitlesHidden, overlay.sheet) {
         val subtitleSheet = overlay.sheet == TvPlayerSheet.Subtitles || overlay.sheet == TvPlayerSheet.SizeAndTiming
         if (subtitlesHidden && subtitleSheet) apply(overlay.closeSheet())
@@ -342,7 +317,6 @@ private fun TvReadyPlayer(
     val appearance = rememberSubtitleAppearanceStore()
     TvSubtitleOffsetEffect(player, options.subtitleOffsetMillis)
 
-    // Playing controls hide after three seconds without a key; paused, scrubbing or open-sheet ones stay.
     LaunchedEffect(overlay.controlsVisible, overlay.activity, playWhenReady, overlay.scrub == null, overlay.sheet) {
         if (overlay.autoHides && playWhenReady) {
             delay(TV_PLAYER_CONTROLS_HIDE_DELAY_MILLIS)
@@ -350,7 +324,6 @@ private fun TvReadyPlayer(
         }
     }
     val focus = remember { FocusRequester() }
-    // Also after a sheet closes, so its dialog window hands the keys back to the player.
     LaunchedEffect(focus, overlay.sheet == null) { if (overlay.sheet == null) focus.requestFocus() }
     Box(
         modifier = Modifier
@@ -473,7 +446,6 @@ private fun Player.perform(command: TvPlayerCommand, exit: () -> Unit, playNext:
     }
 }
 
-/** A source resolved with the resume setting off carries no lease and writes nothing. */
 private fun MediaItem.leasedBy(reporter: TvPlaybackReporter, fileId: Long, useStartFrom: Boolean): MediaItem {
     val lease = if (useStartFrom) reporter.lease(fileId) else null
     return lease?.let(this::withReportingLease) ?: this
