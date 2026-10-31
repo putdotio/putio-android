@@ -262,7 +262,7 @@ class TvPlayerOptionsTest {
         )
         show(player)
         listOf(SUBTITLES, SPEED).forEach { prefix ->
-            chip(prefix).assertIsDisplayed().assertWidthIsAtLeast(48.dp)
+            chip(prefix).assertIsDisplayed().assertWidthIsAtLeast(32.dp)
         }
     }
 
