@@ -11,12 +11,6 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/**
- * Launcher proof: publishes two synthetic Play Next cards through the system TV provider, one
- * with [posterUrl] and one without a screenshot, so a capture of the home screen shows both
- * art kinds and their progress. Opt-in; no API calls. Run it on an emulator you booted, with no
- * session in the app: opening the app removes cards that are not the signed-in user's.
- */
 @RunWith(AndroidJUnit4::class)
 class TvLauncherProofTest {
     private val arguments = InstrumentationRegistry.getArguments()

@@ -60,8 +60,6 @@
             android:authorities="${applicationId}.search"
             android:exported="true"
             android:permission="android.permission.GLOBAL_SEARCH" />
-        <!-- The launcher and system search read card art from any package, and the provider
-             serves only the bundled wordmark tile, so it needs no permission. -->
         <provider
             android:name=".tv.TvLauncherArtProvider"
             android:authorities="${applicationId}.launcherart"

@@ -27,10 +27,10 @@ internal class TvLauncherArtProvider : ContentProvider() {
 
     override fun onCreate(): Boolean = true
 
-    override fun getType(uri: Uri): String = PNG
+    override fun getType(uri: Uri): String? = PNG.takeIf { uri.isCardArt() }
 
     override fun openFile(uri: Uri, mode: String): ParcelFileDescriptor {
-        if (uri.pathSegments != listOf(CARD_ART) || mode != "r") throw FileNotFoundException(uri.toString())
+        if (!uri.isCardArt() || mode != "r") throw FileNotFoundException(uri.toString())
         return ParcelFileDescriptor.open(current() ?: render(), ParcelFileDescriptor.MODE_READ_ONLY)
     }
 
@@ -69,6 +69,8 @@ internal class TvLauncherArtProvider : ContentProvider() {
         selectionArgs: Array<out String>?,
     ): Int = throw UnsupportedOperationException()
 }
+
+private fun Uri.isCardArt(): Boolean = pathSegments == listOf(CARD_ART)
 
 private const val CARD_ART = "card.png"
 private const val PNG = "image/png"

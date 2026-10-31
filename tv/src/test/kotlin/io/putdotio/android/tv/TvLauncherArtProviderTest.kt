@@ -8,6 +8,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import java.io.File
 import java.io.FileNotFoundException
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -47,9 +48,9 @@ class TvLauncherArtProviderTest {
     @Test
     fun `other paths are not served`() {
         Robolectric.setupContentProvider(TvLauncherArtProvider::class.java, "${context.packageName}.launcherart")
+        val other = Uri.parse("content://${context.packageName}.launcherart/other.png")
 
-        assertThrows(FileNotFoundException::class.java) {
-            context.contentResolver.openInputStream(Uri.parse("content://${context.packageName}.launcherart/other.png"))
-        }
+        assertNull(context.contentResolver.getType(other))
+        assertThrows(FileNotFoundException::class.java) { context.contentResolver.openInputStream(other) }
     }
 }

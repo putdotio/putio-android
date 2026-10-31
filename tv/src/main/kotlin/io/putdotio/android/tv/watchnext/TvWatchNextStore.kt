@@ -108,9 +108,8 @@ internal class TvProviderWatchNextStore(context: Context) : TvWatchNextStore {
 
 /**
  * The provider row for [program]: a movie-type Continue card whose intent reopens the file in
- * this app and continues it, with put.io's screenshot or else the wordmark art. Leaves
- * `browsable` out, so a card the viewer removed from the row stays removed when its position
- * changes. The platform's `TvContract` (API 26, the app's
+ * this app and continues it. Leaves `browsable` out, so a card the viewer removed from the row
+ * stays removed when its position changes. The platform's `TvContract` (API 26, the app's
  * minimum) names the columns; androidx.tvprovider's builder sits on library-restricted classes.
  */
 internal fun watchNextProgramValues(
