@@ -214,7 +214,7 @@ private fun TvTabBar(
                     onFocused = { if (entry != selected) onSelect(entry) },
                     modifier = Modifier
                         .focusRequester(tabFocus.getValue(entry))
-                        .focusProperties { down = paneFocus },
+                        .focusProperties { down = if (entry == TvDestination.Home) FocusRequester.Cancel else paneFocus },
                 )
             }
         }
