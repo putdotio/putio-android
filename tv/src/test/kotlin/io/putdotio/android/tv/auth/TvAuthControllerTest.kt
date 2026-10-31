@@ -253,7 +253,7 @@ class TvAuthControllerTest {
         val harness = Harness()
         harness.controller.restoreSession()
 
-        repeat(MAX_SILENT_RENEWALS) { renewal ->
+        repeat(3) { renewal ->
             val code = "CODE$renewal"
             harness.gateway.emit(DeviceCodeAuthState.AwaitingLink(code, "https://put.io/link", budget = BUDGET))
             harness.gateway.emit(DeviceCodeAuthState.Expired(DeviceCodeAuthState.Expired.Reason.BUDGET_ELAPSED))
@@ -267,15 +267,15 @@ class TvAuthControllerTest {
             TvAuthState.Linking(TvLinkPhase.Stopped(TvLinkStop.CodeExpired, code = "LASTCD")),
             harness.controller.state.value,
         )
-        assertEquals(MAX_SILENT_RENEWALS + 1, harness.gateway.linkAttempts)
+        assertEquals(4, harness.gateway.linkAttempts)
 
         assertTrue(harness.controller.requestNewCode())
         assertEquals(TvAuthState.Linking(TvLinkPhase.RequestingCode), harness.controller.state.value)
-        repeat(MAX_SILENT_RENEWALS) {
+        repeat(3) {
             harness.gateway.emit(DeviceCodeAuthState.Expired(DeviceCodeAuthState.Expired.Reason.BUDGET_ELAPSED))
         }
         assertEquals(TvAuthState.Linking(TvLinkPhase.RequestingCode), harness.controller.state.value)
-        assertEquals(2 * MAX_SILENT_RENEWALS + 2, harness.gateway.linkAttempts)
+        assertEquals(8, harness.gateway.linkAttempts)
     }
 
     @Test
