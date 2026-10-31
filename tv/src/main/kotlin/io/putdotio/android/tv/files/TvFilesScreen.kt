@@ -61,15 +61,13 @@ import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.canStartOperation
 import io.putdotio.android.files.items
 import androidx.compose.ui.res.pluralStringResource
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.files.formatFileSize
 import io.putdotio.android.tv.ROW_BLEED
 import io.putdotio.android.tv.TvListDetail
 import io.putdotio.android.tv.TvPlayStart
-import io.putdotio.android.tv.TV_MONO_RUN
+import io.putdotio.android.tv.monoNumber
 import io.putdotio.android.tv.TvSectionLine
 import io.putdotio.android.tv.TvSectionPill
 import io.putdotio.android.tv.TvButton
@@ -187,7 +185,8 @@ internal fun TvFilesScreen(
     val entryTarget = remember { mutableStateOf(FocusRequester.Default) }
     val listEntry = remember { mutableStateOf(FocusRequester.Default) }
     val skeletonFocus = remember { FocusRequester() }
-    entryTarget.value = content.paneEntryTarget(skeletonFocus, retryFocus, pagingFocus, listEntry)
+    val emptyFocus = remember { FocusRequester() }
+    entryTarget.value = content.paneEntryTarget(skeletonFocus, retryFocus, pagingFocus, emptyFocus, listEntry)
     val folderId = current.folder.id.value
     var detailId by remember(sessionKey, folderId) { mutableStateOf(focusMemory[folderId]) }
     val detailItem = content.detailItem(detailId, focusMemory[folderId])
@@ -217,6 +216,7 @@ internal fun TvFilesScreen(
                 paneHasFocus = paneHasFocus,
                 retryFocus = retryFocus,
                 pagingFocus = pagingFocus,
+                emptyFocus = emptyFocus,
             )
         } else {
             TvFilesFolderHeader(state)
@@ -372,12 +372,13 @@ private fun FilesContent.paneEntryTarget(
     skeleton: FocusRequester,
     retry: FocusRequester,
     pagingControl: FocusRequester,
+    emptyState: FocusRequester,
     listEntry: State<FocusRequester>,
 ): FocusRequester =
     when (this) {
         is FilesContent.Loading -> skeleton
         is FilesContent.Failed -> retry
-        is FilesContent.Empty -> if (paging is FilesPaging.Complete) FocusRequester.Default else pagingControl
+        is FilesContent.Empty -> if (paging is FilesPaging.Complete) emptyState else pagingControl
         is FilesContent.Ready -> listEntry.value
     }
 
@@ -463,6 +464,7 @@ private fun TvFilesStatePane(
     paneHasFocus: State<Boolean>,
     retryFocus: FocusRequester,
     pagingFocus: FocusRequester,
+    emptyFocus: FocusRequester,
 ) {
     val current = state.current
     val stateModifier = Modifier
@@ -490,14 +492,26 @@ private fun TvFilesStatePane(
                 claimFocus = paneHasFocus.value,
             )
             is FilesContent.Empty -> Column(modifier = stateModifier) {
+                val complete = content.paging is FilesPaging.Complete
                 TvEmptyState(
                     glyph = PutioEmptyGlyph.EmptyFolder,
                     headline = stringResource(R.string.tv_files_empty_title),
                     message = stringResource(R.string.tv_files_empty_message),
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .then(
+                            if (complete) {
+                                Modifier
+                                    .focusRequester(emptyFocus)
+                                    .semantics(mergeDescendants = true) {}
+                                    .focusable()
+                            } else {
+                                Modifier
+                            },
+                        ),
                 )
-                LaunchedEffect(content.paging is FilesPaging.Complete) {
-                    if (content.paging !is FilesPaging.Complete && paneHasFocus.value) pagingFocus.requestFocus()
+                LaunchedEffect(complete) {
+                    if (paneHasFocus.value) (if (complete) emptyFocus else pagingFocus).requestFocus()
                 }
                 TvFilesPaging(
                     paging = content.paging,
@@ -725,15 +739,6 @@ private fun TvFilesOperationStatus(
         )
     }
 }
-
-private fun monoNumber(label: String, number: String): AnnotatedString =
-    buildAnnotatedString {
-        append(label)
-        val start = label.indexOf(number)
-        if (start >= 0) {
-            addStyle(TV_MONO_RUN, start, start + number.length)
-        }
-    }
 
 private fun FilesFolderOperation.reloadsListing(): Boolean =
     this is FilesFolderOperation.Loading &&

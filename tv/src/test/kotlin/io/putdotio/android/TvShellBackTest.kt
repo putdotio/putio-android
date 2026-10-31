@@ -131,6 +131,39 @@ class TvShellBackTest {
     }
 
     @Test
+    fun anEmptyNestedFolderTakesFocusSoBackLeavesIt() {
+        val events = mutableListOf<FilesBrowserEvent>()
+        val nested = filesBrowserState(
+            stack = listOf(
+                FilesFolderState(
+                    FilesFolder.Root,
+                    FilesContent.Ready(listOf(row(1, "Sample folder")), FilesPaging.Complete),
+                ),
+                FilesFolderState(
+                    FilesFolder(FilesItemId(1), "Sample folder"),
+                    FilesContent.Empty(FilesPaging.Complete),
+                ),
+            ),
+            nextRequestValue = 10L,
+        )
+        var popped by mutableStateOf(false)
+        val root = filesBrowserState(stack = nested.stack.take(1), nextRequestValue = 10L)
+        setShell(
+            files = { if (popped) root else nested },
+            onFilesBack = {
+                events += FilesBrowserEvent.NavigateBack
+                popped = true
+            },
+        )
+        compose.openTab(TvDestination.Files)
+        compose.onNodeWithText("Empty folder.").assertIsFocused()
+
+        compose.pressBack()
+        assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.NavigateBack), events)
+        compose.onNodeWithContentDescription("Sample folder").assertIsFocused()
+    }
+
+    @Test
     fun backInTheTabBarGoesHomeWithoutPoppingTheFolderBehindIt() {
         val events = mutableListOf<FilesBrowserEvent>()
         val nested = filesBrowserState(

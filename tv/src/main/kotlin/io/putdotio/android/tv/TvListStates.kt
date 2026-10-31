@@ -41,7 +41,7 @@ internal fun TvListSkeleton(modifier: Modifier = Modifier) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(SKELETON_ROW_HEIGHT)
+                    .height(TV_LIST_ROW_HEIGHT)
                     .padding(horizontal = SKELETON_ROW_PADDING),
                 horizontalArrangement = Arrangement.spacedBy(SKELETON_ROW_GAP),
                 verticalAlignment = Alignment.CenterVertically,
@@ -117,7 +117,6 @@ private fun SkeletonBlock(
 
 private val SKELETON_LIFT = 2.dp
 private val SKELETON_NAME_WIDTHS = listOf(210.dp, 150.dp, 260.dp, 180.dp, 230.dp, 140.dp, 200.dp)
-private val SKELETON_ROW_HEIGHT = 48.dp
 private val SKELETON_ROW_PADDING = ROW_BLEED
 private val SKELETON_ROW_GAP = 16.dp
 private val SKELETON_GLYPH = 20.dp

@@ -12,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -26,16 +27,17 @@ import io.putdotio.android.account.familyPlanExpiredNoticeText
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioRadius
 import io.putdotio.android.design.PutioTypeScale
+import io.putdotio.android.tv.monoNumber
 import io.putdotio.android.tv.withFullLineBox
 
-/** The inactive-account card under the tabs; plain text, so nothing here takes D-pad focus. */
 @Composable
 internal fun TvInactiveAccountNotice(
     notice: InactiveAccountNotice,
     modifier: Modifier = Modifier,
 ) {
+    val days = (notice as? InactiveAccountNotice.Deactivated)?.daysUntilFilesDeleted()
     val text = when (notice) {
-        is InactiveAccountNotice.Deactivated -> deactivatedAccountNoticeText(notice.daysUntilFilesDeleted())
+        is InactiveAccountNotice.Deactivated -> deactivatedAccountNoticeText(days)
         InactiveAccountNotice.FamilyPlanExpired -> familyPlanExpiredNoticeText()
     }
     Row(
@@ -62,7 +64,7 @@ internal fun TvInactiveAccountNotice(
             )
             text.message?.let {
                 Text(
-                    text = it,
+                    text = if (days == null) AnnotatedString(it) else monoNumber(it, days.toString()),
                     style = NOTICE_MESSAGE,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = NOTICE_LINE_GAP),

@@ -44,6 +44,7 @@ import io.putdotio.android.design.fileTypeIconRes
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.formatFileSize
 import io.putdotio.android.files.toDisplayDate
+import io.putdotio.android.tv.TV_LIST_ROW_HEIGHT
 import io.putdotio.android.tv.TvFocus
 import io.putdotio.android.tv.asMonoRun
 import io.putdotio.android.tv.tvAccent
@@ -74,7 +75,7 @@ internal fun TvFilesRow(
         onLongClick = onActions,
         modifier = modifier
             .fillMaxWidth()
-            .height(ROW_HEIGHT)
+            .height(TV_LIST_ROW_HEIGHT)
             .onKeyEvent { event ->
                 if (onActions != null && event.type == KeyEventType.KeyUp && event.key == Key.Menu) {
                     onActions()
@@ -160,7 +161,6 @@ private fun TvFilesRowMeta(item: FilesItem, color: Color, modifier: Modifier = M
     }
 }
 
-private val ROW_HEIGHT = 48.dp
 private val ROW_PADDING = 12.dp
 private val ROW_GAP = 16.dp
 private val ROW_GLYPH = 20.dp
