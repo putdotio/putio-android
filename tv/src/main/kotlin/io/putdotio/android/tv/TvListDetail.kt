@@ -31,7 +31,6 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.text
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -45,10 +44,6 @@ import androidx.tv.material3.Text
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioTypeScale
 
-/**
- * The TV list-detail: a 544dp list whose rows bleed 12dp past the side margin, and beside it the
- * focused item's [detail], starting level with the first row. The section line belongs to [list].
- */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 internal fun TvListDetail(
@@ -56,7 +51,6 @@ internal fun TvListDetail(
     detail: @Composable ColumnScope.() -> Unit,
     modifier: Modifier = Modifier,
     detailFocus: FocusRequester = FocusRequester.Default,
-    /** Where Left from the detail lands: the list's live row. */
     listFocus: FocusRequester = FocusRequester.Default,
     onDetailFocusChanged: (Boolean) -> Unit = {},
 ) {
@@ -86,7 +80,6 @@ internal fun TvListDetail(
     }
 }
 
-/** The list's section line: a label on the left and, optionally, a tonal pill at its end. */
 @Composable
 internal fun TvSectionLine(
     modifier: Modifier = Modifier,
@@ -107,14 +100,12 @@ internal fun TvSectionLine(
     }
 }
 
-/** A section line's tonal pill, such as the current sort; focus turns it light. */
 @Composable
 internal fun TvSectionPill(
     @DrawableRes icon: Int,
     label: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    /** False while a sheet it opened is up, so the pill under the scrim shows at rest. */
     showFocus: Boolean = true,
     interactions: MutableInteractionSource = remember { MutableInteractionSource() },
 ) {
@@ -148,10 +139,8 @@ internal fun TvSectionPill(
     }
 }
 
-/** One label and value in a detail's facts; [mono] for numbers. */
 internal data class TvDetailFact(val label: String, val value: String, val mono: Boolean = false)
 
-/** The detail's full name, its meta, the [actions] row, then up to three [facts]. */
 @Composable
 internal fun ColumnScope.TvDetailBody(
     title: String,
@@ -207,7 +196,6 @@ internal fun ColumnScope.TvDetailBody(
     }
 }
 
-/** A detail action: [primary] fills yellow once focus is in the detail, every other one stays tonal. */
 @Composable
 internal fun TvDetailButton(
     label: AnnotatedString?,
@@ -228,13 +216,10 @@ internal fun TvDetailButton(
     }
 }
 
-/** A release name wraps after its dots, as the boards break it, rather than inside a word. */
 private fun String.breakableAtDots(): String = replace(".", ".​").removeSuffix("​")
 
-/** The list's own width, from the boards. */
 internal val TV_LIST_WIDTH = 544.dp
 
-/** How far rows reach past the side margin, so their text lines up with it. */
 internal val ROW_BLEED = 12.dp
 
 private val DETAIL_GAP = 24.dp
@@ -254,5 +239,5 @@ private val DETAIL_ACTION_SPACING = 4.dp
 private val DETAIL_FACTS_GAP = 19.5.dp
 private val DETAIL_FACT_SPACING = 7.5.dp
 private val DETAIL_FACT_LABEL_WIDTH = 70.dp
-private val DETAIL_BUTTON_LABEL = PutioTypeScale.tvButton.copy(fontSize = 12.sp, fontWeight = FontWeight.Medium)
+private val DETAIL_BUTTON_LABEL = PutioTypeScale.tvButton.copy(fontSize = 12.sp)
 private const val MAX_DETAIL_FACTS = 3

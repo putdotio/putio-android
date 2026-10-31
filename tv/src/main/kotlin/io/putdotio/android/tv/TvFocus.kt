@@ -15,7 +15,6 @@ internal object TvFocus {
         @Composable @ReadOnlyComposable
         get() = MaterialTheme.colorScheme.inverseOnSurface
 
-    /** Meta and trailing glyphs on the focus fill; the boards' `on-focus-2`, which has no token. */
     val secondaryContent: Color = Color(ON_FOCUS_SECONDARY)
 }
 

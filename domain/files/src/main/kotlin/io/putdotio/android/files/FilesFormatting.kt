@@ -30,7 +30,6 @@ public fun String.toDisplayDate(context: Context): String? =
             DateUtils.formatDateTime(context, timestamp, DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_ABBREV_MONTH)
         }
 
-/** "Oct 13, 2026": a detail's facts give the year the row's meta leaves out. */
 public fun String.toFullDate(context: Context): String? =
     parsePutioTimestamp(this)?.toEpochMilli()?.let { timestamp ->
         DateUtils.formatDateTime(

@@ -4,7 +4,6 @@ import androidx.annotation.StringRes
 import io.putdotio.android.R
 import io.putdotio.android.files.FilesSort
 
-/** What the Sort by group chooses; Videos replaces the field and order. */
 internal enum class TvSortField(@param:StringRes val label: Int) {
     NAME(R.string.tv_files_sort_field_name),
     SIZE(R.string.tv_files_sort_field_size),

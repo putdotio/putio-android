@@ -32,7 +32,6 @@ import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
 
-/** Captures the Files list-detail boards from a controlled listing; opt in with `putio.tv.files.enabled`. */
 @RunWith(AndroidJUnit4::class)
 class TvFilesProofTest {
     private val arguments = InstrumentationRegistry.getArguments()

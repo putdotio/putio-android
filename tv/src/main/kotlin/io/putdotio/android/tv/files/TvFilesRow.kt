@@ -49,10 +49,6 @@ import io.putdotio.android.tv.tvAccent
 
 internal const val TV_FILES_ROW_TAG = "tv-files-row"
 
-/**
- * The phone's file row on TV: the type glyph, the name, then size, date and the watched eye;
- * a folder adds a caret. Focus turns the whole row light and the glyph dark.
- */
 @Composable
 internal fun TvFilesRow(
     item: FilesItem,
@@ -128,7 +124,6 @@ internal fun TvFilesRow(
     }
 }
 
-/** Size in mono for files, the date, then the grey eye when played; no progress in rows. */
 @Composable
 private fun TvFilesRowMeta(item: FilesItem, color: Color, modifier: Modifier = Modifier) {
     val context = LocalContext.current

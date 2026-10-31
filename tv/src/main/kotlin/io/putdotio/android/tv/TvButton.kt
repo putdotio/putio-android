@@ -100,10 +100,8 @@ internal enum class TvButtonSize(
     Regular(height = 36.dp, padding = 18.dp, icon = 14.dp),
     Compact(height = 32.dp, padding = 14.dp, icon = 12.dp),
 
-    /** A list-detail's actions; the boards' 30dp button, which the type roles do not size. */
     Detail(height = 30.dp, padding = 11.dp, icon = 12.dp),
 
-    /** A square [Detail] button holding one glyph, such as More. */
     DetailIcon(height = 30.dp, padding = 9.dp, icon = 12.dp),
 }
 

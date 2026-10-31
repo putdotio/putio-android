@@ -99,9 +99,7 @@ internal data class TvSessionDependencies(
     /** The launcher's Watch Next row, as one signed-in session reports to it. */
     val watchNext: (userId: Long, sessionId: TvAuthSessionId) -> TvWatchNextRecorder =
         { _, _ -> TvWatchNextRecorder.None },
-    /** A folder's item count for the Files detail; null leaves the count out. */
     val folderCounts: FilesFolderCounts? = null,
-    /** A video's subtitle languages for the Files detail; null leaves the fact out. */
     val subtitleLanguages: FilesSubtitleLanguages? = null,
 )
 
@@ -241,10 +239,6 @@ internal class TvSession internal constructor(
     /** The video after a target in its folder, by autoplay's walk; Next episode offers it. */
     val findNextVideo: suspend (PlaybackTarget) -> PlaybackNextResult = playbackRepository::findNextVideo
 
-    /**
-     * Starts resolving [item] for playback, replacing whatever was playing. [start] answers the
-     * resume prompt ahead of time when the viewer already chose in the detail.
-     */
     fun play(item: FilesItem, start: TvPlayStart = TvPlayStart.Ask) {
         durationLookup?.cancel()
         startPlayback(item, start)
@@ -430,22 +424,14 @@ internal class TvSessionViewModel(
         (this as? TvAuthState.SignedIn)?.let { TvSessionKey(it.account.userId, it.sessionId) }
 }
 
-/** How a playback starts: asking about a saved position, or with the viewer's answer already given. */
 internal enum class TvPlayStart(val answer: PlaybackEvent?) {
     Ask(null),
 
-    /** A Watch Next card or the detail's Resume: the saved position plays without the prompt. */
     Resume(PlaybackEvent.Resume),
 
-    /** The detail's Start over. */
     StartOver(PlaybackEvent.Restart),
 }
 
-/**
- * Answers the resume prompt for the viewer, who already chose; the finished rule still starts a
- * video saved near its end over. Waits through loading and conversion, then answers only the
- * first prompt: autoplay's next video asks.
- */
 private suspend fun PlaybackController.answerResumePrompt(answer: PlaybackEvent) {
     val settled = state.map { it.content }
         .first { it !is PlaybackContent.Loading && it !is PlaybackContent.Conversion }

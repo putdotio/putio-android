@@ -41,6 +41,7 @@ internal fun TvFilesList(
     focusMemory: MutableMap<Long, Long>,
     paneHasFocus: State<Boolean>,
     headerHasFocus: State<Boolean>,
+    detailOwnsFocus: State<Boolean>,
     onEntryTarget: (FocusRequester) -> Unit,
     onEvent: (FilesBrowserEvent) -> Boolean,
     onOpen: (FilesItem) -> Unit,
@@ -71,8 +72,11 @@ internal fun TvFilesList(
     val liveRowListed = focusedRowId.value != null && focusedRowId.value in listedIds
     // A listing change refocuses a row only when a row was what the user was on. A row being
     // disposed by that change also reports losing focus, so ownership is inferred from the
-    // other in-pane owners instead: the header controls and the paging latch.
-    val rowOwnsFocus = focusedRowId.value != null && !headerHasFocus.value && !pagingHeldFocus.value
+    // other in-pane owners instead: the header controls, the detail and the paging latch.
+    val rowOwnsFocus = focusedRowId.value != null &&
+        !headerHasFocus.value &&
+        !detailOwnsFocus.value &&
+        !pagingHeldFocus.value
     val entryFocus = content.paging.listEntryFocus(
         pagingHeld = pagingHeldFocus.value,
         liveRowListed = liveRowListed,

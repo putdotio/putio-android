@@ -12,10 +12,6 @@ import io.putdotio.android.tv.TvSideSheet
 import io.putdotio.android.tv.TvSheetRows
 import io.putdotio.android.tv.focusRequesterIf
 
-/**
- * The phone's sort menu as a side sheet: Sort by, Order and Videos, a check on the current choice,
- * and focus on the checked Sort by row (or the checked Videos row, or Name with no sort yet).
- */
 @Composable
 internal fun TvSortSheet(
     selected: FilesSort?,

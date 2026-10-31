@@ -106,9 +106,7 @@ internal fun TvFilesScreen(
      * change and after the unsupported screen, so Compose's own restorer has no history.
      */
     focusMemory: MutableMap<Long, Long> = remember(sessionKey) { mutableMapOf() },
-    /** The detail's Resume, Start over and Play; defaults to the row's own play. */
     onPlay: (FilesItem, TvPlayStart) -> Unit = { item, _ -> onPlayMedia(item) },
-    /** The account's confirmed resume setting; off, the detail offers Play rather than Resume. */
     resumePlayback: Boolean = true,
     detailSources: TvFilesDetailSources = remember(sessionKey) { TvFilesDetailSources.None },
 ) {
@@ -173,8 +171,6 @@ internal fun TvFilesScreen(
         }
     }
     val dialogOpen = actionsItem != null || notice != null
-    // Loading and complete-empty folders have no focusable content, so the section line's sort
-    // pill takes focus; a failed folder focuses its own Retry, an empty page its paging control.
     val sortFocus = remember { FocusRequester() }
     val content = current.content
     val headerOwnsFocus = content.headerOwnsFocus()
@@ -189,17 +185,18 @@ internal fun TvFilesScreen(
     val entryTarget = remember { mutableStateOf(FocusRequester.Default) }
     val listEntry = remember { mutableStateOf(FocusRequester.Default) }
     entryTarget.value = content.paneEntryTarget(sortFocus, retryFocus, pagingFocus, listEntry)
-    // A closed dialog hands focus back to the row that opened it (the pane's live entry).
-    val dialogWasOpen = remember { mutableStateOf(false) }
-    LaunchedEffect(dialogOpen) { refocusAfterDialog(dialogOpen, dialogWasOpen, paneHasFocus, entryTarget) }
     val folderId = current.folder.id.value
     var detailId by remember(sessionKey, folderId) { mutableStateOf(focusMemory[folderId]) }
     val detailItem = content.detailItem(detailId, focusMemory[folderId])
-    var detailHasFocus by remember { mutableStateOf(false) }
-    val primaryFocus = remember { FocusRequester() }
+    val detailFocus = remember { TvFilesDetailFocus() }
+    val listing = remember(folderId, content.items()) { Any() }
     val actionsOf = { item: FilesItem ->
         item.tvActions(watchedToggleEnabled, confirmedTrashEnabled, current.operation.canStartOperation)
     }
+    val dialogReturn = remember { mutableStateOf(FocusRequester.Default) }
+    dialogReturn.value = detailFocus.dialogReturn(detailItem.offersActions(actionsOf), entryTarget.value)
+    val dialogWasOpen = remember { mutableStateOf(false) }
+    LaunchedEffect(dialogOpen) { refocusAfterDialog(dialogOpen, dialogWasOpen, paneHasFocus, dialogReturn) }
     // As in tv-native, a row with nothing to offer opens no menu.
     val openActions = { item: FilesItem -> if (actionsOf(item).isNotEmpty()) actionsFor = item.id.value }
     val open = { item: FilesItem -> item.open(onEvent, onPlayMedia, onUnsupported = { unsupported = it.id.value }) }
@@ -213,16 +210,19 @@ internal fun TvFilesScreen(
         TvFilesFolderHeader(state)
         TvListDetail(
             modifier = Modifier.weight(1f),
-            detailFocus = primaryFocus,
+            detailFocus = detailFocus.primary,
             listFocus = listEntry.value,
-            onDetailFocusChanged = { detailHasFocus = it },
+            onDetailFocusChanged = detailFocus::onDetailFocusChanged,
             list = {
                 TvFilesSectionLine(
                     state = state,
                     onEvent = onEvent,
                     sortFocus = sortFocus,
                     sessionKey = sessionKey,
-                    onFocusChanged = { headerHasFocus.value = it },
+                    onFocusChanged = {
+                        headerHasFocus.value = it
+                        detailFocus.onListFocusChanged(it)
+                    },
                 )
                 TvFilesOperationStatus(current, onEvent)
                 TvFilesDeleteStatus(current, onEvent)
@@ -231,6 +231,7 @@ internal fun TvFilesScreen(
                     focusMemory = focusMemory,
                     paneHasFocus = paneHasFocus,
                     headerHasFocus = headerHasFocus,
+                    detailOwnsFocus = detailFocus.owns,
                     retryFocus = retryFocus,
                     pagingFocus = pagingFocus,
                     onEntryTarget = { listEntry.value = it },
@@ -238,23 +239,28 @@ internal fun TvFilesScreen(
                     onEvent = onEvent,
                     onOpen = open,
                     onActions = openActions,
-                    onRowFocused = { detailId = it.id.value },
+                    onRowFocused = {
+                        detailId = it.id.value
+                        detailFocus.onListFocusChanged(true)
+                    },
                 )
             },
             detail = {
                 detailItem?.let { item ->
                     TvFilesDetail(
                         item = item,
-                        detailHasFocus = detailHasFocus,
-                        primaryFocus = primaryFocus,
+                        detailHasFocus = detailFocus.hasFocus,
+                        primaryFocus = detailFocus.primary,
                         resumePlayback = resumePlayback,
                         sources = detailSources,
+                        listing = listing,
                         actions = TvFilesDetailActions(
                             onOpenFolder = open,
                             onPlay = onPlay,
                             onUnsupported = { unsupported = it.id.value },
                             onMore = openActions.takeIf { actionsOf(item).isNotEmpty() },
                         ),
+                        moreFocus = detailFocus.more,
                     )
                 }
             },
@@ -285,7 +291,6 @@ internal fun TvFilesScreen(
     }
 }
 
-/** A folder's crumb and name above the list; the root has none, only a little air. */
 @Composable
 private fun TvFilesFolderHeader(state: FilesBrowserState) {
     val folderName = state.current.folder.name
@@ -334,7 +339,6 @@ private fun FilesBrowserState.crumbLabel(): String =
         ?: stack.dropLast(1).lastOrNull()?.folder?.name
         ?: stringResource(R.string.tv_files_title)
 
-/** The row the detail shows: the last one focused, else the remembered one, else the first. */
 private fun FilesContent.detailItem(focusedId: Long?, rememberedId: Long?): FilesItem? =
     (this as? FilesContent.Ready)?.items?.let { items ->
         items.firstOrNull { it.id.value == focusedId }
@@ -342,7 +346,6 @@ private fun FilesContent.detailItem(focusedId: Long?, rememberedId: Long?): File
             ?: items.first()
     }
 
-/** Center on a row, or the detail's Open: a folder opens, media plays, anything else explains. */
 private fun FilesItem.open(
     onEvent: (FilesBrowserEvent) -> Boolean,
     onPlayMedia: (FilesItem) -> Unit,
@@ -383,6 +386,7 @@ private fun TvFilesContent(
     focusMemory: MutableMap<Long, Long>,
     paneHasFocus: State<Boolean>,
     headerHasFocus: State<Boolean>,
+    detailOwnsFocus: State<Boolean>,
     retryFocus: FocusRequester,
     pagingFocus: FocusRequester,
     onEntryTarget: (FocusRequester) -> Unit,
@@ -430,6 +434,7 @@ private fun TvFilesContent(
                 focusMemory = focusMemory,
                 paneHasFocus = paneHasFocus,
                 headerHasFocus = headerHasFocus,
+                detailOwnsFocus = detailOwnsFocus,
                 onEntryTarget = onEntryTarget,
                 modifier = modifier,
                 onEvent = onEvent,
@@ -577,10 +582,6 @@ private fun TvFilesNotice(
     }
 }
 
-/**
- * The list's section line: "All files" at the root, the folder's count and size inside one, and
- * the sort pill naming the current sort, which opens the sort sheet.
- */
 @Composable
 private fun TvFilesSectionLine(
     state: FilesBrowserState,
@@ -590,14 +591,10 @@ private fun TvFilesSectionLine(
     onFocusChanged: (Boolean) -> Unit,
 ) {
     val current = state.current
-    // The pill stays focusable while a load runs, since a disabled TV control drops focus and the
-    // pill holds it while a folder loads. Clicks are ignored outside a loaded, idle folder.
     val idle = current.operation.canStartOperation &&
         current.content !is FilesContent.Loading &&
         current.content !is FilesContent.Failed
     var sorting by rememberSaveable(sessionKey, current.folder.id.value) { mutableStateOf(false) }
-    // A sheet left open across a folder change or a running operation would offer choices the
-    // reducer rejects, so it closes as soon as the folder stops being idle.
     LaunchedEffect(idle) { if (!idle) sorting = false }
     TvSectionLine(
         modifier = Modifier.onFocusChanged { onFocusChanged(it.hasFocus) },
@@ -634,7 +631,6 @@ private fun TvFilesSectionLine(
     }
 }
 
-/** A sort or refresh reloading the listing, or a failed one with Retry; a delete reports on its own. */
 @Composable
 private fun TvFilesOperationStatus(
     current: FilesFolderState,
@@ -776,10 +772,8 @@ private fun TvUnsupportedFileScreen(
     }
 }
 
-/** A folder's crumb and title take this much above the section line, as on the folder board. */
 private val FOLDER_HEADER_HEIGHT = 76.dp
 
-/** The root's section line sits this far below the tab bar. */
 private val ROOT_TOP_GAP = 4.dp
 private val SECTION_LABEL = PutioTypeScale.tvLabel
 private val SECTION_LABEL_MONO = PutioTypeScale.tvMono.copy(fontWeight = FontWeight.Medium)

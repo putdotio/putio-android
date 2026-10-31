@@ -6,7 +6,6 @@ import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.files.FilesListQuery
 import io.putdotio.sdk.files.FilesListResponse
 
-/** How many items a folder holds, for a detail that names it without opening it; null when put.io omits it. */
 public fun interface FilesFolderCounts {
     public suspend fun itemCount(folderId: FilesItemId): PutioResult<Int?>
 }
@@ -18,7 +17,6 @@ public class SdkFilesFolderCounts internal constructor(
         listFolder = { folderId, query -> client.files.list(parentId = folderId, query = query) },
     )
 
-    /** One row with the total, so a count costs one small read. */
     override suspend fun itemCount(folderId: FilesItemId): PutioResult<Int?> = putioRequest {
         require(folderId.value >= 0L) { "A folder count needs root or a positive folder ID" }
         listFolder(folderId.value, FilesListQuery(perPage = 1, total = true)).total?.takeIf { it >= 0 }

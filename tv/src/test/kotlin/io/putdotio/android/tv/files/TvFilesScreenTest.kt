@@ -36,6 +36,7 @@ import io.putdotio.android.files.FilesRequestId
 import io.putdotio.android.files.FilesSort
 import io.putdotio.android.tv.TvPlayStart
 import androidx.compose.runtime.key
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.test.onNodeWithTag
 import io.putdotio.android.PutioResult
@@ -426,6 +427,85 @@ class TvFilesScreenTest {
         compose.onNode(hasText("Play") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
         compose.onAllNodesWithText("Start over").assertCountEquals(0)
         assertEquals(listOf(TvPlayStart.Ask), played)
+    }
+
+    @Test
+    fun aListingChangeLeavesFocusInTheDetail() {
+        var position by mutableStateOf(1_122.0)
+        compose.setTvContent {
+            TvFilesScreen(
+                state = ready(
+                    item(1, "notes.txt", PutioFileType.TEXT),
+                    item(
+                        2,
+                        "Blue.Lights.S04E01.mkv",
+                        PutioFileType.VIDEO,
+                        playback = FilesPlaybackProgress(position, 2_989.0),
+                    ),
+                ),
+                onEvent = { true },
+                onPlayMedia = {},
+            )
+        }
+        compose.onNodeWithContentDescription("notes.txt").performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithContentDescription("Play Blue.Lights.S04E01.mkv").performKeyInput {
+            pressKey(Key.DirectionRight)
+        }
+        compose.onNodeWithTag(TV_FILES_DETAIL_PRIMARY_TAG).assertIsFocused()
+
+        position = 1_500.0
+        compose.mainClock.advanceTimeBy(1_000)
+
+        compose.onNode(hasText("Resume from 25:00") and hasClickAction()).assertIsFocused()
+    }
+
+    @Test
+    fun closingTheActionsOpenedFromMoreFocusesMore() {
+        val toggled = mutableListOf<Boolean>()
+        compose.setTvContent {
+            TvFilesScreen(
+                state = ready(
+                    item(2, "clip.mp4", PutioFileType.VIDEO, playback = FilesPlaybackProgress(30.0, 120.0)),
+                    item(3, "notes.txt", PutioFileType.TEXT),
+                ),
+                onEvent = { true },
+                onPlayMedia = {},
+                watchedToggleEnabled = true,
+                onSetWatched = { _, watched -> toggled += watched },
+            )
+        }
+        compose.onNodeWithContentDescription("Play clip.mp4").performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNodeWithTag(TV_FILES_DETAIL_PRIMARY_TAG).assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionRight)
+            pressKey(Key.DirectionRight)
+        }
+        compose.onNodeWithContentDescription("More actions").assertIsFocused().performKeyInput { pressCenter() }
+        compose.onNodeWithText("Open in VLC").assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithText("Mark as unwatched").assertIsFocused().performKeyInput { pressCenter() }
+
+        assertEquals(listOf(false), toggled)
+        compose.onNodeWithContentDescription("More actions").assertIsFocused()
+    }
+
+    @Test
+    fun aFolderCountIsReadAgainOnceTheListingChanges() {
+        var reads = 0
+        val counts = FilesFolderCounts { PutioResult.Success(++reads) }
+        var size by mutableStateOf(276_000_000L)
+        compose.setTvContent {
+            TvFilesScreen(
+                state = ready(item(1, "Big Buck Bunny", PutioFileType.FOLDER, sizeBytes = size)),
+                onEvent = { true },
+                onPlayMedia = {},
+                detailSources = remember { TvFilesDetailSources(folderCounts = counts) },
+            )
+        }
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("1 item · 276 MB").fetchSemanticsNodes().isNotEmpty() }
+
+        size = 138_000_000L
+
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("2 items · 138 MB").fetchSemanticsNodes().isNotEmpty() }
+        assertEquals(2, reads)
     }
 
     @Test
