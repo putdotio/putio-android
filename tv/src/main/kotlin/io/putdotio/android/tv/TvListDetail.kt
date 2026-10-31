@@ -263,7 +263,7 @@ private val DETAIL_META_GAP = 5.dp
 private val DETAIL_ACTIONS_GAP = 16.dp
 private val DETAIL_ACTION_SPACING = 4.dp
 private val DETAIL_FACTS_GAP = 17.5.dp
-private val DETAIL_FACT_SPACING = 6.dp
+private val DETAIL_FACT_SPACING = 5.5.dp
 private val DETAIL_FACT = PutioTypeScale.tvMeta.copy(lineHeight = 17.4.sp).withFullLineBox()
 private val DETAIL_FACT_MONO = DETAIL_FACT.asMonoRun()
 private val DETAIL_FACT_LABEL_WIDTH = 70.dp
