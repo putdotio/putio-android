@@ -26,9 +26,11 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.tv.material3.ListItem
+import androidx.tv.material3.ListItemScale
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.RadioButton
 import androidx.tv.material3.Text
+import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioRadius
 
 internal data class TvChoice<T>(
@@ -67,7 +69,7 @@ internal fun <T> TvChoiceDialog(
                 .width(560.dp)
                 // Twelve rows outgrow a 540dp canvas; the bound is what lets the rows scroll.
                 .heightIn(max = 480.dp)
-                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(PutioRadius.extraLarge))
+                .background(PutioDesignTokens.componentBgHover, RoundedCornerShape(PutioRadius.extraLarge))
                 .padding(24.dp),
         ) {
             // Outside the scrolling rows, so bringing a choice into view never scrolls it away.
@@ -92,6 +94,7 @@ internal fun <T> TvChoiceDialog(
                         onClick = { onSelect(choice.value) },
                         headlineContent = { Text(choice.label) },
                         leadingContent = { RadioButton(selected = isSelected, onClick = null) },
+                        scale = ListItemScale.None,
                         modifier = Modifier
                             .fillMaxWidth()
                             .then(

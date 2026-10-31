@@ -17,9 +17,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
-import io.putdotio.android.design.putioTvDarkColorScheme
+import io.putdotio.android.design.PutioTvTheme
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
@@ -114,7 +113,7 @@ class TvShellBackTest {
         compose.setContent {
             // Registered first, so it stands in for the system leaving the app.
             BackHandler { exits += 1 }
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+            PutioTvTheme {
                 TvShell(
                     account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
                     onSignOut = {},
@@ -331,7 +330,7 @@ class TvShellBackTest {
         compose.setContent {
             // Registered first, so it stands in for the system leaving the app.
             BackHandler(onBack = onExit)
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+            PutioTvTheme {
                 TvShell(
                     account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
                     onSignOut = {},

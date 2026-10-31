@@ -62,6 +62,8 @@ class DesignTokenCodegenTest {
         assertTrue(code.contains("primary = PutioDesignTokens.yellowSolid,"))
         assertTrue(code.contains("inversePrimary = PutioDesignTokens.yellowTextSecondary,"))
         assertTrue(code.contains("inverseSurface = PutioDesignTokens.componentBgActive,"))
+        assertTrue(code.contains("inverseSurface = PutioDesignTokens.text,"))
+        assertTrue(code.contains("inverseOnSurface = PutioDesignTokens.appBg,"))
         assertTrue(code.contains("borderVariant = PutioDesignTokens.line,"))
     }
 

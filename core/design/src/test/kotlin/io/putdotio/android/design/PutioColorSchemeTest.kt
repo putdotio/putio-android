@@ -70,10 +70,11 @@ class PutioColorSchemeTest {
         assertEquals(PutioDesignTokens.text, scheme.onSurface)
         assertEquals(PutioDesignTokens.componentBg, scheme.surfaceVariant)
         assertEquals(PutioDesignTokens.textSecondary, scheme.onSurfaceVariant)
-        assertEquals(PutioDesignTokens.componentBgActive, scheme.inverseSurface)
-        assertEquals(PutioDesignTokens.text, scheme.inverseOnSurface)
+        assertEquals(PutioDesignTokens.text, scheme.inverseSurface)
+        assertEquals(PutioDesignTokens.appBg, scheme.inverseOnSurface)
         assertEquals(PutioDesignTokens.border, scheme.border)
         assertEquals(PutioDesignTokens.line, scheme.borderVariant)
         assertEquals(PutioDesignTokens.redSolid, scheme.error)
+        assertEquals(PutioDesignTokens.appBg, scheme.onError)
     }
 }

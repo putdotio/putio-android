@@ -16,9 +16,8 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import androidx.tv.material3.MaterialTheme
 import io.putdotio.android.TvSessionShell
-import io.putdotio.android.design.putioTvDarkColorScheme
+import io.putdotio.android.design.PutioTvTheme
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
@@ -180,7 +179,7 @@ class TvAutoplayProofTest {
             )
         }
         compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+            PutioTvTheme {
                 TvSessionShell(
                     session = session,
                     account = account,

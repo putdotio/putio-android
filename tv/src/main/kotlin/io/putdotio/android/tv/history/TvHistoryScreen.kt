@@ -1,6 +1,8 @@
 package io.putdotio.android.tv.history
 
 import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -44,10 +46,10 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Icon
 import androidx.tv.material3.ListItem
 import androidx.tv.material3.ListItemDefaults
+import androidx.tv.material3.ListItemScale
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import io.putdotio.android.R
-import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.history.HistoryContent
 import io.putdotio.android.history.HistoryEvent
 import io.putdotio.android.history.HistoryClearing
@@ -65,12 +67,12 @@ import io.putdotio.android.tv.focusRequesterIf
 import io.putdotio.android.tv.paneSection
 import io.putdotio.android.tv.refocusAfterDialog
 import io.putdotio.android.tv.files.tvMessageText
+import io.putdotio.android.tv.tvAccent
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneId
 import kotlinx.coroutines.flow.first
 import io.putdotio.android.FilesFailure
-import io.putdotio.android.tv.FULL_WIDTH_FOCUSED_SCALE
 
 internal const val TV_HISTORY_LIST_TAG = "tv-history-list"
 internal const val TV_HISTORY_ROW_TAG = "tv-history-row"
@@ -455,6 +457,8 @@ private fun TvHistoryRow(
     // An event without a file is still a row the D-pad can rest on; Center does nothing there.
     val label = if (fileId == null) title else stringResource(R.string.tv_history_open_file, title)
     val relative = remember(item, now) { item.relativeTime(now).toString() }
+    val interactions = remember { MutableInteractionSource() }
+    val focused by interactions.collectIsFocusedAsState()
     ListItem(
         selected = false,
         onClick = { if (fileId != null) onOpen(fileId) },
@@ -469,11 +473,12 @@ private fun TvHistoryRow(
             Icon(
                 painter = painterResource(item.kind.tvIcon()),
                 contentDescription = null,
-                tint = PutioDesignTokens.yellowSolid,
+                tint = tvAccent(focused),
                 modifier = Modifier.size(ListItemDefaults.IconSize),
             )
         },
-        scale = ListItemDefaults.scale(focusedScale = FULL_WIDTH_FOCUSED_SCALE),
+        scale = ListItemScale.None,
+        interactionSource = interactions,
         modifier = modifier
             .fillMaxWidth()
             .semantics { contentDescription = label }

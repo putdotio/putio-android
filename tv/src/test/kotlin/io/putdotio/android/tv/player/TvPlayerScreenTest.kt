@@ -1,8 +1,7 @@
 package io.putdotio.android.tv.player
 
 import android.view.KeyEvent as AndroidKeyEvent
-import io.putdotio.android.design.putioTvDarkColorScheme
-import androidx.tv.material3.MaterialTheme
+import io.putdotio.android.design.PutioTvTheme
 import io.putdotio.android.tv.setTvContent
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.getValue
@@ -98,7 +97,7 @@ class TvPlayerScreenTest {
         val players = mutableListOf<FakePlayer>()
         val restoration = StateRestorationTester(compose)
         restoration.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+            PutioTvTheme {
                 TvPlayerScreen(
                     state = readyState(resumePositionMillis = 42_000L),
                     onBack = {},

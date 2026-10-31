@@ -14,10 +14,9 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.SimpleBasePlayer
 import androidx.media3.common.util.UnstableApi
-import androidx.tv.material3.MaterialTheme
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
-import io.putdotio.android.design.putioTvDarkColorScheme
+import io.putdotio.android.design.PutioTvTheme
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackMediaType
@@ -67,7 +66,7 @@ internal fun ComposeContentTestRule.showReady(
     mainClock.autoAdvance = false
     setContent {
         CompositionLocalProvider(LocalLifecycleOwner provides (lifecycleOwner ?: LocalLifecycleOwner.current)) {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+            PutioTvTheme {
                 TvPlayerScreen(
                     state = readyState(resumePositionMillis = resumePositionMillis),
                     onBack = onBack,

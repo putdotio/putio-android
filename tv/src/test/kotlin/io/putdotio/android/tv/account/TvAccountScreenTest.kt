@@ -1,8 +1,6 @@
 package io.putdotio.android.tv.account
 
 import androidx.compose.runtime.getValue
-import io.putdotio.android.tv.setTvContent
-import io.putdotio.android.tv.pressCenter
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -13,8 +11,11 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isDialog
+import androidx.compose.ui.test.isFocused
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -23,6 +24,8 @@ import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.requestFocus
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.putdotio.android.AccountStorage
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.settings.AccountSettingsChange
 import io.putdotio.android.settings.AccountSettingsEvent
 import io.putdotio.android.settings.AccountSettingsFailure
@@ -42,7 +45,8 @@ import io.putdotio.android.settings.TunnelRouteName
 import io.putdotio.android.settings.TunnelRouteOption
 import io.putdotio.android.settings.VideoPlaybackType
 import io.putdotio.android.tv.auth.TvAccount
-import io.putdotio.android.AccountStorage
+import io.putdotio.android.tv.pressCenter
+import io.putdotio.android.tv.setTvContent
 import io.putdotio.sdk.errors.PutioConfigurationException
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -50,7 +54,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
-import io.putdotio.android.PutioFailure
 
 @OptIn(ExperimentalTestApi::class)
 @RunWith(AndroidJUnit4::class)
@@ -251,7 +254,8 @@ class TvAccountScreenTest {
     }
 
     @Test
-    fun diagnosticsOpensTheSupportFactsAndSignOutIsTheLastRow() {
+    fun diagnosticsOpensTheSupportFactsAndSignOutIsTheLastRowAndAsksFirst() {
+        val focusedConfirm = hasText("Sign out") and isFocused() and hasAnyAncestor(isDialog())
         var signOuts = 0
         show(settingsState = { ready(preferences) }, onSignOut = { signOuts += 1 })
 
@@ -263,6 +267,12 @@ class TvAccountScreenTest {
             pressKey(Key.DirectionDown)
             pressCenter()
         }
+        compose.onNodeWithText("Sign out of put.io?").assertIsDisplayed()
+        assertEquals(0, signOuts)
+        compose.onNode(focusedConfirm).performKeyInput { pressKey(Key.DirectionLeft) }
+        compose.onNodeWithText("Cancel").assertIsFocused().performKeyInput { pressCenter() }
+        compose.onAllNodesWithText("Sign out")[1].assertIsFocused().performKeyInput { pressCenter() }
+        compose.onNode(focusedConfirm).performKeyInput { pressCenter() }
         assertEquals(1, signOuts)
     }
 

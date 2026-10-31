@@ -5,6 +5,8 @@ import androidx.annotation.StringRes
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -44,10 +46,11 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Icon
 import androidx.tv.material3.ListItem
 import androidx.tv.material3.ListItemDefaults
+import androidx.tv.material3.ListItemScale
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import io.putdotio.android.R
-import io.putdotio.android.design.PutioDesignTokens
+import io.putdotio.android.design.PutioEmptyGlyph
 import io.putdotio.android.design.fileTypeIconRes
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserState
@@ -67,14 +70,17 @@ import io.putdotio.android.files.canStartOperation
 import io.putdotio.android.files.items
 import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.TvDialog
+import io.putdotio.android.tv.TvEmptyState
+import io.putdotio.android.tv.TvEmptyStateAction
+import io.putdotio.android.tv.TvNoticeDialog
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
-import io.putdotio.android.tv.FULL_WIDTH_FOCUSED_SCALE
 import io.putdotio.android.tv.TvStatusScreen
 import io.putdotio.android.tv.refocusAfterDialog
+import io.putdotio.android.tv.tvAccent
 import kotlin.math.roundToInt
 
 internal const val TV_FILES_LIST_TAG = "tv-files-list"
@@ -224,11 +230,7 @@ internal fun TvFilesScreen(
     }
 
     if (notice != null) {
-        TvDialog(title = notice, message = null, onDismiss = onDismissNotice) { focus ->
-            TvButton(onClick = onDismissNotice, modifier = Modifier.fillMaxWidth().focusRequester(focus)) {
-                Text(stringResource(R.string.tv_files_ok))
-            }
-        }
+        TvNoticeDialog(title = notice, onDismiss = onDismissNotice)
     } else if (actionsItem != null) {
         TvFilesActionsMenu(
             item = actionsItem,
@@ -292,11 +294,15 @@ private fun TvFilesContent(
         is FilesContent.Loading ->
             TvStatusScreen(stringResource(R.string.tv_files_loading), modifier = modifier)
         is FilesContent.Failed ->
-            TvStatusScreen(
-                title = stringResource(R.string.tv_error_title),
+            TvEmptyState(
+                glyph = PutioEmptyGlyph.CouldNotLoad,
+                headline = stringResource(R.string.tv_files_error_title),
                 message = content.failure.tvMessageText(),
-                action = stringResource(R.string.tv_files_retry),
-                onAction = { onEvent(FilesBrowserEvent.Retry) },
+                action = TvEmptyStateAction(
+                    label = stringResource(R.string.tv_files_retry),
+                    onClick = { onEvent(FilesBrowserEvent.Retry) },
+                    icon = R.drawable.ic_ph_arrow_clockwise,
+                ),
                 modifier = modifier,
                 actionFocus = retryFocus,
                 claimFocus = paneHasFocus.value,
@@ -606,6 +612,8 @@ internal fun TvFilesRow(
     val size = remember(context, item.sizeBytes) {
         Formatter.formatShortFileSize(context, item.sizeBytes.coerceAtLeast(0L))
     }
+    val interactions = remember { MutableInteractionSource() }
+    val focused by interactions.collectIsFocusedAsState()
     ListItem(
         selected = false,
         onClick = onClick,
@@ -621,7 +629,7 @@ internal fun TvFilesRow(
             Icon(
                 painter = painterResource(fileTypeIconRes(item.type)),
                 contentDescription = null,
-                tint = PutioDesignTokens.yellowSolid,
+                tint = tvAccent(focused),
                 modifier = Modifier.size(ListItemDefaults.IconSize),
             )
         },
@@ -636,7 +644,8 @@ internal fun TvFilesRow(
         } else {
             null
         },
-        scale = ListItemDefaults.scale(focusedScale = FULL_WIDTH_FOCUSED_SCALE),
+        scale = ListItemScale.None,
+        interactionSource = interactions,
         modifier = modifier
             .fillMaxWidth()
             // Remotes with a Menu key open the actions without holding Center.

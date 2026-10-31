@@ -72,6 +72,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.AssistChip
+import androidx.tv.material3.ClickableChipScale
 import androidx.tv.material3.AssistChipDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Icon
@@ -506,6 +507,7 @@ private fun TvRecentSearches(
         itemsIndexed(terms, key = { _, term -> term.value }) { index, term ->
             val label = stringResource(R.string.tv_search_recent_term, term.value)
             AssistChip(
+                scale = ClickableChipScale.None,
                 onClick = { onSearch(term) },
                 onLongClick = { onRemove(term) },
                 // Focused chips fill `primary` like buttons: the stock focused pair binds to

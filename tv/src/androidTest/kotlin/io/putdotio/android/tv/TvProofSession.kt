@@ -2,13 +2,15 @@ package io.putdotio.android.tv
 
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.test.junit4.AndroidComposeTestRule
 import androidx.test.ext.junit.rules.ActivityScenarioRule
-import androidx.tv.material3.MaterialTheme
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
 import io.putdotio.android.TvSessionShell
-import io.putdotio.android.design.putioTvDarkColorScheme
+import io.putdotio.android.design.PutioTvTheme
 import io.putdotio.android.files.FilesCopyId
 import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.files.FilesDeleteMode
@@ -131,12 +133,13 @@ internal fun tvProofDependencies(
 
 /**
  * Mounts the production TV session and signed-in shell on [dependencies]. [onExit] stands in for
- * the system leaving the app; it is registered before the shell.
+ * the system leaving the app; it is registered before the shell. [overlay] draws over the shell.
  */
 internal fun AndroidComposeTestRule<ActivityScenarioRule<ComponentActivity>, ComponentActivity>.mountTvProofSession(
     dependencies: TvSessionDependencies,
     onExit: (() -> Unit)? = null,
     account: TvAccount = TvAccount(userId = 1, username = "proof", email = "proof@example.invalid", historyEnabled = true),
+    overlay: @Composable BoxScope.() -> Unit = {},
 ): TvSession {
     val auth = MutableStateFlow<TvAuthState>(TvAuthState.SignedIn(account, TvAuthSessionId(1)))
     lateinit var session: TvSession
@@ -145,15 +148,18 @@ internal fun AndroidComposeTestRule<ActivityScenarioRule<ComponentActivity>, Com
     }
     setContent {
         if (onExit != null) BackHandler(onBack = onExit)
-        MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-            TvSessionShell(
-                session = session,
-                account = account,
-                sessionKey = 1L,
-                onSignOut = {},
-                onSessionRejected = { error("Unexpected rejection") },
-                loadTunnelRoutes = { AccountSettingsRepositoryResult.Success(emptyList<TunnelRouteOption>()) },
-            )
+        PutioTvTheme {
+            Box {
+                TvSessionShell(
+                    session = session,
+                    account = account,
+                    sessionKey = 1L,
+                    onSignOut = {},
+                    onSessionRejected = { error("Unexpected rejection") },
+                    loadTunnelRoutes = { AccountSettingsRepositoryResult.Success(emptyList<TunnelRouteOption>()) },
+                )
+                overlay()
+            }
         }
     }
     return session
