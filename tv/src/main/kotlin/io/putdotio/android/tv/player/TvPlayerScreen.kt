@@ -40,6 +40,7 @@ import androidx.media3.common.VideoSize
 import androidx.media3.common.text.Cue
 import androidx.media3.common.text.CueGroup
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.ui.SubtitleView
 import androidx.media3.ui.compose.ContentFrame
 import io.putdotio.android.R
 import io.putdotio.android.playback.AudioSelection
@@ -371,6 +372,11 @@ private fun TvReadyPlayer(
                     videoAspectRatio = videoSize.displayAspectRatioOrNull(),
                     modifier = Modifier.align(Alignment.Center),
                     textScale = appearance.textSize.scale,
+                    bottomPaddingFraction = if (overlay.controlsVisible) {
+                        SUBTITLES_ABOVE_CONTROLS
+                    } else {
+                        SubtitleView.DEFAULT_BOTTOM_PADDING_FRACTION
+                    },
                 )
             }
         }
@@ -455,6 +461,7 @@ private fun rememberShownCues(
 }
 
 private const val DELAYED_CUE_TICK_MILLIS = 50L
+private const val SUBTITLES_ABOVE_CONTROLS = 0.22f
 
 private fun Player.perform(command: TvPlayerCommand, exit: () -> Unit, playNext: () -> Boolean) {
     when (command) {

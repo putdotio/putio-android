@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -338,6 +339,7 @@ private fun ColumnScope.TvSizeAndTimingSheet(
                 mono = false,
                 onClick = { onTextSize(size) },
                 height = SIZE_CHIP_HEIGHT,
+                fill = true,
                 modifier = Modifier
                     .weight(1f)
                     .then(if (size == textSize) Modifier.focusRequester(focus) else Modifier)
@@ -516,6 +518,7 @@ private fun TvSheetChip(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     height: Dp = QUICK_CHIP_HEIGHT,
+    fill: Boolean = false,
 ) {
     val shape = RoundedCornerShape(PutioRadius.small)
     Surface(
@@ -538,12 +541,14 @@ private fun TvSheetChip(
         ),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1f, pressedScale = 1f),
     ) {
-        Box(Modifier.padding(horizontal = 12.dp), contentAlignment = Alignment.Center) {
-            Text(
-                label,
-                style = if (mono) PutioTypeScale.tvMono else PutioTypeScale.tvBody,
-                modifier = Modifier.align(Alignment.Center),
-            )
+        Box(
+            modifier = Modifier
+                .fillMaxHeight()
+                .then(if (fill) Modifier.fillMaxWidth() else Modifier)
+                .padding(horizontal = 12.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(label, style = if (mono) PutioTypeScale.tvMono else PutioTypeScale.tvBody)
         }
     }
 }

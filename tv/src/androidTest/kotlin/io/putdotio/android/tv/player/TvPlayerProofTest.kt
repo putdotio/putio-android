@@ -419,6 +419,7 @@ class TvPlayerProofTest {
             it.isPlaying && factory.renderedFrame && it.currentTracks.playbackAudioTracks().size == 2 &&
                 it.currentTracks.playbackSubtitleTracks().size == 3
         }
+        elapse(BOARD_PLAY_MILLIS)
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         awaitPlayer(factory) { !it.playWhenReady }
 
@@ -483,7 +484,7 @@ class TvPlayerProofTest {
         elapse(DIALOG_EXIT_MILLIS)
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         awaitPlayer(factory) { it.playbackParameters.speed == 1.25f }
-        compose.onNodeWithText("1.25×", useUnmergedTree = true).assertExists()
+        compose.onNodeWithContentDescription("Faster, 1.5×").assertIsFocused()
         screenshot("androidtv-st-p6-speed")
         press(KeyEvent.KEYCODE_BACK)
         compose.waitUntil(10_000) { compose.onAllNodesWithText("Speed").fetchSemanticsNodes().isEmpty() }
@@ -1029,8 +1030,8 @@ class TvPlayerProofTest {
         fixture: String = requireNotNull(arguments.getString("putio.tv.player.fixture")),
     ): PlaybackSource {
         val file = File(fixture).canonicalFile
-        require(file.isFile && file.canRead()) { "Fixture is not readable: $file" }
         require(file.toPath().startsWith(requireNotNull(context.getExternalFilesDir(null)).canonicalFile.toPath()))
+        require(file.isFile && file.canRead()) { "Fixture is not readable: $file" }
         // The SDK owns production URLs. This proof reads only its caller-owned local fixture.
         val url = PutioCredentialUrl::class.java.getDeclaredConstructor(String::class.java)
             .newInstance(Uri.fromFile(file).toString())
@@ -1097,6 +1098,7 @@ class TvPlayerProofTest {
         const val BOARD_RESUME_SECONDS = 190.0
         const val BOARD_RESUME_TITLE = "Resume from 3:10?"
         const val BOARD_OFFSET_STEPS = 5
+        const val BOARD_PLAY_MILLIS = 1_500L
         const val DIALOG_EXIT_MILLIS = 500L
     }
 }
