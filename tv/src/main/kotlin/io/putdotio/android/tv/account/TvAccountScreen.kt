@@ -241,8 +241,11 @@ private fun TvAccountBody(
         )
     }
     val rowsPresent = rememberUpdatedState(settingsReady != null)
+    val lastSection = rememberSaveable { mutableStateOf<Long?>(null) }
     val owner = remember {
-        TvPaneFocusOwner(entryTarget, paneHasFocus) { if (rowsPresent.value) firstRowFocus else signOutFocus }
+        TvPaneFocusOwner(entryTarget, paneHasFocus, lastSection) {
+            if (rowsPresent.value) firstRowFocus else signOutFocus
+        }
     }
     val dialogOpen = shownDialog != null
     val dialogShowing = rememberUpdatedState(dialogOpen)
@@ -480,6 +483,7 @@ private fun TvAccountBody(
             destructive = true,
         )
     }
+    LaunchedEffect(owner) { if (!returningFromTrash.value && !dialogShowing.value) owner.restoreLastSection() }
 }
 
 @Composable

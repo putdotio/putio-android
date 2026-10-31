@@ -1,6 +1,7 @@
 package io.putdotio.android.tv
 
 import androidx.activity.compose.BackHandler
+import androidx.annotation.StringRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
@@ -75,10 +76,15 @@ internal fun TvShell(
     account: TvAccount,
     onSignOut: () -> Unit,
     modifier: Modifier = Modifier,
-    homePane: (@Composable (paneFocus: FocusRequester) -> Unit)? = null,
-    filesPane: @Composable (paneFocus: FocusRequester) -> Unit = { TvPlaceholderPane(TvDestination.Files, it) },
-    searchPane: @Composable (paneFocus: FocusRequester) -> Unit = { TvPlaceholderPane(TvDestination.Search, it) },
-    historyPane: @Composable (paneFocus: FocusRequester) -> Unit = { TvPlaceholderPane(TvDestination.History, it) },
+    filesPane: @Composable (paneFocus: FocusRequester) -> Unit = {
+        TvPlaceholderPane(R.string.tv_placeholder_files, it)
+    },
+    searchPane: @Composable (paneFocus: FocusRequester) -> Unit = {
+        TvPlaceholderPane(R.string.tv_placeholder_search, it)
+    },
+    historyPane: @Composable (paneFocus: FocusRequester) -> Unit = {
+        TvPlaceholderPane(R.string.tv_placeholder_history, it)
+    },
     accountPane: @Composable (paneFocus: FocusRequester) -> Unit = { TvAccountFallbackPane(account, onSignOut, it) },
     /** Set by a pane that wants another tab shown, such as Search opening a result in Files. */
     requestedDestination: TvDestination? = null,
@@ -93,7 +99,7 @@ internal fun TvShell(
     val tabFocus = remember { TvDestination.entries.associateWith { FocusRequester() } }
     val paneFocus = remember { FocusRequester() }
     val paneStates = rememberSaveableStateHolder()
-    val panes = TvShellPanes(homePane, filesPane, searchPane, historyPane, accountPane)
+    val panes = TvShellPanes(filesPane, searchPane, historyPane, accountPane)
 
     // Registered before any pane composes, so each pane's own Back handlers take precedence.
     BackHandler(enabled = !tabBarHasFocus) {
@@ -147,9 +153,6 @@ internal fun TvShell(
         }
     }
 
-    // Composed after the pane, so it registers after every pane handler: Back in the tab bar
-    // selects Home before any pane rule runs. Keyed on the tab so a newly shown pane's handlers
-    // cannot register after it.
     if (tabBarHasFocus) {
         key(destination) {
             BackHandler(enabled = destination != TvDestination.Home) {
@@ -157,15 +160,12 @@ internal fun TvShell(
             }
         }
     }
-    // Runs after the composition that shows [shown], so its pane's requester is attached; the
-    // keys, not the live state, say which tab that was. Home's placeholder has nothing to focus,
-    // so focus goes to its tab.
     val shown = destination
     val focusWanted = focusPaneOf == shown
     LaunchedEffect(shown, focusWanted) {
         if (focusWanted && focusPaneOf == shown) {
             focusPaneOf = null
-            if (shown == TvDestination.Home && homePane == null) {
+            if (shown == TvDestination.Home) {
                 tabFocus.getValue(shown).requestFocus()
             } else {
                 paneFocus.requestFocus()
@@ -178,7 +178,6 @@ private fun tabBarEntry(direction: FocusDirection, selectedTab: FocusRequester):
     if (direction == FocusDirection.Enter) FocusRequester.Default else selectedTab
 
 private class TvShellPanes(
-    val home: (@Composable (paneFocus: FocusRequester) -> Unit)?,
     val files: @Composable (paneFocus: FocusRequester) -> Unit,
     val search: @Composable (paneFocus: FocusRequester) -> Unit,
     val history: @Composable (paneFocus: FocusRequester) -> Unit,
@@ -187,7 +186,7 @@ private class TvShellPanes(
     @Composable
     fun Pane(destination: TvDestination, paneFocus: FocusRequester) {
         when (destination) {
-            TvDestination.Home -> if (home != null) home(paneFocus) else TvHomePlaceholderPane()
+            TvDestination.Home -> TvHomePlaceholderPane()
             TvDestination.Files -> files(paneFocus)
             TvDestination.Search -> search(paneFocus)
             TvDestination.History -> history(paneFocus)
@@ -300,16 +299,9 @@ private fun TvHomePlaceholderPane() {
 
 @Composable
 private fun TvPlaceholderPane(
-    destination: TvDestination,
+    @StringRes placeholder: Int,
     paneFocus: FocusRequester,
 ) {
-    val placeholder = when (destination) {
-        TvDestination.Home -> R.string.tv_placeholder_home
-        TvDestination.Files -> R.string.tv_placeholder_files
-        TvDestination.Search -> R.string.tv_placeholder_search
-        TvDestination.History -> R.string.tv_placeholder_history
-        TvDestination.Account -> R.string.tv_destination_account
-    }
     ListItem(
         selected = false,
         onClick = {},

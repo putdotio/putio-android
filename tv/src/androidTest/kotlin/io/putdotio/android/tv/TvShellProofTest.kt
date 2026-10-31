@@ -4,14 +4,11 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
-import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
-import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.performSemanticsAction
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.putdotio.android.AccountStorage
@@ -39,10 +36,6 @@ import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
 
-/**
- * Captures the shell's boards on the production session over fakes: the top bar over History and
- * Account tab roots, a folder under its back crumb, and a focused tab. No API calls.
- */
 @RunWith(AndroidJUnit4::class)
 class TvShellProofTest {
     private val arguments = InstrumentationRegistry.getArguments()
@@ -93,9 +86,7 @@ class TvShellProofTest {
     fun focusedTab() {
         mount(tab = "Files")
         compose.waitUntil(5_000) { isFocused("Open $FOLDER") }
-        compose.onTvTab("Search").performSemanticsAction(SemanticsActions.RequestFocus)
-        compose.waitForIdle()
-        compose.onTvTab("Search").assertIsFocused()
+        compose.focusTvTab("Search")
         screenshot("androidtv-shell-search-tab-focused")
     }
 

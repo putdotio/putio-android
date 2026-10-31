@@ -15,6 +15,7 @@ import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
@@ -28,6 +29,17 @@ import io.putdotio.android.files.FilesFolderState
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.filesBrowserState
+import io.putdotio.android.history.HistoryContent
+import io.putdotio.android.history.HistoryEventId
+import io.putdotio.android.history.HistoryEventKind
+import io.putdotio.android.history.HistoryFileId
+import io.putdotio.android.history.HistoryItem
+import io.putdotio.android.history.HistoryPaging
+import io.putdotio.android.history.historyState
+import io.putdotio.android.search.SearchContent
+import io.putdotio.android.search.SearchPaging
+import io.putdotio.android.search.SearchTerm
+import io.putdotio.android.search.searchState
 import io.putdotio.android.settings.AccountSettingsEvent
 import io.putdotio.android.settings.AccountSettingsPreferences
 import io.putdotio.android.settings.AccountSettingsReducer
@@ -36,13 +48,23 @@ import io.putdotio.android.settings.AndroidAppConfigReducer
 import io.putdotio.android.trash.TrashContent
 import io.putdotio.android.trash.TrashState
 import io.putdotio.android.tv.TvDestination
+import io.putdotio.android.tv.TvPickedRow
 import io.putdotio.android.tv.TvShell
 import io.putdotio.android.tv.account.TvAccountScreen
 import io.putdotio.android.tv.auth.TvAccount
 import io.putdotio.android.tv.files.TvFilesScreen
+import io.putdotio.android.tv.history.TvHistoryScreen
 import io.putdotio.android.tv.pressCenter
+import io.putdotio.android.tv.search.TV_SEARCH_FIELD_TAG
+import io.putdotio.android.tv.search.TvRecentSearchActions
+import io.putdotio.android.tv.search.TvSearchActions
+import io.putdotio.android.tv.search.TvSearchScreen
 import io.putdotio.android.tv.setTvContent
 import io.putdotio.android.tv.trash.TvTrashScreen
+import io.putdotio.sdk.files.PutioFileType
+import java.time.Clock
+import java.time.Instant
+import java.time.ZoneOffset
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -251,6 +273,128 @@ class TvShellBackTest {
             }
             compose.onNodeWithContentDescription("third.txt").assertIsFocused()
         }
+    }
+
+    @Test
+    fun anotherTabAndBackKeepTheSearchSectionOrResultThatHeldFocus() {
+        val results = (1L..5L).map { id -> row(id, "clip $id.mp4").copy(type = PutioFileType.VIDEO) }
+        val picked = TvPickedRow()
+        compose.setTvContent {
+            TvShell(
+                account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                onSignOut = {},
+                searchPane = { paneFocus ->
+                    TvSearchScreen(
+                        state = searchState(
+                            query = "clip",
+                            content = SearchContent.Ready(SearchTerm("clip"), results, SearchPaging.Complete),
+                            recentTerms = emptyList(),
+                            nextRequestValue = 2L,
+                        ),
+                        actions = TvSearchActions({}, {}, {}, {}, {}, TvRecentSearchActions({}, {}, {})),
+                        modifier = Modifier.focusRequester(paneFocus),
+                        pickedRow = picked,
+                    )
+                },
+            )
+        }
+        compose.openTab(TvDestination.Search)
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assertIsFocused().performKeyInput {
+            repeat(3) { pressKey(Key.DirectionDown) }
+        }
+        compose.onNodeWithContentDescription("Play clip 3.mp4").assertIsFocused()
+        compose.pressBack()
+        visitNeighbourAndReturn("Search", TvDestination.History)
+        compose.onNodeWithContentDescription("Play clip 3.mp4").assertIsFocused().performKeyInput {
+            repeat(3) { pressKey(Key.DirectionUp) }
+        }
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionUp)
+        }
+        visitNeighbourAndReturn("Search", TvDestination.History)
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assertIsFocused()
+    }
+
+    @Test
+    fun anotherTabAndBackKeepTheHistoryRowOrClearThatHeldFocus() {
+        val now = Instant.parse("2026-09-30T12:00:00Z")
+        val picked = TvPickedRow()
+        val events = (1L..3L).map { id ->
+            HistoryItem(
+                HistoryEventId(id),
+                "2026-09-30T11:5$id:00",
+                HistoryEventKind.File(HistoryFileId(100 + id), "clip $id.mp4"),
+            )
+        }
+        compose.setTvContent {
+            TvShell(
+                account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                onSignOut = {},
+                historyPane = { paneFocus ->
+                    TvHistoryScreen(
+                        state = historyState(HistoryContent.Ready(events, HistoryPaging.Complete)),
+                        onEvent = { true },
+                        modifier = Modifier.focusRequester(paneFocus),
+                        clock = Clock.fixed(now, ZoneOffset.UTC),
+                        pickedRow = picked,
+                    )
+                },
+            )
+        }
+        compose.openTab(TvDestination.History)
+        compose.onNodeWithContentDescription("Open clip 1.mp4").assertIsFocused().performKeyInput {
+            repeat(2) { pressKey(Key.DirectionDown) }
+        }
+        compose.onNodeWithContentDescription("Open clip 3.mp4").assertIsFocused()
+        compose.pressBack()
+        visitNeighbourAndReturn("History", TvDestination.Search)
+        compose.onNodeWithContentDescription("Open clip 3.mp4").assertIsFocused().performKeyInput {
+            repeat(3) { pressKey(Key.DirectionUp) }
+        }
+        compose.onNode(hasText("Clear") and hasClickAction()).assertIsFocused()
+        compose.pressBack()
+        visitNeighbourAndReturn("History", TvDestination.Account)
+        compose.onNode(hasText("Clear") and hasClickAction()).assertIsFocused()
+    }
+
+    @Test
+    fun anotherTabAndBackKeepTheAccountRowThatHeldFocus() {
+        compose.setTvContent {
+            TvShell(
+                account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                onSignOut = {},
+                accountPane = { paneFocus ->
+                    TvAccountScreen(
+                        account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                        settingsState = readySettings(),
+                        appConfigState = AndroidAppConfigReducer.start().state,
+                        onSettingsEvent = { true },
+                        onAppConfigEvent = { true },
+                        onSignOut = {},
+                        paneFocus = paneFocus,
+                    )
+                },
+            )
+        }
+        compose.openTab(TvDestination.Account)
+        compose.onNodeWithText("Choose your proxy").assertIsFocused().performKeyInput {
+            repeat(3) { pressKey(Key.DirectionDown) }
+        }
+        compose.onNodeWithText("Do not select subtitles by default").assertIsFocused()
+        compose.pressBack()
+        visitNeighbourAndReturn("Account", TvDestination.History)
+        compose.onNodeWithText("Do not select subtitles by default").assertIsFocused()
+    }
+
+    private fun visitNeighbourAndReturn(tab: String, neighbour: TvDestination) {
+        val forward = neighbour.ordinal > TvDestination.valueOf(tab).ordinal
+        compose.onTab(tab).assertIsFocused().performKeyInput {
+            pressKey(if (forward) Key.DirectionRight else Key.DirectionLeft)
+        }
+        compose.onTab(neighbour.name).assertIsFocused().assertIsSelected().performKeyInput {
+            pressKey(if (forward) Key.DirectionLeft else Key.DirectionRight)
+        }
+        compose.onTab(tab).assertIsFocused().assertIsSelected().performKeyInput { pressKey(Key.DirectionDown) }
     }
 
     private fun setShell(

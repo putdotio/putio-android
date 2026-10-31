@@ -19,7 +19,6 @@ import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
-import androidx.compose.ui.test.performSemanticsAction
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.putdotio.android.account.InactiveAccountNotice
@@ -77,8 +76,7 @@ class TvSafeAreaProofTest {
         screenshot("shell-$label")
         assertContentInsideSafeArea()
 
-        compose.onTvTab("Account").performSemanticsAction(SemanticsActions.RequestFocus)
-        compose.waitForIdle()
+        compose.focusTvTab("Account")
         screenshot("account-tab-$label")
         assertContentInsideSafeArea()
     }

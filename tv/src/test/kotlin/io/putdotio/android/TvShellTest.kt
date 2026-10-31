@@ -101,7 +101,6 @@ class TvShellTest {
         assertEquals(1, requests)
     }
 
-
     @Test
     fun inactiveAccountNoticeShowsAboveEveryPaneWithoutTakingFocusOrBack() {
         val zone = java.time.ZoneId.systemDefault()

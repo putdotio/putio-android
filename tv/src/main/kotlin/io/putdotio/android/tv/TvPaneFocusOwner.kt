@@ -5,6 +5,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.State
+import androidx.compose.runtime.currentCompositeKeyHashCode
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -25,8 +26,12 @@ import kotlinx.coroutines.flow.first
 internal class TvPaneFocusOwner(
     private val entryTarget: MutableState<FocusRequester>,
     private val paneHasFocus: State<Boolean>,
+    private val lastSection: MutableState<Long?> = mutableStateOf(null),
+    private val onEnter: (FocusRequester) -> Unit = {},
     private val home: () -> FocusRequester,
 ) {
+    private val sections = mutableMapOf<Long, FocusRequester>()
+
     /** True while the pane holds focus and this section was the last to have it. */
     fun owns(requester: FocusRequester): Boolean = paneHasFocus.value && entryTarget.value === requester
 
@@ -50,8 +55,22 @@ internal class TvPaneFocusOwner(
     val refocusRequests: State<Int> = mutableRefocusRequests
 
     /** Records that the section behind [requester] holds focus, making it the entry point. */
-    fun enter(requester: FocusRequester) {
+    fun enter(requester: FocusRequester, section: Long? = null) {
         entryTarget.value = requester
+        if (section != null) lastSection.value = section
+        onEnter(requester)
+    }
+
+    fun register(section: Long, requester: FocusRequester) {
+        sections[section] = requester
+    }
+
+    fun unregister(section: Long, requester: FocusRequester) {
+        if (sections[section] === requester) sections.remove(section)
+    }
+
+    fun restoreLastSection() {
+        sections[lastSection.value]?.let { entryTarget.value = it }
     }
 
     /**
@@ -71,19 +90,24 @@ internal class TvPaneFocusOwner(
 }
 
 /**
- * The row a pane last opened something from: playback or Files replaces the pane, and the
- * row takes focus again when the pane next mounts, as Files does for its rows. Owned by the
- * session so it survives the pane being disposed. Plain, not snapshot state.
+ * The row that last held focus in a pane, until another section of it takes focus: playback,
+ * Files or another tab replaces the pane, and the row takes focus again when the pane next
+ * mounts, as Files does for its rows. Owned by the session so it survives the pane being
+ * disposed. Plain, not snapshot state.
  */
 internal class TvPickedRow {
-    private var id: Long? = null
+    var id: Long? = null
+        private set
 
     fun pick(rowId: Long) {
         id = rowId
     }
 
-    /** The row to focus on this mount; read once, so a later visit starts as usual. */
-    fun take(): Long? = id.also { id = null }
+    fun forget() {
+        id = null
+    }
+
+    fun keptOnlyBy(rows: FocusRequester): (FocusRequester) -> Unit = { entered -> if (entered !== rows) forget() }
 }
 
 /**
@@ -97,10 +121,15 @@ internal fun Modifier.paneSection(
     requester: FocusRequester,
     fallback: (() -> FocusRequester)? = null,
 ): Modifier {
+    val section = currentCompositeKeyHashCode
     DisposableEffect(requester) {
-        onDispose { owner.leave(requester, fallback) }
+        owner.register(section, requester)
+        onDispose {
+            owner.unregister(section, requester)
+            owner.leave(requester, fallback)
+        }
     }
-    return onFocusChanged { if (it.hasFocus) owner.enter(requester) }
+    return onFocusChanged { if (it.hasFocus) owner.enter(requester, section) }
 }
 
 internal fun Modifier.focusRequesterIf(condition: Boolean, requester: FocusRequester): Modifier =

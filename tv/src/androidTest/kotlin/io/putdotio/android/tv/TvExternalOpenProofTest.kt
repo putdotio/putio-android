@@ -148,6 +148,8 @@ class TvExternalOpenProofTest {
                 compose.onNodeWithText(PROXY_ROW).assertIsFocused()
             },
         ).forEachIndexed { index, (tab, assertEntry) ->
+            press(KeyEvent.KEYCODE_BACK)
+            compose.onTvTab("Files").assertIsFocused()
             compose.openTvTab(tab)
             assertEntry()
             screenshot("${11 + index * 3}-${tab.lowercase()}-entered")
