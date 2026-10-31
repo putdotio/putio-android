@@ -353,7 +353,6 @@ private fun TvSession.openPick(item: FilesItem, origin: FilesOpenOrigin, onInFil
         TvExternalOpen.REFUSED -> false
     }
 
-/** The pane Back from a folder returns to: the one that opened it, or none to stay in Files. */
 @Composable
 private fun TvFilesPane(
     session: TvSession,

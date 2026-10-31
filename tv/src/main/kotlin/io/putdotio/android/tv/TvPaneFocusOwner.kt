@@ -9,6 +9,7 @@ import androidx.compose.runtime.currentCompositeKeyHashCode
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
@@ -102,6 +103,13 @@ internal class TvPickedRow {
     }
 
     fun keptOnlyBy(rows: FocusRequester): (FocusRequester) -> Unit = { entered -> if (entered !== rows) forget() }
+
+    companion object {
+        val Saver: Saver<TvPickedRow, Long> = Saver(
+            save = { it.id },
+            restore = { id -> TvPickedRow().apply { pick(id) } },
+        )
+    }
 }
 
 /**

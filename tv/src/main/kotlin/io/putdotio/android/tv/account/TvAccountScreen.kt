@@ -145,8 +145,8 @@ internal fun TvAccountScreen(
     /** Changes with the signed-in session so one account's dialogs never greet the next. */
     sessionKey: Any? = null,
 ) = key(sessionKey) {
-    // Saved across recreation, forgotten with the pane: leaving for another destination and
-    // coming back lands on Account itself, and the row that opened Trash takes focus on Back.
+    // Saved with the pane, so another tab and back still shows Trash; Back from Trash lands
+    // on the row that opened it.
     var showingTrash by rememberSaveable { mutableStateOf(false) }
     // Set by Back only, so a first visit to Account never pulls focus off the drawer.
     val returningFromTrash = remember { mutableStateOf(false) }

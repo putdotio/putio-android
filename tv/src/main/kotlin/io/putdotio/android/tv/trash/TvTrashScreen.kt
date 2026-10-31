@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
@@ -27,6 +28,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
@@ -71,6 +73,7 @@ import io.putdotio.android.parsePutioTimestamp
 import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.rememberTvPaneHasFocus
 import io.putdotio.android.tv.TvPaneFocusOwner
+import io.putdotio.android.tv.TvPickedRow
 import io.putdotio.android.tv.TvStatusScreen
 import io.putdotio.android.tv.bringIntoComposition
 import io.putdotio.android.tv.focusRequesterIf
@@ -113,8 +116,13 @@ internal fun TvTrashScreen(
     val paneHasFocus = rememberTvPaneHasFocus()
     val entryTarget = remember { mutableStateOf(refreshFocus) }
     val rowsPresent = rememberUpdatedState(hasRows)
+    val pickedRow = rememberSaveable(saver = TvPickedRow.Saver) { TvPickedRow() }
+    val restoreRowId = remember { pickedRow.id }
+    val lastSection = rememberSaveable { mutableStateOf<Long?>(null) }
     val owner = remember {
-        TvPaneFocusOwner(entryTarget, paneHasFocus) { if (rowsPresent.value) listFocus else refreshFocus }
+        TvPaneFocusOwner(entryTarget, paneHasFocus, lastSection, onEnter = pickedRow.keptOnlyBy(listFocus)) {
+            if (rowsPresent.value) listFocus else refreshFocus
+        }
     }
     // Refresh is the one node that outlives every content change; it takes focus when the
     // rows go (an emptied trash, a reload) and a failed read focuses its own Try again.
@@ -149,9 +157,9 @@ internal fun TvTrashScreen(
             onRefresh = { onEvent(TrashEvent.Refresh) },
             onRestoreAll = { onEvent(TrashEvent.SelectRestoreAll) },
             onEmpty = { onEvent(TrashEvent.SelectEmpty) },
-            refreshModifier = Modifier.paneSection(owner, refreshFocus).focusRequester(refreshFocus),
-            restoreAllModifier = Modifier.paneSection(owner, restoreAllFocus).focusRequester(restoreAllFocus),
-            emptyModifier = Modifier.paneSection(owner, emptyFocus).focusRequester(emptyFocus),
+            refreshModifier = Modifier.keyedPaneSection("refresh", owner, refreshFocus),
+            restoreAllModifier = Modifier.keyedPaneSection("restoreAll", owner, restoreAllFocus),
+            emptyModifier = Modifier.keyedPaneSection("empty", owner, emptyFocus),
         )
         TvTrashNotices(state, onEvent, owner)
         when (content) {
@@ -197,6 +205,8 @@ internal fun TvTrashScreen(
                     )
                     TvTrashList(
                         content = content,
+                        restoreRowId = restoreRowId,
+                        onRowFocused = { pickedRow.pick(it.id.value) },
                         // A row with nothing the controller allows right now has no dialog to offer.
                         onChoose = { if (state.offersActionsOn(it)) chosenItemId = it.id.value },
                         onNextPage = { onEvent(TrashEvent.LoadNextPage) },
@@ -212,7 +222,12 @@ internal fun TvTrashScreen(
     }
     chosenItem?.let { TvTrashItemDialog(it, state, onEvent, onDismiss = { chosenItemId = null }) }
     TvTrashConfirmations(state, onEvent)
+    LaunchedEffect(owner) { owner.restoreLastSection() }
 }
+
+@Composable
+private fun Modifier.keyedPaneSection(name: String, owner: TvPaneFocusOwner, requester: FocusRequester): Modifier =
+    key(name) { paneSection(owner, requester) }.focusRequester(requester)
 
 private val TrashContent.isLoadingOrKnownEmpty: Boolean
     get() = this is TrashContent.Loading || (this is TrashContent.Loaded && isKnownEmpty)
@@ -502,7 +517,9 @@ private fun TvTrashOutcomeNotice(
 @Composable
 private fun TvTrashList(
     content: TrashContent.Loaded,
+    restoreRowId: Long?,
     onChoose: (TrashItem) -> Unit,
+    onRowFocused: (TrashItem) -> Unit,
     onNextPage: () -> Unit,
     onRetry: () -> Unit,
     owner: TvPaneFocusOwner,
@@ -512,8 +529,7 @@ private fun TvTrashList(
     modifier: Modifier = Modifier,
 ) {
     val items = content.items
-    val anchorRow = remember { FocusRequester() }
-    val lastRow = remember { FocusRequester() }
+    val rows = remember { TrashRowFocus() }
     val pagingFocus = remember { FocusRequester() }
     val pagingHeldFocus = remember { mutableStateOf(false) }
     val handOffToLastRow = remember { mutableStateOf(false) }
@@ -524,20 +540,19 @@ private fun TvTrashList(
     }
     val listState = rememberLazyListState()
     val anchorIndex by remember(listState) { derivedStateOf { listState.firstVisibleItemIndex } }
+    val restoreIndex = remember(items) { items.indexOfFirst { it.id.value == restoreRowId } }
     LaunchedEffect(listState) {
-        // A page with no rows of its own has only the paging control to land on.
-        val targetKey = items.getOrNull(anchorIndex)?.id?.value ?: TV_TRASH_PAGING_KEY.takeIf { pagingShown }
-            ?: return@LaunchedEffect
-        snapshotFlow { listState.layoutInfo.visibleItemsInfo.any { it.key == targetKey } }.first { it }
+        if (!listState.awaitMountTarget(items, restoreIndex, anchorIndex, pagingShown)) return@LaunchedEffect
         withFrameNanos {}
-        if (mayPlaceFocus(paneHasFocus, dialogShowing)) listFocus.requestFocus()
+        if (!mayPlaceFocus(paneHasFocus, dialogShowing)) return@LaunchedEffect
+        if (restoreIndex >= 0) rows.restore.requestFocus() else listFocus.requestFocus()
     }
     LaunchedEffect(handOffToLastRow.value) {
         if (!handOffToLastRow.value) return@LaunchedEffect
         val lastId = items.lastOrNull()?.id?.value ?: return@LaunchedEffect
         listState.bringIntoComposition(lastId, items.lastIndex)
         withFrameNanos {}
-        if (owner.owns(listFocus)) lastRow.requestFocus()
+        if (owner.owns(listFocus)) rows.last.requestFocus()
         handOffToLastRow.value = false
     }
     LazyColumn(
@@ -548,8 +563,7 @@ private fun TvTrashList(
             .focusRequester(listFocus)
             .focusRestorer {
                 val lastId = items.lastOrNull()?.id?.value ?: return@focusRestorer pagingFocus
-                val lastComposed = listState.layoutInfo.visibleItemsInfo.any { it.key == lastId }
-                if (handOffToLastRow.value && lastComposed) lastRow else anchorRow
+                listState.restoreTarget(rows, lastId, items.getOrNull(restoreIndex)?.id?.value, handOffToLastRow.value)
             }
             .focusGroup()
             .testTag(TV_TRASH_LIST_TAG),
@@ -560,8 +574,10 @@ private fun TvTrashList(
                 item = item,
                 onClick = { onChoose(item) },
                 modifier = Modifier
-                    .focusRequesterIf(index == anchorIndex, anchorRow)
-                    .focusRequesterIf(index == items.lastIndex, lastRow),
+                    .focusRequesterIf(index == anchorIndex, rows.anchor)
+                    .focusRequesterIf(index == items.lastIndex, rows.last)
+                    .focusRequesterIf(index == restoreIndex, rows.restore)
+                    .onFocusChanged { if (it.isFocused) onRowFocused(item) },
             )
         }
         if (pagingShown) {
@@ -577,6 +593,40 @@ private fun TvTrashList(
             }
         }
     }
+}
+
+private class TrashRowFocus {
+    val anchor = FocusRequester()
+    val last = FocusRequester()
+    val restore = FocusRequester()
+}
+
+private fun LazyListState.restoreTarget(
+    rows: TrashRowFocus,
+    lastId: Long,
+    restoreId: Long?,
+    handOffToLastRow: Boolean,
+): FocusRequester = when {
+    handOffToLastRow && composes(lastId) -> rows.last
+    composes(restoreId) -> rows.restore
+    else -> rows.anchor
+}
+
+private fun LazyListState.composes(key: Any?): Boolean =
+    key != null && layoutInfo.visibleItemsInfo.any { it.key == key }
+
+private suspend fun LazyListState.awaitMountTarget(
+    items: List<TrashItem>,
+    restoreIndex: Int,
+    anchorIndex: Int,
+    pagingShown: Boolean,
+): Boolean {
+    val restoreKey = items.getOrNull(restoreIndex)?.id?.value
+    if (restoreKey != null) bringIntoComposition(restoreKey, restoreIndex)
+    val targetKey = restoreKey ?: items.getOrNull(anchorIndex)?.id?.value
+        ?: TV_TRASH_PAGING_KEY.takeIf { pagingShown } ?: return false
+    snapshotFlow { composes(targetKey) }.first { it }
+    return true
 }
 
 private val TrashContent.Loaded.showsPaging: Boolean

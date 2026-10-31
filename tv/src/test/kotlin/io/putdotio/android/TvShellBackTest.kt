@@ -46,6 +46,7 @@ import io.putdotio.android.settings.AccountSettingsReducer
 import io.putdotio.android.settings.AccountSettingsRequestId
 import io.putdotio.android.settings.AndroidAppConfigReducer
 import io.putdotio.android.trash.TrashContent
+import io.putdotio.android.trash.TrashItem
 import io.putdotio.android.trash.TrashState
 import io.putdotio.android.tv.TvDestination
 import io.putdotio.android.tv.TvPickedRow
@@ -384,6 +385,66 @@ class TvShellBackTest {
         compose.pressBack()
         visitNeighbourAndReturn("Account", TvDestination.History)
         compose.onNodeWithText("Do not select subtitles by default").assertIsFocused()
+    }
+
+    @Test
+    fun anotherTabAndBackKeepTheTrashRowOrRefreshThatHeldFocus() {
+        val items = (1L..3L).map { id ->
+            TrashItem(
+                FilesItemId(id), FilesItemId(100 + id), "trashed-$id.txt", PutioFileType.TEXT, 10,
+                "2026-09-06T10:00:00", "2026-09-20T10:00:00",
+            )
+        }
+        var requested by mutableStateOf<TvDestination?>(null)
+        compose.setTvContent {
+            TvShell(
+                account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                onSignOut = {},
+                accountPane = { paneFocus ->
+                    TvAccountScreen(
+                        account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                        settingsState = readySettings(),
+                        appConfigState = AndroidAppConfigReducer.start().state,
+                        onSettingsEvent = { true },
+                        onAppConfigEvent = { true },
+                        onSignOut = {},
+                        paneFocus = paneFocus,
+                        trashPane = { trashFocus ->
+                            TvTrashScreen(
+                                state = TrashState(content = TrashContent.Loaded(items, null, 3, 30)),
+                                onEvent = { true },
+                                modifier = Modifier.focusRequester(trashFocus),
+                            )
+                        },
+                    )
+                },
+                requestedDestination = requested,
+                onDestinationRequestHandled = { requested = null },
+            )
+        }
+        compose.openTab(TvDestination.Account)
+        compose.onNodeWithText("Choose your proxy").assertIsFocused().performKeyInput {
+            repeat(5) { pressKey(Key.DirectionDown) }
+        }
+        compose.onNodeWithText("Manage your trash").assertIsFocused().performKeyInput { pressCenter() }
+        compose.onNodeWithContentDescription("Actions for trashed-1.txt").assertIsFocused().performKeyInput {
+            repeat(2) { pressKey(Key.DirectionDown) }
+        }
+        compose.onNodeWithContentDescription("Actions for trashed-3.txt").assertIsFocused()
+
+        compose.runOnIdle { requested = TvDestination.History }
+        compose.waitForIdle()
+        compose.pressBack()
+        compose.onTab("History").assertIsFocused().performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onTab("Account").assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithContentDescription("Actions for trashed-3.txt").assertIsFocused().performKeyInput {
+            repeat(3) { pressKey(Key.DirectionUp) }
+        }
+        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionUp)
+        }
+        visitNeighbourAndReturn("Account", TvDestination.History)
+        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused()
     }
 
     private fun visitNeighbourAndReturn(tab: String, neighbour: TvDestination) {
