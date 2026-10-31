@@ -2,6 +2,8 @@ package io.putdotio.android.tv
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -14,6 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
@@ -29,6 +32,7 @@ import androidx.tv.material3.ListItem
 import androidx.tv.material3.ListItemScale
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.RadioButton
+import androidx.tv.material3.RadioButtonDefaults
 import androidx.tv.material3.Text
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioRadius
@@ -89,12 +93,28 @@ internal fun <T> TvChoiceDialog(
                 choices.forEachIndexed { index, choice ->
                     val isSelected = index == selectedIndex
                     val focusTarget = isSelected || (selectedIndex < 0 && index == 0)
+                    val interactions = remember { MutableInteractionSource() }
+                    val focused by interactions.collectIsFocusedAsState()
                     ListItem(
                         selected = isSelected,
                         onClick = { onSelect(choice.value) },
                         headlineContent = { Text(choice.label) },
-                        leadingContent = { RadioButton(selected = isSelected, onClick = null) },
+                        leadingContent = {
+                            RadioButton(
+                                selected = isSelected,
+                                onClick = null,
+                                colors = if (focused) {
+                                    RadioButtonDefaults.colors(
+                                        selectedColor = TvFocus.content,
+                                        unselectedColor = TvFocus.content,
+                                    )
+                                } else {
+                                    RadioButtonDefaults.colors()
+                                },
+                            )
+                        },
                         scale = ListItemScale.None,
+                        interactionSource = interactions,
                         modifier = Modifier
                             .fillMaxWidth()
                             .then(

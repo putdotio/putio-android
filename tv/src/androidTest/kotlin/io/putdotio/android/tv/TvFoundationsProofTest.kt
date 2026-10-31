@@ -55,7 +55,9 @@ import io.putdotio.android.design.fileTypeIconRes
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPage
+import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.tv.auth.TvAccount
+import io.putdotio.android.tv.files.TvFilesRow
 import io.putdotio.sdk.files.PutioFileType
 import java.io.File
 import java.util.UUID
@@ -97,6 +99,20 @@ class TvFoundationsProofTest {
         compose.setContent { PutioTvTheme { FoundationsSheet() } }
         compose.waitForIdle()
         screenshot("androidtv-rde2-13-foundations")
+    }
+
+    @Test
+    fun watchedRowFocus() {
+        compose.setContent { PutioTvTheme { FocusAccentsSheet(choices = false) } }
+        compose.waitForIdle()
+        screenshot("androidtv-st-focus-watched-row")
+    }
+
+    @Test
+    fun choiceFocus() {
+        compose.setContent { PutioTvTheme { FocusAccentsSheet(choices = true) } }
+        waitForText("Sort by")
+        screenshot("androidtv-st-focus-choice")
     }
 
     @Test
@@ -287,6 +303,47 @@ private fun FoundationsSheet() {
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun FocusAccentsSheet(choices: Boolean) {
+    val rowFocus = remember { FocusRequester() }
+    val watched = { id: Long, name: String ->
+        proofItem(id, name, PutioFileType.VIDEO, FilesFolder.Root.id)
+            .copy(playback = FilesPlaybackProgress(startFromSeconds = 312.0, durationSeconds = 888.0))
+    }
+    LaunchedEffect(choices) {
+        if (choices) return@LaunchedEffect
+        withFrameNanos {}
+        rowFocus.requestFocus()
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .tvSafeAreaPadding(),
+        horizontalArrangement = Arrangement.spacedBy(48.dp),
+    ) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            SpecLabel("Watched rows")
+            TvFilesRow(item = watched(20, "Sintel.2010.1080p.mkv"), onClick = {})
+            TvFilesRow(
+                item = watched(21, "Big_Buck_Bunny_1080_10s_30MB.mp4"),
+                onClick = {},
+                modifier = Modifier.focusRequester(rowFocus),
+            )
+        }
+        Box(Modifier.weight(1f))
+    }
+    if (choices) {
+        TvChoiceDialog(
+            title = "Sort by",
+            choices = listOf(TvChoice(1, "Name"), TvChoice(2, "Date added"), TvChoice(3, "Size")),
+            selected = 2,
+            onSelect = {},
+            onDismiss = {},
+        )
     }
 }
 

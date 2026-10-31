@@ -53,8 +53,6 @@ internal fun TvDialog(
     }
 }
 
-internal enum class TvConfirmFocus { Confirm, Cancel }
-
 @Composable
 internal fun TvConfirmDialog(
     title: String,
@@ -63,19 +61,17 @@ internal fun TvConfirmDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
     destructive: Boolean = false,
-    initialFocus: TvConfirmFocus = TvConfirmFocus.Confirm,
 ) {
     TvDialogFrame(title, message, onDismiss, focusesAction = true) { focus ->
         TvDialogActions {
             TvButton(
                 onClick = onDismiss,
                 style = TvButtonStyle.Text,
-                modifier = if (initialFocus == TvConfirmFocus.Cancel) Modifier.focusRequester(focus) else Modifier,
             ) { Text(stringResource(R.string.tv_dialog_cancel)) }
             TvButton(
                 onClick = onConfirm,
                 style = if (destructive) TvButtonStyle.Destructive else TvButtonStyle.Filled,
-                modifier = if (initialFocus == TvConfirmFocus.Confirm) Modifier.focusRequester(focus) else Modifier,
+                modifier = Modifier.focusRequester(focus),
             ) { Text(confirmLabel) }
         }
     }

@@ -622,7 +622,7 @@ internal fun TvFilesRow(
         supportingContent = {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(size, maxLines = 1)
-                item.playback?.takeIf { it.isWatched }?.let { TvWatchedIndicator(it) }
+                item.playback?.takeIf { it.isWatched }?.let { TvWatchedIndicator(it, focused) }
             }
         },
         leadingContent = {
@@ -663,7 +663,8 @@ internal fun TvFilesRow(
 }
 
 @Composable
-private fun TvWatchedIndicator(progress: FilesPlaybackProgress) {
+private fun TvWatchedIndicator(progress: FilesPlaybackProgress, focused: Boolean) {
+    val accent = tvAccent(focused)
     val fraction = progress.fraction
     val label = if (fraction == null) {
         stringResource(R.string.tv_files_watched)
@@ -676,18 +677,20 @@ private fun TvWatchedIndicator(progress: FilesPlaybackProgress) {
                 modifier = Modifier
                     .width(120.dp)
                     .height(4.dp)
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .background(
+                        if (focused) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.surfaceVariant,
+                    )
                     .clearAndSetSemantics {},
             ) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth(fraction)
                         .height(4.dp)
-                        .background(MaterialTheme.colorScheme.primary),
+                        .background(accent),
                 )
             }
         }
-        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+        Text(label, style = MaterialTheme.typography.labelSmall, color = accent)
     }
 }
 
