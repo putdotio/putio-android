@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
@@ -122,7 +123,7 @@ internal fun TvPlayerControls(
             .background(tvPlayerShade(MaterialTheme.colorScheme.scrim))
             .testTag(TV_PLAYER_CONTROLS_TAG),
     ) {
-        Box(Modifier.fillMaxSize().tvSafeAreaPadding()) {
+        Box(Modifier.fillMaxSize().tvSafeAreaPadding().padding(vertical = PLAYER_EDGE_EXTRA)) {
             TvPlayerTopBar(title, Modifier.align(Alignment.TopStart))
             TvPlayerCircles(paused = paused, focused = focused, modifier = Modifier.align(Alignment.Center))
             Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth()) {
@@ -268,7 +269,7 @@ private fun TvSeekBar(
     BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
-            .height(SEEK_KNOB_SCRUBBING + SEEK_RING * 2)
+            .height(SEEK_TRACK)
             .testTag(TV_PLAYER_SEEK_BAR_TAG)
             .clearAndSetSemantics {
                 contentDescription = description
@@ -289,7 +290,7 @@ private fun TvSeekBar(
         Box(
             modifier = Modifier
                 .offset(x = (maxWidth * fraction - knob / 2).coerceIn(0.dp, maxWidth - knob))
-                .size(knob)
+                .requiredSize(knob)
                 .then(if (focused) Modifier.border(SEEK_RING, TvFocus.container, CircleShape) else Modifier)
                 .padding(if (focused) SEEK_RING else 0.dp)
                 .clip(CircleShape)
@@ -358,7 +359,7 @@ private fun TvPlayerChip(
             .clip(shape)
             .background(if (focused) TvFocus.container else Color.Transparent)
             .border(1.dp, if (focused) TvFocus.container else rest.copy(alpha = TRACK_ALPHA), shape)
-            .padding(horizontal = 12.dp)
+            .padding(horizontal = CHIP_PADDING)
             .clearAndSetSemantics {
                 contentDescription = description
                 role = Role.Button
@@ -402,13 +403,15 @@ private const val SKIP_SECONDS_LABEL = "10"
 private const val MILLIS_PER_SECOND = 1_000L
 private const val MINUTES_LENGTH = 5
 private const val ICON_FRACTION = 0.55f
-private const val CIRCLE_ALPHA = 0.32f
-private const val BIG_CIRCLE_ALPHA = 0.42f
+private const val CIRCLE_ALPHA = 0.55f
+private const val BIG_CIRCLE_ALPHA = 0.6f
 private const val TRACK_ALPHA = 0.3f
 private val CIRCLE = 56.dp
 private val BIG_CIRCLE = 72.dp
 private val CIRCLE_GAP = 56.dp
 private val CHIP_HEIGHT = 32.dp
+private val CHIP_PADDING = 13.dp
+private val PLAYER_EDGE_EXTRA = 3.dp
 private val CHIP_MAX_WIDTH = 240.dp
 private val SEEK_TRACK = 4.dp
 private val SEEK_KNOB = 16.dp

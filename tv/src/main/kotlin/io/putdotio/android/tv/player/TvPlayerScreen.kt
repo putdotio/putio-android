@@ -8,6 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -27,6 +28,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -353,9 +355,17 @@ private fun TvReadyPlayer(
             )
             if (choices.subtitlesOn) {
                 SubtitleCueOverlay(
-                    cues = rememberShownCues(player, cues, cueHistory, options.subtitleOffsetMillis),
+                    cues = rememberShownCues(
+                        player = player,
+                        cues = cues,
+                        history = cueHistory,
+                        delayMillis = options.subtitleOffsetMillis,
+                        preview = overlay.sheet == TvPlayerSheet.SizeAndTiming && !playWhenReady,
+                    ),
                     videoAspectRatio = videoSize.displayAspectRatioOrNull(),
-                    modifier = Modifier.align(Alignment.Center),
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .offset(x = if (overlay.sheet != null) -SUBTITLES_BESIDE_SHEET else 0.dp),
                     textScale = appearance.textSize.scale,
                     bottomPaddingFraction = subtitleBottomPadding(overlay.controlsVisible),
                 )
@@ -430,12 +440,15 @@ private fun rememberShownCues(
     cues: List<Cue>,
     history: DelayedSubtitleCues,
     delayMillis: Long,
+    preview: Boolean,
 ): List<Cue> {
     if (delayMillis <= 0L) return cues
+    val current by rememberUpdatedState(cues)
     var shown by remember(player) { mutableStateOf(emptyList<Cue>()) }
-    LaunchedEffect(player, delayMillis) {
+    LaunchedEffect(player, delayMillis, preview) {
         while (true) {
-            shown = history.at(player.currentPosition, delayMillis)
+            val delayed = history.atOrNull(player.currentPosition, delayMillis)
+            shown = if (preview) delayed ?: current else delayed.orEmpty()
             delay(DELAYED_CUE_TICK_MILLIS)
         }
     }
@@ -444,6 +457,7 @@ private fun rememberShownCues(
 
 private const val DELAYED_CUE_TICK_MILLIS = 50L
 private const val SUBTITLES_ABOVE_CONTROLS = 0.22f
+private val SUBTITLES_BESIDE_SHEET = 180.dp
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 private fun subtitleBottomPadding(controlsVisible: Boolean): Float =

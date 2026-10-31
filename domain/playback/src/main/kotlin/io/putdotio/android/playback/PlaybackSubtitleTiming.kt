@@ -111,8 +111,11 @@ public class DelayedSubtitleCues(private val retainMillis: Long = DEFAULT_RETAIN
     }
 
     /** What showed [delayMillis] before [positionMillis]; nothing when that was before the record. */
-    public fun at(positionMillis: Long, delayMillis: Long): List<Cue> =
-        synchronized(shown) { shown.lastOrNull { it.first + delayMillis <= positionMillis }?.second.orEmpty() }
+    public fun at(positionMillis: Long, delayMillis: Long): List<Cue> = atOrNull(positionMillis, delayMillis).orEmpty()
+
+    /** What showed [delayMillis] before [positionMillis], or null when that was before the record. */
+    public fun atOrNull(positionMillis: Long, delayMillis: Long): List<Cue>? =
+        synchronized(shown) { shown.lastOrNull { it.first + delayMillis <= positionMillis }?.second }
 
     private companion object {
         // Past the longest delay the viewer can pick.

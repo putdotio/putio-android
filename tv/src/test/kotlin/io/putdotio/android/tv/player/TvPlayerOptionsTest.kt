@@ -253,6 +253,27 @@ class TvPlayerOptionsTest {
     }
 
     @Test
+    fun inFileSubtitlesNameTheirFormatOrTheMissingLanguage() {
+        val player = TrackPlayer(
+            text = TrackGroup(
+                "text-in-file",
+                Format.Builder()
+                    .setId("t-en")
+                    .setLanguage("en")
+                    .setSampleMimeType(MimeTypes.APPLICATION_MEDIA3_CUES)
+                    .setCodecs(MimeTypes.APPLICATION_SUBRIP)
+                    .build(),
+                textFormat("t-und", C.LANGUAGE_UNDETERMINED, label = null),
+            ),
+        )
+        show(player)
+        openSheet(SUBTITLES, rightPresses = 1)
+        compose.onNodeWithText("SRT").assertIsDisplayed()
+        compose.onNodeWithText("Track 2").assertIsDisplayed()
+        compose.onNodeWithText("Embedded · language not set").assertIsDisplayed()
+    }
+
+    @Test
     fun aLongTrackNameLeavesRoomForTheOtherChips() {
         val player = TrackPlayer(
             audio = TrackGroup(

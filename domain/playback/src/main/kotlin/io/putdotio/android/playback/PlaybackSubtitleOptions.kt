@@ -35,7 +35,8 @@ internal fun subtitleFormatName(mimeType: String?): String? =
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal fun PlaybackSubtitleTrack.formatName(): String? =
     group.getFormat(trackIndex).let { format ->
-        subtitleFormatName(format.codecs?.let(MimeTypes::getTextMediaMimeType) ?: format.sampleMimeType)
+        subtitleFormatName(format.codecs)
+            ?: subtitleFormatName(format.codecs?.let(MimeTypes::getTextMediaMimeType) ?: format.sampleMimeType)
     }
 
 public enum class SubtitleOrigin { File, Folder, OpenSubtitles }

@@ -19,7 +19,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -42,6 +44,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
@@ -269,6 +272,7 @@ private fun TvSpeedSheet(speed: Float, focus: FocusRequester, onSpeed: (Float) -
     TvStepper(
         value = value,
         valueStyle = PutioTypeScale.tvMono.copy(fontSize = SPEED_VALUE_SIZE, lineHeight = SPEED_VALUE_LINE),
+        buttons = TvStepButtons(SPEED_STEP_LABEL, SPEED_STEP_BUTTON_WIDTH),
         less = "−",
         lessDescription = stringResource(
             PlaybackR.string.playback_speed_slower,
@@ -361,6 +365,7 @@ private fun ColumnScope.TvSizeAndTimingSheet(
     TvStepper(
         value = formatSubtitleOffset(offsetMillis),
         valueStyle = PutioTypeScale.tvMono.copy(fontSize = OFFSET_VALUE_SIZE, lineHeight = OFFSET_VALUE_LINE),
+        buttons = TvStepButtons(OFFSET_STEP_LABEL, width = null),
         less = "−0.1",
         lessDescription = stringResource(PlaybackR.string.playback_subtitle_earlier),
         more = "+0.1",
@@ -386,7 +391,7 @@ private fun ColumnScope.TvSizeAndTimingSheet(
     }
     Text(
         stringResource(R.string.tv_player_caption_settings),
-        style = PutioTypeScale.tvMeta,
+        style = PutioTypeScale.tvMeta.copy(fontSize = FOOTNOTE_SIZE, lineHeight = FOOTNOTE_LINE),
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 12.dp),
     )
@@ -396,6 +401,7 @@ private fun ColumnScope.TvSizeAndTimingSheet(
 private fun TvStepper(
     value: String,
     valueStyle: TextStyle,
+    buttons: TvStepButtons,
     less: String,
     lessDescription: String,
     more: String,
@@ -409,25 +415,39 @@ private fun TvStepper(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        TvStepButton(less, lessDescription, onLess, if (!focusMore) focus else null)
+        TvStepButton(less, lessDescription, buttons, onLess, if (!focusMore) focus else null)
         Text(value, style = valueStyle, textAlign = TextAlign.Center, modifier = Modifier.weight(1f))
-        TvStepButton(more, moreDescription, onMore, if (focusMore) focus else null)
+        TvStepButton(more, moreDescription, buttons, onMore, if (focusMore) focus else null)
     }
 }
 
 @Composable
-private fun TvStepButton(label: String, description: String, onClick: (() -> Unit)?, focus: FocusRequester?) {
+private fun TvStepButton(
+    label: String,
+    description: String,
+    buttons: TvStepButtons,
+    onClick: (() -> Unit)?,
+    focus: FocusRequester?,
+) {
     TvButton(
         onClick = { onClick?.invoke() },
         enabled = onClick != null,
         modifier = Modifier
-            .widthIn(min = STEP_BUTTON_WIDTH)
+            .then(if (buttons.width != null) Modifier.width(buttons.width) else Modifier.widthIn(min = STEP_BUTTON_WIDTH))
             .then(if (focus != null) Modifier.focusRequester(focus) else Modifier)
             .semantics { contentDescription = description },
     ) {
-        Text(label, style = PutioTypeScale.tvMono, maxLines = 1, softWrap = false)
+        Text(
+            label,
+            style = buttons.label,
+            maxLines = 1,
+            softWrap = false,
+            modifier = Modifier.wrapContentWidth(unbounded = true),
+        )
     }
 }
+
+private class TvStepButtons(val label: TextStyle, val width: Dp?)
 
 @Composable
 private fun ColumnScope.TvSheetRows(content: @Composable ColumnScope.() -> Unit) {
@@ -438,7 +458,7 @@ private fun ColumnScope.TvSheetRows(content: @Composable ColumnScope.() -> Unit)
 private fun TvSheetLabel(text: String) {
     Text(
         text = text,
-        style = PutioTypeScale.tvLabel,
+        style = PutioTypeScale.tvLabel.copy(lineHeight = DETAIL_LINE),
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 4.dp),
     )
@@ -495,12 +515,13 @@ private fun TvSheetOption(
                 }
             }
             Column(Modifier.weight(1f)) {
-                Text(label, style = PutioTypeScale.tvBody)
+                Text(label, style = PutioTypeScale.tvBody.copy(fontSize = OPTION_LABEL_SIZE))
                 if (detail != null) {
                     Text(
                         detail,
-                        style = PutioTypeScale.tvMeta,
+                        style = PutioTypeScale.tvMeta.copy(lineHeight = DETAIL_LINE),
                         color = if (focused) TvFocus.content else colors.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 1.dp),
                     )
                 }
             }
@@ -563,12 +584,19 @@ private fun TvSheetChip(
     }
 }
 
-private val OPTION_MIN_HEIGHT = 48.dp
+private val OPTION_MIN_HEIGHT = 40.dp
+private val OPTION_LABEL_SIZE = 15.sp
+private val DETAIL_LINE = 15.sp
+private val FOOTNOTE_SIZE = 11.sp
+private val FOOTNOTE_LINE = 15.sp
+private val SPEED_STEP_BUTTON_WIDTH = 44.dp
+private val SPEED_STEP_LABEL = PutioTypeScale.tvBody.copy(fontSize = 18.sp, fontWeight = FontWeight.Medium)
+private val OFFSET_STEP_LABEL = PutioTypeScale.tvMono.copy(fontSize = 13.sp, fontWeight = FontWeight.Medium)
 private val LEADING_SLOT = 20.dp
 private val QUICK_CHIP_HEIGHT = 28.dp
 private val SIZE_CHIP_HEIGHT = 32.dp
 private val STEP_BUTTON_WIDTH = 56.dp
 private val SPEED_VALUE_SIZE = 32.sp
-private val SPEED_VALUE_LINE = 40.sp
+private val SPEED_VALUE_LINE = 47.sp
 private val OFFSET_VALUE_SIZE = 22.sp
 private val OFFSET_VALUE_LINE = 28.sp

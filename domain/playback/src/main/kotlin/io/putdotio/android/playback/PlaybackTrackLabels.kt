@@ -12,8 +12,10 @@ public const val TRACK_DETAIL_SEPARATOR: String = " · "
 
 @Composable
 public fun audioTrackLabels(tracks: List<PlaybackAudioTrack>): List<String> {
+    val commentary = stringResource(R.string.playback_audio_commentary)
     val names = tracks.mapIndexed { index, track ->
-        languageName(track.identity.language) ?: track.label?.takeIf(String::isNotBlank)
+        commentary.takeIf { track.isCommentary() }
+            ?: languageName(track.identity.language) ?: track.label?.takeIf(String::isNotBlank)
             ?: stringResource(R.string.playback_audio_track_number, index + 1)
     }
     return numberRepeatedRows(names, tracks.map { audioTrackDetails(it) })
@@ -23,6 +25,7 @@ public fun audioTrackLabels(tracks: List<PlaybackAudioTrack>): List<String> {
 public fun audioTrackDetails(track: PlaybackAudioTrack): String? {
     val identity = track.identity
     val parts = listOfNotNull(
+        audioCodecName(identity.sampleMimeType),
         when (identity.channelCount) {
             Format.NO_VALUE, 0 -> null
             1 -> stringResource(R.string.playback_audio_mono)
@@ -35,12 +38,14 @@ public fun audioTrackDetails(track: PlaybackAudioTrack): String? {
                 identity.channelCount,
             )
         },
-        audioCodecName(identity.sampleMimeType),
-        stringResource(R.string.playback_audio_commentary)
-            .takeIf { identity.roleFlags and C.ROLE_FLAG_COMMENTARY != 0 },
+        languageName(identity.language).takeIf { track.isCommentary() },
     )
-    return parts.takeIf { it.isNotEmpty() }?.joinToString(TRACK_DETAIL_SEPARATOR)
+    return parts.takeIf { it.isNotEmpty() }
+        ?.joinToString(TRACK_DETAIL_SEPARATOR)
+        ?.replaceFirstChar { it.titlecase(Locale.getDefault()) }
 }
+
+private fun PlaybackAudioTrack.isCommentary(): Boolean = identity.roleFlags and C.ROLE_FLAG_COMMENTARY != 0
 
 @Composable
 public fun subtitleTrackLabels(tracks: List<PlaybackSubtitleTrack>, sidecar: List<PlaybackSubtitle>): List<String> =
@@ -65,8 +70,13 @@ public fun subtitleTrackDetails(track: PlaybackSubtitleTrack, subtitle: Playback
     when (subtitle.origin()) {
         SubtitleOrigin.Folder -> stringResource(R.string.playback_subtitles_from_folder)
         SubtitleOrigin.OpenSubtitles -> stringResource(R.string.playback_subtitles_from_opensubtitles)
-        SubtitleOrigin.File -> subtitle?.format?.takeIf { it.isNotBlank() }?.uppercase(Locale.ROOT)
-            ?: track.formatName()
+        SubtitleOrigin.File ->
+            if (subtitle == null && languageName(track.identity.language) == null) {
+                stringResource(R.string.playback_subtitles_embedded) + TRACK_DETAIL_SEPARATOR +
+                    stringResource(R.string.playback_subtitles_language_unset)
+            } else {
+                subtitle?.format?.takeIf { it.isNotBlank() }?.uppercase(Locale.ROOT) ?: track.formatName()
+            }
     }
 
 @Composable

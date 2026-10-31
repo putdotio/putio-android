@@ -440,7 +440,7 @@ class TvPlayerProofTest {
 
         press(KeyEvent.KEYCODE_DPAD_LEFT)
         press(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.waitUntil(10_000) { compose.onAllNodesWithText("Stereo · AAC").fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(10_000) { compose.onAllNodesWithText("AAC · stereo").fetchSemanticsNodes().isNotEmpty() }
         elapse(DIALOG_EXIT_MILLIS)
         screenshot("androidtv-st-p5-audio")
         press(KeyEvent.KEYCODE_DPAD_DOWN)
@@ -449,7 +449,7 @@ class TvPlayerProofTest {
         elapse(DIALOG_EXIT_MILLIS)
         compose.onNodeWithContentDescription("Audio: Türkçe").assertIsSelected()
         press(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.waitUntil(10_000) { compose.onAllNodesWithText("Stereo · AAC").fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(10_000) { compose.onAllNodesWithText("AAC · stereo").fetchSemanticsNodes().isNotEmpty() }
         press(KeyEvent.KEYCODE_DPAD_UP)
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         awaitPlayer(factory) { selectedAudioLanguage(it) == "en" }
