@@ -29,10 +29,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Icon
 import androidx.tv.material3.ListItem
-import androidx.tv.material3.ListItemDefaults
+import androidx.tv.material3.ListItemScale
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.NavigationDrawer
 import androidx.tv.material3.NavigationDrawerItem
+import androidx.tv.material3.NavigationDrawerItemScale
 import androidx.tv.material3.Text
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
@@ -56,8 +57,8 @@ import io.putdotio.android.tv.auth.TvAccount
  * An inactive account's notice sits above every pane and takes no focus.
  *
  * The background reaches the screen edges; the drawer and pane sit inside the
- * overscan safe area ([tvOverscanPadding]), and the pane adds one `space.sm`
- * step (16dp) from the drawer and the safe edges.
+ * layout margins ([tvSafeAreaPadding]), and the pane adds one `space.sm`
+ * step (16dp) from the drawer.
  */
 @Composable
 internal fun TvShell(
@@ -105,12 +106,11 @@ internal fun TvShell(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .tvOverscanPadding(),
+            .tvSafeAreaPadding(),
         drawerContent = {
             Column(
                 modifier = Modifier
                     .fillMaxHeight()
-                    .padding(horizontal = 12.dp, vertical = 24.dp)
                     .focusRestorer(selectedItemFocus)
                     .onFocusChanged { drawerHasFocus = it.hasFocus }
                     .focusGroup(),
@@ -126,6 +126,7 @@ internal fun TvShell(
                         selected = entry == destination,
                         onClick = { destination = entry },
                         modifier = if (entry == destination) Modifier.focusRequester(selectedItemFocus) else Modifier,
+                        scale = NavigationDrawerItemScale.None,
                         leadingContent = {
                             Icon(
                                 painter = painterResource(entry.icon),
@@ -143,7 +144,7 @@ internal fun TvShell(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(PANE_INSET),
+                .padding(start = PANE_INSET),
         ) {
             account.inactiveNotice?.let { notice ->
                 TvInactiveAccountNotice(notice, Modifier.padding(bottom = PANE_INSET))
@@ -176,12 +177,11 @@ private fun TvPlaceholderPane(
             TvDestination.History -> R.string.tv_placeholder_history
             TvDestination.Account -> R.string.tv_destination_account
         }
-        // A list item, so it scales like every other full-width row rather than as a stock button.
         ListItem(
             selected = false,
             onClick = {},
             headlineContent = { Text(stringResource(placeholder)) },
-            scale = ListItemDefaults.scale(focusedScale = FULL_WIDTH_FOCUSED_SCALE),
+            scale = ListItemScale.None,
             modifier = Modifier
                 .padding(top = 32.dp)
                 .focusRequester(paneFocus),
@@ -208,7 +208,7 @@ private fun TvAccountFallbackPane(
             selected = false,
             onClick = onSignOut,
             headlineContent = { Text(stringResource(R.string.tv_account_sign_out)) },
-            scale = ListItemDefaults.scale(focusedScale = FULL_WIDTH_FOCUSED_SCALE),
+            scale = ListItemScale.None,
             modifier = Modifier
                 .padding(top = 32.dp)
                 .focusRequester(paneFocus),
@@ -225,8 +225,6 @@ private fun PaneTitle(text: String) {
     )
 }
 
-/** Full-width rows scale less than compact surfaces so they stay inside the safe area. */
-internal const val FULL_WIDTH_FOCUSED_SCALE = 1.02f
 internal val PANE_INSET = 16.dp
 
 private val TvDestination.analyticsScreen: AnalyticsEvent.Screen

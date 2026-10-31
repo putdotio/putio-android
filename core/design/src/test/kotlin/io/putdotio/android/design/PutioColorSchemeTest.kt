@@ -1,6 +1,7 @@
 package io.putdotio.android.design
 
 import androidx.compose.ui.graphics.Color
+import androidx.tv.material3.contentColorFor
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -23,6 +24,7 @@ class PutioColorSchemeTest {
         assertEquals(Color(0xFFFF8E8A), PutioDesignTokens.redTextSecondary)
         assertEquals(Color(0xFF30A46C), PutioDesignTokens.greenSolid)
         assertEquals(Color(0xFF707070), PutioDesignTokens.solid)
+        assertEquals(Color(0x90000000), PutioDesignTokens.sheetScrim)
     }
 
     @Test
@@ -70,10 +72,18 @@ class PutioColorSchemeTest {
         assertEquals(PutioDesignTokens.text, scheme.onSurface)
         assertEquals(PutioDesignTokens.componentBg, scheme.surfaceVariant)
         assertEquals(PutioDesignTokens.textSecondary, scheme.onSurfaceVariant)
-        assertEquals(PutioDesignTokens.componentBgActive, scheme.inverseSurface)
-        assertEquals(PutioDesignTokens.text, scheme.inverseOnSurface)
+        assertEquals(PutioDesignTokens.text, scheme.inverseSurface)
+        assertEquals(PutioDesignTokens.appBg, scheme.inverseOnSurface)
         assertEquals(PutioDesignTokens.border, scheme.border)
         assertEquals(PutioDesignTokens.line, scheme.borderVariant)
         assertEquals(PutioDesignTokens.redSolid, scheme.error)
+        assertEquals(PutioDesignTokens.appBg, scheme.onError)
+        assertEquals(PutioDesignTokens.sheetScrim, scheme.scrim)
+    }
+
+    @Test
+    fun tvFocusFillTakesTheFocusContentColor() {
+        val scheme = putioTvDarkColorScheme()
+        assertEquals(scheme.inverseOnSurface, scheme.contentColorFor(scheme.inverseSurface))
     }
 }

@@ -6,6 +6,8 @@ import androidx.activity.compose.BackHandler
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -55,14 +57,13 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Icon
 import androidx.tv.material3.ListItem
 import androidx.tv.material3.ListItemDefaults
+import androidx.tv.material3.ListItemScale
 import androidx.tv.material3.MaterialTheme
-import androidx.tv.material3.Switch
 import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
 import io.putdotio.android.BuildConfig
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
-import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioRadius
 import io.putdotio.android.isSupportedAvatarUrl
 import io.putdotio.android.playback.playbackPreference
@@ -85,13 +86,15 @@ import io.putdotio.android.settings.VideoPlaybackType
 import io.putdotio.android.settings.putioFailure
 import io.putdotio.android.telemetry.AnalyticsEvent
 import io.putdotio.android.telemetry.ProductAnalytics
-import io.putdotio.android.tv.FULL_WIDTH_FOCUSED_SCALE
 import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.TvChoice
 import io.putdotio.android.tv.TvChoiceDialog
+import io.putdotio.android.tv.TvConfirmDialog
 import io.putdotio.android.tv.TvPaneFocusOwner
+import io.putdotio.android.tv.TvSwitch
 import io.putdotio.android.tv.auth.TvAccount
 import io.putdotio.android.tv.paneSection
+import io.putdotio.android.tv.tvAccent
 import io.putdotio.sdk.files.PlaybackPreference
 
 internal const val TV_ACCOUNT_STORAGE_TAG = "tv-account-storage"
@@ -102,13 +105,16 @@ internal enum class TvAccountDialog {
     PlaybackType,
     TrashOff,
     Diagnostics,
+    SignOut,
+    SignOutFromList,
 }
 
 /**
  * Account per oracle captures 09–12 and 14: the identity and quota header with Sign out
  * on the right, then Playback settings, Storage settings, and App and device information
- * as full-width rows with `primary` switches and centred choice dialogs, and Sign out as
- * the final row. Manage your trash swaps in [trashPane]; Back returns to that row.
+ * as full-width rows with [TvSwitch]es and centred choice dialogs, and Sign out as the final
+ * row. Either Sign out asks first, with a red confirm. Manage your trash swaps in [trashPane];
+ * Back returns to that row.
  *
  * Focus enters on the first settings row once account settings are ready, and on the
  * header's Sign out until then. A dialog's close returns focus to the row that opened it.
@@ -196,12 +202,15 @@ private fun TvAccountBody(
     val playbackTypeFocus = remember { FocusRequester() }
     val trashToggleFocus = remember { FocusRequester() }
     val diagnosticsFocus = remember { FocusRequester() }
+    val signOutRowFocus = remember { FocusRequester() }
     val opener = { dialog: TvAccountDialog ->
         when (dialog) {
             TvAccountDialog.Route -> firstRowFocus
             TvAccountDialog.PlaybackType -> playbackTypeFocus
             TvAccountDialog.TrashOff -> trashToggleFocus
             TvAccountDialog.Diagnostics -> diagnosticsFocus
+            TvAccountDialog.SignOut -> signOutFocus
+            TvAccountDialog.SignOutFromList -> signOutRowFocus
         }
     }
     // A restored choice dialog waits for the content it chooses from; until then it is not up.
@@ -209,7 +218,11 @@ private fun TvAccountBody(
         when (dialog) {
             TvAccountDialog.Route -> settingsReady != null
             TvAccountDialog.PlaybackType -> appConfigReady != null
-            TvAccountDialog.TrashOff, TvAccountDialog.Diagnostics -> true
+            TvAccountDialog.TrashOff,
+            TvAccountDialog.Diagnostics,
+            TvAccountDialog.SignOut,
+            TvAccountDialog.SignOutFromList,
+            -> true
         }
     }
     val paneHasFocus = remember { mutableStateOf(true) }
@@ -282,7 +295,7 @@ private fun TvAccountBody(
     ) {
         TvAccountHeader(
             account = account,
-            onSignOut = onSignOut,
+            onSignOut = { openDialog = TvAccountDialog.SignOut },
             signOutModifier = Modifier.paneSection(owner, signOutFocus).focusRequester(signOutFocus),
         )
         Column(
@@ -405,9 +418,10 @@ private fun TvAccountBody(
             TvAccountRow(
                 title = stringResource(R.string.tv_account_sign_out),
                 icon = R.drawable.ic_ph_sign_out,
-                onClick = onSignOut,
+                onClick = { openDialog = TvAccountDialog.SignOutFromList },
                 modifier = Modifier.padding(top = 16.dp, bottom = 24.dp),
                 owner = owner,
+                focus = signOutRowFocus,
             )
         }
     }
@@ -450,6 +464,19 @@ private fun TvAccountBody(
         TvDiagnosticsDialog(
             diagnostics = tvAppDiagnostics(appConfigState.playbackPreference()),
             onDismiss = { openDialog = null },
+        )
+    }
+    if (shownDialog == TvAccountDialog.SignOut || shownDialog == TvAccountDialog.SignOutFromList) {
+        TvConfirmDialog(
+            title = stringResource(R.string.tv_account_sign_out_title),
+            message = stringResource(R.string.tv_account_sign_out_message),
+            confirmLabel = stringResource(R.string.tv_account_sign_out),
+            onConfirm = {
+                openDialog = null
+                onSignOut()
+            },
+            onDismiss = { openDialog = null },
+            destructive = true,
         )
     }
 }
@@ -785,7 +812,7 @@ private fun TvInfoRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        TvRowIcon(icon)
+        TvRowIcon(icon, focused = false)
         Column {
             Text(
                 text = title,
@@ -892,13 +919,16 @@ private fun TvSwitchRow(
     owner: TvPaneFocusOwner,
     focus: FocusRequester = remember { FocusRequester() },
 ) {
+    val interactions = remember { MutableInteractionSource() }
+    val focused by interactions.collectIsFocusedAsState()
     ListItem(
         selected = false,
         onClick = { onToggle(!checked) },
         headlineContent = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        leadingContent = { TvRowIcon(icon) },
-        trailingContent = { Switch(checked = checked, onCheckedChange = null) },
-        scale = ListItemDefaults.scale(focusedScale = FULL_WIDTH_FOCUSED_SCALE),
+        leadingContent = { TvRowIcon(icon, focused) },
+        trailingContent = { TvSwitch(checked = checked, focused = focused) },
+        scale = ListItemScale.None,
+        interactionSource = interactions,
         modifier = Modifier.paneSection(owner, focus)
             .focusRequester(focus)
             .fillMaxWidth()
@@ -918,6 +948,8 @@ private fun TvChoiceRow(
     owner: TvPaneFocusOwner,
     focus: FocusRequester = remember { FocusRequester() },
 ) {
+    val interactions = remember { MutableInteractionSource() }
+    val focused by interactions.collectIsFocusedAsState()
     ListItem(
         selected = false,
         onClick = onClick,
@@ -925,7 +957,7 @@ private fun TvChoiceRow(
         supportingContent = if (value == null) null else ({
             Text(value, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }),
-        leadingContent = { TvRowIcon(icon) },
+        leadingContent = { TvRowIcon(icon, focused) },
         trailingContent = {
             Icon(
                 painter = painterResource(R.drawable.ic_ph_caret_right),
@@ -933,7 +965,8 @@ private fun TvChoiceRow(
                 modifier = Modifier.size(20.dp),
             )
         },
-        scale = ListItemDefaults.scale(focusedScale = FULL_WIDTH_FOCUSED_SCALE),
+        scale = ListItemScale.None,
+        interactionSource = interactions,
         modifier = Modifier.paneSection(owner, focus)
             .focusRequester(focus)
             .fillMaxWidth(),
@@ -947,14 +980,17 @@ private fun TvAccountRow(
     onClick: () -> Unit,
     owner: TvPaneFocusOwner,
     modifier: Modifier = Modifier,
+    focus: FocusRequester = remember { FocusRequester() },
 ) {
-    val focus = remember { FocusRequester() }
+    val interactions = remember { MutableInteractionSource() }
+    val focused by interactions.collectIsFocusedAsState()
     ListItem(
         selected = false,
         onClick = onClick,
         headlineContent = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        leadingContent = { TvRowIcon(icon) },
-        scale = ListItemDefaults.scale(focusedScale = FULL_WIDTH_FOCUSED_SCALE),
+        leadingContent = { TvRowIcon(icon, focused) },
+        scale = ListItemScale.None,
+        interactionSource = interactions,
         modifier = modifier
             .paneSection(owner, focus)
             .focusRequester(focus)
@@ -963,11 +999,11 @@ private fun TvAccountRow(
 }
 
 @Composable
-private fun TvRowIcon(@DrawableRes icon: Int) {
+private fun TvRowIcon(@DrawableRes icon: Int, focused: Boolean) {
     Icon(
         painter = painterResource(icon),
         contentDescription = null,
-        tint = PutioDesignTokens.yellowSolid,
+        tint = tvAccent(focused),
         modifier = Modifier.size(ListItemDefaults.IconSize),
     )
 }

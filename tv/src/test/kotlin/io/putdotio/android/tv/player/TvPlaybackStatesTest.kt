@@ -20,9 +20,8 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.tv.material3.MaterialTheme
 import io.putdotio.android.PutioFailure
-import io.putdotio.android.design.putioTvDarkColorScheme
+import io.putdotio.android.design.PutioTvTheme
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.playback.PLAYBACK_CONVERSION_POLL_MILLIS
 import io.putdotio.android.playback.PlaybackContent
@@ -208,7 +207,7 @@ class TvPlaybackStatesTest {
         compose.mainClock.autoAdvance = false
         compose.setContent {
             CompositionLocalProvider(LocalLifecycleOwner provides lifecycleOwner) {
-                MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                PutioTvTheme {
                     TvPlayerScreen(
                         state = playbackState(
                             target = PlaybackTarget(FilesItemId(9), TITLE, PlaybackMediaType.VIDEO),

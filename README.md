@@ -37,6 +37,9 @@ TV:
 - Full-screen playback with D-pad scrubbing, resume and track pickers
 - The launcher's Play Next row and Android TV system search, with the
   wordmark for files without a screenshot
+- The redesign's foundations: GT America and Berkeley Mono type, one light
+  focus style with no scaling, 48dp side margins, a neutral switch, and a
+  red confirm before Sign out
 
 Both apps follow the system font size up to a 1.3 font scale, as the iOS app
 caps it; widgets and notifications keep the system scale.

@@ -1,7 +1,11 @@
 package io.putdotio.android.tv
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -12,6 +16,7 @@ import androidx.compose.ui.test.SemanticsNodeInteractionsProvider
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performKeyInput
@@ -19,6 +24,7 @@ import androidx.compose.ui.test.pressKey
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.tv.auth.TvAccount
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -67,6 +73,30 @@ class TvSafeAreaTest {
         assertContentInsideSafeArea()
     }
 
+    @Test
+    fun layoutsKeepFortyEightDpSidesAndTwentyFourDpTopAndBottom() {
+        assertLayoutMargins(sideDp = 48f, verticalDp = 24f)
+    }
+
+    @Test
+    @Config(qualifiers = "w1280dp-h720dp-television")
+    fun theOverscanSafeAreaWinsWhereItIsWider() {
+        assertLayoutMargins(sideDp = 1280f * PutioDesignTokens.tvOverscanX, verticalDp = 24f)
+    }
+
+    private fun assertLayoutMargins(sideDp: Float, verticalDp: Float) {
+        compose.setTvContent {
+            Box(Modifier.fillMaxSize().tvSafeAreaPadding()) { Box(Modifier.fillMaxSize().testTag(CONTENT)) }
+        }
+        val viewport = compose.onRoot().fetchSemanticsNode().boundsInRoot
+        val content = compose.onNodeWithTag(CONTENT).fetchSemanticsNode().boundsInRoot
+        val density = compose.density.density
+        assertEquals(sideDp, content.left / density, MARGIN_TOLERANCE_DP)
+        assertEquals(sideDp, (viewport.right - content.right) / density, MARGIN_TOLERANCE_DP)
+        assertEquals(verticalDp, content.top / density, MARGIN_TOLERANCE_DP)
+        assertEquals(verticalDp, (viewport.bottom - content.bottom) / density, MARGIN_TOLERANCE_DP)
+    }
+
     private fun showShell() {
         compose.setTvContent {
             TvShell(account = TvAccount(userId = 1, username = "user", email = "user@example.com"), onSignOut = {})
@@ -81,6 +111,9 @@ class TvSafeAreaTest {
     }
 
     private companion object {
+        const val CONTENT = "content"
+        const val MARGIN_TOLERANCE_DP = 1f
+
         val visibleContent = SemanticsMatcher("text, description or click target") {
             it.config.contains(SemanticsProperties.Text) ||
                 it.config.contains(SemanticsProperties.ContentDescription) ||

@@ -26,10 +26,9 @@ import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import androidx.tv.material3.MaterialTheme
 import io.putdotio.android.account.InactiveAccountNotice
 import io.putdotio.android.design.PutioDesignTokens
-import io.putdotio.android.design.putioTvDarkColorScheme
+import io.putdotio.android.design.PutioTvTheme
 import io.putdotio.android.tv.auth.TvAccount
 import java.io.File
 import java.time.LocalDate
@@ -71,7 +70,7 @@ class TvSafeAreaProofTest {
     @Test
     fun shellStaysInsideTheSafeArea() {
         compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+            PutioTvTheme {
                 Box(Modifier.fillMaxSize().drawWithContent { drawContent(); outlineSafeArea(size) }) {
                     TvShell(account = TvAccount(userId = 1, username = "proof", email = "proof@example.com"), onSignOut = {})
                 }
@@ -100,7 +99,7 @@ class TvSafeAreaProofTest {
             inactiveNotice = InactiveAccountNotice.Deactivated(deletion),
         )
         compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+            PutioTvTheme {
                 Box(Modifier.fillMaxSize().drawWithContent { drawContent(); outlineSafeArea(size) }) {
                     TvShell(account = account, onSignOut = {})
                 }

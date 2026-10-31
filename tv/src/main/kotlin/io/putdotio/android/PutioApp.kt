@@ -16,8 +16,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.tv.material3.ExperimentalTvMaterial3Api
-import androidx.tv.material3.MaterialTheme
-import io.putdotio.android.design.putioTvDarkColorScheme
+import io.putdotio.android.design.PutioTvTheme
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
@@ -99,7 +98,7 @@ internal fun PutioApp(runtime: TvAuthRuntime, launchRequests: TvLaunchRequests) 
         authController.state.collect { if (it == TvAuthState.Initializing) authController.restoreSession() }
     }
 
-    MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+    PutioTvTheme {
         when (val state = authState) {
             TvAuthState.Initializing, TvAuthState.RestoringSession ->
                 TvStatusScreen(stringResource(R.string.tv_session_restoring))

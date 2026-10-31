@@ -35,6 +35,10 @@
     <string name="tv_placeholder_history">Recent activity will show up here.</string>
     <string name="tv_account_signed_in_as">Signed in as %1$s</string>
     <string name="tv_account_sign_out">Sign out</string>
+    <string name="tv_account_sign_out_title">Sign out of put.io?</string>
+    <string name="tv_account_sign_out_message">You can sign in again any time with a new code.</string>
+    <string name="tv_dialog_cancel">Cancel</string>
+    <string name="tv_dialog_ok">OK</string>
 
     <string name="tv_files_title">Your Files</string>
     <string name="tv_files_refresh">Refresh</string>
@@ -58,6 +62,7 @@
     <string name="tv_files_loading_more">Loading more files</string>
     <string name="tv_files_paging_error">Couldn’t load more files.</string>
     <string name="tv_files_retry">Try again</string>
+    <string name="tv_files_error_title">Couldn’t load your files.</string>
     <string name="tv_files_open_folder">Open %1$s</string>
     <string name="tv_files_play_media">Play %1$s</string>
     <string name="tv_files_watched">Watched</string>
@@ -93,9 +98,7 @@
     <string name="tv_files_trash_limit_message">This folder contains too many files. Delete it permanently?</string>
     <string name="tv_files_trash_limit_confirm">Delete</string>
     <string name="tv_files_delete_skipped">The request was incomplete. %1$s was not confirmed removed.</string>
-    <string name="tv_files_ok">OK</string>
     <string name="tv_error_navigation_blocked">This item can’t be opened right now. Check Files, then try again.</string>
-    <string name="tv_error_title">Couldn’t load this</string>
     <string name="tv_error_network">Check the network and try again.</string>
     <string name="tv_error_session">Your session expired. Sign in again.</string>
     <string name="tv_error_forbidden">You don’t have access to this folder.</string>

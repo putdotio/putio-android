@@ -3,6 +3,8 @@ package io.putdotio.android.tv.trash
 import android.text.format.DateUtils
 import android.text.format.Formatter
 import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -49,10 +51,10 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Icon
 import androidx.tv.material3.ListItem
 import androidx.tv.material3.ListItemDefaults
+import androidx.tv.material3.ListItemScale
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import io.putdotio.android.R
-import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.fileTypeIconRes
 import io.putdotio.android.trash.TrashAction
 import io.putdotio.android.trash.TrashActionCheck
@@ -66,7 +68,6 @@ import io.putdotio.android.trash.TrashRestoreOutcome
 import io.putdotio.android.trash.TrashRestoreSubmission
 import io.putdotio.android.trash.TrashState
 import io.putdotio.android.parsePutioTimestamp
-import io.putdotio.android.tv.FULL_WIDTH_FOCUSED_SCALE
 import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.TvPaneFocusOwner
 import io.putdotio.android.tv.TvStatusScreen
@@ -75,6 +76,7 @@ import io.putdotio.android.tv.focusRequesterIf
 import io.putdotio.android.tv.paneSection
 import io.putdotio.android.tv.refocusAfterDialog
 import io.putdotio.android.tv.files.tvMessageText
+import io.putdotio.android.tv.tvAccent
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.flow.first
@@ -598,6 +600,8 @@ private fun TvTrashRow(
     }
     val metadata = stringResource(R.string.tv_trash_row_metadata, size, deleted, expires)
     val label = stringResource(R.string.tv_trash_row_actions, item.name)
+    val interactions = remember { MutableInteractionSource() }
+    val focused by interactions.collectIsFocusedAsState()
     ListItem(
         selected = false,
         onClick = onClick,
@@ -607,11 +611,12 @@ private fun TvTrashRow(
             Icon(
                 painter = painterResource(fileTypeIconRes(item.type)),
                 contentDescription = null,
-                tint = PutioDesignTokens.yellowSolid,
+                tint = tvAccent(focused),
                 modifier = Modifier.size(ListItemDefaults.IconSize),
             )
         },
-        scale = ListItemDefaults.scale(focusedScale = FULL_WIDTH_FOCUSED_SCALE),
+        scale = ListItemScale.None,
+        interactionSource = interactions,
         modifier = modifier
             .fillMaxWidth()
             .semantics { contentDescription = label }

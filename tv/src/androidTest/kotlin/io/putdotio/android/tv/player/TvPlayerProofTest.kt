@@ -29,8 +29,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import androidx.tv.material3.MaterialTheme
-import io.putdotio.android.design.putioTvDarkColorScheme
+import io.putdotio.android.design.PutioTvTheme
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesFolderState
@@ -731,7 +730,7 @@ class TvPlayerProofTest {
         )
         val focusMemory = mutableMapOf<Long, Long>()
         compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+            PutioTvTheme {
                 TvPlaybackLayer(
                     playing = controller != null,
                     player = {
@@ -828,7 +827,7 @@ class TvPlayerProofTest {
         )
         val focusMemory = mutableMapOf<Long, Long>()
         compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+            PutioTvTheme {
                 TvPlaybackLayer(
                     playing = controller != null,
                     player = {
@@ -906,7 +905,7 @@ class TvPlayerProofTest {
         )
         val focusMemory = mutableMapOf<Long, Long>()
         compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+            PutioTvTheme {
                 TvPlaybackLayer(
                     playing = playing != null,
                     player = {
