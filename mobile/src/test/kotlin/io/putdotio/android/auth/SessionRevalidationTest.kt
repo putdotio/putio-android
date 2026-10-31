@@ -126,7 +126,8 @@ class SessionRevalidationTest {
     @Test
     fun `only a network that comes back counts as a return`() {
         var returns = 0
-        val online = NetworkReturns(initiallyValidated = true) { returns += 1 }
+        val online = NetworkReturns { returns += 1 }
+        online.onRegistered { true }
         online.onCapabilities(validated = true)
         online.onCapabilities(validated = true)
         assertEquals(0, returns)
@@ -135,7 +136,8 @@ class SessionRevalidationTest {
         online.onCapabilities(validated = true)
         assertEquals(1, returns)
 
-        val offline = NetworkReturns(initiallyValidated = false) { returns += 1 }
+        val offline = NetworkReturns { returns += 1 }
+        offline.onRegistered { false }
         offline.onCapabilities(validated = false)
         offline.onCapabilities(validated = true)
         assertEquals(2, returns)

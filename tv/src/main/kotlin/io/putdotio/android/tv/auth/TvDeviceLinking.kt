@@ -26,9 +26,23 @@ internal class TvDeviceLinking(
 ) {
     private var attempt: Job? = null
     private var generation = 0L
+    private var silentRenewals = 0
+
+    private var shownCode: String? = null
 
     fun start(sessionExpired: Boolean) {
+        silentRenewals = 0
+        shownCode = null
         state.value = TvAuthState.Linking(TvLinkPhase.RequestingCode, sessionExpired)
+        launchAttempt(sessionExpired)
+    }
+
+    private fun renewSilently(sessionExpired: Boolean) {
+        silentRenewals++
+        launchAttempt(sessionExpired)
+    }
+
+    private fun launchAttempt(sessionExpired: Boolean) {
         val attemptGeneration = ++generation
         // The SDK reports its own failures as Failed states; anything else escaping the
         // flow would otherwise strand the screen on "Getting a code" with no action.
@@ -60,7 +74,7 @@ internal class TvDeviceLinking(
         reason: TvLinkStop,
         sessionExpired: Boolean,
     ) {
-        state.value = TvAuthState.Linking(TvLinkPhase.Stopped(reason), sessionExpired)
+        state.value = TvAuthState.Linking(TvLinkPhase.Stopped(reason, shownCode), sessionExpired)
     }
 
     /** Cancels the running attempt, if any, and waits for its collector to finish. */
@@ -78,15 +92,28 @@ internal class TvDeviceLinking(
         }
         when (linkState) {
             DeviceCodeAuthState.Requesting -> Unit
-            is DeviceCodeAuthState.AwaitingLink ->
+            is DeviceCodeAuthState.AwaitingLink -> {
+                shownCode = linkState.code
                 state.value = TvAuthState.Linking(TvLinkPhase.AwaitingLink(linkState.code), sessionExpired)
+            }
             DeviceCodeAuthState.Validating ->
-                state.value = TvAuthState.Linking(TvLinkPhase.Validating, sessionExpired)
-            is DeviceCodeAuthState.Linked ->
+                state.value = TvAuthState.Linking(TvLinkPhase.Validating(shownCode), sessionExpired)
+            is DeviceCodeAuthState.Linked -> {
+                shownCode = null
                 withContext(NonCancellable) { onLinked(linkState, sessionExpired) }
-            is DeviceCodeAuthState.Expired -> stop(TvLinkStop.CodeExpired, sessionExpired)
+            }
+            is DeviceCodeAuthState.Expired ->
+                if (linkState.reason == DeviceCodeAuthState.Expired.Reason.BUDGET_ELAPSED &&
+                    silentRenewals < MAX_SILENT_RENEWALS
+                ) {
+                    renewSilently(sessionExpired)
+                } else {
+                    stop(TvLinkStop.CodeExpired, sessionExpired)
+                }
             is DeviceCodeAuthState.Failed ->
                 stop(TvLinkStop.Failed(linkState.error.toTvLinkFailure()), sessionExpired)
         }
     }
 }
+
+internal const val MAX_SILENT_RENEWALS = 3

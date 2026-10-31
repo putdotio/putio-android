@@ -66,12 +66,13 @@ import io.putdotio.android.tv.TvExternalOpen
 import io.putdotio.android.tv.TvLaunchRequest
 import io.putdotio.android.tv.TvLaunchRequests
 import io.putdotio.android.tv.TvLinkScreen
+import io.putdotio.android.tv.TvOfflineScreen
 import io.putdotio.android.tv.TvSession
 import io.putdotio.android.tv.TvSessionDependencies
 import io.putdotio.android.tv.tvAppConfigRepository
 import io.putdotio.android.tv.TvSessionViewModel
 import io.putdotio.android.tv.TvShell
-import io.putdotio.android.tv.TvStatusScreen
+import io.putdotio.android.tv.TvStartupScreen
 import io.putdotio.android.tv.auth.TvAccount
 import io.putdotio.android.tv.auth.TvAuthRuntime
 import io.putdotio.android.tv.auth.TvAuthState
@@ -103,17 +104,11 @@ internal fun PutioApp(runtime: TvAuthRuntime, launchRequests: TvLaunchRequests) 
 
     PutioTvTheme {
         when (val state = authState) {
-            TvAuthState.Initializing, TvAuthState.RestoringSession ->
-                TvStatusScreen(stringResource(R.string.tv_session_restoring))
-            is TvAuthState.ValidatingSession -> TvStatusScreen(stringResource(R.string.tv_session_validating))
-            TvAuthState.SigningOut -> TvStatusScreen(stringResource(R.string.tv_session_signing_out))
+            TvAuthState.Initializing, TvAuthState.RestoringSession, is TvAuthState.ValidatingSession ->
+                TvStartupScreen(stringResource(R.string.tv_session_checking))
+            TvAuthState.SigningOut -> TvStartupScreen(stringResource(R.string.tv_session_signing_out))
             is TvAuthState.ValidationUnavailable ->
-                TvStatusScreen(
-                    title = stringResource(R.string.tv_session_unavailable_title),
-                    message = stringResource(R.string.tv_session_unavailable_message),
-                    action = stringResource(R.string.tv_session_retry),
-                    onAction = { scope.launch { authController.retryValidation() } },
-                )
+                TvOfflineScreen(onTryNow = { scope.launch { authController.retryValidation() } })
             is TvAuthState.Linking ->
                 TvLinkScreen(
                     phase = state.phase,
@@ -165,7 +160,7 @@ private fun TvSignedInApp(
     // own auth collector, and a cached closed controller would silently swallow events.
     val session = sessionViewModel.sessionFor(signedIn.account, signedIn.sessionId, dependencies)
     if (session == null) {
-        TvStatusScreen(stringResource(R.string.tv_session_restoring))
+        TvStartupScreen(stringResource(R.string.tv_session_checking))
         return
     }
     TvSessionShell(

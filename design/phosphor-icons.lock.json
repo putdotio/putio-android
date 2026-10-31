@@ -407,6 +407,13 @@
       "outputSha256": "b617f008b15d1348296e0708c5ff3ebc9bd3e6cf75eea40d128f804f119405d6"
     },
     {
+      "resDir": "tv/src/main/res",
+      "resource": "ic_ph_arrows_clockwise",
+      "asset": "assets/regular/arrows-clockwise.svg",
+      "sourceSha256": "2e80fbc9c5c37553934c9ebbd6324bf7fabe9a4b4d7c2445d99edfce55cc22df",
+      "outputSha256": "5647de7b61944beb5db3b03f905331ff9d38cd9d57b26a56d3a1eb88fdca6216"
+    },
+    {
       "resDir": "mobile/src/main/res",
       "resource": "ic_ph_warning_circle",
       "asset": "assets/regular/warning-circle.svg",

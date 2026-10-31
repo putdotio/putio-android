@@ -12,7 +12,7 @@ import androidx.compose.ui.semantics.semantics
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 import com.google.zxing.qrcode.encoder.Encoder
-import kotlin.math.floor
+import kotlin.math.roundToInt
 
 /**
  * Encodes [text] at error correction M, which a phone camera reads from across a room: the
@@ -24,8 +24,8 @@ internal fun encodeTvQr(text: String): Array<BooleanArray> {
 }
 
 /**
- * [text] as a QR code: [dark] modules on a [light] square that includes the four-module quiet
- * zone scanners need. Modules snap to whole pixels so no seam blurs them.
+ * [text] as a QR code: [dark] modules on a [light] square with a quiet zone of four and a half
+ * modules. Module edges snap to whole pixels so no seam blurs them.
  */
 @Composable
 internal fun TvQrCode(
@@ -38,18 +38,24 @@ internal fun TvQrCode(
     val modules = remember(text) { encodeTvQr(text) }
     Canvas(modifier.semantics { contentDescription = description }) {
         drawRect(light)
-        val span = modules.size + 2 * QR_QUIET_ZONE_MODULES
-        val cell = floor(size.minDimension / span).coerceAtLeast(1f)
-        val left = floor((size.width - cell * modules.size) / 2)
-        val top = floor((size.height - cell * modules.size) / 2)
+        val cell = size.minDimension / (modules.size + 2 * QR_QUIET_ZONE_MODULES)
+        val left = (size.width - cell * modules.size) / 2
+        val top = (size.height - cell * modules.size) / 2
+        fun edge(origin: Float, index: Int): Float = (origin + index * cell).roundToInt().toFloat()
         for (y in modules.indices) {
             for (x in modules.indices) {
                 if (modules[y][x]) {
-                    drawRect(dark, topLeft = Offset(left + x * cell, top + y * cell), size = Size(cell, cell))
+                    val x0 = edge(left, x)
+                    val y0 = edge(top, y)
+                    drawRect(
+                        dark,
+                        topLeft = Offset(x0, y0),
+                        size = Size(edge(left, x + 1) - x0, edge(top, y + 1) - y0),
+                    )
                 }
             }
         }
     }
 }
 
-internal const val QR_QUIET_ZONE_MODULES = 4
+internal const val QR_QUIET_ZONE_MODULES = 4.5f

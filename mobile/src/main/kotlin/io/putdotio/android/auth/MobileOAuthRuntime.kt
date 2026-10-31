@@ -2,9 +2,6 @@ package io.putdotio.android.auth
 
 import android.content.Context
 import android.content.SharedPreferences
-import android.net.ConnectivityManager
-import android.net.Network
-import android.net.NetworkCapabilities
 import android.util.Log
 import io.putdotio.android.BuildConfig
 import io.putdotio.android.playback.MobileCast
@@ -220,7 +217,8 @@ internal class MobileOAuthRuntime(
                 },
             ).also { runtime ->
                 val revalidation = SessionRevalidation(authController, applicationScope)
-                syncWhenOnline(context, runtime.keepOfflinePositions(downloadPreferences(context))) {
+                val positions = runtime.keepOfflinePositions(downloadPreferences(context))
+                watchNetworkReturns(context, onValidated = positions::requestSync) {
                     applicationScope.launch { revalidation.onNetworkReturned() }
                 }
             }
@@ -267,38 +265,6 @@ internal class MobileOAuthRuntime(
         private fun clearAccountLocalState(context: Context) {
             MobileMoveTargetStore.clearAll(context)
             MobileContinueWatchingStore.clearAll(context)
-        }
-
-        /**
-         * put.io answers again once a validated network returns: positions saved offline go then,
-         * and [onNetworkReturned] runs when the network had been missing or unvalidated.
-         */
-        private fun syncWhenOnline(
-            context: Context,
-            positions: OfflinePlaybackPositions,
-            onNetworkReturned: () -> Unit,
-        ) {
-            val connectivity = context.getSystemService(ConnectivityManager::class.java) ?: return
-            // Registration reports the current network at once; a start without one waits for it.
-            val returns = NetworkReturns(
-                initiallyValidated = connectivity.activeNetwork
-                    ?.let(connectivity::getNetworkCapabilities)
-                    ?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true,
-                onReturn = onNetworkReturned,
-            )
-            connectivity.registerDefaultNetworkCallback(
-                object : ConnectivityManager.NetworkCallback() {
-                    override fun onLost(network: Network) {
-                        returns.onLost()
-                    }
-
-                    override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
-                        val validated = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
-                        if (validated) positions.requestSync()
-                        returns.onCapabilities(validated)
-                    }
-                },
-            )
         }
     }
 }
