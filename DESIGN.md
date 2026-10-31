@@ -902,12 +902,9 @@ below 12sp.
 - **Sort:** the phone's three groups (Sort by, Order, Videos) in a side sheet.
 - **Choices** (proxy, video playback, default sort, subtitle language): radio
   rows with a one-line description, then Cancel and a filled Save.
-- **Dialogs** carry only confirms and notices: Resume, destructive confirms,
-  **Sign out of put.io?** ("You can sign in again any time with a new code."),
-  and one-line notices with OK ("VLC isn't installed").
-- **Destructive buttons** are tonal with `red-text-secondary` text, not the
-  phone's red fill, whose dark label reads poorly from a sofa. Focused, they
-  take the light focus fill with dark red text.
+- **Dialogs** carry only confirms and notices: Resume, destructive confirms with
+  a red filled button, **Sign out of put.io?** ("You can sign in again any time
+  with a new code."), and one-line notices with OK ("VLC isn't installed").
 - **Snackbar:** "Moved to Trash" with **Undo**, bottom-left for 6 s. Down from
   the list reaches Undo while it shows.
 - **Switch:** the phone's neutral switch at 28x16dp, so it sits within a 13sp
