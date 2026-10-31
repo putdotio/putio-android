@@ -19,6 +19,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.putdotio.android.AccountStorage
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
 import io.putdotio.android.files.ContinueWatchingEntry
 import io.putdotio.android.files.ContinueWatchingStore
@@ -34,6 +35,7 @@ import io.putdotio.android.tv.auth.TvAccount
 import io.putdotio.android.tv.home.TvShowHomeStore
 import io.putdotio.sdk.files.PutioFileType
 import java.io.File
+import java.io.IOException
 import java.util.UUID
 import org.junit.Assume.assumeTrue
 import org.junit.Before
@@ -88,6 +90,16 @@ class TvHomeProofTest {
     }
 
     @Test
+    fun homeWithPinsThatFailed() {
+        mount(entries = CONTINUE_WATCHING, pins = null)
+        compose.waitUntil(5_000) { hasText("Try again") }
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        compose.waitUntil(5_000) { isFocused("Try again") }
+        screenshot("home-pinned-error")
+    }
+
+    @Test
     fun firstRunHome() {
         mount(entries = emptyList(), pins = emptyList())
         compose.waitUntil(5_000) { hasText("Browse your files") }
@@ -104,7 +116,7 @@ class TvHomeProofTest {
         screenshot("account-library-show-home")
     }
 
-    private fun mount(entries: List<ContinueWatchingEntry>, pins: List<FilesItemId>, tab: String? = null) {
+    private fun mount(entries: List<ContinueWatchingEntry>, pins: List<FilesItemId>?, tab: String? = null) {
         val items = (PINNED + entries.map { it.toFilesItem() }).associateBy { it.id }
         val dependencies = tvProofDependencies(
             listings = mapOf(FilesFolder.Root.id to FilesPage(PINNED, null)),
@@ -122,7 +134,11 @@ class TvHomeProofTest {
                 override suspend fun resolveItem(itemId: FilesItemId) = PutioResult.Success(items.getValue(itemId))
             },
             folderCounts = FilesFolderCounts { PutioResult.Success(FOLDER_COUNTS[it]) },
-            pinnedFiles = { FakePinnedFiles(pins) },
+            pinnedFiles = {
+                FakePinnedFiles(pins).apply {
+                    if (pins == null) failure.value = PutioFailure.NetworkUnavailable(IOException("offline"))
+                }
+            },
             continueWatchingStore = { ProofContinueWatchingStore(entries) },
             showHomeStore = { TvShowHomeStore.Memory() },
         )
