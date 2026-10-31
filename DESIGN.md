@@ -905,7 +905,7 @@ below 12sp.
   with a new code."), and one-line notices with OK ("VLC isn't installed").
 - **Snackbar:** "Moved to Trash" with **Undo**, bottom-left for 6 s. Down from
   the list reaches Undo while it shows.
-- **Switch:** the phone's neutral switch at 36x20dp, so it sits within a 13sp
+- **Switch:** the phone's neutral switch at 28x16dp, so it sits within a 13sp
   row.
 
 ### TV player
