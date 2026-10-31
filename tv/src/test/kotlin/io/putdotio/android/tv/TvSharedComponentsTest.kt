@@ -140,8 +140,9 @@ class TvSharedComponentsTest {
         compose.mainClock.autoAdvance = false
         compose.mainClock.advanceTimeBy(SNACKBAR_MILLIS / 2)
 
-        compose.runOnUiThread { state.show(TvSnackbarMessage("Saved")) }
-        compose.mainClock.advanceTimeBy(SNACKBAR_MILLIS / 2 + FRAME_MILLIS)
+        compose.runOnIdle { state.show(TvSnackbarMessage("Saved")) }
+        compose.waitForIdle()
+        compose.mainClock.advanceTimeBy(SNACKBAR_MILLIS / 2 + HALF_SECOND_MILLIS)
         compose.onNodeWithText("Saved").assertExists()
 
         compose.mainClock.advanceTimeBy(SNACKBAR_MILLIS / 2)
@@ -150,6 +151,7 @@ class TvSharedComponentsTest {
 
     private companion object {
         const val FRAME_MILLIS = 16L
+        const val HALF_SECOND_MILLIS = 500L
         const val SHEET_CONTENT = "sheet-content"
         const val VIEWPORT_WIDTH_DP = 1280f
         const val VIEWPORT_HEIGHT_DP = 720f
