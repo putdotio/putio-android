@@ -89,12 +89,6 @@ internal class TvPaneFocusOwner(
     val hasFocus: Boolean get() = paneHasFocus.value
 }
 
-/**
- * The row that last held focus in a pane, until another section of it takes focus: playback,
- * Files or another tab replaces the pane, and the row takes focus again when the pane next
- * mounts, as Files does for its rows. Owned by the session so it survives the pane being
- * disposed. Plain, not snapshot state.
- */
 internal class TvPickedRow {
     var id: Long? = null
         private set

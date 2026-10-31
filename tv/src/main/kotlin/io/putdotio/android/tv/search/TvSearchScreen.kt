@@ -135,7 +135,6 @@ internal fun TvSearchScreen(
     notice: FilesFailure? = null,
     /** Changes with the signed-in session so one account's typed text never reaches the next. */
     sessionKey: Any? = null,
-    /** The result that last held focus; it takes focus again when the pane comes back. */
     pickedRow: TvPickedRow = remember(sessionKey) { TvPickedRow() },
 ) = key(sessionKey) {
     // Only the results the viewer came back to restore the pick; a new search starts as usual.

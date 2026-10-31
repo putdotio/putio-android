@@ -59,17 +59,6 @@ import io.putdotio.android.telemetry.ProductAnalytics
 import io.putdotio.android.tv.account.TvInactiveAccountNotice
 import io.putdotio.android.tv.auth.TvAccount
 
-/**
- * Signed-in shell per DESIGN.md › Android TV: a top bar with the wordmark and the tabs, then the
- * selected tab's pane. The app opens on Home. A tab selects when it takes focus; Down enters the
- * pane on its last-focused row, and Up from the pane's top lands on the selected tab.
- *
- * Each tab keeps its own back stack, and its saved UI state while another tab shows. Back runs
- * the pane's own step first (an overlay, a sub-screen, a Files folder), then moves focus to the
- * tab bar. Back in the tab bar selects Home, and on Home leaves the app.
- *
- * An inactive account's notice sits above every pane and takes no focus.
- */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 internal fun TvShell(
@@ -86,7 +75,6 @@ internal fun TvShell(
         TvPlaceholderPane(R.string.tv_placeholder_history, it)
     },
     accountPane: @Composable (paneFocus: FocusRequester) -> Unit = { TvAccountFallbackPane(account, onSignOut, it) },
-    /** Set by a pane that wants another tab shown, such as Search opening a result in Files. */
     requestedDestination: TvDestination? = null,
     onDestinationRequestHandled: () -> Unit = {},
     /** Files' own Back step, such as leaving a folder; null when Files has none. */

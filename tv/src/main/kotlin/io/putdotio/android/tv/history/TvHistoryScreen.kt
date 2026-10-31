@@ -96,7 +96,6 @@ internal fun TvHistoryScreen(
     /** Changes with the signed-in session so one account's list position never greets the next. */
     sessionKey: Any? = null,
     clock: Clock = Clock.systemDefaultZone(),
-    /** The event that last held focus; it takes focus again when the pane comes back. */
     pickedRow: TvPickedRow = remember(sessionKey) { TvPickedRow() },
 ) = key(sessionKey) {
     val restoreRowId = remember { pickedRow.id }

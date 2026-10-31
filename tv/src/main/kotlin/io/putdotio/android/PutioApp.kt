@@ -59,6 +59,7 @@ import io.putdotio.android.tv.player.TvPlaybackLayer
 import io.putdotio.android.tv.player.TvPlaybackRoute
 import io.putdotio.android.tv.account.TvAccountScreen
 import io.putdotio.android.tv.TvDestination
+import io.putdotio.android.tv.returnDestination
 import io.putdotio.android.tv.TvExternalOpen
 import io.putdotio.android.tv.TvLaunchRequest
 import io.putdotio.android.tv.TvLaunchRequests
@@ -353,13 +354,6 @@ private fun TvSession.openPick(item: FilesItem, origin: FilesOpenOrigin, onInFil
     }
 
 /** The pane Back from a folder returns to: the one that opened it, or none to stay in Files. */
-private fun FilesOpenOrigin?.returnDestination(): TvDestination? =
-    when (this) {
-        FilesOpenOrigin.SEARCH -> TvDestination.Search
-        FilesOpenOrigin.HISTORY -> TvDestination.History
-        FilesOpenOrigin.TRANSFERS, FilesOpenOrigin.LINK, null -> null
-    }
-
 @Composable
 private fun TvFilesPane(
     session: TvSession,

@@ -75,6 +75,7 @@ import io.putdotio.android.tv.TvDialog
 import io.putdotio.android.tv.TvEmptyState
 import io.putdotio.android.tv.TvEmptyStateAction
 import io.putdotio.android.tv.TvNoticeDialog
+import io.putdotio.android.tv.returnDestination
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -88,13 +89,6 @@ import kotlin.math.roundToInt
 internal const val TV_FILES_LIST_TAG = "tv-files-list"
 internal const val TV_FILES_ROW_TAG = "tv-files-row"
 
-/**
- * Files per the oracle (04-06b): a header with Refresh and Sort, under a folder's back crumb
- * and name (the root has no title; its tab names it), then full-width rows that open folders,
- * play media, or explain an unsupported type. Focus starts on the first row and the header is
- * reachable with Up.
- * Back pops the folder stack; the shell owns Back when the stack is at root.
- */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 internal fun TvFilesScreen(
@@ -257,7 +251,7 @@ internal fun TvFilesScreen(
 }
 
 @Composable
-private fun TvFolderHeading(name: String, parent: FilesFolderState?) {
+private fun TvFolderHeading(name: String, crumb: String) {
     Column(modifier = Modifier.semantics(mergeDescendants = true) { heading() }) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
@@ -268,7 +262,7 @@ private fun TvFolderHeading(name: String, parent: FilesFolderState?) {
             )
             Spacer(Modifier.width(4.dp))
             Text(
-                text = parent?.folder?.name ?: stringResource(R.string.tv_files_title),
+                text = crumb,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
@@ -285,6 +279,12 @@ private fun TvFolderHeading(name: String, parent: FilesFolderState?) {
         )
     }
 }
+
+@Composable
+private fun FilesBrowserState.crumbLabel(): String =
+    current.openedFrom.returnDestination()?.let { stringResource(it.label) }
+        ?: stack.dropLast(1).lastOrNull()?.folder?.name
+        ?: stringResource(R.string.tv_files_title)
 
 private fun FilesContent.headerOwnsFocus(): Boolean =
     this is FilesContent.Loading || (this is FilesContent.Empty && paging is FilesPaging.Complete)
@@ -538,7 +538,7 @@ private fun TvFilesHeader(
         verticalAlignment = Alignment.Bottom,
     ) {
         Box(modifier = Modifier.weight(1f)) {
-            current.folder.name?.let { name -> TvFolderHeading(name, parent = state.stack.dropLast(1).lastOrNull()) }
+            current.folder.name?.let { name -> TvFolderHeading(name, crumb = state.crumbLabel()) }
         }
         Row(
             horizontalArrangement = Arrangement.spacedBy(12.dp),

@@ -3,9 +3,9 @@ package io.putdotio.android.tv
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import io.putdotio.android.R
+import io.putdotio.android.files.FilesOpenOrigin
 import io.putdotio.android.design.R as DesignR
 
-/** The top-level TV tabs, in tab bar order. */
 internal enum class TvDestination(
     @StringRes val label: Int,
     @DrawableRes val icon: Int,
@@ -21,3 +21,10 @@ internal enum class TvDestination(
     ),
     Account(R.string.tv_destination_account, R.drawable.ic_ph_user_circle, R.drawable.ic_ph_user_circle_fill),
 }
+
+internal fun FilesOpenOrigin?.returnDestination(): TvDestination? =
+    when (this) {
+        FilesOpenOrigin.SEARCH -> TvDestination.Search
+        FilesOpenOrigin.HISTORY -> TvDestination.History
+        FilesOpenOrigin.TRANSFERS, FilesOpenOrigin.LINK, null -> null
+    }

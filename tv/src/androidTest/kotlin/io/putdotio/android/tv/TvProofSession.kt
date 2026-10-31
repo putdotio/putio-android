@@ -142,11 +142,6 @@ internal fun tvProofDependencies(
     writePlaybackPosition = { _, _ -> PlaybackRepositoryResult.Success(Unit) },
 )
 
-/**
- * Mounts the production TV session and signed-in shell on [dependencies], then opens [tab] (null
- * stays on Home). [onExit] stands in for the system leaving the app; it is registered before the
- * shell. [overlay] draws over the shell.
- */
 internal fun AndroidComposeTestRule<ActivityScenarioRule<ComponentActivity>, ComponentActivity>.mountTvProofSession(
     dependencies: TvSessionDependencies,
     onExit: (() -> Unit)? = null,

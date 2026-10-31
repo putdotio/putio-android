@@ -28,6 +28,7 @@ import io.putdotio.android.files.FilesFolderOperationPhase
 import io.putdotio.android.files.FilesFolderState
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.files.FilesOpenOrigin
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.files.FilesRequestId
@@ -169,6 +170,27 @@ class TvFilesScreenTest {
 
         state = root
         compose.onNodeWithContentDescription("Open Movies").assertIsFocused()
+    }
+
+    @Test
+    fun aFolderOpenedFromSearchNamesSearchInItsCrumbNotTheFolderBelowIt() {
+        val root = ready(item(2, "Movies", PutioFileType.FOLDER))
+        val state = filesBrowserState(
+            stack = root.stack + FilesFolderState(
+                folder = FilesFolder(FilesItemId(2), "Movies"),
+                content = FilesContent.Ready(listOf(item(3, "trailer.mp4", PutioFileType.VIDEO)), FilesPaging.Complete),
+            ) + FilesFolderState(
+                folder = FilesFolder(FilesItemId(9), "Anime"),
+                content = FilesContent.Ready(listOf(item(10, "pilot.mp4", PutioFileType.VIDEO)), FilesPaging.Complete),
+                openedFrom = FilesOpenOrigin.SEARCH,
+            ),
+            nextRequestValue = 11L,
+        )
+        compose.showFiles(state = { state })
+
+        compose.onNodeWithText("Anime").assertIsDisplayed()
+        compose.onNodeWithText("Search").assertIsDisplayed()
+        compose.onNodeWithText("Movies").assertDoesNotExist()
     }
 
     @Test

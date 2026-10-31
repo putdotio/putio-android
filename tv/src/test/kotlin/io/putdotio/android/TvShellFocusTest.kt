@@ -295,7 +295,6 @@ class TvShellFocusTest {
 
         compose.runOnIdle { history = historyState(HistoryContent.Empty) }
         compose.onNodeWithText("No activity yet.").assertIsDisplayed()
-        // The rows went while the tab bar held focus: nothing pulled it back.
         compose.onTab("History").assertIsFocused().performKeyInput {
             pressKey(Key.DirectionDown)
         }
