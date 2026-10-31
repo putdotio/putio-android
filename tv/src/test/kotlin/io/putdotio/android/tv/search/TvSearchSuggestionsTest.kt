@@ -64,7 +64,7 @@ class TvSearchSuggestionsTest {
         assertEquals(
             listOf(
                 listOf(55L, "Harbor film.mp4", "55", "https://api.put.io/screenshots/55.jpg", "video/*", 600_000L),
-                listOf(56L, "Harbor stills", "56", "android.resource://${context.packageName}/drawable/tv_launcher_card", null, 0L),
+                listOf(56L, "Harbor stills", "56", "content://${context.packageName}.launcherart/card.png", null, 0L),
             ),
             rows,
         )

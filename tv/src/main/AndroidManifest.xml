@@ -59,6 +59,10 @@
             android:authorities="${applicationId}.search"
             android:exported="true"
             android:permission="android.permission.GLOBAL_SEARCH" />
+        <provider
+            android:name=".tv.TvLauncherArtProvider"
+            android:authorities="${applicationId}.launcherart"
+            android:exported="true" />
     </application>
 </manifest>
 

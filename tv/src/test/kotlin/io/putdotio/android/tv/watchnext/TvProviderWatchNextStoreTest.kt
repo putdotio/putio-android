@@ -93,7 +93,7 @@ class TvProviderWatchNextStoreTest {
         store.insert(TvWatchNextOwner(42L, 7L), bare, engagedAtMillis = 1_234L)
 
         assertEquals(
-            "android.resource://${context.packageName}/drawable/tv_launcher_card",
+            "content://${context.packageName}.launcherart/card.png",
             provider.rows.single().getAsString(TvContract.WatchNextPrograms.COLUMN_POSTER_ART_URI),
         )
         assertEquals(bare, store.programs().single().program)
