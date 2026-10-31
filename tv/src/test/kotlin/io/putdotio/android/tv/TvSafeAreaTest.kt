@@ -112,8 +112,6 @@ class TvSafeAreaTest {
 
     private companion object {
         const val CONTENT = "content"
-
-        /** One pixel of rounding at the test density. */
         const val MARGIN_TOLERANCE_DP = 1f
 
         val visibleContent = SemanticsMatcher("text, description or click target") {

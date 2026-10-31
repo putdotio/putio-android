@@ -9,7 +9,5 @@ public enum class PutioEmptyGlyph(public val text: String) {
 
     /** The player's error state, which shares the offline face. */
     CantPlay("(x_x)"),
-
-    /** DESIGN.md › TV states: Couldn't load and Playback failed. */
     CouldNotLoad("(・_・;)"),
 }

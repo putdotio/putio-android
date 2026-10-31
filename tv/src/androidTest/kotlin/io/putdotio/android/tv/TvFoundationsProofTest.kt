@@ -68,12 +68,6 @@ import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
 
-/**
- * Captures of the TV foundations (#455) on the emulator's real display: the shared focus style,
- * buttons and switch, the layout margins over the shell, the destructive confirm, the snackbar
- * and the couldn't-load state. Fake repositories and a synthetic account: no API calls. The
- * foundations sheet and the snackbar are test-only hosts, so they are synthetic proof.
- */
 @RunWith(AndroidJUnit4::class)
 class TvFoundationsProofTest {
     private val arguments = InstrumentationRegistry.getArguments()
@@ -93,7 +87,6 @@ class TvFoundationsProofTest {
     @get:Rule
     val rules: RuleChain = RuleChain.outerRule(optIn).around(compose)
 
-    /** A TV has no touch mode; without this the first test's focus would not draw. */
     @Before
     fun leaveTouchMode() {
         InstrumentationRegistry.getInstrumentation().setInTouchMode(false)
@@ -222,13 +215,10 @@ class TvFoundationsProofTest {
     private companion object {
         const val STEP_MILLIS = 400L
         const val PROOF_EMAIL = "proof@example.invalid"
-
-        /** Files, Search, History, then Account in the drawer. */
         const val ACCOUNT_STEPS = 3
     }
 }
 
-/** Rest and focused pairs of the components #455 owns, laid out like the foundations board. */
 @Composable
 private fun FoundationsSheet() {
     val realFocus = remember { FocusRequester() }
@@ -328,7 +318,6 @@ private fun ColumnScope.SpecLabel(text: String) {
     )
 }
 
-/** An interaction source that reports focus, so a component draws its focused state without holding focus. */
 @Composable
 private fun shownFocused(): MutableInteractionSource {
     val source = remember { MutableInteractionSource() }

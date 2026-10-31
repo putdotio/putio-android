@@ -68,7 +68,6 @@ public fun PutioSwitch(
     )
 }
 
-/** The switch's track, outline and handles: the phone's 44x26dp, or TV's 28x16dp. */
 public enum class PutioSwitchSize(
     internal val width: Dp,
     internal val height: Dp,

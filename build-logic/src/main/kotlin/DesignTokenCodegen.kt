@@ -97,10 +97,8 @@ object DesignTokenCodegen {
     /**
      * androidx.tv.material3 role → token property. The TV ColorScheme predates
      * the surfaceContainer tiers and names its outline roles border/borderVariant.
-     * Its stock components still read the container and inverse roles: a focused ListItem
-     * fills inverseSurface and a focused Button fills onSurface, each under inverseOnSurface.
-     * DESIGN.md's one TV focus style is a `--text` fill with dark `--app-bg` content, so the
-     * inverse pair carries it.
+     * Its stock components still read the container and inverse roles: notably,
+     * a focused ListItem uses inverseSurface.
      */
     val TV_ROLES: List<Pair<String, String>> = listOf(
         "primary" to "yellowSolid",

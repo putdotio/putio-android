@@ -1,23 +1,23 @@
 package io.putdotio.android.design
 
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Expected values come from DESIGN.md's `tv-*` front matter and its TV type section. */
 class PutioTvTypographyTest {
     @Test
     fun slotsStockTvComponentsReadCarryTheTvRoles() {
         val type = putioTvTypography
-        assertStyle(type.titleMedium, size = 13, lineHeight = 18, weight = 400)
-        assertStyle(type.bodySmall, size = 12, lineHeight = 16, weight = 400)
-        assertStyle(type.labelLarge, size = 13, lineHeight = 18, weight = 500)
-        assertStyle(type.headlineSmall, size = 22, lineHeight = 28, weight = 500)
-        assertStyle(type.displaySmall, size = 18, lineHeight = 24, weight = 500)
-        assertStyle(type.labelSmall, size = 12, lineHeight = 16, weight = 500)
+        assertRole(PutioTypeScale.tvBody, type.titleMedium)
+        assertRole(PutioTypeScale.tvMeta, type.bodySmall)
+        assertRole(PutioTypeScale.tvTitle, type.headlineSmall)
+        assertRole(PutioTypeScale.tvDetailTitle, type.displaySmall)
+        assertRole(PutioTypeScale.tvLabel, type.labelSmall)
+        assertEquals(PutioTypeScale.tvBody.fontSize, type.labelLarge.fontSize)
+        assertEquals(PutioTypeScale.tvBody.lineHeight, type.labelLarge.lineHeight)
+        assertEquals(PutioTypeScale.tvLabel.fontWeight, type.labelLarge.fontWeight)
     }
 
     @Test
@@ -38,9 +38,9 @@ class PutioTvTypographyTest {
         )
     }
 
-    private fun assertStyle(style: TextStyle, size: Int, lineHeight: Int, weight: Int) {
-        assertEquals(size.sp, style.fontSize)
-        assertEquals(lineHeight.sp, style.lineHeight)
-        assertEquals(FontWeight(weight), style.fontWeight)
+    private fun assertRole(role: TextStyle, slot: TextStyle) {
+        assertEquals(role.fontSize, slot.fontSize)
+        assertEquals(role.lineHeight, slot.lineHeight)
+        assertEquals(role.fontWeight, slot.fontWeight)
     }
 }

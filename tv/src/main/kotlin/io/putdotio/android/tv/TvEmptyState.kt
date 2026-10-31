@@ -28,11 +28,6 @@ import androidx.tv.material3.Text
 import io.putdotio.android.design.PutioEmptyGlyph
 import io.putdotio.android.design.PutioTypeScale
 
-/**
- * The put.io empty-state voice on TV (DESIGN.md › TV states): a mono glyph, a `tv-detail-title`
- * headline, one `tv-body` sentence and at most one action, centred in the space it fills.
- * [claimFocus] is false while D-pad focus is elsewhere, so the action does not pull it back.
- */
 @Composable
 internal fun TvEmptyState(
     glyph: PutioEmptyGlyph?,
@@ -98,7 +93,6 @@ internal fun TvEmptyState(
     }
 }
 
-/** A [TvEmptyState]'s one action: a tonal button that takes focus while the pane holds it. */
 internal data class TvEmptyStateAction(
     val label: String,
     val onClick: () -> Unit,

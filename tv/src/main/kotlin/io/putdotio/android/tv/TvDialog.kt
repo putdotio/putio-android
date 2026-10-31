@@ -53,13 +53,8 @@ internal fun TvDialog(
     }
 }
 
-/** Which action of a [TvConfirmDialog] takes focus when it opens. */
 internal enum class TvConfirmFocus { Confirm, Cancel }
 
-/**
- * A confirm: Cancel as a text button, then the confirm, yellow or red when [destructive], at the
- * dialog's end.
- */
 @Composable
 internal fun TvConfirmDialog(
     title: String,
@@ -86,7 +81,6 @@ internal fun TvConfirmDialog(
     }
 }
 
-/** A one-line notice with OK, such as "VLC isn't installed". */
 @Composable
 internal fun TvNoticeDialog(
     title: String,
@@ -115,11 +109,6 @@ private fun TvDialogActions(content: @Composable () -> Unit) {
     ) { content() }
 }
 
-/**
- * The dialog surface: `surface-container-high`, 28dp corners, 24dp padding, a `tv-title` title
- * and a `tv-body` message. When [focusesAction], the requester handed to [content] takes focus
- * one frame after the window's content attaches.
- */
 @Composable
 private fun TvDialogFrame(
     title: String,

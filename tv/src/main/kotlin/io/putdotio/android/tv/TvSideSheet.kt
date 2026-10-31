@@ -2,7 +2,7 @@ package io.putdotio.android.tv
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -19,6 +19,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -28,14 +29,6 @@ import androidx.tv.material3.Text
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioRadius
 
-/**
- * DESIGN.md › TV components' side sheet, the home of every secondary surface: 360dp from the
- * right on `surface-container-high` with 28dp leading corners, over a scrim that dims the screen.
- *
- * The requester handed to [content] takes focus once the sheet is up; attach it to the row that
- * should hold focus first. Back calls [onDismiss]. When the sheet leaves, focus returns to
- * [returnFocus], the control that opened it.
- */
 @Composable
 internal fun TvSideSheet(
     onDismiss: () -> Unit,
@@ -57,11 +50,12 @@ internal fun TvSideSheet(
             withFrameNanos {}
             initialFocus.requestFocus()
         }
-        Box(
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.scrim.copy(alpha = SCRIM_ALPHA)),
         ) {
+            val margins = with(LocalDensity.current) { tvSafeAreaMargins(constraints) }
             Column(
                 modifier = modifier
                     .align(Alignment.CenterEnd)
@@ -71,7 +65,7 @@ internal fun TvSideSheet(
                         PutioDesignTokens.componentBgHover,
                         RoundedCornerShape(topStart = PutioRadius.extraLarge, bottomStart = PutioRadius.extraLarge),
                     )
-                    .padding(start = 16.dp, top = 28.dp, end = TV_SIDE_MARGIN, bottom = TV_VERTICAL_MARGIN)
+                    .padding(start = 16.dp, top = 28.dp, end = margins.side, bottom = margins.vertical)
                     .focusGroup(),
             ) {
                 if (title != null) {
@@ -90,7 +84,6 @@ internal fun TvSideSheet(
     }
 }
 
-/** An opener that left the screen together with the sheet has no focus to take back. */
 private fun FocusRequester.returnFocusFromSheet() {
     try {
         requestFocus()

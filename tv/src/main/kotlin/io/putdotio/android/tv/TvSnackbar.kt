@@ -24,42 +24,38 @@ import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioRadius
 import kotlinx.coroutines.delay
 
-/** One snackbar: a short line confirming a finished action, with at most one text action. */
 internal data class TvSnackbarMessage(
     val text: String,
     val actionLabel: String? = null,
     val onAction: () -> Unit = {},
 )
 
-/** What [TvSnackbarHost] shows. A new message replaces the one showing and restarts its 6 s. */
+internal class TvSnackbarShowing(val message: TvSnackbarMessage)
+
 @Stable
 internal class TvSnackbarState {
-    var current: TvSnackbarMessage? by mutableStateOf(null)
+    var showing: TvSnackbarShowing? by mutableStateOf(null)
         private set
 
     fun show(message: TvSnackbarMessage) {
-        current = message
+        showing = TvSnackbarShowing(message)
     }
 
     fun dismiss() {
-        current = null
+        showing = null
     }
 }
 
-/**
- * DESIGN.md › TV components' snackbar: the message on `surface-container-highest`, placed
- * bottom-left by the caller, for 6 s. It never takes focus on its own; D-pad focus can reach its
- * action while it shows, and the action dismisses it.
- */
 @Composable
 internal fun TvSnackbarHost(
     state: TvSnackbarState,
     modifier: Modifier = Modifier,
 ) {
-    val message = state.current ?: return
-    LaunchedEffect(message) {
+    val showing = state.showing ?: return
+    val message = showing.message
+    LaunchedEffect(showing) {
         delay(SNACKBAR_MILLIS)
-        if (state.current === message) state.dismiss()
+        if (state.showing === showing) state.dismiss()
     }
     Row(
         modifier = modifier

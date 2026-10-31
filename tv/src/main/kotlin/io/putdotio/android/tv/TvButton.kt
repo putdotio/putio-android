@@ -26,10 +26,6 @@ import androidx.tv.material3.ButtonScale
 import androidx.tv.material3.MaterialTheme
 import io.putdotio.android.design.PutioDesignTokens
 
-/**
- * A 36dp pill in one of [TvButtonStyle]. Tonal and text buttons take the focus fill; filled
- * and destructive ones keep their fill and gain a light ring outside a 2dp gap. Nothing scales.
- */
 @Composable
 internal fun TvButton(
     onClick: () -> Unit,
@@ -56,7 +52,7 @@ internal fun TvButton(
             .drawWithContent {
                 drawContent()
                 if (keepsFill && focused) {
-                    val reach = (RING_GAP + RING_WIDTH / 2).toPx()
+                    val reach = (RING_WIDTH / 2).toPx()
                     drawRoundRect(
                         color = ring,
                         topLeft = Offset(-reach, -reach),
@@ -88,21 +84,12 @@ internal fun TvButton(
     }
 }
 
-/** DESIGN.md › TV components' buttons. */
 internal enum class TvButtonStyle {
-    /** `surface-container-highest` at rest: detail actions, the sort pill, state actions. */
     Tonal,
-
-    /** No fill at rest: a dialog's Cancel, a snackbar's action. */
     Text,
-
-    /** Yellow: the one primary action of a screen or dialog. */
     Filled,
-
-    /** Red: a destructive confirm. */
     Destructive,
 }
 
 private val BUTTON_HEIGHT = 36.dp
-private val RING_GAP = 2.dp
-private val RING_WIDTH = 2.dp
+private val RING_WIDTH = 4.dp
