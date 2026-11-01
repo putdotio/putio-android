@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
@@ -13,6 +14,8 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertCountEquals
@@ -21,6 +24,7 @@ import io.putdotio.android.PutioFailure
 import io.putdotio.android.files.ContinueWatchingEntry
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.tv.pressCenter
 import io.putdotio.android.tv.setTvContent
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
@@ -101,6 +105,38 @@ class TvHomeScreenTest {
         compose.onNodeWithText("Couldn’t load your pins.").assertIsDisplayed()
         compose.onNodeWithText("Try again").performSemanticsAction(SemanticsActions.OnClick)
         assertEquals(1, retried)
+    }
+
+    @Test
+    fun aSuccessfulPinnedRetryHandsFocusToThePinnedRow() {
+        var pinned by mutableStateOf<TvPinnedRow>(
+            TvPinnedRow.Failed(PutioFailure.NetworkUnavailable(PutioConfigurationException("offline"))),
+        )
+        val paneFocus = FocusRequester()
+        compose.setTvContent { TvHomeScreen(listOf(entry), pinned, actions, paneFocus, onShown = {}) }
+        compose.runOnIdle { paneFocus.requestFocus() }
+        compose.onNodeWithContentDescription("Resume Sintel.2010.1080p.mkv, 8:55 left").assertIsFocused()
+            .performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressCenter() }
+        assertEquals(1, retried)
+
+        compose.runOnIdle { pinned = TvPinnedRow.Ready(listOf(TvPinnedCard(bunny, itemCount = 3))) }
+        compose.onNodeWithContentDescription("Big Buck Bunny").assertIsFocused()
+    }
+
+    @Test
+    fun aPinnedRetryThatFindsNoPinsHandsFocusToBrowseFiles() {
+        var pinned by mutableStateOf<TvPinnedRow>(
+            TvPinnedRow.Failed(PutioFailure.NetworkUnavailable(PutioConfigurationException("offline"))),
+        )
+        val paneFocus = FocusRequester()
+        compose.setTvContent { TvHomeScreen(emptyList(), pinned, actions, paneFocus, onShown = {}) }
+        compose.runOnIdle { paneFocus.requestFocus() }
+        compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressCenter() }
+
+        compose.runOnIdle { pinned = TvPinnedRow.Loading }
+        compose.runOnIdle { pinned = TvPinnedRow.Ready(emptyList()) }
+        compose.onNodeWithText("Browse your files").assertIsFocused()
     }
 
     @Test
@@ -185,6 +221,15 @@ class TvHomeScreenTest {
         compose.onNodeWithContentDescription("clip-7.mp4").assertIsFocused()
         assertEquals(1, returned)
     }
+
+    private val bunny = FilesItem(
+        id = FilesItemId(5L),
+        parentId = FilesItemId(0L),
+        name = "Big Buck Bunny",
+        type = PutioFileType.FOLDER,
+        sizeBytes = 276_000_000L,
+        createdAt = "2026-10-23T10:00:00Z",
+    )
 
     private val entry = ContinueWatchingEntry(FilesItemId(7L), "Sintel.2010.1080p.mkv", 356.0, 891.0, 5L)
 }

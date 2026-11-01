@@ -144,6 +144,8 @@ internal fun TvSearchScreen(
     var settingsFrom by remember { mutableStateOf<FocusRequester?>(null) }
     val historyEnabled = state.recentSearchesEnabled
     val openSettings = historyEnabled?.let { { from: FocusRequester -> settingsFrom = from } }
+    val overlayOpen = rememberUpdatedState(settingsFrom != null || dialogNotice != null)
+    owner.RefocusAfterLeave(blocked = overlayOpen)
     Column(
         modifier = modifier
             .fillMaxSize()

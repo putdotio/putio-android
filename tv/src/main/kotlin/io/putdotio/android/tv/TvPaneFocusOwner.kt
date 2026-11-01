@@ -3,6 +3,7 @@ package io.putdotio.android.tv
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.State
 import androidx.compose.runtime.currentCompositeKeyHashCode
@@ -46,14 +47,21 @@ internal class TvPaneFocusOwner(
         if (entryTarget.value === from) entryTarget.value = requester
     }
 
-    private val mutableRefocusRequests = mutableIntStateOf(0)
+    private val refocusRequests = mutableIntStateOf(0)
 
     /**
-     * Bumps when a section that held focus left composition, so the pane can move focus
-     * to the new entry point once the frame has settled; a pane that does not observe it
-     * leaves focus where the window puts it.
+     * Moves focus to the entry point a frame after a section that held it left composition,
+     * unless the user has left the pane or [blocked] holds focus over it.
      */
-    val refocusRequests: State<Int> = mutableRefocusRequests
+    @Composable
+    fun RefocusAfterLeave(blocked: State<Boolean>) {
+        val requests = refocusRequests.intValue
+        LaunchedEffect(requests) {
+            if (requests == 0) return@LaunchedEffect
+            withFrameNanos {}
+            if (paneHasFocus.value && !blocked.value) focusEntry()
+        }
+    }
 
     /** Records that the section behind [requester] holds focus, making it the entry point. */
     fun enter(requester: FocusRequester, section: Long? = null) {
@@ -81,7 +89,7 @@ internal class TvPaneFocusOwner(
     fun leave(requester: FocusRequester, fallback: (() -> FocusRequester)?) {
         if (entryTarget.value === requester) {
             entryTarget.value = fallback?.invoke() ?: home()
-            if (paneHasFocus.value) mutableRefocusRequests.intValue += 1
+            if (paneHasFocus.value) refocusRequests.intValue += 1
         }
     }
 
@@ -132,6 +140,52 @@ internal fun Modifier.paneSection(
         }
     }
     return onFocusChanged { if (it.hasFocus) owner.enter(requester, section) }
+}
+
+/**
+ * Lets a control hand focus back to its pane when it leaves composition while focused; the pane
+ * runs [Refocus] to place focus on its entry point a frame later, unless the user has left the
+ * pane or a dialog blocks it. A focused node reports losing focus before its effects dispose, so
+ * the pane checks a frame later that the control is gone.
+ */
+internal class TvFocusHandBack {
+    private val requests = mutableIntStateOf(0)
+    private var lost: TvHandBackControl? = null
+
+    fun lose(control: TvHandBackControl) {
+        lost = control
+        requests.intValue += 1
+    }
+
+    @Composable
+    fun Refocus(paneHasFocus: State<Boolean>, blocked: State<Boolean>, target: State<FocusRequester>) {
+        val pending = requests.intValue
+        LaunchedEffect(pending) {
+            if (pending == 0) return@LaunchedEffect
+            withFrameNanos {}
+            val control = lost ?: return@LaunchedEffect
+            lost = null
+            if (!control.composed && paneHasFocus.value && !blocked.value) target.value.requestFocus()
+        }
+    }
+}
+
+internal class TvHandBackControl {
+    var focused = false
+    var composed = false
+}
+
+@Composable
+internal fun Modifier.handsBackFocus(handBack: TvFocusHandBack): Modifier {
+    val control = remember { TvHandBackControl() }
+    DisposableEffect(control) {
+        control.composed = true
+        onDispose { control.composed = false }
+    }
+    return onFocusChanged {
+        if (control.focused && !it.isFocused) handBack.lose(control)
+        control.focused = it.isFocused
+    }
 }
 
 internal fun Modifier.focusRequesterIf(condition: Boolean, requester: FocusRequester): Modifier =

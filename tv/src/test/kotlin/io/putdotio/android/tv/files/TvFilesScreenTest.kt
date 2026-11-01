@@ -11,6 +11,7 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isFocused
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -294,6 +295,43 @@ class TvFilesScreenTest {
         }
         compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.LoadNextPage, FilesBrowserEvent.Retry), events)
+    }
+
+    @Test
+    fun tryAgainOnAFailedRefreshHandsFocusBackToTheRows() {
+        var operation by mutableStateOf<FilesFolderOperation>(
+            FilesFolderOperation.Failed(
+                networkFailure(),
+                FilesFolderOperationIntent.Refresh,
+                FilesFolderOperationPhase.RELOADING,
+            ),
+        )
+        compose.showFiles(
+            state = {
+                state(
+                    FilesContent.Ready(
+                        listOf(item(1, "a.txt", PutioFileType.TEXT), item(2, "b.txt", PutioFileType.TEXT)),
+                        FilesPaging.Complete,
+                    ),
+                    operation = operation,
+                )
+            },
+        )
+        compose.onNodeWithContentDescription("a.txt").performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithContentDescription("b.txt").assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionUp)
+            pressKey(Key.DirectionUp)
+        }
+        compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressCenter() }
+
+        compose.runOnIdle {
+            operation = FilesFolderOperation.Loading(
+                FilesRequestId(3),
+                FilesFolderOperationIntent.Refresh,
+                FilesFolderOperationPhase.RELOADING,
+            )
+        }
+        compose.onAllNodes(hasTestTag(TV_FILES_ROW_TAG) and isFocused()).assertCountEquals(1)
     }
 
     @Test

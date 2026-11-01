@@ -62,6 +62,7 @@ class TvHomeProofTest {
         }
     }
     private val focusSink = FocusRequester()
+    private var pinnedFiles: FakePinnedFiles? = null
 
     @get:Rule
     val rules: RuleChain = RuleChain.outerRule(optIn).around(compose)
@@ -98,6 +99,23 @@ class TvHomeProofTest {
         press(KeyEvent.KEYCODE_DPAD_DOWN)
         compose.waitUntil(5_000) { isFocused("Try again") }
         screenshot("home-pinned-error")
+    }
+
+    @Test
+    fun aPinnedRetryReturnsFocusToThePinnedRow() {
+        mount(entries = CONTINUE_WATCHING, pins = null)
+        compose.waitUntil(5_000) { hasText("Try again") }
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        compose.waitUntil(5_000) { isFocused("Try again") }
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.runOnUiThread {
+            val fake = checkNotNull(pinnedFiles)
+            fake.failure.value = null
+            fake.pins.value = PINNED.map { it.id }
+        }
+        compose.waitUntil(5_000) { isFocused(PINNED.first().name) }
+        screenshot("home-pinned-retried")
     }
 
     @Test
@@ -142,6 +160,7 @@ class TvHomeProofTest {
             pinnedFiles = {
                 FakePinnedFiles(pins).apply {
                     if (pins == null) failure.value = PutioFailure.NetworkUnavailable(IOException("offline"))
+                    pinnedFiles = this
                 }
             },
             continueWatchingStore = { ProofContinueWatchingStore(entries) },

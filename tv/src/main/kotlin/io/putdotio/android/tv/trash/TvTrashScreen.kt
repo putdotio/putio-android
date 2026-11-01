@@ -104,6 +104,7 @@ internal fun TvTrashScreen(
     }
     val dialogWasOpen = remember { mutableStateOf(false) }
     LaunchedEffect(dialogOpen) { refocusAfterDialog(dialogOpen, dialogWasOpen, paneHasFocus, entryTarget) }
+    owner.RefocusAfterLeave(blocked = dialogShowing)
     Column(
         modifier = modifier
             .fillMaxSize()
