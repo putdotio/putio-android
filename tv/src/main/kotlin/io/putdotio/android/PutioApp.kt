@@ -220,7 +220,7 @@ internal fun TvSessionShell(
     val pinnedRow by session.homePins.row.collectAsStateWithLifecycle()
     val pinsFailure by session.pins.failure.collectAsStateWithLifecycle()
     val pinRejected by session.homePins.rejected.collectAsStateWithLifecycle()
-    val undoFailure by session.undoFailure.collectAsStateWithLifecycle()
+    val undoFailure by session.trashUndo.failure.collectAsStateWithLifecycle()
     val showHome by session.showHome.shown.collectAsStateWithLifecycle()
     val homeReturn by session.homeReturn.file.collectAsStateWithLifecycle()
     // A 401 from the proxy list is as authoritative as one from any controller.
@@ -291,7 +291,7 @@ internal fun TvSessionShell(
         if (trashState.bulkRestoreVersion > 0L) session.files.dispatch(FilesBrowserEvent.InvalidateAllFolders)
     }
     val playback by session.playback.collectAsStateWithLifecycle()
-    val subtitlesFirst by session.subtitlesFirst.collectAsStateWithLifecycle()
+    val subtitlesFirst by session.subtitlesFirst.requested.collectAsStateWithLifecycle()
 
     TvPlaybackLayer(
         playing = playback != null,
@@ -306,7 +306,7 @@ internal fun TvSessionShell(
                     autoplayNextVideo = appConfigState.confirmedAutoplayNextVideo(),
                     findNextEpisode = session.findNextVideo.takeIf { settingsState.nextEpisodeEnabled() },
                     subtitlesFirst = subtitlesFirst,
-                    onSubtitlesShown = session::subtitlesShown,
+                    onSubtitlesShown = session.subtitlesFirst::shown,
                 )
             }
         },
@@ -480,8 +480,8 @@ private fun TvFilesPane(
         onSetWatched = session::setWatched,
         pinnedIds = pins,
         onSetPinned = { item, pinned -> if (pinned) session.pins.pin(item.id) else session.pins.unpin(item.id) },
-        onPickSubtitles = session::playWithSubtitles,
-        onUndoTrash = session::undoTrash,
+        onPickSubtitles = { item, start -> session.play(item, start, subtitlesFirst = true) },
+        onUndoTrash = session.trashUndo::undo,
         notice = linkNotice.text() ?: filesNoticeText(filesNotice, streamFailure, fileActionFailure, undoFailure),
         noticeMessage = filesNoticeMessage(linkNotice.shown, filesNotice),
         // OK clears only what it was shown; a failure that arrived behind a VLC
@@ -491,7 +491,7 @@ private fun TvFilesPane(
                 linkNotice.shown -> linkNotice.onDismiss()
                 filesNotice != null -> filesNotice = null
                 streamFailure != null -> streamFailure = null
-                undoFailure.shown() -> session.dismissUndoFailure()
+                undoFailure.shown() -> session.trashUndo.dismissFailure()
                 else -> session.dismissFileActionFailure()
             }
         },

@@ -12,25 +12,28 @@ public suspend fun TrashRepository.undoTrashMove(itemIds: List<FilesItemId>): Pu
         restoreAll(TrashBulkSelection(cursor = null, itemIds = itemIds))
     }
     if (restored is PutioResult.Failure) return restored
+    val rejected = awaitRestored(itemIds)
+    return if (rejected == null) PutioResult.Success(Unit) else PutioResult.Failure(rejected)
+}
+
+private suspend fun TrashRepository.awaitRestored(itemIds: List<FilesItemId>): PutioFailure.AuthenticationRequired? {
     var pending = itemIds
+    var rejected: PutioFailure.AuthenticationRequired? = null
     var round = 0
-    while (pending.isNotEmpty() && round < RESTORE_READBACK_ROUNDS) {
+    while (pending.isNotEmpty() && rejected == null && round < RESTORE_READBACK_ROUNDS) {
         if (round > 0) delay(RESTORE_READBACK_DELAY_MS)
         round += 1
-        val still = mutableListOf<FilesItemId>()
-        for (id in pending) {
-            when (val read = resolveItem(id)) {
-                is PutioResult.Success -> if (read.value.id != id) still += id
+        pending = pending.filterNot { id ->
+            rejected == null && when (val read = resolveItem(id)) {
+                is PutioResult.Success -> read.value.id == id
                 is PutioResult.Failure -> {
-                    val rejected = read.failure as? PutioFailure.AuthenticationRequired
-                    if (rejected != null) return PutioResult.Failure(rejected)
-                    still += id
+                    rejected = read.failure as? PutioFailure.AuthenticationRequired
+                    false
                 }
             }
         }
-        pending = still
     }
-    return PutioResult.Success(Unit)
+    return rejected
 }
 
 private const val RESTORE_READBACK_ROUNDS = 5

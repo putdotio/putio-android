@@ -6,6 +6,7 @@ import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -210,7 +211,7 @@ internal fun TvFilesScreen(
         canDelete = current.operation.canStartOperation,
         resumePlayback = resumePlayback,
     )
-    val actionContextOf = { item: FilesItem -> actionContext.copy(pinned = pinnedIds?.let { item.id in it }) }
+    val actionContextOf = { item: FilesItem -> actionContext.copy(pinned = item.pinnedIn(pinnedIds)) }
     val actionsOf = { item: FilesItem -> item.tvActions(actionContextOf(item)) }
     val dialogReturn = remember { mutableStateOf(FocusRequester.Default) }
     dialogReturn.value = detailFocus.dialogReturn(detailItem.offersActions(actionsOf), entryTarget.value)
@@ -219,17 +220,6 @@ internal fun TvFilesScreen(
     // As in tv-native, a row with nothing to offer opens no menu.
     val openActions = { item: FilesItem -> if (actionsOf(item).isNotEmpty()) actionsFor = item.id.value }
     val open = { item: FilesItem -> item.open(onEvent, onPlayMedia, onUnsupported = { unsupported = it.id.value }) }
-    val snackbar = remember(sessionKey) { TvSnackbarState() }
-    TvFilesTrashedAnnouncement(current, snackbar, onEvent, onUndoTrash)
-    var undoFocused by remember { mutableStateOf(false) }
-    val snackbarShowing = snackbar.showing
-    LaunchedEffect(snackbarShowing) {
-        if (snackbarShowing == null && undoFocused) {
-            undoFocused = false
-            withFrameNanos {}
-            entryTarget.value.requestFocus()
-        }
-    }
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -304,14 +294,7 @@ internal fun TvFilesScreen(
                 )
             }
         }
-        TvSnackbarHost(
-            state = snackbar,
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(bottom = SNACKBAR_BOTTOM),
-            actionSize = TvButtonSize.Snackbar,
-            actionModifier = Modifier.onFocusChanged { if (snackbar.showing != null) undoFocused = it.isFocused },
-        )
+        TvFilesTrashSnackbar(current, sessionKey, onEvent, onUndoTrash, refocus = entryTarget)
     }
 
     if (notice != null) {
@@ -909,6 +892,37 @@ private fun TvFilesTrashedAnnouncement(
         currentOnEvent(FilesBrowserEvent.DeleteOutcomeAnnounced(outcome))
     }
 }
+
+@Composable
+private fun BoxScope.TvFilesTrashSnackbar(
+    current: FilesFolderState,
+    sessionKey: Any?,
+    onEvent: (FilesBrowserEvent) -> Boolean,
+    onUndoTrash: ((FilesDeleteOutcome) -> Unit)?,
+    refocus: State<FocusRequester>,
+) {
+    val snackbar = remember(sessionKey) { TvSnackbarState() }
+    TvFilesTrashedAnnouncement(current, snackbar, onEvent, onUndoTrash)
+    var undoFocused by remember { mutableStateOf(false) }
+    val showing = snackbar.showing
+    LaunchedEffect(showing) {
+        if (showing == null && undoFocused) {
+            undoFocused = false
+            withFrameNanos {}
+            refocus.value.requestFocus()
+        }
+    }
+    TvSnackbarHost(
+        state = snackbar,
+        modifier = Modifier
+            .align(Alignment.BottomStart)
+            .padding(bottom = SNACKBAR_BOTTOM),
+        actionSize = TvButtonSize.Snackbar,
+        actionModifier = Modifier.onFocusChanged { if (snackbar.showing != null) undoFocused = it.isFocused },
+    )
+}
+
+private fun FilesItem.pinnedIn(pinnedIds: List<FilesItemId>?): Boolean? = pinnedIds?.let { id in it }
 
 private val SNACKBAR_BOTTOM = 3.dp
 

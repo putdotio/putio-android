@@ -125,6 +125,19 @@ internal class TvFilesActionHandlers(
     val onSetPinned: (FilesItem, Boolean) -> Unit,
 )
 
+private fun TvFilesActionHandlers.run(action: TvFilesAction, item: FilesItem, playFrom: TvPlayStart) {
+    when (action) {
+        TvFilesAction.Resume -> onPlay(item, TvPlayStart.Resume)
+        TvFilesAction.Play -> onPlay(item, TvPlayStart.Ask)
+        TvFilesAction.StartOver -> onPlay(item, TvPlayStart.StartOver)
+        TvFilesAction.Subtitles -> onPickSubtitles(item, playFrom)
+        TvFilesAction.OpenInVlc -> onOpenInVlc(item)
+        is TvFilesAction.SetWatched -> onSetWatched(item, action.watched)
+        is TvFilesAction.SetPinned -> onSetPinned(item, action.pinned)
+        is TvFilesAction.Delete -> Unit
+    }
+}
+
 @Composable
 internal fun TvFilesActionsMenu(
     item: FilesItem,
@@ -164,21 +177,11 @@ internal fun TvFilesActionsMenu(
         item = item,
         actions = item.tvActions(context.copy(canDelete = canStartOperation)),
         onAction = { action ->
-            when (action) {
-                is TvFilesAction.Delete -> if (action.trash) onTrashPressedChange(true) else onConfirmPermanentDelete()
-                else -> {
-                    onClose()
-                    when (action) {
-                        TvFilesAction.Resume -> handlers.onPlay(item, TvPlayStart.Resume)
-                        TvFilesAction.Play -> handlers.onPlay(item, TvPlayStart.Ask)
-                        TvFilesAction.StartOver -> handlers.onPlay(item, TvPlayStart.StartOver)
-                        TvFilesAction.Subtitles -> handlers.onPickSubtitles(item, playFrom)
-                        TvFilesAction.OpenInVlc -> handlers.onOpenInVlc(item)
-                        is TvFilesAction.SetWatched -> handlers.onSetWatched(item, action.watched)
-                        is TvFilesAction.SetPinned -> handlers.onSetPinned(item, action.pinned)
-                        is TvFilesAction.Delete -> Unit
-                    }
-                }
+            if (action is TvFilesAction.Delete) {
+                if (action.trash) onTrashPressedChange(true) else onConfirmPermanentDelete()
+            } else {
+                onClose()
+                handlers.run(action, item, playFrom)
             }
         },
         onDismiss = onClose,
