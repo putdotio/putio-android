@@ -643,6 +643,37 @@ class TvSessionViewModelTest {
     }
 
     @Test
+    fun `moving a file to Trash from Files reloads a Trash listing already open`() = runTest {
+        var trashLoads = 0
+        rootPages = listOf(FilesPage(listOf(media(30, "clip.mp4", PutioFileType.VIDEO)), nextCursor = null))
+        val session = checkNotNull(
+            TvSessionViewModel(auth).sessionFor(
+                account(),
+                TvAuthSessionId(1),
+                dependencies.copy(
+                    filesRepository = object : StubFilesRepository() {
+                        override suspend fun loadFolder(folderId: FilesItemId) = PutioResult.Success(rootPages.single())
+
+                        override suspend fun delete(itemIds: List<FilesItemId>, mode: FilesDeleteMode) =
+                            PutioResult.Success(FileDeleteResult(status = "OK"))
+
+                        override suspend fun resolveItem(itemId: FilesItemId) = PutioResult.Failure(notFound())
+                    },
+                    trashRepository = object : TrashRepository by StubTrashRepository {
+                        override suspend fun load() = StubTrashRepository.load().also { trashLoads++ }
+                    },
+                ),
+            ),
+        )
+        session.trash.dispatch(TrashEvent.Open)
+        assertEquals(1, trashLoads)
+
+        session.files.dispatch(FilesBrowserEvent.Delete(FilesFolder.Root.id, FilesItemId(30), FilesDeleteMode.TRASH))
+
+        assertEquals(2, trashLoads)
+    }
+
+    @Test
     fun `leaving a video started from Home hands Home the file that played last`() {
         val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
         val video = media(9, "clip.mp4", PutioFileType.VIDEO).copy(playback = FilesPlaybackProgress(0.0, 600.0))
