@@ -35,7 +35,10 @@ import io.putdotio.sdk.errors.PutioApiException
 import io.putdotio.sdk.errors.PutioRequestData
 import io.putdotio.sdk.files.FileDeleteResult
 import io.putdotio.sdk.files.PutioFileType
+import io.putdotio.sdk.files.PutioFolderType
 import java.io.File
+import java.time.Duration
+import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.UUID
@@ -302,8 +305,12 @@ class TvFilesProofTest {
             root to FilesPage(
                 listOf(
                     bbb,
-                    folder(11, "Series", "2026-10-13T09:00:00", root),
-                    folder(12, "Items shared with you", "2026-10-02T09:00:00", root),
+                    folder(11, "Series", "2026-10-13T09:00:00", root).copy(
+                        sizeBytes = 211_000_000_000,
+                        updatedAt = Instant.now().minus(Duration.ofDays(3)).toString(),
+                    ),
+                    folder(12, "Items shared with you", "2026-10-02T09:00:00", root)
+                        .copy(folderType = PutioFolderType.SHARED_ROOT),
                     file(13, "Big_Buck_Bunny_1080_10s_30MB.mp4", 31_000_000, "2026-08-25T09:00:00", root)
                         .copy(type = PutioFileType.VIDEO, playback = FilesPlaybackProgress(10.0, 10.0)),
                     file(14, BLUE_LIGHTS, 3_200_000_000, "2026-10-13T09:00:00", root)
@@ -366,7 +373,7 @@ class TvFilesProofTest {
     }
 
     private fun folder(id: Long, name: String, createdAt: String, parent: FilesItemId) =
-        file(id, name, 276_000_000, createdAt, parent).copy(type = PutioFileType.FOLDER)
+        file(id, name, 276_000_000, createdAt, parent).copy(type = PutioFileType.FOLDER, updatedAt = createdAt)
 
     private fun file(id: Long, name: String, size: Long, createdAt: String, parent: FilesItemId) = FilesItem(
         id = FilesItemId(id),

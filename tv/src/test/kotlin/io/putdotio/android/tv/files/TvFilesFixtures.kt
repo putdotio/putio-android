@@ -1,6 +1,7 @@
 package io.putdotio.android.tv.files
 
 import androidx.compose.ui.test.junit4.ComposeContentTestRule
+import androidx.compose.ui.test.onAllNodesWithText
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
@@ -56,6 +57,9 @@ internal fun item(
         createdAt = "2026-04-20T10:00:00Z",
         playback = playback,
     )
+
+internal fun ComposeContentTestRule.waitForMeta(start: String) =
+    waitUntil(5_000) { onAllNodesWithText(start, substring = true).fetchSemanticsNodes().isNotEmpty() }
 
 internal fun networkFailure() = PutioFailure.NetworkUnavailable(PutioConfigurationException("x"))
 

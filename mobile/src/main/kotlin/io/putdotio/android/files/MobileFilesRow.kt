@@ -1,6 +1,5 @@
 package io.putdotio.android.files
 
-import android.text.format.DateUtils
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -43,7 +42,6 @@ import io.putdotio.android.design.FileTypeIcon
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.putioMono
 import io.putdotio.android.downloads.DownloadStatus
-import io.putdotio.android.parsePutioTimestamp
 import io.putdotio.android.playbackContainer
 import io.putdotio.sdk.files.PutioFolderType
 
@@ -276,20 +274,6 @@ private fun Modifier.rowInteraction(
 
 private fun Modifier.focusOutline(focused: Boolean, color: Color): Modifier =
     if (focused) border(FILES_FOCUS_OUTLINE, color) else this
-
-/** A folder's last change, "3 days ago"; null for a file, or a folder put.io sent no time for. */
-internal fun FilesItem.updatedAgo(nowMillis: Long): String? = updatedAt?.takeIf { isFolder }?.toAgo(nowMillis)
-
-/** "3 hr. ago" from a put.io timestamp, "Oct 7" after a week; a time ahead of now reads as now. */
-internal fun String.toAgo(nowMillis: Long): String? =
-    parsePutioTimestamp(this)?.toEpochMilli()?.let { time ->
-        DateUtils.getRelativeTimeSpanString(
-            time.coerceAtMost(nowMillis),
-            nowMillis,
-            DateUtils.MINUTE_IN_MILLIS,
-            DateUtils.FORMAT_ABBREV_RELATIVE or DateUtils.FORMAT_ABBREV_MONTH,
-        ).toString()
-    }
 
 private const val SELECTED_ROW_ALPHA = 0.09f
 private val FILES_ICON_SIZE = 26.dp

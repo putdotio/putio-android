@@ -41,6 +41,20 @@ public fun String.toFullDate(context: Context): String? =
         )
     }
 
+/** A folder's last change, "3 days ago"; null for a file, or a folder put.io sent no time for. */
+public fun FilesItem.updatedAgo(nowMillis: Long): String? = updatedAt?.takeIf { isFolder }?.toAgo(nowMillis)
+
+/** "3 hr. ago" from a put.io timestamp, "Oct 7" after a week; a time ahead of now reads as now. */
+public fun String.toAgo(nowMillis: Long): String? =
+    parsePutioTimestamp(this)?.toEpochMilli()?.let { time ->
+        DateUtils.getRelativeTimeSpanString(
+            time.coerceAtMost(nowMillis),
+            nowMillis,
+            DateUtils.MINUTE_IN_MILLIS,
+            DateUtils.FORMAT_ABBREV_RELATIVE or DateUtils.FORMAT_ABBREV_MONTH,
+        ).toString()
+    }
+
 private val SIZE_UNITS = listOf("B", "kB", "MB", "GB", "TB", "PB")
 private const val UNIT_STEP = 1_000.0
 private const val ONE_DECIMAL_BELOW = 100.0
