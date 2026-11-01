@@ -251,7 +251,7 @@ internal class TvTrashListFocus(
     val dialogShowing: State<Boolean>,
 )
 
-internal class TvTrashDetailActions(
+internal data class TvTrashDetailActions(
     val canRestore: Boolean,
     val canDelete: Boolean,
     val rowHasFocus: Boolean,
