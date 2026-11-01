@@ -11,8 +11,10 @@ import io.putdotio.android.tv.auth.TvAuthState
 import io.putdotio.android.tv.auth.TvLinkPhase
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runCurrent
@@ -183,6 +185,28 @@ class TvWatchNextTest {
             assertEquals(300_000L, moved.program.positionMillis)
             assertEquals("Moving a card is not engaging with it", engaged[9L], moved.engagedAtMillis)
             assertEquals("An unchanged card is not written", 0, store.updates.count { it == 10L })
+        }
+
+    @Test
+    fun `a reconcile read taken before a newer save or removal leaves that card alone`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val recorder = watchNext().recorder(1L, TvAuthSessionId(1L))
+            listOf(7L, 8L).forEach { recorder.positionSaved(video(it), 120.0) }
+            val reads = CompletableDeferred<Unit>()
+            backgroundScope.launch {
+                recorder.reconcile { id ->
+                    reads.await()
+                    PutioResult.Success(file(id.value, startFrom = 200.0))
+                }
+            }
+
+            recorder.positionSaved(video(7L), 300.0)
+            recorder.fileGone(8L)
+            reads.complete(Unit)
+            runCurrent()
+
+            assertEquals(listOf(7L), store.rows.map { it.program.fileId })
+            assertEquals(300_000L, store.rows.single().program.positionMillis)
         }
 
     @Test

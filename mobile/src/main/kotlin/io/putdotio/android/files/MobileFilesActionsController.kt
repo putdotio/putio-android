@@ -52,6 +52,9 @@ internal class MobileFilesActionSources(
     val watched: FilesWatchedRepository,
     val streamUrls: FilesStreamUrls,
     val trash: TrashRepository,
+    /** Orders a watched write after the positions playback already took for the file. */
+    val positionWrites: suspend (FilesItemId, suspend () -> PutioResult<Unit>) -> PutioResult<Unit> =
+        { _, write -> write() },
 )
 
 /**
@@ -132,7 +135,13 @@ internal class MobileFilesActionsController(
         val write = scope.async(start = CoroutineStart.LAZY) {
             previous?.join()
             val result = watchedPermits.withPermit {
-                if (watched) sources.watched.setPosition(item.id, seconds) else sources.watched.clearPosition(item.id)
+                sources.positionWrites(item.id) {
+                    if (watched) {
+                        sources.watched.setPosition(item.id, seconds)
+                    } else {
+                        sources.watched.clearPosition(item.id)
+                    }
+                }
             }
             // A closed session settles nothing: a late 401 must not reject the session after it.
             ensureActive()

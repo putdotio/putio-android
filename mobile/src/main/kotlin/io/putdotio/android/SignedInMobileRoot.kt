@@ -215,6 +215,7 @@ internal fun SignedInMobileRoot(
                             watched = SdkFilesWatchedRepository(runtime.putioClient),
                             streamUrls = SdkFilesStreamUrls(runtime.putioClient),
                             trash = trashRepository,
+                            positionWrites = { id, write -> runtime.playbackReporting.supersede(id.value, write) },
                         ),
                         onFilesEvent = browser::dispatch,
                         onPositionSaved = { fileId, seconds ->

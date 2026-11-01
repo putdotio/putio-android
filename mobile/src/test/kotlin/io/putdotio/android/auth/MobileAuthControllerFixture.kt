@@ -30,7 +30,7 @@ internal class AuthControllerFixture(
         tokenStore = tokenStore,
         oauthAttempts = OAuthAttempts(pendingAttemptStore, stateGenerator, clock),
         sessionGateway = gateway,
-        tokenRevocations = PendingTokenRevocations(revocationStore, tokenStore, revoker, revocationScope),
+        tokenRevocations = PendingTokenRevocations(listOf(revocationStore), tokenStore, revoker, revocationScope),
         clearAccountLocalState = { accountLocalStateClears += 1 },
         validatedAccounts = validatedAccounts,
     )

@@ -118,16 +118,18 @@ public class KeystoreAuthTokenStore internal constructor(
 
     public companion object {
         /**
-         * A signed-out token whose revocation put.io has not confirmed yet. It has its
-         * own record and Keystore key, so clearing the session never drops it.
+         * Signed-out tokens whose revocation put.io has not confirmed yet, one per slot. Each
+         * has its own record and Keystore key, so clearing the session never drops one.
          */
-        public fun pendingRevocation(context: Context): KeystoreAuthTokenStore =
-            KeystoreAuthTokenStore(
-                preferences = context.getSharedPreferences(AUTH_PREFERENCES_NAME, Context.MODE_PRIVATE),
-                tokenCipher = AndroidKeystoreAuthTokenCipher(pendingRevocationKeyAlias(context.packageName)),
-                ioDispatcher = Dispatchers.IO,
-                recordKey = PENDING_REVOCATION_TOKEN_KEY,
-            )
+        public fun pendingRevocations(context: Context): List<KeystoreAuthTokenStore> =
+            (0 until PENDING_REVOCATION_SLOTS).map { slot ->
+                KeystoreAuthTokenStore(
+                    preferences = context.getSharedPreferences(AUTH_PREFERENCES_NAME, Context.MODE_PRIVATE),
+                    tokenCipher = AndroidKeystoreAuthTokenCipher(pendingRevocationKeyAlias(context.packageName, slot)),
+                    ioDispatcher = Dispatchers.IO,
+                    recordKey = pendingRevocationTokenKey(slot),
+                )
+            }
     }
 }
 
@@ -260,8 +262,14 @@ public const val AUTH_PREFERENCES_NAME: String = "putio_auth"
 internal const val ENCRYPTED_ACCESS_TOKEN_KEY = "access_token_v1"
 internal const val PENDING_REVOCATION_TOKEN_KEY = "pending_revocation_token_v1"
 internal fun authTokenKeyAlias(packageName: String): String = "$packageName.$AUTH_KEY_ALIAS_SUFFIX"
-internal fun pendingRevocationKeyAlias(packageName: String): String =
-    "$packageName.$PENDING_REVOCATION_KEY_ALIAS_SUFFIX"
+internal fun pendingRevocationKeyAlias(packageName: String, slot: Int = 0): String =
+    "$packageName.$PENDING_REVOCATION_KEY_ALIAS_SUFFIX" + slotSuffix(slot)
+
+internal fun pendingRevocationTokenKey(slot: Int): String = PENDING_REVOCATION_TOKEN_KEY + slotSuffix(slot)
+
+private fun slotSuffix(slot: Int): String = if (slot == 0) "" else ".$slot"
+
+private const val PENDING_REVOCATION_SLOTS = 4
 
 private const val AUTH_KEY_ALIAS_SUFFIX = "oauth.access-token.v1"
 private const val PENDING_REVOCATION_KEY_ALIAS_SUFFIX = "oauth.pending-revocation.v1"

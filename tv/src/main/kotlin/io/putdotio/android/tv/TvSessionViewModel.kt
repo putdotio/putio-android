@@ -18,6 +18,7 @@ import io.putdotio.android.files.FilesItemResolver
 import io.putdotio.android.files.FilesOpenOrigin
 import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.files.FilesRepository
+import io.putdotio.android.files.FilesRequestId
 import io.putdotio.android.files.FilesStreamUrlResult
 import io.putdotio.android.files.FilesStreamUrls
 import io.putdotio.android.files.FilesSubtitleLanguages
@@ -177,6 +178,7 @@ internal class TvSession internal constructor(
     )
     private val mutableFileActionFailure = MutableStateFlow<PutioFailure?>(null)
     private val watchedJobs = mutableMapOf<FilesItemId, Job>()
+    private val watchNextHandledDeletes = mutableSetOf<FilesRequestId>()
     private val playbackRepository = dependencies.playbackRepository { appConfig.state.value.playbackPreference() }
     private val mutablePlayback = MutableStateFlow<PlaybackController?>(null)
     /** The item that started playback; autoplay stays within its folder. */
@@ -258,7 +260,12 @@ internal class TvSession internal constructor(
             files.state
                 .map { state -> state.stack.mapNotNull { it.deleteOutcome?.takeIf(::confirmsAnyGone) } }
                 .distinctUntilChanged()
-                .collect(continueWatching::removed)
+                .collect { deletes ->
+                    continueWatching.removed(deletes)
+                    deletes.filter { watchNextHandledDeletes.add(it.requestId) }
+                        .flatMap { it.confirmedGone() }
+                        .forEach { watchNext.fileGone(it.value) }
+                }
         }
         scope.launch {
             files.state
@@ -398,10 +405,12 @@ internal class TvSession internal constructor(
         // Started lazily so the write is registered before its body can run and compare itself.
         val job = scope.launch(start = CoroutineStart.LAZY) {
             dismissFileActionFailure()
-            val result = if (watched) {
-                watchedRepository.setPosition(item.id, seconds)
-            } else {
-                watchedRepository.clearPosition(item.id)
+            val result = playbackReporting.supersede(item.id.value) {
+                if (watched) {
+                    watchedRepository.setPosition(item.id, seconds)
+                } else {
+                    watchedRepository.clearPosition(item.id)
+                }
             }
             // Cancellation is cooperative: a superseded write that still returns must not
             // settle the row or report, so only the write still registered for the file does.

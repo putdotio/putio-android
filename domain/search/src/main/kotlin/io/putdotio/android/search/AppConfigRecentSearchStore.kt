@@ -3,9 +3,11 @@ package io.putdotio.android.search
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
 import io.putdotio.android.putioRequest
+import io.putdotio.android.toScopedFailure
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.config.AppConfig
 import io.putdotio.sdk.config.AppConfigUpdate
+import io.putdotio.sdk.errors.PutioException
 import java.io.Closeable
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -96,7 +98,7 @@ public class AppConfigRecentSearchStore(
     }
 
     private suspend fun loadConfigOrNull(): RecentSearchConfig? =
-        when (val result = putioRequest { loadConfig() }) {
+        when (val result = putioRequest(PutioException::toScopedFailure) { loadConfig() }) {
             is PutioResult.Success -> result.value.also { writes.failure.value = null }
             is PutioResult.Failure -> {
                 writes.failure.value = result.failure
@@ -106,12 +108,13 @@ public class AppConfigRecentSearchStore(
 
     private suspend fun reload(): Boolean = loadConfigOrNull()?.also(writes::load) != null
 
+    // Another client may have changed the history since it loaded, so each edit applies to what
+    // the server holds now: turning it off clears that, and a recorded term keeps the others.
     private suspend fun apply(edit: RecentSearchMutation): Boolean {
+        if (!reload()) return false
         val terms = writes.storedTerms
         return when (edit) {
-            // Another client may have changed the history since it loaded; turning it off
-            // must clear what the server holds now, and turning it on must keep it.
-            is RecentSearchMutation.SetEnabled -> reload() && writes.writeEnabled(edit.enabled)
+            is RecentSearchMutation.SetEnabled -> writes.writeEnabled(edit.enabled)
             is RecentSearchMutation.Record ->
                 writes.editTerms((listOf(edit.term) + terms.filterNot { it == edit.term }).take(MAX_RECENT_SEARCHES))
             is RecentSearchMutation.Remove -> writes.editTerms(terms.filterNot { it == edit.term })
@@ -164,7 +167,7 @@ private class RecentSearchWrites(
     ): Boolean {
         val previous = stored
         publish(next)
-        return when (val result = putioRequest { save() }) {
+        return when (val result = putioRequest(PutioException::toScopedFailure) { save() }) {
             is PutioResult.Success -> {
                 failure.value = null
                 true

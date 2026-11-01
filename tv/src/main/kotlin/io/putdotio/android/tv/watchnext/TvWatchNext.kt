@@ -66,6 +66,9 @@ internal class TvWatchNext(
     /** Users whose cards this process has reconciled; guarded by [lock]. */
     private val reconciledUsers = mutableSetOf<Long>()
 
+    /** How many changes this process applied to each card; guarded by [lock]. */
+    private val cardChanges = mutableMapOf<TvWatchNextOwner, Int>()
+
     init {
         scope.launch {
             authState.mapNotNull(::ownerOf).distinctUntilChanged().collect { owner ->
@@ -87,21 +90,26 @@ internal class TvWatchNext(
         override fun positionSaved(media: TvWatchNextMedia, positionSeconds: Double) {
             val change = watchNextChange(media, positionSeconds)
             if (change == TvWatchNextChange.None) return
-            scope.launch { whileCurrent { apply(change, engagedAtMillis = clock()) } }
+            scope.launch { whileCurrent { applyNewer(media.fileId, change, engagedAtMillis = clock()) } }
         }
 
         override fun fileGone(fileId: Long) {
-            scope.launch { whileCurrent { apply(TvWatchNextChange.Remove(fileId), engagedAtMillis = null) } }
+            val change = TvWatchNextChange.Remove(fileId)
+            scope.launch { whileCurrent { applyNewer(fileId, change, engagedAtMillis = null) } }
         }
 
         override suspend fun reconcile(
             resolve: suspend (FilesItemId) -> PutioResult<FilesItem>,
         ): PutioFailure.AuthenticationRequired? {
             val cards = whileCurrent {
-                if (reconciledUsers.add(userId)) store.programs().filter { it.owner?.userId == userId } else null
+                if (reconciledUsers.add(userId)) {
+                    store.programs().filter { it.owner?.userId == userId }.map { it to changesOf(it.program.fileId) }
+                } else {
+                    null
+                }
             }.orEmpty()
-            for (card in cards) {
-                val verdict = reconcile(card, resolve(FilesItemId(card.program.fileId)))
+            for ((card, changes) in cards) {
+                val verdict = reconcile(card, changes, resolve(FilesItemId(card.program.fileId)))
                 if (verdict != null) return verdict
             }
             return null
@@ -109,6 +117,7 @@ internal class TvWatchNext(
 
         private suspend fun reconcile(
             card: TvStoredWatchNextProgram,
+            changesBeforeRead: Int,
             result: PutioResult<FilesItem>,
         ): PutioFailure.AuthenticationRequired? {
             val change = when (result) {
@@ -122,8 +131,21 @@ internal class TvWatchNext(
                     else -> null
                 }
             }
-            change?.let { whileCurrent { apply(it, engagedAtMillis = card.engagedAtMillis) } }
+            change?.let {
+                whileCurrent {
+                    if (changesOf(card.program.fileId) == changesBeforeRead) {
+                        apply(it, engagedAtMillis = card.engagedAtMillis)
+                    }
+                }
+            }
             return null
+        }
+
+        private fun changesOf(fileId: Long): Int = cardChanges[TvWatchNextOwner(userId, fileId)] ?: 0
+
+        private suspend fun applyNewer(fileId: Long, change: TvWatchNextChange, engagedAtMillis: Long?) {
+            cardChanges[TvWatchNextOwner(userId, fileId)] = changesOf(fileId) + 1
+            apply(change, engagedAtMillis)
         }
 
         private suspend fun <T> whileCurrent(block: suspend () -> T): T? =
