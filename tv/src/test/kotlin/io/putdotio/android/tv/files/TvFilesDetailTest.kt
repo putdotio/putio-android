@@ -25,9 +25,7 @@ class TvFilesDetailTest {
 
     @Test
     fun theDetailShowsAVeryLongNameUncutAboveItsActions() {
-        val name = "The.Very.Long.Release.Name.Of.A.Documentary.Series.About.Deep.Sea.Creatures." +
-            "Season.01.Episode.07.The.Midnight.Zone.And.What.Lives.There.2160p.WEB-DL.DDP5.1.Atmos." +
-            "DV.HDR10Plus.HEVC-SOMEGROUP.Director.Cut.Extended.Edition.mkv"
+        val name = List(EPISODES) { "Deep.Sea.Creatures.S01E0$it.The.Midnight.Zone" }.joinToString(".") + ".mkv"
         compose.setTvContent {
             TvFilesScreen(
                 state = ready(item(1, name, PutioFileType.VIDEO)),
@@ -43,5 +41,6 @@ class TvFilesDetailTest {
 
     private companion object {
         val DETAIL_TITLE_LINE = 22.dp
+        const val EPISODES = 9
     }
 }

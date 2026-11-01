@@ -18,17 +18,17 @@ internal fun HistoryState.refresh(): HistoryTransition {
 
 internal fun HistoryState.refreshSucceeded(ready: HistoryContent.Ready?, page: HistoryPage): HistoryTransition {
     val fresh = page.items.distinctBy(HistoryItem::id)
-    val oldest = fresh.lastOrNull()?.id?.value
-    val freshIds = fresh.mapTo(HashSet(), HistoryItem::id)
-    val older = if (ready == null || oldest == null || !page.hasMore) {
-        emptyList()
-    } else {
-        ready.items.filter { it.id.value < oldest && it.id !in freshIds }
-    }
+    val older = if (page.hasMore) ready?.olderThan(fresh).orEmpty() else emptyList()
     val refreshed = if (older.isEmpty() || ready == null) {
         copy(content = fresh.toContent(page.hasMore), consumedBefore = emptySet())
     } else {
         copy(content = ready.copy(items = fresh + older))
     }
     return HistoryTransition(refreshed.copy(refreshing = null))
+}
+
+private fun HistoryContent.Ready.olderThan(fresh: List<HistoryItem>): List<HistoryItem> {
+    val oldest = fresh.lastOrNull()?.id?.value?.takeIf { it <= items.first().id.value } ?: return emptyList()
+    val freshIds = fresh.mapTo(HashSet(), HistoryItem::id)
+    return items.filter { it.id.value < oldest && it.id !in freshIds }
 }
