@@ -1,5 +1,7 @@
 package io.putdotio.android.tv.player
 
+import io.putdotio.android.playback.PlaybackTarget
+
 internal data class TvPlayerOverlay(
     val controlsVisible: Boolean = true,
     val scrub: TvScrub? = null,
@@ -8,6 +10,8 @@ internal data class TvPlayerOverlay(
     val focus: TvPlayerControl = TvPlayerControl.PlayPause,
     val sheet: TvPlayerSheet? = null,
     val backFromSizeAndTiming: Boolean = false,
+    val upNext: Boolean = false,
+    val awaitingUpNext: Boolean = false,
 )
 
 internal enum class TvPlayerSheet { Audio, Subtitles, Speed, SizeAndTiming }
@@ -24,6 +28,8 @@ internal sealed interface TvPlayerCommand {
     data object PlayNext : TvPlayerCommand
 
     data object ChooseNext : TvPlayerCommand
+
+    data class PlayChosen(val target: PlaybackTarget) : TvPlayerCommand
 }
 
 internal data class TvPlayerTransition(
@@ -35,10 +41,10 @@ internal fun TvPlayerOverlay.reveal(): TvPlayerTransition =
     TvPlayerTransition(copy(controlsVisible = true, activity = activity + 1))
 
 internal fun TvPlayerOverlay.hideTimedOut(): TvPlayerTransition =
-    TvPlayerTransition(if (scrub == null && sheet == null) hidden() else this)
+    TvPlayerTransition(if (scrub == null && sheet == null && !upNextPending) hidden() else this)
 
 internal val TvPlayerOverlay.autoHides: Boolean
-    get() = controlsVisible && scrub == null && sheet == null
+    get() = controlsVisible && scrub == null && sheet == null && !upNextPending
 
 internal fun TvPlayerOverlay.select(playing: Boolean): TvPlayerTransition {
     if (exited) return TvPlayerTransition(this)
@@ -82,6 +88,7 @@ internal fun TvPlayerOverlay.back(): TvPlayerTransition {
     val pending = scrub
     return when {
         exited -> TvPlayerTransition(this)
+        upNextPending -> cancelUpNext()
         sheet == TvPlayerSheet.SizeAndTiming ->
             TvPlayerTransition(
                 copy(sheet = TvPlayerSheet.Subtitles, backFromSizeAndTiming = true, activity = activity + 1),
@@ -96,14 +103,7 @@ internal fun TvPlayerOverlay.back(): TvPlayerTransition {
     }
 }
 
-internal fun TvPlayerOverlay.ended(autoplayNext: Boolean = false): TvPlayerTransition =
-    when {
-        exited -> TvPlayerTransition(this)
-        autoplayNext -> playNext()
-        else -> exit()
-    }
-
 private fun TvPlayerOverlay.hidden() = copy(controlsVisible = false, focus = TvPlayerControl.PlayPause)
 
-private fun TvPlayerOverlay.exit() =
+internal fun TvPlayerOverlay.exit() =
     TvPlayerTransition(copy(exited = true, scrub = null, sheet = null), listOf(TvPlayerCommand.Exit))

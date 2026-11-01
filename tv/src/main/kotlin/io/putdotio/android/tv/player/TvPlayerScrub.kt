@@ -50,7 +50,11 @@ internal fun TvPlayerOverlay.scrub(
 }
 
 internal fun TvPlayerOverlay.soughtElsewhere(): TvPlayerTransition =
-    TvPlayerTransition(if (scrub == null) this else copy(scrub = null, activity = activity + 1))
+    if (scrub == null && !upNextPending) {
+        TvPlayerTransition(this)
+    } else {
+        TvPlayerTransition(copy(scrub = null, upNext = false, awaitingUpNext = false, activity = activity + 1))
+    }
 
 private fun tooSoonToRepeat(previous: TvScrub?, press: TvScrubPress): Boolean =
     press.repeat && previous != null && press.atMillis - previous.lastPressAtMillis < TV_SCRUB_HOLD_REPEAT_MILLIS

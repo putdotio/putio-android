@@ -85,6 +85,7 @@ internal fun TvPlayerControls(
     chipLabels: TvPlayerChipLabels,
     focused: TvPlayerControl,
     modifier: Modifier = Modifier,
+    circles: Boolean = true,
 ) {
     var positionMillis by remember(player) {
         mutableLongStateOf(
@@ -126,7 +127,9 @@ internal fun TvPlayerControls(
     ) {
         Box(Modifier.fillMaxSize().tvPlayerEdges()) {
             TvPlayerTopBar(title, Modifier.align(Alignment.TopStart))
-            TvPlayerCircles(paused = paused, focused = focused, modifier = Modifier.align(Alignment.Center))
+            if (circles) {
+                TvPlayerCircles(paused = paused, focused = focused, modifier = Modifier.align(Alignment.Center))
+            }
             Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth()) {
                 TvPlayerTimes(
                     elapsed = elapsed,

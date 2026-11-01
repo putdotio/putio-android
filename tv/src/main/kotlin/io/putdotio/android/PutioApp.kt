@@ -1,6 +1,5 @@
 package io.putdotio.android
 
-import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -54,7 +53,7 @@ import io.putdotio.android.settings.authoritativeSessionFailure
 import io.putdotio.android.settings.confirmedHistoryEnabled
 import io.putdotio.android.settings.confirmedResumePlayback
 import io.putdotio.android.settings.confirmedTrashEnabled
-import io.putdotio.android.tv.files.launchVlc
+import io.putdotio.android.tv.files.openInVlc
 import io.putdotio.android.tv.files.tvMessageText
 import androidx.compose.ui.platform.LocalContext
 import io.putdotio.android.trash.TrashContent
@@ -63,6 +62,7 @@ import io.putdotio.android.playback.SdkPlaybackPositionRepository
 import io.putdotio.android.playback.ConvertingPlaybackRepository
 import io.putdotio.android.tv.player.TvPlaybackLayer
 import io.putdotio.android.tv.player.TvPlaybackRoute
+import io.putdotio.android.tv.player.openPlaybackInVlc
 import io.putdotio.android.tv.account.TvAccountScreen
 import io.putdotio.android.tv.TvDestination
 import io.putdotio.android.tv.returnDestination
@@ -95,6 +95,7 @@ import io.putdotio.android.tv.search.TvRecentSearchActions
 import io.putdotio.android.tv.search.TvSearchActions
 import io.putdotio.android.tv.search.TvSearchScreen
 import io.putdotio.android.tv.tvSessionViewModelFactory
+import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.launch
 import io.putdotio.android.settings.putioFailure
 
@@ -292,6 +293,7 @@ internal fun TvSessionShell(
     }
     val playback by session.playback.collectAsStateWithLifecycle()
     val subtitlesFirst by session.subtitlesFirst.requested.collectAsStateWithLifecycle()
+    val context = LocalContext.current
 
     TvPlaybackLayer(
         playing = playback != null,
@@ -307,6 +309,10 @@ internal fun TvSessionShell(
                     findNextEpisode = session.findNextVideo.takeIf { settingsState.nextEpisodeEnabled() },
                     subtitlesFirst = subtitlesFirst,
                     onSubtitlesShown = session.subtitlesFirst::shown,
+                    findUpNext = session.findNeighbours,
+                    openInVlc = { target ->
+                        session.originalStreamUrl(target.fileId).openPlaybackInVlc(context, target)
+                    },
                 )
             }
         },
@@ -472,8 +478,8 @@ private fun TvFilesPane(
         },
         onOpenInVlc = { item ->
             streamScope.launch {
-                val stream = session.originalStreamUrl(item)
-                filesNotice = stream.openInVlc(context, item)
+                val stream = session.originalStreamUrl(item.id)
+                filesNotice = stream.openInVlc(context, item.name, audio = item.type == PutioFileType.AUDIO) { null }
                 // A 401 is the session's verdict, which the session already holds.
                 streamFailure = (stream as? FilesStreamUrlResult.Failure)?.failure
                     ?.takeUnless { it is PutioFailure.AuthenticationRequired }
@@ -583,14 +589,6 @@ private fun filesNoticeMessage(linkNoticeShown: Boolean, filesNotice: Int?): Str
         stringResource(R.string.tv_files_vlc_missing_message)
     } else {
         null
-    }
-
-/** Hands a ready stream to VLC; the notice to show instead, if any. */
-private fun FilesStreamUrlResult.openInVlc(context: Context, item: FilesItem): Int? =
-    when (this) {
-        is FilesStreamUrlResult.Ready -> R.string.tv_files_vlc_missing.takeUnless { launchVlc(context, url, item) }
-        FilesStreamUrlResult.DownloadTokenUnavailable -> R.string.tv_files_stream_unavailable
-        is FilesStreamUrlResult.Failure -> null
     }
 
 private fun TvUndoFailure?.shown(): Boolean = this != null && failure !is PutioFailure.AuthenticationRequired

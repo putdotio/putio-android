@@ -4,6 +4,7 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -38,6 +39,7 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioRadius
@@ -47,6 +49,7 @@ import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesDeleteMode
 import io.putdotio.android.files.FilesFolderState
 import io.putdotio.android.files.FilesItem
+import io.putdotio.android.files.FilesStreamUrlResult
 import io.putdotio.android.files.canStartOperation
 import io.putdotio.android.files.formatFileSize
 import io.putdotio.android.files.toDisplayDate
@@ -386,15 +389,30 @@ internal fun TvFilesDeleteDialog(
     )
 }
 
+/** Hands a ready stream to VLC; the notice to show instead, if any. */
+@StringRes
+internal fun FilesStreamUrlResult.openInVlc(
+    context: Context,
+    name: String,
+    audio: Boolean,
+    failureNotice: (PutioFailure) -> Int?,
+): Int? =
+    when (this) {
+        is FilesStreamUrlResult.Ready ->
+            R.string.tv_files_vlc_missing.takeUnless { launchVlc(context, url, name, audio) }
+        FilesStreamUrlResult.DownloadTokenUnavailable -> R.string.tv_files_stream_unavailable
+        is FilesStreamUrlResult.Failure -> failureNotice(failure)
+    }
+
 /**
  * Hands the original file to VLC. False when VLC is not installed; the URL carries the
  * account's download token and goes only into the intent, never into a log or a message.
  */
-internal fun launchVlc(context: Context, streamUrl: String, item: FilesItem): Boolean {
+private fun launchVlc(context: Context, streamUrl: String, name: String, audio: Boolean): Boolean {
     val intent = Intent(Intent.ACTION_VIEW)
-        .setDataAndType(streamUrl.toUri(), if (item.type == PutioFileType.AUDIO) "audio/*" else "video/*")
+        .setDataAndType(streamUrl.toUri(), if (audio) "audio/*" else "video/*")
         .setPackage(VLC_PACKAGE)
-        .putExtra("title", item.name)
+        .putExtra("title", name)
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     return try {
         context.startActivity(intent)
