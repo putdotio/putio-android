@@ -296,7 +296,12 @@ private fun TvTrashHeader(
                 crumb = stringResource(R.string.tv_destination_account),
             )
             Spacer(Modifier.weight(1f))
-            Row(horizontalArrangement = Arrangement.spacedBy(HEADER_BUTTON_GAP), modifier = Modifier.focusGroup()) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(HEADER_BUTTON_GAP),
+                modifier = Modifier
+                    .padding(bottom = HEADER_BUTTON_LIFT)
+                    .focusGroup(),
+            ) {
                 TvTrashHeaderButton(
                     icon = R.drawable.ic_ph_arrow_u_up_left,
                     label = stringResource(R.string.tv_trash_restore_all),
@@ -364,6 +369,7 @@ private fun TvTrashStateNotices(
 private const val RETENTION_DAYS = "14"
 private val HEADER_HEIGHT = 76.dp
 private val HEADER_BUTTON_GAP = 8.dp
+private val HEADER_BUTTON_LIFT = 1.dp
 private val HEADER_BUTTON_LABEL = PutioTypeScale.tvButton.copy(fontSize = 11.sp)
 private val INFO_GAP = 4.dp
 private val INFO_LABEL = PutioTypeScale.tvLabel.withFullLineBox()
