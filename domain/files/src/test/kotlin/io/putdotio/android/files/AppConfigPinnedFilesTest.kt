@@ -67,6 +67,20 @@ class AppConfigPinnedFilesTest {
     }
 
     @Test
+    fun aRefusedWriteForAGoneFileIsNoFailedEdit() = runTest {
+        val pins = store()
+        advanceUntilIdle()
+        server.refuseWrites = true
+        pins.unpinGone(FilesItemId(7L))
+        advanceUntilIdle()
+
+        assertEquals(listOf(7L, 9L), pins.pins.value?.map { it.value })
+        assertTrue(pins.failure.value is PutioFailure.NetworkUnavailable)
+        assertNull(pins.editFailure.value)
+        pins.close()
+    }
+
+    @Test
     fun aFailedReadWaitsForReloadAndInvalidScopeIsNoSessionVerdict() = runTest {
         server.readFailure = apiException(401, "invalid_scope")
         val pins = store()

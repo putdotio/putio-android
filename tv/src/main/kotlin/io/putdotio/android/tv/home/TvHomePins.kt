@@ -107,7 +107,7 @@ internal class TvHomePins(
                     }
                     failure.isNotFound -> {
                         cards.remove(id)
-                        if (gone.add(id)) pins.unpin(id)
+                        if (gone.add(id)) pins.unpinGone(id)
                         Resolved.Gone
                     }
                     else -> cards[id]?.let(Resolved::Card) ?: Resolved.Failed(failure)

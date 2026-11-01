@@ -34,6 +34,8 @@ public interface PinnedFiles : Closeable {
 
     public fun unpin(id: FilesItemId)
 
+    public fun unpinGone(id: FilesItemId)
+
     public fun reload()
 
     public fun dismissEditFailure()
@@ -80,6 +82,10 @@ public class AppConfigPinnedFiles(
         commands.trySend(PinCommand.Edit(id, pinned = false))
     }
 
+    override fun unpinGone(id: FilesItemId) {
+        commands.trySend(PinCommand.Edit(id, pinned = false, userEdit = false))
+    }
+
     override fun reload() {
         commands.trySend(PinCommand.Reload)
     }
@@ -107,7 +113,7 @@ public class AppConfigPinnedFiles(
 
     private suspend fun edit(edit: PinCommand.Edit) {
         val current = read() ?: run {
-            mutableEditFailure.value = mutableFailure.value
+            if (edit.userEdit) mutableEditFailure.value = mutableFailure.value
             return
         }
         val next = if (edit.pinned) {
@@ -122,14 +128,14 @@ public class AppConfigPinnedFiles(
             is PutioResult.Failure -> {
                 mutablePins.value = current
                 mutableFailure.value = result.failure
-                mutableEditFailure.value = result.failure
+                if (edit.userEdit) mutableEditFailure.value = result.failure
             }
         }
     }
 }
 
 private sealed interface PinCommand {
-    data class Edit(val id: FilesItemId, val pinned: Boolean) : PinCommand
+    data class Edit(val id: FilesItemId, val pinned: Boolean, val userEdit: Boolean = true) : PinCommand
 
     data object Reload : PinCommand
 }

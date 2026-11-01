@@ -483,7 +483,7 @@ private fun TvFilesPane(
         pinnedIds = pins,
         onSetPinned = { item, pinned -> if (pinned) session.pins.pin(item.id) else session.pins.unpin(item.id) },
         onPickSubtitles = { item, start -> session.play(item, start, subtitlesFirst = true) },
-        onUndoTrash = session.trashUndo::undo,
+        trashUndo = session.trashUndoOffer,
         notice = linkNotice.text()
             ?: filesNoticeText(filesNotice, streamFailure, fileActionFailure, undoFailure, pinFailure),
         noticeMessage = filesNoticeMessage(linkNotice.shown, filesNotice),

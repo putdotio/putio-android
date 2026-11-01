@@ -20,6 +20,10 @@ public class FakePinnedFiles(initial: List<FilesItemId>? = emptyList()) : Pinned
         pins.value = pins.value.orEmpty().minus(id)
     }
 
+    override fun unpinGone(id: FilesItemId) {
+        unpin(id)
+    }
+
     override fun reload() {
         reloads++
     }

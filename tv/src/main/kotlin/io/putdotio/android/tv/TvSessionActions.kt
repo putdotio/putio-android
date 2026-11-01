@@ -9,6 +9,8 @@ import io.putdotio.android.files.FilesDeleteOutcome
 import io.putdotio.android.trash.TrashRepository
 import io.putdotio.android.trash.undoTrashMove
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -46,6 +48,30 @@ internal class TvTrashUndo(
 
     fun dismissFailure() {
         mutableFailure.update { it?.takeIf { undo -> undo.failure is PutioFailure.AuthenticationRequired } }
+    }
+}
+
+internal class TvTrashUndoOffer(
+    private val scope: CoroutineScope,
+    private val onUndo: (FilesDeleteOutcome) -> Unit,
+) {
+    private val mutableOffered = MutableStateFlow<FilesDeleteOutcome?>(null)
+    private var expiry: Job? = null
+
+    val offered: StateFlow<FilesDeleteOutcome?> = mutableOffered.asStateFlow()
+
+    fun offer(outcome: FilesDeleteOutcome) {
+        expiry?.cancel()
+        mutableOffered.value = outcome
+        expiry = scope.launch {
+            delay(SNACKBAR_MILLIS)
+            mutableOffered.compareAndSet(outcome, null)
+        }
+    }
+
+    fun undo(outcome: FilesDeleteOutcome) {
+        if (mutableOffered.compareAndSet(outcome, null)) expiry?.cancel()
+        onUndo(outcome)
     }
 }
 

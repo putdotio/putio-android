@@ -1,6 +1,9 @@
 package io.putdotio.android.tv.files
 
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import io.putdotio.android.tv.pressCenter
 import io.putdotio.android.tv.setTvContent
 import androidx.compose.runtime.mutableStateOf
@@ -46,7 +49,9 @@ import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import io.putdotio.android.files.copyForTest
+import io.putdotio.android.tv.SNACKBAR_MILLIS
 import io.putdotio.android.tv.TvPlayStart
+import io.putdotio.android.tv.TvTrashUndoOffer
 
 @OptIn(ExperimentalTestApi::class)
 @RunWith(AndroidJUnit4::class)
@@ -210,19 +215,14 @@ class TvFilesRowActionsTest {
     fun aConfirmedTrashMoveShowsMovedToTrashAndDownFromTheListReachesUndo() {
         val events = mutableListOf<FilesBrowserEvent>()
         val undone = mutableListOf<FilesDeleteOutcome>()
-        val gone = item(4, "old.mp4", PutioFileType.VIDEO)
-        val outcome = FilesDeleteOutcome(
-            FilesRequestId(5), FilesFolderOperationIntent.Delete(gone.id, FilesDeleteMode.TRASH), gone.name,
-            status = FilesDeleteStatus.NO_LONGER_AVAILABLE,
-        )
-        val trashed = ready(item(3, "notes.txt", PutioFileType.TEXT))
-            .let { it.copyForTest(stack = listOf(it.current.copy(deleteOutcome = outcome))) }
+        val outcome = trashedOutcome()
+        val trashed = ready(item(3, "notes.txt", PutioFileType.TEXT)).withOutcome(outcome)
         compose.setTvContent {
             TvFilesScreen(
                 state = trashed,
                 onEvent = { events += it; true },
                 onPlayMedia = {},
-                onUndoTrash = { undone += it },
+                trashUndo = rememberUndoOffer { undone += it },
             )
         }
 
@@ -239,6 +239,68 @@ class TvFilesRowActionsTest {
         compose.onAllNodesWithText("Moved to Trash").assertCountEquals(0)
         compose.onNodeWithContentDescription("notes.txt").assertIsFocused()
     }
+
+    @Test
+    fun downFromTheLastRowOfAFullFolderReachesUndo() {
+        val rows = (1L..30L).map { item(it, "file-$it.txt", PutioFileType.TEXT) }
+        compose.setTvContent {
+            TvFilesScreen(
+                state = ready(*rows.toTypedArray()).withOutcome(trashedOutcome()),
+                onEvent = { true },
+                onPlayMedia = {},
+                focusMemory = mutableMapOf(FilesFolder.Root.id.value to 30L),
+                trashUndo = rememberUndoOffer {},
+            )
+        }
+
+        compose.onNodeWithContentDescription("file-30.txt").assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionDown)
+        }
+        compose.onNode(hasText("Undo") and hasClickAction()).assertIsFocused()
+    }
+
+    @Test
+    fun undoOutlivesThePaneLeavingAndStillExpiresOnTime() {
+        val outcome = trashedOutcome()
+        var state by mutableStateOf(ready(item(3, "notes.txt", PutioFileType.TEXT)).withOutcome(outcome))
+        var shown by mutableStateOf(true)
+        compose.setTvContent {
+            val offer = rememberUndoOffer {}
+            if (shown) {
+                TvFilesScreen(
+                    state = state,
+                    onEvent = { event ->
+                        if (event is FilesBrowserEvent.DeleteOutcomeAnnounced) {
+                            state = state.withOutcome(event.outcome.copy(announced = true))
+                        }
+                        true
+                    },
+                    onPlayMedia = {},
+                    trashUndo = offer,
+                )
+            }
+        }
+
+        compose.onNodeWithText("Moved to Trash").assertIsDisplayed()
+        compose.runOnIdle { shown = false }
+        compose.mainClock.advanceTimeBy(SNACKBAR_MILLIS / 2)
+        compose.runOnIdle { shown = true }
+        compose.onNodeWithText("Moved to Trash").assertIsDisplayed()
+        compose.onNode(hasText("Undo") and hasClickAction()).assertIsDisplayed()
+        compose.mainClock.advanceTimeBy(SNACKBAR_MILLIS / 2 + 500)
+        compose.onAllNodesWithText("Moved to Trash").assertCountEquals(0)
+    }
+
+    private fun trashedOutcome(): FilesDeleteOutcome {
+        val gone = item(4, "old.mp4", PutioFileType.VIDEO)
+        return FilesDeleteOutcome(
+            FilesRequestId(5), FilesFolderOperationIntent.Delete(gone.id, FilesDeleteMode.TRASH), gone.name,
+            status = FilesDeleteStatus.NO_LONGER_AVAILABLE,
+        )
+    }
+
+    private fun FilesBrowserState.withOutcome(outcome: FilesDeleteOutcome): FilesBrowserState =
+        copyForTest(stack = listOf(current.copy(deleteOutcome = outcome)))
 
     @Test
     fun aTrashPressMadeBeforeTrashTurnedOffReachedTheMenuSendsNothing() {
@@ -408,4 +470,10 @@ class TvFilesRowActionsTest {
     private fun setConfirmedTrashScreen(current: () -> FilesBrowserState, events: MutableList<FilesBrowserEvent>) {
         compose.showFiles(state = { current() }, onEvent = { events += it; true }, confirmedTrashEnabled = { true })
     }
+}
+
+@Composable
+private fun rememberUndoOffer(onUndo: (FilesDeleteOutcome) -> Unit): TvTrashUndoOffer {
+    val scope = rememberCoroutineScope()
+    return remember { TvTrashUndoOffer(scope, onUndo) }
 }

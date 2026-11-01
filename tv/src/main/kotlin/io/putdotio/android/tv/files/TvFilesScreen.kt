@@ -21,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.State
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -86,6 +87,7 @@ import io.putdotio.android.tv.TvButtonStyle
 import io.putdotio.android.tv.TvSnackbarHost
 import io.putdotio.android.tv.TvSnackbarMessage
 import io.putdotio.android.tv.TvSnackbarState
+import io.putdotio.android.tv.TvTrashUndoOffer
 import io.putdotio.android.files.FilesItemId
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.withFrameNanos
@@ -112,7 +114,7 @@ internal fun TvFilesScreen(
     pinnedIds: List<FilesItemId>? = null,
     onSetPinned: (FilesItem, Boolean) -> Unit = { _, _ -> },
     onPickSubtitles: (FilesItem, TvPlayStart) -> Unit = { _, _ -> },
-    onUndoTrash: ((FilesDeleteOutcome) -> Unit)? = null,
+    trashUndo: TvTrashUndoOffer? = null,
     /** An explanation from outside the browser (a failed watched write, no VLC); OK dismisses it. */
     notice: String? = null,
     noticeMessage: String? = null,
@@ -125,7 +127,6 @@ internal fun TvFilesScreen(
     focusMemory: MutableMap<Long, Long> = remember(sessionKey) { mutableMapOf() },
     onPlay: (FilesItem, TvPlayStart) -> Unit = { item, _ -> onPlayMedia(item) },
     resumePlayback: Boolean = true,
-    /** False when the account's Show subtitles is off: the player offers no subtitle choice then. */
     showSubtitles: Boolean = true,
     detailSources: TvFilesDetailSources = remember(sessionKey) { TvFilesDetailSources.None },
 ) {
@@ -190,6 +191,9 @@ internal fun TvFilesScreen(
         }
     }
     val dialogOpen = actionsItem != null || notice != null
+    val snackbar = remember(sessionKey) { TvSnackbarState() }
+    val undoFocus = remember { FocusRequester() }
+    val downToUndo = undoFocus.takeIf { snackbar.showing?.message?.actionLabel != null }
     val sortFocus = remember { FocusRequester() }
     val content = current.content
     // The shell asks the pane for focus on entry. A Column is not a target itself, so the
@@ -268,6 +272,7 @@ internal fun TvFilesScreen(
                             headerHasFocus = headerHasFocus,
                             detailOwnsFocus = detailFocus.owns,
                             skeletonFocus = skeletonFocus,
+                            downToUndo = downToUndo,
                             onEntryTarget = { listEntry.value = it },
                             modifier = Modifier.weight(1f),
                             onEvent = onEvent,
@@ -297,7 +302,7 @@ internal fun TvFilesScreen(
                 )
             }
         }
-        TvFilesTrashSnackbar(current, sessionKey, onEvent, onUndoTrash, refocus = entryTarget)
+        TvFilesTrashSnackbar(current, snackbar, onEvent, trashUndo, undoFocus, refocus = entryTarget)
     }
 
     if (notice != null) {
@@ -426,6 +431,7 @@ private fun TvFilesRows(
     headerHasFocus: State<Boolean>,
     detailOwnsFocus: State<Boolean>,
     skeletonFocus: FocusRequester,
+    downToUndo: FocusRequester?,
     onEntryTarget: (FocusRequester) -> Unit,
     onEvent: (FilesBrowserEvent) -> Boolean,
     onOpen: (FilesItem) -> Unit,
@@ -443,6 +449,7 @@ private fun TvFilesRows(
             paneHasFocus = paneHasFocus,
             headerHasFocus = headerHasFocus,
             detailOwnsFocus = detailOwnsFocus,
+            downFromLast = downToUndo,
             onEntryTarget = onEntryTarget,
             modifier = modifier,
             onEvent = onEvent,
@@ -874,7 +881,7 @@ private fun TvFilesTrashedAnnouncement(
     current: FilesFolderState,
     snackbar: TvSnackbarState,
     onEvent: (FilesBrowserEvent) -> Boolean,
-    onUndoTrash: ((FilesDeleteOutcome) -> Unit)?,
+    trashUndo: TvTrashUndoOffer?,
 ) {
     val trashed = current.deleteOutcome?.takeIf {
         current.operation == FilesFolderOperation.Idle && it.isConfirmedTrash && !it.announced
@@ -882,30 +889,33 @@ private fun TvFilesTrashedAnnouncement(
     val text = stringResource(R.string.tv_files_trashed)
     val undo = stringResource(R.string.tv_files_undo)
     val currentOnEvent by rememberUpdatedState(onEvent)
-    val currentOnUndo by rememberUpdatedState(onUndoTrash)
     LaunchedEffect(trashed?.requestId) {
         val outcome = trashed ?: return@LaunchedEffect
-        snackbar.show(
-            TvSnackbarMessage(
-                text = text,
-                actionLabel = undo.takeIf { currentOnUndo != null },
-                onAction = { currentOnUndo?.invoke(outcome) },
-            ),
-        )
+        if (trashUndo != null) trashUndo.offer(outcome) else snackbar.show(TvSnackbarMessage(text = text))
         currentOnEvent(FilesBrowserEvent.DeleteOutcomeAnnounced(outcome))
+    }
+    if (trashUndo == null) return
+    val offered by trashUndo.offered.collectAsState()
+    LaunchedEffect(offered) {
+        val outcome = offered
+        if (outcome == null) {
+            snackbar.dismiss()
+        } else {
+            snackbar.show(TvSnackbarMessage(text = text, actionLabel = undo, onAction = { trashUndo.undo(outcome) }))
+        }
     }
 }
 
 @Composable
 private fun BoxScope.TvFilesTrashSnackbar(
     current: FilesFolderState,
-    sessionKey: Any?,
+    snackbar: TvSnackbarState,
     onEvent: (FilesBrowserEvent) -> Boolean,
-    onUndoTrash: ((FilesDeleteOutcome) -> Unit)?,
+    trashUndo: TvTrashUndoOffer?,
+    undoFocus: FocusRequester,
     refocus: State<FocusRequester>,
 ) {
-    val snackbar = remember(sessionKey) { TvSnackbarState() }
-    TvFilesTrashedAnnouncement(current, snackbar, onEvent, onUndoTrash)
+    TvFilesTrashedAnnouncement(current, snackbar, onEvent, trashUndo)
     var undoFocused by remember { mutableStateOf(false) }
     val showing = snackbar.showing
     LaunchedEffect(showing) {
@@ -921,7 +931,9 @@ private fun BoxScope.TvFilesTrashSnackbar(
             .align(Alignment.BottomStart)
             .padding(bottom = SNACKBAR_BOTTOM),
         actionSize = TvButtonSize.Snackbar,
-        actionModifier = Modifier.onFocusChanged { if (snackbar.showing != null) undoFocused = it.isFocused },
+        actionModifier = Modifier
+            .focusRequester(undoFocus)
+            .onFocusChanged { if (snackbar.showing != null) undoFocused = it.isFocused },
     )
 }
 

@@ -193,6 +193,8 @@ internal class TvSession internal constructor(
 
     val trashUndo = TvTrashUndo(dependencies.trashRepository, files, scope)
 
+    val trashUndoOffer = TvTrashUndoOffer(scope, trashUndo::undo)
+
     val homePins = TvHomePins(pins, dependencies.filesItemResolver, dependencies.folderCounts, scope)
 
     internal val positionSaved: (fileId: Long, seconds: Double) -> Unit = { fileId, seconds ->

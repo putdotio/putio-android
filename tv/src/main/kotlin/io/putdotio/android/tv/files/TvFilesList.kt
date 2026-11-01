@@ -24,6 +24,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
@@ -47,6 +48,7 @@ internal fun TvFilesList(
     paneHasFocus: State<Boolean>,
     headerHasFocus: State<Boolean>,
     detailOwnsFocus: State<Boolean>,
+    downFromLast: FocusRequester?,
     onEntryTarget: (FocusRequester) -> Unit,
     onEvent: (FilesBrowserEvent) -> Boolean,
     onOpen: (FilesItem) -> Unit,
@@ -144,6 +146,7 @@ internal fun TvFilesList(
         listState.reportViewport(viewport) { currentOnEvent(FilesBrowserEvent.ViewportChanged(it)) }
     }
 
+    val lastRowId = content.items.last().id.takeIf { content.paging == FilesPaging.Complete }
     RevealOnlyHiddenRows {
         LazyColumn(
             state = listState,
@@ -159,6 +162,7 @@ internal fun TvFilesList(
                     onClick = { onOpen(item) },
                     onActions = { onActions(item) },
                     modifier = Modifier
+                        .downTo(downFromLast.takeIf { item.id == lastRowId })
                         .focusRequesterIf(item.id.value == focusTarget, rowFocus)
                         .focusRequesterIf(item.id.value == focusedRowId.value, liveRowFocus)
                         .onFocusChanged {
@@ -178,6 +182,7 @@ internal fun TvFilesList(
                         enabled = pagingEnabled,
                         onEvent = onEvent,
                         buttonModifier = Modifier
+                            .downTo(downFromLast)
                             .focusRequester(listPagingFocus)
                             .onFocusChanged {
                                 if (it.isFocused) {
@@ -191,6 +196,9 @@ internal fun TvFilesList(
         }
     }
 }
+
+private fun Modifier.downTo(target: FocusRequester?): Modifier =
+    if (target == null) this else focusProperties { down = target }
 
 private fun FilesPaging.listEntryFocus(
     pagingHeld: Boolean,

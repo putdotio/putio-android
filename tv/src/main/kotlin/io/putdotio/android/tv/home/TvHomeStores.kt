@@ -90,6 +90,8 @@ internal object TvNoPinnedFiles : PinnedFiles {
 
     override fun unpin(id: FilesItemId) = Unit
 
+    override fun unpinGone(id: FilesItemId) = Unit
+
     override fun reload() = Unit
 
     override fun dismissEditFailure() = Unit
