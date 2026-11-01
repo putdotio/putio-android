@@ -264,6 +264,20 @@ class TvPlayerAutoplayTest {
     @Test
     fun aSeekOnTheCountdownsLastFrameStillCancelsUpNext() {
         val players = showUpNext()
+        cancelOnTheLastFrame(players) { compose.runOnIdle { players.single().seekTo(0L) } }
+    }
+
+    @Test
+    fun aCancelOnTheCountdownsLastFramePlaysNothing() {
+        var exits = 0
+        val players = showUpNext(onExit = { exits += 1 })
+        cancelOnTheLastFrame(players) {
+            compose.onNodeWithText("Cancel").performSemanticsAction(SemanticsActions.OnClick)
+        }
+        compose.runOnIdle { assertEquals(0, exits) }
+    }
+
+    private fun cancelOnTheLastFrame(players: List<FakePlayer>, cancel: () -> Unit) {
         var frames = 0
         while (compose.onAllNodesWithText("Playing in 9").fetchSemanticsNodes().isEmpty()) {
             compose.mainClock.advanceTimeByFrame()
@@ -277,7 +291,7 @@ class TvPlayerAutoplayTest {
         }
         compose.runOnIdle { assertEquals("Nothing plays before the last frame", 1, players.size) }
 
-        compose.runOnIdle { players.single().seekTo(0L) }
+        cancel()
         compose.mainClock.advanceTimeByFrame()
         compose.settle()
         compose.onNodeWithTag(TV_UP_NEXT_TAG).assertDoesNotExist()

@@ -188,7 +188,7 @@ private fun TvUpNextCard(
                 .align(Alignment.BottomEnd)
                 .padding(bottom = UP_NEXT_ABOVE_CONTROLS)
                 .width(UP_NEXT_WIDTH)
-                .clip(RoundedCornerShape(PutioRadius.medium))
+                .clip(RoundedCornerShape(PutioRadius.large))
                 .background(UP_NEXT_FILL)
                 .padding(UP_NEXT_PADDING)
                 .testTag(TV_UP_NEXT_TAG),
