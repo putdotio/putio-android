@@ -139,6 +139,10 @@ Open pull requests against `main`. A merge runs only
 [Google Play Internal](.github/workflows/play-internal.yml) uploads both
 bundles and tags `v<version>`; [Google Play Release](.github/workflows/play-release.yml)
 promotes or changes the rollout. Their inputs own the options.
+[Google Play Data Safety](.github/workflows/play-data-safety.yml) replaces the
+listing's Data safety answers with `play/data-safety.csv`;
+Google can't read them back, so a change to what the apps collect edits that
+file in the same pull request.
 
 - Every dispatch, `dry_run` included, needs Altay's OK: it loads the `release`
   Environment's secrets.
