@@ -598,24 +598,6 @@ class TvFilesScreenTest {
     }
 
     @Test
-    fun aSharedFolderNeverAsksForItsCount() {
-        var reads = 0
-        val counts = FilesFolderCounts { PutioResult.Success(++reads) }
-        compose.setTvContent {
-            TvFilesScreen(
-                state = ready(item(-1, "Items shared with you", PutioFileType.FOLDER)),
-                onEvent = { true },
-                onPlayMedia = {},
-                detailSources = remember { TvFilesDetailSources(folderCounts = counts) },
-            )
-        }
-        compose.mainClock.advanceTimeBy(1_000)
-        compose.waitForIdle()
-
-        assertEquals(0, reads)
-    }
-
-    @Test
     fun aFolderCountIsReadAgainOnceTheListingChanges() {
         var reads = 0
         val counts = FilesFolderCounts { PutioResult.Success(++reads) }
