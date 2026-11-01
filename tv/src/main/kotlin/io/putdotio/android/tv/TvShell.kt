@@ -66,6 +66,7 @@ internal fun TvShell(
     account: TvAccount,
     onSignOut: () -> Unit,
     modifier: Modifier = Modifier,
+    homePane: @Composable (paneFocus: FocusRequester) -> Unit = { TvHomePlaceholderPane(it) },
     filesPane: @Composable (paneFocus: FocusRequester) -> Unit = {
         TvPlaceholderPane(R.string.tv_placeholder_files, it)
     },
@@ -80,15 +81,19 @@ internal fun TvShell(
     onDestinationRequestHandled: () -> Unit = {},
     /** Files' own Back step, such as leaving a folder; null when Files has none. */
     onFilesBack: (() -> Unit)? = null,
+    showHome: Boolean = true,
+    focusHomePane: Boolean = false,
 ) {
-    var destination by rememberSaveable { mutableStateOf(TvDestination.Home) }
+    val start = if (showHome) TvDestination.Home else TvDestination.Files
+    var destination by rememberSaveable { mutableStateOf(start) }
     var tabBarHasFocus by remember { mutableStateOf(false) }
     val paneReleased = remember { mutableStateOf(false) }
     var focusPaneOf by remember { mutableStateOf<TvDestination?>(destination) }
     val tabFocus = remember { TvDestination.entries.associateWith { FocusRequester() } }
     val paneFocus = remember { FocusRequester() }
     val paneStates = rememberSaveableStateHolder()
-    val panes = TvShellPanes(filesPane, searchPane, historyPane, accountPane)
+    val panes = TvShellPanes(homePane, filesPane, searchPane, historyPane, accountPane)
+    val tabs = TvDestination.entries.filter { showHome || it != TvDestination.Home }
 
     // Registered before any pane composes, so each pane's own Back handlers take precedence.
     BackHandler(enabled = !tabBarHasFocus) {
@@ -100,11 +105,15 @@ internal fun TvShell(
     }
     LaunchedEffect(requestedDestination) {
         if (requestedDestination != null) {
-            destination = requestedDestination
-            focusPaneOf = requestedDestination
+            val shown = requestedDestination.within(tabs, start)
+            destination = shown
+            focusPaneOf = shown
             paneReleased.value = false
             onDestinationRequestHandled()
         }
+    }
+    LaunchedEffect(showHome) {
+        if (!showHome && destination == TvDestination.Home) destination = TvDestination.Files
     }
     LaunchedEffect(destination) { ProductAnalytics.capture(AnalyticsEvent.ScreenViewed(destination.analyticsScreen)) }
 
@@ -115,6 +124,7 @@ internal fun TvShell(
             .tvSafeAreaPadding(),
     ) {
         TvTabBar(
+            tabs = tabs,
             selected = destination,
             tabFocus = tabFocus,
             onSelect = {
@@ -143,8 +153,8 @@ internal fun TvShell(
 
     if (tabBarHasFocus) {
         key(destination) {
-            BackHandler(enabled = destination != TvDestination.Home) {
-                tabFocus.getValue(TvDestination.Home).requestFocus()
+            BackHandler(enabled = destination != start) {
+                tabFocus.getValue(start).requestFocus()
             }
         }
     }
@@ -153,19 +163,25 @@ internal fun TvShell(
     LaunchedEffect(shown, focusWanted) {
         if (focusWanted && focusPaneOf == shown) {
             focusPaneOf = null
-            if (shown == TvDestination.Home) {
-                tabFocus.getValue(shown).requestFocus()
-            } else {
-                paneFocus.requestFocus()
-            }
+            shown.entryFocus(focusHomePane, tabFocus, paneFocus).requestFocus()
         }
     }
 }
+
+private fun TvDestination.within(tabs: List<TvDestination>, start: TvDestination): TvDestination =
+    if (this in tabs) this else start
+
+private fun TvDestination.entryFocus(
+    focusHomePane: Boolean,
+    tabFocus: Map<TvDestination, FocusRequester>,
+    paneFocus: FocusRequester,
+): FocusRequester = if (this == TvDestination.Home && !focusHomePane) tabFocus.getValue(this) else paneFocus
 
 private fun tabBarEntry(direction: FocusDirection, selectedTab: FocusRequester): FocusRequester =
     if (direction == FocusDirection.Enter) FocusRequester.Default else selectedTab
 
 private class TvShellPanes(
+    val home: @Composable (paneFocus: FocusRequester) -> Unit,
     val files: @Composable (paneFocus: FocusRequester) -> Unit,
     val search: @Composable (paneFocus: FocusRequester) -> Unit,
     val history: @Composable (paneFocus: FocusRequester) -> Unit,
@@ -174,7 +190,7 @@ private class TvShellPanes(
     @Composable
     fun Pane(destination: TvDestination, paneFocus: FocusRequester) {
         when (destination) {
-            TvDestination.Home -> TvHomePlaceholderPane()
+            TvDestination.Home -> home(paneFocus)
             TvDestination.Files -> files(paneFocus)
             TvDestination.Search -> search(paneFocus)
             TvDestination.History -> history(paneFocus)
@@ -185,6 +201,7 @@ private class TvShellPanes(
 
 @Composable
 private fun TvTabBar(
+    tabs: List<TvDestination>,
     selected: TvDestination,
     tabFocus: Map<TvDestination, FocusRequester>,
     onSelect: (TvDestination) -> Unit,
@@ -206,16 +223,14 @@ private fun TvTabBar(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            TvDestination.entries.forEach { entry ->
+            tabs.forEach { entry ->
                 TvTab(
                     destination = entry,
                     selected = entry == selected,
                     onFocused = { if (entry != selected) onSelect(entry) },
                     modifier = Modifier
                         .focusRequester(tabFocus.getValue(entry))
-                        .focusProperties {
-                            down = if (entry == TvDestination.Home) FocusRequester.Cancel else paneFocus
-                        },
+                        .focusProperties { down = paneFocus },
                 )
             }
         }
@@ -280,8 +295,8 @@ private fun TvTab(
 }
 
 @Composable
-private fun TvHomePlaceholderPane() {
-    Box(modifier = Modifier.fillMaxSize()) {
+private fun TvHomePlaceholderPane(paneFocus: FocusRequester) {
+    Box(modifier = Modifier.fillMaxSize().focusRequester(paneFocus).focusGroup()) {
         Text(
             text = stringResource(R.string.tv_placeholder_home),
             style = MaterialTheme.typography.bodyLarge,

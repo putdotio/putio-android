@@ -16,22 +16,22 @@ import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
 
-/** A video started on this device and not yet finished, as the Files root's Continue watching row shows it. */
-internal data class ContinueWatchingEntry(
+/** A video started on this device and not yet finished, as a Continue watching row shows it. */
+public data class ContinueWatchingEntry(
     val fileId: FilesItemId,
     val name: String,
     val positionSeconds: Double,
     val durationSeconds: Double,
     val watchedAt: Long,
 ) {
-    val fraction: Float
+    public val fraction: Float
         get() = (positionSeconds / durationSeconds).coerceIn(0.0, 1.0).toFloat()
 
-    val remainingSeconds: Long
+    public val remainingSeconds: Long
         get() = (durationSeconds - positionSeconds).coerceAtLeast(0.0).toLong()
 
     /** Enough of a Files item to open the player, which offers to resume from the saved position. */
-    fun toFilesItem(): FilesItem =
+    public fun toFilesItem(): FilesItem =
         FilesItem(
             id = fileId,
             parentId = null,
@@ -54,19 +54,19 @@ internal fun isInProgress(positionSeconds: Double, durationSeconds: Double?): Bo
 }
 
 /** Where one user's row persists between launches. */
-internal interface ContinueWatchingStore {
-    fun read(): List<ContinueWatchingEntry>
+public interface ContinueWatchingStore {
+    public fun read(): List<ContinueWatchingEntry>
 
-    fun write(entries: List<ContinueWatchingEntry>)
+    public fun write(entries: List<ContinueWatchingEntry>)
 }
 
 /**
  * put.io keeps a position per file but has no list of started videos, so the row comes from videos
- * played on this device. It records a video once the player has resolved its name and duration and
- * put.io has accepted a position for it, newest first, at most [MAX_ENTRIES]. Finished, unwatched
- * and deleted videos leave. Main-thread only.
+ * played on this device, on the phone and on TV alike. It records a video once the player has
+ * resolved its name and duration and put.io has accepted a position for it, newest first, at most
+ * [MAX_ENTRIES]. Finished, unwatched and deleted videos leave. Main-thread only.
  */
-internal class MobileContinueWatching(
+public class ContinueWatching(
     private val store: ContinueWatchingStore,
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
@@ -81,10 +81,10 @@ internal class MobileContinueWatching(
     private var reconciled = false
     private var closed = false
 
-    val entries: StateFlow<List<ContinueWatchingEntry>> = mutableEntries.asStateFlow()
+    public val entries: StateFlow<List<ContinueWatchingEntry>> = mutableEntries.asStateFlow()
 
     /** The player resolved a video's name and duration. */
-    fun opened(fileId: FilesItemId, name: String, durationSeconds: Double?) {
+    public fun opened(fileId: FilesItemId, name: String, durationSeconds: Double?) {
         val duration = durationSeconds?.takeIf { it.isFinite() && it > 0.0 } ?: return
         media[fileId] = Media(name, duration)
         val current = mutableEntries.value
@@ -94,7 +94,7 @@ internal class MobileContinueWatching(
     }
 
     /** put.io accepted [seconds] for [fileId], from playback or the offline sync. */
-    fun positionSaved(fileId: FilesItemId, seconds: Double) {
+    public fun positionSaved(fileId: FilesItemId, seconds: Double) {
         val current = mutableEntries.value
         val existing = current.firstOrNull { it.fileId == fileId }
         val known = media[fileId] ?: existing?.let { Media(it.name, it.durationSeconds) } ?: return
@@ -112,7 +112,7 @@ internal class MobileContinueWatching(
      * position saved on another device moves the entry or, when finished, removes it. Other
      * failures keep the entry. A 401 stops the pass and is returned for the session to reject.
      */
-    suspend fun reconcile(
+    public suspend fun reconcile(
         resolve: suspend (FilesItemId) -> PutioResult<FilesItem>,
     ): PutioFailure.AuthenticationRequired? {
         if (reconciled || closed) return null
@@ -123,7 +123,7 @@ internal class MobileContinueWatching(
     }
 
     /** put.io confirmed the file gone, deleted or moved to Trash from this device. */
-    fun removed(fileId: FilesItemId) {
+    public fun removed(fileId: FilesItemId) {
         // Forget the media too, so a save answered after the delete can't bring the card back.
         media.remove(fileId)
         update(mutableEntries.value.filterNot { it.fileId == fileId })
@@ -134,7 +134,7 @@ internal class MobileContinueWatching(
      * An entry deleted leaves at once. Any other item may be a folder holding entries, which only a
      * fresh read of each entry finds: [recheckAfterDeletes] runs it.
      */
-    fun removed(deletes: List<FilesDeleteOutcome>) {
+    public fun removed(deletes: List<FilesDeleteOutcome>) {
         val fresh = deletes.filter { handledDeletes.add(it.requestId) }.flatMap { it.confirmedGone() }
         val entryIds = mutableEntries.value.mapTo(mutableSetOf()) { it.fileId }
         fresh.forEach { removed(it) }
@@ -146,7 +146,7 @@ internal class MobileContinueWatching(
      * during a pass share the next one. A pass cancelled with its screen runs again. Returns a 401
      * for the session to reject.
      */
-    suspend fun recheckAfterDeletes(
+    public suspend fun recheckAfterDeletes(
         resolve: suspend (FilesItemId) -> PutioResult<FilesItem>,
     ): PutioFailure.AuthenticationRequired? {
         while (true) {
@@ -179,7 +179,7 @@ internal class MobileContinueWatching(
     }
 
     /** The session ended; nothing it still has in flight writes the row again. */
-    fun close() {
+    public fun close() {
         closed = true
     }
 
@@ -210,17 +210,17 @@ internal class MobileContinueWatching(
         store.write(kept)
     }
 
-    companion object {
-        const val MAX_ENTRIES = 10
+    public companion object {
+        public const val MAX_ENTRIES: Int = 10
     }
 }
 
 /** One JSON document per user in private SharedPreferences; sign-out clears every user's. */
-internal class MobileContinueWatchingStore internal constructor(
+public class DeviceContinueWatchingStore internal constructor(
     private val preferences: SharedPreferences,
     private val key: String,
 ) : ContinueWatchingStore {
-    constructor(context: Context, userId: Long) : this(preferences(context), "user-$userId")
+    public constructor(context: Context, userId: Long) : this(preferences(context), "user-$userId")
 
     override fun read(): List<ContinueWatchingEntry> =
         preferences.getString(key, null)?.let { raw ->
@@ -240,14 +240,14 @@ internal class MobileContinueWatchingStore internal constructor(
         preferences.edit { putString(key, entries.toJson().toString()) }
     }
 
-    companion object {
+    public companion object {
         private const val PREFERENCES_NAME = "io.putdotio.android.files.continue-watching"
         private val wipes = AtomicInteger()
 
         private fun preferences(context: Context): SharedPreferences =
             context.applicationContext.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
 
-        fun clearAll(context: Context) {
+        public fun clearAll(context: Context) {
             wipes.incrementAndGet()
             preferences(context).edit { clear() }
         }
@@ -287,7 +287,7 @@ private const val COMPLETED_FRACTION = 0.95
 private const val FINISHED_WITHIN_SECONDS = 10.0
 
 /** The items a settled delete's read-back found gone, a partial delete's included. */
-internal fun FilesDeleteOutcome.confirmedGone(): List<FilesItemId> = when (status) {
+public fun FilesDeleteOutcome.confirmedGone(): List<FilesItemId> = when (status) {
     FilesDeleteStatus.NO_LONGER_AVAILABLE,
     FilesDeleteStatus.STILL_PRESENT,
     FilesDeleteStatus.SKIPPED,

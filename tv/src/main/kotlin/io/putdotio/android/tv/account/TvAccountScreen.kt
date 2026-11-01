@@ -123,6 +123,7 @@ private object RowKey {
     const val TRASH = "trash"
     const val DEFAULT_SORT = "default-sort"
     const val HISTORY = "history"
+    const val SHOW_HOME = "show-home"
     const val RESUME = "resume"
     const val AUTOPLAY = "autoplay"
     const val VIDEO_PLAYBACK = "video-playback"
@@ -164,6 +165,7 @@ internal fun TvAccountScreen(
         )
     },
     sessionKey: Any? = null,
+    showHome: TvShowHome? = null,
 ) = key(sessionKey) {
     var showingTrash by rememberSaveable { mutableStateOf(false) }
     val group = rememberSaveable { mutableStateOf(TvAccountGroup.Library) }
@@ -189,9 +191,14 @@ internal fun TvAccountScreen(
             opened = opened,
             lastFocus = lastFocus,
             loadTunnelRoutes = loadTunnelRoutes,
+            showHome = showHome,
         )
     }
 }
+
+internal class TvShowHome(val shown: Boolean, val onChange: (Boolean) -> Unit)
+
+private class TvLibraryRows(val trashSizeBytes: Long?, val onManageTrash: (() -> Unit)?, val showHome: TvShowHome?)
 
 private class TvAccountFocus {
     private val requesters = mutableMapOf<String, FocusRequester>()
@@ -255,6 +262,7 @@ private fun TvAccountBody(
     opened: MutableState<TvAccountGroup>,
     lastFocus: MutableState<String?>,
     loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>>,
+    showHome: TvShowHome?,
 ) {
     var sheet by rememberSaveable { mutableStateOf<TvAccountSheet?>(null) }
     val focus = remember { TvAccountFocus() }
@@ -324,8 +332,7 @@ private fun TvAccountBody(
                 onAppConfigEvent = onAppConfigEvent,
                 open = open,
             ),
-            trashSizeBytes = trashSizeBytes,
-            onManageTrash = onManageTrash,
+            library = TvLibraryRows(trashSizeBytes, onManageTrash, showHome),
             playbackPreference = appConfigState.playbackPreference(),
         )
     }
@@ -406,8 +413,7 @@ private fun TvAccountGroupRows(
     focus: TvAccountFocus,
     rightPane: FocusRequester,
     rows: TvAccountRowsScope,
-    trashSizeBytes: Long?,
-    onManageTrash: (() -> Unit)?,
+    library: TvLibraryRows,
     playbackPreference: PlaybackPreference,
 ) {
     Column(
@@ -430,7 +436,7 @@ private fun TvAccountGroupRows(
     ) {
         TvGroupLabel(stringResource(group.value.label))
         when (group.value) {
-            TvAccountGroup.Library -> rows.Library(trashSizeBytes, onManageTrash)
+            TvAccountGroup.Library -> rows.Library(library)
             TvAccountGroup.Playback -> rows.Playback()
             TvAccountGroup.Subtitles -> rows.Subtitles()
             TvAccountGroup.Privacy -> rows.Privacy(rows.open)
@@ -544,7 +550,10 @@ private class TvAccountRowsScope(
     }
 
     @Composable
-    fun Library(trashSizeBytes: Long?, onManageTrash: (() -> Unit)?) {
+    fun Library(library: TvLibraryRows) {
+        val trashSizeBytes = library.trashSizeBytes
+        val onManageTrash = library.onManageTrash
+        val showHome = library.showHome
         val context = LocalContext.current
         val rows = buildList<@Composable (TvSegment) -> Unit> {
             if (onManageTrash != null) {
@@ -600,6 +609,18 @@ private class TvAccountRowsScope(
                         segment = segment,
                         onToggle = { toggle(AccountSettingsKey.History, it) },
                         modifier = Modifier.accountFocus(this@TvAccountRowsScope.context, RowKey.HISTORY),
+                    )
+                }
+            }
+            showHome?.let { home ->
+                add { segment ->
+                    TvSwitchSettingRow(
+                        title = stringResource(R.string.tv_account_show_home),
+                        icon = R.drawable.ic_ph_house,
+                        checked = home.shown,
+                        segment = segment,
+                        onToggle = home.onChange,
+                        modifier = Modifier.accountFocus(this@TvAccountRowsScope.context, RowKey.SHOW_HOME),
                     )
                 }
             }

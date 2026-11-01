@@ -183,6 +183,52 @@ class TvShellTest {
     }
 
     @Test
+    fun withHomeHiddenTheShellOpensOnFilesAndBackInTheTabBarReturnsThere() {
+        compose.setTvContent {
+            TvShell(
+                account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                onSignOut = {},
+                showHome = false,
+            )
+        }
+
+        compose.onAllNodesWithText("Home").assertCountEquals(0)
+        compose.onTab("Files").assertIsSelected()
+        compose.onNodeWithText("Your files will show up here.").assertIsDisplayed()
+
+        compose.onNodeWithText("Your files will show up here.").performKeyInput { pressKey(Key.DirectionUp) }
+        compose.onTab("Files").performKeyInput { repeat(3) { pressKey(Key.DirectionRight) } }
+        compose.onTab("Account").assertIsFocused().assertIsSelected()
+        compose.pressBack()
+        compose.onTab("Files").assertIsFocused().assertIsSelected()
+    }
+
+    @Test
+    fun aHomeRequestWhileHomeIsHiddenStaysOnFiles() {
+        var requested by mutableStateOf<TvDestination?>(null)
+        compose.setTvContent {
+            TvShell(
+                account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                onSignOut = {},
+                showHome = false,
+                requestedDestination = requested,
+                onDestinationRequestHandled = { requested = null },
+            )
+        }
+        compose.onNodeWithText("Your files will show up here.").performKeyInput { pressKey(Key.DirectionUp) }
+        compose.onTab("Files").performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onTab("Search").assertIsSelected()
+
+        requested = TvDestination.Home
+        compose.waitForIdle()
+
+        compose.onTab("Files").assertIsSelected()
+        compose.onNodeWithText("Your files will show up here.").assertIsDisplayed()
+        compose.pressBack()
+        compose.onTab("Files").assertIsFocused()
+    }
+
+    @Test
     fun searchTabEntersOnTheFieldAndAResultRequestMovesFocusIntoFiles() {
         val search = searchState(
             query = "",

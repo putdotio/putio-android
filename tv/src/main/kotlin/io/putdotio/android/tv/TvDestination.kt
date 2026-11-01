@@ -26,5 +26,6 @@ internal fun FilesOpenOrigin?.returnDestination(): TvDestination? =
     when (this) {
         FilesOpenOrigin.SEARCH -> TvDestination.Search
         FilesOpenOrigin.HISTORY -> TvDestination.History
+        FilesOpenOrigin.HOME -> TvDestination.Home
         FilesOpenOrigin.TRANSFERS, FilesOpenOrigin.LINK, null -> null
     }
