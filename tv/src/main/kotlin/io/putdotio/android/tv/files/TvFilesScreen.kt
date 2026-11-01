@@ -356,7 +356,7 @@ private fun TvFilesFolderHeader(state: FilesBrowserState) {
 }
 
 @Composable
-private fun TvFolderHeading(name: String, crumb: String) {
+internal fun TvFolderHeading(name: String, crumb: String) {
     Column(modifier = Modifier.semantics(mergeDescendants = true) { heading() }) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(

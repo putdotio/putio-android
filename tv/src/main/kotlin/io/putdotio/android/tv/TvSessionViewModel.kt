@@ -23,6 +23,7 @@ import io.putdotio.android.files.FilesStreamUrls
 import io.putdotio.android.files.FilesSubtitleLanguages
 import io.putdotio.android.files.FilesWatchedRepository
 import io.putdotio.android.files.PinnedFiles
+import io.putdotio.android.files.FilesDeleteMode
 import io.putdotio.android.files.FilesDeleteOutcome
 import io.putdotio.android.files.confirmedGone
 import io.putdotio.android.tv.home.TvHomePins
@@ -59,7 +60,9 @@ import io.putdotio.android.settings.diagnosticsAllowed
 import io.putdotio.android.settings.productAnalyticsAnswers
 import io.putdotio.android.telemetry.ProductAnalytics
 import io.putdotio.android.telemetry.PutioDiagnostics
+import io.putdotio.android.trash.TrashContent
 import io.putdotio.android.trash.TrashController
+import io.putdotio.android.trash.TrashEvent
 import io.putdotio.android.trash.TrashRepository
 import io.putdotio.android.tv.auth.TvAccount
 import io.putdotio.android.tv.auth.TvAuthSessionId
@@ -192,7 +195,7 @@ internal class TvSession internal constructor(
     /** Pairs saved positions with the videos they belong to, for Watch Next. */
     internal val watchNextPlayback = TvWatchNextPlayback(watchNext, scope)
 
-    val trashUndo = TvTrashUndo(dependencies.trashRepository, files, scope)
+    val trashUndo = TvTrashUndo(dependencies.trashRepository, files, scope, onUndone = trash::refreshIfLoaded)
 
     val trashUndoOffer = TvTrashUndoOffer(scope, trashUndo::undo)
 
@@ -256,6 +259,12 @@ internal class TvSession internal constructor(
                 .map { state -> state.stack.mapNotNull { it.deleteOutcome?.takeIf(::confirmsAnyGone) } }
                 .distinctUntilChanged()
                 .collect(continueWatching::removed)
+        }
+        scope.launch {
+            files.state
+                .map { state -> state.stack.mapNotNull { it.deleteOutcome?.takeIf(::movesAnyToTrash) } }
+                .distinctUntilChanged()
+                .collect { moved -> if (moved.isNotEmpty()) trash.refreshIfLoaded() }
         }
         scope.launch {
             continueWatching.recheckAfterDeletes(filesItemResolver::resolveItem)?.let {
@@ -519,3 +528,10 @@ internal fun tvSessionViewModelFactory(authState: StateFlow<TvAuthState>): ViewM
     viewModelFactory { initializer { TvSessionViewModel(authState) } }
 
 private fun confirmsAnyGone(outcome: FilesDeleteOutcome): Boolean = outcome.confirmedGone().isNotEmpty()
+
+private fun TrashController.refreshIfLoaded() {
+    if (state.value.content is TrashContent.Loaded) dispatch(TrashEvent.Refresh)
+}
+
+private fun movesAnyToTrash(outcome: FilesDeleteOutcome): Boolean =
+    outcome.intent.mode == FilesDeleteMode.TRASH && confirmsAnyGone(outcome)

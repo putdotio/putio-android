@@ -1038,6 +1038,13 @@
       "asset": "assets/regular/push-pin-slash.svg",
       "sourceSha256": "2ac456aab2f634900d8872c4ac740a608784769997225726252b2ba5add98334",
       "outputSha256": "dd78d075dd95e5d6e0d144ca4e1fd3f5e2da358667a9dde3c93a439123c6ab4c"
+    },
+    {
+      "resDir": "tv/src/main/res",
+      "resource": "ic_ph_arrow_u_up_left",
+      "asset": "assets/regular/arrow-u-up-left.svg",
+      "sourceSha256": "37975867f2e89f745250d3601a5674ca37883a8d79f52abcb082beba4df28df7",
+      "outputSha256": "064ca5a109cf981b7045b069321718b7b32b9ea371696c9ead1da89d5d3e2671"
     }
   ]
 }

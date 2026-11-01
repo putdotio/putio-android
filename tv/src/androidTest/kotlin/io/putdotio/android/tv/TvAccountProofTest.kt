@@ -12,14 +12,17 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.putdotio.android.AccountStorage
 import io.putdotio.android.files.FilesFolder
+import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.FilesSort
 import io.putdotio.android.settings.AccountSettingsPreferences
 import io.putdotio.android.settings.TunnelRouteName
 import io.putdotio.android.settings.TunnelRouteOption
+import io.putdotio.android.trash.TrashItem
 import io.putdotio.android.tv.auth.TvAccount
 import io.putdotio.sdk.files.PutioFileType
 import java.io.File
+import java.time.LocalDate
 import java.util.UUID
 import org.junit.Assume.assumeTrue
 import org.junit.Before
@@ -115,6 +118,33 @@ class TvAccountProofTest {
         screenshot("androidtv-st-d3-sign-out")
     }
 
+    @Test
+    fun trashList() {
+        mount()
+        openTrash()
+        screenshot("androidtv-st-t1-trash")
+    }
+
+    @Test
+    fun emptyTrashConfirm() {
+        mount()
+        openTrash()
+        press(KeyEvent.KEYCODE_DPAD_UP)
+        compose.waitUntil(5_000) { isFocused(RESTORE_ALL) }
+        press(KeyEvent.KEYCODE_DPAD_RIGHT)
+        compose.waitUntil(5_000) { isFocused(EMPTY_TRASH) }
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitUntil(5_000) { compose.onAllNodesWithText(EMPTY_TRASH_TITLE).fetchSemanticsNodes().isNotEmpty() }
+        screenshot("androidtv-st-t2-empty-trash")
+    }
+
+    private fun openTrash() {
+        press(KeyEvent.KEYCODE_DPAD_RIGHT)
+        compose.waitUntil(5_000) { isFocused(MANAGE_TRASH) }
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitUntil(5_000) { isFocused(TRASHED_VIDEO) }
+    }
+
     private fun mount() {
         val dependencies = tvProofDependencies(
             listings = mapOf(
@@ -125,6 +155,7 @@ class TvAccountProofTest {
             ),
             searchResults = emptyList(),
             recentSearchStore = { ProofRecentSearchStore() },
+            trash = TRASH,
             trashSizeBytes = TRASH_BYTES,
             settings = AccountSettingsPreferences(
                 historyEnabled = true,
@@ -199,6 +230,25 @@ class TvAccountProofTest {
         const val USED_BYTES = 2_000_000_000_000L
         const val TOTAL_BYTES = 11_000_000_000_000L
         const val TRASH_BYTES = 3_700_000L
+        const val TRASHED_VIDEO = "Night.of.the.Living.Dead.1968.mkv"
+        const val RESTORE_ALL = "Restore all"
+        const val EMPTY_TRASH = "Empty trash"
+        const val EMPTY_TRASH_TITLE = "Empty trash?"
+        val TRASH = listOf(
+            trashed(1, TRASHED_VIDEO, PutioFileType.VIDEO, 1_400_000_000L, daysLeft = 12),
+            trashed(2, "Old downloads", PutioFileType.FOLDER, 1_200_000_000L, daysLeft = 9),
+            trashed(3, "Big Buck Bunny.en.srt", PutioFileType.TEXT, 140L, daysLeft = 2),
+        )
+
+        fun trashed(id: Long, name: String, type: PutioFileType, bytes: Long, daysLeft: Long): TrashItem {
+            val expires = LocalDate.now().plusDays(daysLeft)
+            return TrashItem(
+                FilesItemId(900 + id), FilesFolder.Root.id, name, type, bytes,
+                "${expires.minusDays(TRASH_DAYS)}T12:00:00", "${expires}T12:00:00",
+            )
+        }
+
+        const val TRASH_DAYS = 14L
         val ROUTES = listOf(
             TunnelRouteOption(TunnelRouteName("cdn77"), "Fastest for most places. The default."),
             TunnelRouteOption(TunnelRouteName.DEFAULT, "Amsterdam"),

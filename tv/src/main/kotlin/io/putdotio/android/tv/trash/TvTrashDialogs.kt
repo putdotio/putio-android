@@ -1,70 +1,16 @@
 package io.putdotio.android.tv.trash
 
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.tv.material3.Text
 import io.putdotio.android.R
 import io.putdotio.android.trash.TrashAction
+import io.putdotio.android.trash.TrashContent
 import io.putdotio.android.trash.TrashEvent
-import io.putdotio.android.trash.TrashItem
 import io.putdotio.android.trash.TrashState
-import io.putdotio.android.tv.TvButton
-import io.putdotio.android.tv.TvDialog
-import io.putdotio.android.tv.focusRequesterIf
+import io.putdotio.android.tv.TvConfirmDialog
+import io.putdotio.android.tv.files.FILES_SHEET_SCRIM
 
-/**
- * Center on a row: the item's actions as a choice dialog, Restore first. An action the
- * controller would refuse is disabled; focus lands on the first one it allows.
- */
-@Composable
-internal fun TvTrashItemDialog(
-    item: TrashItem,
-    state: TrashState,
-    onEvent: (TrashEvent) -> Boolean,
-    onDismiss: () -> Unit,
-) {
-    val canRestore = state.canRestore(item.id)
-    val canDelete = state.canDelete(item.id)
-    TvDialog(title = item.name, message = null, onDismiss = onDismiss) { focus ->
-        TvButton(
-            onClick = {
-                onDismiss()
-                onEvent(TrashEvent.SelectRestore(item.id))
-            },
-            enabled = canRestore,
-            modifier = Modifier
-                .fillMaxWidth()
-                .focusRequesterIf(canRestore, focus),
-        ) {
-            Text(stringResource(R.string.tv_trash_restore))
-        }
-        TvButton(
-            onClick = {
-                onDismiss()
-                onEvent(TrashEvent.SelectDelete(item.id))
-            },
-            enabled = canDelete,
-            modifier = Modifier
-                .fillMaxWidth()
-                .focusRequesterIf(!canRestore && canDelete, focus),
-        ) {
-            Text(stringResource(R.string.tv_trash_delete))
-        }
-        TvButton(
-            onClick = onDismiss,
-            modifier = Modifier
-                .fillMaxWidth()
-                .focusRequesterIf(!canRestore && !canDelete, focus),
-        ) {
-            Text(stringResource(R.string.tv_trash_cancel))
-        }
-    }
-}
-
-/** The controller's pending confirmations; focus lands on Cancel since none is undoable in the UI. */
 @Composable
 internal fun TvTrashConfirmations(
     state: TrashState,
@@ -73,11 +19,12 @@ internal fun TvTrashConfirmations(
     val canConfirm = state.authenticationFailure == null && !state.hasPendingMutation
     state.confirmation?.let { item ->
         val confirmationId = state.confirmationId
-        TvConfirmDialog(
+        TvTrashConfirm(
             title = stringResource(R.string.tv_trash_restore_title),
             message = stringResource(R.string.tv_trash_restore_message, item.name),
             confirmLabel = stringResource(R.string.tv_trash_restore),
-            confirmEnabled = canConfirm && confirmationId != null,
+            destructive = false,
+            enabled = canConfirm && confirmationId != null,
             onConfirm = { confirmationId?.let { onEvent(TrashEvent.ConfirmRestore(it)) } },
             onCancel = { onEvent(TrashEvent.CancelRestore) },
         )
@@ -97,15 +44,16 @@ internal fun TvTrashConfirmations(
             )
             TrashAction.Empty -> Triple(
                 stringResource(R.string.tv_trash_empty_title_confirm),
-                stringResource(R.string.tv_trash_empty_message_confirm),
+                state.emptyMessage(),
                 stringResource(R.string.tv_trash_empty_action),
             )
         }
-        TvConfirmDialog(
+        TvTrashConfirm(
             title = title,
             message = message,
             confirmLabel = confirm,
-            confirmEnabled = canConfirm && confirmationId != null,
+            destructive = action != TrashAction.RestoreAll,
+            enabled = canConfirm && confirmationId != null,
             onConfirm = { confirmationId?.let { onEvent(TrashEvent.ConfirmAction(it)) } },
             onCancel = { onEvent(TrashEvent.CancelAction) },
         )
@@ -113,28 +61,35 @@ internal fun TvTrashConfirmations(
 }
 
 @Composable
-private fun TvConfirmDialog(
+private fun TrashState.emptyMessage(): String {
+    val loaded = content as? TrashContent.Loaded
+    val count = loaded?.total ?: loaded?.items?.size?.takeIf { loaded.nextCursor == null }
+    return if (count != null && count > 0) {
+        pluralStringResource(R.plurals.tv_trash_empty_count_message, count, count)
+    } else {
+        stringResource(R.string.tv_trash_empty_message_confirm)
+    }
+}
+
+@Composable
+private fun TvTrashConfirm(
     title: String,
     message: String,
     confirmLabel: String,
-    confirmEnabled: Boolean,
+    destructive: Boolean,
+    enabled: Boolean,
     onConfirm: () -> Unit,
     onCancel: () -> Unit,
 ) {
-    TvDialog(title = title, message = message, onDismiss = onCancel) { focus ->
-        // Disabled, not a silent no-op, while a 401 or another mutation makes confirming pointless.
-        TvButton(
-            onClick = onConfirm,
-            enabled = confirmEnabled,
-            modifier = Modifier.fillMaxWidth(),
-        ) { Text(confirmLabel) }
-        TvButton(
-            onClick = onCancel,
-            modifier = Modifier
-                .fillMaxWidth()
-                .focusRequester(focus),
-        ) {
-            Text(stringResource(R.string.tv_trash_cancel))
-        }
-    }
+    TvConfirmDialog(
+        title = title,
+        message = message,
+        confirmLabel = confirmLabel,
+        onConfirm = onConfirm,
+        onDismiss = onCancel,
+        destructive = destructive,
+        balanceMessage = true,
+        dimAmount = FILES_SHEET_SCRIM.alpha,
+        confirmEnabled = enabled,
+    )
 }

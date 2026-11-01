@@ -289,10 +289,8 @@
     <string name="tv_account_done">Done</string>
     <string name="tv_account_cancel">Cancel</string>
     <string name="tv_trash_title">Trash</string>
-    <string name="tv_trash_refresh">Refresh</string>
     <string name="tv_trash_restore_all">Restore all</string>
     <string name="tv_trash_empty_action">Empty trash</string>
-    <string name="tv_trash_loading">Loading trash</string>
     <string name="tv_trash_info">Items stay in Trash for 14 days.</string>
     <string name="tv_trash_empty_title">Your trash is empty</string>
     <string name="tv_trash_empty_message">When you send files to trash, we keep them here for 14 days.</string>
@@ -301,11 +299,8 @@
     <string name="tv_trash_load_more">Load more</string>
     <string name="tv_trash_loading_more">Loading more items</string>
     <string name="tv_trash_paging_error">Couldn’t load more items.</string>
-    <string name="tv_trash_row_actions">Actions for %1$s</string>
-    <string name="tv_trash_row_metadata">%1$s · Deleted %2$s · Expires %3$s</string>
     <string name="tv_trash_restore">Restore</string>
     <string name="tv_trash_delete">Delete permanently</string>
-    <string name="tv_trash_cancel">Cancel</string>
     <string name="tv_trash_ok">OK</string>
     <string name="tv_trash_restore_title">Restore item?</string>
     <string name="tv_trash_restore_message">%1$s goes back to Files. Restoration may take a moment.</string>
@@ -314,7 +309,23 @@
     <string name="tv_trash_restore_all_title">Restore everything?</string>
     <string name="tv_trash_restore_all_message">Every item in trash goes back to Files. Restoration may take a moment.</string>
     <string name="tv_trash_empty_title_confirm">Empty trash?</string>
-    <string name="tv_trash_empty_message_confirm">Every item in trash will be removed right away. This cannot be undone.</string>
+    <string name="tv_trash_empty_message_confirm">Every item in trash is deleted permanently. This can\'t be undone.</string>
+    <plurals name="tv_trash_empty_count_message">
+        <item quantity="one">%1$d item is deleted permanently. This can\'t be undone.</item>
+        <item quantity="other">%1$d items are deleted permanently. This can\'t be undone.</item>
+    </plurals>
+    <plurals name="tv_trash_days_left">
+        <item quantity="one">%1$d day left</item>
+        <item quantity="other">%1$d days left</item>
+    </plurals>
+    <string name="tv_trash_last_day">Last day</string>
+    <string name="tv_trash_deleted_on">Deleted %1$s</string>
+    <string name="tv_trash_expires">Expires</string>
+    <plurals name="tv_trash_expires_in">
+        <item quantity="one">in %1$d day</item>
+        <item quantity="other">in %1$d days</item>
+    </plurals>
+    <string name="tv_trash_expires_today">today</string>
     <string name="tv_trash_submitting">Sending request</string>
     <string name="tv_trash_restore_started">Restore started for %1$s.</string>
     <string name="tv_trash_restore_available">%1$s is back in Files.</string>

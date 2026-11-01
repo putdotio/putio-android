@@ -36,6 +36,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
@@ -58,6 +59,7 @@ internal fun TvListDetail(
     detailFocus: FocusRequester = FocusRequester.Default,
     listFocus: FocusRequester = FocusRequester.Default,
     onDetailFocusChanged: (Boolean) -> Unit = {},
+    detailTop: Dp = SECTION_LINE_HEIGHT + DETAIL_TOP_NUDGE,
 ) {
     Row(modifier = modifier.fillMaxWidth()) {
         Column(
@@ -72,7 +74,7 @@ internal fun TvListDetail(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxHeight()
-                .padding(top = SECTION_LINE_HEIGHT + DETAIL_TOP_NUDGE)
+                .padding(top = detailTop)
                 .onFocusChanged { onDetailFocusChanged(it.hasFocus) }
                 .focusProperties {
                     enter = { detailFocus }
@@ -144,7 +146,12 @@ internal fun TvSectionPill(
     }
 }
 
-internal data class TvDetailFact(val label: String, val value: String, val mono: Boolean = false)
+internal data class TvDetailFact(
+    val label: String,
+    val value: String,
+    val mono: Boolean = false,
+    val styled: AnnotatedString? = null,
+)
 
 @Composable
 internal fun ColumnScope.TvDetailBody(
@@ -195,7 +202,7 @@ internal fun ColumnScope.TvDetailBody(
                         .alignByBaseline(),
                 )
                 Text(
-                    text = fact.value,
+                    text = fact.styled ?: AnnotatedString(fact.value),
                     style = if (fact.mono) DETAIL_FACT_MONO else DETAIL_FACT,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier
@@ -215,11 +222,22 @@ internal fun TvDetailButton(
     modifier: Modifier = Modifier,
     primary: Boolean = false,
     detailHasFocus: Boolean = false,
+    enabled: Boolean = true,
+    danger: Boolean = false,
+    looksFocused: Boolean = false,
+    showsFocus: Boolean = true,
 ) {
     TvButton(
         onClick = onClick,
         modifier = if (label == null) modifier.width(TvButtonSize.DetailIcon.height) else modifier,
-        style = if (primary && detailHasFocus) TvButtonStyle.Filled else TvButtonStyle.Tonal,
+        enabled = enabled,
+        looksFocused = looksFocused,
+        showsFocus = showsFocus,
+        style = when {
+            danger -> TvButtonStyle.TonalDanger
+            primary && detailHasFocus -> TvButtonStyle.Filled
+            else -> TvButtonStyle.Tonal
+        },
         size = if (label == null) TvButtonSize.DetailIcon else TvButtonSize.Detail,
     ) {
         Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(TvButtonSize.Detail.icon))

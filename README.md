@@ -62,6 +62,10 @@ TV:
   phone's Privacy controls with the policy and services list as QR codes,
   About with a support QR code, and Sign out; choices open as side sheets
   with Cancel and Save
+- Trash from Account › Library as a list beside the focused item's detail:
+  each item's size and days left, Restore and Delete permanently, and Restore
+  all and Empty trash; Delete permanently and Empty trash confirm with a red
+  button
 - The launcher's Play Next row and Android TV system search, with the
   wordmark for files without a screenshot
 - The redesign's foundations: GT America and Berkeley Mono type, one light

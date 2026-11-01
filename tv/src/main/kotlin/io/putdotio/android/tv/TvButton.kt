@@ -45,16 +45,12 @@ internal fun TvButton(
     size: TvButtonSize = TvButtonSize.Regular,
     interactions: MutableInteractionSource = remember { MutableInteractionSource() },
     hugsLabel: Boolean = false,
+    looksFocused: Boolean = false,
+    showsFocus: Boolean = true,
     content: @Composable RowScope.() -> Unit,
 ) {
     val focused by interactions.collectIsFocusedAsState()
-    val colors = MaterialTheme.colorScheme
-    val (rest, restContent) = when (style) {
-        TvButtonStyle.Tonal -> PutioDesignTokens.componentBgActive to colors.onSurface
-        TvButtonStyle.Text -> Color.Transparent to colors.onSurface
-        TvButtonStyle.Filled -> colors.primary to colors.onPrimary
-        TvButtonStyle.Destructive -> colors.error to colors.onError
-    }
+    val (rest, restContent) = if (looksFocused) TvFocus.container to TvFocus.content else style.restColors()
     val keepsFill = style == TvButtonStyle.Filled || style == TvButtonStyle.Destructive
     val ring = TvFocus.container
     val gap = PutioDesignTokens.componentBgHover
@@ -62,13 +58,13 @@ internal fun TvButton(
         .height(size.height)
         .drawWithContent {
             drawContent()
-            if (keepsFill && focused) {
+            if (keepsFill && focused && showsFocus) {
                 drawPillOutline(gap, RING_GAP.toPx() / 2, RING_GAP.toPx())
                 drawPillOutline(ring, (RING_GAP + RING_WIDTH / 2).toPx(), RING_WIDTH.toPx())
             }
         }
-    val focusedFill = if (keepsFill) rest else TvFocus.container
-    val focusedContent = if (keepsFill) restContent else TvFocus.content
+    val focusedFill = if (keepsFill || !showsFocus) rest else TvFocus.container
+    val focusedContent = if (keepsFill || !showsFocus) restContent else TvFocus.content
     if (hugsLabel) {
         TvLabelButton(
             onClick = onClick,
@@ -147,6 +143,18 @@ private fun TvLabelButton(
     }
 }
 
+@Composable
+private fun TvButtonStyle.restColors(): Pair<Color, Color> {
+    val colors = MaterialTheme.colorScheme
+    return when (this) {
+        TvButtonStyle.Tonal -> PutioDesignTokens.componentBgActive to colors.onSurface
+        TvButtonStyle.TonalDanger -> PutioDesignTokens.componentBgActive to PutioDesignTokens.redTextSecondary
+        TvButtonStyle.Text -> Color.Transparent to colors.onSurface
+        TvButtonStyle.Filled -> colors.primary to colors.onPrimary
+        TvButtonStyle.Destructive -> colors.error to colors.onError
+    }
+}
+
 private fun DrawScope.drawPillOutline(color: Color, reach: Float, width: Float) {
     drawRoundRect(
         color = color,
@@ -171,11 +179,14 @@ internal enum class TvButtonSize(
 
     Snackbar(height = 28.dp, padding = 10.dp, icon = 12.dp),
 
+    Header(height = 28.dp, padding = 18.dp, icon = 11.dp),
+
     Card(height = 30.dp, padding = 18.dp, icon = 12.dp),
 }
 
 internal enum class TvButtonStyle {
     Tonal,
+    TonalDanger,
     Text,
     Filled,
     Destructive,

@@ -1,28 +1,24 @@
 package io.putdotio.android.tv.trash
 
-import android.text.format.DateUtils
-import android.text.format.Formatter
 import androidx.compose.foundation.focusGroup
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.State
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -30,111 +26,81 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Icon
-import androidx.tv.material3.ListItem
-import androidx.tv.material3.ListItemDefaults
-import androidx.tv.material3.ListItemScale
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import io.putdotio.android.R
-import io.putdotio.android.design.fileTypeIconRes
-import io.putdotio.android.trash.TrashAction
-import io.putdotio.android.trash.TrashActionCheck
-import io.putdotio.android.trash.TrashActionOutcome
-import io.putdotio.android.trash.TrashActionSubmission
+import io.putdotio.android.design.PutioEmptyGlyph
+import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.trash.TrashContent
 import io.putdotio.android.trash.TrashEvent
-import io.putdotio.android.trash.TrashItem
-import io.putdotio.android.trash.TrashRestoreCheck
-import io.putdotio.android.trash.TrashRestoreOutcome
-import io.putdotio.android.trash.TrashRestoreSubmission
 import io.putdotio.android.trash.TrashState
-import io.putdotio.android.parsePutioTimestamp
+import io.putdotio.android.tv.ROW_BLEED
+import io.putdotio.android.tv.TV_LIST_WIDTH
 import io.putdotio.android.tv.TvButton
-import io.putdotio.android.tv.rememberTvPaneHasFocus
+import io.putdotio.android.tv.TvButtonSize
+import io.putdotio.android.tv.TvButtonStyle
+import io.putdotio.android.tv.TvDetailSkeleton
+import io.putdotio.android.tv.TvEmptyState
+import io.putdotio.android.tv.TvListDetail
+import io.putdotio.android.tv.TvListSkeleton
+import io.putdotio.android.tv.TvLoadFailedState
 import io.putdotio.android.tv.TvPaneFocusOwner
 import io.putdotio.android.tv.TvPickedRow
-import io.putdotio.android.tv.TvStatusScreen
-import io.putdotio.android.tv.bringIntoComposition
-import io.putdotio.android.tv.focusRequesterIf
+import io.putdotio.android.tv.files.TvFolderHeading
+import io.putdotio.android.tv.files.tvLoadFailedMessage
+import io.putdotio.android.tv.monoNumber
 import io.putdotio.android.tv.paneSection
 import io.putdotio.android.tv.refocusAfterDialog
-import io.putdotio.android.tv.files.tvMessageText
-import io.putdotio.android.tv.tvAccent
-import java.time.LocalDate
-import java.time.ZoneId
-import kotlinx.coroutines.flow.first
+import io.putdotio.android.tv.rememberTvPaneHasFocus
+import io.putdotio.android.tv.withFullLineBox
 
-internal const val TV_TRASH_LIST_TAG = "tv-trash-list"
-internal const val TV_TRASH_ROW_TAG = "tv-trash-row"
-
-/**
- * Trash per the oracle (13), reached from Account: the title with Refresh, Restore all,
- * and Empty on the right, then the deleted items in the standard rows. Center on a row
- * offers Restore and Delete permanently; every mutation confirms first and reports its
- * outcome above the list, with Check status or Check trash while it is unconfirmed.
- * Focus enters on the first row, or Refresh while there are none.
- */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 internal fun TvTrashScreen(
     state: TrashState,
     onEvent: (TrashEvent) -> Boolean,
     modifier: Modifier = Modifier,
-    /** Changes with the signed-in session so one account's list position never greets the next. */
     sessionKey: Any? = null,
 ) = key(sessionKey) {
     val content = state.content
     val loaded = content as? TrashContent.Loaded
-    // A page can be empty and still carry a cursor; only a known-empty trash shows the empty state.
     val hasRows = loaded?.isKnownEmpty == false
-    val refreshFocus = remember { FocusRequester() }
-    val restoreAllFocus = remember { FocusRequester() }
-    val emptyFocus = remember { FocusRequester() }
-    val listFocus = remember { FocusRequester() }
-    val retryFocus = remember { FocusRequester() }
+    val focus = remember { TvTrashFocus() }
     val paneHasFocus = rememberTvPaneHasFocus()
-    val entryTarget = remember { mutableStateOf(refreshFocus) }
+    val entryTarget = remember { mutableStateOf(focus.restoreAll) }
     val rowsPresent = rememberUpdatedState(hasRows)
     val pickedRow = rememberSaveable(saver = TvPickedRow.Saver) { TvPickedRow() }
     val restoreRowId = remember { pickedRow.id }
     val lastSection = rememberSaveable { mutableStateOf<Long?>(null) }
     val owner = remember {
-        TvPaneFocusOwner(entryTarget, paneHasFocus, lastSection, onEnter = pickedRow.keptOnlyBy(listFocus)) {
-            if (rowsPresent.value) listFocus else refreshFocus
+        TvPaneFocusOwner(entryTarget, paneHasFocus, lastSection, onEnter = pickedRow.keptOnlyBy(focus.list)) {
+            if (rowsPresent.value) focus.list else focus.restoreAll
         }
     }
-    // Refresh is the one node that outlives every content change; it takes focus when the
-    // rows go (an emptied trash, a reload) and a failed read focuses its own Try again.
     val headerOwnsFocus = content.isLoadingOrKnownEmpty
-    var chosenItemId by remember { mutableStateOf<Long?>(null) }
-    val chosenItem = loaded?.items?.firstOrNull { it.id.value == chosenItemId }
-    // A confirmation lives on the controller and can greet a recreated pane together with
-    // the rows; the pane's own placement must not take focus from it.
-    val dialogOpen = chosenItem != null || state.isConfirming
+    val dialogOpen = state.confirmation != null || state.actionConfirmation != null
     val dialogShowing = rememberUpdatedState(dialogOpen)
+    val refreshedOnOpen = rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        if (!refreshedOnOpen.value) {
+            refreshedOnOpen.value = true
+            if (content is TrashContent.Loaded && !dialogOpen) onEvent(TrashEvent.Refresh)
+        }
+    }
     LaunchedEffect(headerOwnsFocus) {
-        if (headerOwnsFocus && mayPlaceFocus(paneHasFocus, dialogShowing)) refreshFocus.requestFocus()
+        if (headerOwnsFocus && mayPlaceFocus(paneHasFocus, dialogShowing)) focus.restoreAll.requestFocus()
     }
     val dialogWasOpen = remember { mutableStateOf(false) }
     LaunchedEffect(dialogOpen) { refocusAfterDialog(dialogOpen, dialogWasOpen, paneHasFocus, entryTarget) }
@@ -151,78 +117,166 @@ internal fun TvTrashScreen(
             }
             .focusGroup(),
     ) {
-        // Each header button is a section, so the one that opened a confirmation takes
-        // focus back when the dialog closes.
         TvTrashHeader(
-            onRefresh = { onEvent(TrashEvent.Refresh) },
             onRestoreAll = { onEvent(TrashEvent.SelectRestoreAll) },
             onEmpty = { onEvent(TrashEvent.SelectEmpty) },
-            refreshModifier = Modifier.keyedPaneSection("refresh", owner, refreshFocus),
-            restoreAllModifier = Modifier.keyedPaneSection("restoreAll", owner, restoreAllFocus),
-            emptyModifier = Modifier.keyedPaneSection("empty", owner, emptyFocus),
+            showsFocus = !dialogOpen,
+            restoreAllModifier = Modifier.keyedPaneSection("restoreAll", owner, focus.restoreAll),
+            emptyModifier = Modifier.keyedPaneSection("empty", owner, focus.empty),
         )
-        TvTrashNotices(state, onEvent, owner)
-        when (content) {
-            TrashContent.Loading -> {
-                DisposableEffect(Unit) {
-                    entryTarget.value = refreshFocus
-                    onDispose {}
-                }
-                TvStatusScreen(stringResource(R.string.tv_trash_loading), modifier = Modifier.weight(1f))
-            }
-            is TrashContent.Error -> {
-                DisposableEffect(Unit) {
-                    entryTarget.value = retryFocus
-                    onDispose {}
-                }
-                TvStatusScreen(
-                    title = stringResource(R.string.tv_trash_error_title),
-                    message = content.failure.tvMessageText(),
-                    action = stringResource(R.string.tv_files_retry),
-                    onAction = { onEvent(TrashEvent.Retry) },
-                    modifier = Modifier.paneSection(owner, retryFocus).weight(1f),
-                    actionFocus = retryFocus,
+        when {
+            content is TrashContent.Error -> {
+                EntryTarget(entryTarget, focus.retry)
+                TvTrashStateNotices(state, onEvent, owner)
+                TvLoadFailedState(
+                    failure = content.failure,
+                    headline = stringResource(R.string.tv_trash_error_title),
+                    message = content.failure.tvLoadFailedMessage(),
+                    onRetry = { onEvent(TrashEvent.Retry) },
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(bottom = STATE_BOTTOM_GAP)
+                        .paneSection(owner, focus.retry),
+                    actionFocus = focus.retry,
                     claimFocus = paneHasFocus.value,
                 )
             }
-            is TrashContent.Loaded ->
-                if (!hasRows) {
-                    DisposableEffect(Unit) {
-                        entryTarget.value = refreshFocus
-                        onDispose {}
-                    }
-                    TvTrashEmpty(modifier = Modifier.weight(1f))
-                } else {
-                    DisposableEffect(Unit) {
-                        entryTarget.value = listFocus
-                        onDispose {}
-                    }
-                    Text(
-                        text = stringResource(R.string.tv_trash_info),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(bottom = 8.dp),
-                    )
-                    TvTrashList(
-                        content = content,
+            loaded != null && !hasRows -> {
+                EntryTarget(entryTarget, focus.restoreAll)
+                TvTrashStateNotices(state, onEvent, owner)
+                TvEmptyState(
+                    glyph = PutioEmptyGlyph.EmptyFolder,
+                    headline = stringResource(R.string.tv_trash_empty_title),
+                    message = stringResource(R.string.tv_trash_empty_message),
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(bottom = STATE_BOTTOM_GAP),
+                )
+            }
+            else -> {
+                EntryTarget(entryTarget, if (loaded != null) focus.list else focus.restoreAll)
+                CompositionLocalProvider(LocalTrashToday provides rememberTrashToday()) {
+                    TvTrashListDetail(
+                        state = state,
+                        onEvent = onEvent,
+                        focus = focus,
+                        listFocus = TvTrashListFocus(owner, focus.list, paneHasFocus, dialogShowing),
+                        pickedRow = pickedRow,
                         restoreRowId = restoreRowId,
-                        onRowFocused = { pickedRow.pick(it.id.value) },
-                        // A row with nothing the controller allows right now has no dialog to offer.
-                        onChoose = { if (state.offersActionsOn(it)) chosenItemId = it.id.value },
-                        onNextPage = { onEvent(TrashEvent.LoadNextPage) },
-                        onRetry = { onEvent(TrashEvent.Retry) },
-                        owner = owner,
-                        listFocus = listFocus,
-                        paneHasFocus = paneHasFocus,
-                        dialogShowing = dialogShowing,
                         modifier = Modifier.weight(1f),
                     )
                 }
+            }
         }
     }
-    chosenItem?.let { TvTrashItemDialog(it, state, onEvent, onDismiss = { chosenItemId = null }) }
     TvTrashConfirmations(state, onEvent)
     LaunchedEffect(owner) { owner.restoreLastSection() }
+}
+
+@Composable
+private fun TvTrashListDetail(
+    state: TrashState,
+    onEvent: (TrashEvent) -> Boolean,
+    focus: TvTrashFocus,
+    listFocus: TvTrashListFocus,
+    pickedRow: TvPickedRow,
+    restoreRowId: Long?,
+    modifier: Modifier = Modifier,
+) {
+    val loaded = state.content as? TrashContent.Loaded
+    var detailId by rememberSaveable { mutableStateOf(pickedRow.id) }
+    var rowHasFocus by remember { mutableStateOf(false) }
+    var detailHasFocus by remember { mutableStateOf(false) }
+    val items = loaded?.items.orEmpty()
+    val detailItem = items.firstOrNull { it.id.value == detailId }
+        ?: items.firstOrNull { it.id.value == pickedRow.id }
+        ?: items.firstOrNull()
+    TvListDetail(
+        modifier = modifier,
+        detailFocus = focus.restore,
+        listFocus = focus.list,
+        onDetailFocusChanged = { detailHasFocus = it },
+        detailTop = DETAIL_TOP,
+        list = {
+            TvTrashInfo()
+            TvTrashNotices(state, onEvent, listFocus.owner)
+            if (loaded == null) {
+                TvListSkeleton()
+            } else {
+                TvTrashList(
+                    content = loaded,
+                    restoreRowId = restoreRowId,
+                    onChoose = { if (state.canRestore(it.id)) onEvent(TrashEvent.SelectRestore(it.id)) },
+                    onRowFocusChanged = { item, focused ->
+                        rowHasFocus = focused
+                        if (focused) {
+                            pickedRow.pick(item.id.value)
+                            detailId = item.id.value
+                        }
+                    },
+                    onNextPage = { onEvent(TrashEvent.LoadNextPage) },
+                    onRetry = { onEvent(TrashEvent.Retry) },
+                    focus = listFocus,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        },
+        detail = {
+            when {
+                loaded == null -> TvDetailSkeleton()
+                detailItem != null -> TvTrashDetail(
+                    item = detailItem,
+                    actions = TvTrashDetailActions(
+                        canRestore = state.canRestore(detailItem.id),
+                        canDelete = state.canDelete(detailItem.id),
+                        rowHasFocus = rowHasFocus,
+                        detailHasFocus = detailHasFocus,
+                        onRestore = { onEvent(TrashEvent.SelectRestore(detailItem.id)) },
+                        onDelete = { onEvent(TrashEvent.SelectDelete(detailItem.id)) },
+                        showsFocus = !listFocus.dialogShowing.value,
+                        restoreModifier = Modifier.keyedPaneSection("restore", listFocus.owner, focus.restore),
+                        deleteModifier = Modifier.keyedPaneSection("delete", listFocus.owner, focus.delete),
+                    ),
+                )
+            }
+        },
+    )
+}
+
+internal class TvTrashListFocus(
+    val owner: TvPaneFocusOwner,
+    val list: FocusRequester,
+    val paneHasFocus: State<Boolean>,
+    val dialogShowing: State<Boolean>,
+)
+
+internal data class TvTrashDetailActions(
+    val canRestore: Boolean,
+    val canDelete: Boolean,
+    val rowHasFocus: Boolean,
+    val detailHasFocus: Boolean,
+    val onRestore: () -> Unit,
+    val onDelete: () -> Unit,
+    val showsFocus: Boolean,
+    val restoreModifier: Modifier,
+    val deleteModifier: Modifier,
+)
+
+private class TvTrashFocus {
+    val restoreAll = FocusRequester()
+    val empty = FocusRequester()
+    val list = FocusRequester()
+    val retry = FocusRequester()
+    val restore = FocusRequester()
+    val delete = FocusRequester()
+}
+
+@Composable
+private fun EntryTarget(entryTarget: MutableState<FocusRequester>, target: FocusRequester) {
+    DisposableEffect(target) {
+        entryTarget.value = target
+        onDispose {}
+    }
 }
 
 @Composable
@@ -232,499 +286,98 @@ private fun Modifier.keyedPaneSection(name: String, owner: TvPaneFocusOwner, req
 private val TrashContent.isLoadingOrKnownEmpty: Boolean
     get() = this is TrashContent.Loading || (this is TrashContent.Loaded && isKnownEmpty)
 
-private val TrashState.isConfirming: Boolean
-    get() = confirmation != null || actionConfirmation != null
-
-private fun TrashState.offersActionsOn(item: TrashItem): Boolean = canRestore(item.id) || canDelete(item.id)
-
-/** The pane places focus itself only while it holds focus and no dialog has taken it. */
-private fun mayPlaceFocus(paneHasFocus: State<Boolean>, dialogShowing: State<Boolean>): Boolean =
-    paneHasFocus.value && !dialogShowing.value
-
 @Composable
 private fun TvTrashHeader(
-    onRefresh: () -> Unit,
     onRestoreAll: () -> Unit,
     onEmpty: () -> Unit,
+    showsFocus: Boolean,
     modifier: Modifier = Modifier,
-    refreshModifier: Modifier = Modifier,
     restoreAllModifier: Modifier = Modifier,
     emptyModifier: Modifier = Modifier,
 ) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(bottom = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = stringResource(R.string.tv_trash_title),
-            style = MaterialTheme.typography.headlineLarge,
-            color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.weight(1f),
-        )
-        // The buttons stay focusable in every state; the controller refuses what it cannot do.
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.focusGroup()) {
-            TvButton(onClick = onRefresh, modifier = refreshModifier) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_ph_arrow_clockwise),
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp),
+    Box(modifier = modifier.height(HEADER_HEIGHT)) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+            TvFolderHeading(
+                name = stringResource(R.string.tv_trash_title),
+                crumb = stringResource(R.string.tv_destination_account),
+            )
+            Spacer(Modifier.weight(1f))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(HEADER_BUTTON_GAP),
+                modifier = Modifier
+                    .padding(bottom = HEADER_BUTTON_LIFT)
+                    .focusGroup(),
+            ) {
+                TvTrashHeaderButton(
+                    icon = R.drawable.ic_ph_arrow_u_up_left,
+                    label = stringResource(R.string.tv_trash_restore_all),
+                    onClick = onRestoreAll,
+                    style = TvButtonStyle.Tonal,
+                    showsFocus = showsFocus,
+                    modifier = restoreAllModifier,
                 )
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.tv_trash_refresh))
-            }
-            TvButton(onClick = onRestoreAll, modifier = restoreAllModifier) {
-                Text(stringResource(R.string.tv_trash_restore_all))
-            }
-            TvButton(onClick = onEmpty, modifier = emptyModifier) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_ph_trash),
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp),
+                TvTrashHeaderButton(
+                    icon = R.drawable.ic_ph_trash,
+                    label = stringResource(R.string.tv_trash_empty_action),
+                    onClick = onEmpty,
+                    style = TvButtonStyle.TonalDanger,
+                    showsFocus = showsFocus,
+                    modifier = emptyModifier,
                 )
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.tv_trash_empty_action))
             }
         }
     }
 }
 
 @Composable
-private fun TvTrashEmpty(modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier.fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
+private fun TvTrashHeaderButton(
+    icon: Int,
+    label: String,
+    onClick: () -> Unit,
+    style: TvButtonStyle,
+    showsFocus: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    TvButton(
+        onClick = onClick,
+        modifier = modifier,
+        style = style,
+        size = TvButtonSize.Header,
+        showsFocus = showsFocus,
     ) {
-        Icon(
-            painter = painterResource(R.drawable.ic_ph_backspace),
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(56.dp),
-        )
-        Text(
-            text = stringResource(R.string.tv_trash_empty_title),
-            style = MaterialTheme.typography.displaySmall,
-            color = MaterialTheme.colorScheme.onBackground,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 24.dp),
-        )
-        Text(
-            text = stringResource(R.string.tv_trash_empty_message),
-            style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 16.dp),
-        )
+        Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(TvButtonSize.Header.icon))
+        Text(label, style = HEADER_BUTTON_LABEL, maxLines = 1, softWrap = false)
     }
 }
 
-/** The restore and mutation outcomes and a failed refresh, one line each above the list. */
 @Composable
-private fun TvTrashNotices(
+private fun TvTrashInfo() {
+    val info = stringResource(R.string.tv_trash_info)
+    Text(
+        text = remember(info) { monoNumber(info, RETENTION_DAYS) },
+        style = INFO_LABEL,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = ROW_BLEED, end = ROW_BLEED, bottom = INFO_GAP),
+    )
+}
+
+@Composable
+private fun TvTrashStateNotices(
     state: TrashState,
     onEvent: (TrashEvent) -> Boolean,
     owner: TvPaneFocusOwner,
 ) {
-    val enabled = state.authenticationFailure == null
-    state.restoreOutcome?.let { TvTrashRestoreOutcome(it, enabled, onEvent, owner) }
-    state.actionOutcome?.let { TvTrashActionOutcome(it, enabled, onEvent, owner) }
-    (state.content as? TrashContent.Loaded)?.refreshFailure?.let { failure ->
-        TvTrashNotice(
-            text = stringResource(R.string.tv_trash_refresh_error, failure.tvMessageText()),
-            action = stringResource(R.string.tv_files_retry),
-            onAction = { onEvent(TrashEvent.Refresh) },
-            owner = owner,
-        )
+    Column(modifier = Modifier.offset(x = -ROW_BLEED).width(TV_LIST_WIDTH)) {
+        TvTrashNotices(state, onEvent, owner)
     }
 }
 
-/** One line above the list with an optional action; the action is a focus section. */
-@Composable
-private fun TvTrashNotice(
-    text: String,
-    action: String?,
-    onAction: () -> Unit,
-    owner: TvPaneFocusOwner,
-    modifier: Modifier = Modifier,
-) {
-    val actionFocus = remember { FocusRequester() }
-    // A group, so Up from a row measures against the full-width line rather than the
-    // right-aligned button, which the header would otherwise beat on distance.
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(bottom = 12.dp)
-            .focusGroup(),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        // Bounded so a long server-supplied name cannot push the action below the fold.
-        Text(
-            text = text,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 3,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
-        if (action != null) {
-            TvButton(
-                onClick = onAction,
-                modifier = Modifier.paneSection(owner, actionFocus).focusRequester(actionFocus),
-            ) {
-                Text(action)
-            }
-        }
-    }
-}
-
-@Composable
-private fun TvTrashRestoreOutcome(
-    outcome: TrashRestoreOutcome,
-    enabled: Boolean,
-    onEvent: (TrashEvent) -> Boolean,
-    owner: TvPaneFocusOwner,
-) {
-    val name = outcome.resolvedItem?.name ?: outcome.item.name
-    val checkFailure = outcome.checkFailure
-    val text = when {
-        outcome.check == TrashRestoreCheck.AVAILABLE -> stringResource(R.string.tv_trash_restore_available, name)
-        outcome.check == TrashRestoreCheck.CHECKING -> stringResource(R.string.tv_trash_checking)
-        outcome.check == TrashRestoreCheck.UNAVAILABLE -> stringResource(R.string.tv_trash_restore_not_available, name)
-        outcome.check == TrashRestoreCheck.FAILED && checkFailure != null -> checkFailure.tvMessageText()
-        else -> when (outcome.submission) {
-            TrashRestoreSubmission.SUBMITTING -> stringResource(R.string.tv_trash_submitting)
-            TrashRestoreSubmission.ACKNOWLEDGED -> stringResource(R.string.tv_trash_restore_started, name)
-            TrashRestoreSubmission.UNCERTAIN -> stringResource(R.string.tv_trash_restore_uncertain, name)
-            TrashRestoreSubmission.REJECTED -> stringResource(R.string.tv_trash_restore_rejected, name) +
-                (outcome.submissionFailure?.let { " " + it.tvMessageText() } ?: "")
-        }
-    }
-    TvTrashOutcomeNotice(
-        text = text,
-        submitting = outcome.submission == TrashRestoreSubmission.SUBMITTING,
-        pending = outcome.isPending,
-        checking = outcome.check == TrashRestoreCheck.CHECKING,
-        checkLabel = stringResource(R.string.tv_trash_check_status),
-        enabled = enabled,
-        onCheck = { onEvent(TrashEvent.CheckRestore) },
-        onDismiss = { onEvent(TrashEvent.DismissRestoreOutcome) },
-        owner = owner,
-    )
-}
-
-@Composable
-private fun TvTrashActionOutcome(
-    outcome: TrashActionOutcome,
-    enabled: Boolean,
-    onEvent: (TrashEvent) -> Boolean,
-    owner: TvPaneFocusOwner,
-) {
-    TvTrashOutcomeNotice(
-        text = outcome.tvText(),
-        submitting = outcome.submission == TrashActionSubmission.SUBMITTING,
-        pending = outcome.isPending,
-        checking = outcome.check == TrashActionCheck.CHECKING,
-        checkLabel = stringResource(R.string.tv_trash_check_trash),
-        enabled = enabled,
-        onCheck = { onEvent(TrashEvent.CheckAction) },
-        onDismiss = { onEvent(TrashEvent.DismissActionOutcome) },
-        owner = owner,
-    )
-}
-
-@Composable
-private fun TrashActionOutcome.tvText(): String = when (check) {
-    TrashActionCheck.CHECKING -> stringResource(R.string.tv_trash_checking)
-    TrashActionCheck.VERIFIED -> action.verifiedText()
-    TrashActionCheck.INCONCLUSIVE -> action.inconclusiveText()
-    TrashActionCheck.FAILED -> checkFailure?.tvMessageText() ?: action.stillPresentText()
-    TrashActionCheck.NOT_CHECKED -> submissionText()
-}
-
-@Composable
-private fun TrashActionOutcome.submissionText(): String = when (submission) {
-    TrashActionSubmission.SUBMITTING -> stringResource(R.string.tv_trash_submitting)
-    TrashActionSubmission.ACKNOWLEDGED -> action.startedText()
-    TrashActionSubmission.UNCERTAIN -> stringResource(R.string.tv_trash_action_uncertain)
-    TrashActionSubmission.REJECTED -> stringResource(R.string.tv_trash_action_rejected) +
-        (submissionFailure?.let { " " + it.tvMessageText() } ?: "")
-}
-
-@Composable
-private fun TrashAction.startedText(): String = when (this) {
-    is TrashAction.DeleteItem -> stringResource(R.string.tv_trash_delete_started, item.name)
-    TrashAction.RestoreAll -> stringResource(R.string.tv_trash_restore_all_started)
-    TrashAction.Empty -> stringResource(R.string.tv_trash_empty_started)
-}
-
-@Composable
-private fun TrashAction.verifiedText(): String = when (this) {
-    is TrashAction.DeleteItem -> stringResource(R.string.tv_trash_delete_verified, item.name)
-    TrashAction.RestoreAll -> stringResource(R.string.tv_trash_restore_all_verified)
-    TrashAction.Empty -> stringResource(R.string.tv_trash_empty_verified)
-}
-
-@Composable
-private fun TrashAction.inconclusiveText(): String = when (this) {
-    is TrashAction.DeleteItem -> stringResource(R.string.tv_trash_delete_inconclusive, item.name)
-    TrashAction.RestoreAll -> stringResource(R.string.tv_trash_restore_all_inconclusive)
-    TrashAction.Empty -> stringResource(R.string.tv_trash_empty_inconclusive)
-}
-
-@Composable
-private fun TrashAction.stillPresentText(): String = when (this) {
-    is TrashAction.DeleteItem -> stringResource(R.string.tv_trash_delete_still_present, item.name)
-    else -> stringResource(R.string.tv_trash_empty_still_present)
-}
-
-/**
- * An outcome keeps one button across its life: Check while unconfirmed, OK once settled,
- * none while the request is in flight, so the node holding focus survives each step.
- */
-@Composable
-private fun TvTrashOutcomeNotice(
-    text: String,
-    submitting: Boolean,
-    pending: Boolean,
-    checking: Boolean,
-    checkLabel: String,
-    enabled: Boolean,
-    onCheck: () -> Unit,
-    onDismiss: () -> Unit,
-    owner: TvPaneFocusOwner,
-) {
-    TvTrashNotice(
-        text = text,
-        action = when {
-            submitting -> null
-            pending -> checkLabel
-            else -> stringResource(R.string.tv_trash_ok)
-        },
-        onAction = {
-            when {
-                submitting -> Unit
-                pending -> if (enabled && !checking) onCheck()
-                else -> onDismiss()
-            }
-        },
-        owner = owner,
-    )
-}
-
-@OptIn(ExperimentalComposeUiApi::class)
-@Composable
-private fun TvTrashList(
-    content: TrashContent.Loaded,
-    restoreRowId: Long?,
-    onChoose: (TrashItem) -> Unit,
-    onRowFocused: (TrashItem) -> Unit,
-    onNextPage: () -> Unit,
-    onRetry: () -> Unit,
-    owner: TvPaneFocusOwner,
-    listFocus: FocusRequester,
-    paneHasFocus: State<Boolean>,
-    dialogShowing: State<Boolean>,
-    modifier: Modifier = Modifier,
-) {
-    val items = content.items
-    val rows = remember { TrashRowFocus() }
-    val pagingFocus = remember { FocusRequester() }
-    val pagingHeldFocus = remember { mutableStateOf(false) }
-    val handOffToLastRow = remember { mutableStateOf(false) }
-    val pagingShown = content.showsPaging
-    if (!pagingShown && pagingHeldFocus.value) {
-        pagingHeldFocus.value = false
-        handOffToLastRow.value = true
-    }
-    val listState = rememberLazyListState()
-    val anchorIndex by remember(listState) { derivedStateOf { listState.firstVisibleItemIndex } }
-    val restoreIndex = remember(items) { items.indexOfFirst { it.id.value == restoreRowId } }
-    LaunchedEffect(listState) {
-        if (!listState.awaitMountTarget(items, restoreIndex, anchorIndex, pagingShown)) return@LaunchedEffect
-        withFrameNanos {}
-        if (!mayPlaceFocus(paneHasFocus, dialogShowing)) return@LaunchedEffect
-        if (restoreIndex >= 0) rows.restore.requestFocus() else listFocus.requestFocus()
-    }
-    LaunchedEffect(handOffToLastRow.value) {
-        if (!handOffToLastRow.value) return@LaunchedEffect
-        val lastId = items.lastOrNull()?.id?.value ?: return@LaunchedEffect
-        listState.bringIntoComposition(lastId, items.lastIndex)
-        withFrameNanos {}
-        if (owner.owns(listFocus)) rows.last.requestFocus()
-        handOffToLastRow.value = false
-    }
-    LazyColumn(
-        state = listState,
-        modifier = modifier
-            .fillMaxWidth()
-            .paneSection(owner, listFocus)
-            .focusRequester(listFocus)
-            .focusRestorer {
-                val lastId = items.lastOrNull()?.id?.value ?: return@focusRestorer pagingFocus
-                listState.restoreTarget(rows, lastId, items.getOrNull(restoreIndex)?.id?.value, handOffToLastRow.value)
-            }
-            .focusGroup()
-            .testTag(TV_TRASH_LIST_TAG),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        itemsIndexed(items, key = { _, item -> item.id.value }) { index, item ->
-            TvTrashRow(
-                item = item,
-                onClick = { onChoose(item) },
-                modifier = Modifier
-                    .focusRequesterIf(index == anchorIndex, rows.anchor)
-                    .focusRequesterIf(index == items.lastIndex, rows.last)
-                    .focusRequesterIf(index == restoreIndex, rows.restore)
-                    .onFocusChanged { if (it.isFocused) onRowFocused(item) },
-            )
-        }
-        if (pagingShown) {
-            item(key = TV_TRASH_PAGING_KEY) {
-                TvTrashPaging(
-                    content = content,
-                    onNextPage = onNextPage,
-                    onRetry = onRetry,
-                    buttonModifier = Modifier
-                        .focusRequester(pagingFocus)
-                        .onFocusChanged { pagingHeldFocus.value = it.isFocused },
-                )
-            }
-        }
-    }
-}
-
-private class TrashRowFocus {
-    val anchor = FocusRequester()
-    val last = FocusRequester()
-    val restore = FocusRequester()
-}
-
-private fun LazyListState.restoreTarget(
-    rows: TrashRowFocus,
-    lastId: Long,
-    restoreId: Long?,
-    handOffToLastRow: Boolean,
-): FocusRequester = when {
-    handOffToLastRow && composes(lastId) -> rows.last
-    composes(restoreId) -> rows.restore
-    else -> rows.anchor
-}
-
-private fun LazyListState.composes(key: Any?): Boolean =
-    key != null && layoutInfo.visibleItemsInfo.any { it.key == key }
-
-private suspend fun LazyListState.awaitMountTarget(
-    items: List<TrashItem>,
-    restoreIndex: Int,
-    anchorIndex: Int,
-    pagingShown: Boolean,
-): Boolean {
-    val restoreKey = items.getOrNull(restoreIndex)?.id?.value
-    if (restoreKey != null) bringIntoComposition(restoreKey, restoreIndex)
-    val targetKey = restoreKey ?: items.getOrNull(anchorIndex)?.id?.value
-        ?: TV_TRASH_PAGING_KEY.takeIf { pagingShown } ?: return false
-    snapshotFlow { composes(targetKey) }.first { it }
-    return true
-}
-
-private val TrashContent.Loaded.showsPaging: Boolean
-    get() = nextCursor != null || isLoadingMore || pageFailure != null
-
-@Composable
-private fun TvTrashRow(
-    item: TrashItem,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val context = LocalContext.current
-    // MainActivity handles no configuration changes, so a locale change recreates it; the
-    // configuration key matters only if the activity ever handles one itself.
-    val configuration = LocalConfiguration.current
-    val (size, deleted, expires) = remember(context, configuration, item) {
-        Triple(
-            Formatter.formatShortFileSize(context, item.sizeBytes.coerceAtLeast(0L)),
-            item.deletedAt?.let { trashDate(context, it) } ?: "–",
-            item.expirationDate?.let { trashDate(context, it) } ?: "–",
-        )
-    }
-    val metadata = stringResource(R.string.tv_trash_row_metadata, size, deleted, expires)
-    val label = stringResource(R.string.tv_trash_row_actions, item.name)
-    val interactions = remember { MutableInteractionSource() }
-    val focused by interactions.collectIsFocusedAsState()
-    ListItem(
-        selected = false,
-        onClick = onClick,
-        headlineContent = { Text(item.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        supportingContent = { Text(metadata, maxLines = 1) },
-        leadingContent = {
-            Icon(
-                painter = painterResource(fileTypeIconRes(item.type)),
-                contentDescription = null,
-                tint = tvAccent(focused),
-                modifier = Modifier.size(ListItemDefaults.IconSize),
-            )
-        },
-        scale = ListItemScale.None,
-        interactionSource = interactions,
-        modifier = modifier
-            .fillMaxWidth()
-            .semantics { contentDescription = label }
-            .testTag(TV_TRASH_ROW_TAG),
-    )
-}
-
-/** A date for the row, from a stamp or a plain date; the raw value when neither, never a fabricated deadline. */
-private fun trashDate(context: android.content.Context, value: String): String {
-    val millis = parsePutioTimestamp(value)?.toEpochMilli()
-        ?: runCatching { LocalDate.parse(value).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli() }
-            .getOrNull()
-        ?: return value
-    return DateUtils.formatDateTime(
-        context,
-        millis,
-        DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_ABBREV_MONTH or DateUtils.FORMAT_SHOW_YEAR,
-    )
-}
-
-@Composable
-private fun TvTrashPaging(
-    content: TrashContent.Loaded,
-    onNextPage: () -> Unit,
-    onRetry: () -> Unit,
-    modifier: Modifier = Modifier,
-    buttonModifier: Modifier = Modifier,
-) {
-    val failure = content.pageFailure
-    val label = when {
-        content.isLoadingMore -> R.string.tv_trash_loading_more
-        failure != null -> R.string.tv_files_retry
-        else -> R.string.tv_trash_load_more
-    }
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (failure != null) {
-            Text(stringResource(R.string.tv_trash_paging_error), color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        TvButton(
-            onClick = {
-                when {
-                    content.isLoadingMore -> Unit
-                    failure != null -> onRetry()
-                    else -> onNextPage()
-                }
-            },
-            modifier = buttonModifier,
-        ) {
-            Text(stringResource(label))
-        }
-    }
-}
-
-private const val TV_TRASH_PAGING_KEY = "tv-trash-paging"
+private const val RETENTION_DAYS = "14"
+private val HEADER_HEIGHT = 76.dp
+private val HEADER_BUTTON_GAP = 8.dp
+private val HEADER_BUTTON_LIFT = 1.dp
+private val HEADER_BUTTON_LABEL = PutioTypeScale.tvButton.copy(fontSize = 11.sp)
+private val INFO_GAP = 4.dp
+private val INFO_LABEL = PutioTypeScale.tvLabel.withFullLineBox()
+private val DETAIL_TOP = 26.dp
+private val STATE_BOTTOM_GAP = 3.dp
