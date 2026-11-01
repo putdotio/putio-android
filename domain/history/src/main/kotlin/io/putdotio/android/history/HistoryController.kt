@@ -16,11 +16,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.TimeSource
 
 public class HistoryController(
     private val repository: HistoryRepository,
     historyEnabled: Boolean,
     parentScope: CoroutineScope,
+    private val clock: TimeSource = TimeSource.Monotonic,
 ) : Closeable {
     private val lock = Any()
     private val controllerJob = SupervisorJob(parentScope.coroutineContext[Job])
@@ -29,6 +32,7 @@ public class HistoryController(
     private val mutableState = MutableStateFlow(initial.state)
     private val navigationChannel = Channel<HistoryEffect.NavigateToFile>(Channel.BUFFERED)
     private var closed = false
+    private var lastRead = clock.markNow()
 
     public val state: StateFlow<HistoryState> = mutableState.asStateFlow()
     public val navigation: Flow<HistoryEffect.NavigateToFile> = navigationChannel.receiveAsFlow()
@@ -37,12 +41,20 @@ public class HistoryController(
 
     public fun dispatch(event: HistoryEvent): Boolean {
         val transition = synchronized(lock) {
-            if (closed || !controllerJob.isActive) return false
-            HistoryReducer.reduce(mutableState.value, event).also { mutableState.value = it.state }
+            if (closed || !controllerJob.isActive || throttles(event)) return false
+            HistoryReducer.reduce(mutableState.value, event).also {
+                mutableState.value = it.state
+                if (it.effect.readsFirstPage()) lastRead = clock.markNow()
+            }
         }
         transition.effect?.let(::launchEffect)
         return transition.consumed
     }
+
+    private fun throttles(event: HistoryEvent): Boolean =
+        event == HistoryEvent.Refresh &&
+            mutableState.value.content !is HistoryContent.Failed &&
+            lastRead.elapsedNow() < REFRESH_AFTER
 
     override fun close() {
         synchronized(lock) {
@@ -68,6 +80,10 @@ public class HistoryController(
         }
     }
 }
+
+private val REFRESH_AFTER = 1.minutes
+
+private fun HistoryEffect?.readsFirstPage(): Boolean = this is HistoryEffect.Load && before == null
 
 // Injected repositories must preserve the same cancellation contract as the SDK adapter.
 @Suppress("TooGenericExceptionCaught")

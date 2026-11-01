@@ -27,6 +27,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.history.HistoryContent
+import io.putdotio.android.history.HistoryEvent
 import io.putdotio.android.history.HistoryEventId
 import io.putdotio.android.history.HistoryEventKind
 import io.putdotio.android.history.HistoryFileId
@@ -160,7 +161,7 @@ class TvPickReturnFocusTest {
                 TvHistoryScreen(
                     state = historyState(HistoryContent.Ready(events, HistoryPaging.Complete)),
                     onEvent = {
-                        playing = true
+                        if (it is HistoryEvent.OpenFile) playing = true
                         true
                     },
                     modifier = Modifier.focusRequester(paneFocus),

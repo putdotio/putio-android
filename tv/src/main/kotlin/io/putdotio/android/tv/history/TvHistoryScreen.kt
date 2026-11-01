@@ -79,6 +79,7 @@ internal fun TvHistoryScreen(
     onOpenAccount: () -> Unit = {},
     onAuthenticationRequired: suspend () -> Unit = {},
 ) = key(sessionKey) {
+    LaunchedEffect(Unit) { onEvent(HistoryEvent.Refresh) }
     val content = state.content
     val paneHasFocus = rememberTvPaneHasFocus()
     val listFocus = remember { FocusRequester() }
