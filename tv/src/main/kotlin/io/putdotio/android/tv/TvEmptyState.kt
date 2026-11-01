@@ -17,6 +17,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -48,9 +50,12 @@ internal fun TvEmptyState(
     actionFocus: FocusRequester = remember { FocusRequester() },
     claimFocus: Boolean = true,
     glyphRunPerCharacter: Boolean = false,
+    supporting: (@Composable () -> Unit)? = null,
+    messageColor: Color = Color.Unspecified,
+    glyphModifier: Modifier = Modifier,
 ) {
-    LaunchedEffect(action != null, claimFocus) {
-        if (action == null || !claimFocus) return@LaunchedEffect
+    LaunchedEffect(action != null, action?.enabled, claimFocus) {
+        if (action == null || !action.enabled || !claimFocus) return@LaunchedEffect
         withFrameNanos {}
         actionFocus.requestFocus()
     }
@@ -75,7 +80,7 @@ internal fun TvEmptyState(
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 softWrap = false,
-                modifier = Modifier
+                modifier = glyphModifier
                     .height(with(LocalDensity.current) { GLYPH_LINE.toDp() })
                     .wrapContentHeight(unbounded = true)
                     .clearAndSetSemantics {},
@@ -92,15 +97,17 @@ internal fun TvEmptyState(
             Text(
                 text = message,
                 style = MaterialTheme.typography.bodySmall.withFullLineBox(),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = messageColor.takeOrElse { MaterialTheme.colorScheme.onSurfaceVariant },
                 textAlign = TextAlign.Center,
                 modifier = Modifier.widthIn(max = MESSAGE_WIDTH),
             )
         }
+        supporting?.invoke()
         if (action != null) {
             TvButton(
                 onClick = action.onClick,
                 modifier = Modifier.padding(top = ACTION_GAP).focusRequester(actionFocus),
+                enabled = action.enabled,
             ) {
                 if (action.icon != null) {
                     Icon(
@@ -145,6 +152,7 @@ internal data class TvEmptyStateAction(
     val label: String,
     val onClick: () -> Unit,
     @param:DrawableRes val icon: Int? = null,
+    val enabled: Boolean = true,
 )
 
 private val MESSAGE_WIDTH = 440.dp

@@ -145,7 +145,7 @@ class TvPlayerScreenTest {
         assertEquals(61_000L, position)
 
         state = state.copyForTest(content = PlaybackContent.Failed(failure))
-        compose.onNodeWithText("Couldn’t play this file").assertIsDisplayed()
+        compose.onNodeWithText("Couldn't play this file.").assertIsDisplayed()
         compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressKey(Key.DirectionCenter) }
         compose.runOnIdle { assertEquals(1, retries) }
     }
