@@ -16,6 +16,8 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertWidthIsAtLeast
+import androidx.compose.ui.graphics.toPixelMap
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotSelected
@@ -388,6 +390,21 @@ class TvPlayerOptionsTest {
         choose("Deutsch")
         settle()
         compose.onNodeWithTag(SUBTITLE_CUES_TAG).assertDoesNotExist()
+    }
+
+    @Test
+    fun aMediumCueIsDrawnAtTheBoardsTwentyTwoDp() {
+        val player = TrackPlayer()
+        show(player, policy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = true))
+        val before = compose.onNodeWithTag(TV_PLAYER_TAG).captureToImage().toPixelMap()
+        compose.runOnIdle { player.emitCue("HHHH") }
+        settle()
+        val after = compose.onNodeWithTag(TV_PLAYER_TAG).captureToImage().toPixelMap()
+        val inkRows = (0 until after.height).filter { y ->
+            (0 until after.width).any { x -> after[x, y] != before[x, y] }
+        }
+        val capHeight = with(compose.density) { (inkRows.last() - inkRows.first() + 1).toDp() }
+        assertTrue("A Medium cue's capitals are $capHeight tall", capHeight in 14.dp..17.dp)
     }
 
     @Test
