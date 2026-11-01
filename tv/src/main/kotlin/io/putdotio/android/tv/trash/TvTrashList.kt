@@ -123,6 +123,7 @@ internal fun TvTrashList(
             TvTrashRow(
                 item = item,
                 onClick = { onChoose(item) },
+                showsFocus = !focus.dialogShowing.value,
                 modifier = Modifier
                     .focusRequesterIf(index == anchorIndex, rows.anchor)
                     .focusRequesterIf(index == items.lastIndex, rows.last)
@@ -190,10 +191,11 @@ private val TrashContent.Loaded.showsPaging: Boolean
 private fun TvTrashRow(
     item: TrashItem,
     onClick: () -> Unit,
+    showsFocus: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val interactions = remember { MutableInteractionSource() }
-    val focused by interactions.collectIsFocusedAsState()
+    val focused = interactions.collectIsFocusedAsState().value && showsFocus
     val colors = MaterialTheme.colorScheme
     val secondary = if (focused) TvFocus.secondaryContent else colors.onSurfaceVariant
     Surface(
@@ -206,8 +208,8 @@ private fun TvTrashRow(
         colors = ClickableSurfaceDefaults.colors(
             containerColor = Color.Transparent,
             contentColor = colors.onSurface,
-            focusedContainerColor = TvFocus.container,
-            focusedContentColor = TvFocus.content,
+            focusedContainerColor = if (showsFocus) TvFocus.container else Color.Transparent,
+            focusedContentColor = if (showsFocus) TvFocus.content else colors.onSurface,
             pressedContainerColor = TvFocus.container,
             pressedContentColor = TvFocus.content,
         ),

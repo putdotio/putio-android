@@ -66,7 +66,8 @@ internal fun ColumnScope.TvTrashDetail(
             primary = true,
             detailHasFocus = actions.detailHasFocus,
             enabled = actions.canRestore,
-            looksFocused = actions.rowHasFocus && actions.canRestore,
+            looksFocused = actions.rowHasFocus && actions.canRestore && actions.showsFocus,
+            showsFocus = actions.showsFocus,
         )
         TvDetailButton(
             label = AnnotatedString(stringResource(R.string.tv_trash_delete)),
@@ -75,6 +76,7 @@ internal fun ColumnScope.TvTrashDetail(
             modifier = actions.deleteModifier,
             enabled = actions.canDelete,
             danger = true,
+            showsFocus = actions.showsFocus,
         )
     }
 }

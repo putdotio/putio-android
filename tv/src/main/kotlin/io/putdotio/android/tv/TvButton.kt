@@ -46,6 +46,7 @@ internal fun TvButton(
     interactions: MutableInteractionSource = remember { MutableInteractionSource() },
     hugsLabel: Boolean = false,
     looksFocused: Boolean = false,
+    showsFocus: Boolean = true,
     content: @Composable RowScope.() -> Unit,
 ) {
     val focused by interactions.collectIsFocusedAsState()
@@ -65,13 +66,13 @@ internal fun TvButton(
         .height(size.height)
         .drawWithContent {
             drawContent()
-            if (keepsFill && focused) {
+            if (keepsFill && focused && showsFocus) {
                 drawPillOutline(gap, RING_GAP.toPx() / 2, RING_GAP.toPx())
                 drawPillOutline(ring, (RING_GAP + RING_WIDTH / 2).toPx(), RING_WIDTH.toPx())
             }
         }
-    val focusedFill = if (keepsFill) rest else TvFocus.container
-    val focusedContent = if (keepsFill) restContent else TvFocus.content
+    val focusedFill = if (keepsFill || !showsFocus) rest else TvFocus.container
+    val focusedContent = if (keepsFill || !showsFocus) restContent else TvFocus.content
     if (hugsLabel) {
         TvLabelButton(
             onClick = onClick,

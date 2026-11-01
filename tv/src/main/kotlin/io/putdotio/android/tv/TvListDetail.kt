@@ -225,12 +225,14 @@ internal fun TvDetailButton(
     enabled: Boolean = true,
     danger: Boolean = false,
     looksFocused: Boolean = false,
+    showsFocus: Boolean = true,
 ) {
     TvButton(
         onClick = onClick,
         modifier = if (label == null) modifier.width(TvButtonSize.DetailIcon.height) else modifier,
         enabled = enabled,
         looksFocused = looksFocused,
+        showsFocus = showsFocus,
         style = when {
             danger -> TvButtonStyle.TonalDanger
             primary && detailHasFocus -> TvButtonStyle.Filled

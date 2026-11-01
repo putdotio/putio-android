@@ -63,6 +63,7 @@ import io.putdotio.android.tv.monoNumber
 import io.putdotio.android.tv.paneSection
 import io.putdotio.android.tv.refocusAfterDialog
 import io.putdotio.android.tv.rememberTvPaneHasFocus
+import io.putdotio.android.tv.withFullLineBox
 
 /**
  * Trash, reached from Account › Library: the title under an Account crumb with Restore all
@@ -125,6 +126,7 @@ internal fun TvTrashScreen(
         TvTrashHeader(
             onRestoreAll = { onEvent(TrashEvent.SelectRestoreAll) },
             onEmpty = { onEvent(TrashEvent.SelectEmpty) },
+            showsFocus = !dialogOpen,
             restoreAllModifier = Modifier.keyedPaneSection("restoreAll", owner, focus.restoreAll),
             emptyModifier = Modifier.keyedPaneSection("empty", owner, focus.empty),
         )
@@ -235,6 +237,7 @@ private fun TvTrashListDetail(
                         detailHasFocus = detailHasFocus,
                         onRestore = { onEvent(TrashEvent.SelectRestore(detailItem.id)) },
                         onDelete = { onEvent(TrashEvent.SelectDelete(detailItem.id)) },
+                        showsFocus = !listFocus.dialogShowing.value,
                         restoreModifier = Modifier.keyedPaneSection("restore", listFocus.owner, focus.restore),
                         deleteModifier = Modifier.keyedPaneSection("delete", listFocus.owner, focus.delete),
                     ),
@@ -258,6 +261,7 @@ internal data class TvTrashDetailActions(
     val detailHasFocus: Boolean,
     val onRestore: () -> Unit,
     val onDelete: () -> Unit,
+    val showsFocus: Boolean,
     val restoreModifier: Modifier,
     val deleteModifier: Modifier,
 )
@@ -290,6 +294,7 @@ private val TrashContent.isLoadingOrKnownEmpty: Boolean
 private fun TvTrashHeader(
     onRestoreAll: () -> Unit,
     onEmpty: () -> Unit,
+    showsFocus: Boolean,
     modifier: Modifier = Modifier,
     restoreAllModifier: Modifier = Modifier,
     emptyModifier: Modifier = Modifier,
@@ -308,6 +313,7 @@ private fun TvTrashHeader(
                     label = stringResource(R.string.tv_trash_restore_all),
                     onClick = onRestoreAll,
                     style = TvButtonStyle.Tonal,
+                    showsFocus = showsFocus,
                     modifier = restoreAllModifier,
                 )
                 TvTrashHeaderButton(
@@ -315,6 +321,7 @@ private fun TvTrashHeader(
                     label = stringResource(R.string.tv_trash_empty_action),
                     onClick = onEmpty,
                     style = TvButtonStyle.TonalDanger,
+                    showsFocus = showsFocus,
                     modifier = emptyModifier,
                 )
             }
@@ -328,9 +335,16 @@ private fun TvTrashHeaderButton(
     label: String,
     onClick: () -> Unit,
     style: TvButtonStyle,
+    showsFocus: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    TvButton(onClick = onClick, modifier = modifier, style = style, size = TvButtonSize.Header) {
+    TvButton(
+        onClick = onClick,
+        modifier = modifier,
+        style = style,
+        size = TvButtonSize.Header,
+        showsFocus = showsFocus,
+    ) {
         Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(TvButtonSize.Header.icon))
         Text(label, style = HEADER_BUTTON_LABEL, maxLines = 1, softWrap = false)
     }
@@ -341,7 +355,7 @@ private fun TvTrashInfo() {
     val info = stringResource(R.string.tv_trash_info)
     Text(
         text = remember(info) { monoNumber(info, RETENTION_DAYS) },
-        style = PutioTypeScale.tvLabel,
+        style = INFO_LABEL,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(start = ROW_BLEED, end = ROW_BLEED, bottom = INFO_GAP),
     )
@@ -364,5 +378,6 @@ private val HEADER_HEIGHT = 76.dp
 private val HEADER_BUTTON_GAP = 8.dp
 private val HEADER_BUTTON_LABEL = PutioTypeScale.tvButton.copy(fontSize = 11.sp)
 private val INFO_GAP = 4.dp
+private val INFO_LABEL = PutioTypeScale.tvLabel.withFullLineBox()
 private val DETAIL_TOP = 26.dp
 private val STATE_BOTTOM_GAP = 3.dp
