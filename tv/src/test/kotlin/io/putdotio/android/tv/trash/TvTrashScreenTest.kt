@@ -167,6 +167,21 @@ class TvTrashScreenTest {
     }
 
     @Test
+    fun aPendingRestoreLeavesRowsAndDetailActionsInert() {
+        show {
+            TrashState(
+                content = loaded,
+                restoreOutcome = TrashRestoreOutcome(item, TrashRestoreSubmission.ACKNOWLEDGED),
+            )
+        }
+
+        compose.onNode(row).assertIsFocused().performKeyInput { pressCenter() }
+        compose.onNode(hasText("Restore") and hasClickAction()).assertIsNotEnabled()
+        compose.onNode(hasText("Delete permanently") and hasClickAction()).assertIsNotEnabled()
+        compose.runOnIdle { assertEquals(emptyList<TrashEvent>(), events) }
+    }
+
+    @Test
     fun dateOnlyStampsFormatLikeTimestamps() {
         show {
             TrashState(content = loaded.copy(items = listOf(item.copy(deletedAt = "2026-09-06"))))
