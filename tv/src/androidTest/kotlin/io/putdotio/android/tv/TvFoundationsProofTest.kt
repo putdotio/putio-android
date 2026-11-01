@@ -201,12 +201,6 @@ class TvFoundationsProofTest {
         compose.waitUntil(5_000) { compose.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() }
     }
 
-    private fun press(keyCode: Int) {
-        InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(keyCode)
-        compose.waitForIdle()
-        Thread.sleep(STEP_MILLIS)
-    }
-
     private fun screenshot(label: String) {
         compose.waitForIdle()
         val instrumentation = InstrumentationRegistry.getInstrumentation()

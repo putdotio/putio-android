@@ -271,7 +271,9 @@ class TvAutoplayProofTest {
                     override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult {
                         lookups += target.fileId.value
                         return if (target.fileId.value == FIRST_ID) {
-                            PlaybackNextResult.Found(PlaybackTarget(second.id, SECOND, durationSeconds = FIXTURE_SECONDS))
+                            PlaybackNextResult.Found(
+                                PlaybackTarget(second.id, SECOND, durationSeconds = FIXTURE_SECONDS),
+                            )
                         } else {
                             PlaybackNextResult.Ended
                         }

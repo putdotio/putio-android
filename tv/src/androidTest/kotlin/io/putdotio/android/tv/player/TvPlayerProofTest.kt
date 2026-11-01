@@ -529,7 +529,9 @@ class TvPlayerProofTest {
                     autoplayNextVideo = true,
                     onPlaybackEnded = { true },
                     nextEpisode = PlaybackTarget(FilesItemId(FIXTURE_FILE_ID + 1), STATES_NEXT_TITLE),
-                    upNext = TvUpNextLookup.Found(TvUpNext(PlaybackTarget(FilesItemId(FIXTURE_FILE_ID + 1), STATES_NEXT_TITLE), STATES_FOLDER)),
+                    upNext = TvUpNextLookup.Found(
+                        TvUpNext(PlaybackTarget(FilesItemId(FIXTURE_FILE_ID + 1), STATES_NEXT_TITLE), STATES_FOLDER),
+                    ),
                     onOpenInVlc = {},
                     onPlayInVlc = playInVlc,
                 )
@@ -706,7 +708,9 @@ class TvPlayerProofTest {
                 it.isPlaying && factory.renderedFrame && it.currentPosition > 1_000L &&
                     it.currentTracks.playbackSubtitleTracks().size == 2 && selectedSubtitle(it) != null
             }
-            compose.waitUntil(10_000) { compose.onAllNodesWithTag(SUBTITLE_CUES_TAG).fetchSemanticsNodes().isNotEmpty() }
+            compose.waitUntil(10_000) {
+                compose.onAllNodesWithTag(SUBTITLE_CUES_TAG).fetchSemanticsNodes().isNotEmpty()
+            }
             compose.runOnIdle { assertEquals("de", selectedSubtitleLanguage(factory.current())) }
             screenshot("70-account-default-subtitle")
             pause()
@@ -738,7 +742,8 @@ class TvPlayerProofTest {
         pause()
     }
 
-    private fun selectedSubtitle(player: Player) = player.currentTracks.playbackSubtitleTracks().singleOrNull { it.selected }
+    private fun selectedSubtitle(player: Player) =
+        player.currentTracks.playbackSubtitleTracks().singleOrNull { it.selected }
 
     private fun selectedSubtitleLanguage(player: Player) =
         selectedSubtitle(player)?.let { it.group.getFormat(it.trackIndex).language }
@@ -789,7 +794,9 @@ class TvPlayerProofTest {
         compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertDoesNotExist()
         system.transportControls.pause()
         awaitPlayer(factory) { !it.playWhenReady }
-        compose.waitUntil(5_000) { compose.onAllNodesWithTag(TV_PLAYER_CONTROLS_TAG).fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(5_000) {
+            compose.onAllNodesWithTag(TV_PLAYER_CONTROLS_TAG).fetchSemanticsNodes().isNotEmpty()
+        }
         compose.onNodeWithContentDescription("Play").assertExists()
         screenshot("56-system-paused")
         pause()
@@ -993,7 +1000,11 @@ class TvPlayerProofTest {
                 FilesFolderState(
                     FilesFolder.Root,
                     FilesContent.Ready(
-                        listOf(row(1, "Documents", PutioFileType.FOLDER), media, row(3, "notes.txt", PutioFileType.TEXT)),
+                        listOf(
+                            row(1, "Documents", PutioFileType.FOLDER),
+                            media,
+                            row(3, "notes.txt", PutioFileType.TEXT),
+                        ),
                         FilesPaging.Complete,
                     ),
                 ),
@@ -1071,7 +1082,11 @@ class TvPlayerProofTest {
                 FilesFolderState(
                     FilesFolder.Root,
                     FilesContent.Ready(
-                        listOf(row(1, "Documents", PutioFileType.FOLDER), video, row(3, "notes.txt", PutioFileType.TEXT)),
+                        listOf(
+                            row(1, "Documents", PutioFileType.FOLDER),
+                            video,
+                            row(3, "notes.txt", PutioFileType.TEXT),
+                        ),
                         FilesPaging.Complete,
                     ),
                 ),

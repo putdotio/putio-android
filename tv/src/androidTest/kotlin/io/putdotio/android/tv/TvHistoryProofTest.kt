@@ -53,7 +53,10 @@ class TvHistoryProofTest {
     private val optIn = TestRule { base, _ ->
         object : Statement() {
             override fun evaluate() {
-                assumeTrue("TV history proof requires opt-in", arguments.getString("putio.tv.history.enabled") == "true")
+                assumeTrue(
+                    "TV history proof requires opt-in",
+                    arguments.getString("putio.tv.history.enabled") == "true",
+                )
                 runId()
                 base.evaluate()
             }
@@ -143,7 +146,11 @@ class TvHistoryProofTest {
     }
 
     private fun events(): List<HistoryItem> = listOf(
-        event(5, stamp(0, 10, 41), HistoryEventKind.Transfer(HistoryTransferId(1), HistoryFileId(SERVER_ID), SERVER_ISO)),
+        event(
+            5,
+            stamp(0, 10, 41),
+            HistoryEventKind.Transfer(HistoryTransferId(1), HistoryFileId(SERVER_ID), SERVER_ISO),
+        ),
         event(4, stamp(1, 22, 24), HistoryEventKind.File(HistoryFileId(202), "FFTT Tree Rings October 23, 2026.mp3")),
         event(3, stamp(1, 5, 22), HistoryEventKind.Notice(HistoryNoticeType.Upload, "x2-truncated.mp4")),
         event(2, stamp(5, 22, 40), HistoryEventKind.File(HistoryFileId(203), "FFTT Full Report October 20, 2026.mp3")),
@@ -193,7 +200,9 @@ class TvHistoryProofTest {
         check(directory.mkdirs() || directory.isDirectory)
         val bitmap = requireNotNull(instrumentation.uiAutomation.takeScreenshot())
         try {
-            File(directory, "$label.png").outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
+            File(directory, "$label.png").outputStream().use {
+                check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
+            }
         } finally {
             bitmap.recycle()
         }

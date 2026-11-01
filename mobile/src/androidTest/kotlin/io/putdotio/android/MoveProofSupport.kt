@@ -4,7 +4,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 
-// SDK exception payloads stay redacted; fixed-label JUnit assertion failures pass through intact.
+@Suppress("SwallowedException") // SDK exceptions can carry response details; report only the failed stage and type.
 internal fun moveProofApiCheck(stage: String, block: suspend () -> Unit) {
     try { runBlocking { withTimeout(30_000) { block() } } }
     catch (error: Exception) { throw AssertionError("$stage failed (${error.javaClass.simpleName})") }

@@ -127,10 +127,15 @@ class MobileMoveTargetProofTest {
             screenshot("02-remember-on-chosen-folder")
             compose.onNodeWithTag(MOBILE_FILES_MOVE_HERE_TAG).performClick()
             compose.waitUntil(5_000) {
-                (controller.state.value.current.content as? FilesContent.Ready)?.items?.none { it.id == CLIP.id } == true
+                (controller.state.value.current.content as? FilesContent.Ready)
+                    ?.items
+                    ?.none { it.id == CLIP.id } == true
             }
             check(repository.moves == listOf(CLIP.id to ARCHIVE.id)) { "Moved ${repository.moves}" }
-            val remembered = FilesMoveTargetMemory(true, listOf(SAMPLE_FOLDER, ARCHIVE).map { FilesFolder(it.id, it.name) })
+            val remembered = FilesMoveTargetMemory(
+                true,
+                listOf(SAMPLE_FOLDER, ARCHIVE).map { FilesFolder(it.id, it.name) },
+            )
             check(MobileMoveTargetStore(context, USER_ID).read() == remembered) { "Stored ${store.read()}" }
             check(MobileMoveTargetStore(context, OTHER_USER_ID).read() == FilesMoveTargetMemory()) { "Leaked" }
 

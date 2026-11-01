@@ -23,6 +23,7 @@ internal data class MoveProofFixture(
     val collisionName: String,
 ) {
     companion object {
+        @Suppress("SwallowedException") // Parser exceptions can carry the supplied fixture; report only their type.
         fun parse(encoded: String?): MoveProofFixture {
             try {
                 require(encoded != null && encoded.length <= 32_768)
@@ -74,7 +75,6 @@ internal data class MoveProofFixture(
                     names.getValue("collisionName"),
                 )
             } catch (error: Exception) {
-                // Parser errors may contain supplied payloads; report only their type.
                 throw AssertionError("Invalid putio.move.fixture (${error.javaClass.simpleName})")
             }
         }

@@ -24,7 +24,13 @@ class TvLauncherProofTest {
         store.programs().forEach { store.delete(it.rowId) }
 
         val cards = listOf(
-            TvWatchNextProgram(1L, "Big Buck Bunny.mp4", posterUrl, positionMillis = 179_000L, durationMillis = 596_000L),
+            TvWatchNextProgram(
+                1L,
+                "Big Buck Bunny.mp4",
+                posterUrl,
+                positionMillis = 179_000L,
+                durationMillis = 596_000L,
+            ),
             TvWatchNextProgram(
                 2L,
                 "Blue.Lights.S04E01.1080p.HDTV.H264-ORGANiC.mkv",

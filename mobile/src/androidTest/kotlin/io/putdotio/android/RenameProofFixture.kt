@@ -16,6 +16,7 @@ internal data class RenameProofFixture(
     val cancelOriginalName: String,
 ) {
     companion object {
+        @Suppress("SwallowedException") // Parser exceptions can carry the supplied fixture; report only their type.
         fun parse(encoded: String?): RenameProofFixture {
             try {
                 require(encoded != null && encoded.length <= 32_768)
@@ -63,7 +64,6 @@ internal data class RenameProofFixture(
                 }
                 return fixture
             } catch (error: Exception) {
-                // Parser exceptions may contain the supplied payload; never attach them to runner output.
                 throw AssertionError("Invalid putio.rename.fixture (${error.javaClass.simpleName})")
             }
         }

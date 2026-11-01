@@ -240,7 +240,9 @@ class TvExternalOpenProofTest {
             listings = listings,
             searchResults = listOf(video, folder, document),
             recentSearchStore = { ProofRecentSearchStore() },
-            playback = { PlaybackResolution.Ready(localSource().copy(startFromSeconds = SAVED_SECONDS), useStartFrom = true) },
+            playback = {
+                PlaybackResolution.Ready(localSource().copy(startFromSeconds = SAVED_SECONDS), useStartFrom = true)
+            },
         )
     }
 
@@ -264,7 +266,9 @@ class TvExternalOpenProofTest {
         }
         return tvProofDependencies(
             listings = mapOf(FilesFolder.Root.id to FilesPage(listOf(folder), null), folder.id to pages.first()),
-            continuations = pages.drop(1).mapIndexed { index, page -> FilesCursor("page-${index + 1}") to page }.toMap(),
+            continuations = pages.drop(1)
+                .mapIndexed { index, page -> FilesCursor("page-${index + 1}") to page }
+                .toMap(),
             pageDelayMillis = PAGE_DELAY_MILLIS,
             searchResults = listOf(document),
             recentSearchStore = { ProofRecentSearchStore() },

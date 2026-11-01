@@ -17,6 +17,7 @@ internal data class TrashRestoreFixture(
     val fileSize: Long,
 ) {
     companion object {
+        @Suppress("SwallowedException") // Parser exceptions can carry the supplied fixture; report only their type.
         fun parse(encoded: String?, expectedRunId: String?): TrashRestoreFixture {
             try {
                 require(encoded != null && encoded.length <= 32_768)
@@ -79,7 +80,6 @@ internal data class TrashRestoreFixture(
                     numbers.getValue("fileSize"),
                 )
             } catch (error: Exception) {
-                // Parsing diagnostics can contain supplied data; never preserve the payload or cause.
                 throw AssertionError("Invalid putio.trash.restore.fixture (${error.javaClass.simpleName})")
             }
         }

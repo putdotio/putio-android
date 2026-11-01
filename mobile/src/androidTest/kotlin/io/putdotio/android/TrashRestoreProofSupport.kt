@@ -33,6 +33,7 @@ import java.util.UUID
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 
+@Suppress("SwallowedException") // SDK exceptions can carry response details; report only the failed stage and type.
 internal fun <T> trashRestoreApiCheck(stage: String, block: suspend () -> T): T = try {
     runBlocking { withTimeout(30_000) { block() } }
 } catch (error: Exception) {

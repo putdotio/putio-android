@@ -16,6 +16,7 @@ internal data class DeleteProofFixture(
     val cancelName: String,
 ) {
     companion object {
+        @Suppress("SwallowedException") // Parser exceptions can carry the supplied fixture; report only their type.
         fun parse(encoded: String?): DeleteProofFixture {
             try {
                 require(encoded != null && encoded.length <= 32_768)
@@ -66,7 +67,6 @@ internal data class DeleteProofFixture(
                 require(setOf(fixture.containerName, fixture.actionName, fixture.cancelName).size == 3)
                 return fixture
             } catch (error: Exception) {
-                // Parser exceptions may contain the supplied payload; never attach them to runner output.
                 throw AssertionError("Invalid putio.delete.fixture (${error.javaClass.simpleName})")
             }
         }

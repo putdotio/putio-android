@@ -7,12 +7,21 @@ naming:
     ignoreAnnotated: ['Composable']
 
 complexity:
+  ComplexCondition:
+    excludes: ['**/androidTest/**']
+  CyclomaticComplexMethod:
+    excludes: ['**/androidTest/**']
+  LargeClass:
+    excludes: ['**/androidTest/**']
   LongMethod:
     ignoreAnnotated: ['Composable']
+    excludes: ['**/androidTest/**']
   LongParameterList:
     ignoreAnnotated: ['Composable']
     # Test fixtures mirror data class constructors, which the rule already ignores.
-    excludes: ['**/testFixtures/**']
+    excludes: ['**/testFixtures/**', '**/androidTest/**']
+  NestedBlockDepth:
+    excludes: ['**/androidTest/**']
   TooManyFunctions:
     ignoreAnnotatedFunctions: ['Composable', 'Preview']
 

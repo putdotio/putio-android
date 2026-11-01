@@ -150,7 +150,12 @@ internal fun tvProofDependencies(
 internal fun AndroidComposeTestRule<ActivityScenarioRule<ComponentActivity>, ComponentActivity>.mountTvProofSession(
     dependencies: TvSessionDependencies,
     onExit: (() -> Unit)? = null,
-    account: TvAccount = TvAccount(userId = 1, username = "proof", email = "proof@example.invalid", historyEnabled = true),
+    account: TvAccount = TvAccount(
+        userId = 1,
+        username = "proof",
+        email = "proof@example.invalid",
+        historyEnabled = true,
+    ),
     overlay: @Composable BoxScope.() -> Unit = {},
     tab: String? = "Files",
     tunnelRoutes: List<TunnelRouteOption> = emptyList(),

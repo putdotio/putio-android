@@ -206,7 +206,9 @@ class MobileShellAccessibilityProofTest {
     private fun checkNavigationLabels() {
         proofStage = "navigation-labels"
         if (navigation != MobileNavigationLayout.Modal) {
-            DESTINATIONS.forEach { label -> assertCompleteLabel(label, navigationDestination(label).assertIsDisplayed()) }
+            DESTINATIONS.forEach { label ->
+                assertCompleteLabel(label, navigationDestination(label).assertIsDisplayed())
+            }
             return
         }
         compose.onNodeWithTag(MOBILE_NAV_MENU_TAG).performClick()
@@ -301,7 +303,9 @@ class MobileShellAccessibilityProofTest {
         checkReplacementMessage("share-keep")
         compose.onNodeWithText("Keep draft").assertIsDisplayed().assertIsEnabled().performClick()
         compose.onNodeWithText("Replace the current draft?").assertDoesNotExist()
-        compose.onNode(hasContentDescription("Add transfer") or hasText("Add transfer")).assertIsDisplayed().performClick()
+        compose.onNode(hasContentDescription("Add transfer") or hasText("Add transfer"))
+            .assertIsDisplayed()
+            .performClick()
         compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).performScrollTo()
             .assertIsDisplayed().assertTextContains(SHARED_URL)
         compose.runOnIdle {
@@ -411,9 +415,14 @@ class MobileShellAccessibilityProofTest {
         compose.waitUntil(5_000) { compose.runOnIdle { player.isPlaying } }
     }
 
-    private fun navigationDestination(label: String) = compose.onNode(hasText(label) and hasAnyAncestor(hasTestTag(
-        if (navigation == MobileNavigationLayout.Modal) MOBILE_NAV_DRAWER_TAG else checkNotNull(NAVIGATION_TAGS[navigation]),
-    )))
+    private fun navigationDestination(label: String): SemanticsNodeInteraction {
+        val container = if (navigation == MobileNavigationLayout.Modal) {
+            MOBILE_NAV_DRAWER_TAG
+        } else {
+            checkNotNull(NAVIGATION_TAGS[navigation])
+        }
+        return compose.onNode(hasText(label) and hasAnyAncestor(hasTestTag(container)))
+    }
 
     private fun capture(label: String) {
         compose.waitForIdle()

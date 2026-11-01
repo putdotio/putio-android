@@ -126,15 +126,16 @@ internal class DebugDeviceSignIn(
 
     private suspend fun complete(link: DeviceCodeAuthState.Linked): DebugDeviceSignInState {
         val accessToken = AccessToken.parse(link.accessToken)
-            ?: return DebugDeviceSignInState.Stopped("put.io returned an unusable token")
         val controller = runtime.authController
-        if (!controller.completeDeviceLink(accessToken)) {
-            return DebugDeviceSignInState.Stopped("the app is not signed out, or a browser sign-in is pending")
-        }
-        return when (val after = controller.state.value) {
-            is MobileAuthState.SignedIn -> DebugDeviceSignInState.SignedIn(after.account.userId)
-            is MobileAuthState.SignedOut -> DebugDeviceSignInState.Stopped("signed out (${after.reason})")
-            else -> DebugDeviceSignInState.Stopped("app is ${after::class.simpleName}")
+        return when {
+            accessToken == null -> DebugDeviceSignInState.Stopped("put.io returned an unusable token")
+            !controller.completeDeviceLink(accessToken) ->
+                DebugDeviceSignInState.Stopped("the app is not signed out, or a browser sign-in is pending")
+            else -> when (val after = controller.state.value) {
+                is MobileAuthState.SignedIn -> DebugDeviceSignInState.SignedIn(after.account.userId)
+                is MobileAuthState.SignedOut -> DebugDeviceSignInState.Stopped("signed out (${after.reason})")
+                else -> DebugDeviceSignInState.Stopped("app is ${after::class.simpleName}")
+            }
         }
     }
 }

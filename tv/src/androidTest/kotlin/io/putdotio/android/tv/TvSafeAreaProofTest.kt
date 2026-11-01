@@ -53,7 +53,10 @@ class TvSafeAreaProofTest {
     private val optIn = TestRule { base, _ ->
         object : Statement() {
             override fun evaluate() {
-                assumeTrue("TV safe-area proof requires opt-in", arguments.getString("putio.tv.safearea.enabled") == "true")
+                assumeTrue(
+                    "TV safe-area proof requires opt-in",
+                    arguments.getString("putio.tv.safearea.enabled") == "true",
+                )
                 UUID.fromString(requireNotNull(arguments.getString("putio.tv.safearea.runId")))
                 base.evaluate()
             }
@@ -67,12 +70,16 @@ class TvSafeAreaProofTest {
         compose.setContent {
             PutioTvTheme {
                 Box(Modifier.fillMaxSize().drawWithContent { drawContent(); outlineSafeArea(size) }) {
-                    TvShell(account = TvAccount(userId = 1, username = "proof", email = "proof@example.com"), onSignOut = {})
+                    TvShell(
+                        account = TvAccount(userId = 1, username = "proof", email = "proof@example.com"),
+                        onSignOut = {},
+                    )
                 }
             }
         }
         compose.waitForIdle()
-        val label = compose.onRoot().fetchSemanticsNode().boundsInRoot.let { "${it.width.toInt()}x${it.height.toInt()}" }
+        val label = compose.onRoot().fetchSemanticsNode().boundsInRoot
+            .let { "${it.width.toInt()}x${it.height.toInt()}" }
         screenshot("shell-$label")
         assertContentInsideSafeArea()
 
@@ -102,7 +109,8 @@ class TvSafeAreaProofTest {
         compose.onNodeWithText("Your files are deleted in 14 days unless you renew.")
             .assertExists()
         compose.onTvTab("Home").assertIsFocused()
-        val label = compose.onRoot().fetchSemanticsNode().boundsInRoot.let { "${it.width.toInt()}x${it.height.toInt()}" }
+        val label = compose.onRoot().fetchSemanticsNode().boundsInRoot
+            .let { "${it.width.toInt()}x${it.height.toInt()}" }
         screenshot("inactive-$label")
         assertContentInsideSafeArea()
     }
