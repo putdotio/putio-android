@@ -48,6 +48,7 @@ import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.playback.playbackPreference
 import io.putdotio.android.search.RecentSearchStoreOwner
 import io.putdotio.android.search.SearchController
+import io.putdotio.android.search.SearchFolderNames
 import io.putdotio.android.search.SearchRepository
 import io.putdotio.android.session.SessionScopedHolder
 import io.putdotio.android.settings.AccountSettingsController
@@ -195,8 +196,11 @@ internal class TvSession internal constructor(
 
     val homePins = TvHomePins(pins, dependencies.filesItemResolver, dependencies.folderCounts, scope)
 
+    val searchFolderNames = SearchFolderNames(dependencies.filesItemResolver, search.state, scope)
+
     internal val positionSaved: (fileId: Long, seconds: Double) -> Unit = { fileId, seconds ->
         files.dispatch(FilesBrowserEvent.PlaybackPositionReported(FilesItemId(fileId), seconds))
+        search.positionSaved(FilesItemId(fileId), seconds)
         watchNextPlayback.saved(fileId, seconds)
         continueWatching.positionSaved(FilesItemId(fileId), seconds)
     }
@@ -405,6 +409,7 @@ internal class TvSession internal constructor(
             when (result) {
                 is PutioResult.Success -> {
                     files.dispatch(FilesBrowserEvent.PlaybackPositionReported(item.id, seconds))
+                    search.positionSaved(item.id, seconds)
                     watchNext.positionSaved(item.toWatchNextMedia(), seconds)
                     continueWatching.positionSaved(item.id, seconds)
                 }
@@ -443,6 +448,7 @@ internal class TvSession internal constructor(
         historyOpener.close()
         historyOpenChannel.close()
         links.close()
+        searchFolderNames.close()
         search.close()
         recentSearches.close()
         pins.close()

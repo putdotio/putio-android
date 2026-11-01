@@ -76,74 +76,81 @@ class TvSearchHistoryProofTest {
         compose.waitUntil(5_000) { hasContentDescription("Search again for earlier") }
         screenshot("01-stored-term")
 
-        // One key at a time, each after the 300 ms debounce has searched, as D-pad typing does.
-        "map".forEach { key ->
-            field().assertIsFocused().performTextInput(key.toString())
-            Thread.sleep(SETTLE_MILLIS)
-            compose.waitUntil(5_000) { hasContentDescription("Open $FOLDER") }
-        }
-        assertChips("earlier")
-        screenshot("02-typed-slowly-nothing-kept")
+        typeSlowly("map")
+        screenshot("02-typed-slowly")
+        assertIdleChips("earlier")
 
-        // Opening a result keeps the search it came from.
+        typeSlowly("map")
         focus("Open $FOLDER")
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(5_000) { hasContentDescription(INSIDE) }
         press(KeyEvent.KEYCODE_BACK)
         compose.waitUntil(5_000) { isFocused("Open $FOLDER") }
-        assertChips("map", "earlier")
-        screenshot("03-opened-result-kept")
-
-        // Search on the keyboard keeps the submitted term.
+        screenshot("03-opened-result")
         focus("Search files")
+        assertIdleChips("map", "earlier")
+
         submit("harbor")
-        compose.waitUntil(5_000) { hasContentDescription("Search again for harbor") }
-        assertChips("harbor", "map", "earlier")
+        compose.waitUntil(5_000) { hasContentDescription("Open $FOLDER") }
+        assertIdleChips("harbor", "map", "earlier")
         screenshot("04-submitted-kept")
 
-        // Right from the end of the field reaches tv-native's Settings.
-        press(KeyEvent.KEYCODE_DPAD_RIGHT)
-        settings().assertIsFocused()
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
-        button("Disable search history").assertIsFocused()
+        press(KeyEvent.KEYCODE_MENU)
+        button("Show search history").assertIsFocused()
         screenshot("05-settings")
         press(KeyEvent.KEYCODE_DPAD_DOWN)
         button("Clear search history").assertIsFocused()
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(5_000) { !hasContentDescription("Search again for harbor") }
         assertChips()
-        settings().assertIsFocused()
+        field().assertIsFocused()
         screenshot("06-cleared")
 
-        submit("river", from = KeyEvent.KEYCODE_DPAD_LEFT)
-        compose.waitUntil(5_000) { hasContentDescription("Search again for river") }
-        press(KeyEvent.KEYCODE_DPAD_RIGHT)
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
-        button("Disable search history").assertIsFocused()
+        submit("river")
+        compose.waitUntil(5_000) { hasContentDescription("Open $FOLDER") }
+        assertIdleChips("river")
+        press(KeyEvent.KEYCODE_MENU)
+        button("Show search history").assertIsFocused()
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(5_000) { !hasContentDescription("Search again for river") }
+        press(KeyEvent.KEYCODE_BACK)
+        field().assertIsFocused()
 
-        // Off: a submitted search is not kept, and Settings offers to turn it back on.
-        submit("meadow", from = KeyEvent.KEYCODE_DPAD_LEFT)
+        submit("meadow")
         compose.waitUntil(5_000) { hasContentDescription("Open $FOLDER") }
-        assertChips()
+        assertIdleChips()
         screenshot("07-off-nothing-kept")
-        press(KeyEvent.KEYCODE_DPAD_RIGHT)
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        press(KeyEvent.KEYCODE_MENU)
         button("Show search history").assertIsFocused()
         assertEquals(0, compose.onAllNodesWithText("Clear search history").fetchSemanticsNodes().size)
         screenshot("08-settings-off")
         press(KeyEvent.KEYCODE_DPAD_CENTER)
+        press(KeyEvent.KEYCODE_BACK)
 
-        submit("lantern", from = KeyEvent.KEYCODE_DPAD_LEFT)
-        compose.waitUntil(5_000) { hasContentDescription("Search again for lantern") }
-        assertChips("lantern")
+        submit("lantern")
+        compose.waitUntil(5_000) { hasContentDescription("Open $FOLDER") }
+        assertIdleChips("lantern")
         screenshot("09-on-again")
         focus("Search again for lantern")
         screenshot("10-chip-focused")
 
         compose.waitUntil(5_000) { writes.size == EXPECTED_WRITES.size }
         assertEquals(EXPECTED_WRITES, writes.toList())
+    }
+
+    private fun typeSlowly(term: String) {
+        field().assertIsFocused().performTextClearance()
+        term.forEach { key ->
+            field().assertIsFocused().performTextInput(key.toString())
+            Thread.sleep(SETTLE_MILLIS)
+            compose.waitUntil(5_000) { hasContentDescription("Open $FOLDER") }
+        }
+    }
+
+    private fun assertIdleChips(vararg terms: String) {
+        field().assertIsFocused().performTextClearance()
+        compose.waitForIdle()
+        assertChips(*terms)
     }
 
     private fun dependencies(): TvSessionDependencies {
@@ -174,8 +181,7 @@ class TvSearchHistoryProofTest {
         )
     }
 
-    private fun submit(term: String, from: Int? = null) {
-        from?.let(::press)
+    private fun submit(term: String) {
         field().assertIsFocused().performTextClearance()
         field().performTextInput(term)
         field().performImeAction()
@@ -193,8 +199,6 @@ class TvSearchHistoryProofTest {
     }
 
     private fun field(): SemanticsNodeInteraction = compose.onNodeWithContentDescription("Search files")
-
-    private fun settings(): SemanticsNodeInteraction = button("Settings")
 
     private fun button(label: String): SemanticsNodeInteraction = compose.onNode(hasText(label) and hasClickAction())
 

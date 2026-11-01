@@ -32,6 +32,8 @@ import io.putdotio.android.tv.search.TV_SEARCH_FIELD_TAG
 import io.putdotio.android.tv.search.TvRecentSearchActions
 import io.putdotio.android.tv.search.TvSearchActions
 import io.putdotio.android.tv.search.TvSearchScreen
+import io.putdotio.android.tv.search.tvSearchDetail
+import io.putdotio.android.tv.search.tvSearchResults
 import androidx.compose.ui.test.onNodeWithTag
 import io.putdotio.android.history.HistoryContent
 import io.putdotio.android.history.HistoryEvent
@@ -246,7 +248,13 @@ class TvShellTest {
                 account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
                 onSignOut = {},
                 searchPane = { paneFocus ->
-                    TvSearchScreen(state = search, actions = actions, modifier = Modifier.focusRequester(paneFocus))
+                    TvSearchScreen(
+                        state = search,
+                        actions = actions,
+                        results = tvSearchResults(),
+                        detail = tvSearchDetail(),
+                        modifier = Modifier.focusRequester(paneFocus),
+                    )
                 },
                 requestedDestination = requested,
                 onDestinationRequestHandled = { requested = null },
@@ -254,6 +262,7 @@ class TvShellTest {
         }
         compose.openTab(TvDestination.Search)
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionDown)
             pressKey(Key.DirectionDown)
         }
         compose.onNodeWithContentDescription("Search again for tears").assertIsFocused()

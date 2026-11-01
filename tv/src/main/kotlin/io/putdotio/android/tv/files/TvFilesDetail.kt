@@ -178,6 +178,7 @@ internal fun ColumnScope.TvFilesDetail(
     listing: Any,
     actions: TvFilesDetailActions,
     moreFocus: FocusRequester,
+    place: TvFilesRowPlace = TvFilesRowPlace.Listing,
 ) {
     val count by produceState(sources.knownCount(item.id), item.id, sources, listing) {
         value = sources.knownCount(item.id)
@@ -194,7 +195,7 @@ internal fun ColumnScope.TvFilesDetail(
         }
     }
     val current by rememberUpdatedState(item)
-    TvDetailBody(title = item.name, meta = detailMeta(item, count), facts = detailFacts(item, subtitles)) {
+    TvDetailBody(title = item.name, meta = detailMeta(item, count), facts = detailFacts(item, subtitles, place)) {
         TvFilesPrimaryActions(
             item = item,
             resumeAt = item.resumePosition(resumePlayback),
@@ -242,11 +243,12 @@ private fun detailMeta(item: FilesItem, count: Int?): AnnotatedString {
 }
 
 @Composable
-private fun detailFacts(item: FilesItem, subtitles: FilesSubtitles?): List<TvDetailFact> {
+private fun detailFacts(item: FilesItem, subtitles: FilesSubtitles?, place: TvFilesRowPlace): List<TvDetailFact> {
     val context = LocalContext.current
     val fullDate = remember(item.createdAt, context) { item.createdAt.toFullDate(context) }
     val length = stringResource(R.string.tv_files_detail_length)
     val added = stringResource(R.string.tv_files_detail_added)
+    val folder = stringResource(R.string.tv_files_detail_folder)
     val subtitlesLabel = stringResource(R.string.tv_files_detail_subtitles)
     val subtitlesValue = subtitles?.takeIf { it.languages.isNotEmpty() }?.let { found ->
         val languages = found.languages.joinToString(", ")
@@ -263,7 +265,10 @@ private fun detailFacts(item: FilesItem, subtitles: FilesSubtitles?): List<TvDet
     }
     return listOfNotNull(
         item.playback?.durationSeconds?.let { TvDetailFact(length, tvClock(it), mono = true) },
-        fullDate?.let { TvDetailFact(added, it) },
+        when (place) {
+            TvFilesRowPlace.Listing -> fullDate?.let { TvDetailFact(added, it) }
+            is TvFilesRowPlace.SearchResult -> place.folderName?.let { TvDetailFact(folder, it) }
+        },
         subtitlesValue?.let { TvDetailFact(subtitlesLabel, it) },
     )
 }

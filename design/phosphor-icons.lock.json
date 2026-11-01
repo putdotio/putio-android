@@ -352,13 +352,6 @@
     },
     {
       "resDir": "tv/src/main/res",
-      "resource": "ic_ph_gear",
-      "asset": "assets/regular/gear.svg",
-      "sourceSha256": "5c0cb3ba307c72babf78d952d9140c682ff30307fedc7fbb87c9a293c1e2fd64",
-      "outputSha256": "b617f008b15d1348296e0708c5ff3ebc9bd3e6cf75eea40d128f804f119405d6"
-    },
-    {
-      "resDir": "tv/src/main/res",
       "resource": "ic_ph_arrows_clockwise",
       "asset": "assets/regular/arrows-clockwise.svg",
       "sourceSha256": "2e80fbc9c5c37553934c9ebbd6324bf7fabe9a4b4d7c2445d99edfce55cc22df",
@@ -1073,6 +1066,20 @@
       "asset": "assets/regular/warning-circle.svg",
       "sourceSha256": "e48a90760a68659fd3f06dd9187e471aead4877c72e915339071b2c7f7bd714c",
       "outputSha256": "49ae85bd9922c0037266d5b996710b5dafb1129502e159fa393e54ebd6634482"
+    },
+    {
+      "resDir": "tv/src/main/res",
+      "resource": "ic_ph_x",
+      "asset": "assets/regular/x.svg",
+      "sourceSha256": "7397b15e1fa66eaf6ff9b59fe91d483cb5c3bcf75b2fe052097ab6f0593b513a",
+      "outputSha256": "5e3c56210c48eec3fcf48778bb7e16f167f1076ed3909cfd72128d2bf8a26c9f"
+    },
+    {
+      "resDir": "tv/src/main/res",
+      "resource": "ic_ph_gear_six",
+      "asset": "assets/regular/gear-six.svg",
+      "sourceSha256": "2bb05ec80cc37505a3f21c74989dbb297ab8442a668f5ffbd6a8f7c1d5794c7b",
+      "outputSha256": "00253fb49682c97f0b1e0e913a01e1d69c798e9bc86213b99883b5dcc819dbe2"
     }
   ]
 }

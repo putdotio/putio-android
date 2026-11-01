@@ -23,6 +23,9 @@ import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesItem
+import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.tv.TvPlayStart
+import androidx.compose.runtime.rememberUpdatedState
 import io.putdotio.android.files.FilesOpenOrigin
 import io.putdotio.android.files.FilesStreamUrlResult
 import io.putdotio.android.files.SdkFilesFolderCounts
@@ -94,6 +97,13 @@ import io.putdotio.android.trash.TrashEvent
 import io.putdotio.android.tv.search.TvRecentSearchActions
 import io.putdotio.android.tv.search.TvSearchActions
 import io.putdotio.android.tv.search.TvSearchScreen
+import io.putdotio.android.tv.search.TvSearchDetail
+import io.putdotio.android.tv.search.TvSearchDialogNotice
+import io.putdotio.android.tv.search.TvSearchItemActions
+import io.putdotio.android.tv.search.TvSearchResultActions
+import io.putdotio.android.tv.files.TvFilesActionContext
+import io.putdotio.android.tv.files.TvFilesActionHandlers
+import io.putdotio.android.tv.files.tvActions
 import io.putdotio.android.tv.tvSessionViewModelFactory
 import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.launch
@@ -208,6 +218,7 @@ internal fun TvSessionShell(
 ) {
     val filesState by session.files.state.collectAsStateWithLifecycle()
     val searchState by session.search.state.collectAsStateWithLifecycle()
+    val searchFolderNamesRejected by session.searchFolderNames.authenticationFailure.collectAsStateWithLifecycle()
     val historyState by session.history.state.collectAsStateWithLifecycle()
     val recentSearchFailure by session.recentSearchFailure.collectAsStateWithLifecycle()
     val historyOpenFailure by session.historyOpenFailure.collectAsStateWithLifecycle()
@@ -243,6 +254,7 @@ internal fun TvSessionShell(
             pinsFailure,
             pinRejected,
             undoFailure?.failure,
+            searchFolderNamesRejected,
         ).any { it is PutioFailure.AuthenticationRequired }
     val sessionRejected = controllerRejected || tunnelRoutesRejected || positionWriteRejected || sideActionRejected
     LaunchedEffect(sessionRejected) { if (sessionRejected) onSessionRejected() }
@@ -261,13 +273,22 @@ internal fun TvSessionShell(
     var openRejected by remember(session) { mutableStateOf(false) }
     var historyOpenRejected by remember(session) { mutableStateOf(false) }
     var searchLaunches by remember(session) { mutableIntStateOf(0) }
+    val searchPlayStart = remember(session) { TvSearchPlayStart() }
     val openExternal: (FilesItem, FilesOpenOrigin) -> Boolean = { item, origin ->
         session.openPick(item, origin, onInFiles = { requestedDestination = TvDestination.Files })
     }
     LaunchedEffect(session) {
         session.search.outputs.collect { output ->
             when (output) {
-                is SearchOutput.OpenResult -> openRejected = !openExternal(output.item, FilesOpenOrigin.SEARCH)
+                is SearchOutput.OpenResult -> {
+                    val play = searchPlayStart.take(output.item)
+                    if (play != null) {
+                        openRejected = false
+                        play(output.item)
+                    } else {
+                        openRejected = !openExternal(output.item, FilesOpenOrigin.SEARCH)
+                    }
+                }
             }
         }
     }
@@ -381,11 +402,15 @@ internal fun TvSessionShell(
                 TvSearchPane(
                     session = session,
                     searchState = searchState,
+                    settingsState = settingsState,
                     openRejected = openRejected,
                     recentSearchFailure = recentSearchFailure,
+                    fileActionFailure = fileActionFailure,
                     onQueryEdited = { openRejected = false },
+                    playStart = searchPlayStart,
                     sessionKey = sessionKey to searchLaunches,
                     paneFocus = paneFocus,
+                    onSessionRejected = onSessionRejected,
                 )
             },
             historyPane = { paneFocus ->
@@ -622,15 +647,72 @@ private fun filesNoticeText(
 private fun TvSearchPane(
     session: TvSession,
     searchState: SearchState,
+    settingsState: AccountSettingsState,
     openRejected: Boolean,
     recentSearchFailure: PutioFailure?,
+    fileActionFailure: PutioFailure?,
     onQueryEdited: () -> Unit,
+    playStart: TvSearchPlayStart,
     sessionKey: Any,
     paneFocus: FocusRequester,
+    onSessionRejected: suspend () -> Unit,
 ) {
+    val context = LocalContext.current
+    val streamScope = rememberCoroutineScope()
+    var vlcNotice by remember(session) { mutableStateOf<Int?>(null) }
+    var streamFailure by remember(session) { mutableStateOf<PutioFailure?>(null) }
+    val folderNames by session.searchFolderNames.names.collectAsStateWithLifecycle()
+    val pins by session.pins.pins.collectAsStateWithLifecycle()
+    val pinFailure by session.pins.editFailure.collectAsStateWithLifecycle()
+    val resumePlayback = settingsState.confirmedResumePlayback() != false
+    val actionContext = TvFilesActionContext(
+        watchedToggleEnabled = settingsState.confirmedResumePlayback() == true,
+        trashEnabled = null,
+        canDelete = false,
+        resumePlayback = resumePlayback,
+        showSubtitles = settingsState.subtitleStartupPolicy()?.showSubtitles == true,
+    )
+    val currentPins by rememberUpdatedState(pins)
+    val currentContext by rememberUpdatedState(actionContext)
+    val noticeTitle = filesNoticeText(vlcNotice, streamFailure, fileActionFailure, null, pinFailure)
     TvSearchScreen(
         state = searchState,
         actions = remember(session) { tvSearchActions(session, onQueryEdited = onQueryEdited) },
+        results = remember(session) {
+            TvSearchResultActions(
+                onFilter = { session.search.filter = it },
+                onPlay = { item, start -> playStart.open(session, item, start) },
+                itemActions = TvSearchItemActions(
+                    actionsOf = { item ->
+                        item.tvActions(currentContext.copy(pinned = currentPins?.let { item.id in it }))
+                    },
+                    handlers = TvFilesActionHandlers(
+                        onPlay = { item, start -> playStart.open(session, item, start) },
+                        onPickSubtitles = { item, start ->
+                            playStart.open(session, item) { session.play(it, start, subtitlesFirst = true) }
+                        },
+                        onOpenInVlc = { item ->
+                            playStart.open(session, item) { picked ->
+                                streamScope.launch {
+                                    val stream = session.originalStreamUrl(picked.id)
+                                    vlcNotice = stream.openInVlc(
+                                        context,
+                                        picked.name,
+                                        audio = picked.type == PutioFileType.AUDIO,
+                                    ) { null }
+                                    streamFailure = (stream as? FilesStreamUrlResult.Failure)?.failure
+                                        ?.takeUnless { it is PutioFailure.AuthenticationRequired }
+                                }
+                            }
+                        },
+                        onSetWatched = session::setWatched,
+                        onSetPinned = { item, pinned ->
+                            if (pinned) session.pins.pin(item.id) else session.pins.unpin(item.id)
+                        },
+                    ),
+                ),
+            )
+        },
         notice = when {
             openRejected -> FilesFailure.NavigationBlocked
             else -> recentSearchFailure?.takeUnless { it is PutioFailure.AuthenticationRequired }
@@ -638,7 +720,50 @@ private fun TvSearchPane(
         modifier = Modifier.focusRequester(paneFocus),
         sessionKey = sessionKey,
         pickedRow = session.searchPickedRow,
+        detail = TvSearchDetail(
+            folderNames = folderNames,
+            sources = remember(session) {
+                TvFilesDetailSources(session.folderCounts, session.subtitleLanguages, onSessionRejected)
+            },
+            resumePlayback = resumePlayback,
+        ),
+        dialogNotice = noticeTitle?.let { title ->
+            TvSearchDialogNotice(
+                title = title,
+                message = filesNoticeMessage(linkNoticeShown = false, filesNotice = vlcNotice),
+                onDismiss = {
+                    when {
+                        vlcNotice != null -> vlcNotice = null
+                        streamFailure != null -> streamFailure = null
+                        pinFailure.shown() -> session.pins.dismissEditFailure()
+                        else -> session.dismissFileActionFailure()
+                    }
+                },
+            )
+        },
     )
+}
+
+internal class TvSearchPlayStart {
+    private var pending: Pair<FilesItemId, (FilesItem) -> Unit>? = null
+
+    fun open(session: TvSession, item: FilesItem, start: TvPlayStart) {
+        open(session, item) { session.play(it, start) }
+    }
+
+    fun open(session: TvSession, item: FilesItem, play: (FilesItem) -> Unit) {
+        pending = item.id to play
+        if (!session.search.openResult(item.id)) {
+            pending = null
+            play(item)
+        }
+    }
+
+    fun take(item: FilesItem): ((FilesItem) -> Unit)? {
+        val play = pending?.takeIf { it.first == item.id && item.isPlayable }?.second
+        pending = null
+        return play
+    }
 }
 
 @Composable
