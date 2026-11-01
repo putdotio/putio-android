@@ -45,16 +45,19 @@ internal fun TvButton(
     size: TvButtonSize = TvButtonSize.Regular,
     interactions: MutableInteractionSource = remember { MutableInteractionSource() },
     hugsLabel: Boolean = false,
+    looksFocused: Boolean = false,
     content: @Composable RowScope.() -> Unit,
 ) {
     val focused by interactions.collectIsFocusedAsState()
     val colors = MaterialTheme.colorScheme
-    val (rest, restContent) = when (style) {
+    val (styleRest, styleRestContent) = when (style) {
         TvButtonStyle.Tonal -> PutioDesignTokens.componentBgActive to colors.onSurface
+        TvButtonStyle.TonalDanger -> PutioDesignTokens.componentBgActive to PutioDesignTokens.redTextSecondary
         TvButtonStyle.Text -> Color.Transparent to colors.onSurface
         TvButtonStyle.Filled -> colors.primary to colors.onPrimary
         TvButtonStyle.Destructive -> colors.error to colors.onError
     }
+    val (rest, restContent) = if (looksFocused) TvFocus.container to TvFocus.content else styleRest to styleRestContent
     val keepsFill = style == TvButtonStyle.Filled || style == TvButtonStyle.Destructive
     val ring = TvFocus.container
     val gap = PutioDesignTokens.componentBgHover
@@ -170,10 +173,13 @@ internal enum class TvButtonSize(
     DetailIcon(height = 30.dp, padding = 9.dp, icon = 12.dp),
 
     Snackbar(height = 28.dp, padding = 10.dp, icon = 12.dp),
+
+    Header(height = 28.dp, padding = 18.dp, icon = 11.dp),
 }
 
 internal enum class TvButtonStyle {
     Tonal,
+    TonalDanger,
     Text,
     Filled,
     Destructive,
