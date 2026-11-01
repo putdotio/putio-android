@@ -93,6 +93,7 @@ import io.putdotio.android.MobileShortcutScope
 import io.putdotio.android.mobileKeyCommand
 import io.putdotio.android.MobileLoadingState
 import io.putdotio.android.R
+import io.putdotio.android.files.hasVlc
 import io.putdotio.sdk.files.PlaybackSource
 import java.io.Closeable
 import kotlinx.coroutines.delay
@@ -208,7 +209,12 @@ internal fun MobilePlayerScreen(
                 PlaybackContent.Ended -> Unit
 
                 is PlaybackContent.Conversion ->
-                    MobileConversionState(content, onRefreshConversion, onStartConversion)
+                    MobileConversionState(
+                        content,
+                        onRefreshConversion,
+                        onStartConversion,
+                        onPlayInVlc = onOpenInVlc?.takeIf { LocalContext.current.hasVlc() },
+                    )
 
                 is PlaybackContent.Unsupported ->
                     MobileEmptyState(

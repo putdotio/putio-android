@@ -3,6 +3,7 @@ package io.putdotio.android.tv
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -47,6 +48,7 @@ internal fun TvEmptyState(
     message: String?,
     modifier: Modifier = Modifier,
     action: TvEmptyStateAction? = null,
+    secondaryAction: TvEmptyStateAction? = null,
     actionFocus: FocusRequester = remember { FocusRequester() },
     claimFocus: Boolean = true,
     glyphRunPerCharacter: Boolean = false,
@@ -54,8 +56,9 @@ internal fun TvEmptyState(
     messageColor: Color = Color.Unspecified,
     glyphModifier: Modifier = Modifier,
 ) {
-    LaunchedEffect(action != null, action?.enabled, claimFocus) {
-        if (action == null || !action.enabled || !claimFocus) return@LaunchedEffect
+    val lead = action ?: secondaryAction
+    LaunchedEffect(action != null, lead != null, lead?.enabled, claimFocus) {
+        if (lead == null || !lead.enabled || !claimFocus) return@LaunchedEffect
         withFrameNanos {}
         actionFocus.requestFocus()
     }
@@ -103,22 +106,29 @@ internal fun TvEmptyState(
             )
         }
         supporting?.invoke()
-        if (action != null) {
-            TvButton(
-                onClick = action.onClick,
-                modifier = Modifier.padding(top = ACTION_GAP).focusRequester(actionFocus),
-                enabled = action.enabled,
+        if (lead != null) {
+            Row(
+                modifier = Modifier.padding(top = ACTION_GAP),
+                horizontalArrangement = Arrangement.spacedBy(ACTIONS_SPACING),
             ) {
-                if (action.icon != null) {
-                    Icon(
-                        painter = painterResource(action.icon),
-                        contentDescription = null,
-                        modifier = Modifier.size(TvButtonSize.Regular.icon),
-                    )
-                }
-                Text(action.label, style = PutioTypeScale.bodySm.copy(fontWeight = FontWeight.Medium))
+                TvEmptyStateButton(lead, Modifier.focusRequester(actionFocus))
+                if (action != null && secondaryAction != null) TvEmptyStateButton(secondaryAction)
             }
         }
+    }
+}
+
+@Composable
+private fun TvEmptyStateButton(action: TvEmptyStateAction, modifier: Modifier = Modifier) {
+    TvButton(onClick = action.onClick, modifier = modifier, enabled = action.enabled) {
+        if (action.icon != null) {
+            Icon(
+                painter = painterResource(action.icon),
+                contentDescription = null,
+                modifier = Modifier.size(TvButtonSize.Regular.icon),
+            )
+        }
+        Text(action.label, style = PutioTypeScale.bodySm.copy(fontWeight = FontWeight.Medium))
     }
 }
 
@@ -157,6 +167,7 @@ internal data class TvEmptyStateAction(
 
 private val MESSAGE_WIDTH = 440.dp
 private val ACTION_GAP = 10.dp
+private val ACTIONS_SPACING = 8.dp
 private val HEADLINE_TOP = 4.dp
 private val GLYPH_LINE = 32.sp
 private val HEADLINE_LINE = 22.sp

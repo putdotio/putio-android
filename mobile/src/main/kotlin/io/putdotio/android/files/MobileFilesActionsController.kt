@@ -252,5 +252,8 @@ internal val FilesItem.opensInVlc: Boolean
 
 internal const val VLC_PACKAGE = "org.videolan.vlc"
 
+/** Whether VLC is on this phone; the manifest's queries make it visible. */
+internal fun Context.hasVlc(): Boolean = packageManager.getLaunchIntentForPackage(VLC_PACKAGE) != null
+
 /** Watched writes in flight at once for a selection; the rest wait their turn. */
 private const val WATCHED_CONCURRENCY = 4

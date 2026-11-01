@@ -55,7 +55,7 @@ class MainActivity : BasePutioActivity() {
         super.onCreate(savedInstanceState)
         configureEdgeToEdge()
         // Before this activity resumes, so Cast looks for receivers while it shows.
-        MobileCast.controller(this)
+        MobileCast.follow(this)
         if (savedInstanceState == null) MobileFileShareService.pruneStale(applicationContext)
         consumeShare(intent, savedInstanceState?.getBoolean(STATE_SHARE_CONSUMED) == true)
         consumeDeepLink(intent, savedInstanceState?.getBoolean(STATE_DEEP_LINK_CONSUMED) == true)

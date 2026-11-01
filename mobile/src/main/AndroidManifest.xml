@@ -19,6 +19,8 @@
     <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
 
     <queries>
+        <!-- Play in VLC shows only where VLC is installed. -->
+        <package android:name="org.videolan.vlc" />
         <intent>
             <action android:name="android.support.customtabs.action.CustomTabsService" />
         </intent>
