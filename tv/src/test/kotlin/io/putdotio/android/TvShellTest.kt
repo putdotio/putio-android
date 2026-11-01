@@ -298,7 +298,7 @@ class TvShellTest {
             pressKey(Key.DirectionUp)
         }
         compose.onTab("History").assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNode(hasText("Clear") and hasClickAction()).assertIsFocused().performKeyInput {
+        compose.onNode(hasText("Clear history") and hasClickAction()).assertIsFocused().performKeyInput {
             pressKey(Key.DirectionDown)
         }
         compose.onNodeWithContentDescription("Open Sintel.mp4").assertIsFocused().performKeyInput { pressCenter() }

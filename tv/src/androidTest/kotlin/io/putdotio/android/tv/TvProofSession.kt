@@ -129,7 +129,9 @@ internal fun tvProofDependencies(
     },
     streamUrls = FilesStreamUrls { FilesStreamUrlResult.DownloadTokenUnavailable },
     filesItemResolver = object : FilesItemResolver {
-        override suspend fun resolveItem(itemId: FilesItemId) = error("No history rows")
+        override suspend fun resolveItem(itemId: FilesItemId) =
+            listings.values.flatMap { it.items }.firstOrNull { it.id == itemId }?.let { PutioResult.Success(it) }
+                ?: PutioResult.Failure(PutioFailure.Unexpected(IllegalStateException("No item $itemId")))
     },
     recentSearchStore = recentSearchStore,
     playbackRepository = {

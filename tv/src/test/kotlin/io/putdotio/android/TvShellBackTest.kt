@@ -385,10 +385,10 @@ class TvShellBackTest {
         compose.onNodeWithContentDescription("Open clip 3.mp4").assertIsFocused().performKeyInput {
             repeat(3) { pressKey(Key.DirectionUp) }
         }
-        compose.onNode(hasText("Clear") and hasClickAction()).assertIsFocused()
+        compose.onNode(hasText("Clear history") and hasClickAction()).assertIsFocused()
         compose.pressBack()
         visitNeighbourAndReturn("History", TvDestination.Account)
-        compose.onNode(hasText("Clear") and hasClickAction()).assertIsFocused()
+        compose.onNode(hasText("Clear history") and hasClickAction()).assertIsFocused()
     }
 
     @Test

@@ -4,8 +4,10 @@ import androidx.annotation.DrawableRes
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -20,6 +22,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.ClickableSurfaceDefaults
@@ -39,7 +42,10 @@ internal fun TvListRow(
     onLongClick: (() -> Unit)? = null,
     @DrawableRes trailingIcon: Int? = null,
     showsFocus: Boolean = true,
-    meta: @Composable (Color) -> Unit,
+    glyphSize: Dp = ROW_GLYPH,
+    neutralGlyph: Boolean = false,
+    titleOverflow: TextOverflow = TextOverflow.Ellipsis,
+    meta: @Composable RowScope.(secondary: Color) -> Unit,
 ) {
     val interactions = remember { MutableInteractionSource() }
     val focused = interactions.collectIsFocusedAsState().value && showsFocus
@@ -70,14 +76,22 @@ internal fun TvListRow(
             horizontalArrangement = Arrangement.spacedBy(ROW_GAP),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(
-                painter = painterResource(glyph),
-                contentDescription = null,
-                tint = tvAccent(focused),
-                modifier = Modifier.size(ROW_GLYPH),
-            )
+            Box(Modifier.size(ROW_GLYPH), contentAlignment = Alignment.Center) {
+                Icon(
+                    painter = painterResource(glyph),
+                    contentDescription = null,
+                    tint = if (neutralGlyph && !focused) colors.onSurfaceVariant else tvAccent(focused),
+                    modifier = Modifier.size(glyphSize),
+                )
+            }
             Column(modifier = Modifier.weight(1f)) {
-                Text(title, style = ROW_TITLE, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    title,
+                    style = ROW_TITLE,
+                    maxLines = 1,
+                    softWrap = titleOverflow == TextOverflow.Ellipsis,
+                    overflow = titleOverflow,
+                )
                 Row(
                     modifier = Modifier.padding(top = 1.dp),
                     horizontalArrangement = Arrangement.spacedBy(ROW_META_GAP),
@@ -101,11 +115,14 @@ internal fun TvListRow(
 @Composable
 internal fun TvListRowMetaParts(parts: List<@Composable () -> Unit>, color: Color) {
     parts.forEachIndexed { index, part ->
-        if (index > 0) {
-            Text("·", style = TV_LIST_ROW_META, color = color, modifier = Modifier.clearAndSetSemantics {})
-        }
+        if (index > 0) TvListRowDot(color)
         part()
     }
+}
+
+@Composable
+internal fun TvListRowDot(color: Color) {
+    Text("·", style = TV_LIST_ROW_META, color = color, modifier = Modifier.clearAndSetSemantics {})
 }
 
 internal val TV_LIST_ROW_META = PutioTypeScale.tvMeta.copy(lineHeight = 14.sp).withFullLineBox()

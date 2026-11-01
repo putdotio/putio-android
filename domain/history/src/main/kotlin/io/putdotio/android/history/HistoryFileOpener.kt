@@ -40,7 +40,7 @@ public class HistoryFileOpener(
 
     init {
         scope.launch {
-            requests.collectLatest { request -> open(FilesItemId(request.fileId.value), FilesOpenOrigin.HISTORY) }
+            requests.collectLatest { request -> open(request.fileId.toFilesItemId(), FilesOpenOrigin.HISTORY) }
         }
     }
 
@@ -64,3 +64,5 @@ public class HistoryFileOpener(
         scope.cancel()
     }
 }
+
+public fun HistoryFileId.toFilesItemId(): FilesItemId = FilesItemId(value)

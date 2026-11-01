@@ -186,38 +186,29 @@ class TvSessionViewModelTest {
     }
 
     @Test
-    fun `History lists only shared files and completed transfers, as tv-native does`() {
-        // tv-native filters on the event type, so a share without a file id stays listed.
-        val sharedWithoutFile = HistoryItem(
-            HistoryEventId(5),
-            "2026-09-12T11:00:00",
-            HistoryEventKind.File(id = null, name = "Removed share.mp4"),
-        )
-        val shared = HistoryItem(
-            HistoryEventId(4),
-            "2026-09-12T10:00:00",
-            HistoryEventKind.File(HistoryFileId(40), "Harbor film.mp4"),
-        )
-        val completed = HistoryItem(
-            HistoryEventId(2),
-            "2026-09-12T09:00:00",
-            HistoryEventKind.Transfer(HistoryTransferId(20), HistoryFileId(21), "Sample folder"),
-        )
+    fun `History lists every event the phone lists`() {
         historyItems = listOf(
-            sharedWithoutFile,
-            shared,
+            HistoryItem(
+                HistoryEventId(5),
+                "2026-09-12T11:00:00",
+                HistoryEventKind.File(id = null, name = "Removed share.mp4"),
+            ),
             HistoryItem(
                 HistoryEventId(3),
                 "2026-09-12T09:30:00",
                 HistoryEventKind.Notice(HistoryNoticeType.Upload, "clip.mp4"),
             ),
-            completed,
+            HistoryItem(
+                HistoryEventId(2),
+                "2026-09-12T09:00:00",
+                HistoryEventKind.Transfer(HistoryTransferId(20), HistoryFileId(21), "Sample folder"),
+            ),
             HistoryItem(HistoryEventId(1), "2026-09-12T08:00:00", HistoryEventKind.Other("zip_created")),
         )
         val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
 
         assertEquals(
-            HistoryContent.Ready(listOf(sharedWithoutFile, shared, completed), HistoryPaging.Complete),
+            HistoryContent.Ready(historyItems, HistoryPaging.Complete),
             session.history.state.value.content,
         )
     }
@@ -471,6 +462,18 @@ class TvSessionViewModelTest {
         assertEquals(FilesItemId(44), current.folder.id)
         assertEquals(FilesOpenOrigin.HISTORY, current.openedFrom)
         assertEquals(11L, session.filesFocusMemory[44L])
+        assertNull(session.playback.value)
+    }
+
+    @Test
+    fun `Open folder shows a video's folder in Files without playing it`() {
+        val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
+        val clip = media(12, "clip.mp4", PutioFileType.VIDEO).copy(parentId = FilesItemId(44))
+
+        assertEquals(TvExternalOpen.IN_FILES, session.openExternal(clip, FilesOpenOrigin.HISTORY, playMedia = false))
+
+        assertEquals(FilesItemId(44), session.files.state.value.current.folder.id)
+        assertEquals(12L, session.filesFocusMemory[44L])
         assertNull(session.playback.value)
     }
 
