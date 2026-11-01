@@ -24,11 +24,13 @@ import io.putdotio.android.design.fileTypeIconRes
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.formatFileSize
 import io.putdotio.android.files.toDisplayDate
+import io.putdotio.android.files.updatedAgo
 import io.putdotio.android.tv.TV_LIST_ROW_META
 import io.putdotio.android.tv.TV_LIST_ROW_META_ICON
 import io.putdotio.android.tv.TV_LIST_ROW_META_MONO
 import io.putdotio.android.tv.TvListRow
 import io.putdotio.android.tv.TvListRowMetaParts
+import io.putdotio.sdk.files.PutioFolderType
 
 internal const val TV_FILES_ROW_TAG = "tv-files-row"
 
@@ -77,9 +79,8 @@ internal fun TvFilesRow(
 
 @Composable
 private fun TvFilesRowMeta(item: FilesItem, place: TvFilesRowPlace, color: Color) {
-    val context = LocalContext.current
-    val size = if (item.isFolder) null else formatFileSize(item.sizeBytes, spaced = true)
-    val date = remember(item.createdAt, context) { item.createdAt.toDisplayDate(context) }
+    val size = item.metaSize
+    val date = rememberMetaDate(item)
     val where = when (place) {
         TvFilesRowPlace.Listing -> date
         is TvFilesRowPlace.SearchResult -> place.folderName
@@ -102,4 +103,17 @@ private fun TvFilesRowMeta(item: FilesItem, place: TvFilesRowPlace, color: Color
         }
     }
     TvListRowMetaParts(parts, color)
+}
+
+/** A file's size, or a folder's own; the shared folders have none. */
+internal val FilesItem.metaSize: String?
+    get() = formatFileSize(sizeBytes, spaced = true).takeIf { !isFolder || folderType == PutioFolderType.REGULAR }
+
+/** A folder dates itself by its last change, "3 days ago"; a file by when it was added, "Oct 13". */
+@Composable
+internal fun rememberMetaDate(item: FilesItem): String? {
+    val context = LocalContext.current
+    return remember(item.updatedAt, item.createdAt, item.type, context) {
+        item.updatedAgo(System.currentTimeMillis()) ?: item.createdAt.toDisplayDate(context)
+    }
 }

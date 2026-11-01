@@ -37,9 +37,7 @@ import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesRequestId
 import io.putdotio.android.files.FilesSubtitleLanguages
 import io.putdotio.android.files.FilesSubtitles
-import io.putdotio.android.files.formatFileSize
 import io.putdotio.android.files.items
-import io.putdotio.android.files.toDisplayDate
 import io.putdotio.android.files.toFullDate
 import io.putdotio.android.tv.TvDetailBody
 import io.putdotio.android.tv.TvDetailButton
@@ -222,17 +220,14 @@ internal fun ColumnScope.TvFilesDetail(
 
 @Composable
 private fun detailMeta(item: FilesItem, count: Int?): AnnotatedString {
-    val context = LocalContext.current
-    val date = remember(item.createdAt, context) { item.createdAt.toDisplayDate(context) }
+    val date = rememberMetaDate(item)
     val watched = stringResource(R.string.tv_files_watched)
     val itemCount = count?.let { pluralStringResource(R.plurals.tv_files_item_count, it, it.toString()) }
     val parts = buildList {
         itemCount?.let { add(AnnotatedString(it)) }
-        add(formatFileSize(item.sizeBytes, spaced = true).asMonoRun())
-        if (!item.isFolder) {
-            date?.let { add(AnnotatedString(it)) }
-            if (item.playback?.isWatched == true) add(AnnotatedString(watched))
-        }
+        item.metaSize?.let { add(it.asMonoRun()) }
+        date?.let { add(AnnotatedString(it)) }
+        if (!item.isFolder && item.playback?.isWatched == true) add(AnnotatedString(watched))
     }
     return buildAnnotatedString {
         parts.forEachIndexed { index, part ->

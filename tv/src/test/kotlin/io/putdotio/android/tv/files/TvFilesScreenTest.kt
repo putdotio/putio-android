@@ -10,6 +10,7 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
@@ -50,6 +51,10 @@ import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.android.files.FilesFolderCounts
 import io.putdotio.android.tv.setTvContent
 import io.putdotio.sdk.files.PutioFileType
+import io.putdotio.sdk.files.PutioFolderType
+import java.time.Duration
+import java.time.Instant
+import java.time.temporal.ChronoUnit
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -94,6 +99,29 @@ class TvFilesScreenTest {
 
         compose.onNodeWithContentDescription("Open tears_of_steel").performKeyInput { pressCenter() }
         assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.OpenFolder(FilesItemId(1))), events)
+    }
+
+    @Test
+    fun aFolderRowShowsItsSizeAndLastChangeButASharedRootShowsNoSize() {
+        val fourDaysAgo = Instant.now().minus(Duration.ofDays(4)).truncatedTo(ChronoUnit.SECONDS).toString()
+        compose.showFiles(
+            state = {
+                ready(
+                    item(1, "Series", PutioFileType.FOLDER, sizeBytes = 63_300_000).copy(updatedAt = fourDaysAgo),
+                    item(2, "Items shared with you", PutioFileType.FOLDER, sizeBytes = 41_000_000)
+                        .copy(updatedAt = fourDaysAgo, folderType = PutioFolderType.SHARED_ROOT),
+                )
+            },
+        )
+
+        fun row(name: String, meta: String) = compose.onAllNodes(
+            hasTestTag(TV_FILES_ROW_TAG) and hasAnyDescendant(hasText(name)) and hasAnyDescendant(hasText(meta)),
+            useUnmergedTree = true,
+        )
+        row("Series", "63.3 MB").assertCountEquals(1)
+        row("Series", "4 days ago").assertCountEquals(1)
+        row("Items shared with you", "4 days ago").assertCountEquals(1)
+        compose.onAllNodesWithText("41 MB", substring = true).assertCountEquals(0)
     }
 
     @Test
@@ -471,7 +499,9 @@ class TvFilesScreenTest {
                 detailSources = TvFilesDetailSources(folderCounts = counts),
             )
         }
-        compose.waitUntil(5_000) { compose.onAllNodesWithText("3 items · 276 MB").fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(5_000) {
+            compose.onAllNodesWithText("3 items · 276 MB · ", substring = true).fetchSemanticsNodes().isNotEmpty()
+        }
         compose.onNodeWithContentDescription("Open Big Buck Bunny").performKeyInput { pressKey(Key.DirectionRight) }
         compose.onNode(hasText("Open") and hasClickAction()).assertIsFocused().performKeyInput {
             pressCenter()
@@ -610,11 +640,15 @@ class TvFilesScreenTest {
                 detailSources = remember { TvFilesDetailSources(folderCounts = counts) },
             )
         }
-        compose.waitUntil(5_000) { compose.onAllNodesWithText("1 item · 276 MB").fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(5_000) {
+            compose.onAllNodesWithText("1 item · 276 MB · ", substring = true).fetchSemanticsNodes().isNotEmpty()
+        }
 
         size = 138_000_000L
 
-        compose.waitUntil(5_000) { compose.onAllNodesWithText("2 items · 138 MB").fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(5_000) {
+            compose.onAllNodesWithText("2 items · 138 MB · ", substring = true).fetchSemanticsNodes().isNotEmpty()
+        }
         assertEquals(2, reads)
     }
 
@@ -655,7 +689,9 @@ class TvFilesScreenTest {
                 detailSources = remember { TvFilesDetailSources(folderCounts = counts) },
             )
         }
-        compose.waitUntil(5_000) { compose.onAllNodesWithText("1 item · 276 MB").fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(5_000) {
+            compose.onAllNodesWithText("1 item · 276 MB · ", substring = true).fetchSemanticsNodes().isNotEmpty()
+        }
 
         operation = FilesFolderOperation.Loading(
             FilesRequestId(7),
@@ -665,7 +701,9 @@ class TvFilesScreenTest {
         compose.waitForIdle()
         operation = FilesFolderOperation.Idle
 
-        compose.waitUntil(5_000) { compose.onAllNodesWithText("2 items · 276 MB").fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(5_000) {
+            compose.onAllNodesWithText("2 items · 276 MB · ", substring = true).fetchSemanticsNodes().isNotEmpty()
+        }
         assertEquals(2, reads)
     }
 

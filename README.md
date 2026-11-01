@@ -42,10 +42,10 @@ TV:
   player, and Pinned folders and files kept in the account's config; a
   first-run state points to Files, and Account › Library can hide Home
 - Files and folders as a list beside the focused item's detail: Resume from
-  the saved position or Start over, a folder's count and size, and a sort
-  side sheet with the phone's Sort by, Order and Videos groups; skeleton rows
-  while a folder loads, and empty, couldn't-load and offline states in the
-  empty-state voice
+  the saved position or Start over, a folder's count, size and last change,
+  and a sort side sheet with the phone's Sort by, Order and Videos groups;
+  skeleton rows while a folder loads, and empty, couldn't-load and offline
+  states in the empty-state voice
 - Item actions in a side sheet from More or the Menu key: Resume, Start over
   and Subtitles tiles, then Open in VLC, Mark as watched or unwatched, and Pin
   to Home or Unpin; Move to trash acts at once with a Moved to Trash snackbar

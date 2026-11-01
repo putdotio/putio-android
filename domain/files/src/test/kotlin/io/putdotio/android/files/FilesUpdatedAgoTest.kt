@@ -11,7 +11,7 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], qualifiers = "en-rUS")
-class MobileFolderUpdatedTest {
+class FilesUpdatedAgoTest {
     private val now = Instant.parse("2026-10-31T12:00:00Z").toEpochMilli()
 
     @Test

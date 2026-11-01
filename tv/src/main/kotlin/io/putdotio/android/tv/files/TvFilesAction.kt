@@ -19,11 +19,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -51,8 +49,6 @@ import io.putdotio.android.files.FilesFolderState
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesStreamUrlResult
 import io.putdotio.android.files.canStartOperation
-import io.putdotio.android.files.formatFileSize
-import io.putdotio.android.files.toDisplayDate
 import io.putdotio.android.tv.TvConfirmDialog
 import io.putdotio.android.tv.TvFocus
 import io.putdotio.android.tv.TvPlayStart
@@ -297,9 +293,8 @@ private fun TvFilesActionsHeader(item: FilesItem) {
 
 @Composable
 private fun headerMeta(item: FilesItem): AnnotatedString {
-    val context = LocalContext.current
-    val date = remember(item.createdAt, context) { item.createdAt.toDisplayDate(context) }
-    val size = if (item.isFolder) null else formatFileSize(item.sizeBytes, spaced = true)
+    val date = rememberMetaDate(item)
+    val size = item.metaSize
     return buildAnnotatedString {
         size?.let { append(it.asMonoRun()) }
         if (size != null && date != null) append(" · ")
