@@ -12,6 +12,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isFocused
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.assertCountEquals
@@ -550,6 +551,7 @@ class TvFilesScreenTest {
             pressKey(Key.DirectionRight)
         }
         compose.onNodeWithContentDescription("More actions").assertIsFocused().performKeyInput { pressCenter() }
+        compose.onNode(hasText("Resume") and isFocused()).performKeyInput { pressKey(Key.DirectionDown) }
         compose.onNodeWithText("Open in VLC").assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
         compose.onNodeWithText("Mark as unwatched").assertIsFocused().performKeyInput { pressCenter() }
 

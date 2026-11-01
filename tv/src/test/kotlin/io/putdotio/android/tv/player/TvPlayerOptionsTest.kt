@@ -221,6 +221,37 @@ class TvPlayerOptionsTest {
     }
 
     @Test
+    fun theSubtitlesTileOpensOnTheSubtitlesSheetAndPlaysOnceAChoiceIsMade() {
+        val player = TrackPlayer()
+        var shown = 0
+        compose.mainClock.autoAdvance = false
+        compose.setTvContent {
+            TvPlayerScreen(
+                state = readyState(),
+                onBack = {},
+                onRetry = {},
+                onResume = {},
+                onRestart = {},
+                onPlayerFailure = { _, _ -> },
+                playerFactory = { _, _ -> player },
+                subtitleStartupPolicy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = true),
+                subtitlesFirst = true,
+                onSubtitlesShown = { shown += 1 },
+            )
+        }
+        settle()
+        compose.onNodeWithText("In this file").assertIsDisplayed()
+        compose.runOnIdle {
+            assertFalse("Nothing plays while the viewer picks", player.playWhenReady)
+            assertEquals(1, shown)
+        }
+        choose("Off")
+        compose.onNodeWithText("In this file").assertDoesNotExist()
+        chip(SUBTITLES).assert(describedAs("Subtitles: Off"))
+        compose.runOnIdle { assertTrue(player.playWhenReady) }
+    }
+
+    @Test
     fun theChosenAudioTrackSurvivesATrackChange() {
         val player = TrackPlayer()
         show(player)

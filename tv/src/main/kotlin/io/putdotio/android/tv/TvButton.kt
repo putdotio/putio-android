@@ -6,7 +6,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -20,12 +22,18 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.ButtonScale
+import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.MaterialTheme
+import androidx.tv.material3.ProvideTextStyle
+import androidx.tv.material3.Surface
 import io.putdotio.android.design.PutioDesignTokens
 
 @Composable
@@ -36,6 +44,7 @@ internal fun TvButton(
     style: TvButtonStyle = TvButtonStyle.Tonal,
     size: TvButtonSize = TvButtonSize.Regular,
     interactions: MutableInteractionSource = remember { MutableInteractionSource() },
+    hugsLabel: Boolean = false,
     content: @Composable RowScope.() -> Unit,
 ) {
     val focused by interactions.collectIsFocusedAsState()
@@ -49,27 +58,43 @@ internal fun TvButton(
     val keepsFill = style == TvButtonStyle.Filled || style == TvButtonStyle.Destructive
     val ring = TvFocus.container
     val gap = PutioDesignTokens.componentBgHover
+    val decorated = modifier
+        .height(size.height)
+        .drawWithContent {
+            drawContent()
+            if (keepsFill && focused) {
+                drawPillOutline(gap, RING_GAP.toPx() / 2, RING_GAP.toPx())
+                drawPillOutline(ring, (RING_GAP + RING_WIDTH / 2).toPx(), RING_WIDTH.toPx())
+            }
+        }
+    val focusedFill = if (keepsFill) rest else TvFocus.container
+    val focusedContent = if (keepsFill) restContent else TvFocus.content
+    if (hugsLabel) {
+        TvLabelButton(
+            onClick = onClick,
+            modifier = decorated,
+            enabled = enabled,
+            rest = rest to restContent,
+            focused = focusedFill to focusedContent,
+            size = size,
+            interactions = interactions,
+            content = content,
+        )
+        return
+    }
     Button(
         onClick = onClick,
-        modifier = modifier
-            .height(size.height)
-            .drawWithContent {
-                drawContent()
-                if (keepsFill && focused) {
-                    drawPillOutline(gap, RING_GAP.toPx() / 2, RING_GAP.toPx())
-                    drawPillOutline(ring, (RING_GAP + RING_WIDTH / 2).toPx(), RING_WIDTH.toPx())
-                }
-            },
+        modifier = decorated,
         enabled = enabled,
         scale = ButtonScale.None,
         shape = ButtonDefaults.shape(CircleShape),
         colors = ButtonDefaults.colors(
             containerColor = rest,
             contentColor = restContent,
-            focusedContainerColor = if (keepsFill) rest else TvFocus.container,
-            focusedContentColor = if (keepsFill) restContent else TvFocus.content,
-            pressedContainerColor = if (keepsFill) rest else TvFocus.container,
-            pressedContentColor = if (keepsFill) restContent else TvFocus.content,
+            focusedContainerColor = focusedFill,
+            focusedContentColor = focusedContent,
+            pressedContainerColor = focusedFill,
+            pressedContentColor = focusedContent,
         ),
         contentPadding = PaddingValues(horizontal = size.padding, vertical = 0.dp),
         interactionSource = interactions,
@@ -79,6 +104,46 @@ internal fun TvButton(
             verticalAlignment = Alignment.CenterVertically,
             content = content,
         )
+    }
+}
+
+@Composable
+private fun TvLabelButton(
+    onClick: () -> Unit,
+    modifier: Modifier,
+    enabled: Boolean,
+    rest: Pair<Color, Color>,
+    focused: Pair<Color, Color>,
+    size: TvButtonSize,
+    interactions: MutableInteractionSource,
+    content: @Composable RowScope.() -> Unit,
+) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier.semantics { role = Role.Button },
+        enabled = enabled,
+        shape = ClickableSurfaceDefaults.shape(CircleShape),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = rest.first,
+            contentColor = rest.second,
+            focusedContainerColor = focused.first,
+            focusedContentColor = focused.second,
+            pressedContainerColor = focused.first,
+            pressedContentColor = focused.second,
+        ),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f, pressedScale = 1f),
+        interactionSource = interactions,
+    ) {
+        ProvideTextStyle(MaterialTheme.typography.labelLarge) {
+            Row(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .padding(horizontal = size.padding),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                content = content,
+            )
+        }
     }
 }
 
@@ -103,6 +168,8 @@ internal enum class TvButtonSize(
     Detail(height = 30.dp, padding = 11.dp, icon = 12.dp),
 
     DetailIcon(height = 30.dp, padding = 9.dp, icon = 12.dp),
+
+    Snackbar(height = 28.dp, padding = 10.dp, icon = 12.dp),
 }
 
 internal enum class TvButtonStyle {

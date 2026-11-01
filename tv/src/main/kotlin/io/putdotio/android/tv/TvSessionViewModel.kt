@@ -191,6 +191,10 @@ internal class TvSession internal constructor(
     /** Pairs saved positions with the videos they belong to, for Watch Next. */
     internal val watchNextPlayback = TvWatchNextPlayback(watchNext, scope)
 
+    val trashUndo = TvTrashUndo(dependencies.trashRepository, files, scope)
+
+    val trashUndoOffer = TvTrashUndoOffer(scope, trashUndo::undo)
+
     val homePins = TvHomePins(pins, dependencies.filesItemResolver, dependencies.folderCounts, scope)
 
     internal val positionSaved: (fileId: Long, seconds: Double) -> Unit = { fileId, seconds ->
@@ -278,10 +282,12 @@ internal class TvSession internal constructor(
     /** The video after a target in its folder, by autoplay's walk; Next episode offers it. */
     val findNextVideo: suspend (PlaybackTarget) -> PlaybackNextResult = playbackRepository::findNextVideo
 
-    fun play(item: FilesItem, start: TvPlayStart = TvPlayStart.Ask) {
+    fun play(item: FilesItem, start: TvPlayStart = TvPlayStart.Ask, subtitlesFirst: Boolean = false) {
         durationLookup?.cancel()
-        startPlayback(item, start, fromHome = false)
+        startPlayback(item, start, fromHome = false, subtitlesFirst = subtitlesFirst)
     }
+
+    val subtitlesFirst = TvSubtitlesFirst()
 
     /**
      * Opens a Search or History pick: media plays, a folder opens in Files, and any other file
@@ -315,9 +321,10 @@ internal class TvSession internal constructor(
         }
     }
 
-    private fun startPlayback(item: FilesItem, start: TvPlayStart, fromHome: Boolean) {
+    private fun startPlayback(item: FilesItem, start: TvPlayStart, fromHome: Boolean, subtitlesFirst: Boolean = false) {
         val mediaType = PlaybackMediaType.fromFileType(item.type) ?: return
         if (!scope.isActive) return
+        this.subtitlesFirst.request(subtitlesFirst && mediaType == PlaybackMediaType.VIDEO)
         playingFromHome = fromHome
         val target = PlaybackTarget(item.id, item.name, mediaType, item.playback?.durationSeconds, item.screenshotUrl)
         // Audio playback analytics are not wired yet, here or on mobile.
@@ -349,6 +356,7 @@ internal class TvSession internal constructor(
         continueSaved?.cancel()
         watchNextPlayback.stopFollowing()
         continueWatchingFollow?.cancel()
+        subtitlesFirst.shown()
         val stopped = mutablePlayback.value ?: return
         val last = stopped.state.value.target.fileId
         if (playingFromHome) homeReturn.played(last)

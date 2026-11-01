@@ -101,7 +101,7 @@ class TvHomePinsTest {
         val refused = object : PinnedFiles by pins {
             var unpins = 0
 
-            override fun unpin(id: FilesItemId) {
+            override fun unpinGone(id: FilesItemId) {
                 unpins++
                 this@TvHomePinsTest.pins.failure.value =
                     PutioFailure.NetworkUnavailable(PutioConfigurationException("offline $unpins"))

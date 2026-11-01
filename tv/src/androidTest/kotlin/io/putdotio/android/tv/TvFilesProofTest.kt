@@ -25,6 +25,15 @@ import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.files.FilesSort
 import io.putdotio.android.files.FilesSubtitleLanguages
 import io.putdotio.android.files.FilesSubtitles
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.files.FilesDeleteMode
+import io.putdotio.android.files.FilesStreamUrlResult
+import io.putdotio.android.files.FilesStreamUrls
+import io.putdotio.android.settings.AccountSettingsPreferences
+import io.putdotio.sdk.errors.PutioApiErrorEnvelope
+import io.putdotio.sdk.errors.PutioApiException
+import io.putdotio.sdk.errors.PutioRequestData
+import io.putdotio.sdk.files.FileDeleteResult
 import io.putdotio.sdk.files.PutioFileType
 import java.io.File
 import java.time.LocalDate
@@ -151,6 +160,117 @@ class TvFilesProofTest {
         screenshot("androidtv-st-s10-inactive")
     }
 
+    @Test
+    fun fileActions() {
+        mount()
+        focusBbbVideo()
+        press(KeyEvent.KEYCODE_MENU)
+        waitForText("Pin to Home")
+        screenshot("androidtv-rde2-06-file-actions")
+    }
+
+    @Test
+    fun movedToTrash() {
+        val root = FilesFolder.Root.id
+        val listings = listings()
+        val notes = file(NOTES_ID, NOTES, 2_000, "2026-10-30T09:00:00", root).copy(type = PutioFileType.TEXT)
+        val listed = listings.getValue(root)
+        var trashed = false
+        val proof = ProofFilesRepository(listings)
+        mount(
+            listings,
+            filesRepository = object : FilesRepository by proof {
+                override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> =
+                    if (folderId == root && !trashed) {
+                        PutioResult.Success(listed.copy(items = listed.items + notes))
+                    } else {
+                        proof.loadFolder(folderId)
+                    }
+
+                override suspend fun delete(itemIds: List<FilesItemId>, mode: FilesDeleteMode):
+                    PutioResult<FileDeleteResult> {
+                    check(itemIds == listOf(notes.id) && mode == FilesDeleteMode.TRASH)
+                    trashed = true
+                    return PutioResult.Success(FileDeleteResult(status = "OK"))
+                }
+
+                override suspend fun resolveItem(itemId: FilesItemId): PutioResult<FilesItem> =
+                    PutioResult.Failure(notFound())
+            },
+        )
+        compose.waitUntil(5_000) { isFocused("Open $BBB") }
+        repeat(NOTES_INDEX) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
+        compose.waitUntil(5_000) { isFocused(NOTES) }
+        press(KeyEvent.KEYCODE_MENU)
+        waitForText("Pin to Home")
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        waitForText("Moved to Trash")
+        compose.waitUntil(5_000) { isFocused("Open $BBB") }
+        repeat(BLUE_LIGHTS_INDEX) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
+        compose.waitUntil(5_000) { isFocused("Play $BLUE_LIGHTS") }
+        waitForText("English, English · SDH")
+        screenshot("androidtv-st-t3-moved")
+    }
+
+    @Test
+    fun deletePermanently() {
+        mount(listings(), trashEnabled = false)
+        compose.waitUntil(5_000) { isFocused("Open $BBB") }
+        focusBbbVideo()
+        press(KeyEvent.KEYCODE_MENU)
+        waitForText("Delete permanently")
+        chooseInSheet("Delete permanently")
+        waitForText("Delete permanently?")
+        screenshot("androidtv-st-t4-delete")
+        press(KeyEvent.KEYCODE_DPAD_LEFT)
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitUntil(5_000) { isFocused("Play $BBB_VIDEO") }
+    }
+
+    @Test
+    fun vlcMissing() {
+        mount(listings(), streamUrls = FilesStreamUrls { FilesStreamUrlResult.Ready(UNINSTALLED_VLC_URL) })
+        compose.waitUntil(5_000) { isFocused("Open $BBB") }
+        focusBbbVideo()
+        press(KeyEvent.KEYCODE_MENU)
+        waitForText("Open in VLC")
+        chooseInSheet("Open in VLC")
+        waitForText("VLC isn’t installed")
+        screenshot("androidtv-st-d4-notice")
+    }
+
+    private fun focusBbbVideo() {
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitUntil(5_000) { isFocused(SUBTITLES) }
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        compose.waitUntil(5_000) { isFocused("Play $BBB_VIDEO") }
+        waitForText("English · 1 file")
+    }
+
+    private fun chooseInSheet(label: String) {
+        repeat(SHEET_ROWS) {
+            if (!compose.onAllNodesWithText(label).fetchSemanticsNodes().any(::focused)) {
+                press(KeyEvent.KEYCODE_DPAD_DOWN)
+            }
+        }
+        compose.waitUntil(5_000) { compose.onAllNodesWithText(label).fetchSemanticsNodes().any(::focused) }
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+    }
+
+    private fun notFound(): PutioFailure = PutioFailure.ApiRejected(
+        404,
+        "FileNotFound",
+        PutioApiException(
+            request = PutioRequestData("GET", "https://api.put.io/v2/files/$NOTES_ID"),
+            resolvedStatusCode = 404,
+            resolvedErrorType = "FileNotFound",
+            envelope = PutioApiErrorEnvelope(errorType = "FileNotFound", statusCode = 404),
+            responseBody = "{}",
+            message = "Not found",
+        ),
+    )
+
     private fun focusBlueLights() {
         repeat(BLUE_LIGHTS_INDEX) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
         compose.waitUntil(5_000) { isFocused("Play $BLUE_LIGHTS") }
@@ -201,16 +321,27 @@ class TvFilesProofTest {
         listings: Map<FilesItemId, FilesPage>,
         filesRepository: FilesRepository = ProofFilesRepository(listings),
         account: TvAccount = TvAccount(userId = 1, username = "proof", email = "proof@example.invalid", historyEnabled = true),
+        trashEnabled: Boolean = true,
+        streamUrls: FilesStreamUrls? = null,
     ) {
         val subtitles = mapOf(
             14L to FilesSubtitles(listOf("English", "English · SDH")),
             22L to FilesSubtitles(listOf("English"), sidecarFiles = 1),
         )
-        val dependencies = tvProofDependencies(
+        val proof = tvProofDependencies(
             listings = listings,
             searchResults = emptyList(),
             recentSearchStore = { ProofRecentSearchStore() },
-        ).copy(
+            settings = AccountSettingsPreferences(
+                historyEnabled = true,
+                trashEnabled = trashEnabled,
+                showSubtitles = true,
+                autoSelectSubtitles = true,
+                resumePlayback = true,
+            ),
+        )
+        val dependencies = proof.copy(
+            streamUrls = streamUrls ?: proof.streamUrls,
             filesRepository = filesRepository,
             folderCounts = FilesFolderCounts { id -> PutioResult.Success(listings[id]?.items?.size ?: 0) },
             subtitleLanguages = FilesSubtitleLanguages { id ->
@@ -279,5 +410,10 @@ class TvFilesProofTest {
         const val EMPTY = "New folder"
         const val LOADING = "Loading"
         const val INACTIVE_DAYS = 12L
+        const val NOTES_ID = 17L
+        const val NOTES = "notes.txt"
+        const val NOTES_INDEX = 7
+        const val SHEET_ROWS = 6
+        const val UNINSTALLED_VLC_URL = "https://example.invalid/file.mp4"
     }
 }

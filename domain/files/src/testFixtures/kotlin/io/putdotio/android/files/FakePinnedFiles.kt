@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 public class FakePinnedFiles(initial: List<FilesItemId>? = emptyList()) : PinnedFiles {
     override val pins: MutableStateFlow<List<FilesItemId>?> = MutableStateFlow(initial)
     override val failure: MutableStateFlow<PutioFailure?> = MutableStateFlow(null)
+    override val editFailure: MutableStateFlow<PutioFailure?> = MutableStateFlow(null)
     public var reloads: Int = 0
         private set
     public var closed: Boolean = false
@@ -19,8 +20,16 @@ public class FakePinnedFiles(initial: List<FilesItemId>? = emptyList()) : Pinned
         pins.value = pins.value.orEmpty().minus(id)
     }
 
+    override fun unpinGone(id: FilesItemId) {
+        unpin(id)
+    }
+
     override fun reload() {
         reloads++
+    }
+
+    override fun dismissEditFailure() {
+        editFailure.value = null
     }
 
     override fun close() {

@@ -27,7 +27,7 @@ internal fun TvSortSheet(
         onDismiss = onDismiss,
         returnFocus = returnFocus,
         title = stringResource(R.string.tv_files_sort_title),
-        scrim = SORT_SCRIM,
+        scrim = FILES_SHEET_SCRIM,
     ) { initialFocus ->
         TvSheetRows {
             TvSheetLabel(stringResource(R.string.tv_files_sort_by))
@@ -67,4 +67,4 @@ internal fun TvSortSheet(
     }
 }
 
-private val SORT_SCRIM = Color.Black.copy(alpha = 0.72f)
+internal val FILES_SHEET_SCRIM = Color.Black.copy(alpha = 0.72f)

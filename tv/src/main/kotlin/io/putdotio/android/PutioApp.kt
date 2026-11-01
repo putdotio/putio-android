@@ -72,6 +72,7 @@ import io.putdotio.android.tv.TvLaunchRequests
 import io.putdotio.android.tv.TvLinkScreen
 import io.putdotio.android.tv.TvOfflineScreen
 import io.putdotio.android.tv.TvSession
+import io.putdotio.android.tv.TvUndoFailure
 import io.putdotio.android.tv.TvSessionDependencies
 import io.putdotio.android.tv.tvAppConfigRepository
 import io.putdotio.android.tv.TvSessionViewModel
@@ -219,6 +220,7 @@ internal fun TvSessionShell(
     val pinnedRow by session.homePins.row.collectAsStateWithLifecycle()
     val pinsFailure by session.pins.failure.collectAsStateWithLifecycle()
     val pinRejected by session.homePins.rejected.collectAsStateWithLifecycle()
+    val undoFailure by session.trashUndo.failure.collectAsStateWithLifecycle()
     val showHome by session.showHome.shown.collectAsStateWithLifecycle()
     val homeReturn by session.homeReturn.file.collectAsStateWithLifecycle()
     // A 401 from the proxy list is as authoritative as one from any controller.
@@ -232,8 +234,15 @@ internal fun TvSessionShell(
         historyState.authoritativeSessionFailure(),
     ).any { it != null }
     val sideActionRejected =
-        listOf(recentSearchFailure, fileActionFailure, historyOpenFailure, linkOpenFailure, pinsFailure, pinRejected)
-            .any { it is PutioFailure.AuthenticationRequired }
+        listOf(
+            recentSearchFailure,
+            fileActionFailure,
+            historyOpenFailure,
+            linkOpenFailure,
+            pinsFailure,
+            pinRejected,
+            undoFailure?.failure,
+        ).any { it is PutioFailure.AuthenticationRequired }
     val sessionRejected = controllerRejected || tunnelRoutesRejected || positionWriteRejected || sideActionRejected
     LaunchedEffect(sessionRejected) { if (sessionRejected) onSessionRejected() }
     // The controller starts from the setting read at validation; each confirmed value from
@@ -282,6 +291,7 @@ internal fun TvSessionShell(
         if (trashState.bulkRestoreVersion > 0L) session.files.dispatch(FilesBrowserEvent.InvalidateAllFolders)
     }
     val playback by session.playback.collectAsStateWithLifecycle()
+    val subtitlesFirst by session.subtitlesFirst.requested.collectAsStateWithLifecycle()
 
     TvPlaybackLayer(
         playing = playback != null,
@@ -295,6 +305,8 @@ internal fun TvSessionShell(
                     subtitleStartupPolicy = settingsState.subtitleStartupPolicy(),
                     autoplayNextVideo = appConfigState.confirmedAutoplayNextVideo(),
                     findNextEpisode = session.findNextVideo.takeIf { settingsState.nextEpisodeEnabled() },
+                    subtitlesFirst = subtitlesFirst,
+                    onSubtitlesShown = session.subtitlesFirst::shown,
                 )
             }
         },
@@ -347,6 +359,7 @@ internal fun TvSessionShell(
                     filesState = filesState,
                     settingsState = settingsState,
                     fileActionFailure = fileActionFailure,
+                    undoFailure = undoFailure,
                     linkNotice = linkNotice,
                     sessionKey = sessionKey,
                     paneFocus = paneFocus,
@@ -411,6 +424,7 @@ private fun TvFilesPane(
     filesState: FilesBrowserState,
     settingsState: AccountSettingsState,
     fileActionFailure: PutioFailure?,
+    undoFailure: TvUndoFailure?,
     linkNotice: TvLinkNotice,
     sessionKey: Any,
     paneFocus: FocusRequester,
@@ -437,6 +451,8 @@ private fun TvFilesPane(
     val streamScope = rememberCoroutineScope()
     var filesNotice by remember(session) { mutableStateOf<Int?>(null) }
     var streamFailure by remember(session) { mutableStateOf<PutioFailure?>(null) }
+    val pins by session.pins.pins.collectAsStateWithLifecycle()
+    val pinFailure by session.pins.editFailure.collectAsStateWithLifecycle()
     // A requester on the pane lands on its first focusable descendant (Refresh); the
     // pane's own entry effects then move focus to the row it remembers.
     TvFilesScreen(
@@ -450,6 +466,7 @@ private fun TvFilesPane(
         confirmedTrashEnabled = settingsState.confirmedTrashEnabled(),
         watchedToggleEnabled = settingsState.confirmedResumePlayback() == true,
         resumePlayback = settingsState.confirmedResumePlayback() != false,
+        showSubtitles = settingsState.subtitleStartupPolicy()?.showSubtitles == true,
         detailSources = remember(session) {
             TvFilesDetailSources(session.folderCounts, session.subtitleLanguages, onSessionRejected)
         },
@@ -463,7 +480,13 @@ private fun TvFilesPane(
             }
         },
         onSetWatched = session::setWatched,
-        notice = linkNotice.text() ?: filesNoticeText(filesNotice, streamFailure, fileActionFailure),
+        pinnedIds = pins,
+        onSetPinned = { item, pinned -> if (pinned) session.pins.pin(item.id) else session.pins.unpin(item.id) },
+        onPickSubtitles = { item, start -> session.play(item, start, subtitlesFirst = true) },
+        trashUndo = session.trashUndoOffer,
+        notice = linkNotice.text()
+            ?: filesNoticeText(filesNotice, streamFailure, fileActionFailure, undoFailure, pinFailure),
+        noticeMessage = filesNoticeMessage(linkNotice.shown, filesNotice),
         // OK clears only what it was shown; a failure that arrived behind a VLC
         // notice is shown next.
         onDismissNotice = {
@@ -471,6 +494,8 @@ private fun TvFilesPane(
                 linkNotice.shown -> linkNotice.onDismiss()
                 filesNotice != null -> filesNotice = null
                 streamFailure != null -> streamFailure = null
+                undoFailure.shown() -> session.trashUndo.dismissFailure()
+                pinFailure.shown() -> session.pins.dismissEditFailure()
                 else -> session.dismissFileActionFailure()
             }
         },
@@ -552,6 +577,14 @@ private class TvLinkNotice(
     fun text(): String? = shownFailure?.let { stringResource(R.string.tv_link_open_error, it.tvMessageText()) }
 }
 
+@Composable
+private fun filesNoticeMessage(linkNoticeShown: Boolean, filesNotice: Int?): String? =
+    if (!linkNoticeShown && filesNotice == R.string.tv_files_vlc_missing) {
+        stringResource(R.string.tv_files_vlc_missing_message)
+    } else {
+        null
+    }
+
 /** Hands a ready stream to VLC; the notice to show instead, if any. */
 private fun FilesStreamUrlResult.openInVlc(context: Context, item: FilesItem): Int? =
     when (this) {
@@ -560,14 +593,23 @@ private fun FilesStreamUrlResult.openInVlc(context: Context, item: FilesItem): I
         is FilesStreamUrlResult.Failure -> null
     }
 
+private fun TvUndoFailure?.shown(): Boolean = this != null && failure !is PutioFailure.AuthenticationRequired
+
+private fun PutioFailure?.shown(): Boolean = this != null && this !is PutioFailure.AuthenticationRequired
+
 @Composable
 private fun filesNoticeText(
     filesNotice: Int?,
     streamFailure: PutioFailure?,
     fileActionFailure: PutioFailure?,
+    undoFailure: TvUndoFailure?,
+    pinFailure: PutioFailure?,
 ): String? =
     filesNotice?.let { stringResource(it) }
         ?: streamFailure?.let { stringResource(R.string.tv_files_stream_error, it.tvMessageText()) }
+        ?: undoFailure?.takeIf { it.shown() }
+            ?.let { stringResource(R.string.tv_files_undo_failed, it.itemName, it.failure.tvMessageText()) }
+        ?: pinFailure?.takeIf { it.shown() }?.let { stringResource(R.string.tv_files_pin_error, it.tvMessageText()) }
         ?: fileActionFailure?.takeUnless { it is PutioFailure.AuthenticationRequired }
             ?.let { stringResource(R.string.tv_files_watched_error, it.tvMessageText()) }
 

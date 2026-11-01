@@ -66,6 +66,7 @@ internal fun TvSheetOption(
     @DrawableRes trailingIcon: Int? = null,
     role: Role = Role.RadioButton,
     enabled: Boolean = true,
+    danger: Boolean = false,
 ) {
     val interactions = remember { MutableInteractionSource() }
     val focused by interactions.collectIsFocusedAsState()
@@ -83,7 +84,7 @@ internal fun TvSheetOption(
         shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(PutioRadius.medium)),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = if (selected) PutioDesignTokens.componentBgActive else Color.Transparent,
-            contentColor = colors.onSurface,
+            contentColor = if (danger) PutioDesignTokens.redTextSecondary else colors.onSurface,
             focusedContainerColor = TvFocus.container,
             focusedContentColor = TvFocus.content,
             pressedContainerColor = TvFocus.container,
