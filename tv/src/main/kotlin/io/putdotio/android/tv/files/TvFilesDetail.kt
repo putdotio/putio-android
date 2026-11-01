@@ -228,7 +228,7 @@ private fun detailMeta(item: FilesItem, count: Int?): AnnotatedString {
     val itemCount = count?.let { pluralStringResource(R.plurals.tv_files_item_count, it, it.toString()) }
     val parts = buildList {
         itemCount?.let { add(AnnotatedString(it)) }
-        add(formatFileSize(item.sizeBytes).asMonoRun())
+        add(formatFileSize(item.sizeBytes, spaced = true).asMonoRun())
         if (!item.isFolder) {
             date?.let { add(AnnotatedString(it)) }
             if (item.playback?.isWatched == true) add(AnnotatedString(watched))

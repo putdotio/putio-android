@@ -764,7 +764,7 @@ private fun TvFilesSectionLine(
             val count = summary.itemCount.toString()
             val label = pluralStringResource(R.plurals.tv_files_item_count, summary.itemCount, count)
             Text(monoNumber(label, count), style = SECTION_LABEL)
-            summary.sizeBytes?.let { Text(formatFileSize(it), style = SECTION_LABEL_MONO) }
+            summary.sizeBytes?.let { Text(formatFileSize(it, spaced = true), style = SECTION_LABEL_MONO) }
         }
     }
     if (sorting) {

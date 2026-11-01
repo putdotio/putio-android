@@ -78,7 +78,7 @@ internal fun TvFilesRow(
 @Composable
 private fun TvFilesRowMeta(item: FilesItem, place: TvFilesRowPlace, color: Color) {
     val context = LocalContext.current
-    val size = if (item.isFolder) null else formatFileSize(item.sizeBytes)
+    val size = if (item.isFolder) null else formatFileSize(item.sizeBytes, spaced = true)
     val date = remember(item.createdAt, context) { item.createdAt.toDisplayDate(context) }
     val where = when (place) {
         TvFilesRowPlace.Listing -> date
