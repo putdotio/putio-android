@@ -46,7 +46,7 @@ internal fun ColumnScope.TvTrashDetail(
     val deletedLabel = deleted?.let { stringResource(R.string.tv_trash_deleted_on, it) }
     val meta = remember(item.sizeBytes, deletedLabel) {
         buildAnnotatedString {
-            withStyle(TV_MONO_RUN) { append(formatFileSize(item.sizeBytes)) }
+            withStyle(TV_MONO_RUN) { append(formatFileSize(item.sizeBytes, spaced = true)) }
             if (deletedLabel != null) append(" · $deletedLabel")
         }
     }

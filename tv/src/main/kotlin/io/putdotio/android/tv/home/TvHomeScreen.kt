@@ -366,7 +366,7 @@ private fun itemMeta(item: FilesItem, items: Int?): AnnotatedString {
     val count = items?.let { pluralStringResource(R.plurals.tv_files_item_count, it, it.toString()) }
     val parts = buildList {
         count?.let { add(AnnotatedString(it)) }
-        add(formatFileSize(item.sizeBytes).asMonoRun())
+        add(formatFileSize(item.sizeBytes, spaced = true).asMonoRun())
         if (!item.isFolder) date?.let { add(AnnotatedString(it)) }
     }
     return buildAnnotatedString {

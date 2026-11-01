@@ -186,7 +186,7 @@ class TvHomeScreenTest {
         }
 
         compose.onNodeWithText("12 folders").assertIsDisplayed()
-        compose.onNodeWithText("3 items · 276MB").assertIsDisplayed()
+        compose.onNodeWithText("3 items · 276 MB").assertIsDisplayed()
         compose.onNodeWithText("From 2 friends").assertIsDisplayed()
     }
 

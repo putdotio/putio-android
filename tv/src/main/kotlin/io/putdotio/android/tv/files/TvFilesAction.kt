@@ -299,7 +299,7 @@ private fun TvFilesActionsHeader(item: FilesItem) {
 private fun headerMeta(item: FilesItem): AnnotatedString {
     val context = LocalContext.current
     val date = remember(item.createdAt, context) { item.createdAt.toDisplayDate(context) }
-    val size = if (item.isFolder) null else formatFileSize(item.sizeBytes)
+    val size = if (item.isFolder) null else formatFileSize(item.sizeBytes, spaced = true)
     return buildAnnotatedString {
         size?.let { append(it.asMonoRun()) }
         if (size != null && date != null) append(" · ")

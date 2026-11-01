@@ -90,7 +90,7 @@ class TvFilesScreenTest {
         compose.onNodeWithContentDescription("Open tears_of_steel").assertIsFocused()
         compose.onNodeWithContentDescription("Watched", useUnmergedTree = true).assertIsDisplayed()
         compose.onAllNodesWithText("33%", substring = true).assertCountEquals(0)
-        compose.onNodeWithText("1.1kB").assertIsDisplayed()
+        compose.onNodeWithText("1.1 kB").assertIsDisplayed()
 
         compose.onNodeWithContentDescription("Open tears_of_steel").performKeyInput { pressCenter() }
         assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.OpenFolder(FilesItemId(1))), events)
@@ -471,7 +471,7 @@ class TvFilesScreenTest {
                 detailSources = TvFilesDetailSources(folderCounts = counts),
             )
         }
-        compose.waitUntil(5_000) { compose.onAllNodesWithText("3 items · 276MB").fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("3 items · 276 MB").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithContentDescription("Open Big Buck Bunny").performKeyInput { pressKey(Key.DirectionRight) }
         compose.onNode(hasText("Open") and hasClickAction()).assertIsFocused().performKeyInput {
             pressCenter()
@@ -610,11 +610,11 @@ class TvFilesScreenTest {
                 detailSources = remember { TvFilesDetailSources(folderCounts = counts) },
             )
         }
-        compose.waitUntil(5_000) { compose.onAllNodesWithText("1 item · 276MB").fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("1 item · 276 MB").fetchSemanticsNodes().isNotEmpty() }
 
         size = 138_000_000L
 
-        compose.waitUntil(5_000) { compose.onAllNodesWithText("2 items · 138MB").fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("2 items · 138 MB").fetchSemanticsNodes().isNotEmpty() }
         assertEquals(2, reads)
     }
 
@@ -655,7 +655,7 @@ class TvFilesScreenTest {
                 detailSources = remember { TvFilesDetailSources(folderCounts = counts) },
             )
         }
-        compose.waitUntil(5_000) { compose.onAllNodesWithText("1 item · 276MB").fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("1 item · 276 MB").fetchSemanticsNodes().isNotEmpty() }
 
         operation = FilesFolderOperation.Loading(
             FilesRequestId(7),
@@ -665,7 +665,7 @@ class TvFilesScreenTest {
         compose.waitForIdle()
         operation = FilesFolderOperation.Idle
 
-        compose.waitUntil(5_000) { compose.onAllNodesWithText("2 items · 276MB").fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("2 items · 276 MB").fetchSemanticsNodes().isNotEmpty() }
         assertEquals(2, reads)
     }
 

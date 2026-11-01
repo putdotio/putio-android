@@ -19,4 +19,11 @@ class FilesFileSizeTest {
         )
         sizes.forEach { (bytes, text) -> assertEquals(text, formatFileSize(bytes, Locale.US)) }
     }
+
+    @Test
+    fun setsTheUnitApartOnlyWhenSpaced() {
+        assertEquals("276MB", formatFileSize(276_000_000L, Locale.US))
+        assertEquals("276 MB", formatFileSize(276_000_000L, Locale.US, spaced = true))
+        assertEquals("1.2 GB", formatFileSize(1_200_000_000L, Locale.US, spaced = true))
+    }
 }

@@ -90,7 +90,7 @@ class TvHistoryScreenTest {
         ) { historyState(HistoryContent.Ready(items(), HistoryPaging.Complete)) }
 
         compose.waitUntil(5_000) { compose.onAllNodesWithText("Your Files").fetchSemanticsNodes().isNotEmpty() }
-        compose.onNode(hasText("Size") and hasText("3.1GB")).assertIsDisplayed()
+        compose.onNode(hasText("Size") and hasText("3.1 GB")).assertIsDisplayed()
         compose.onNodeWithText("Transfer completed · Today, 05:22").assertIsDisplayed()
         compose.onNodeWithContentDescription("Open Big Buck Bunny").assertIsFocused().performKeyInput {
             pressKey(Key.DirectionRight)

@@ -79,8 +79,8 @@ class TvTrashScreenTest {
         compose.onNodeWithText("Items stay in Trash for 14 days.").assertIsDisplayed()
         compose.onNodeWithText("12 days left").assertIsDisplayed()
         compose.onNodeWithText("1 day left").assertIsDisplayed()
-        compose.onNodeWithText("1.2GB").assertIsDisplayed()
-        compose.onNodeWithText("1.4GB · Deleted Sep 6", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("1.2 GB").assertIsDisplayed()
+        compose.onNodeWithText("1.4 GB · Deleted Sep 6", substring = true).assertIsDisplayed()
         compose.onNodeWithText("in 12 days").assertIsDisplayed()
         compose.onNode(row).assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf<TrashEvent>(TrashEvent.SelectRestore(FilesItemId(7))), events)
@@ -187,7 +187,7 @@ class TvTrashScreenTest {
             TrashState(content = loaded.copy(items = listOf(item.copy(deletedAt = "2026-09-06"))))
         }
 
-        compose.onNodeWithText("1.4GB · Deleted Sep 6", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("1.4 GB · Deleted Sep 6", substring = true).assertIsDisplayed()
     }
 
     @Test
