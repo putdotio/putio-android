@@ -1,0 +1,79 @@
+name: Google Play Data Safety
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Full SHA of the current main commit
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: play-delivery
+  cancel-in-progress: false
+
+# Explicit bash runs with -o pipefail; GitHub's default shell does not.
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  ref:
+    name: Validate ref
+    uses: ./.github/workflows/delivery-ref.yml # zizmor: ignore[self-repository]
+    permissions:
+      actions: read
+      contents: read
+    with:
+      expected_sha: ${{ inputs.expected_sha }}
+
+  publish:
+    name: Replace the Data safety answers
+    needs: ref
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: release
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.ref.outputs.sha }}
+          persist-credentials: false
+      # Google's applications.dataSafety takes the Play Console CSV as one string and replaces every answer.
+      - name: Upload the CSV
+        env:
+          ANDROID_PUBLISHER_CREDENTIALS: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          csv=play/data-safety.csv
+          b64url() { openssl base64 -A | tr '+/' '-_' | tr -d '='; }
+          email=$(jq -r .client_email <<<"$ANDROID_PUBLISHER_CREDENTIALS")
+          key=$(mktemp)
+          trap 'rm -f "$key"' EXIT
+          jq -r .private_key <<<"$ANDROID_PUBLISHER_CREDENTIALS" >"$key"
+          now=$(date +%s)
+          claims=$(jq -cn --arg iss "$email" --argjson iat "$now" '{iss: $iss, scope: "https://www.googleapis.com/auth/androidpublisher", aud: "https://oauth2.googleapis.com/token", iat: $iat, exp: ($iat + 600)}')
+          unsigned="$(printf '{"alg":"RS256","typ":"JWT"}' | b64url).$(printf '%s' "$claims" | b64url)"
+          signature=$(printf '%s' "$unsigned" | openssl dgst -sha256 -sign "$key" -binary | b64url)
+          token=$(curl -sS --fail-with-body https://oauth2.googleapis.com/token \
+            --data-urlencode grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer \
+            --data-urlencode "assertion=$unsigned.$signature" | jq -r .access_token)
+          echo "::add-mask::$token"
+          jq -Rs '{safetyLabels: .}' "$csv" | curl -sS --fail-with-body \
+            -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary @- \
+            https://androidpublisher.googleapis.com/androidpublisher/v3/applications/io.put.putio/dataSafety
+      - name: Summarize
+        env:
+          SHA: ${{ needs.ref.outputs.sha }}
+        run: |
+          {
+            echo "### Google Play Data safety"
+            echo
+            echo "| | |"
+            echo "| --- | --- |"
+            echo "| Commit | \`$SHA\` |"
+            echo "| Answers | [data-safety.csv]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/blob/$SHA/play/data-safety.csv) |"
+            echo "| Run | [$GITHUB_RUN_ID]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID) |"
+          } >> "$GITHUB_STEP_SUMMARY"
