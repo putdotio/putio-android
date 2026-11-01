@@ -56,6 +56,17 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import io.putdotio.android.search.searchState
 import io.putdotio.android.history.historyState
+import io.putdotio.android.history.HistoryController
+import io.putdotio.android.history.HistoryPage
+import io.putdotio.android.history.HistoryRepository
+import kotlinx.coroutines.CompletableDeferred
+import androidx.compose.runtime.collectAsState
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.TestTimeSource
 
 @OptIn(ExperimentalTestApi::class)
 @RunWith(AndroidJUnit4::class)
@@ -295,7 +306,10 @@ class TvShellTest {
                 historyPane = { paneFocus ->
                     TvHistoryScreen(
                         state = history,
-                        onEvent = { events += it; true },
+                        onEvent = {
+                            if (it != HistoryEvent.Refresh) events += it
+                            true
+                        },
                         modifier = Modifier.focusRequester(paneFocus),
                     )
                 },
@@ -313,4 +327,62 @@ class TvShellTest {
         compose.onNodeWithContentDescription("Open Sintel.mp4").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf<HistoryEvent>(HistoryEvent.OpenFile(HistoryFileId(5))), events)
     }
+
+    @Test
+    fun historyShownAgainListsNewEventsAndKeepsTheFocusedRow() {
+        var events = listOf(historyEvent(2, "Sintel.mp4"), historyEvent(1, "Big Buck Bunny.mp4"))
+        var gate: CompletableDeferred<Unit>? = null
+        val repository = object : HistoryRepository {
+            override suspend fun load(before: HistoryEventId?): PutioResult<HistoryPage> {
+                gate?.await()
+                return PutioResult.Success(HistoryPage(if (before == null) events else emptyList(), hasMore = false))
+            }
+
+            override suspend fun clear() = error("No clear expected")
+        }
+        val clock = TestTimeSource()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+        val controller = HistoryController(repository, historyEnabled = true, parentScope = scope, clock = clock)
+        try {
+            compose.setTvContent {
+                val state by controller.state.collectAsState()
+                TvShell(
+                    account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                    onSignOut = {},
+                    historyPane = { paneFocus ->
+                        TvHistoryScreen(
+                            state = state,
+                            onEvent = controller::dispatch,
+                            modifier = Modifier.focusRequester(paneFocus),
+                        )
+                    },
+                )
+            }
+            compose.openTab(TvDestination.History)
+            compose.onNodeWithContentDescription("Open Sintel.mp4").assertIsFocused().performKeyInput {
+                repeat(2) { pressKey(Key.DirectionUp) }
+            }
+            val refreshed = CompletableDeferred<Unit>().also { gate = it }
+            events = listOf(historyEvent(3, "Tears of Steel.mp4")) + events
+            clock += 2.minutes
+            compose.onTab("History").assertIsFocused().performKeyInput { pressKey(Key.DirectionLeft) }
+            compose.onTab("Search").assertIsSelected().performKeyInput { pressKey(Key.DirectionRight) }
+            compose.onTab("History").assertIsSelected().performKeyInput { pressKey(Key.DirectionDown) }
+            compose.onNodeWithContentDescription("Open Sintel.mp4").assertIsFocused().performKeyInput {
+                pressKey(Key.DirectionDown)
+            }
+            compose.onNodeWithContentDescription("Open Big Buck Bunny.mp4").assertIsFocused()
+
+            compose.runOnIdle { refreshed.complete(Unit) }
+
+            compose.onNodeWithContentDescription("Open Tears of Steel.mp4").assertExists()
+            compose.onNodeWithContentDescription("Open Big Buck Bunny.mp4").assertIsFocused()
+        } finally {
+            controller.close()
+            scope.cancel()
+        }
+    }
+
+    private fun historyEvent(id: Long, name: String) =
+        HistoryItem(HistoryEventId(id), "2026-09-10T10:00:00", HistoryEventKind.File(HistoryFileId(id + 10), name))
 }

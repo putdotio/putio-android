@@ -22,6 +22,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
@@ -164,8 +165,6 @@ internal fun ColumnScope.TvDetailBody(
         text = remember(title) { title.breakableAtDots() },
         style = DETAIL_TITLE,
         color = MaterialTheme.colorScheme.onSurface,
-        maxLines = DETAIL_TITLE_MAX_LINES,
-        overflow = TextOverflow.Ellipsis,
         modifier = Modifier.clearAndSetSemantics {
             heading()
             text = AnnotatedString(title)
@@ -188,7 +187,10 @@ internal fun ColumnScope.TvDetailBody(
         content = actions,
     )
     Column(
-        modifier = Modifier.padding(top = DETAIL_FACTS_GAP),
+        modifier = Modifier
+            .weight(1f, fill = false)
+            .clipToBounds()
+            .padding(top = DETAIL_FACTS_GAP),
         verticalArrangement = Arrangement.spacedBy(DETAIL_FACT_SPACING),
     ) {
         facts.take(MAX_DETAIL_FACTS).forEach { fact ->
@@ -290,7 +292,6 @@ private val SECTION_PILL_ICON_GAP = 5.dp
 private val SECTION_PILL_ICON = 12.dp
 private val SECTION_PILL_LABEL = PutioTypeScale.tvButton.copy(fontSize = 11.sp, lineHeight = 16.sp)
 private val DETAIL_TITLE = PutioTypeScale.tvDetailTitle.copy(lineHeight = 22.sp)
-private const val DETAIL_TITLE_MAX_LINES = 5
 private val DETAIL_META_GAP = 5.dp
 private val DETAIL_ACTIONS_GAP = 16.dp
 private val DETAIL_ACTION_SPACING = 4.dp

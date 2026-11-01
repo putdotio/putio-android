@@ -81,6 +81,20 @@ class TvFilesProofTest {
     }
 
     @Test
+    fun longName() {
+        val root = FilesFolder.Root.id
+        val listings = listings()
+        val listed = listings.getValue(root)
+        val renamed = listed.items.map { if (it.id.value == BLUE_LIGHTS_ID) it.copy(name = LONG_NAME) else it }
+        mount(listings + (root to listed.copy(items = renamed)))
+        compose.waitUntil(5_000) { isFocused("Open $BBB") }
+        repeat(BLUE_LIGHTS_INDEX) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
+        compose.waitUntil(5_000) { isFocused("Play $LONG_NAME") }
+        waitForText("English, English · SDH")
+        screenshot("tv-files-long-name")
+    }
+
+    @Test
     fun folder() {
         mount()
         press(KeyEvent.KEYCODE_DPAD_CENTER)
@@ -406,6 +420,10 @@ class TvFilesProofTest {
         const val SUBTITLES = "Big Buck Bunny.en.srt"
         const val BLUE_LIGHTS = "Blue.Lights.S04E01.1080p.HDTV.H264-ORGANiC.mkv"
         const val BLUE_LIGHTS_INDEX = 4
+        const val BLUE_LIGHTS_ID = 14L
+        const val LONG_NAME = "Blue.Lights.S04E01.The.Longest.Night.In.Belfast.Extended.Directors.Cut." +
+            "Remastered.From.The.Original.Negative.With.Commentary.By.The.Cast.And.Crew.Plus.Behind.The." +
+            "Scenes.Featurette.1080p.HDTV.DDP5.1.H264-ORGANiC.mkv"
         const val EMPTY_ID = 30L
         const val EMPTY = "New folder"
         const val LOADING = "Loading"

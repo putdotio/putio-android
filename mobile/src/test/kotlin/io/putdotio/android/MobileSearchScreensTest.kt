@@ -244,7 +244,7 @@ class MobileSearchScreensTest {
         }
         setHistoryScreen(
             history = historyState(HistoryContent.Ready(items, HistoryPaging.Available(HistoryEventId(60L)))),
-            actions = MobileSearchHistoryActions(onHistoryEvent = events::add),
+            actions = MobileSearchHistoryActions(onHistoryEvent = { if (it != HistoryEvent.Refresh) events += it }),
         )
 
         compose.runOnIdle { assertEquals(emptyList<HistoryEvent>(), events) }
@@ -270,7 +270,10 @@ class MobileSearchScreensTest {
                     ),
                 clearing = HistoryClearing.AwaitingConfirmation,
             )
-        setHistoryScreen(history = history, actions = MobileSearchHistoryActions(onHistoryEvent = events::add))
+        setHistoryScreen(
+            history = history,
+            actions = MobileSearchHistoryActions(onHistoryEvent = { if (it != HistoryEvent.Refresh) events += it }),
+        )
 
         compose.onNodeWithText("movie.mkv").assertIsDisplayed()
         compose.onNodeWithText("Clear history?").assertIsDisplayed()

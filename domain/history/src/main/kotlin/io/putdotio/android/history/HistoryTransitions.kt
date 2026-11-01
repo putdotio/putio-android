@@ -13,6 +13,7 @@ internal fun HistoryState.setEnabled(enabled: Boolean): HistoryTransition {
                     content = HistoryContent.Disabled,
                     clearing = retainedClearing,
                     consumedBefore = emptySet(),
+                    refreshing = null,
                 ),
             )
         else -> copy(clearing = retainedClearing, consumedBefore = emptySet()).reloadInitial()
@@ -57,7 +58,7 @@ private fun HistoryState.loadingPage(
 internal fun HistoryState.reloadInitial(): HistoryTransition {
     val requestId = HistoryRequestId(nextRequestValue)
     return HistoryTransition(
-        copy(content = HistoryContent.Loading(requestId), nextRequestValue = nextRequestValue + 1),
+        copy(content = HistoryContent.Loading(requestId), nextRequestValue = nextRequestValue + 1, refreshing = null),
         HistoryEffect.Load(null, requestId),
     )
 }
@@ -67,6 +68,7 @@ internal fun HistoryState.loadSucceeded(event: HistoryEvent.LoadSucceeded): Hist
     val ready = content as? HistoryContent.Ready
     val loading = ready?.paging as? HistoryPaging.Loading
     return when {
+        refreshing == event.requestId -> refreshSucceeded(ready, event.page)
         initial?.requestId == event.requestId -> initialPageSucceeded(event.page)
         ready != null && loading?.requestId == event.requestId -> pageSucceeded(ready, loading, event.page)
         else -> HistoryTransition(this, consumed = false)
@@ -90,7 +92,7 @@ private fun HistoryState.pageSucceeded(
     )
 }
 
-private fun List<HistoryItem>.toContent(
+internal fun List<HistoryItem>.toContent(
     hasMore: Boolean,
     consumed: Set<HistoryEventId> = emptySet(),
 ): HistoryContent =
@@ -111,6 +113,7 @@ internal fun HistoryState.loadFailed(event: HistoryEvent.LoadFailed): HistoryTra
     val ready = content as? HistoryContent.Ready
     val loading = ready?.paging as? HistoryPaging.Loading
     return when {
+        refreshing == event.requestId -> HistoryTransition(copy(refreshing = null))
         initial?.requestId == event.requestId ->
             HistoryTransition(copy(content = HistoryContent.Failed(event.failure)))
         ready != null && loading?.requestId == event.requestId ->

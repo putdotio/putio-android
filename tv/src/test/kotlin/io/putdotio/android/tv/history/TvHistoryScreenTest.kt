@@ -279,7 +279,10 @@ class TvHistoryScreenTest {
         compose.setTvContent {
             TvHistoryScreen(
                 state = state(),
-                onEvent = { log += it; true },
+                onEvent = {
+                    if (it != HistoryEvent.Refresh) log += it
+                    true
+                },
                 notice = notice(),
                 clock = clock,
                 files = files,

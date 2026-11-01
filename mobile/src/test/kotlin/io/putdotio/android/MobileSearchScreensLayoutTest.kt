@@ -91,7 +91,7 @@ class MobileSearchScreensLayoutTest {
         val events = mutableListOf<HistoryEvent>()
         setScreen(
             history = HistoryEventKind.Transfer(null, HistoryFileId(7), HISTORY_NAME),
-            actions = MobileSearchHistoryActions(onHistoryEvent = events::add),
+            actions = MobileSearchHistoryActions(onHistoryEvent = { if (it != HistoryEvent.Refresh) events += it }),
         )
         // At twice the font size the cut name stays on one line, and accessibility reads it whole.
         val nameNode = compose.onNodeWithText(HISTORY_NAME, useUnmergedTree = true).fetchSemanticsNode()

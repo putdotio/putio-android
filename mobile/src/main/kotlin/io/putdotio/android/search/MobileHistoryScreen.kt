@@ -78,6 +78,7 @@ internal fun MobileHistoryScreen(
     modifier: Modifier = Modifier,
     today: LocalDate = rememberToday(),
 ) {
+    LaunchedEffect(Unit) { onHistoryEvent(HistoryEvent.Refresh) }
     MobileHistoryContent(historyState, onHistoryEvent, today, modifier.fillMaxSize())
 }
 
