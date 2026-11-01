@@ -60,6 +60,8 @@ import io.putdotio.android.tv.search.TV_SEARCH_FIELD_TAG
 import io.putdotio.android.tv.search.TvRecentSearchActions
 import io.putdotio.android.tv.search.TvSearchActions
 import io.putdotio.android.tv.search.TvSearchScreen
+import io.putdotio.android.tv.search.tvSearchDetail
+import io.putdotio.android.tv.search.tvSearchResults
 import io.putdotio.android.tv.setTvContent
 import io.putdotio.android.tv.trash.TvTrashScreen
 import io.putdotio.sdk.files.PutioFileType
@@ -326,6 +328,8 @@ class TvShellBackTest {
                             nextRequestValue = 2L,
                         ),
                         actions = TvSearchActions({}, {}, {}, {}, {}, TvRecentSearchActions({}, {}, {})),
+                        results = tvSearchResults(),
+                        detail = tvSearchDetail(),
                         modifier = Modifier.focusRequester(paneFocus),
                         pickedRow = picked,
                     )
@@ -334,13 +338,13 @@ class TvShellBackTest {
         }
         compose.openTab(TvDestination.Search)
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assertIsFocused().performKeyInput {
-            repeat(3) { pressKey(Key.DirectionDown) }
+            repeat(4) { pressKey(Key.DirectionDown) }
         }
         compose.onNodeWithContentDescription("Play clip 3.mp4").assertIsFocused()
         compose.pressBack()
         visitNeighbourAndReturn("Search", TvDestination.History)
         compose.onNodeWithContentDescription("Play clip 3.mp4").assertIsFocused().performKeyInput {
-            repeat(3) { pressKey(Key.DirectionUp) }
+            repeat(4) { pressKey(Key.DirectionUp) }
         }
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assertIsFocused().performKeyInput {
             pressKey(Key.DirectionUp)

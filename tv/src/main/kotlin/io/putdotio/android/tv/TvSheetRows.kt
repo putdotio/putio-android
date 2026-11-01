@@ -67,6 +67,7 @@ internal fun TvSheetOption(
     role: Role = Role.RadioButton,
     enabled: Boolean = true,
     danger: Boolean = false,
+    trailing: (@Composable (focused: Boolean) -> Unit)? = null,
 ) {
     val interactions = remember { MutableInteractionSource() }
     val focused by interactions.collectIsFocusedAsState()
@@ -120,6 +121,7 @@ internal fun TvSheetOption(
                 }
             }
             TrailingIcon(trailingIcon, focused)
+            trailing?.invoke(focused)
         }
     }
 }

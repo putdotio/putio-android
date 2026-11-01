@@ -16,6 +16,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.tv.material3.Icon
 import androidx.tv.material3.Text
 import io.putdotio.android.R
@@ -31,6 +32,12 @@ import io.putdotio.android.tv.TvListRowMetaParts
 
 internal const val TV_FILES_ROW_TAG = "tv-files-row"
 
+internal sealed interface TvFilesRowPlace {
+    data object Listing : TvFilesRowPlace
+
+    data class SearchResult(val folderName: String?) : TvFilesRowPlace
+}
+
 @Composable
 internal fun TvFilesRow(
     item: FilesItem,
@@ -45,6 +52,7 @@ internal fun TvFilesRow(
         else -> item.name
     },
     showsFocus: Boolean = true,
+    place: TvFilesRowPlace = TvFilesRowPlace.Listing,
 ) {
     TvListRow(
         glyph = fileTypeIconRes(item.type),
@@ -64,18 +72,24 @@ internal fun TvFilesRow(
             }
             .semantics { contentDescription = label }
             .testTag(TV_FILES_ROW_TAG),
-    ) { secondary -> TvFilesRowMeta(item, secondary) }
+    ) { secondary -> TvFilesRowMeta(item, place, secondary) }
 }
 
 @Composable
-private fun TvFilesRowMeta(item: FilesItem, color: Color) {
+private fun TvFilesRowMeta(item: FilesItem, place: TvFilesRowPlace, color: Color) {
     val context = LocalContext.current
     val size = if (item.isFolder) null else formatFileSize(item.sizeBytes)
     val date = remember(item.createdAt, context) { item.createdAt.toDisplayDate(context) }
+    val where = when (place) {
+        TvFilesRowPlace.Listing -> date
+        is TvFilesRowPlace.SearchResult -> place.folderName
+    }
     val watched = item.playback?.isWatched == true
     val parts = buildList<@Composable () -> Unit> {
         size?.let { add { Text(it, style = TV_LIST_ROW_META_MONO, color = color, maxLines = 1) } }
-        date?.let { add { Text(it, style = TV_LIST_ROW_META, color = color, maxLines = 1) } }
+        where?.let {
+            add { Text(it, style = TV_LIST_ROW_META, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+        }
         if (watched) {
             add {
                 Icon(

@@ -133,7 +133,7 @@ internal class TvFilesActionHandlers(
     val onSetPinned: (FilesItem, Boolean) -> Unit,
 )
 
-private fun TvFilesActionHandlers.run(action: TvFilesAction, item: FilesItem, playFrom: TvPlayStart) {
+internal fun TvFilesActionHandlers.run(action: TvFilesAction, item: FilesItem, playFrom: TvPlayStart) {
     when (action) {
         TvFilesAction.Resume -> onPlay(item, TvPlayStart.Resume)
         TvFilesAction.Play -> onPlay(item, TvPlayStart.Ask)
@@ -202,8 +202,9 @@ internal fun TvFilesActionsSheet(
     actions: List<TvFilesAction>,
     onAction: (TvFilesAction) -> Unit,
     onDismiss: () -> Unit,
+    returnFocus: FocusRequester? = null,
 ) {
-    TvSideSheet(onDismiss = onDismiss, returnFocus = null, scrim = FILES_SHEET_SCRIM) { focus ->
+    TvSideSheet(onDismiss = onDismiss, returnFocus = returnFocus, scrim = FILES_SHEET_SCRIM) { focus ->
         TvFilesActionsHeader(item)
         val tiles = actions.filterIsInstance<TvFilesAction.Tile>()
         val rows = actions.filterNot { it is TvFilesAction.Tile || it is TvFilesAction.Delete }

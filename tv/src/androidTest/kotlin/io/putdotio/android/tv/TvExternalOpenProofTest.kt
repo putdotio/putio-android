@@ -364,8 +364,8 @@ class TvExternalOpenProofTest {
     }
 }
 
-internal class ProofRecentSearchStore : RecentSearchStoreOwner {
-    override val terms = MutableStateFlow<List<SearchTerm>>(emptyList())
+internal class ProofRecentSearchStore(initial: List<SearchTerm> = emptyList()) : RecentSearchStoreOwner {
+    override val terms = MutableStateFlow(initial)
     override val enabled = MutableStateFlow<Boolean?>(true)
     override val failure = MutableStateFlow<PutioFailure?>(null)
 

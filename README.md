@@ -53,6 +53,10 @@ TV:
 - History as the phone's rows under day headers beside the focused event's
   file, with its size, its folder and Open folder; Clear history confirms
   with a red button, and History off links to Account
+- Search with a full-width field, the phone's type chips, recent searches as
+  chips, and Folders and Files groups beside the focused result's detail;
+  each result names its folder, and the Settings pill or Menu on the field
+  opens a side sheet to show or clear search history
 - An inactive-account notice under the tabs that never takes focus
 - Full-screen playback with the phone's controls: D-pad scrubbing, a Resume
   prompt, and Audio, Subtitles (with size and timing) and Speed side sheets

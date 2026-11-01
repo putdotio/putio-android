@@ -1,107 +1,73 @@
 package io.putdotio.android.tv.search
 
-import androidx.annotation.StringRes
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.focusGroup
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.text.input.TextFieldLineLimits
-import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.rememberTextFieldState
-import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusDirection
-import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusProperties
-import androidx.compose.ui.focus.focusRestorer
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEvent
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
-import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
-import androidx.tv.material3.AssistChip
-import androidx.tv.material3.ClickableChipScale
-import androidx.tv.material3.AssistChipDefaults
-import androidx.tv.material3.ExperimentalTvMaterial3Api
-import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import io.putdotio.android.FilesFailure
 import io.putdotio.android.R
+import io.putdotio.android.design.PutioEmptyGlyph
+import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.files.FilesItem
+import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.search.RecentSearchEdit
 import io.putdotio.android.search.SearchContent
+import io.putdotio.android.search.SearchFilter
 import io.putdotio.android.search.SearchPaging
 import io.putdotio.android.search.SearchState
 import io.putdotio.android.search.SearchTerm
 import io.putdotio.android.tv.TvButton
-import io.putdotio.android.tv.rememberTvPaneHasFocus
-import io.putdotio.android.tv.TvFocus
+import io.putdotio.android.tv.TvButtonStyle
+import io.putdotio.android.tv.TvDetailSkeleton
+import io.putdotio.android.tv.TvEmptyState
+import io.putdotio.android.tv.TvListDetail
+import io.putdotio.android.tv.TvListSkeleton
+import io.putdotio.android.tv.TvLoadFailedState
+import io.putdotio.android.tv.TvNoticeDialog
 import io.putdotio.android.tv.TvPaneFocusOwner
 import io.putdotio.android.tv.TvPickedRow
-import io.putdotio.android.tv.TvStatusScreen
-import io.putdotio.android.tv.bringIntoComposition
-import io.putdotio.android.tv.focusRequesterIf
+import io.putdotio.android.tv.TvPlayStart
 import io.putdotio.android.tv.paneSection
-import io.putdotio.android.tv.files.TvFilesRow
+import io.putdotio.android.tv.rememberTvPaneHasFocus
+import io.putdotio.android.tv.files.FILES_SHEET_SCRIM
+import io.putdotio.android.tv.files.TvFilesAction
+import io.putdotio.android.tv.files.TvFilesActionHandlers
+import io.putdotio.android.tv.files.TvFilesActionsSheet
+import io.putdotio.android.tv.files.TvFilesDetail
+import io.putdotio.android.tv.files.TvFilesDetailActions
+import io.putdotio.android.tv.files.TvFilesDetailFocus
+import io.putdotio.android.tv.files.TvFilesDetailSources
+import io.putdotio.android.tv.files.resumePosition
+import io.putdotio.android.tv.files.run
 import io.putdotio.android.tv.files.tvMessageText
-import kotlinx.coroutines.flow.first
-import io.putdotio.android.FilesFailure
-
-internal const val TV_SEARCH_FIELD_TAG = "tv-search-field"
-internal const val TV_SEARCH_RESULTS_TAG = "tv-search-results"
 
 internal class TvSearchActions(
     val onQueryChanged: (String) -> Unit,
@@ -112,41 +78,53 @@ internal class TvSearchActions(
     val recent: TvRecentSearchActions,
 )
 
-/** The recent-search chips, the search settings dialog, and the store's failure notice. */
+internal class TvSearchResultActions(
+    val onFilter: (SearchFilter) -> Unit,
+    val onPlay: (FilesItem, TvPlayStart) -> Unit,
+    val itemActions: TvSearchItemActions,
+)
+
 internal class TvRecentSearchActions(
     val onSearch: (SearchTerm) -> Unit,
     val onEdit: (RecentSearchEdit) -> Unit,
     val onRetry: () -> Unit,
 )
 
-/**
- * Search per the oracle (07-07c): an M3 pill field that summons the system IME on
- * Center, recent-query chips replayed as typed, and results in the standard rows.
- * The app draws no keyboard and no mic. Focus enters on the field; Down reaches the
- * chips and then the rows, Up and Left return to the field and the drawer.
- */
+internal class TvSearchItemActions(
+    val actionsOf: (FilesItem) -> List<TvFilesAction>,
+    val handlers: TvFilesActionHandlers,
+)
+
+internal class TvSearchDetail(
+    val folderNames: Map<FilesItemId, String>,
+    val sources: TvFilesDetailSources,
+    val resumePlayback: Boolean,
+)
+
+internal class TvSearchDialogNotice(
+    val title: String,
+    val message: String?,
+    val onDismiss: () -> Unit,
+)
+
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 internal fun TvSearchScreen(
     state: SearchState,
     actions: TvSearchActions,
+    results: TvSearchResultActions,
+    detail: TvSearchDetail,
     modifier: Modifier = Modifier,
-    /** A failure that is not the search itself: the recent-search store or a blocked open. */
     notice: FilesFailure? = null,
-    /** Changes with the signed-in session so one account's typed text never reaches the next. */
     sessionKey: Any? = null,
     pickedRow: TvPickedRow = remember(sessionKey) { TvPickedRow() },
+    dialogNotice: TvSearchDialogNotice? = null,
 ) = key(sessionKey) {
-    // Only the results the viewer came back to restore the pick; a new search starts as usual.
     var restoreRowId by remember { mutableStateOf(pickedRow.id) }
     val resultsShown = state.content is SearchContent.Ready
     LaunchedEffect(resultsShown) { if (!resultsShown) restoreRowId = null }
-    // The shell asks the pane for focus on entry, and Right from the drawer enters it by
-    // direction. Both land on the section that held focus last, the field the first time.
     val fieldFocus = remember { FocusRequester() }
     val entryTarget = remember { mutableStateOf(fieldFocus) }
-    // Whether D-pad focus belongs to this pane. Only a directional exit clears it: a node
-    // being disposed also drops focus, but the pane still owns it and may re-place it.
     val paneHasFocus = rememberTvPaneHasFocus()
     val resultsFocus = remember { FocusRequester() }
     val lastSection = rememberSaveable { mutableStateOf<Long?>(null) }
@@ -159,14 +137,13 @@ internal fun TvSearchScreen(
             home = { fieldFocus },
         )
     }
-    // The field's text is owned here, not mirrored from the controller: a query the
-    // controller reports is at best one edit behind the IME, so it is never written back.
-    // The two rewrites the pane makes itself, a chip replay and the trimmed submit, are
-    // explicit; a new session gets a fresh state through the key above.
     val textState = rememberTextFieldState(state.query)
-    // Text the pane wrote itself; the field's edit collector skips it instead of reporting
-    // it as a typed edit, which would restart the debounce over the submit that follows.
     val rewrite = remember { mutableStateOf<String?>(null) }
+    val filtersFocus = remember { FocusRequester() }
+    val settingsFocus = remember { FocusRequester() }
+    var settingsFrom by remember { mutableStateOf<FocusRequester?>(null) }
+    val historyEnabled = state.recentSearchesEnabled
+    val openSettings = historyEnabled?.let { { from: FocusRequester -> settingsFrom = from } }
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -180,370 +157,279 @@ internal fun TvSearchScreen(
             }
             .focusGroup(),
     ) {
-        TvSearchHeader(
-            state = state,
-            owner = owner,
-            onRecentEdit = actions.recent.onEdit,
-        ) {
-            TvSearchField(
-                state = textState,
-                rewrite = rewrite,
-                query = state.query,
+        TvSearchField(
+            state = textState,
+            rewrite = rewrite,
+            query = state.query,
+            actions = TvSearchFieldActions(
                 onQueryChanged = actions.onQueryChanged,
                 onSubmit = actions.onSubmit,
-                modifier = Modifier.weight(1f).paneSection(owner, fieldFocus).focusRequester(fieldFocus),
-            )
-        }
-        // Composed while there are terms; when the last one is removed the section disposes
-        // and its paneSection() hands the entry target back, but focus itself must be re-placed.
-        val hadRecent = remember { mutableStateOf(false) }
-        LaunchedEffect(state.recentTerms.isEmpty()) {
-            if (state.recentTerms.isEmpty() && hadRecent.value && owner.owns(fieldFocus)) {
-                withFrameNanos {}
-                // Re-read after the frame: the user may have left for the drawer meanwhile.
-                if (owner.owns(fieldFocus)) fieldFocus.requestFocus()
-            }
-            hadRecent.value = state.recentTerms.isNotEmpty()
-        }
-        if (state.recentTerms.isNotEmpty()) {
-            TvRecentSearches(
-                terms = state.recentTerms,
-                onSearch = { term ->
-                    textState.rewriteTo(term.value, rewrite)
-                    actions.recent.onSearch(term)
-                },
-                onRemove = { actions.recent.onEdit(RecentSearchEdit.Remove(it)) },
-                owner = owner,
-                modifier = Modifier.padding(top = 16.dp),
-            )
-        }
+                onMenu = openSettings?.let { open -> { open(fieldFocus) } },
+                onCleared = { fieldFocus.requestFocus() },
+            ),
+            focus = fieldFocus,
+            modifier = Modifier
+                .padding(top = PANE_TOP)
+                .paneSection(owner, fieldFocus),
+        )
+        TvSearchFilters(
+            selected = state.filter,
+            onSelect = results.onFilter,
+            onSettings = openSettings?.let { open -> { open(settingsFocus) } },
+            owner = owner,
+            focus = filtersFocus,
+            settingsFocus = settingsFocus,
+            modifier = Modifier.padding(top = FILTERS_TOP),
+        )
         if (notice != null) {
             TvSearchNotice(notice, onRetry = actions.recent.onRetry, owner = owner)
         }
-        when (val content = state.content) {
-            SearchContent.Idle ->
-                TvStatusScreen(stringResource(R.string.tv_search_start), modifier = Modifier.weight(1f))
-            is SearchContent.Debouncing, is SearchContent.Loading ->
-                TvStatusScreen(stringResource(R.string.tv_search_searching), modifier = Modifier.weight(1f))
-            is SearchContent.Empty ->
-                Column(modifier = Modifier.weight(1f)) {
-                    TvStatusScreen(stringResource(R.string.tv_search_no_results), modifier = Modifier.weight(1f))
-                    TvSearchPaging(content.paging, actions.onNextPage, actions.onRetry, owner = owner)
-                }
-            is SearchContent.Ready ->
-                TvSearchResults(
-                    items = content.items,
-                    paging = content.paging,
-                    restoreRowId = restoreRowId,
-                    onResult = actions.onResult,
-                    onResultFocused = { pickedRow.pick(it.id.value) },
-                    onNextPage = actions.onNextPage,
-                    onRetry = actions.onRetry,
-                    owner = owner,
-                    listFocus = resultsFocus,
-                    modifier = Modifier.weight(1f),
-                )
-            is SearchContent.Failed -> {
-                val retryFocus = remember { FocusRequester() }
-                TvStatusScreen(
-                    title = stringResource(R.string.tv_search_error_title),
-                    message = content.failure.tvMessageText(),
-                    action = stringResource(R.string.tv_files_retry),
-                    onAction = {
-                        // The button leaves with the failure; the field takes over before it goes.
-                        fieldFocus.requestFocus()
-                        actions.onRetry()
-                    },
-                    modifier = Modifier.paneSection(owner, retryFocus).weight(1f),
-                    actionFocus = retryFocus,
-                    // The field keeps focus; Down reaches Try again like any other row.
-                    claimFocus = false,
-                )
-            }
-        }
+        TvSearchContent(
+            state = state,
+            actions = actions,
+            results = results,
+            owner = owner,
+            fieldFocus = fieldFocus,
+            resultsFocus = resultsFocus,
+            restoreRowId = restoreRowId,
+            pickedRow = pickedRow,
+            detail = detail,
+            onRecentSearch = { term ->
+                textState.rewriteTo(term.value, rewrite)
+                actions.recent.onSearch(term)
+            },
+        )
+    }
+    val from = settingsFrom
+    if (from != null && historyEnabled != null) {
+        TvSearchSettingsSheet(
+            enabled = historyEnabled,
+            canClear = state.recentTerms.isNotEmpty(),
+            onEdit = actions.recent.onEdit,
+            onDismiss = { settingsFrom = null },
+            returnFocus = from,
+        )
+    } else if (from != null) {
+        LaunchedEffect(Unit) { settingsFrom = null }
+    }
+    if (dialogNotice != null) {
+        TvNoticeDialog(
+            title = dialogNotice.title,
+            message = dialogNotice.message,
+            onDismiss = dialogNotice.onDismiss,
+            okStyle = TvButtonStyle.Filled,
+            balanceMessage = true,
+            okHugsLabel = true,
+            dimAmount = FILES_SHEET_SCRIM.alpha,
+        )
     }
     LaunchedEffect(owner) { owner.restoreLastSection() }
 }
 
-/**
- * The field with tv-native's Settings button to its right, shown once the account's
- * search history setting has loaded; Right from the end of the field reaches it.
- */
 @Composable
-private fun TvSearchHeader(
+private fun ColumnScope.TvSearchContent(
     state: SearchState,
+    actions: TvSearchActions,
+    results: TvSearchResultActions,
     owner: TvPaneFocusOwner,
-    onRecentEdit: (RecentSearchEdit) -> Unit,
-    field: @Composable RowScope.() -> Unit,
+    fieldFocus: FocusRequester,
+    resultsFocus: FocusRequester,
+    restoreRowId: Long?,
+    pickedRow: TvPickedRow,
+    detail: TvSearchDetail,
+    onRecentSearch: (SearchTerm) -> Unit,
 ) {
-    val settingsFocus = remember { FocusRequester() }
-    var settingsOpen by remember { mutableStateOf(false) }
-    // The dialog window takes focus while it is up; when it closes the pane is focused
-    // again but nothing in it is, so the section that had focus takes it back.
-    val settingsWereOpen = remember { mutableStateOf(false) }
-    LaunchedEffect(settingsOpen) {
-        val closing = settingsWereOpen.value && !settingsOpen
-        settingsWereOpen.value = settingsOpen
-        if (!closing || !owner.hasFocus) return@LaunchedEffect
-        withFrameNanos {}
-        if (owner.hasFocus) owner.focusEntry()
+    val hadRecent = remember { mutableStateOf(false) }
+    val showsRecent = state.content == SearchContent.Idle && state.recentTerms.isNotEmpty()
+    LaunchedEffect(showsRecent) {
+        if (!showsRecent && hadRecent.value && owner.owns(fieldFocus)) {
+            withFrameNanos {}
+            if (owner.owns(fieldFocus)) fieldFocus.requestFocus()
+        }
+        hadRecent.value = showsRecent
     }
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        field()
-        if (state.recentSearchesEnabled != null) {
-            TvButton(
-                onClick = { settingsOpen = true },
-                modifier = Modifier.paneSection(owner, settingsFocus).focusRequester(settingsFocus),
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_ph_gear),
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp),
+    when (val content = state.content) {
+        SearchContent.Idle ->
+            if (showsRecent) {
+                TvRecentSearches(
+                    terms = state.recentTerms,
+                    onSearch = onRecentSearch,
+                    onRemove = { actions.recent.onEdit(RecentSearchEdit.Remove(it)) },
+                    owner = owner,
+                    modifier = Modifier.padding(top = CONTENT_TOP),
                 )
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.tv_search_settings))
+            } else {
+                Text(
+                    text = stringResource(R.string.tv_search_start),
+                    style = PutioTypeScale.tvLabel,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = CONTENT_TOP),
+                )
             }
-        }
-    }
-    val enabled = state.recentSearchesEnabled
-    if (settingsOpen && enabled != null) {
-        TvSearchSettingsDialog(
-            enabled = enabled,
-            canClear = state.recentTerms.isNotEmpty(),
-            onEdit = { edit ->
-                settingsOpen = false
-                onRecentEdit(edit)
-            },
-            onDismiss = { settingsOpen = false },
-        )
-    }
-}
-
-/** The controller searches the trimmed query; the field shows the same text it recorded. */
-private fun submit(
-    state: TextFieldState,
-    rewrite: MutableState<String?>,
-    onSubmit: () -> Unit,
-) {
-    state.rewriteTo(state.text.toString().trim(), rewrite)
-    onSubmit()
-}
-
-/**
- * Writes [text] as the pane's own edit, marked for the field's edit collector to skip. Marked
- * only when the text changes: an unchanged field emits nothing, and a stale mark would swallow
- * the next real edit to the same text.
- */
-private fun TextFieldState.rewriteTo(text: String, rewrite: MutableState<String?>) {
-    if (this.text.toString() != text) {
-        rewrite.value = text
-        setTextAndPlaceCursorAtEnd(text)
-    }
-}
-
-/**
- * A five-way pad moves between controls; the IME, once summoned with Center, takes the keys
- * itself. Left and Right stay with the cursor while it has text to cross. Enter reaches the
- * field and runs the search action.
- */
-private fun handleFieldKey(
-    event: KeyEvent,
-    state: TextFieldState,
-    focusManager: FocusManager,
-    onCenter: () -> Unit,
-): Boolean {
-    if (event.type != KeyEventType.KeyDown) return false
-    val selection = state.selection
-    return when (event.key) {
-        Key.DirectionDown -> focusManager.moveFocus(FocusDirection.Down)
-        Key.DirectionUp -> focusManager.moveFocus(FocusDirection.Up)
-        Key.DirectionLeft ->
-            selection.collapsed && selection.start == 0 && focusManager.moveFocus(FocusDirection.Left)
-        Key.DirectionRight ->
-            selection.collapsed && selection.end == state.text.length &&
-                focusManager.moveFocus(FocusDirection.Right)
-        Key.DirectionCenter -> {
-            onCenter()
-            true
-        }
-        else -> false
-    }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun TvSearchField(
-    state: TextFieldState,
-    rewrite: MutableState<String?>,
-    query: String,
-    onQueryChanged: (String) -> Unit,
-    onSubmit: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val currentQuery by rememberUpdatedState(query)
-    val currentOnQueryChanged by rememberUpdatedState(onQueryChanged)
-    LaunchedEffect(state) {
-        // Only edits made here go up; text the pane wrote or the controller already knows
-        // is not echoed.
-        snapshotFlow { state.text.toString() }.collect { text ->
-            when {
-                text == rewrite.value -> rewrite.value = null
-                text != currentQuery -> currentOnQueryChanged(text)
-            }
-        }
-    }
-    val interaction = remember { MutableInteractionSource() }
-    val focused by interaction.collectIsFocusedAsState()
-    val focusManager = LocalFocusManager.current
-    val keyboard = LocalSoftwareKeyboardController.current
-    // The IME appears only on Center, never on focus alone: the pane opens with the field
-    // focused and the oracle idle state shows no keyboard. Center flips the option, which
-    // restarts the field's input session with the keyboard shown; that session is what
-    // gives Gboard TV the D-pad, and a plain show request from outside it does not. The
-    // flag is dropped when the IME goes away so the next Center can raise it again.
-    var keyboardRequested by remember { mutableStateOf(false) }
-    val imeVisible = WindowInsets.isImeVisible
-    LaunchedEffect(imeVisible, focused) { if (!imeVisible || !focused) keyboardRequested = false }
-    // A TV that never reports IME insets leaves the flag up after Back dismisses Gboard;
-    // Center then lowers it for a frame so the option changes and the session restarts.
-    var resummon by remember { mutableStateOf(false) }
-    LaunchedEffect(resummon) {
-        if (!resummon) return@LaunchedEffect
-        withFrameNanos {}
-        keyboardRequested = true
-        resummon = false
-    }
-    val label = stringResource(R.string.tv_search_field)
-    val border = if (focused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.border
-    BasicTextField(
-        state = state,
-        lineLimits = TextFieldLineLimits.SingleLine,
-        interactionSource = interaction,
-        textStyle = MaterialTheme.typography.titleLarge.copy(color = MaterialTheme.colorScheme.onSurface),
-        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search, showKeyboardOnFocus = keyboardRequested),
-        onKeyboardAction = {
-            keyboard?.hide()
-            submit(state, rewrite, onSubmit)
-        },
-        modifier = modifier
-            .fillMaxWidth()
-            .semantics { contentDescription = label }
-            .testTag(TV_SEARCH_FIELD_TAG)
-            .onPreviewKeyEvent { event ->
-                handleFieldKey(event, state, focusManager) {
-                    if (keyboardRequested) {
-                        keyboardRequested = false
-                        resummon = true
-                    } else {
-                        keyboardRequested = true
-                    }
-                }
-            },
-        decorator = { inner ->
-            Row(
+        is SearchContent.Debouncing, is SearchContent.Loading ->
+            TvListDetail(
+                list = { TvListSkeleton(Modifier.padding(top = TV_SEARCH_LABEL_HEIGHT + TV_SEARCH_LABEL_GAP)) },
+                detail = { TvDetailSkeleton() },
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp)
-                    .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
-                    .border(2.dp, border, CircleShape)
-                    .padding(horizontal = 20.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                    .weight(1f)
+                    .padding(top = CONTENT_TOP),
+                detailTop = DETAIL_TOP,
+            )
+        is SearchContent.Empty ->
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
             ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_ph_magnifying_glass),
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(24.dp),
+                TvEmptyState(
+                    glyph = PutioEmptyGlyph.NoResults,
+                    headline = stringResource(R.string.tv_search_no_results_title),
+                    message = stringResource(R.string.tv_search_no_results_message, content.term.value),
+                    modifier = Modifier.padding(top = EMPTY_TOP, bottom = EMPTY_BOTTOM),
+                    glyphModifier = Modifier.offset(y = -SHRUG_LIFT),
                 )
-                Spacer(Modifier.width(12.dp))
-                Box(modifier = Modifier.weight(1f)) {
-                    if (state.text.isEmpty()) {
-                        Text(
-                            text = stringResource(R.string.tv_search_placeholder),
-                            style = MaterialTheme.typography.titleLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    inner()
-                }
+                TvSearchPaging(
+                    paging = content.paging,
+                    onNextPage = actions.onNextPage,
+                    onRetry = actions.onRetry,
+                    owner = owner,
+                    modifier = Modifier.align(Alignment.BottomCenter),
+                )
             }
-        },
-    )
-}
-
-@OptIn(ExperimentalTvMaterial3Api::class)
-@Composable
-private fun TvRecentSearches(
-    terms: List<SearchTerm>,
-    onSearch: (SearchTerm) -> Unit,
-    onRemove: (SearchTerm) -> Unit,
-    owner: TvPaneFocusOwner,
-    modifier: Modifier = Modifier,
-) {
-    // Down from the full-width field lands on the geometrically nearest chip; first entry
-    // should land on the newest term instead, and later entries on the chip left last.
-    val firstChip = remember { FocusRequester() }
-    val rowFocus = remember { FocusRequester() }
-    // A removed chip takes focus with it; the newest remaining chip picks it up. Decided
-    // during composition, since the chip's disposal drops the row's focus only after this
-    // pass, and a term dropped by the cap while focus was elsewhere must not pull it back.
-    val rowHasFocus = remember { mutableStateOf(false) }
-    var focusedTerm by remember { mutableStateOf<SearchTerm?>(null) }
-    val refocus = remember { mutableStateOf(false) }
-    val lost = focusedTerm
-    if (lost != null && lost !in terms) {
-        focusedTerm = null
-        if (rowHasFocus.value) refocus.value = true
-    }
-    LaunchedEffect(refocus.value) {
-        if (!refocus.value) return@LaunchedEffect
-        withFrameNanos {}
-        if (owner.owns(rowFocus)) firstChip.requestFocus()
-        refocus.value = false
-    }
-    LazyRow(
-        modifier = modifier
-            .fillMaxWidth()
-            .paneSection(owner, rowFocus)
-            .onFocusChanged { rowHasFocus.value = it.hasFocus }
-            .focusRequester(rowFocus)
-            .focusRestorer(firstChip)
-            .focusGroup(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        itemsIndexed(terms, key = { _, term -> term.value }) { index, term ->
-            val label = stringResource(R.string.tv_search_recent_term, term.value)
-            AssistChip(
-                scale = ClickableChipScale.None,
-                onClick = { onSearch(term) },
-                onLongClick = { onRemove(term) },
-                colors = AssistChipDefaults.colors(
-                    focusedContainerColor = TvFocus.container,
-                    focusedContentColor = TvFocus.content,
-                    pressedContainerColor = TvFocus.container,
-                    pressedContentColor = TvFocus.content,
-                ),
-                leadingIcon = {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_ph_clock_counter_clockwise),
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                    )
+        is SearchContent.Ready ->
+            TvSearchReady(
+                content = content,
+                actions = actions,
+                results = results,
+                owner = owner,
+                resultsFocus = resultsFocus,
+                restoreRowId = restoreRowId,
+                pickedRow = pickedRow,
+                detail = detail,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(top = CONTENT_TOP),
+            )
+        is SearchContent.Failed -> {
+            val retryFocus = remember { FocusRequester() }
+            TvLoadFailedState(
+                failure = content.failure,
+                headline = stringResource(R.string.tv_search_error_title),
+                message = content.failure.tvMessageText(),
+                onRetry = {
+                    fieldFocus.requestFocus()
+                    actions.onRetry()
                 },
                 modifier = Modifier
-                    .focusRequesterIf(index == 0, firstChip)
-                    .onFocusChanged { if (it.isFocused) focusedTerm = term }
-                    .semantics { contentDescription = label },
-            ) {
-                // As typed: the term is what the user searched, not a normalized key.
-                Text(term.value)
-            }
+                    .paneSection(owner, retryFocus)
+                    .weight(1f)
+                    .padding(top = EMPTY_TOP, bottom = EMPTY_BOTTOM),
+                actionFocus = retryFocus,
+                claimFocus = false,
+            )
         }
+    }
+}
+
+@Composable
+private fun TvSearchReady(
+    content: SearchContent.Ready,
+    actions: TvSearchActions,
+    results: TvSearchResultActions,
+    owner: TvPaneFocusOwner,
+    resultsFocus: FocusRequester,
+    restoreRowId: Long?,
+    pickedRow: TvPickedRow,
+    detail: TvSearchDetail,
+    modifier: Modifier = Modifier,
+) {
+    val groups = remember(content.items) { TvSearchGroups(content.items) }
+    var detailId by remember { mutableStateOf(restoreRowId) }
+    val detailItem = groups.ordered.firstOrNull { it.id.value == detailId } ?: groups.ordered.first()
+    val detailFocus = remember { TvFilesDetailFocus() }
+    val detailRow = remember { FocusRequester() }
+    val listing = remember(content.items) { Any() }
+    var actionsFor by remember { mutableStateOf<Pair<Long, FocusRequester>?>(null) }
+    val itemActions = results.itemActions
+    val offersMore = { item: FilesItem -> itemActions.actionsOf(item).isNotEmpty() }
+    val openActions = { item: FilesItem, from: FocusRequester ->
+        if (offersMore(item)) actionsFor = item.id.value to from
+    }
+    val rows = TvSearchRows(
+        folderName = folderNameOf(detail.folderNames, stringResource(R.string.tv_destination_files)),
+        onResult = actions.onResult,
+        onActions = { openActions(it, detailRow) },
+        onFocused = {
+            detailId = it.id.value
+            pickedRow.pick(it.id.value)
+            detailFocus.onListFocusChanged(true)
+        },
+        detailId = detailItem.id.value,
+        detailRow = detailRow,
+    )
+    TvListDetail(
+        modifier = modifier,
+        detailFocus = detailFocus.primary,
+        listFocus = resultsFocus,
+        onDetailFocusChanged = detailFocus::onDetailFocusChanged,
+        detailTop = DETAIL_TOP,
+        list = {
+            TvSearchResultList(
+                groups = groups,
+                paging = content.paging,
+                restoreRowId = restoreRowId,
+                rows = rows,
+                onNextPage = actions.onNextPage,
+                onRetry = actions.onRetry,
+                owner = owner,
+                listFocus = resultsFocus,
+                modifier = Modifier.weight(1f),
+            )
+        },
+        detail = {
+            val current by rememberUpdatedState(detailItem)
+            TvFilesDetail(
+                item = detailItem,
+                detailHasFocus = detailFocus.hasFocus,
+                primaryFocus = detailFocus.primary,
+                resumePlayback = detail.resumePlayback,
+                sources = detail.sources,
+                listing = listing,
+                actions = TvFilesDetailActions(
+                    onOpenFolder = actions.onResult,
+                    onPlay = results.onPlay,
+                    onUnsupported = actions.onResult,
+                    onMore = if (offersMore(detailItem)) {
+                        { openActions(current, detailFocus.more) }
+                    } else {
+                        null
+                    },
+                ),
+                moreFocus = detailFocus.more,
+                place = rows.place(detailItem),
+            )
+        },
+    )
+    val open = actionsFor
+    val openItem = open?.let { (id, _) -> groups.ordered.firstOrNull { it.id.value == id } }
+    if (open != null && openItem != null) {
+        val playFrom = if (openItem.resumePosition(detail.resumePlayback) != null) {
+            TvPlayStart.Resume
+        } else {
+            TvPlayStart.Ask
+        }
+        TvFilesActionsSheet(
+            item = openItem,
+            actions = itemActions.actionsOf(openItem).filterNot { it is TvFilesAction.Delete },
+            onAction = { action ->
+                actionsFor = null
+                itemActions.handlers.run(action, openItem, playFrom)
+            },
+            onDismiss = { actionsFor = null },
+            returnFocus = open.second,
+        )
+    } else if (open != null) {
+        LaunchedEffect(Unit) { actionsFor = null }
     }
 }
 
@@ -557,7 +443,7 @@ private fun TvSearchNotice(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 12.dp),
+            .padding(top = CONTENT_TOP),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -566,11 +452,10 @@ private fun TvSearchNotice(
         } else {
             stringResource(R.string.tv_search_recent_error)
         }
-        Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(message, style = PutioTypeScale.tvMeta, color = MaterialTheme.colorScheme.onSurfaceVariant)
         if (failure != FilesFailure.NavigationBlocked) {
             TvButton(
                 onClick = {
-                    // A retry that succeeds removes this button; the field takes over first.
                     owner.focusHome()
                     onRetry()
                 },
@@ -582,113 +467,8 @@ private fun TvSearchNotice(
     }
 }
 
-@OptIn(ExperimentalComposeUiApi::class)
 @Composable
-private fun TvSearchResults(
-    items: List<FilesItem>,
-    paging: SearchPaging,
-    restoreRowId: Long?,
-    onResult: (FilesItem) -> Unit,
-    onResultFocused: (FilesItem) -> Unit,
-    onNextPage: () -> Unit,
-    onRetry: () -> Unit,
-    owner: TvPaneFocusOwner,
-    listFocus: FocusRequester,
-    modifier: Modifier = Modifier,
-) {
-    // The restorer's fallback must name a composed row: the first visible one, since a lazy
-    // list composes neither a first row scrolled away nor a last row not yet reached.
-    val anchorRow = remember { FocusRequester() }
-    val lastRow = remember { FocusRequester() }
-    // The paging control leaves the list when the last page lands; if it still held focus,
-    // the last row takes over once it is on screen. A move to a row or the drawer clears the
-    // latch first; the blur its disposal reports arrives after this composition decides.
-    // Decided during composition: the restorer answers the removed paging node in the same
-    // frame with the anchor row, and the effect moves on to the last row from there.
-    val pagingHeldFocus = remember { mutableStateOf(false) }
-    val handOffToLastRow = remember { mutableStateOf(false) }
-    if (paging == SearchPaging.Complete && pagingHeldFocus.value) {
-        pagingHeldFocus.value = false
-        handOffToLastRow.value = true
-    }
-    val listState = rememberLazyListState()
-    val anchorIndex by remember(listState) { derivedStateOf { listState.firstVisibleItemIndex } }
-    // Coming back from what a result opened, that result takes focus: here, and through the
-    // restorer's fallback when the shell's own entry request reaches the list afterwards.
-    val restoreRow = remember { FocusRequester() }
-    val restoreComposed by remember(listState) {
-        derivedStateOf { listState.layoutInfo.visibleItemsInfo.any { it.key == restoreRowId } }
-    }
-    LaunchedEffect(listState) {
-        val index = items.indexOfFirst { it.id.value == restoreRowId }
-        if (index < 0) return@LaunchedEffect
-        if (!restoreComposed) listState.scrollToItem(index)
-        snapshotFlow { restoreComposed }.first { it }
-        owner.enter(listFocus)
-        withFrameNanos {}
-        if (owner.hasFocus) restoreRow.requestFocus()
-    }
-    LaunchedEffect(handOffToLastRow.value) {
-        if (!handOffToLastRow.value) return@LaunchedEffect
-        listState.bringIntoComposition(items.last().id.value, items.lastIndex)
-        withFrameNanos {}
-        // The user may have left for the drawer or the field during the wait.
-        if (owner.owns(listFocus)) lastRow.requestFocus()
-        handOffToLastRow.value = false
-    }
-    LazyColumn(
-        state = listState,
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(top = 16.dp)
-            .paneSection(owner, listFocus)
-            .focusRequester(listFocus)
-            // Answered when the paging node is removed, before the hand-off effect runs: the
-            // last row if it is already composed, else the anchor until the effect scrolls.
-            .focusRestorer {
-                val lastId = items.last().id.value
-                val lastComposed = listState.layoutInfo.visibleItemsInfo.any { it.key == lastId }
-                when {
-                    handOffToLastRow.value && lastComposed -> lastRow
-                    restoreComposed -> restoreRow
-                    else -> anchorRow
-                }
-            }
-            .focusGroup()
-            .testTag(TV_SEARCH_RESULTS_TAG),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        itemsIndexed(items, key = { _, item -> item.id.value }) { index, item ->
-            TvFilesRow(
-                item = item,
-                onClick = { onResult(item) },
-                label = stringResource(item.resultLabel(), item.name),
-                modifier = Modifier
-                    .onFocusChanged { if (it.isFocused) onResultFocused(item) }
-                    .focusRequesterIf(index == anchorIndex, anchorRow)
-                    .focusRequesterIf(index == items.lastIndex, lastRow)
-                    .focusRequesterIf(item.id.value == restoreRowId, restoreRow),
-            )
-        }
-        if (paging != SearchPaging.Complete) {
-            item(key = TV_SEARCH_PAGING_KEY) {
-                TvSearchPaging(
-                    paging = paging,
-                    onNextPage = onNextPage,
-                    onRetry = onRetry,
-                    buttonModifier = Modifier.onFocusChanged { pagingHeldFocus.value = it.isFocused },
-                )
-            }
-        }
-    }
-}
-
-@StringRes
-private fun FilesItem.resultLabel(): Int =
-    if (isPlayable) R.string.tv_files_play_media else R.string.tv_search_open_result
-
-@Composable
-private fun TvSearchPaging(
+internal fun TvSearchPaging(
     paging: SearchPaging,
     onNextPage: () -> Unit,
     onRetry: () -> Unit,
@@ -697,8 +477,6 @@ private fun TvSearchPaging(
     buttonModifier: Modifier = Modifier,
 ) {
     val pagingFocus = remember { FocusRequester() }
-    // One button across every paging phase, so the node that holds focus survives the
-    // transition from Load more to loading to a retry.
     val label = when (paging) {
         is SearchPaging.Available -> R.string.tv_search_load_more
         is SearchPaging.Loading -> R.string.tv_search_loading_more
@@ -713,7 +491,11 @@ private fun TvSearchPaging(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (paging is SearchPaging.Failed) {
-            Text(stringResource(R.string.tv_search_paging_error), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                stringResource(R.string.tv_search_paging_error),
+                style = PutioTypeScale.tvMeta,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
         TvButton(
             onClick = {
@@ -732,4 +514,10 @@ private fun TvSearchPaging(
     }
 }
 
-private const val TV_SEARCH_PAGING_KEY = "tv-search-paging"
+private val PANE_TOP = 4.dp
+private val FILTERS_TOP = 10.dp
+private val CONTENT_TOP = 20.dp
+private val DETAIL_TOP = TV_SEARCH_LABEL_HEIGHT + TV_SEARCH_LABEL_GAP
+private val SHRUG_LIFT = 2.dp
+private val EMPTY_TOP = 16.dp
+private val EMPTY_BOTTOM = 3.dp
