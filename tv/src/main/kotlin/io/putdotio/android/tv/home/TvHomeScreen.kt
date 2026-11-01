@@ -23,15 +23,20 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -76,6 +81,7 @@ import io.putdotio.android.tv.bringIntoComposition
 import io.putdotio.android.tv.focusRequesterIf
 import io.putdotio.android.tv.files.tvClock
 import io.putdotio.android.tv.files.tvMessageText
+import io.putdotio.android.tv.rememberTvPaneHasFocus
 import io.putdotio.android.tv.tvAccent
 import io.putdotio.android.tv.withFullLineBox
 import io.putdotio.sdk.files.PutioFileType
@@ -122,6 +128,7 @@ internal fun TvHomeScreen(
         }
         onReturned()
     }
+    val retry = rememberTvPinnedRetry(pinned, paneFocus)
     if (continueWatching.isEmpty() && pinnedCards?.isEmpty() == true) {
         TvEmptyState(
             glyph = PutioEmptyGlyph.NothingYet,
@@ -143,6 +150,7 @@ internal fun TvHomeScreen(
             .fillMaxSize()
             .padding(top = HOME_TOP)
             .focusRequester(paneFocus)
+            .then(retry.tracksPaneFocus)
             .focusRestorer()
             .focusGroup(),
         verticalArrangement = Arrangement.spacedBy(SECTION_GAP),
@@ -167,7 +175,8 @@ internal fun TvHomeScreen(
                     glyph = PutioEmptyGlyph.CouldNotLoad.text,
                     headline = stringResource(R.string.tv_home_pinned_error_title),
                     message = pinned.failure.tvMessageText(),
-                    retry = actions.onRetryPinned,
+                    retry = { retry.press(actions.onRetryPinned) },
+                    retryFocus = retry.retryFocus,
                 )
             }
             is TvPinnedRow.Ready -> if (pinned.cards.isEmpty()) {
@@ -185,7 +194,9 @@ internal fun TvHomeScreen(
                             TvPinnedFileCard(
                                 card,
                                 onClick = { actions.onOpen(card.item) },
-                                modifier = Modifier.focusRequesterIf(index == pinnedReturn, returnFocus),
+                                modifier = Modifier
+                                    .focusRequesterIf(index == pinnedReturn, returnFocus)
+                                    .focusRequesterIf(index == 0, retry.pinnedFocus),
                             )
                         }
                     }
@@ -194,6 +205,54 @@ internal fun TvHomeScreen(
         }
     }
 }
+
+/**
+ * After a pressed Try again, the pinned row's next state takes focus: its first card, the Browse
+ * button or Continue watching when nothing is pinned, or the Try again of a fresh failure.
+ */
+private class TvPinnedRetry(val tracksPaneFocus: Modifier, private val pressed: MutableState<Boolean>) {
+    val retryFocus = FocusRequester()
+    val pinnedFocus = FocusRequester()
+
+    fun press(retry: () -> Unit) {
+        pressed.value = true
+        retry()
+    }
+}
+
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+private fun rememberTvPinnedRetry(pinned: TvPinnedRow, paneFocus: FocusRequester): TvPinnedRetry {
+    val paneHasFocus = rememberTvPaneHasFocus()
+    val pressed = remember { mutableStateOf(false) }
+    val retry = remember(paneHasFocus) {
+        TvPinnedRetry(
+            tracksPaneFocus = Modifier
+                .onFocusChanged { if (it.hasFocus) paneHasFocus.value = true }
+                .focusProperties {
+                    exit = {
+                        paneHasFocus.value = false
+                        FocusRequester.Default
+                    }
+                },
+            pressed = pressed,
+        )
+    }
+    LaunchedEffect(pinned) {
+        if (!pressed.value || pinned == TvPinnedRow.Loading) return@LaunchedEffect
+        withFrameNanos {}
+        if (paneHasFocus.value) pinned.focusAfterRetry(retry, paneFocus).requestFocus()
+        pressed.value = false
+    }
+    return retry
+}
+
+private fun TvPinnedRow.focusAfterRetry(retry: TvPinnedRetry, paneFocus: FocusRequester): FocusRequester =
+    when {
+        this is TvPinnedRow.Failed -> retry.retryFocus
+        this is TvPinnedRow.Ready && cards.isNotEmpty() -> retry.pinnedFocus
+        else -> paneFocus
+    }
 
 @Composable
 private fun TvHomeSection(
@@ -214,7 +273,13 @@ private fun TvHomeSection(
 }
 
 @Composable
-private fun TvHomeInlineState(glyph: String, headline: String, message: String, retry: (() -> Unit)? = null) {
+private fun TvHomeInlineState(
+    glyph: String,
+    headline: String,
+    message: String,
+    retry: (() -> Unit)? = null,
+    retryFocus: FocusRequester? = null,
+) {
     Column(verticalArrangement = Arrangement.spacedBy(INLINE_STATE_GAP)) {
         Text(
             glyph,
@@ -232,7 +297,12 @@ private fun TvHomeInlineState(glyph: String, headline: String, message: String, 
             modifier = Modifier.padding(top = INLINE_MESSAGE_NUDGE),
         )
         if (retry != null) {
-            TvButton(onClick = retry, modifier = Modifier.padding(top = INLINE_ACTION_GAP)) {
+            TvButton(
+                onClick = retry,
+                modifier = Modifier
+                    .padding(top = INLINE_ACTION_GAP)
+                    .then(if (retryFocus != null) Modifier.focusRequester(retryFocus) else Modifier),
+            ) {
                 Icon(
                     painter = painterResource(R.drawable.ic_ph_arrow_clockwise),
                     contentDescription = null,

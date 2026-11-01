@@ -69,6 +69,8 @@ import io.putdotio.android.files.formatFileSize
 import io.putdotio.android.tv.ROW_BLEED
 import io.putdotio.android.tv.TvListDetail
 import io.putdotio.android.tv.TvPlayStart
+import io.putdotio.android.tv.TvFocusHandBack
+import io.putdotio.android.tv.handsBackFocus
 import io.putdotio.android.tv.monoNumber
 import io.putdotio.android.tv.TvSectionLine
 import io.putdotio.android.tv.TvSectionPill
@@ -225,6 +227,9 @@ internal fun TvFilesScreen(
     dialogReturn.value = detailFocus.dialogReturn(detailItem.offersActions(actionsOf), entryTarget.value)
     val dialogWasOpen = remember { mutableStateOf(false) }
     LaunchedEffect(dialogOpen) { refocusAfterDialog(dialogOpen, dialogWasOpen, paneHasFocus, dialogReturn) }
+    val noticeFocus = remember { TvFocusHandBack() }
+    val dialogShowing = rememberUpdatedState(dialogOpen)
+    noticeFocus.Refocus(paneHasFocus, blocked = dialogShowing, target = entryTarget)
     // As in tv-native, a row with nothing to offer opens no menu.
     val openActions = { item: FilesItem -> if (actionsOf(item).isNotEmpty()) actionsFor = item.id.value }
     val open = { item: FilesItem -> item.open(onEvent, onPlayMedia, onUnsupported = { unsupported = it.id.value }) }
@@ -241,6 +246,7 @@ internal fun TvFilesScreen(
                     state = state,
                     onEvent = onEvent,
                     paneHasFocus = paneHasFocus,
+                    noticeFocus = noticeFocus,
                     retryFocus = retryFocus,
                     pagingFocus = pagingFocus,
                     emptyFocus = emptyFocus,
@@ -264,8 +270,8 @@ internal fun TvFilesScreen(
                                 detailFocus.onListFocusChanged(it)
                             },
                         )
-                        TvFilesOperationStatus(current, onEvent)
-                        TvFilesDeleteStatus(current, onEvent)
+                        TvFilesOperationStatus(current, onEvent, noticeFocus)
+                        TvFilesDeleteStatus(current, onEvent, noticeFocus)
                         TvFilesRows(
                             current = current,
                             focusMemory = focusMemory,
@@ -516,6 +522,7 @@ private fun TvFilesStatePane(
     state: FilesBrowserState,
     onEvent: (FilesBrowserEvent) -> Boolean,
     paneHasFocus: State<Boolean>,
+    noticeFocus: TvFocusHandBack,
     retryFocus: FocusRequester,
     pagingFocus: FocusRequester,
     emptyFocus: FocusRequester,
@@ -531,8 +538,8 @@ private fun TvFilesStatePane(
         Column {
             TvFilesFolderHeader(state)
             Column(modifier = Modifier.offset(x = -ROW_BLEED).width(TV_LIST_WIDTH)) {
-                TvFilesOperationStatus(current, onEvent)
-                TvFilesDeleteStatus(current, onEvent)
+                TvFilesOperationStatus(current, onEvent, noticeFocus)
+                TvFilesDeleteStatus(current, onEvent, noticeFocus)
             }
         }
         when (val content = current.content) {
@@ -587,6 +594,7 @@ private fun TvFilesStatePane(
 private fun TvFilesDeleteStatus(
     current: FilesFolderState,
     onEvent: (FilesBrowserEvent) -> Boolean,
+    noticeFocus: TvFocusHandBack,
 ) {
     val operation = current.operation
     val intent = operation.pendingIntent<FilesFolderOperationIntent.Delete>()
@@ -602,11 +610,12 @@ private fun TvFilesDeleteStatus(
                 ),
                 action = stringResource(if (reloading) R.string.tv_files_retry else R.string.tv_files_check_status),
                 onAction = { onEvent(FilesBrowserEvent.Retry) },
+                handBack = noticeFocus,
             )
         }
         operation == FilesFolderOperation.Idle &&
             current.deleteOutcome?.status == FilesDeleteStatus.TOO_LARGE_FOR_TRASH ->
-            TvFilesTrashLimitStatus(checkNotNull(current.deleteOutcome), current, onEvent)
+            TvFilesTrashLimitStatus(checkNotNull(current.deleteOutcome), current, onEvent, noticeFocus)
         operation == FilesFolderOperation.Idle ->
             current.deleteOutcome?.takeUnless { it.isConfirmedTrash }?.let { outcome ->
                 val message = outcome.status.tvOutcomeMessage()
@@ -646,6 +655,7 @@ private fun TvFilesTrashLimitStatus(
     outcome: FilesDeleteOutcome,
     current: FilesFolderState,
     onEvent: (FilesBrowserEvent) -> Boolean,
+    noticeFocus: TvFocusHandBack,
 ) {
     var confirming by rememberSaveable(outcome.requestId.value) { mutableStateOf(false) }
     // A refresh that no longer lists the folder leaves nothing for the reducer to delete; a
@@ -655,6 +665,7 @@ private fun TvFilesTrashLimitStatus(
         text = stringResource(R.string.tv_files_trash_limit_title),
         action = stringResource(R.string.tv_files_action_delete).takeIf { listed != null },
         onAction = { confirming = true },
+        handBack = noticeFocus,
     )
     if (confirming && listed != null) {
         val close = { confirming = false }
@@ -682,6 +693,7 @@ private fun TvFilesNotice(
     action: String? = null,
     onAction: () -> Unit = {},
     error: Boolean = false,
+    handBack: TvFocusHandBack? = null,
 ) {
     Row(
         modifier = Modifier
@@ -699,7 +711,12 @@ private fun TvFilesNotice(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
-        if (action != null) TvButton(onClick = onAction) { Text(action) }
+        if (action != null) {
+            TvButton(
+                onClick = onAction,
+                modifier = if (handBack != null) Modifier.handsBackFocus(handBack) else Modifier,
+            ) { Text(action) }
+        }
     }
 }
 
@@ -765,6 +782,7 @@ private fun TvFilesSectionLine(
 private fun TvFilesOperationStatus(
     current: FilesFolderState,
     onEvent: (FilesBrowserEvent) -> Boolean,
+    noticeFocus: TvFocusHandBack,
 ) {
     if (current.operation.reloadsListing()) {
         TvFilesNotice(text = stringResource(R.string.tv_state_loading))
@@ -777,6 +795,7 @@ private fun TvFilesOperationStatus(
             action = stringResource(R.string.tv_files_retry),
             onAction = { onEvent(FilesBrowserEvent.Retry) },
             error = true,
+            handBack = noticeFocus,
         )
     }
 }

@@ -138,6 +138,20 @@ class TvAccountProofTest {
         screenshot("androidtv-st-t2-empty-trash")
     }
 
+    @Test
+    fun trashRefreshRetryReturnsFocusToTheRows() {
+        mount(trashFailingLoads = setOf(2))
+        openTrash()
+        compose.waitUntil(5_000) { compose.onAllNodesWithText(TRY_AGAIN).fetchSemanticsNodes().isNotEmpty() }
+        press(KeyEvent.KEYCODE_DPAD_UP)
+        compose.waitUntil(5_000) { isFocused(TRY_AGAIN) }
+        screenshot("trash-refresh-error")
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitUntil(5_000) { compose.onAllNodesWithText(TRY_AGAIN).fetchSemanticsNodes().isEmpty() }
+        compose.waitUntil(5_000) { isFocused(TRASHED_VIDEO) }
+        screenshot("trash-refresh-retried")
+    }
+
     private fun openTrash() {
         press(KeyEvent.KEYCODE_DPAD_RIGHT)
         compose.waitUntil(5_000) { isFocused(MANAGE_TRASH) }
@@ -145,7 +159,7 @@ class TvAccountProofTest {
         compose.waitUntil(5_000) { isFocused(TRASHED_VIDEO) }
     }
 
-    private fun mount() {
+    private fun mount(trashFailingLoads: Set<Int> = emptySet()) {
         val dependencies = tvProofDependencies(
             listings = mapOf(
                 FilesFolder.Root.id to FilesPage(
@@ -157,6 +171,7 @@ class TvAccountProofTest {
             recentSearchStore = { ProofRecentSearchStore() },
             trash = TRASH,
             trashSizeBytes = TRASH_BYTES,
+            trashFailingLoads = trashFailingLoads,
             settings = AccountSettingsPreferences(
                 historyEnabled = true,
                 trashEnabled = true,
@@ -234,6 +249,7 @@ class TvAccountProofTest {
         const val RESTORE_ALL = "Restore all"
         const val EMPTY_TRASH = "Empty trash"
         const val EMPTY_TRASH_TITLE = "Empty trash?"
+        const val TRY_AGAIN = "Try again"
         val TRASH = listOf(
             trashed(1, TRASHED_VIDEO, PutioFileType.VIDEO, 1_400_000_000L, daysLeft = 12),
             trashed(2, "Old downloads", PutioFileType.FOLDER, 1_200_000_000L, daysLeft = 9),

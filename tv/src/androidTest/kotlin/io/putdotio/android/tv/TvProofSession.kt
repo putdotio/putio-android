@@ -63,6 +63,7 @@ import io.putdotio.android.tv.auth.TvAuthState
 import io.putdotio.sdk.files.FileDeleteResult
 import io.putdotio.sdk.files.FileMoveError
 import io.putdotio.sdk.files.PutioFileType
+import java.io.IOException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -84,6 +85,7 @@ internal fun tvProofDependencies(
     history: List<HistoryItem> = emptyList(),
     trash: List<TrashItem> = emptyList(),
     trashSizeBytes: Long? = null,
+    trashFailingLoads: Set<Int> = emptySet(),
     historyEnabled: Boolean = true,
     settings: AccountSettingsPreferences = AccountSettingsPreferences(
         historyEnabled = historyEnabled,
@@ -108,7 +110,7 @@ internal fun tvProofDependencies(
 
         override suspend fun clear() = PutioResult.Success(Unit)
     },
-    trashRepository = ProofTrashRepository(trash, trashSizeBytes),
+    trashRepository = ProofTrashRepository(trash, trashSizeBytes, trashFailingLoads),
     settingsRepository = object : AccountSettingsRepository {
         override suspend fun load() = AccountSettingsRepositoryResult.Success(settings)
 
@@ -266,9 +268,18 @@ internal class ProofFilesRepository(
 internal class ProofTrashRepository(
     private val items: List<TrashItem>,
     private val trashSizeBytes: Long? = null,
+    private val failingLoads: Set<Int> = emptySet(),
 ) : TrashRepository {
-    override suspend fun load() =
-        PutioResult.Success(TrashPage(items, nextCursor = null, trashSizeBytes = trashSizeBytes))
+    private var loads = 0
+
+    override suspend fun load(): PutioResult<TrashPage> {
+        loads += 1
+        return if (loads in failingLoads) {
+            PutioResult.Failure(PutioFailure.NetworkUnavailable(IOException("offline")))
+        } else {
+            PutioResult.Success(TrashPage(items, nextCursor = null, trashSizeBytes = trashSizeBytes))
+        }
+    }
 
     override suspend fun loadNextPage(cursor: FilesCursor) = error("One page")
 

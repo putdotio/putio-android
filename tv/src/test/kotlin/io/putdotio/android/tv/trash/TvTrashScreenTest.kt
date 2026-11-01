@@ -231,6 +231,47 @@ class TvTrashScreenTest {
     }
 
     @Test
+    fun okOnASettledOutcomeHandsFocusBackToTheRows() {
+        var state by mutableStateOf(
+            TrashState(
+                content = loaded,
+                restoreOutcome = TrashRestoreOutcome(
+                    item,
+                    TrashRestoreSubmission.ACKNOWLEDGED,
+                    TrashRestoreCheck.AVAILABLE,
+                ),
+            ),
+        )
+        show { state }
+
+        compose.onNode(row).assertIsFocused().performKeyInput { pressKey(Key.DirectionUp) }
+        compose.onNodeWithText("OK").assertIsFocused().performKeyInput { pressCenter() }
+        assertEquals(listOf<TrashEvent>(TrashEvent.DismissRestoreOutcome), events)
+
+        compose.runOnIdle { state = state.copy(restoreOutcome = null) }
+        compose.onNode(row).assertIsFocused()
+    }
+
+    @Test
+    fun tryAgainOnAFailedRefreshHandsFocusBackToTheRows() {
+        var state by mutableStateOf(
+            TrashState(
+                content = loaded.copy(
+                    refreshFailure = PutioFailure.NetworkUnavailable(PutioConfigurationException("x")),
+                ),
+            ),
+        )
+        show { state }
+
+        compose.onNode(row).assertIsFocused().performKeyInput { pressKey(Key.DirectionUp) }
+        compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressCenter() }
+        assertEquals(listOf<TrashEvent>(TrashEvent.Refresh), events)
+
+        compose.runOnIdle { state = TrashState(content = loaded) }
+        compose.onNode(row).assertIsFocused()
+    }
+
+    @Test
     fun aFailedReadFocusesTryNowAndPagingLoadsMore() {
         var state by mutableStateOf(
             TrashState(content = TrashContent.Error(PutioFailure.NetworkUnavailable(PutioConfigurationException("x")))),

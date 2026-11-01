@@ -163,6 +163,25 @@ class TvSearchScreenTest {
     }
 
     @Test
+    fun anEmptyPageWhoseLoadMoreFindsNothingHandsFocusToTheField() {
+        var state by mutableStateOf(
+            searchState(SearchContent.Empty(SearchTerm("x"), SearchPaging.Available(FilesCursor("c1"))), query = "x"),
+        )
+        show(state = { state })
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput {
+            pressKey(Key.DirectionDown)
+            pressKey(Key.DirectionDown)
+        }
+        compose.onNode(hasText("Load more") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
+
+        state = searchState(SearchContent.Empty(SearchTerm("x"), SearchPaging.Complete), query = "x")
+        compose.onAllNodesWithText("Load more").assertCountEquals(0)
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assertIsFocused()
+        assertEquals(listOf("next"), log)
+    }
+
+    @Test
     fun aRecentSearchFailureOffersRetryAndABlockedOpenExplainsItself() {
         var notice by mutableStateOf<FilesFailure?>(PutioFailure.Misconfigured(PutioConfigurationException("boom")))
         show(state = { searchState(SearchContent.Idle) }, notice = { notice })
