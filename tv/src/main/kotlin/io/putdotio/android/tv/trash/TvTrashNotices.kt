@@ -63,8 +63,6 @@ private fun TvTrashNotice(
     modifier: Modifier = Modifier,
 ) {
     val actionFocus = remember { FocusRequester() }
-    // A group, so Up from a row measures against the full-width line rather than the
-    // right-aligned button, which the header would otherwise beat on distance.
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -73,7 +71,6 @@ private fun TvTrashNotice(
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Bounded so a long server-supplied name cannot push the action below the fold.
         Text(
             text = text,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -192,10 +189,6 @@ private fun TrashAction.stillPresentText(): String = when (this) {
     else -> stringResource(R.string.tv_trash_empty_still_present)
 }
 
-/**
- * An outcome keeps one button across its life: Check while unconfirmed, OK once settled,
- * none while the request is in flight, so the node holding focus survives each step.
- */
 @Composable
 private fun TvTrashOutcomeNotice(
     text: String,

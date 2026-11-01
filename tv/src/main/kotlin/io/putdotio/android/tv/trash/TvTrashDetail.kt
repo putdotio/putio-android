@@ -5,7 +5,12 @@ import android.text.format.DateUtils
 import androidx.annotation.PluralsRes
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -14,6 +19,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import io.putdotio.android.R
 import io.putdotio.android.files.formatFileSize
 import io.putdotio.android.parsePutioTimestamp
@@ -27,12 +33,8 @@ import io.putdotio.android.tv.monoNumber
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeParseException
+import kotlinx.coroutines.delay
 
-/**
- * The focused row's name, size and deletion date, then Restore and Delete permanently, then
- * when Trash drops it. Restore carries the focus look while the row is focused: Center on the
- * row restores.
- */
 @Composable
 internal fun ColumnScope.TvTrashDetail(
     item: TrashItem,
@@ -81,9 +83,30 @@ internal fun ColumnScope.TvTrashDetail(
     }
 }
 
+internal val LocalTrashToday = compositionLocalOf<LocalDate> { error("LocalTrashToday is not provided") }
+
 @Composable
-internal fun rememberTrashDaysLeft(item: TrashItem): Long? =
-    remember(item.expirationDate) { item.expirationDate?.trashDaysLeft(LocalDate.now()) }
+internal fun rememberTrashToday(): LocalDate {
+    var today by remember { mutableStateOf(LocalDate.now()) }
+    LifecycleResumeEffect(Unit) {
+        today = LocalDate.now()
+        onPauseOrDispose {}
+    }
+    LaunchedEffect(Unit) {
+        while (true) {
+            val midnight = LocalDate.now().plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant()
+            delay((midnight.toEpochMilli() - System.currentTimeMillis()).coerceAtLeast(0L) + MIDNIGHT_SLACK_MILLIS)
+            today = LocalDate.now()
+        }
+    }
+    return today
+}
+
+@Composable
+internal fun rememberTrashDaysLeft(item: TrashItem): Long? {
+    val today = LocalTrashToday.current
+    return remember(item.expirationDate, today) { item.expirationDate?.trashDaysLeft(today) }
+}
 
 @Composable
 internal fun trashCount(@PluralsRes id: Int, count: Int): AnnotatedString {
@@ -91,7 +114,6 @@ internal fun trashCount(@PluralsRes id: Int, count: Int): AnnotatedString {
     return monoNumber(pluralStringResource(id, count, count), number)
 }
 
-/** "Oct 19" this year, "Oct 19, 2025" before it, from a stamp or a plain date; the raw value otherwise. */
 private fun trashDate(context: Context, value: String): String {
     val millis = parsePutioTimestamp(value)?.toEpochMilli()
         ?: try {
@@ -101,3 +123,5 @@ private fun trashDate(context: Context, value: String): String {
         }
     return DateUtils.formatDateTime(context, millis, DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_ABBREV_MONTH)
 }
+
+private const val MIDNIGHT_SLACK_MILLIS = 1_000L

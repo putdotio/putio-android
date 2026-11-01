@@ -4,7 +4,11 @@ import io.putdotio.android.tv.setTvContent
 import io.putdotio.android.tv.pressCenter
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertCountEquals
@@ -257,6 +261,49 @@ class TvTrashScreenTest {
         compose.setTvContent { TvTrashScreen(state = TrashState(content = loaded), onEvent = { events += it; true }) }
 
         compose.runOnIdle { assertEquals(listOf<TrashEvent>(TrashEvent.Refresh), events) }
+    }
+
+    @Test
+    fun aPaneOpenedBehindAConfirmationKeepsItOpen() {
+        compose.setTvContent {
+            TvTrashScreen(
+                state = TrashState(content = loaded, actionConfirmation = TrashAction.Empty, actionConfirmationId = 9L),
+                onEvent = { events += it; true },
+            )
+        }
+
+        compose.onNodeWithText("Empty trash?").assertIsDisplayed()
+        compose.runOnIdle { assertEquals(emptyList<TrashEvent>(), events) }
+    }
+
+    @Test
+    fun theDetailKeepsItsItemWhenThePaneReturnsWithFocusOnRestore() {
+        var shown by mutableStateOf(true)
+        val paneFocus = FocusRequester()
+        compose.setTvContent {
+            val panes = rememberSaveableStateHolder()
+            if (shown) {
+                panes.SaveableStateProvider("trash") {
+                    TvTrashScreen(
+                        state = TrashState(content = loaded),
+                        onEvent = { events += it; true },
+                        modifier = Modifier.focusRequester(paneFocus),
+                    )
+                }
+            }
+        }
+        compose.onNode(row).performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNode(hasText("Old downloads") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionRight)
+        }
+        compose.onNode(hasText("Restore") and hasClickAction()).assertIsFocused()
+
+        compose.runOnIdle { shown = false }
+        compose.runOnIdle { shown = true }
+        compose.runOnIdle { paneFocus.requestFocus() }
+        compose.onNodeWithText("in 1 day").assertIsDisplayed()
+        compose.onNode(hasText("Restore") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
+        assertEquals(TrashEvent.SelectRestore(FilesItemId(9)), events.last())
     }
 
     private fun focusedInDialog(label: String) = hasText(label) and isFocused() and hasAnyAncestor(isDialog())

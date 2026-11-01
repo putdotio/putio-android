@@ -12,11 +12,6 @@ import io.putdotio.android.trash.TrashState
 import io.putdotio.android.tv.TvConfirmDialog
 import io.putdotio.android.tv.files.FILES_SHEET_SCRIM
 
-/**
- * The controller's pending confirmations. Restore and Restore all confirm with the filled
- * button; Delete permanently and Empty trash with the red one. Confirm is disabled while a
- * 401 or another mutation makes it pointless.
- */
 @Composable
 internal fun TvTrashConfirmations(
     state: TrashState,

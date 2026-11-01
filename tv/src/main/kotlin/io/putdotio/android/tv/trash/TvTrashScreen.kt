@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
@@ -65,13 +66,6 @@ import io.putdotio.android.tv.refocusAfterDialog
 import io.putdotio.android.tv.rememberTvPaneHasFocus
 import io.putdotio.android.tv.withFullLineBox
 
-/**
- * Trash, reached from Account › Library: the title under an Account crumb with Restore all
- * and Empty trash on the right, then the deleted items beside the focused one's detail.
- * Center on a row restores it; Right reaches Restore and Delete permanently. Every mutation
- * confirms first and reports its outcome above the list. Focus enters on the first row, or
- * Restore all while there are none.
- */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 internal fun TvTrashScreen(
@@ -97,12 +91,10 @@ internal fun TvTrashScreen(
             if (rowsPresent.value) focus.list else focus.restoreAll
         }
     }
-    LaunchedEffect(Unit) { if (content is TrashContent.Loaded) onEvent(TrashEvent.Refresh) }
-    // Restore all is the one node that outlives every content change; it takes focus when
-    // the rows go (an emptied trash, a reload) and a failed read focuses its own Try again.
     val headerOwnsFocus = content.isLoadingOrKnownEmpty
     val dialogOpen = state.confirmation != null || state.actionConfirmation != null
     val dialogShowing = rememberUpdatedState(dialogOpen)
+    LaunchedEffect(Unit) { if (content is TrashContent.Loaded && !dialogOpen) onEvent(TrashEvent.Refresh) }
     LaunchedEffect(headerOwnsFocus) {
         if (headerOwnsFocus && mayPlaceFocus(paneHasFocus, dialogShowing)) focus.restoreAll.requestFocus()
     }
@@ -161,15 +153,17 @@ internal fun TvTrashScreen(
             }
             else -> {
                 EntryTarget(entryTarget, if (loaded != null) focus.list else focus.restoreAll)
-                TvTrashListDetail(
-                    state = state,
-                    onEvent = onEvent,
-                    focus = focus,
-                    listFocus = TvTrashListFocus(owner, focus.list, paneHasFocus, dialogShowing),
-                    pickedRow = pickedRow,
-                    restoreRowId = restoreRowId,
-                    modifier = Modifier.weight(1f),
-                )
+                CompositionLocalProvider(LocalTrashToday provides rememberTrashToday()) {
+                    TvTrashListDetail(
+                        state = state,
+                        onEvent = onEvent,
+                        focus = focus,
+                        listFocus = TvTrashListFocus(owner, focus.list, paneHasFocus, dialogShowing),
+                        pickedRow = pickedRow,
+                        restoreRowId = restoreRowId,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
             }
         }
     }
@@ -188,7 +182,7 @@ private fun TvTrashListDetail(
     modifier: Modifier = Modifier,
 ) {
     val loaded = state.content as? TrashContent.Loaded
-    var detailId by remember { mutableStateOf(pickedRow.id) }
+    var detailId by rememberSaveable { mutableStateOf(pickedRow.id) }
     var rowHasFocus by remember { mutableStateOf(false) }
     var detailHasFocus by remember { mutableStateOf(false) }
     val items = loaded?.items.orEmpty()
@@ -306,7 +300,6 @@ private fun TvTrashHeader(
                 crumb = stringResource(R.string.tv_destination_account),
             )
             Spacer(Modifier.weight(1f))
-            // The buttons stay focusable in every state; the controller refuses what it cannot do.
             Row(horizontalArrangement = Arrangement.spacedBy(HEADER_BUTTON_GAP), modifier = Modifier.focusGroup()) {
                 TvTrashHeaderButton(
                     icon = R.drawable.ic_ph_arrow_u_up_left,
@@ -361,7 +354,6 @@ private fun TvTrashInfo() {
     )
 }
 
-/** Outcomes while the pane shows a state instead of rows, in the list's column. */
 @Composable
 private fun TvTrashStateNotices(
     state: TrashState,
