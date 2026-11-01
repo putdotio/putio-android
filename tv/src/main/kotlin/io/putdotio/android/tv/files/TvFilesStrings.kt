@@ -30,6 +30,17 @@ internal fun FilesSort.tvLabel(): Int =
 @Composable
 internal fun FilesFailure.tvMessageText(): String = (this as? PutioFailure)?.apiReason ?: stringResource(tvMessage())
 
+@Composable
+internal fun FilesFailure.tvLoadFailedMessage(): String =
+    when (this) {
+        is PutioFailure.ServerUnavailable,
+        is PutioFailure.InvalidResponse,
+        is PutioFailure.Misconfigured,
+        is PutioFailure.Unexpected,
+        -> stringResource(R.string.tv_files_error_message)
+        else -> tvMessageText()
+    }
+
 @StringRes
 internal fun FilesFailure.tvMessage(): Int =
     when (this) {

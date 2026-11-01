@@ -46,7 +46,7 @@ class MobileFilesActionsControllerTest {
     private var rejected = 0
     private var stream: FilesStreamUrlResult = FilesStreamUrlResult.Ready(STREAM)
     private var streamGate: CompletableDeferred<Unit>? = null
-    private val row = MobileContinueWatching(MemoryStore(listOf(entry())))
+    private val row = ContinueWatching(MemoryStore(listOf(entry())))
 
     @Test
     fun markingAVideoWatchedSavesItsEndAndTakesItOutOfContinueWatching() = runTest {

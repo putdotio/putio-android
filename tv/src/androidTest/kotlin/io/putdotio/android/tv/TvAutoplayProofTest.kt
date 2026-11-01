@@ -190,6 +190,7 @@ class TvAutoplayProofTest {
                 )
             }
         }
+        compose.openTvTab("Files")
         compose.waitUntil(5_000) {
             compose.runOnIdle {
                 session.appConfig.state.value.confirmedPreferences != null &&

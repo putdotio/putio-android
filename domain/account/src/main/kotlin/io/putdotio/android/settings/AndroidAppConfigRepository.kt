@@ -1,10 +1,8 @@
 package io.putdotio.android.settings
 
-import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
-import io.putdotio.android.findPutioApiException
 import io.putdotio.android.putioRequest
-import io.putdotio.android.toPutioFailure
+import io.putdotio.android.toScopedFailure
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.config.AppConfig
 import io.putdotio.sdk.config.AppConfigUpdate
@@ -29,10 +27,10 @@ public class SdkAndroidAppConfigRepository(
     )
 
     override suspend fun load(): PutioResult<AndroidAppConfigPreferences> =
-        putioRequest(PutioException::toSettingsFailure) { getConfig().toAndroidPreferences() }
+        putioRequest(PutioException::toScopedFailure) { getConfig().toAndroidPreferences() }
 
     override suspend fun save(change: AndroidAppConfigChange): PutioResult<Unit> =
-        putioRequest(PutioException::toSettingsFailure) { saveConfig(change.toUpdate()) }
+        putioRequest(PutioException::toScopedFailure) { saveConfig(change.toUpdate()) }
 }
 
 internal suspend fun AndroidAppConfigRepository.execute(effect: AndroidAppConfigEffect): AndroidAppConfigEvent =
@@ -103,15 +101,3 @@ internal const val AUTOPLAY_NEXT_VIDEO_KEY = "autoplay_next_video"
 // One flat key, dot included. put.io keeps config per OAuth app, so the web's answer doesn't reach this app.
 internal const val PRODUCT_ANALYTICS_PROMPT_ANSWERED_KEY = "dismissed.product_analytics_prompt"
 
-/**
- * [toPutioFailure], except that an `invalid_scope` refusal anywhere in the chain is AccessDenied
- * rather than a 401 that expires the session.
- */
-public fun PutioException.toSettingsFailure(): PutioFailure =
-    if (findPutioApiException()?.errorType == INVALID_SCOPE_ERROR_TYPE) {
-        PutioFailure.AccessDenied(this)
-    } else {
-        toPutioFailure()
-    }
-
-private const val INVALID_SCOPE_ERROR_TYPE = "invalid_scope"

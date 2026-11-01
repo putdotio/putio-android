@@ -32,9 +32,47 @@ Mobile, on the emulator harness against the live API:
 
 TV:
 
-- Device-code sign-in with a QR code
-- Files, Search, History and Account
-- Full-screen playback with D-pad scrubbing, resume and track pickers
+- Device-code sign-in: the phone's rolling Welcome stage, a QR code or the
+  code at put.io/link, and expired codes renewed silently up to three times
+- A startup that checks the session and, offline, retries when the network
+  returns
+- A top bar of Home, Files, Search, History and Account tabs, each with its
+  own Back history
+- Home with Continue watching, on the phone's store and recorded by the TV
+  player, and Pinned folders and files kept in the account's config; a
+  first-run state points to Files, and Account › Library can hide Home
+- Files and folders as a list beside the focused item's detail: Resume from
+  the saved position or Start over, a folder's count and size, and a sort
+  side sheet with the phone's Sort by, Order and Videos groups; skeleton rows
+  while a folder loads, and empty, couldn't-load and offline states in the
+  empty-state voice
+- Item actions in a side sheet from More or the Menu key: Resume, Start over
+  and Subtitles tiles, then Open in VLC, Mark as watched or unwatched, and Pin
+  to Home or Unpin; Move to trash acts at once with a Moved to Trash snackbar
+  and Undo, and Delete permanently confirms with a red button
+- History as the phone's rows under day headers beside the focused event's
+  file, with its size, its folder and Open folder; Clear history confirms
+  with a red button, and History off links to Account
+- Search with a full-width field, the phone's type chips, recent searches as
+  chips, and Folders and Files groups beside the focused result's detail;
+  each result names its folder, and the Settings pill or Menu on the field
+  opens a side sheet to show or clear search history
+- An inactive-account notice under the tabs that never takes focus
+- Full-screen playback with the phone's controls: D-pad scrubbing, a Resume
+  prompt, and Audio, Subtitles (with size and timing) and Speed side sheets
+- Player states over the dimmed frame: a loading spinner, errors in the
+  empty-state voice with Try again, Open in VLC for formats the TV can't play,
+  and the phone's MP4 conversion progress
+- With Autoplay next video on, an Up next card that counts 10 seconds, with
+  Play now and Cancel
+- Account as groups beside their rows: Library, Playback, Subtitles, the
+  phone's Privacy controls with the policy and services list as QR codes,
+  About with a support QR code, and Sign out; choices open as side sheets
+  with Cancel and Save
+- Trash from Account › Library as a list beside the focused item's detail:
+  each item's size and days left, Restore and Delete permanently, and Restore
+  all and Empty trash; Delete permanently and Empty trash confirm with a red
+  button
 - The launcher's Play Next row and Android TV system search, with the
   wordmark for files without a screenshot
 - The redesign's foundations: GT America and Berkeley Mono type, one light

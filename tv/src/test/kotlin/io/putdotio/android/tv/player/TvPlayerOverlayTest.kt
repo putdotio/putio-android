@@ -1,5 +1,7 @@
 package io.putdotio.android.tv.player
 
+import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.tv.player.TvPlayerCommand.Exit
 import io.putdotio.android.tv.player.TvPlayerCommand.Pause
 import io.putdotio.android.tv.player.TvPlayerCommand.Play
@@ -27,7 +29,6 @@ class TvPlayerOverlayTest {
         val exited = controlsDismissed.overlay.back()
         assertEquals(listOf(Exit), exited.commands)
 
-        // A repeated Back, or playback ending, before the player leaves does nothing more.
         assertEquals(emptyList<TvPlayerCommand>(), exited.overlay.back().commands)
         assertEquals(emptyList<TvPlayerCommand>(), exited.overlay.ended().commands)
     }
@@ -40,9 +41,41 @@ class TvPlayerOverlayTest {
         assertEquals(listOf(PlayNext), advanced.commands)
         assertNull(advanced.overlay.scrub)
 
-        // Repeated end signals, and Backs, before the next video takes over do nothing more.
         assertEquals(emptyList<TvPlayerCommand>(), advanced.overlay.ended(autoplayNext = true).commands)
         assertEquals(emptyList<TvPlayerCommand>(), advanced.overlay.back().commands)
+    }
+
+    @Test
+    fun anEndBeforeTheUpNextLookupWaitsForIt() {
+        val waiting = TvPlayerOverlay().ended(autoplayNext = true, lookup = TvUpNextLookup.Pending)
+        assertEquals(emptyList<TvPlayerCommand>(), waiting.commands)
+        assertTrue(waiting.overlay.awaitingUpNext)
+        assertFalse(waiting.overlay.autoHides)
+
+        val counting = waiting.overlay.upNextResolved(TvUpNextLookup.Found(TvUpNext(HARBOR_NEXT, "Harbor")))
+        assertEquals(emptyList<TvPlayerCommand>(), counting.commands)
+        assertTrue(counting.overlay.upNext)
+        assertFalse(counting.overlay.awaitingUpNext)
+
+        assertEquals(listOf(PlayNext), waiting.overlay.upNextResolved(TvUpNextLookup.FolderEnd).commands)
+        assertEquals(listOf(PlayNext), waiting.overlay.upNextResolved(TvUpNextLookup.Failed).commands)
+        assertEquals(listOf(PlayNext), TvPlayerOverlay().ended(true, TvUpNextLookup.Failed).commands)
+
+        val cancelled = waiting.overlay.back().overlay
+        assertEquals(emptyList<TvPlayerCommand>(), cancelled.upNextResolved(TvUpNextLookup.FolderEnd).commands)
+    }
+
+    @Test
+    fun aSeekElsewhereCancelsUpNext() {
+        val found = TvUpNextLookup.Found(TvUpNext(HARBOR_NEXT, null))
+        val counting = TvPlayerOverlay().ended(autoplayNext = true, lookup = found).overlay
+        assertTrue(counting.upNext)
+        val sought = counting.soughtElsewhere()
+        assertFalse(sought.overlay.upNext)
+        assertEquals(emptyList<TvPlayerCommand>(), sought.commands)
+
+        val waiting = TvPlayerOverlay().ended(autoplayNext = true, lookup = TvUpNextLookup.Pending).overlay
+        assertFalse(waiting.soughtElsewhere().overlay.upNextResolved(found).overlay.upNext)
     }
 
     @Test
@@ -57,7 +90,6 @@ class TvPlayerOverlayTest {
         assertNull(played.overlay.scrub)
         assertEquals(emptyList<TvPlayerCommand>(), played.commands)
 
-        // A scrub pausing the player keeps its target.
         assertEquals(scrubbing.scrub, scrubbing.playingChanged(playing = false).overlay.scrub)
     }
 
@@ -79,7 +111,6 @@ class TvPlayerOverlayTest {
 
         val held = first.overlay.scrubForward(nowMillis = TV_SCRUB_HOLD_REPEAT_MILLIS, repeat = true)
         assertEquals(2, held.overlay.scrub?.presses)
-        // Repeats keep counting even past the tap window.
         val stillHeld = held.overlay.scrubForward(nowMillis = TV_SCRUB_HOLD_REPEAT_MILLIS + 600L, repeat = true)
         assertEquals(3, stillHeld.overlay.scrub?.presses)
         assertEquals(POSITION + 15_000L + 30_000L + 45_000L, stillHeld.overlay.scrub?.targetMillis)
@@ -115,48 +146,84 @@ class TvPlayerOverlayTest {
     }
 
     @Test
-    fun anOpenPickerIsTheTopmostLayerAndClosingItKeepsFocusOnItsButton() {
-        val speed = TvPlayerOverlay().moveFocus(TvFocusMove.Up, listOf(TvPlayerControl.Speed)).overlay
-        val picking = speed.openPicker(TvPlayerControl.Speed).overlay
-        assertEquals(TvPlayerControl.Speed, picking.picker)
-        assertTrue("An open picker holds the controls", picking.hideTimedOut().overlay.controlsVisible)
+    fun anOpenSheetIsTheTopmostLayerAndClosingItKeepsFocusOnItsChip() {
+        val chips = listOf(TvPlayerControl.Subtitles, TvPlayerControl.Speed)
+        val subtitles = TvPlayerOverlay().moveFocus(TvFocusMove.Down, chips).overlay
+            .moveFocus(TvFocusMove.Down, chips).overlay
+        val open = subtitles.openSheet(TvPlayerControl.Subtitles).overlay
+        assertEquals(TvPlayerSheet.Subtitles, open.sheet)
+        assertTrue("An open sheet holds the controls", open.hideTimedOut().overlay.controlsVisible)
 
-        val closed = picking.back()
-        assertNull(closed.overlay.picker)
-        assertTrue("Only the picker is dismissed", closed.overlay.controlsVisible)
-        assertEquals(TvPlayerControl.Speed, closed.overlay.focus)
+        val timing = open.openSizeAndTiming().overlay
+        assertEquals(TvPlayerSheet.SizeAndTiming, timing.sheet)
+        val returned = timing.back().overlay
+        assertEquals("Back returns to Subtitles", TvPlayerSheet.Subtitles, returned.sheet)
+        assertTrue("on the row that opened Size and timing", returned.backFromSizeAndTiming)
+        assertFalse(returned.closeSheet().overlay.openSheet(TvPlayerControl.Subtitles).overlay.backFromSizeAndTiming)
+
+        val closed = open.back()
+        assertNull(closed.overlay.sheet)
+        assertTrue("Only the sheet is dismissed", closed.overlay.controlsVisible)
+        assertEquals(TvPlayerControl.Subtitles, closed.overlay.focus)
         assertEquals(emptyList<TvPlayerCommand>(), closed.commands)
 
         val hidden = closed.overlay.back()
         assertFalse(hidden.overlay.controlsVisible)
-        assertEquals("Hidden controls come back on the seek bar", TvPlayerControl.SeekBar, hidden.overlay.focus)
+        assertEquals("Hidden controls come back on play and pause", TvPlayerControl.PlayPause, hidden.overlay.focus)
         assertEquals(listOf(Exit), hidden.overlay.back().commands)
     }
 
     @Test
-    fun theDpadWalksTheButtonsAndReturnsToTheSeekBar() {
-        val buttons = listOf(TvPlayerControl.Language, TvPlayerControl.Subtitles, TvPlayerControl.Speed)
-        val up = TvPlayerOverlay().moveFocus(TvFocusMove.Up, buttons).overlay
-        assertEquals(TvPlayerControl.Language, up.focus)
-        assertEquals(
-            "Left stops at the first button",
-            up,
-            up.moveFocus(TvFocusMove.Left, buttons).overlay.copy(activity = up.activity),
-        )
-        val right = up.moveFocus(TvFocusMove.Right, buttons).overlay.moveFocus(TvFocusMove.Right, buttons).overlay
-        assertEquals(TvPlayerControl.Speed, right.focus)
-        assertEquals(TvPlayerControl.Speed, right.moveFocus(TvFocusMove.Right, buttons).overlay.focus)
-        assertEquals(TvPlayerControl.Speed, right.moveFocus(TvFocusMove.Up, buttons).overlay.focus)
-        assertEquals(TvPlayerControl.SeekBar, right.moveFocus(TvFocusMove.Down, buttons).overlay.focus)
+    fun theDpadStepsBetweenTheCirclesTheSeekBarAndTheChips() {
+        val chips = listOf(TvPlayerControl.Audio, TvPlayerControl.Subtitles, TvPlayerControl.Speed)
+        val start = TvPlayerOverlay()
+        assertEquals(TvPlayerControl.PlayPause, start.focus)
+        assertEquals(TvPlayerControl.Back, start.moveFocus(TvFocusMove.Left, chips).overlay.focus)
+        assertEquals(TvPlayerControl.Forward, start.moveFocus(TvFocusMove.Right, chips).overlay.focus)
+        val up = start.moveFocus(TvFocusMove.Up, chips).overlay
+        assertEquals("Up stops at the circles", TvPlayerControl.PlayPause, up.focus)
 
-        // A button whose tracks went away counts as the seek bar.
-        assertEquals(TvPlayerControl.SeekBar, up.focusIn(listOf(TvPlayerControl.Speed)))
-        // Hidden controls only come back; seek mode keeps the seek bar.
-        val hidden = TvPlayerOverlay(controlsVisible = false).moveFocus(TvFocusMove.Up, buttons).overlay
+        val seekBar = start.moveFocus(TvFocusMove.Left, chips).overlay.moveFocus(TvFocusMove.Down, chips).overlay
+        assertEquals(TvPlayerControl.SeekBar, seekBar.focus)
+        assertEquals(TvPlayerControl.PlayPause, seekBar.moveFocus(TvFocusMove.Up, chips).overlay.focus)
+
+        val audio = seekBar.moveFocus(TvFocusMove.Down, chips).overlay
+        assertEquals(TvPlayerControl.Audio, audio.focus)
+        val left = audio.moveFocus(TvFocusMove.Left, chips).overlay
+        assertEquals("Left stops at the first chip", TvPlayerControl.Audio, left.focus)
+        val speed = audio.moveFocus(TvFocusMove.Right, chips).overlay.moveFocus(TvFocusMove.Right, chips).overlay
+        assertEquals(TvPlayerControl.Speed, speed.focus)
+        assertEquals(TvPlayerControl.Speed, speed.moveFocus(TvFocusMove.Right, chips).overlay.focus)
+        assertEquals(TvPlayerControl.Speed, speed.moveFocus(TvFocusMove.Down, chips).overlay.focus)
+        assertEquals(TvPlayerControl.SeekBar, speed.moveFocus(TvFocusMove.Up, chips).overlay.focus)
+
+        assertEquals(TvPlayerControl.SeekBar, audio.focusIn(listOf(TvPlayerControl.Speed)))
+        val hidden = TvPlayerOverlay(controlsVisible = false).moveFocus(TvFocusMove.Down, chips).overlay
         assertTrue(hidden.controlsVisible)
-        assertEquals(TvPlayerControl.SeekBar, hidden.focus)
+        assertEquals(TvPlayerControl.PlayPause, hidden.focus)
         val scrubbing = TvPlayerOverlay().scrubForward(nowMillis = 0L).overlay
-        assertEquals(TvPlayerControl.SeekBar, scrubbing.moveFocus(TvFocusMove.Up, buttons).overlay.focus)
+        assertEquals(TvPlayerControl.SeekBar, scrubbing.moveFocus(TvFocusMove.Down, chips).overlay.focus)
+    }
+
+    @Test
+    fun theCirclesSkipTenSecondsWithinTheMediaAndNextEpisodeMovesOnOnce() {
+        assertEquals(
+            listOf(TvPlayerCommand.SeekTo(POSITION + 10_000L)),
+            TvPlayerOverlay().skip(true, POSITION, DURATION).commands,
+        )
+        assertEquals(listOf(TvPlayerCommand.SeekTo(0L)), TvPlayerOverlay().skip(false, 4_000L, DURATION).commands)
+        assertEquals(
+            listOf(TvPlayerCommand.SeekTo(DURATION)),
+            TvPlayerOverlay().skip(true, DURATION - 1_000L, DURATION).commands,
+        )
+
+        val next = TvPlayerOverlay().playNext()
+        assertEquals(listOf(PlayNext), next.commands)
+        assertEquals(emptyList<TvPlayerCommand>(), next.overlay.playNext().commands)
+
+        val chosen = TvPlayerOverlay().chooseNext()
+        assertEquals(listOf(TvPlayerCommand.ChooseNext), chosen.commands)
+        assertFalse("The controller leaves only once the next video resolves", chosen.overlay.exited)
     }
 
     private fun TvPlayerOverlay.scrubForward(nowMillis: Long, playing: Boolean = true, repeat: Boolean = false) =
@@ -167,3 +234,5 @@ class TvPlayerOverlayTest {
         const val DURATION = 3_600_000L
     }
 }
+
+private val HARBOR_NEXT = PlaybackTarget(FilesItemId(10), "Harbor film 2.mp4")

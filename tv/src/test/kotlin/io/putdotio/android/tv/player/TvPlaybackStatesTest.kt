@@ -42,7 +42,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 
-/** The TV player's conversion interstitial and typed failure screens. */
 @OptIn(ExperimentalTestApi::class)
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35], qualifiers = "w960dp-h540dp-television")
@@ -54,18 +53,21 @@ class TvPlaybackStatesTest {
     private var refreshes = 0
     private var starts = 0
     private var retries = 0
+    private var vlcOpens = 0
     private val lifecycleOwner = object : LifecycleOwner {
         val registry = LifecycleRegistry(this).apply { currentState = Lifecycle.State.RESUMED }
         override val lifecycle: Lifecycle get() = registry
     }
 
     @Test
-    fun aQueuedConversionShowsItsStatusAndReadsItAgainEveryThreeSeconds() {
+    fun aQueuedConversionSaysItKeepsGoingAndReadsItAgainEveryThreeSeconds() {
         show()
         compose.onNodeWithText(TITLE).assertIsDisplayed()
-        compose.onNodeWithText("Conversion status").assertIsDisplayed()
-        compose.onNodeWithTag(TV_CONVERSION_STATUS_TAG).assertTextEquals("In queue…")
-        compose.onNodeWithText("Check again").assertDoesNotExist()
+        compose.onNodeWithText("Converting to MP4").assertIsDisplayed()
+        compose.onNodeWithText(RUNNING_MESSAGE).assertIsDisplayed()
+        compose.onNodeWithTag(TV_CONVERSION_PROGRESS_TAG).assertIsDisplayed()
+        compose.onNodeWithTag(TV_CONVERSION_PERCENT_TAG).assertDoesNotExist()
+        compose.onNodeWithText("Check again").assertIsFocused()
 
         compose.mainClock.advanceTimeBy(PLAYBACK_CONVERSION_POLL_MILLIS - 100L)
         compose.runOnIdle { assertEquals(0, refreshes) }
@@ -77,9 +79,17 @@ class TvPlaybackStatesTest {
         compose.mainClock.advanceTimeBy(PLAYBACK_CONVERSION_POLL_MILLIS * 2)
         compose.runOnIdle { assertEquals(1, refreshes) }
         change(PlaybackContent.Conversion(PlaybackConversionState.Converting(42.4)))
-        compose.onNodeWithTag(TV_CONVERSION_STATUS_TAG).assertTextEquals("42%")
+        compose.onNodeWithTag(TV_CONVERSION_PERCENT_TAG).assertTextEquals("42%")
+        compose.onNodeWithText(RUNNING_MESSAGE).assertIsDisplayed()
         compose.mainClock.advanceTimeBy(PLAYBACK_CONVERSION_POLL_MILLIS + 100L)
         compose.runOnIdle { assertEquals(2, refreshes) }
+
+        // Check again reads it now, and stays focused while that read runs.
+        change(PlaybackContent.Conversion(PlaybackConversionState.Converting(42.4)))
+        compose.onNodeWithText("Check again").assertIsFocused().performKeyInput { pressKey(Key.DirectionCenter) }
+        compose.runOnIdle { assertEquals(3, refreshes) }
+        change(PlaybackContent.Conversion(PlaybackConversionState.Converting(42.4), PlaybackRequestId(3L)))
+        compose.onNodeWithText("Check again").assertIsFocused()
     }
 
     @Test
@@ -102,7 +112,8 @@ class TvPlaybackStatesTest {
     fun aFailedConversionOffersConvertAgainAndNeverPolls() {
         content = PlaybackContent.Conversion(PlaybackConversionState.Failed)
         show()
-        compose.onNodeWithTag(TV_CONVERSION_STATUS_TAG).assertTextEquals("Failed")
+        compose.onNodeWithText("Conversion failed. Try again later.").assertIsDisplayed()
+        compose.onNodeWithTag(TV_CONVERSION_PROGRESS_TAG).assertDoesNotExist()
         compose.mainClock.advanceTimeBy(PLAYBACK_CONVERSION_POLL_MILLIS * 3)
         compose.runOnIdle { assertEquals(0, refreshes) }
 
@@ -114,29 +125,29 @@ class TvPlaybackStatesTest {
     fun aConversionThatStaysCompletedOrUnknownWaitsForCheckAgain() {
         content = PlaybackContent.Conversion(PlaybackConversionState.Completed)
         show()
-        compose.onNodeWithTag(TV_CONVERSION_STATUS_TAG).assertTextEquals("Completed")
+        compose.onNodeWithText("Conversion finished. Check again to play.").assertIsDisplayed()
         compose.mainClock.advanceTimeBy(PLAYBACK_CONVERSION_POLL_MILLIS * 3)
         compose.runOnIdle { assertEquals(0, refreshes) }
         compose.onNodeWithText("Check again").assertIsFocused().performKeyInput { pressKey(Key.DirectionCenter) }
         compose.runOnIdle { assertEquals(1, refreshes) }
 
         change(PlaybackContent.Conversion(PlaybackConversionState.Unknown("PAUSED", null)))
-        compose.onNodeWithTag(TV_CONVERSION_STATUS_TAG).assertTextEquals("PAUSED")
+        compose.onNodeWithText("Conversion status is unavailable.").assertIsDisplayed()
         compose.onNodeWithText("Check again").assertIsDisplayed()
     }
 
     @Test
-    fun aStartingConversionSaysItHasStartedAndOffersNothingToPress() {
+    fun aStartingConversionShowsItRunningAndOffersNothingToPress() {
         content = PlaybackContent.Conversion(PlaybackConversionState.NotAvailable, PlaybackRequestId(2L))
         show()
-        compose.onNodeWithText(STARTED_MESSAGE).assertIsDisplayed()
-        compose.onNodeWithTag(TV_CONVERSION_STATUS_TAG).assertTextEquals("Starting…")
+        compose.onNodeWithText(RUNNING_MESSAGE).assertIsDisplayed()
+        compose.onNodeWithTag(TV_CONVERSION_PROGRESS_TAG).assertIsDisplayed()
         compose.onNodeWithText("Convert again").assertDoesNotExist()
         compose.onNodeWithText("Check again").assertDoesNotExist()
 
         change(PlaybackContent.Conversion(PlaybackConversionState.Queued))
-        compose.onNodeWithText(STARTED_MESSAGE).assertIsDisplayed()
-        compose.onNodeWithTag(TV_CONVERSION_STATUS_TAG).assertTextEquals("In queue…")
+        compose.onNodeWithText(RUNNING_MESSAGE).assertIsDisplayed()
+        compose.onNodeWithTag(TV_CONVERSION_PROGRESS_TAG).assertIsDisplayed()
     }
 
     @Test
@@ -144,12 +155,10 @@ class TvPlaybackStatesTest {
         // The app's own start still found no conversion.
         content = PlaybackContent.Conversion(PlaybackConversionState.NotAvailable)
         show()
-        compose.onNodeWithText("This video isn’t in a format this app can play, and it can’t be converted.")
-            .assertIsDisplayed()
-        compose.onNodeWithTag(TV_CONVERSION_STATUS_TAG).assertTextEquals("Not available")
+        compose.onNodeWithText("This video cannot be converted.").assertIsDisplayed()
+        compose.onNodeWithTag(TV_CONVERSION_PROGRESS_TAG).assertDoesNotExist()
         compose.onNodeWithText("Check again").assertDoesNotExist()
         compose.onNodeWithText("Convert again").assertDoesNotExist()
-        compose.onNodeWithText("Convert").assertDoesNotExist()
         compose.mainClock.advanceTimeBy(PLAYBACK_CONVERSION_POLL_MILLIS * 3)
         compose.runOnIdle { assertEquals(0, refreshes) }
     }
@@ -158,18 +167,15 @@ class TvPlaybackStatesTest {
     fun failuresExplainThemselvesAndOfferTryAgainOnlyWhereItCanWork() {
         content = PlaybackContent.Failed(PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IOException("offline"))))
         show()
+        compose.onNodeWithText(TITLE).assertIsDisplayed()
+        compose.onNodeWithText("Couldn't play this file.").assertIsDisplayed()
         compose.onNodeWithText("Check the network and try again.").assertIsDisplayed()
         compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressKey(Key.DirectionCenter) }
         compose.runOnIdle { assertEquals(1, retries) }
 
         change(PlaybackContent.Failed(PlaybackFailure.MediaCredentialUnavailable(IOException())))
-        compose.onNodeWithText("The playback link expired. Try again for a new one.").assertIsDisplayed()
+        compose.onNodeWithText("The stream link expired. Try again to get a fresh one.").assertIsDisplayed()
         compose.onNodeWithText("Try again").assertIsDisplayed()
-
-        change(PlaybackContent.Failed(PlaybackFailure.MediaUnsupported(IOException())))
-        compose.onNodeWithText("This file can’t be played").assertIsDisplayed()
-        compose.onNodeWithText("This device can’t play its format.").assertIsDisplayed()
-        compose.onNodeWithText("Try again").assertDoesNotExist()
 
         val cause = PutioConfigurationException("test")
         change(PlaybackContent.Failed(PlaybackFailure.Putio(PutioFailure.AuthenticationRequired(cause))))
@@ -185,6 +191,26 @@ class TvPlaybackStatesTest {
         compose.onNodeWithText("not a video").assertIsDisplayed()
         change(PlaybackContent.Failed(putioRefusal(400, putioErrorBody(400, "NOT_A_VIDEO")).toPlaybackFailure()))
         compose.onNodeWithText("put.io couldn’t prepare this file for playback.").assertIsDisplayed()
+    }
+
+    @Test
+    fun aFormatThisTvCannotPlayOffersVlcWhereItIsWired() {
+        content = PlaybackContent.Failed(PlaybackFailure.MediaUnsupported(IOException()))
+        show(openInVlc = { vlcOpens += 1 })
+        compose.onNodeWithText("This TV can't play this file.").assertIsDisplayed()
+        compose.onNodeWithText("Its format isn't supported here. VLC can usually play it.").assertIsDisplayed()
+        compose.onNodeWithText("Try again").assertDoesNotExist()
+        compose.onNodeWithText("Open in VLC").assertIsFocused().performKeyInput { pressKey(Key.DirectionCenter) }
+        compose.runOnIdle { assertEquals(1, vlcOpens) }
+    }
+
+    @Test
+    fun withoutVlcACantPlayStateOffersNothingButBack() {
+        content = PlaybackContent.Failed(PlaybackFailure.MediaUnsupported(IOException()))
+        show()
+        compose.onNodeWithText("This TV can't play this file.").assertIsDisplayed()
+        compose.onNodeWithText("Open in VLC").assertDoesNotExist()
+        compose.onNodeWithText("Try again").assertDoesNotExist()
     }
 
     private fun change(next: PlaybackContent) {
@@ -203,7 +229,7 @@ class TvPlaybackStatesTest {
         compose.waitForIdle()
     }
 
-    private fun show() {
+    private fun show(openInVlc: (() -> Unit)? = null) {
         compose.mainClock.autoAdvance = false
         compose.setContent {
             CompositionLocalProvider(LocalLifecycleOwner provides lifecycleOwner) {
@@ -222,6 +248,7 @@ class TvPlaybackStatesTest {
                         onRefreshConversion = { refreshes += 1 },
                         onStartConversion = { starts += 1 },
                         playerFactory = { _, _ -> error("No player before a source") },
+                        onOpenInVlc = openInVlc,
                     )
                 }
             }
@@ -232,8 +259,6 @@ class TvPlaybackStatesTest {
 
     private companion object {
         const val TITLE = "Big Buck Bunny.avi"
-        const val STARTED_MESSAGE =
-            "This video isn’t in a format this app can play yet, so its conversion has started. " +
-                "It plays here once it finishes."
+        const val RUNNING_MESSAGE = "It keeps going if you leave, and playback starts when it’s done."
     }
 }

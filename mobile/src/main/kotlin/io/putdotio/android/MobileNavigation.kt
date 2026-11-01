@@ -50,7 +50,7 @@ import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesRepository
 import io.putdotio.android.files.FilesSubtitleLanguages
 import io.putdotio.android.files.MobileFileOpener
-import io.putdotio.android.files.MobileContinueWatching
+import io.putdotio.android.files.ContinueWatching
 import io.putdotio.android.files.MobileFilesActionsController
 import io.putdotio.android.files.MobileFilesItemActions
 import io.putdotio.android.files.FilesSelection
@@ -74,6 +74,7 @@ import io.putdotio.android.playback.PlaybackNextResult
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
 import io.putdotio.android.playback.PlaybackState
+import io.putdotio.android.playback.rememberNextEpisode
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.playback.SubtitleStartupPolicy
 import io.putdotio.android.playback.confirmedAutoplayNextVideo
@@ -160,7 +161,7 @@ internal fun MobileNavHost(
     searchForward: Boolean = true,
     filesBackPreview: MobileBackPreview = rememberMobileBackPreview(),
     fileDragOut: MobileFileDragOut? = null,
-    continueWatching: MobileContinueWatching? = null,
+    continueWatching: ContinueWatching? = null,
     onNewFolder: (() -> Unit)? = null,
     /** From 840dp, the Files bar over the list pane; Files then shows the selected file beside the list. */
     filesListPaneTopBar: (@Composable () -> Unit)? = null,
@@ -523,30 +524,6 @@ private fun castMediaFor(
     if (load == null) null else { source, subtitleKey -> load(target, source, subtitleKey) }
 
 /**
- * With the account's next_episode on, a playing video asks autoplay's folder walk for the one after
- * it, once. A failed walk offers none; a rejected session still ends.
- */
-@Composable
-private fun rememberNextEpisode(
-    state: PlaybackState,
-    findNextEpisode: (suspend (PlaybackTarget) -> PlaybackNextResult)?,
-    onAuthenticationRequired: suspend () -> Unit,
-): PlaybackTarget? {
-    val ready = state.content is PlaybackContent.Ready && state.target.mediaType == PlaybackMediaType.VIDEO
-    val nextEpisode by produceState<PlaybackTarget?>(null, state.target.fileId, ready, findNextEpisode != null) {
-        value = null
-        val find = findNextEpisode ?: return@produceState
-        if (!ready) return@produceState
-        when (val next = find(state.target)) {
-            is PlaybackNextResult.Found -> value = next.target
-            is PlaybackNextResult.Failure -> if (next.failure.rejectsSession) onAuthenticationRequired()
-            PlaybackNextResult.Ended -> Unit
-        }
-    }
-    return nextEpisode
-}
-
-/**
  * Playing audio asks for its folder once: the files around it for the skip buttons and Up next, and
  * the folder's name. A failed read leaves them off; playback does not depend on it, but a rejected
  * session still ends.
@@ -632,7 +609,7 @@ internal fun NavHostController.navigateToPlayback(
 
 /** Each video the player resolves, autoplay's next ones included, can join Continue watching. */
 @Composable
-private fun RecordOpenedVideos(controller: PlaybackController, continueWatching: MobileContinueWatching) {
+private fun RecordOpenedVideos(controller: PlaybackController, continueWatching: ContinueWatching) {
     LaunchedEffect(controller, continueWatching) {
         controller.state.map { it.target }.distinctUntilChanged().collect { target ->
             if (target.mediaType == PlaybackMediaType.VIDEO) {

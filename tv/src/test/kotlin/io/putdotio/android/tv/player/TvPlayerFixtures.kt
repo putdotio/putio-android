@@ -39,10 +39,10 @@ import io.putdotio.android.playback.playbackState
 internal const val SOURCE_URL = "https://api.put.io/v2/files/9/hls/media.m3u8?token=t"
 internal const val SAVED_SECONDS = 210f
 internal const val DURATION_SECONDS = 840f
-internal const val CONTINUE_LABEL = "Continue playing from 03:30"
+internal const val RESUME_TITLE = "Resume from 3:30?"
+internal const val RESUME_LABEL = "Resume"
 private const val SETTLE_MILLIS = 50L
 
-/** A few frames: the key's state change, then the recomposition it causes. */
 internal fun ComposeContentTestRule.settle() {
     mainClock.advanceTimeBy(SETTLE_MILLIS)
     waitForIdle()
@@ -196,7 +196,6 @@ internal class FakePlayer : SimpleBasePlayer(Looper.getMainLooper()) {
     }
 
     fun advanceTo(positionMillis: Long) {
-        // Pinned: a playing position would otherwise drift with however many frames the test runs.
         state = state.buildUpon().setContentPositionMs(PositionSupplier.getConstant(positionMillis)).build()
         invalidateState()
     }

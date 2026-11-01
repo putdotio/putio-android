@@ -68,6 +68,36 @@ class PlaybackPositionWriterTest {
     }
 
     @Test
+    fun aSupersedingWriteLandsAfterTheSentPositionAndDropsTheQueuedOne() = runTest {
+        val sent = mutableListOf<Pair<Long, Double>>()
+        val inFlight = CompletableDeferred<Unit>()
+        val writer = PlaybackPositionWriter(backgroundScope) { fileId, seconds ->
+            sent += fileId to seconds
+            if (sent.size == 1) inFlight.await()
+            PlaybackRepositoryResult.Success(Unit)
+        }
+        val lease = writer.register(1L) { true }
+        val other = writer.register(2L) { true }
+        writer.offer(lease, 15_000L)
+        runCurrent()
+        writer.offer(lease, 42_000L)
+
+        backgroundScope.launch { writer.supersede(1L) { sent += 1L to 3_000.0 } }
+        runCurrent()
+        assertEquals(listOf(1L to 15.0), sent)
+
+        inFlight.complete(Unit)
+        runCurrent()
+        assertEquals(listOf(1L to 15.0, 1L to 3_000.0), sent)
+
+        writer.offer(other, 9_000L)
+        writer.offer(lease, 43_000L)
+        runCurrent()
+        assertEquals(listOf(1L to 15.0, 1L to 3_000.0, 2L to 9.0, 1L to 43.0), sent)
+        writer.close()
+    }
+
+    @Test
     fun rechecksAuthorizationBeforeTheRequestAndDiscardsRevokedSnapshots() = runTest {
         var allowed = true
         var calls = 0

@@ -33,6 +33,7 @@ public fun SubtitleCueOverlay(
     modifier: Modifier = Modifier,
     textScale: Float = 1f,
     bottomPaddingFraction: Float = SubtitleView.DEFAULT_BOTTOM_PADDING_FRACTION,
+    textSizeFraction: Float = SubtitleView.DEFAULT_TEXT_SIZE_FRACTION,
 ) {
     if (cues.isEmpty()) return
     // Replacement players can deliver retained cues before their video dimensions.
@@ -51,7 +52,7 @@ public fun SubtitleCueOverlay(
                     .testTag(SUBTITLE_CUES_TAG),
         ) {
             drawIntoCanvas { canvas ->
-                renderer.layOut(textScale, bottomPaddingFraction)
+                renderer.layOut(textScale, bottomPaddingFraction, textSizeFraction)
                 renderer.draw(
                     cues = cues,
                     width = size.width.roundToInt(),
@@ -82,17 +83,22 @@ internal class SubtitleCueRenderer(
 
     /**
      * [textScale] multiplies Android's caption size, as the user's caption settings set it; any
-     * scale but 1 also overrides the sizes a styled subtitle file sets. [bottomPaddingFraction]
+     * scale but 1 also overrides the sizes a styled subtitle file sets. [textSizeFraction] is the
+     * text size at scale 1, as a fraction of the video height. [bottomPaddingFraction]
      * raises cues placed at the bottom by default, and WebVTT cues stacked up from it; positioned
      * cues stay where the file puts them.
      */
-    fun layOut(textScale: Float, bottomPaddingFraction: Float) {
+    fun layOut(
+        textScale: Float,
+        bottomPaddingFraction: Float,
+        textSizeFraction: Float = SubtitleView.DEFAULT_TEXT_SIZE_FRACTION,
+    ) {
         if (this.bottomPaddingFraction != bottomPaddingFraction) {
             this.bottomPaddingFraction = bottomPaddingFraction
             placed.subtitleView.setBottomPaddingFraction(bottomPaddingFraction)
         }
-        placed.scale(textScale, captionScale)
-        stacked.scale(textScale, captionScale)
+        placed.scale(textScale, textSizeFraction * captionScale)
+        stacked.scale(textScale, textSizeFraction * captionScale)
     }
 
     fun draw(
@@ -122,13 +128,15 @@ private class CueLayer(context: Context) {
         }
     private var renderedCues: List<Cue> = emptyList()
     private var renderedScale = 1f
+    private var renderedFraction = SubtitleView.DEFAULT_TEXT_SIZE_FRACTION
     private var renderedWidth = 0
     private var renderedHeight = 0
 
-    fun scale(textScale: Float, captionScale: Float) {
-        if (renderedScale == textScale) return
+    fun scale(textScale: Float, baseFraction: Float) {
+        if (renderedScale == textScale && renderedFraction == baseFraction) return
         renderedScale = textScale
-        subtitleView.setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * captionScale * textScale)
+        renderedFraction = baseFraction
+        subtitleView.setFractionalTextSize(baseFraction * textScale)
         // A size the viewer picked wins over sizes the subtitle file sets.
         subtitleView.setApplyEmbeddedFontSizes(textScale == 1f)
     }

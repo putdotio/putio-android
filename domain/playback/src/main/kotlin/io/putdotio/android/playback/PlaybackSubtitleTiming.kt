@@ -2,7 +2,10 @@ package io.putdotio.android.playback
 
 import android.content.Context
 import android.os.Looper
+import androidx.media3.common.C
 import androidx.media3.common.Player
+import androidx.media3.common.TrackSelectionOverride
+import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.text.Cue
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultRenderersFactory
@@ -108,11 +111,20 @@ public class DelayedSubtitleCues(private val retainMillis: Long = DEFAULT_RETAIN
     }
 
     /** What showed [delayMillis] before [positionMillis]; nothing when that was before the record. */
-    public fun at(positionMillis: Long, delayMillis: Long): List<Cue> =
-        synchronized(shown) { shown.lastOrNull { it.first + delayMillis <= positionMillis }?.second.orEmpty() }
+    public fun at(positionMillis: Long, delayMillis: Long): List<Cue> = atOrNull(positionMillis, delayMillis).orEmpty()
+
+    /** What showed [delayMillis] before [positionMillis], or null when that was before the record. */
+    public fun atOrNull(positionMillis: Long, delayMillis: Long): List<Cue>? =
+        synchronized(shown) { shown.lastOrNull { it.first + delayMillis <= positionMillis }?.second }
 
     private companion object {
         // Past the longest delay the viewer can pick.
         const val DEFAULT_RETAIN_MILLIS = 12_000L
     }
 }
+
+public fun TrackSelectionParameters.sameSubtitleChoice(other: TrackSelectionParameters): Boolean =
+    subtitleChoice() == other.subtitleChoice()
+
+private fun TrackSelectionParameters.subtitleChoice(): Pair<Boolean, List<TrackSelectionOverride>> =
+    (C.TRACK_TYPE_TEXT in disabledTrackTypes) to overrides.values.filter { it.type == C.TRACK_TYPE_TEXT }

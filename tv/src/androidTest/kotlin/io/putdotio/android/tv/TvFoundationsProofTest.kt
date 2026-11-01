@@ -131,9 +131,7 @@ class TvFoundationsProofTest {
     @Test
     fun signOut() {
         mount(listings = rootListing())
-        press(KeyEvent.KEYCODE_DPAD_LEFT)
-        repeat(ACCOUNT_STEPS) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.openTvTab("Account")
         compose.waitUntil(5_000) { compose.onAllNodesWithText("Sign out").fetchSemanticsNodes().isNotEmpty() }
         compose.onAllNodesWithText("Sign out")[0].performSemanticsAction(SemanticsActions.OnClick)
         waitForText("Sign out of put.io?")
@@ -157,7 +155,7 @@ class TvFoundationsProofTest {
     @Test
     fun error() {
         mount(listings = emptyMap())
-        waitForText("Couldn’t load your files.")
+        waitForText("Couldn't load your files.")
         compose.onNode(hasText("Try again") and hasClickAction()).assertIsFocused()
         screenshot("androidtv-st-s3-error")
     }
@@ -231,7 +229,6 @@ class TvFoundationsProofTest {
     private companion object {
         const val STEP_MILLIS = 400L
         const val PROOF_EMAIL = "proof@example.invalid"
-        const val ACCOUNT_STEPS = 3
     }
 }
 
@@ -296,7 +293,7 @@ private fun FoundationsSheet() {
             Box(Modifier.fillMaxWidth().weight(1f)) {
                 TvEmptyState(
                     glyph = PutioEmptyGlyph.CouldNotLoad,
-                    headline = "Couldn’t load your files.",
+                    headline = "Couldn't load your files.",
                     message = "put.io is temporarily unavailable. Try again.",
                     action = TvEmptyStateAction("Try again", onClick = {}, icon = R.drawable.ic_ph_arrow_clockwise),
                     claimFocus = false,

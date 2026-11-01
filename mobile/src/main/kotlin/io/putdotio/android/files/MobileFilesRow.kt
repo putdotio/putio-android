@@ -1,6 +1,5 @@
 package io.putdotio.android.files
 
-import android.content.Context
 import android.text.format.DateUtils
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -47,7 +46,6 @@ import io.putdotio.android.downloads.DownloadStatus
 import io.putdotio.android.parsePutioTimestamp
 import io.putdotio.android.playbackContainer
 import io.putdotio.sdk.files.PutioFolderType
-import java.util.Locale
 
 internal const val MOBILE_FILES_WATCHED_TAG = "mobile-files-watched"
 internal const val MOBILE_FILES_DOWNLOAD_TAG = "mobile-files-download"
@@ -279,29 +277,6 @@ private fun Modifier.rowInteraction(
 private fun Modifier.focusOutline(focused: Boolean, color: Color): Modifier =
     if (focused) border(FILES_FOCUS_OUTLINE, color) else this
 
-/**
- * Decimal units as put.io's web app counts them: one decimal below 100 ("3.2GB", "19.4GB"), none
- * from 100 or when it is a zero ("31MB"). Android's short formatter drops the decimal from 10. No
- * space before the unit: in mono a space is a full cell, which sets the unit too far off.
- */
-internal fun formatFileSize(bytes: Long, locale: Locale = Locale.getDefault()): String {
-    var value = bytes.coerceAtLeast(0L).toDouble()
-    var unit = 0
-    while (value >= UNIT_STEP && unit < SIZE_UNITS.lastIndex) {
-        value /= UNIT_STEP
-        unit++
-    }
-    val tenths = Math.round(value * TENTHS)
-    val whole = unit == 0 || value >= ONE_DECIMAL_BELOW || tenths % TENTHS.toLong() == 0L
-    val rounded = String.format(locale, if (whole) "%.0f" else "%.1f", if (whole) value else tenths / TENTHS)
-    return "$rounded${SIZE_UNITS[unit]}"
-}
-
-private val SIZE_UNITS = listOf("B", "kB", "MB", "GB", "TB", "PB")
-private const val UNIT_STEP = 1_000.0
-private const val ONE_DECIMAL_BELOW = 100.0
-private const val TENTHS = 10.0
-
 /** A folder's last change, "3 days ago"; null for a file, or a folder put.io sent no time for. */
 internal fun FilesItem.updatedAgo(nowMillis: Long): String? = updatedAt?.takeIf { isFolder }?.toAgo(nowMillis)
 
@@ -315,14 +290,6 @@ internal fun String.toAgo(nowMillis: Long): String? =
             DateUtils.FORMAT_ABBREV_RELATIVE,
         ).toString()
     }
-
-/** "Oct 13" this year, "Oct 13, 2024" before it. */
-internal fun String.toDisplayDate(context: Context): String? =
-    parsePutioTimestamp(this)
-        ?.toEpochMilli()
-        ?.let { timestamp ->
-            DateUtils.formatDateTime(context, timestamp, DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_ABBREV_MONTH)
-        }
 
 private const val SELECTED_ROW_ALPHA = 0.09f
 private val FILES_ICON_SIZE = 26.dp

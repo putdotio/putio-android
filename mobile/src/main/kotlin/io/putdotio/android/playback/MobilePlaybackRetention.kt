@@ -64,7 +64,7 @@ internal fun Bundle.toRetainedPlayerPreferences(): RetainedPlayerPreferences =
         resumeAfterLifecyclePause = getBoolean("resumeAfterLifecyclePause", true),
         subtitleSelection = getBundle("subtitleSelection")?.toSubtitleSelection(),
         positionMillis = getLong("positionMillis").takeIf { containsKey("positionMillis") },
-        playbackSpeed = getFloat("playbackSpeed", 1f).takeIf { it in MOBILE_PLAYBACK_SPEEDS } ?: 1f,
+        playbackSpeed = getFloat("playbackSpeed", 1f).takeIf { it in PLAYBACK_SPEEDS } ?: 1f,
         audioSelection = getBundle("audioSelection")?.toAudioSelection() ?: AudioSelection.Automatic,
         subtitleOffsetMillis = getLong("subtitleOffsetMillis")
             .coerceIn(-SUBTITLE_OFFSET_LIMIT_MILLIS, SUBTITLE_OFFSET_LIMIT_MILLIS),

@@ -4,17 +4,25 @@ import io.putdotio.android.tv.setTvContent
 import io.putdotio.android.tv.pressCenter
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isDialog
+import androidx.compose.ui.test.isFocused
+import androidx.compose.ui.test.isNotEnabled
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
@@ -35,6 +43,7 @@ import io.putdotio.android.trash.TrashRestoreSubmission
 import io.putdotio.android.trash.TrashState
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
+import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -52,60 +61,73 @@ class TvTrashScreenTest {
 
     private val events = mutableListOf<TrashEvent>()
     private val item = TrashItem(
-        FilesItemId(7), FilesItemId(8), "smoke-two.txt", PutioFileType.TEXT, 10,
-        "2026-09-06T10:00:00", "2026-09-20T10:00:00",
+        FilesItemId(7), FilesItemId(8), "smoke-two.txt", PutioFileType.TEXT, 1_400_000_000,
+        "2026-09-06T10:00:00", LocalDate.now().plusDays(12).toString(),
     )
-    private val loaded = TrashContent.Loaded(listOf(item), nextCursor = null, total = 1, trashSizeBytes = 10)
+    private val folder = TrashItem(
+        FilesItemId(9), FilesItemId(8), "Old downloads", PutioFileType.FOLDER, 1_200_000_000,
+        "2026-09-06T10:00:00", LocalDate.now().plusDays(1).toString(),
+    )
+    private val loaded = TrashContent.Loaded(listOf(item, folder), nextCursor = null, total = 2, trashSizeBytes = 10)
+    private val row = hasText("smoke-two.txt") and hasClickAction()
 
     @Test
-    fun rowsShowDatesAndCenterOffersRestoreThenTheConfirmationConfirms() {
+    fun rowsShowSizeAndDaysLeftAndCenterRestoresThroughItsConfirmation() {
         var state by mutableStateOf(TrashState(content = loaded))
         show { state }
 
         compose.onNodeWithText("Items stay in Trash for 14 days.").assertIsDisplayed()
-        compose.onNodeWithText("10 B · Deleted Sep 6, 2026 · Expires Sep 20, 2026").assertIsDisplayed()
-        compose.onNodeWithContentDescription("Actions for smoke-two.txt").assertIsFocused().performKeyInput {
-            pressCenter()
-        }
-        compose.onNodeWithText("Restore").assertIsFocused().performKeyInput { pressCenter() }
+        compose.onNodeWithText("12 days left").assertIsDisplayed()
+        compose.onNodeWithText("1 day left").assertIsDisplayed()
+        compose.onNodeWithText("1.2GB").assertIsDisplayed()
+        compose.onNodeWithText("1.4GB · Deleted Sep 6", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("in 12 days").assertIsDisplayed()
+        compose.onNode(row).assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf<TrashEvent>(TrashEvent.SelectRestore(FilesItemId(7))), events)
-        compose.onAllNodesWithText("Delete permanently").assertCountEquals(0)
-        compose.onNodeWithContentDescription("Actions for smoke-two.txt").assertIsFocused()
 
         compose.runOnIdle { state = state.copy(confirmation = item, confirmationId = 3L) }
         compose.onNodeWithText("Restore item?").assertIsDisplayed()
-        compose.onNodeWithText("Cancel").assertIsFocused().performKeyInput { pressKey(Key.DirectionUp) }
-        compose.onNodeWithText("Restore").assertIsFocused().performKeyInput { pressCenter() }
+        compose.onNode(focusedInDialog("Restore")).performKeyInput { pressCenter() }
         assertEquals(TrashEvent.ConfirmRestore(3L), events.last())
     }
 
     @Test
-    fun deleteGoesThroughItsOwnConfirmationAndBackCancels() {
+    fun theDetailFollowsTheFocusedRowAndDeleteConfirmsInItsOwnDialog() {
         var state by mutableStateOf(TrashState(content = loaded))
         show { state }
 
-        compose.onNodeWithContentDescription("Actions for smoke-two.txt").performKeyInput { pressCenter() }
-        compose.onNodeWithText("Restore").assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithText("Delete permanently").assertIsFocused().performKeyInput { pressCenter() }
-        assertEquals(listOf<TrashEvent>(TrashEvent.SelectDelete(FilesItemId(7))), events)
+        compose.onNode(row).performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithText("in 1 day").assertIsDisplayed()
+        compose.onNode(hasText("Old downloads") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionRight)
+        }
+        compose.onNode(hasText("Restore") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionRight)
+        }
+        compose.onNode(hasText("Delete permanently") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressCenter()
+        }
+        assertEquals(listOf<TrashEvent>(TrashEvent.SelectDelete(FilesItemId(9))), events)
 
         compose.runOnIdle {
-            state = state.copy(actionConfirmation = TrashAction.DeleteItem(item), actionConfirmationId = 4L)
+            state = state.copy(actionConfirmation = TrashAction.DeleteItem(folder), actionConfirmationId = 4L)
         }
         compose.onNodeWithText("Delete permanently?").assertIsDisplayed()
+        compose.onNode(focusedInDialog("Delete permanently")).performKeyInput {
+            pressKey(Key.DirectionLeft)
+        }
         compose.onNodeWithText("Cancel").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(TrashEvent.CancelAction, events.last())
+        compose.runOnIdle { state = state.copy(actionConfirmation = null, actionConfirmationId = null) }
+        compose.onNode(hasText("Delete permanently") and hasClickAction()).assertIsFocused()
     }
 
     @Test
-    fun headerActionsAskForBulkConfirmations() {
+    fun headerActionsAskForBulkConfirmationsAndEmptyTrashCountsTheItems() {
         var state by mutableStateOf(TrashState(content = loaded))
         show { state }
 
-        compose.onNodeWithContentDescription("Actions for smoke-two.txt").performKeyInput { pressKey(Key.DirectionUp) }
-        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused().performKeyInput {
-            pressKey(Key.DirectionRight)
-        }
+        compose.onNode(row).performKeyInput { pressKey(Key.DirectionUp) }
         compose.onNode(hasText("Restore all") and hasClickAction()).assertIsFocused().performKeyInput {
             pressCenter()
             pressKey(Key.DirectionRight)
@@ -114,6 +136,9 @@ class TvTrashScreenTest {
         assertEquals(listOf<TrashEvent>(TrashEvent.SelectRestoreAll, TrashEvent.SelectEmpty), events)
 
         compose.runOnIdle { state = state.copy(actionConfirmation = TrashAction.Empty, actionConfirmationId = 5L) }
+        compose.onNodeWithText("Empty trash?").assertIsDisplayed()
+        compose.onNodeWithText("2 items are deleted permanently. This can't be undone.").assertIsDisplayed()
+        compose.onNode(focusedInDialog("Empty trash")).performKeyInput { pressKey(Key.DirectionLeft) }
         compose.onNodeWithText("Cancel").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(TrashEvent.CancelAction, events.last())
         compose.runOnIdle { state = state.copy(actionConfirmation = null, actionConfirmationId = null) }
@@ -122,46 +147,47 @@ class TvTrashScreenTest {
     }
 
     @Test
-    fun aRestoredRowOffersOnlyDeleteAndAPendingMutationOffersNoDialog() {
+    fun aRestoredRowOffersOnlyDeleteAndAPendingConfirmationCannotConfirm() {
         var state by mutableStateOf(TrashState(content = loaded, restoredItemIds = setOf(FilesItemId(7))))
         show { state }
 
-        compose.onNodeWithContentDescription("Actions for smoke-two.txt").assertIsFocused().performKeyInput {
-            pressCenter()
-        }
-        compose.onNodeWithText("Delete permanently").assertIsFocused().performKeyInput { pressKey(Key.DirectionUp) }
-        // Restore is disabled: it can be reached and seen as such, but Center does nothing.
-        compose.onNodeWithText("Restore").assertIsFocused().performKeyInput { pressCenter() }
-        compose.onNodeWithText("Delete permanently").assertIsDisplayed()
-        compose.onNodeWithText("Restore").performKeyInput {
-            pressKey(Key.DirectionDown)
-            pressKey(Key.DirectionDown)
-        }
-        compose.onNodeWithText("Cancel").assertIsFocused().performKeyInput { pressCenter() }
-        compose.onAllNodesWithText("Delete permanently").assertCountEquals(0)
+        compose.onNode(row).assertIsFocused().performKeyInput { pressCenter() }
+        compose.onNode(hasText("Restore") and hasClickAction()).assertIsNotEnabled()
+        assertEquals(emptyList<TrashEvent>(), events)
 
         compose.runOnIdle {
             state = TrashState(
                 content = loaded,
                 restoreOutcome = TrashRestoreOutcome(item, TrashRestoreSubmission.ACKNOWLEDGED),
+                actionConfirmation = TrashAction.Empty,
+                actionConfirmationId = 6L,
             )
         }
-        compose.onNodeWithContentDescription("Actions for smoke-two.txt").performKeyInput { pressCenter() }
-        compose.onAllNodesWithText("Delete permanently").assertCountEquals(0)
-        assertEquals(emptyList<TrashEvent>(), events)
+        compose.onNode(hasText("Empty trash") and isNotEnabled()).assertIsDisplayed()
+    }
+
+    @Test
+    fun aPendingRestoreLeavesRowsAndDetailActionsInert() {
+        show {
+            TrashState(
+                content = loaded,
+                restoreOutcome = TrashRestoreOutcome(item, TrashRestoreSubmission.ACKNOWLEDGED),
+            )
+        }
+
+        compose.onNode(row).assertIsFocused().performKeyInput { pressCenter() }
+        compose.onNode(hasText("Restore") and hasClickAction()).assertIsNotEnabled()
+        compose.onNode(hasText("Delete permanently") and hasClickAction()).assertIsNotEnabled()
+        compose.runOnIdle { assertEquals(emptyList<TrashEvent>(), events) }
     }
 
     @Test
     fun dateOnlyStampsFormatLikeTimestamps() {
         show {
-            TrashState(
-                content = loaded.copy(
-                    items = listOf(item.copy(deletedAt = "2026-09-06", expirationDate = "2026-09-20")),
-                ),
-            )
+            TrashState(content = loaded.copy(items = listOf(item.copy(deletedAt = "2026-09-06"))))
         }
 
-        compose.onNodeWithText("10 B · Deleted Sep 6, 2026 · Expires Sep 20, 2026").assertIsDisplayed()
+        compose.onNodeWithText("1.4GB · Deleted Sep 6", substring = true).assertIsDisplayed()
     }
 
     @Test
@@ -179,9 +205,7 @@ class TvTrashScreenTest {
         show { state }
 
         compose.onNodeWithText("smoke-two.txt is not in Files yet. Check again in a moment.").assertIsDisplayed()
-        compose.onNodeWithContentDescription("Actions for smoke-two.txt").assertIsFocused().performKeyInput {
-            pressKey(Key.DirectionUp)
-        }
+        compose.onNode(row).assertIsFocused().performKeyInput { pressKey(Key.DirectionUp) }
         compose.onNodeWithText("Check status").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf<TrashEvent>(TrashEvent.CheckRestore), events)
 
@@ -199,7 +223,7 @@ class TvTrashScreenTest {
         compose.onNodeWithText("Trash is empty.").assertIsDisplayed()
         compose.onNodeWithText("Your trash is empty").assertIsDisplayed()
         compose.onNodeWithText("When you send files to trash, we keep them here for 14 days.").assertIsDisplayed()
-        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused().performKeyInput {
+        compose.onNode(hasText("Restore all") and hasClickAction()).assertIsFocused().performKeyInput {
             pressKey(Key.DirectionDown)
         }
         compose.onNodeWithText("OK").assertIsFocused().performKeyInput { pressCenter() }
@@ -207,25 +231,64 @@ class TvTrashScreenTest {
     }
 
     @Test
-    fun aFailedReadFocusesTryAgainAndPagingLoadsMore() {
+    fun okOnASettledOutcomeHandsFocusBackToTheRows() {
+        var state by mutableStateOf(
+            TrashState(
+                content = loaded,
+                restoreOutcome = TrashRestoreOutcome(
+                    item,
+                    TrashRestoreSubmission.ACKNOWLEDGED,
+                    TrashRestoreCheck.AVAILABLE,
+                ),
+            ),
+        )
+        show { state }
+
+        compose.onNode(row).assertIsFocused().performKeyInput { pressKey(Key.DirectionUp) }
+        compose.onNodeWithText("OK").assertIsFocused().performKeyInput { pressCenter() }
+        assertEquals(listOf<TrashEvent>(TrashEvent.DismissRestoreOutcome), events)
+
+        compose.runOnIdle { state = state.copy(restoreOutcome = null) }
+        compose.onNode(row).assertIsFocused()
+    }
+
+    @Test
+    fun tryAgainOnAFailedRefreshHandsFocusBackToTheRows() {
+        var state by mutableStateOf(
+            TrashState(
+                content = loaded.copy(
+                    refreshFailure = PutioFailure.NetworkUnavailable(PutioConfigurationException("x")),
+                ),
+            ),
+        )
+        show { state }
+
+        compose.onNode(row).assertIsFocused().performKeyInput { pressKey(Key.DirectionUp) }
+        compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressCenter() }
+        assertEquals(listOf<TrashEvent>(TrashEvent.Refresh), events)
+
+        compose.runOnIdle { state = TrashState(content = loaded) }
+        compose.onNode(row).assertIsFocused()
+    }
+
+    @Test
+    fun aFailedReadFocusesTryNowAndPagingLoadsMore() {
         var state by mutableStateOf(
             TrashState(content = TrashContent.Error(PutioFailure.NetworkUnavailable(PutioConfigurationException("x")))),
         )
         show { state }
 
-        compose.onNodeWithText("Couldn’t load trash").assertIsDisplayed()
-        compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressCenter() }
+        compose.onNodeWithText("Can’t reach put.io.").assertIsDisplayed()
+        compose.onNodeWithText("Try now").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf<TrashEvent>(TrashEvent.Retry), events)
 
         compose.runOnIdle { state = TrashState(content = loaded.copy(nextCursor = FilesCursor("c"))) }
-        compose.onNodeWithContentDescription("Actions for smoke-two.txt").assertIsFocused().performKeyInput {
-            pressKey(Key.DirectionDown)
-        }
+        compose.onNode(row).assertIsFocused().performKeyInput { repeat(2) { pressKey(Key.DirectionDown) } }
         compose.onNodeWithText("Load more").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(TrashEvent.LoadNextPage, events.last())
 
         compose.runOnIdle { state = TrashState(content = loaded) }
-        compose.onNodeWithContentDescription("Actions for smoke-two.txt").assertIsFocused()
+        compose.onNode(hasText("Old downloads") and hasClickAction()).assertIsFocused()
     }
 
     @Test
@@ -233,13 +296,12 @@ class TvTrashScreenTest {
         show { TrashState(content = TrashContent.Loaded(emptyList(), FilesCursor("c"), total = 5, trashSizeBytes = 1)) }
 
         compose.onAllNodesWithText("Your trash is empty").assertCountEquals(0)
-        // The list has only its paging control, which is where entry lands.
         compose.onNodeWithText("Load more").assertIsFocused().performKeyInput {
             pressCenter()
             pressKey(Key.DirectionUp)
         }
         assertEquals(listOf<TrashEvent>(TrashEvent.LoadNextPage), events)
-        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused()
+        compose.onNode(hasText("Restore all") and hasClickAction()).assertIsFocused()
     }
 
     @Test
@@ -247,13 +309,83 @@ class TvTrashScreenTest {
         show { TrashState(content = loaded, actionConfirmation = TrashAction.Empty, actionConfirmationId = 9L) }
 
         compose.onNodeWithText("Empty trash?").assertIsDisplayed()
-        compose.onNodeWithText("Cancel").assertIsFocused()
+        compose.onNode(focusedInDialog("Empty trash")).assertIsDisplayed()
     }
+
+    @Test
+    fun openingALoadedTrashRefreshesIt() {
+        compose.setTvContent { TvTrashScreen(state = TrashState(content = loaded), onEvent = { events += it; true }) }
+
+        compose.runOnIdle { assertEquals(listOf<TrashEvent>(TrashEvent.Refresh), events) }
+    }
+
+    @Test
+    fun aPaneReturningFromAnotherTabKeepsItsLoadedPages() {
+        var shown by mutableStateOf(true)
+        compose.setTvContent {
+            val panes = rememberSaveableStateHolder()
+            if (shown) {
+                panes.SaveableStateProvider("trash") {
+                    TvTrashScreen(state = TrashState(content = loaded), onEvent = { events += it; true })
+                }
+            }
+        }
+
+        compose.runOnIdle { shown = false }
+        compose.runOnIdle { shown = true }
+        compose.runOnIdle { assertEquals(listOf<TrashEvent>(TrashEvent.Refresh), events) }
+    }
+
+    @Test
+    fun aPaneOpenedBehindAConfirmationKeepsItOpen() {
+        compose.setTvContent {
+            TvTrashScreen(
+                state = TrashState(content = loaded, actionConfirmation = TrashAction.Empty, actionConfirmationId = 9L),
+                onEvent = { events += it; true },
+            )
+        }
+
+        compose.onNodeWithText("Empty trash?").assertIsDisplayed()
+        compose.runOnIdle { assertEquals(emptyList<TrashEvent>(), events) }
+    }
+
+    @Test
+    fun theDetailKeepsItsItemWhenThePaneReturnsWithFocusOnRestore() {
+        var shown by mutableStateOf(true)
+        val paneFocus = FocusRequester()
+        compose.setTvContent {
+            val panes = rememberSaveableStateHolder()
+            if (shown) {
+                panes.SaveableStateProvider("trash") {
+                    TvTrashScreen(
+                        state = TrashState(content = loaded),
+                        onEvent = { events += it; true },
+                        modifier = Modifier.focusRequester(paneFocus),
+                    )
+                }
+            }
+        }
+        compose.onNode(row).performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNode(hasText("Old downloads") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionRight)
+        }
+        compose.onNode(hasText("Restore") and hasClickAction()).assertIsFocused()
+
+        compose.runOnIdle { shown = false }
+        compose.runOnIdle { shown = true }
+        compose.runOnIdle { paneFocus.requestFocus() }
+        compose.onNodeWithText("in 1 day").assertIsDisplayed()
+        compose.onNode(hasText("Restore") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
+        assertEquals(TrashEvent.SelectRestore(FilesItemId(9)), events.last())
+    }
+
+    private fun focusedInDialog(label: String) = hasText(label) and isFocused() and hasAnyAncestor(isDialog())
 
     private fun show(state: () -> TrashState) {
         compose.setTvContent {
             TvTrashScreen(state = state(), onEvent = { events += it; true })
         }
-        compose.onNodeWithText("Trash").assertIsDisplayed()
+        compose.onAllNodesWithText("Trash", substring = false)[0].assertIsDisplayed()
+        compose.runOnIdle { events.remove(TrashEvent.Refresh) }
     }
 }
