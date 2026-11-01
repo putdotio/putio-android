@@ -101,6 +101,8 @@ internal fun TvPlayerScreen(
     nextEpisode: PlaybackTarget? = null,
     onNextEpisode: () -> Unit = {},
     analytics: PlaybackAnalyticsReporter = PlaybackAnalyticsReporter.None,
+    subtitlesFirst: Boolean = false,
+    onSubtitlesShown: () -> Unit = {},
 ) {
     BackHandler(enabled = state.content !is PlaybackContent.Ready, onBack = onBack)
     Box(modifier = modifier.fillMaxSize().background(Color.Black)) {
@@ -121,6 +123,8 @@ internal fun TvPlayerScreen(
                     nextEpisode = nextEpisode != null && state.target.mediaType == PlaybackMediaType.VIDEO,
                     onNextEpisode = onNextEpisode,
                     analytics = analytics,
+                    subtitlesFirst = subtitlesFirst,
+                    onSubtitlesShown = onSubtitlesShown,
                 )
 
             is PlaybackContent.AwaitingResume -> {
@@ -180,6 +184,8 @@ private fun TvReadyPlayer(
     nextEpisode: Boolean,
     onNextEpisode: () -> Unit,
     analytics: PlaybackAnalyticsReporter,
+    subtitlesFirst: Boolean,
+    onSubtitlesShown: () -> Unit,
 ) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -202,7 +208,13 @@ private fun TvReadyPlayer(
     val currentOnPlaybackEnded by rememberUpdatedState(onPlaybackEnded)
     val currentOnNextEpisode by rememberUpdatedState(onNextEpisode)
     val currentAnalytics by rememberUpdatedState(analytics)
-    var overlay by remember(player) { mutableStateOf(TvPlayerOverlay()) }
+    val picksSubtitles = remember(player) {
+        subtitlesFirst && stoppedAtMillis == null && target.mediaType == PlaybackMediaType.VIDEO
+    }
+    var awaitingSubtitles by remember(player) { mutableStateOf(picksSubtitles) }
+    var overlay by remember(player) {
+        mutableStateOf(TvPlayerOverlay(sheet = TvPlayerSheet.Subtitles.takeIf { picksSubtitles }))
+    }
     val apply: (TvPlayerTransition) -> Unit = remember(player) {
         { transition ->
             overlay = transition.overlay
@@ -216,7 +228,7 @@ private fun TvReadyPlayer(
             }
         }
     }
-    var playWhenReady by remember(player) { mutableStateOf(stoppedAtMillis == null) }
+    var playWhenReady by remember(player) { mutableStateOf(stoppedAtMillis == null && !picksSubtitles) }
     var playbackState by remember(player) { mutableIntStateOf(player.playbackState) }
     var tracks by remember(player) { mutableStateOf(player.currentTracks) }
     var parameters by remember(player) { mutableStateOf(player.trackSelectionParameters) }
@@ -291,7 +303,7 @@ private fun TvReadyPlayer(
             prepared.mediaItem.leasedBy(reporter, target.fileId.value, useStartFrom),
             prepared.startPositionMillis,
         )
-        player.playWhenReady = stoppedAtMillis == null
+        player.playWhenReady = stoppedAtMillis == null && !picksSubtitles
         player.prepare()
         val positions = reporter.observe(player)
         val session = playerFactory.publish(
@@ -331,6 +343,14 @@ private fun TvReadyPlayer(
     LaunchedEffect(subtitlesHidden, overlay.sheet) {
         val subtitleSheet = overlay.sheet == TvPlayerSheet.Subtitles || overlay.sheet == TvPlayerSheet.SizeAndTiming
         if (subtitlesHidden && subtitleSheet) apply(overlay.closeSheet())
+    }
+    val currentOnSubtitlesShown by rememberUpdatedState(onSubtitlesShown)
+    LaunchedEffect(player) { if (picksSubtitles) currentOnSubtitlesShown() }
+    LaunchedEffect(awaitingSubtitles, overlay.sheet) {
+        if (awaitingSubtitles && overlay.sheet == null) {
+            awaitingSubtitles = false
+            apply(overlay.setPlaying(play = true))
+        }
     }
     val appearance = rememberSubtitleAppearanceStore()
     TvSubtitleOffsetEffect(player, options.subtitleOffsetMillis)

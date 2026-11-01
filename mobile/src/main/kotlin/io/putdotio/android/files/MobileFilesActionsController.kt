@@ -8,15 +8,14 @@ import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
 import io.putdotio.android.R
 import io.putdotio.android.apiReason
-import io.putdotio.android.trash.TrashBulkSelection
 import io.putdotio.android.trash.TrashRepository
+import io.putdotio.android.trash.undoTrashMove
 import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.channels.BufferOverflow
@@ -168,28 +167,14 @@ internal class MobileFilesActionsController(
         }
     }
 
-    /**
-     * Restores a Trash move the snackbar announced, every item of it in one request. put.io can answer
-     * before it has put every item back, so each is read until it is, and only then the folder.
-     */
     fun undoTrash(outcome: FilesDeleteOutcome) {
         if (outcome.intent.mode != FilesDeleteMode.TRASH) return
         val itemIds = outcome.intent.itemIds
         scope.launch {
-            val result = if (itemIds.size == 1) {
-                sources.trash.restore(itemIds.single())
-            } else {
-                sources.trash.restoreAll(TrashBulkSelection(cursor = null, itemIds = itemIds))
-            }
+            val result = sources.trash.undoTrashMove(itemIds)
             ensureActive()
             when (result) {
                 is PutioResult.Success -> {
-                    val rejected = awaitRestored(itemIds)
-                    ensureActive()
-                    if (rejected != null) {
-                        onAuthenticationRequired()
-                        return@launch
-                    }
                     // Another delete may have replaced the outcome meanwhile; the item still comes back somewhere.
                     if (!onFilesEvent(FilesBrowserEvent.TrashUndone(outcome))) {
                         onFilesEvent(FilesBrowserEvent.InvalidateAllFolders)
@@ -205,30 +190,6 @@ internal class MobileFilesActionsController(
                 )
             }
         }
-    }
-
-    /**
-     * Reads each restored item until put.io serves it again, a few rounds at most; the folder reads
-     * after either way. A 401 ends the reads and is returned, since it is the session's verdict.
-     */
-    private suspend fun awaitRestored(itemIds: List<FilesItemId>): PutioFailure.AuthenticationRequired? {
-        var pending = itemIds
-        var rejected: PutioFailure.AuthenticationRequired? = null
-        var round = 0
-        while (pending.isNotEmpty() && rejected == null && round < RESTORE_READBACK_ROUNDS) {
-            if (round > 0) delay(RESTORE_READBACK_DELAY_MS)
-            round += 1
-            pending = pending.filterNot { id ->
-                rejected == null && when (val read = sources.trash.resolveItem(id)) {
-                    is PutioResult.Success -> read.value.id == id
-                    is PutioResult.Failure -> {
-                        rejected = read.failure as? PutioFailure.AuthenticationRequired
-                        false
-                    }
-                }
-            }
-        }
-        return rejected
     }
 
     fun close() {
@@ -284,5 +245,3 @@ internal const val VLC_PACKAGE = "org.videolan.vlc"
 
 /** Watched writes in flight at once for a selection; the rest wait their turn. */
 private const val WATCHED_CONCURRENCY = 4
-private const val RESTORE_READBACK_ROUNDS = 5
-private const val RESTORE_READBACK_DELAY_MS = 400L

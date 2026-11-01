@@ -24,6 +24,7 @@ import io.putdotio.android.files.FilesSubtitleLanguages
 import io.putdotio.android.files.FilesWatchedRepository
 import io.putdotio.android.files.PinnedFiles
 import io.putdotio.android.files.FilesDeleteOutcome
+import io.putdotio.android.files.FilesDeleteMode
 import io.putdotio.android.files.confirmedGone
 import io.putdotio.android.tv.home.TvHomePins
 import io.putdotio.android.tv.home.TvHomeReturn
@@ -60,6 +61,7 @@ import io.putdotio.android.telemetry.ProductAnalytics
 import io.putdotio.android.telemetry.PutioDiagnostics
 import io.putdotio.android.trash.TrashController
 import io.putdotio.android.trash.TrashRepository
+import io.putdotio.android.trash.undoTrashMove
 import io.putdotio.android.tv.auth.TvAccount
 import io.putdotio.android.tv.auth.TvAuthSessionId
 import io.putdotio.android.tv.auth.TvAuthState
@@ -177,6 +179,10 @@ internal class TvSession internal constructor(
         scope,
     )
     private val mutableFileActionFailure = MutableStateFlow<PutioFailure?>(null)
+    private val trashRepository = dependencies.trashRepository
+    private val mutableUndoFailure = MutableStateFlow<TvUndoFailure?>(null)
+    private var undo: Job? = null
+    private val mutableSubtitlesFirst = MutableStateFlow(false)
     private val watchedJobs = mutableMapOf<FilesItemId, Job>()
     private val playbackRepository = dependencies.playbackRepository { appConfig.state.value.playbackPreference() }
     private val mutablePlayback = MutableStateFlow<PlaybackController?>(null)
@@ -283,6 +289,17 @@ internal class TvSession internal constructor(
         startPlayback(item, start, fromHome = false)
     }
 
+    val subtitlesFirst: StateFlow<Boolean> = mutableSubtitlesFirst.asStateFlow()
+
+    fun playWithSubtitles(item: FilesItem, start: TvPlayStart) {
+        durationLookup?.cancel()
+        startPlayback(item, start, fromHome = false, subtitlesFirst = true)
+    }
+
+    fun subtitlesShown() {
+        mutableSubtitlesFirst.value = false
+    }
+
     /**
      * Opens a Search or History pick: media plays, a folder opens in Files, and any other file
      * opens its folder with focus on it. Back returns to [origin] either way.
@@ -315,9 +332,10 @@ internal class TvSession internal constructor(
         }
     }
 
-    private fun startPlayback(item: FilesItem, start: TvPlayStart, fromHome: Boolean) {
+    private fun startPlayback(item: FilesItem, start: TvPlayStart, fromHome: Boolean, subtitlesFirst: Boolean = false) {
         val mediaType = PlaybackMediaType.fromFileType(item.type) ?: return
         if (!scope.isActive) return
+        mutableSubtitlesFirst.value = subtitlesFirst && mediaType == PlaybackMediaType.VIDEO
         playingFromHome = fromHome
         val target = PlaybackTarget(item.id, item.name, mediaType, item.playback?.durationSeconds, item.screenshotUrl)
         // Audio playback analytics are not wired yet, here or on mobile.
@@ -349,6 +367,7 @@ internal class TvSession internal constructor(
         continueSaved?.cancel()
         watchNextPlayback.stopFollowing()
         continueWatchingFollow?.cancel()
+        mutableSubtitlesFirst.value = false
         val stopped = mutablePlayback.value ?: return
         val last = stopped.state.value.target.fileId
         if (playingFromHome) homeReturn.played(last)
@@ -410,6 +429,28 @@ internal class TvSession internal constructor(
             if (failure is PutioFailure.AuthenticationRequired) mutableFileActionFailure.value = failure
         }
 
+    val undoFailure: StateFlow<TvUndoFailure?> = mutableUndoFailure.asStateFlow()
+
+    fun undoTrash(outcome: FilesDeleteOutcome) {
+        if (outcome.intent.mode != FilesDeleteMode.TRASH || undo?.isActive == true) return
+        mutableUndoFailure.value = null
+        undo = scope.launch {
+            when (val result = trashRepository.undoTrashMove(outcome.intent.itemIds)) {
+                is PutioResult.Success -> {
+                    if (!files.dispatch(FilesBrowserEvent.TrashUndone(outcome))) {
+                        files.dispatch(FilesBrowserEvent.InvalidateAllFolders)
+                    }
+                    files.dispatch(FilesBrowserEvent.ReloadIfStale)
+                }
+                is PutioResult.Failure -> mutableUndoFailure.value = TvUndoFailure(outcome.itemName, result.failure)
+            }
+        }
+    }
+
+    fun dismissUndoFailure() {
+        mutableUndoFailure.update { it?.takeIf { undo -> undo.failure is PutioFailure.AuthenticationRequired } }
+    }
+
     /** Drops the explanation the pane showed; a 401 stays, since it is a session verdict. */
     fun dismissFileActionFailure() {
         mutableFileActionFailure.update { it?.takeIf { failure -> failure is PutioFailure.AuthenticationRequired } }
@@ -436,6 +477,8 @@ internal class TvSession internal constructor(
         files.close()
     }
 }
+
+internal data class TvUndoFailure(val itemName: String, val failure: PutioFailure)
 
 internal data class TvSessionKey(
     val userId: Long,

@@ -21,6 +21,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -76,8 +77,16 @@ internal fun TvConfirmDialog(
     onDismiss: () -> Unit,
     destructive: Boolean = false,
     titleStyle: TextStyle? = null,
+    balanceMessage: Boolean = false,
 ) {
-    TvDialogFrame(AnnotatedString(title), message, onDismiss, focusesAction = true, titleStyle) { focus ->
+    TvDialogFrame(
+        AnnotatedString(title),
+        message,
+        onDismiss,
+        focusesAction = true,
+        titleStyle = titleStyle,
+        balanceMessage = balanceMessage,
+    ) { focus ->
         TvDialogActions {
             TvButton(
                 onClick = onDismiss,
@@ -97,12 +106,20 @@ internal fun TvNoticeDialog(
     title: String,
     onDismiss: () -> Unit,
     message: String? = null,
+    okStyle: TvButtonStyle = TvButtonStyle.Text,
+    balanceMessage: Boolean = false,
 ) {
-    TvDialogFrame(AnnotatedString(title), message, onDismiss, focusesAction = true) { focus ->
+    TvDialogFrame(
+        AnnotatedString(title),
+        message,
+        onDismiss,
+        focusesAction = true,
+        balanceMessage = balanceMessage,
+    ) { focus ->
         TvDialogActions {
             TvButton(
                 onClick = onDismiss,
-                style = TvButtonStyle.Text,
+                style = okStyle,
                 modifier = Modifier.focusRequester(focus),
             ) { Text(stringResource(R.string.tv_dialog_ok)) }
         }
@@ -127,6 +144,7 @@ private fun TvDialogFrame(
     onDismiss: () -> Unit,
     focusesAction: Boolean,
     titleStyle: TextStyle? = null,
+    balanceMessage: Boolean = false,
     content: @Composable ColumnScope.(focus: FocusRequester) -> Unit,
 ) {
     val actionFocus = remember { FocusRequester() }
@@ -156,7 +174,9 @@ private fun TvDialogFrame(
                 // Bounded so a long server-supplied name cannot push the actions off screen.
                 Text(
                     text = message,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodySmall.let {
+                        if (balanceMessage) it.copy(lineBreak = BALANCED) else it
+                    },
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 4,
                     overflow = TextOverflow.Ellipsis,
@@ -168,6 +188,7 @@ private fun TvDialogFrame(
     }
 }
 
+private val BALANCED = LineBreak.Paragraph.copy(strategy = LineBreak.Strategy.Balanced)
 private val DIALOG_WIDTH = 380.dp
 private val ACTIONS_GAP = 20.dp
 private val TITLE_SIZE = 20.sp

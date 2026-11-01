@@ -56,6 +56,8 @@ internal fun TvPlaybackRoute(
     subtitleStartupPolicy: SubtitleStartupPolicy? = null,
     autoplayNextVideo: Boolean = false,
     findNextEpisode: (suspend (PlaybackTarget) -> PlaybackNextResult)? = null,
+    subtitlesFirst: Boolean = false,
+    onSubtitlesShown: () -> Unit = {},
 ) {
     val state by controller.state.collectAsStateWithLifecycle()
     val nextEpisode = rememberNextEpisode(state, findNextEpisode, onSessionRejected)
@@ -88,6 +90,8 @@ internal fun TvPlaybackRoute(
         nextEpisode = nextEpisode,
         onNextEpisode = { nextEpisode?.let { controller.dispatch(PlaybackEvent.NextChosen(it)) } },
         analytics = controller.analyticsReporter,
+        subtitlesFirst = subtitlesFirst,
+        onSubtitlesShown = onSubtitlesShown,
     )
 }
 

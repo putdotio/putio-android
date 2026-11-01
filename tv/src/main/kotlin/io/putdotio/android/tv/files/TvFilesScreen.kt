@@ -72,7 +72,6 @@ import io.putdotio.android.tv.TvSectionLine
 import io.putdotio.android.tv.TvSectionPill
 import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.rememberTvPaneHasFocus
-import io.putdotio.android.tv.TvDialog
 import io.putdotio.android.tv.TvEmptyState
 import io.putdotio.android.tv.TvListSkeleton
 import io.putdotio.android.tv.TvDetailSkeleton
@@ -80,6 +79,15 @@ import io.putdotio.android.tv.TvLoadFailedState
 import io.putdotio.android.tv.TV_LIST_WIDTH
 import androidx.compose.foundation.layout.offset
 import io.putdotio.android.tv.TvNoticeDialog
+import io.putdotio.android.tv.TvConfirmDialog
+import io.putdotio.android.tv.TvButtonSize
+import io.putdotio.android.tv.TvButtonStyle
+import io.putdotio.android.tv.TvSnackbarHost
+import io.putdotio.android.tv.TvSnackbarMessage
+import io.putdotio.android.tv.TvSnackbarState
+import io.putdotio.android.files.FilesItemId
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.withFrameNanos
 import io.putdotio.android.tv.returnDestination
 import io.putdotio.android.tv.refocusAfterDialog
 
@@ -100,8 +108,13 @@ internal fun TvFilesScreen(
     watchedToggleEnabled: Boolean = false,
     onOpenInVlc: (FilesItem) -> Unit = {},
     onSetWatched: (FilesItem, Boolean) -> Unit = { _, _ -> },
+    pinnedIds: List<FilesItemId>? = null,
+    onSetPinned: (FilesItem, Boolean) -> Unit = { _, _ -> },
+    onPickSubtitles: (FilesItem, TvPlayStart) -> Unit = { _, _ -> },
+    onUndoTrash: ((FilesDeleteOutcome) -> Unit)? = null,
     /** An explanation from outside the browser (a failed watched write, no VLC); OK dismisses it. */
     notice: String? = null,
+    noticeMessage: String? = null,
     onDismissNotice: () -> Unit = {},
     /**
      * Which row last held focus in each folder; owned by the session so it survives the pane
@@ -191,9 +204,14 @@ internal fun TvFilesScreen(
     val detailItem = content.detailItem(detailId, focusMemory[folderId])
     val detailFocus = remember { TvFilesDetailFocus() }
     val listing = rememberTvFilesListing(current)
-    val actionsOf = { item: FilesItem ->
-        item.tvActions(watchedToggleEnabled, confirmedTrashEnabled, current.operation.canStartOperation)
-    }
+    val actionContext = TvFilesActionContext(
+        watchedToggleEnabled = watchedToggleEnabled,
+        trashEnabled = confirmedTrashEnabled,
+        canDelete = current.operation.canStartOperation,
+        resumePlayback = resumePlayback,
+    )
+    val actionContextOf = { item: FilesItem -> actionContext.copy(pinned = pinnedIds?.let { item.id in it }) }
+    val actionsOf = { item: FilesItem -> item.tvActions(actionContextOf(item)) }
     val dialogReturn = remember { mutableStateOf(FocusRequester.Default) }
     dialogReturn.value = detailFocus.dialogReturn(detailItem.offersActions(actionsOf), entryTarget.value)
     val dialogWasOpen = remember { mutableStateOf(false) }
@@ -201,95 +219,126 @@ internal fun TvFilesScreen(
     // As in tv-native, a row with nothing to offer opens no menu.
     val openActions = { item: FilesItem -> if (actionsOf(item).isNotEmpty()) actionsFor = item.id.value }
     val open = { item: FilesItem -> item.open(onEvent, onPlayMedia, onUnsupported = { unsupported = it.id.value }) }
-    Column(
+    val snackbar = remember(sessionKey) { TvSnackbarState() }
+    TvFilesTrashedAnnouncement(current, snackbar, onEvent, onUndoTrash)
+    var undoFocused by remember { mutableStateOf(false) }
+    val snackbarShowing = snackbar.showing
+    LaunchedEffect(snackbarShowing) {
+        if (snackbarShowing == null && undoFocused) {
+            undoFocused = false
+            withFrameNanos {}
+            entryTarget.value.requestFocus()
+        }
+    }
+    Box(
         modifier = modifier
             .fillMaxSize()
             .focusProperties { enter = { entryTarget.value } }
             .then(trackPaneFocus)
             .focusGroup(),
     ) {
-        if (content.fillsPane()) {
-            TvFilesStatePane(
-                state = state,
-                onEvent = onEvent,
-                paneHasFocus = paneHasFocus,
-                retryFocus = retryFocus,
-                pagingFocus = pagingFocus,
-                emptyFocus = emptyFocus,
-            )
-        } else {
-            TvFilesFolderHeader(state)
-            TvListDetail(
-                modifier = Modifier.weight(1f),
-                detailFocus = detailFocus.primary,
-                listFocus = listEntry.value,
-                onDetailFocusChanged = detailFocus::onDetailFocusChanged,
-                list = {
-                    TvFilesSectionLine(
-                        state = state,
-                        onEvent = onEvent,
-                        sortFocus = sortFocus,
-                        sessionKey = sessionKey,
-                        showSort = content !is FilesContent.Loading,
-                        onFocusChanged = {
-                            headerHasFocus.value = it
-                            detailFocus.onListFocusChanged(it)
-                        },
-                    )
-                    TvFilesOperationStatus(current, onEvent)
-                    TvFilesDeleteStatus(current, onEvent)
-                    TvFilesRows(
-                        current = current,
-                        focusMemory = focusMemory,
-                        paneHasFocus = paneHasFocus,
-                        headerHasFocus = headerHasFocus,
-                        detailOwnsFocus = detailFocus.owns,
-                        skeletonFocus = skeletonFocus,
-                        onEntryTarget = { listEntry.value = it },
-                        modifier = Modifier.weight(1f),
-                        onEvent = onEvent,
-                        onOpen = open,
-                        onActions = openActions,
-                        onRowFocused = {
-                            detailId = it.id.value
-                            detailFocus.onListFocusChanged(true)
-                        },
-                    )
-                },
-                detail = {
-                    TvFilesDetailPane(
-                        loading = content is FilesContent.Loading,
-                        item = detailItem,
-                        detailFocus = detailFocus,
-                        resumePlayback = resumePlayback,
-                        sources = detailSources,
-                        listing = listing,
-                        onOpenFolder = open,
-                        onPlay = onPlay,
-                        onUnsupported = { unsupported = it.id.value },
-                        onMore = openActions,
-                        offersMore = { actionsOf(it).isNotEmpty() },
-                    )
-                },
-            )
+        Column(modifier = Modifier.fillMaxSize()) {
+            if (content.fillsPane()) {
+                TvFilesStatePane(
+                    state = state,
+                    onEvent = onEvent,
+                    paneHasFocus = paneHasFocus,
+                    retryFocus = retryFocus,
+                    pagingFocus = pagingFocus,
+                    emptyFocus = emptyFocus,
+                )
+            } else {
+                TvFilesFolderHeader(state)
+                TvListDetail(
+                    modifier = Modifier.weight(1f),
+                    detailFocus = detailFocus.primary,
+                    listFocus = listEntry.value,
+                    onDetailFocusChanged = detailFocus::onDetailFocusChanged,
+                    list = {
+                        TvFilesSectionLine(
+                            state = state,
+                            onEvent = onEvent,
+                            sortFocus = sortFocus,
+                            sessionKey = sessionKey,
+                            showSort = content !is FilesContent.Loading,
+                            onFocusChanged = {
+                                headerHasFocus.value = it
+                                detailFocus.onListFocusChanged(it)
+                            },
+                        )
+                        TvFilesOperationStatus(current, onEvent)
+                        TvFilesDeleteStatus(current, onEvent)
+                        TvFilesRows(
+                            current = current,
+                            focusMemory = focusMemory,
+                            paneHasFocus = paneHasFocus,
+                            headerHasFocus = headerHasFocus,
+                            detailOwnsFocus = detailFocus.owns,
+                            skeletonFocus = skeletonFocus,
+                            onEntryTarget = { listEntry.value = it },
+                            modifier = Modifier.weight(1f),
+                            onEvent = onEvent,
+                            onOpen = open,
+                            onActions = openActions,
+                            onRowFocused = {
+                                detailId = it.id.value
+                                detailFocus.onListFocusChanged(true)
+                            },
+                        )
+                    },
+                    detail = {
+                        TvFilesDetailPane(
+                            loading = content is FilesContent.Loading,
+                            item = detailItem,
+                            detailFocus = detailFocus,
+                            resumePlayback = resumePlayback,
+                            sources = detailSources,
+                            listing = listing,
+                            onOpenFolder = open,
+                            onPlay = onPlay,
+                            onUnsupported = { unsupported = it.id.value },
+                            onMore = openActions,
+                            offersMore = { actionsOf(it).isNotEmpty() },
+                        )
+                    },
+                )
+            }
         }
+        TvSnackbarHost(
+            state = snackbar,
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(bottom = SNACKBAR_BOTTOM),
+            actionSize = TvButtonSize.Snackbar,
+            actionModifier = Modifier.onFocusChanged { if (snackbar.showing != null) undoFocused = it.isFocused },
+        )
     }
 
     if (notice != null) {
-        TvNoticeDialog(title = notice, onDismiss = onDismissNotice)
+        TvNoticeDialog(
+            title = notice,
+            message = noticeMessage,
+            onDismiss = onDismissNotice,
+            okStyle = TvButtonStyle.Filled,
+            balanceMessage = true,
+        )
     } else if (actionsItem != null) {
         TvFilesActionsMenu(
             item = actionsItem,
             folder = current,
-            trashEnabled = confirmedTrashEnabled,
-            watchedToggleEnabled = watchedToggleEnabled,
+            context = actionContextOf(actionsItem),
             confirmingPermanentDelete = confirmingPermanentDelete,
             onConfirmPermanentDelete = { confirmingPermanentDelete = true },
             trashPressed = trashPressed,
             onTrashPressedChange = { trashPressed = it },
             onEvent = onEvent,
-            onOpenInVlc = onOpenInVlc,
-            onSetWatched = onSetWatched,
+            handlers = TvFilesActionHandlers(
+                onPlay = onPlay,
+                onPickSubtitles = onPickSubtitles,
+                onOpenInVlc = onOpenInVlc,
+                onSetWatched = onSetWatched,
+                onSetPinned = onSetPinned,
+            ),
             onClose = {
                 actionsFor = null
                 confirmingPermanentDelete = false
@@ -552,10 +601,11 @@ private fun TvFilesDeleteStatus(
         operation == FilesFolderOperation.Idle &&
             current.deleteOutcome?.status == FilesDeleteStatus.TOO_LARGE_FOR_TRASH ->
             TvFilesTrashLimitStatus(checkNotNull(current.deleteOutcome), current, onEvent)
-        operation == FilesFolderOperation.Idle -> current.deleteOutcome?.let { outcome ->
-            val message = outcome.status.tvOutcomeMessage()
-            if (message != null) TvFilesNotice(text = stringResource(message, outcome.itemName))
-        }
+        operation == FilesFolderOperation.Idle ->
+            current.deleteOutcome?.takeUnless { it.isConfirmedTrash }?.let { outcome ->
+                val message = outcome.status.tvOutcomeMessage()
+                if (message != null) TvFilesNotice(text = stringResource(message, outcome.itemName))
+            }
     }
 }
 
@@ -603,33 +653,18 @@ private fun TvFilesTrashLimitStatus(
     if (confirming && listed != null) {
         val close = { confirming = false }
         val delete = FilesBrowserEvent.Delete(current.folder.id, listed.id, FilesDeleteMode.PERMANENT)
-        TvDialog(
+        TvConfirmDialog(
             title = stringResource(R.string.tv_files_trash_limit_title),
-            message = stringResource(R.string.tv_files_trash_limit_message),
-            onDismiss = close,
-            body = {
-                // Bounded like TvDialog's message so a long name cannot push the actions off screen.
-                Text(
-                    listed.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
+            message = stringResource(R.string.tv_files_trash_limit_message, listed.name),
+            confirmLabel = stringResource(R.string.tv_files_delete_confirm),
+            onConfirm = {
+                close()
+                onEvent(delete)
             },
-        ) { focus ->
-            TvButton(
-                onClick = {
-                    close()
-                    onEvent(delete)
-                },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(stringResource(R.string.tv_files_trash_limit_confirm))
-            }
-            TvButton(onClick = close, modifier = Modifier.fillMaxWidth().focusRequester(focus)) {
-                Text(stringResource(R.string.tv_files_cancel))
-            }
-        }
+            onDismiss = close,
+            destructive = true,
+            balanceMessage = true,
+        )
     }
 }
 
@@ -843,6 +878,39 @@ private fun TvUnsupportedFileScreen(
         }
     }
 }
+
+private val FilesDeleteOutcome.isConfirmedTrash: Boolean
+    get() = intent.mode == FilesDeleteMode.TRASH && failure == null &&
+        status == FilesDeleteStatus.NO_LONGER_AVAILABLE
+
+@Composable
+private fun TvFilesTrashedAnnouncement(
+    current: FilesFolderState,
+    snackbar: TvSnackbarState,
+    onEvent: (FilesBrowserEvent) -> Boolean,
+    onUndoTrash: ((FilesDeleteOutcome) -> Unit)?,
+) {
+    val trashed = current.deleteOutcome?.takeIf {
+        current.operation == FilesFolderOperation.Idle && it.isConfirmedTrash && !it.announced
+    }
+    val text = stringResource(R.string.tv_files_trashed)
+    val undo = stringResource(R.string.tv_files_undo)
+    val currentOnEvent by rememberUpdatedState(onEvent)
+    val currentOnUndo by rememberUpdatedState(onUndoTrash)
+    LaunchedEffect(trashed?.requestId) {
+        val outcome = trashed ?: return@LaunchedEffect
+        snackbar.show(
+            TvSnackbarMessage(
+                text = text,
+                actionLabel = undo.takeIf { currentOnUndo != null },
+                onAction = { currentOnUndo?.invoke(outcome) },
+            ),
+        )
+        currentOnEvent(FilesBrowserEvent.DeleteOutcomeAnnounced(outcome))
+    }
+}
+
+private val SNACKBAR_BOTTOM = 3.dp
 
 private val FOLDER_HEADER_HEIGHT = 76.dp
 

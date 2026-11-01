@@ -5,6 +5,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -22,6 +25,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioRadius
+import io.putdotio.android.design.PutioTypeScale
 import kotlinx.coroutines.delay
 
 internal data class TvSnackbarMessage(
@@ -50,6 +54,8 @@ internal class TvSnackbarState {
 internal fun TvSnackbarHost(
     state: TvSnackbarState,
     modifier: Modifier = Modifier,
+    actionSize: TvButtonSize = TvButtonSize.Regular,
+    actionModifier: Modifier = Modifier,
 ) {
     val showing = state.showing ?: return
     val message = showing.message
@@ -72,15 +78,34 @@ internal fun TvSnackbarHost(
             color = MaterialTheme.colorScheme.onSurface,
         )
         if (message.actionLabel != null) {
+            val hugsLabel = actionSize == TvButtonSize.Snackbar
+            val measurer = rememberTextMeasurer()
+            val labelWidth = with(LocalDensity.current) {
+                measurer.measure(message.actionLabel, PutioTypeScale.tvLabel).size.width.toDp()
+            }
             TvButton(
                 onClick = {
                     state.dismiss()
                     message.onAction()
                 },
                 style = TvButtonStyle.Text,
-            ) { Text(message.actionLabel) }
+                size = actionSize,
+                modifier = if (hugsLabel) {
+                    actionModifier.width(labelWidth + actionSize.padding * 2 + LABEL_ROUNDING)
+                } else {
+                    actionModifier
+                },
+            ) {
+                if (hugsLabel) {
+                    Text(message.actionLabel, style = PutioTypeScale.tvLabel)
+                } else {
+                    Text(message.actionLabel)
+                }
+            }
         }
     }
 }
 
 internal const val SNACKBAR_MILLIS = 6_000L
+
+private val LABEL_ROUNDING = 1.dp

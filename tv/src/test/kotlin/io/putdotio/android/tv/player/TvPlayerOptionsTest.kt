@@ -221,6 +221,27 @@ class TvPlayerOptionsTest {
     }
 
     @Test
+    fun theSubtitlesTileOpensOnTheSubtitlesSheetAndPlaysOnceAChoiceIsMade() {
+        val player = TrackPlayer()
+        var shown = 0
+        show(
+            player,
+            policy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = true),
+            subtitlesFirst = true,
+            onSubtitlesShown = { shown += 1 },
+        )
+        compose.onNodeWithText("In this file").assertIsDisplayed()
+        compose.runOnIdle {
+            assertFalse("Nothing plays while the viewer picks", player.playWhenReady)
+            assertEquals(1, shown)
+        }
+        choose("Off")
+        compose.onNodeWithText("In this file").assertDoesNotExist()
+        chip(SUBTITLES).assert(describedAs("Subtitles: Off"))
+        compose.runOnIdle { assertTrue(player.playWhenReady) }
+    }
+
+    @Test
     fun theChosenAudioTrackSurvivesATrackChange() {
         val player = TrackPlayer()
         show(player)
@@ -525,6 +546,8 @@ class TvPlayerOptionsTest {
         policy: SubtitleStartupPolicy? = null,
         policyProvider: () -> SubtitleStartupPolicy? = { policy },
         onBack: () -> Unit = {},
+        subtitlesFirst: Boolean = false,
+        onSubtitlesShown: () -> Unit = {},
     ) {
         compose.mainClock.autoAdvance = false
         compose.setTvContent {
@@ -537,6 +560,8 @@ class TvPlayerOptionsTest {
                 onPlayerFailure = { _, _ -> },
                 playerFactory = { _, _ -> player },
                 subtitleStartupPolicy = policyProvider(),
+                subtitlesFirst = subtitlesFirst,
+                onSubtitlesShown = onSubtitlesShown,
             )
         }
         settle()

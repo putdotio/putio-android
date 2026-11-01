@@ -103,6 +103,8 @@ internal enum class TvButtonSize(
     Detail(height = 30.dp, padding = 11.dp, icon = 12.dp),
 
     DetailIcon(height = 30.dp, padding = 9.dp, icon = 12.dp),
+
+    Snackbar(height = 28.dp, padding = 10.dp, icon = 12.dp),
 }
 
 internal enum class TvButtonStyle {
