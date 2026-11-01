@@ -405,8 +405,9 @@ internal fun FilesStreamUrlResult.openInVlc(
         is FilesStreamUrlResult.Failure -> failureNotice(failure)
     }
 
-internal fun Context.hasVlc(): Boolean =
-    packageManager.run { getLeanbackLaunchIntentForPackage(VLC_PACKAGE) ?: getLaunchIntentForPackage(VLC_PACKAGE) } != null
+internal fun Context.hasVlc(): Boolean = packageManager.run {
+    getLeanbackLaunchIntentForPackage(VLC_PACKAGE) ?: getLaunchIntentForPackage(VLC_PACKAGE)
+} != null
 
 /**
  * Hands the original file to VLC. False when VLC is not installed; the URL carries the
