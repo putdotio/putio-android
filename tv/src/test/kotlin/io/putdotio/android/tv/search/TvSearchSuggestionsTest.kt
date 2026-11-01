@@ -77,7 +77,12 @@ class TvSearchSuggestionsTest {
 
     @Test
     fun `signed out, the provider answers an empty cursor without searching`() {
-        val search = TvGlobalSearch(session = { null }, search = { error("not searched") }, reject = { error("no") })
+        val search = TvGlobalSearch(
+            session = { null },
+            search = { error("not searched") },
+            reject = { error("no") },
+            isCurrent = { error("no session") },
+        )
 
         val cursor = provider(search).query(suggestUri, null, " ?", arrayOf("harbor"), null)
 
@@ -92,6 +97,7 @@ class TvSearchSuggestionsTest {
             session = { signedIn },
             search = { PutioResult.Failure(failure) },
             reject = { rejected += it },
+            isCurrent = { true },
         )
 
         val cursor = provider(search).query(suggestUri, null, " ?", arrayOf("harbor"), null)
@@ -108,8 +114,24 @@ class TvSearchSuggestionsTest {
         assertEquals(emptyList<FilesItem>(), noQuery.files(null))
         assertEquals(0, calls)
         val offline = PutioFailure.NetworkUnavailable(IllegalStateException("offline"))
-        val failing = TvGlobalSearch({ signedIn }, { PutioResult.Failure(offline) }, reject = { error("not ended") })
+        val failing = TvGlobalSearch(
+            session = { signedIn },
+            search = { PutioResult.Failure(offline) },
+            reject = { error("not ended") },
+            isCurrent = { true },
+        )
         assertEquals(emptyList<FilesItem>(), failing.files("harbor"))
+    }
+
+    @Test
+    fun `results that arrive after their session signed out list nothing`() = runTest {
+        var current = true
+        val search = globalSearch(isCurrent = { it == signedIn.sessionId && current }) {
+            current = false
+            PutioResult.Success(SearchPage(listOf(video), nextCursor = null, total = 1))
+        }
+
+        assertEquals(emptyList<FilesItem>(), search.files("harbor"))
     }
 
     @Test
@@ -150,8 +172,10 @@ class TvSearchSuggestionsTest {
 
     private val suggestUri = "content://${context.packageName}.search/${SearchManager.SUGGEST_URI_PATH_QUERY}".toUri()
 
-    private fun globalSearch(search: suspend (SearchTerm) -> PutioResult<SearchPage>) =
-        TvGlobalSearch(session = { signedIn }, search = search, reject = { error("not ended") })
+    private fun globalSearch(
+        isCurrent: (TvAuthSessionId) -> Boolean = { true },
+        search: suspend (SearchTerm) -> PutioResult<SearchPage>,
+    ) = TvGlobalSearch(session = { signedIn }, search = search, reject = { error("not ended") }, isCurrent = isCurrent)
 
     private fun provider(search: TvGlobalSearch) =
         TvSearchSuggestionsProvider { search }.also { it.attachInfo(context, null) }

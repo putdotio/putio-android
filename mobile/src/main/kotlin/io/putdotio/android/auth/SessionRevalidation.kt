@@ -77,31 +77,3 @@ internal class SessionRevalidation(
 
 private fun MobileAuthState.awaitsPutio(): Boolean =
     this is MobileAuthState.ValidationUnavailable || this is MobileAuthState.SignedIn && !validated
-
-/**
- * Turns default-network callbacks into returns: only a network that was missing or unvalidated and
- * then validates counts, so capability updates on a working network and put.io outages never retry.
- */
-internal class NetworkReturns(
-    initiallyValidated: Boolean,
-    private val onReturn: () -> Unit,
-) {
-    private var waiting = !initiallyValidated
-
-    @Synchronized
-    fun onLost() {
-        waiting = true
-    }
-
-    fun onCapabilities(validated: Boolean) {
-        val returned = synchronized(this) {
-            if (!validated) {
-                waiting = true
-                false
-            } else {
-                waiting.also { waiting = false }
-            }
-        }
-        if (returned) onReturn()
-    }
-}

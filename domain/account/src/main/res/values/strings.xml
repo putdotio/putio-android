@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="privacy_policy">Privacy policy</string>
+    <string name="privacy_services_we_use">Services we use</string>
+    <string name="privacy_controls_footer">Diagnostics and product analytics never send filenames, media titles, URLs, search text, or tokens.</string>
+    <string name="privacy_strictly_necessary">Strictly necessary</string>
+    <string name="privacy_strictly_necessary_description">Needed for sign-in, security, transfers, downloads, playback, billing, and saving your choices.</string>
+    <string name="privacy_strictly_necessary_state">Always on</string>
+    <string name="privacy_diagnostics">Diagnostics</string>
+    <string name="privacy_diagnostics_description">Crash reports, error details, and limited playback diagnostics, so we can fix problems.</string>
+    <string name="privacy_product_analytics">Product analytics</string>
+    <string name="privacy_product_analytics_description">Limited usage, device, billing, and playback data that shows which apps and features work.</string>
+</resources>

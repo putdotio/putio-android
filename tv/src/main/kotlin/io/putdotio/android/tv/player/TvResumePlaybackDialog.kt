@@ -1,94 +1,88 @@
 package io.putdotio.android.tv.player
 
-import android.text.format.DateUtils
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import io.putdotio.android.playback.R as PlaybackR
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.tv.material3.MaterialTheme
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.DialogWindowProvider
 import androidx.tv.material3.Text
-import io.putdotio.android.R
+import coil3.compose.AsyncImage
+import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.tv.TvButton
+import io.putdotio.android.tv.TvButtonStyle
 import io.putdotio.android.tv.TvDialog
 
-internal const val TV_PLAYER_RESUME_PROGRESS_TAG = "tv-player-resume-progress"
-
-/**
- * The play-time resume choice, as the RN player's (putio-web `apps/tv-native`
- * `withResumePlaybackPrompt.tsx`): the raw file name, a progress bar, and stacked Continue
- * and Start from the beginning buttons. Continue takes focus; the bar previews where the
- * focused choice starts. Back leaves playback, as the RN prompt and mobile's do.
- */
 @Composable
 internal fun TvResumePlaybackDialog(
     title: String,
+    posterUrl: String?,
     startFromSeconds: Double,
-    durationSeconds: Double,
     onResume: () -> Unit,
     onRestart: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var restartFocused by remember { mutableStateOf(false) }
-    val previewSeconds = if (restartFocused) 0.0 else startFromSeconds
-    val fraction = (previewSeconds / durationSeconds).coerceIn(0.0, 1.0).toFloat()
-    val progressDescription = stringResource(
-        R.string.tv_player_resume_progress,
-        previewSeconds.elapsedLabel(),
-        durationSeconds.elapsedLabel(),
-    )
+    Box(Modifier.fillMaxSize()) {
+        if (posterUrl != null) {
+            AsyncImage(
+                model = posterUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxSize(),
+            )
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = POSTER_DIM)))
+        }
+        Box(Modifier.fillMaxSize().tvPlayerEdges()) { TvPlayerTopBar(title) }
+    }
+    val time = playerTime((startFromSeconds * MILLIS_PER_SECOND).toLong())
     TvDialog(
-        title = title,
+        title = resumeTitle(stringResource(PlaybackR.string.playback_resume_title, time), time),
         message = null,
         onDismiss = onDismiss,
-        body = {
-            LinearProgressIndicator(
-                progress = { fraction },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 12.dp)
-                    .height(8.dp)
-                    .testTag(TV_PLAYER_RESUME_PROGRESS_TAG)
-                    .semantics { contentDescription = progressDescription },
-                color = MaterialTheme.colorScheme.primary,
-                trackColor = MaterialTheme.colorScheme.surface,
-                strokeCap = StrokeCap.Round,
-                gapSize = 0.dp,
-                drawStopIndicator = {},
-            )
-        },
     ) { focus ->
-        TvButton(
-            onClick = onResume,
-            modifier = Modifier
-                .fillMaxWidth()
-                .focusRequester(focus)
-                .onFocusChanged { if (it.isFocused) restartFocused = false },
+        val dialog = LocalView.current.parent as? DialogWindowProvider
+        SideEffect { dialog?.window?.setDimAmount(0f) }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(stringResource(R.string.tv_player_resume_continue, startFromSeconds.elapsedLabel()))
-        }
-        TvButton(
-            onClick = onRestart,
-            modifier = Modifier
-                .fillMaxWidth()
-                .onFocusChanged { if (it.isFocused) restartFocused = true },
-        ) {
-            Text(stringResource(R.string.tv_player_resume_restart))
+            TvButton(onClick = onRestart, style = TvButtonStyle.Text) {
+                Text(stringResource(PlaybackR.string.playback_start_over), style = BUTTON_LABEL)
+            }
+            TvButton(onClick = onResume, style = TvButtonStyle.Filled, modifier = Modifier.focusRequester(focus)) {
+                Text(stringResource(PlaybackR.string.playback_resume), style = BUTTON_LABEL)
+            }
         }
     }
 }
 
-private fun Double.elapsedLabel(): String = DateUtils.formatElapsedTime(toLong())
+private fun resumeTitle(title: String, time: String): AnnotatedString {
+    val start = title.indexOf(time)
+    if (start < 0) return AnnotatedString(title)
+    return buildAnnotatedString {
+        append(title)
+        addStyle(SpanStyle(fontFamily = PutioTypeScale.tvMono.fontFamily), start, start + time.length)
+    }
+}
+
+private const val MILLIS_PER_SECOND = 1_000L
+private const val POSTER_DIM = 0.65f
+private val BUTTON_LABEL = PutioTypeScale.tvBody.copy(fontSize = 14.sp, fontWeight = FontWeight.Medium)

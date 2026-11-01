@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tv_player_play">Play</string>
+    <string name="tv_player_pause">Pause</string>
+    <string name="tv_player_seek_back">Back 10 seconds</string>
+    <string name="tv_player_seek_forward">Forward 10 seconds</string>
+    <string name="tv_player_audio">Audio</string>
+    <string name="tv_player_caption_settings">Font and colours follow your TV’s caption settings.</string>
+</resources>

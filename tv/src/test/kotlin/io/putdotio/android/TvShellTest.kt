@@ -5,8 +5,10 @@ import io.putdotio.android.tv.setTvContent
 import io.putdotio.android.tv.pressCenter
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -25,10 +27,13 @@ import io.putdotio.android.search.SearchContent
 import io.putdotio.android.search.SearchTerm
 import io.putdotio.android.tv.TvDestination
 import io.putdotio.android.tv.TvLinkScreen
+import io.putdotio.android.tv.TvOfflineScreen
 import io.putdotio.android.tv.search.TV_SEARCH_FIELD_TAG
 import io.putdotio.android.tv.search.TvRecentSearchActions
 import io.putdotio.android.tv.search.TvSearchActions
 import io.putdotio.android.tv.search.TvSearchScreen
+import io.putdotio.android.tv.search.tvSearchDetail
+import io.putdotio.android.tv.search.tvSearchResults
 import androidx.compose.ui.test.onNodeWithTag
 import io.putdotio.android.history.HistoryContent
 import io.putdotio.android.history.HistoryEvent
@@ -51,6 +56,17 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import io.putdotio.android.search.searchState
 import io.putdotio.android.history.historyState
+import io.putdotio.android.history.HistoryController
+import io.putdotio.android.history.HistoryPage
+import io.putdotio.android.history.HistoryRepository
+import kotlinx.coroutines.CompletableDeferred
+import androidx.compose.runtime.collectAsState
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.TestTimeSource
 
 @OptIn(ExperimentalTestApi::class)
 @RunWith(AndroidJUnit4::class)
@@ -62,7 +78,7 @@ class TvShellTest {
     val compose = createAndroidComposeRule<androidx.activity.ComponentActivity>()
 
     @Test
-    fun linkScreenShowsCodeAndLinkUrlWithNewCodeFocused() {
+    fun linkScreenShowsBothWaysInWithNewCodeFocused() {
         var sessionExpired by mutableStateOf(false)
         compose.setTvContent {
             TvLinkScreen(
@@ -72,31 +88,49 @@ class TvShellTest {
             )
         }
 
+        compose.onNodeWithText("Sign in to put.io").assertIsDisplayed()
+        compose.onNodeWithText("With your phone").assertIsDisplayed()
+        compose.onNodeWithText("Scan with your camera and approve.").assertIsDisplayed()
+        compose.onNodeWithText("In a browser").assertIsDisplayed()
+        compose.onNodeWithText("Go to put.io/link and enter").assertIsDisplayed()
         compose.onNodeWithContentDescription("Activation code GIQTKN").assertIsDisplayed()
-        compose.onNodeWithText("put.io/link").assertIsDisplayed()
-        compose.onNodeWithText("Get new code").assertIsFocused()
+        compose.onNodeWithText("Get a new code").assertIsFocused()
+        compose.onNodeWithText("This code expired.").assertDoesNotExist()
         compose.onNodeWithText("Your session expired. Sign in again to continue.").assertDoesNotExist()
 
         compose.runOnIdle { sessionExpired = true }
+        compose.onNodeWithText("Welcome back!").assertIsDisplayed()
         compose.onNodeWithText("Your session expired. Sign in again to continue.").assertIsDisplayed()
         compose.onNodeWithContentDescription("Activation code GIQTKN").assertIsDisplayed()
     }
 
     @Test
-    fun expiredCodeExplainsAndOffersANewOne() {
+    fun expiredCodeStaysOnScreenUnderTheNoticeAndOffersANewOne() {
         var requests = 0
         compose.setTvContent {
             TvLinkScreen(
-                phase = TvLinkPhase.Stopped(TvLinkStop.CodeExpired),
-                sessionExpired = true,
+                phase = TvLinkPhase.Stopped(TvLinkStop.CodeExpired, code = "GIQTKN"),
+                sessionExpired = false,
                 onRequestNewCode = { requests += 1 },
             )
         }
 
-        compose.onNodeWithText("Your session expired. Sign in again to continue.").assertIsDisplayed()
-        compose.onNodeWithText("That code expired. Get a new one to continue.").assertIsDisplayed()
-        compose.onNodeWithText("Get new code").assertIsFocused().performKeyInput { pressCenter() }
+        compose.onNodeWithText("This code expired.").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Activation code GIQTKN").assertIsDisplayed()
+        compose.onNodeWithText("Get a new code").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(1, requests)
+    }
+
+    @Test
+    fun offlineStartSaysTheSignInIsSavedAndTriesNowOnRequest() {
+        var tries = 0
+        compose.setTvContent { TvOfflineScreen(onTryNow = { tries += 1 }) }
+
+        compose.onNodeWithText("Can't reach put.io.").assertIsDisplayed()
+        compose.onNodeWithText("Your sign-in is saved. The app tries again on its own when the network is back.")
+            .assertIsDisplayed()
+        compose.onNodeWithText("Try now").assertIsFocused().performKeyInput { pressCenter() }
+        assertEquals(1, tries)
     }
 
     @Test
@@ -114,61 +148,101 @@ class TvShellTest {
                 onSignOut = {},
             )
         }
-        compose.onNodeWithText("Your account has been deactivated 😢").assertIsDisplayed()
-        compose.onNodeWithText("Your files are still here, but they are scheduled to be deleted in 14 days.")
+        compose.onNodeWithText("Your account has been deactivated.").assertIsDisplayed()
+        compose.onNodeWithText("Your files are deleted in 14 days unless you renew.")
             .assertIsDisplayed()
         compose.onAllNodesWithText("app.put.io", substring = true).assertCountEquals(0)
         compose.onNodeWithText("Keep a good thing going!").assertDoesNotExist()
 
+        compose.openTab(TvDestination.Files)
         compose.onNodeWithText("Your files will show up here.").assertIsFocused().performKeyInput {
             pressKey(Key.DirectionUp)
         }
-        compose.onNodeWithText("Your files will show up here.").assertIsFocused().performKeyInput {
-            pressKey(Key.DirectionLeft)
-        }
-        compose.onNode(hasText("Files") and hasClickAction()).assertIsFocused().performKeyInput {
+        compose.onTab("Files").assertIsFocused().performKeyInput {
+            repeat(3) { pressKey(Key.DirectionRight) }
             pressKey(Key.DirectionDown)
-            pressKey(Key.DirectionDown)
-            pressKey(Key.DirectionDown)
-            pressCenter()
         }
         compose.onNodeWithText("Sign out").assertIsFocused()
-        compose.onNodeWithText("Your account has been deactivated 😢").assertIsDisplayed()
+        compose.onNodeWithText("Your account has been deactivated.").assertIsDisplayed()
 
-        compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
-        compose.waitForIdle()
-        compose.onNodeWithText("Your files will show up here.").assertIsFocused()
-        compose.onNodeWithText("Your account has been deactivated 😢").assertIsDisplayed()
+        compose.pressBack()
+        compose.onTab("Account").assertIsFocused()
+        compose.pressBack()
+        compose.onTab("Home").assertIsFocused().assertIsSelected()
+        compose.onNodeWithText("Your account has been deactivated.").assertIsDisplayed()
     }
 
     @Test
-    fun shellListsDestinationsAndDpadMovesBetweenDrawerAndPane() {
+    fun shellOpensOnHomeAndATabSelectsWhenItTakesFocus() {
         compose.setTvContent {
             TvShell(account = TvAccount(userId = 1, username = "user", email = "user@example.com"), onSignOut = {})
         }
 
-        compose.onNodeWithText("put.io").assertIsDisplayed()
-        compose.onNodeWithText("Your files will show up here.").assertIsFocused()
+        compose.onNodeWithContentDescription("put.io").assertIsDisplayed()
+        listOf("Home", "Files", "Search", "History", "Account").forEach { compose.onTab(it).assertIsDisplayed() }
+        compose.onTab("Home").assertIsFocused().assertIsSelected()
+        compose.onNodeWithText("Continue watching and pinned files will show up here.").assertIsDisplayed()
 
-        compose.onNodeWithText("Your files will show up here.").performKeyInput { pressKey(Key.DirectionLeft) }
-        compose.onNode(hasText("Files") and hasClickAction()).assertIsFocused()
-        listOf("Files", "Search", "History", "Account").forEach {
-            compose.onNode(hasText(it) and hasClickAction()).assertIsDisplayed()
-        }
+        compose.onTab("Home").performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onTab("Files").assertIsFocused().assertIsSelected()
+        compose.onTab("Home").assertIsNotSelected()
+        compose.onNodeWithText("Your files will show up here.").assertIsDisplayed()
 
-        compose.onNode(hasText("Files") and hasClickAction()).performKeyInput {
-            pressKey(Key.DirectionDown)
-            pressKey(Key.DirectionDown)
-            pressKey(Key.DirectionDown)
-        }
-        compose.onNode(hasText("Account") and hasClickAction()).assertIsFocused()
-        compose.onNode(hasText("Account") and hasClickAction()).performKeyInput { pressCenter() }
+        compose.onTab("Files").performKeyInput { repeat(3) { pressKey(Key.DirectionRight) } }
+        compose.onTab("Account").assertIsFocused().assertIsSelected()
         compose.onNodeWithText("Signed in as user").assertIsDisplayed()
+        compose.onTab("Account").performKeyInput { pressKey(Key.DirectionDown) }
         compose.onNodeWithText("Sign out").assertIsFocused()
     }
 
     @Test
-    fun searchDestinationFocusesTheFieldAndAResultRequestReturnsToFiles() {
+    fun withHomeHiddenTheShellOpensOnFilesAndBackInTheTabBarReturnsThere() {
+        compose.setTvContent {
+            TvShell(
+                account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                onSignOut = {},
+                showHome = false,
+            )
+        }
+
+        compose.onAllNodesWithText("Home").assertCountEquals(0)
+        compose.onTab("Files").assertIsSelected()
+        compose.onNodeWithText("Your files will show up here.").assertIsDisplayed()
+
+        compose.onNodeWithText("Your files will show up here.").performKeyInput { pressKey(Key.DirectionUp) }
+        compose.onTab("Files").performKeyInput { repeat(3) { pressKey(Key.DirectionRight) } }
+        compose.onTab("Account").assertIsFocused().assertIsSelected()
+        compose.pressBack()
+        compose.onTab("Files").assertIsFocused().assertIsSelected()
+    }
+
+    @Test
+    fun aHomeRequestWhileHomeIsHiddenStaysOnFiles() {
+        var requested by mutableStateOf<TvDestination?>(null)
+        compose.setTvContent {
+            TvShell(
+                account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                onSignOut = {},
+                showHome = false,
+                requestedDestination = requested,
+                onDestinationRequestHandled = { requested = null },
+            )
+        }
+        compose.onNodeWithText("Your files will show up here.").performKeyInput { pressKey(Key.DirectionUp) }
+        compose.onTab("Files").performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onTab("Search").assertIsSelected()
+
+        requested = TvDestination.Home
+        compose.waitForIdle()
+
+        compose.onTab("Files").assertIsSelected()
+        compose.onNodeWithText("Your files will show up here.").assertIsDisplayed()
+        compose.pressBack()
+        compose.onTab("Files").assertIsFocused()
+    }
+
+    @Test
+    fun searchTabEntersOnTheFieldAndAResultRequestMovesFocusIntoFiles() {
         val search = searchState(
             query = "",
             content = SearchContent.Idle,
@@ -185,35 +259,33 @@ class TvShellTest {
                 account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
                 onSignOut = {},
                 searchPane = { paneFocus ->
-                    TvSearchScreen(state = search, actions = actions, modifier = Modifier.focusRequester(paneFocus))
+                    TvSearchScreen(
+                        state = search,
+                        actions = actions,
+                        results = tvSearchResults(),
+                        detail = tvSearchDetail(),
+                        modifier = Modifier.focusRequester(paneFocus),
+                    )
                 },
                 requestedDestination = requested,
                 onDestinationRequestHandled = { requested = null },
             )
         }
-        compose.onNodeWithText("Your files will show up here.").performKeyInput { pressKey(Key.DirectionLeft) }
-        compose.onNode(hasText("Files") and hasClickAction()).performKeyInput {
-            pressKey(Key.DirectionDown)
-            pressCenter()
-        }
+        compose.openTab(TvDestination.Search)
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assertIsFocused().performKeyInput {
             pressKey(Key.DirectionDown)
-        }
-        compose.onNodeWithContentDescription("Search again for tears").assertIsFocused().performKeyInput {
-            pressKey(Key.DirectionLeft)
-        }
-        compose.onNode(hasText("Search") and hasClickAction()).assertIsFocused().performKeyInput {
-            pressKey(Key.DirectionRight)
+            pressKey(Key.DirectionDown)
         }
         compose.onNodeWithContentDescription("Search again for tears").assertIsFocused()
 
         compose.runOnIdle { requested = TvDestination.Files }
+        compose.onTab("Files").assertIsSelected()
         compose.onNodeWithText("Your files will show up here.").assertIsFocused()
         compose.runOnIdle { assertEquals(null, requested) }
     }
 
     @Test
-    fun historyDestinationFocusesTheFirstRowAndAnOpenRequestReturnsToFiles() {
+    fun historyTabEntersOnTheFirstRowAndUpFromItReachesTheTabBar() {
         val history = historyState(
             HistoryContent.Ready(
                 listOf(
@@ -227,7 +299,6 @@ class TvShellTest {
             ),
         )
         val events = mutableListOf<HistoryEvent>()
-        var requested by mutableStateOf<TvDestination?>(null)
         compose.setTvContent {
             TvShell(
                 account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
@@ -235,31 +306,83 @@ class TvShellTest {
                 historyPane = { paneFocus ->
                     TvHistoryScreen(
                         state = history,
-                        onEvent = { events += it; true },
+                        onEvent = {
+                            if (it != HistoryEvent.Refresh) events += it
+                            true
+                        },
                         modifier = Modifier.focusRequester(paneFocus),
                     )
                 },
-                requestedDestination = requested,
-                onDestinationRequestHandled = { requested = null },
             )
         }
-        compose.onNodeWithText("Your files will show up here.").performKeyInput { pressKey(Key.DirectionLeft) }
-        compose.onNode(hasText("Files") and hasClickAction()).performKeyInput {
-            pressKey(Key.DirectionDown)
-            pressKey(Key.DirectionDown)
-            pressCenter()
-        }
+        compose.openTab(TvDestination.History)
         compose.onNodeWithContentDescription("Open Sintel.mp4").assertIsFocused().performKeyInput {
-            pressKey(Key.DirectionLeft)
+            pressKey(Key.DirectionUp)
+            pressKey(Key.DirectionUp)
         }
-        compose.onNode(hasText("History") and hasClickAction()).assertIsFocused().performKeyInput {
-            pressKey(Key.DirectionRight)
+        compose.onTab("History").assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNode(hasText("Clear history") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionDown)
         }
         compose.onNodeWithContentDescription("Open Sintel.mp4").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf<HistoryEvent>(HistoryEvent.OpenFile(HistoryFileId(5))), events)
-
-        compose.runOnIdle { requested = TvDestination.Files }
-        compose.onNodeWithText("Your files will show up here.").assertIsFocused()
-        compose.runOnIdle { assertEquals(null, requested) }
     }
+
+    @Test
+    fun historyShownAgainListsNewEventsAndKeepsTheFocusedRow() {
+        var events = listOf(historyEvent(2, "Sintel.mp4"), historyEvent(1, "Big Buck Bunny.mp4"))
+        var gate: CompletableDeferred<Unit>? = null
+        val repository = object : HistoryRepository {
+            override suspend fun load(before: HistoryEventId?): PutioResult<HistoryPage> {
+                gate?.await()
+                return PutioResult.Success(HistoryPage(if (before == null) events else emptyList(), hasMore = false))
+            }
+
+            override suspend fun clear() = error("No clear expected")
+        }
+        val clock = TestTimeSource()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+        val controller = HistoryController(repository, historyEnabled = true, parentScope = scope, clock = clock)
+        try {
+            compose.setTvContent {
+                val state by controller.state.collectAsState()
+                TvShell(
+                    account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                    onSignOut = {},
+                    historyPane = { paneFocus ->
+                        TvHistoryScreen(
+                            state = state,
+                            onEvent = controller::dispatch,
+                            modifier = Modifier.focusRequester(paneFocus),
+                        )
+                    },
+                )
+            }
+            compose.openTab(TvDestination.History)
+            compose.onNodeWithContentDescription("Open Sintel.mp4").assertIsFocused().performKeyInput {
+                repeat(2) { pressKey(Key.DirectionUp) }
+            }
+            val refreshed = CompletableDeferred<Unit>().also { gate = it }
+            events = listOf(historyEvent(3, "Tears of Steel.mp4")) + events
+            clock += 2.minutes
+            compose.onTab("History").assertIsFocused().performKeyInput { pressKey(Key.DirectionLeft) }
+            compose.onTab("Search").assertIsSelected().performKeyInput { pressKey(Key.DirectionRight) }
+            compose.onTab("History").assertIsSelected().performKeyInput { pressKey(Key.DirectionDown) }
+            compose.onNodeWithContentDescription("Open Sintel.mp4").assertIsFocused().performKeyInput {
+                pressKey(Key.DirectionDown)
+            }
+            compose.onNodeWithContentDescription("Open Big Buck Bunny.mp4").assertIsFocused()
+
+            compose.runOnIdle { refreshed.complete(Unit) }
+
+            compose.onNodeWithContentDescription("Open Tears of Steel.mp4").assertExists()
+            compose.onNodeWithContentDescription("Open Big Buck Bunny.mp4").assertIsFocused()
+        } finally {
+            controller.close()
+            scope.cancel()
+        }
+    }
+
+    private fun historyEvent(id: Long, name: String) =
+        HistoryItem(HistoryEventId(id), "2026-09-10T10:00:00", HistoryEventKind.File(HistoryFileId(id + 10), name))
 }

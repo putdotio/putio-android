@@ -5,7 +5,7 @@ import io.putdotio.android.settings.AndroidAppConfigChange
 import io.putdotio.android.settings.SdkAndroidAppConfigRepository
 import io.putdotio.android.settings.VIDEO_PLAYBACK_TYPE_KEY
 import io.putdotio.android.settings.VideoPlaybackType
-import io.putdotio.android.settings.toSettingsFailure
+import io.putdotio.android.toScopedFailure
 import io.putdotio.android.settings.toUpdate
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.config.AppConfig
@@ -42,7 +42,7 @@ internal suspend fun AppConfig.withTvNativePlaybackType(save: suspend (AppConfig
     try {
         save(update)
     } catch (error: PutioException) {
-        if (error.toSettingsFailure() is PutioFailure.AuthenticationRequired) throw error
+        if (error.toScopedFailure() is PutioFailure.AuthenticationRequired) throw error
         // The key stays absent, so the next read writes again.
     }
     return AppConfig(values + (update.key to update.value))

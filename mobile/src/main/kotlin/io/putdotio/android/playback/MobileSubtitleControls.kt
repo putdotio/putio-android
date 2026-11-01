@@ -1,8 +1,6 @@
 package io.putdotio.android.playback
 
-import android.content.Context
-import androidx.core.content.edit
-import androidx.annotation.StringRes
+import io.putdotio.android.playback.R as PlaybackR
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,14 +22,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.Stable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -46,7 +38,6 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.media3.common.C
-import androidx.media3.common.MimeTypes
 import androidx.media3.common.Player as Media3Player
 import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.util.UnstableApi
@@ -58,95 +49,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.media3.ui.SubtitleView
 import io.putdotio.sdk.files.PlaybackSubtitle
-import io.putdotio.sdk.files.PlaybackSubtitles
-import java.util.Locale
-import kotlin.math.abs
-
-/** Where a subtitle track comes from, in the order the sheet lists them. */
-internal enum class SubtitleOrigin { File, Folder, OpenSubtitles }
-
-/**
- * A track put.io listed is found by its key, which Media3 keeps as the format id (prefixed with the
- * merged period's index). Tracks put.io did not list come with the stream: they are in the file.
- */
-@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-internal fun PlaybackSubtitleTrack.putioSubtitle(sidecar: List<PlaybackSubtitle>): PlaybackSubtitle? {
-    val id = identity.id ?: return null
-    return sidecar.firstOrNull { id == it.key || id.endsWith(":${it.key}") }
-}
-
-internal fun PlaybackSubtitle?.origin(): SubtitleOrigin =
-    when (this?.source) {
-        null, SOURCE_MKV -> SubtitleOrigin.File
-        SOURCE_FOLDER -> SubtitleOrigin.Folder
-        else -> SubtitleOrigin.OpenSubtitles
-    }
-
-private const val SOURCE_MKV = "mkv"
-private const val SOURCE_FOLDER = "folder"
-
-/** The text sizes the viewer picks from, relative to Android's caption size. */
-internal enum class SubtitleTextSize(
-    val scale: Float,
-    val short: String,
-    @StringRes val label: Int,
-) {
-    Small(SMALL_SCALE, "S", R.string.mobile_playback_subtitle_size_small),
-    Medium(1f, "M", R.string.mobile_playback_subtitle_size_medium),
-    Large(LARGE_SCALE, "L", R.string.mobile_playback_subtitle_size_large),
-    ExtraLarge(EXTRA_LARGE_SCALE, "XL", R.string.mobile_playback_subtitle_size_extra_large),
-}
-
-private const val SMALL_SCALE = 0.75f
-private const val LARGE_SCALE = 1.25f
-private const val EXTRA_LARGE_SCALE = 1.5f
-
-/** One timing step, and how far either way the timing goes. */
-internal const val SUBTITLE_OFFSET_STEP_MILLIS = 100L
-internal const val SUBTITLE_OFFSET_LIMIT_MILLIS = 10_000L
-
-/** The subtitle text size this device keeps across videos. */
-@Stable
-internal class SubtitleAppearanceStore(private val context: Context?) {
-    var textSize by mutableStateOf(read())
-        private set
-
-    fun update(size: SubtitleTextSize) {
-        textSize = size
-        context?.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)?.edit {
-            putString(TEXT_SIZE_KEY, size.name)
-        }
-    }
-
-    private fun read(): SubtitleTextSize {
-        val stored = context?.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
-            ?.getString(TEXT_SIZE_KEY, null)
-        return SubtitleTextSize.entries.firstOrNull { it.name == stored } ?: SubtitleTextSize.Medium
-    }
-
-    private companion object {
-        const val PREFERENCES_NAME = "io.put.player"
-        const val TEXT_SIZE_KEY = "subtitle_text_size"
-    }
-}
-
-@Composable
-internal fun rememberSubtitleAppearanceStore(): SubtitleAppearanceStore {
-    val context = LocalContext.current.applicationContext
-    return remember(context) { SubtitleAppearanceStore(context) }
-}
-
-/** "+0.5 s", "−0.3 s", "0.0 s": the offset in seconds with one decimal and a real minus sign. */
-internal fun formatSubtitleOffset(offsetMillis: Long): String {
-    val seconds = String.format(Locale.ROOT, "%.1f", abs(offsetMillis) / MILLIS_PER_SECOND)
-    return when {
-        offsetMillis > 0 -> "+$seconds s"
-        offsetMillis < 0 -> "−$seconds s"
-        else -> "$seconds s"
-    }
-}
-
-private const val MILLIS_PER_SECOND = 1_000.0
 
 /** The track the viewer picked, else the one showing; null when subtitles are off. */
 private fun PlayerOptionsSnapshot.currentSubtitle(): PlaybackSubtitleTrack? {
@@ -167,7 +69,7 @@ internal fun MobileSubtitlesChip(
         ?: stringResource(R.string.mobile_playback_subtitles_disabled)
     MobilePlayerChip(
         label = label,
-        description = stringResource(R.string.mobile_playback_subtitles_chip, label),
+        description = stringResource(PlaybackR.string.playback_subtitles_chip, label),
         onClick = onClick,
         leadingIcon = R.drawable.ic_ph_subtitles,
         modifier = modifier,
@@ -221,10 +123,13 @@ internal fun MobileSubtitlesSheetContent(
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
             )
         }
-        val names = subtitleRowNames(tracks.map { (_, track, subtitle) -> track to subtitle }, tracks.map { it.first })
-    val inFile = tracks.filter { it.third.origin() == SubtitleOrigin.File }
+        val names = subtitleTrackLabels(snapshot.subtitleTracks, sidecar)
+        val inFile = tracks.filter { it.third.origin() == SubtitleOrigin.File }
         val found = tracks.filter { it.third.origin() != SubtitleOrigin.File }.sortedBy { it.third.origin() }
-        listOf(R.string.mobile_playback_subtitles_in_file to inFile, R.string.mobile_playback_subtitles_found to found)
+        listOf(
+            PlaybackR.string.playback_subtitles_in_file to inFile,
+            PlaybackR.string.playback_subtitles_found to found,
+        )
             .filter { it.second.isNotEmpty() }
             .forEach { (heading, group) ->
                 MobileSideSheetLabel(stringResource(heading))
@@ -258,67 +163,6 @@ internal fun MobileSubtitleTrackOption(
     )
 }
 
-/** Row names, numbered only where two rows would otherwise read the same. */
-@Composable
-private fun subtitleRowNames(
-    rows: List<Pair<PlaybackSubtitleTrack, PlaybackSubtitle?>>,
-    indices: List<Int>,
-): List<String> {
-    val names = rows.mapIndexed { position, (track, _) -> subtitleTrackName(track, indices[position]) }
-    val details = rows.map { (track, subtitle) -> subtitleTrackDetails(track, subtitle) }
-    val keyed = names.zip(details)
-    return names.mapIndexed { position, name ->
-        if (keyed.count { it == keyed[position] } > 1) {
-            stringResource(R.string.mobile_playback_audio_track_disambiguated, name, indices[position] + 1)
-        } else {
-            name
-        }
-    }
-}
-
-/** A track's language in its own words, marked SDH where the format says so. */
-@Composable
-private fun subtitleTrackName(track: PlaybackSubtitleTrack, index: Int): String {
-    val name = languageName(track.identity.language) ?: track.label
-        ?: stringResource(R.string.mobile_playback_subtitle_track, index + 1)
-    return if (track.identity.roleFlags and C.ROLE_FLAG_DESCRIBES_MUSIC_AND_SOUND != 0) {
-        name + DETAIL_SEPARATOR + stringResource(R.string.mobile_playback_subtitle_sdh)
-    } else {
-        name
-    }
-}
-
-/** A track in the file names its format; one put.io found names where it found it. */
-@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-@Composable
-private fun subtitleTrackDetails(track: PlaybackSubtitleTrack, subtitle: PlaybackSubtitle?): String? =
-    when (subtitle.origin()) {
-        SubtitleOrigin.Folder -> stringResource(R.string.mobile_playback_subtitles_from_folder)
-        SubtitleOrigin.OpenSubtitles -> stringResource(R.string.mobile_playback_subtitles_from_opensubtitles)
-        SubtitleOrigin.File -> subtitle?.format?.takeIf { it.isNotBlank() }?.uppercase(Locale.ROOT)
-            ?: subtitleFormatName(
-                track.group.getFormat(track.trackIndex).let { format ->
-                    // Codecs can read "text/vtt wvtt"; Media3 picks the text MIME type out of it.
-                    format.codecs?.let(MimeTypes::getTextMediaMimeType) ?: format.sampleMimeType
-                },
-            )
-    }
-
-internal fun subtitleFormatName(mimeType: String?): String? =
-    when (mimeType) {
-        MimeTypes.APPLICATION_SUBRIP -> "SRT"
-        MimeTypes.TEXT_VTT -> "VTT"
-        MimeTypes.TEXT_SSA -> "SSA"
-        MimeTypes.APPLICATION_TTML -> "TTML"
-        MimeTypes.APPLICATION_PGS -> "PGS"
-        MimeTypes.APPLICATION_VOBSUB -> "VobSub"
-        MimeTypes.APPLICATION_DVBSUBS -> "DVB"
-        MimeTypes.APPLICATION_TX3G -> "TX3G"
-        MimeTypes.APPLICATION_CEA608, MimeTypes.APPLICATION_MP4CEA608 -> "CEA-608"
-        MimeTypes.APPLICATION_CEA708 -> "CEA-708"
-        else -> null
-    }
-
 @Composable
 private fun MobileSubtitleAppearanceRow(textSize: SubtitleTextSize, offsetMillis: Long, onClick: () -> Unit) {
     Row(
@@ -333,12 +177,12 @@ private fun MobileSubtitleAppearanceRow(textSize: SubtitleTextSize, offsetMillis
     ) {
         Icon(painterResource(R.drawable.ic_ph_text_aa), contentDescription = null, modifier = Modifier.size(24.dp))
         Column(Modifier.weight(1f)) {
-            Text(stringResource(R.string.mobile_playback_subtitle_appearance), style = PutioTypeScale.bodyMd)
+            Text(stringResource(PlaybackR.string.playback_size_and_timing), style = PutioTypeScale.bodyMd)
             val sizeName = stringResource(textSize.label)
             Text(
                 buildAnnotatedString {
                     append(sizeName)
-                    append(DETAIL_SEPARATOR)
+                    append(TRACK_DETAIL_SEPARATOR)
                     withStyle(SpanStyle(fontFamily = PutioTypeScale.mono.fontFamily, fontFeatureSettings = "tnum")) {
                         append(formatSubtitleOffset(offsetMillis))
                     }
@@ -367,7 +211,7 @@ internal fun MobileSubtitleAppearanceContent(
     onTextSize: (SubtitleTextSize) -> Unit,
     onOffset: (Long) -> Unit,
 ) {
-    MobileSideSheetLabel(stringResource(R.string.mobile_playback_subtitle_text_size))
+    MobileSideSheetLabel(stringResource(PlaybackR.string.playback_text_size))
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 24.dp).selectableGroup(),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -395,7 +239,7 @@ internal fun MobileSubtitleAppearanceContent(
             }
         }
     }
-    MobileSideSheetLabel(stringResource(R.string.mobile_playback_subtitle_timing), Modifier.padding(top = 12.dp))
+    MobileSideSheetLabel(stringResource(PlaybackR.string.playback_subtitle_timing), Modifier.padding(top = 12.dp))
     // The 48dp touch bands of the steps and Reset already hold the board's spacing.
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 24.dp),
@@ -404,7 +248,7 @@ internal fun MobileSubtitleAppearanceContent(
     ) {
         OffsetStep(
             label = "−0.1",
-            description = stringResource(R.string.mobile_playback_subtitle_earlier),
+            description = stringResource(PlaybackR.string.playback_subtitle_earlier),
             enabled = offsetMillis > -SUBTITLE_OFFSET_LIMIT_MILLIS,
             onClick = { onOffset(offsetMillis - SUBTITLE_OFFSET_STEP_MILLIS) },
         )
@@ -416,7 +260,7 @@ internal fun MobileSubtitleAppearanceContent(
         )
         OffsetStep(
             label = "+0.1",
-            description = stringResource(R.string.mobile_playback_subtitle_later),
+            description = stringResource(PlaybackR.string.playback_subtitle_later),
             enabled = offsetMillis < SUBTITLE_OFFSET_LIMIT_MILLIS,
             onClick = { onOffset(offsetMillis + SUBTITLE_OFFSET_STEP_MILLIS) },
         )
@@ -426,7 +270,7 @@ internal fun MobileSubtitleAppearanceContent(
         enabled = offsetMillis != 0L,
         modifier = Modifier.padding(horizontal = 12.dp),
         colors = neutralTextButtonColors(),
-    ) { Text(stringResource(R.string.mobile_playback_subtitle_reset)) }
+    ) { Text(stringResource(PlaybackR.string.playback_subtitle_reset)) }
     Text(
         stringResource(R.string.mobile_playback_subtitle_caption_settings),
         style = MaterialTheme.typography.bodySmall.copy(fontSize = PutioTypeScale.labelSm.fontSize),
@@ -461,9 +305,6 @@ private fun OffsetStepButton(label: String, description: String, enabled: Boolea
 
 private val OFFSET_VALUE_SIZE = 20.sp
 private val OFFSET_VALUE_LINE = 28.sp
-
-internal fun PlaybackSubtitles?.sidecarTracks(): List<PlaybackSubtitle> =
-    (this as? PlaybackSubtitles.Sidecar)?.tracks.orEmpty()
 
 /**
  * The bottom padding, as a fraction of the video's height, that keeps bottom-placed subtitles

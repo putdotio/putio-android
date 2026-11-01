@@ -12,6 +12,11 @@ import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesItemResolver
 import io.putdotio.android.files.FilesOpenOrigin
 import io.putdotio.android.files.FilesPage
+import io.putdotio.sdk.errors.PutioRequestData
+import io.putdotio.sdk.errors.PutioApiException
+import io.putdotio.sdk.errors.PutioApiErrorEnvelope
+import io.putdotio.sdk.files.FileDeleteResult
+import io.putdotio.android.files.FilesDeleteMode
 import io.putdotio.android.files.FilesStreamUrlResult
 import io.putdotio.android.files.FilesStreamUrls
 import io.putdotio.android.files.FilesWatchedRepository
@@ -59,6 +64,8 @@ import io.putdotio.android.trash.TrashRepository
 import io.putdotio.android.tv.auth.TvAccount
 import io.putdotio.android.tv.auth.TvAuthSessionId
 import io.putdotio.android.tv.auth.TvAuthState
+import io.putdotio.android.tv.home.TvMemoryContinueWatchingStore
+import io.putdotio.android.tv.home.TvShowHomeStore
 import io.putdotio.android.tv.watchnext.TvWatchNextMedia
 import io.putdotio.android.tv.watchnext.TvWatchNextRecorder
 import io.putdotio.sdk.errors.PutioConfigurationException
@@ -179,38 +186,29 @@ class TvSessionViewModelTest {
     }
 
     @Test
-    fun `History lists only shared files and completed transfers, as tv-native does`() {
-        // tv-native filters on the event type, so a share without a file id stays listed.
-        val sharedWithoutFile = HistoryItem(
-            HistoryEventId(5),
-            "2026-09-12T11:00:00",
-            HistoryEventKind.File(id = null, name = "Removed share.mp4"),
-        )
-        val shared = HistoryItem(
-            HistoryEventId(4),
-            "2026-09-12T10:00:00",
-            HistoryEventKind.File(HistoryFileId(40), "Harbor film.mp4"),
-        )
-        val completed = HistoryItem(
-            HistoryEventId(2),
-            "2026-09-12T09:00:00",
-            HistoryEventKind.Transfer(HistoryTransferId(20), HistoryFileId(21), "Sample folder"),
-        )
+    fun `History lists every event the phone lists`() {
         historyItems = listOf(
-            sharedWithoutFile,
-            shared,
+            HistoryItem(
+                HistoryEventId(5),
+                "2026-09-12T11:00:00",
+                HistoryEventKind.File(id = null, name = "Removed share.mp4"),
+            ),
             HistoryItem(
                 HistoryEventId(3),
                 "2026-09-12T09:30:00",
                 HistoryEventKind.Notice(HistoryNoticeType.Upload, "clip.mp4"),
             ),
-            completed,
+            HistoryItem(
+                HistoryEventId(2),
+                "2026-09-12T09:00:00",
+                HistoryEventKind.Transfer(HistoryTransferId(20), HistoryFileId(21), "Sample folder"),
+            ),
             HistoryItem(HistoryEventId(1), "2026-09-12T08:00:00", HistoryEventKind.Other("zip_created")),
         )
         val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
 
         assertEquals(
-            HistoryContent.Ready(listOf(sharedWithoutFile, shared, completed), HistoryPaging.Complete),
+            HistoryContent.Ready(historyItems, HistoryPaging.Complete),
             session.history.state.value.content,
         )
     }
@@ -269,7 +267,7 @@ class TvSessionViewModelTest {
         assertEquals(rejected, session.fileActionFailure.value)
         assertEquals(
             "https://api.put.io/v2/files/9/stream?oauth_token=t",
-            (session.originalStreamUrl(video) as FilesStreamUrlResult.Ready).url,
+            (session.originalStreamUrl(video.id) as FilesStreamUrlResult.Ready).url,
         )
     }
 
@@ -279,7 +277,7 @@ class TvSessionViewModelTest {
         streamResult = { FilesStreamUrlResult.Failure(rejected) }
         val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
 
-        val result = session.originalStreamUrl(streamItem)
+        val result = session.originalStreamUrl(streamItem.id)
 
         assertEquals(FilesStreamUrlResult.Failure(rejected), result)
         assertEquals(rejected, session.fileActionFailure.value)
@@ -292,12 +290,12 @@ class TvSessionViewModelTest {
         val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
 
         streamResult = { FilesStreamUrlResult.DownloadTokenUnavailable }
-        assertEquals(FilesStreamUrlResult.DownloadTokenUnavailable, session.originalStreamUrl(streamItem))
+        assertEquals(FilesStreamUrlResult.DownloadTokenUnavailable, session.originalStreamUrl(streamItem.id))
         assertNull(session.fileActionFailure.value)
 
         val offline = FilesStreamUrlResult.Failure(PutioFailure.Unexpected(IllegalStateException("offline")))
         streamResult = { offline }
-        assertEquals(offline, session.originalStreamUrl(streamItem))
+        assertEquals(offline, session.originalStreamUrl(streamItem.id))
         assertNull(session.fileActionFailure.value)
     }
 
@@ -468,6 +466,18 @@ class TvSessionViewModelTest {
     }
 
     @Test
+    fun `Open folder shows a video's folder in Files without playing it`() {
+        val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
+        val clip = media(12, "clip.mp4", PutioFileType.VIDEO).copy(parentId = FilesItemId(44))
+
+        assertEquals(TvExternalOpen.IN_FILES, session.openExternal(clip, FilesOpenOrigin.HISTORY, playMedia = false))
+
+        assertEquals(FilesItemId(44), session.files.state.value.current.folder.id)
+        assertEquals(12L, session.filesFocusMemory[44L])
+        assertNull(session.playback.value)
+    }
+
+    @Test
     fun `a folder pick opens that folder in Files`() {
         val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
 
@@ -497,6 +507,27 @@ class TvSessionViewModelTest {
 
         assertEquals(TvExternalOpen.PLAYING, session.links.opens.first())
         assertTrue(checkNotNull(session.playback.value).state.value.content is PlaybackContent.AwaitingResume)
+    }
+
+    @Test
+    fun `the detail's Resume and Start over answer the resume prompt the row asks`() = runTest {
+        playbackRepository.savedSeconds = 45.0
+        val video = media(55, "Blue.Lights.mkv", PutioFileType.VIDEO)
+            .copy(playback = FilesPlaybackProgress(45.0, 600.0))
+        val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
+
+        session.play(video)
+        assertTrue(checkNotNull(session.playback.value).state.value.content is PlaybackContent.AwaitingResume)
+
+        session.play(video, TvPlayStart.Resume)
+        val resumed = checkNotNull(session.playback.value).state.value
+        assertTrue(resumed.content is PlaybackContent.Ready)
+        assertEquals(45_000L, resumed.resumePositionMillis)
+
+        session.play(video, TvPlayStart.StartOver)
+        val restarted = checkNotNull(session.playback.value).state.value
+        assertTrue(restarted.content is PlaybackContent.Ready)
+        assertEquals(0L, restarted.resumePositionMillis)
     }
 
     @Test
@@ -550,6 +581,162 @@ class TvSessionViewModelTest {
     }
 
     @Test
+    fun `a video played on TV joins the account's Continue watching and marking it watched removes it`() = runTest {
+        val stores = mutableMapOf<Long, TvMemoryContinueWatchingStore>()
+        val session = checkNotNull(
+            TvSessionViewModel(auth).sessionFor(
+                account(),
+                TvAuthSessionId(1),
+                dependencies.copy(
+                    continueWatchingStore = { userId -> stores.getOrPut(userId) { TvMemoryContinueWatchingStore() } },
+                ),
+            ),
+        )
+        val video = media(9, "clip.mp4", PutioFileType.VIDEO).copy(playback = FilesPlaybackProgress(0.0, 600.0))
+
+        session.play(video)
+        session.stopPlayback()
+        session.positionSaved(9L, 120.0)
+
+        val entry = session.continueWatching.entries.value.single()
+        assertEquals("clip.mp4" to 480L, entry.name to entry.remainingSeconds)
+        assertEquals(listOf(entry), stores.getValue(42L).read())
+
+        session.setWatched(video, watched = true)
+        assertTrue(session.continueWatching.entries.value.isEmpty())
+    }
+
+    @Test
+    fun `deleting a folder in Files takes its videos out of Continue watching`() = runTest {
+        var deleted = false
+        rootPages = listOf(FilesPage(listOf(media(30, "Season 1", PutioFileType.FOLDER)), nextCursor = null))
+        val session = checkNotNull(
+            TvSessionViewModel(auth).sessionFor(
+                account(),
+                TvAuthSessionId(1),
+                dependencies.copy(
+                    filesRepository = object : StubFilesRepository() {
+                        override suspend fun loadFolder(folderId: FilesItemId) = PutioResult.Success(rootPages.single())
+
+                        override suspend fun delete(itemIds: List<FilesItemId>, mode: FilesDeleteMode) =
+                            PutioResult.Success(FileDeleteResult(status = "OK")).also { deleted = true }
+
+                        override suspend fun resolveItem(itemId: FilesItemId) = PutioResult.Failure(notFound())
+                    },
+                    filesItemResolver = object : FilesItemResolver {
+                        override suspend fun resolveItem(itemId: FilesItemId): PutioResult<FilesItem> =
+                            if (deleted) {
+                                PutioResult.Failure(notFound())
+                            } else {
+                                PutioResult.Success(media(itemId.value, "clip.mp4", PutioFileType.VIDEO))
+                            }
+                    },
+                ),
+            ),
+        )
+        val video = media(9, "clip.mp4", PutioFileType.VIDEO).copy(playback = FilesPlaybackProgress(0.0, 600.0))
+        session.play(video)
+        session.stopPlayback()
+        session.positionSaved(9L, 120.0)
+        assertEquals(listOf(FilesItemId(9)), session.continueWatching.entries.value.map { it.fileId })
+
+        session.files.dispatch(FilesBrowserEvent.Delete(FilesFolder.Root.id, FilesItemId(30), FilesDeleteMode.TRASH))
+
+        assertTrue(session.continueWatching.entries.value.isEmpty())
+    }
+
+    @Test
+    fun `moving a file to Trash from Files reloads a Trash listing already open`() = runTest {
+        var trashLoads = 0
+        rootPages = listOf(FilesPage(listOf(media(30, "clip.mp4", PutioFileType.VIDEO)), nextCursor = null))
+        val session = checkNotNull(
+            TvSessionViewModel(auth).sessionFor(
+                account(),
+                TvAuthSessionId(1),
+                dependencies.copy(
+                    filesRepository = object : StubFilesRepository() {
+                        override suspend fun loadFolder(folderId: FilesItemId) = PutioResult.Success(rootPages.single())
+
+                        override suspend fun delete(itemIds: List<FilesItemId>, mode: FilesDeleteMode) =
+                            PutioResult.Success(FileDeleteResult(status = "OK"))
+
+                        override suspend fun resolveItem(itemId: FilesItemId) = PutioResult.Failure(notFound())
+                    },
+                    trashRepository = object : TrashRepository by StubTrashRepository {
+                        override suspend fun load() = StubTrashRepository.load().also { trashLoads++ }
+                    },
+                ),
+            ),
+        )
+        session.trash.dispatch(TrashEvent.Open)
+        assertEquals(1, trashLoads)
+
+        session.files.dispatch(FilesBrowserEvent.Delete(FilesFolder.Root.id, FilesItemId(30), FilesDeleteMode.TRASH))
+
+        assertEquals(2, trashLoads)
+    }
+
+    @Test
+    fun `moving a video to Trash from Files takes its Watch Next card away`() = runTest {
+        val recorder = FakeWatchNextRecorder()
+        rootPages = listOf(FilesPage(listOf(media(30, "clip.mp4", PutioFileType.VIDEO)), nextCursor = null))
+        val session = checkNotNull(
+            TvSessionViewModel(auth).sessionFor(
+                account(),
+                TvAuthSessionId(1),
+                dependencies.copy(
+                    filesRepository = object : StubFilesRepository() {
+                        override suspend fun loadFolder(folderId: FilesItemId) = PutioResult.Success(rootPages.single())
+
+                        override suspend fun delete(itemIds: List<FilesItemId>, mode: FilesDeleteMode) =
+                            PutioResult.Success(FileDeleteResult(status = "OK"))
+
+                        override suspend fun resolveItem(itemId: FilesItemId) = PutioResult.Failure(notFound())
+                    },
+                    watchNext = { _, _ -> recorder },
+                ),
+            ),
+        )
+
+        session.files.dispatch(FilesBrowserEvent.Delete(FilesFolder.Root.id, FilesItemId(30), FilesDeleteMode.TRASH))
+
+        assertEquals(listOf(30L), recorder.gone)
+    }
+
+    @Test
+    fun `leaving a video started from Home hands Home the file that played last`() {
+        val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
+        val video = media(9, "clip.mp4", PutioFileType.VIDEO).copy(playback = FilesPlaybackProgress(0.0, 600.0))
+
+        session.openExternal(video, FilesOpenOrigin.HOME)
+        session.stopPlayback()
+        assertEquals(FilesItemId(9), session.homeReturn.file.value)
+
+        session.homeReturn.handled()
+        session.play(video)
+        session.stopPlayback()
+        assertEquals(null, session.homeReturn.file.value)
+    }
+
+    @Test
+    fun `Show Home is kept per account on this TV`() {
+        val store = TvShowHomeStore.Memory()
+        val session = checkNotNull(
+            TvSessionViewModel(auth).sessionFor(
+                account(),
+                TvAuthSessionId(1),
+                dependencies.copy(showHomeStore = { store }),
+            ),
+        )
+        assertTrue(session.showHome.shown.value)
+
+        session.showHome.set(false)
+
+        assertFalse(session.showHome.shown.value)
+        assertFalse(store.read())
+    }
+
+    @Test
     fun `each session reconciles its Watch Next cards and a 401 there is the session's verdict`() = runTest {
         val rejected = PutioFailure.AuthenticationRequired(PutioConfigurationException("401"))
         val recorder = FakeWatchNextRecorder(verdict = rejected)
@@ -597,6 +784,20 @@ class TvSessionViewModelTest {
         type = type,
         sizeBytes = 1L,
         createdAt = "2026-04-20T10:00:00Z",
+    )
+
+    private fun notFound(): PutioFailure = PutioFailure.ApiRejected(
+        statusCode = 404,
+        errorType = "NotFound",
+        cause = PutioApiException(
+            request = PutioRequestData("GET", "https://api.put.io/v2/files/9"),
+            resolvedStatusCode = 404,
+            httpStatusCode = 404,
+            resolvedErrorType = null,
+            envelope = PutioApiErrorEnvelope(statusCode = 404, errorType = null),
+            responseBody = "{}",
+            message = "Not found",
+        ),
     )
 
     private fun account(userId: Long = 42) =

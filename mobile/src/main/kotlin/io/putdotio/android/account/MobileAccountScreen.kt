@@ -58,6 +58,7 @@ import io.putdotio.android.AccountStorage
 import io.putdotio.android.BuildConfig
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
+import io.putdotio.android.account.R as AccountR
 import io.putdotio.android.apiReason
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
@@ -98,7 +99,6 @@ internal const val MOBILE_ACCOUNT_SIGN_OUT_TAG = "mobile-account-sign-out"
 internal const val MOBILE_TUNNEL_ROUTE_ROW_TAG = "mobile-tunnel-route-row"
 internal const val MOBILE_VIDEO_PLAYBACK_ROW_TAG = "mobile-video-playback-row"
 internal const val MOBILE_PRIVACY_POLICY_ROW_TAG = "mobile-privacy-policy-row"
-internal const val MOBILE_PRIVACY_POLICY_URL = "https://put.io/privacy-policy"
 
 /** What Account's Library rows show beside their titles, when the app already knows it. */
 internal data class MobileAccountLibrary(
@@ -170,7 +170,7 @@ internal fun MobileAccountScreen(
         aboutItems(
             rows = rows,
             onAppInfo = onAppInfo,
-            onPrivacyPolicy = { uriHandler.openSafely(MOBILE_PRIVACY_POLICY_URL) },
+            onPrivacyPolicy = { uriHandler.openSafely(PrivacyLinks.POLICY) },
             onSignOut = { dialog = AccountDialog.SignOut },
         )
     }
@@ -341,7 +341,7 @@ private fun LazyListScope.aboutItems(
                     settingsValue(BuildConfig.VERSION_NAME, mono = true), onAppInfo, MOBILE_ABOUT_ROW_TAG)
             },
             SettingsRow {
-                rows.Link(it, R.string.mobile_settings_privacy_policy, R.drawable.ic_ph_file_text, null,
+                rows.Link(it, AccountR.string.privacy_policy, R.drawable.ic_ph_file_text, null,
                     onPrivacyPolicy, MOBILE_PRIVACY_POLICY_ROW_TAG)
             },
         ),

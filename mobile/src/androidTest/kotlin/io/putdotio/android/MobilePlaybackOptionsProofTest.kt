@@ -208,7 +208,7 @@ class MobilePlaybackOptionsProofTest {
         val track = compose.runOnIdle { factory.current().currentTracks.playbackAudioTracks()[1] }
         // Both players' audio sheets name a track by its language in its own words.
         val title = languageName(track.identity.language)
-            ?: track.label ?: context.getString(R.string.mobile_playback_audio_track_number, 2)
+            ?: track.label ?: context.getString(io.putdotio.android.playback.R.string.playback_audio_track_number, 2)
         openAudioOptions()
         compose.onNodeWithText(title).performScrollTo().performTouchInput { click() }
         awaitSelection(factory, track.identity)

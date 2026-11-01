@@ -31,8 +31,8 @@ import io.putdotio.android.files.FilesBrowserController
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesDeleteOutcome
 import io.putdotio.android.files.FilesItemId
-import io.putdotio.android.files.MobileContinueWatching
-import io.putdotio.android.files.MobileContinueWatchingStore
+import io.putdotio.android.files.ContinueWatching
+import io.putdotio.android.files.DeviceContinueWatchingStore
 import io.putdotio.android.files.MobileFilesActionSources
 import io.putdotio.android.files.MobileFilesActionsController
 import io.putdotio.android.files.MobileFilesViewModel
@@ -199,7 +199,7 @@ internal fun SignedInMobileRoot(
         }
     val continueWatching = remember(filesViewModel, downloadsContext, account.userId, sessionId) {
         filesViewModel.continueWatchingFor(account.userId, sessionId) {
-            MobileContinueWatchingStore(downloadsContext, account.userId)
+            DeviceContinueWatchingStore(downloadsContext, account.userId)
         }
     }
     val filesActions =
@@ -215,6 +215,7 @@ internal fun SignedInMobileRoot(
                             watched = SdkFilesWatchedRepository(runtime.putioClient),
                             streamUrls = SdkFilesStreamUrls(runtime.putioClient),
                             trash = trashRepository,
+                            positionWrites = { id, write -> runtime.playbackReporting.supersede(id.value, write) },
                         ),
                         onFilesEvent = browser::dispatch,
                         onPositionSaved = { fileId, seconds ->
@@ -283,7 +284,7 @@ private fun SignedInMobileSession(
     nowPlayingRequests: NowPlayingRequests,
     deepLinkRequests: MobileDeepLinkRequests,
     transferDraft: MobileTransferDraft,
-    continueWatching: MobileContinueWatching?,
+    continueWatching: ContinueWatching?,
     filesActions: MobileFilesActionsController?,
 ) {
     val account = signedIn.account
@@ -528,7 +529,7 @@ private fun SavedPositionEffects(
     runtime: MobileOAuthRuntime,
     filesController: FilesBrowserController,
     filesRepository: SdkFilesRepository,
-    continueWatching: MobileContinueWatching?,
+    continueWatching: ContinueWatching?,
     search: SearchController,
     authController: MobileAuthController,
 ) {

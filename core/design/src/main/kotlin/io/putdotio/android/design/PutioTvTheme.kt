@@ -32,7 +32,7 @@ internal val putioTvTypography: Typography = Typography().run {
         bodyLarge = bodyLarge.merge(PutioTypeScale.tvBody),
         bodyMedium = bodyMedium.merge(PutioTypeScale.tvBody),
         bodySmall = bodySmall.merge(PutioTypeScale.tvMeta),
-        labelLarge = labelLarge.merge(PutioTypeScale.tvBody),
+        labelLarge = labelLarge.merge(PutioTypeScale.tvButton),
         labelMedium = labelMedium.merge(PutioTypeScale.tvLabel),
         labelSmall = labelSmall.merge(PutioTypeScale.tvLabel),
     )

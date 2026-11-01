@@ -27,6 +27,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.history.HistoryContent
+import io.putdotio.android.history.HistoryEvent
 import io.putdotio.android.history.HistoryEventId
 import io.putdotio.android.history.HistoryEventKind
 import io.putdotio.android.history.HistoryFileId
@@ -44,6 +45,8 @@ import io.putdotio.android.tv.player.TvPlaybackLayer
 import io.putdotio.android.tv.search.TvRecentSearchActions
 import io.putdotio.android.tv.search.TvSearchActions
 import io.putdotio.android.tv.search.TvSearchScreen
+import io.putdotio.android.tv.search.tvSearchDetail
+import io.putdotio.android.tv.search.tvSearchResults
 import io.putdotio.sdk.files.PutioFileType
 import java.time.Clock
 import java.time.Instant
@@ -79,13 +82,15 @@ class TvPickReturnFocusTest {
                         nextRequestValue = 2L,
                     ),
                     actions = TvSearchActions({}, {}, { playing = true }, {}, {}, TvRecentSearchActions({}, {}, {})),
+                    results = tvSearchResults(onPlay = { _, _ -> playing = true }),
+                    detail = tvSearchDetail(),
                     modifier = Modifier.focusRequester(paneFocus),
                     pickedRow = picked,
                 )
             }
         }
         compose.onNodeWithContentDescription("Search files").assertIsFocused().performKeyInput {
-            repeat(7) { pressKey(Key.DirectionDown) }
+            repeat(8) { pressKey(Key.DirectionDown) }
         }
         compose.onNodeWithContentDescription("Play clip 7.mp4").assertIsFocused().performKeyInput {
             pressKey(Key.DirectionCenter)
@@ -113,13 +118,15 @@ class TvPickReturnFocusTest {
                         nextRequestValue = 2L,
                     ),
                     actions = TvSearchActions({}, {}, { playing = true }, {}, {}, TvRecentSearchActions({}, {}, {})),
+                    results = tvSearchResults(onPlay = { _, _ -> playing = true }),
+                    detail = tvSearchDetail(),
                     modifier = Modifier.focusRequester(paneFocus),
                     pickedRow = picked,
                 )
             }
         }
         compose.onNodeWithContentDescription("Search files").performKeyInput {
-            repeat(3) { pressKey(Key.DirectionDown) }
+            repeat(4) { pressKey(Key.DirectionDown) }
         }
         compose.onNodeWithContentDescription("Play clip 3.mp4").assertIsFocused().performKeyInput {
             pressKey(Key.DirectionCenter)
@@ -127,7 +134,7 @@ class TvPickReturnFocusTest {
         compose.onNodeWithTag(PLAYER_TAG).assertIsFocused()
         compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
         compose.onNodeWithContentDescription("Play clip 3.mp4").assertIsFocused().performKeyInput {
-            repeat(3) { pressKey(Key.DirectionUp) }
+            repeat(4) { pressKey(Key.DirectionUp) }
         }
         compose.onNodeWithContentDescription("Search files").assertIsFocused()
 
@@ -154,7 +161,7 @@ class TvPickReturnFocusTest {
                 TvHistoryScreen(
                     state = historyState(HistoryContent.Ready(events, HistoryPaging.Complete)),
                     onEvent = {
-                        playing = true
+                        if (it is HistoryEvent.OpenFile) playing = true
                         true
                     },
                     modifier = Modifier.focusRequester(paneFocus),

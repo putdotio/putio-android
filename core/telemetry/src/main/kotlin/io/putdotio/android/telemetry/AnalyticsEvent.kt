@@ -7,6 +7,7 @@ package io.putdotio.android.telemetry
  */
 public sealed interface AnalyticsEvent {
     public enum class Screen(internal val value: String) {
+        Home("home"),
         Files("files"),
         Transfers("transfers"),
         Trash("trash"),
@@ -175,7 +176,7 @@ internal object AnalyticsAllowlist {
         "app_opened" to mapOf("entry" to setOf("direct", "deeplink", "resume")),
         "app_backgrounded" to mapOf("session_duration" to setOf("lt_1m", "1m_5m", "5m_15m", "15m_60m", "gt_60m")),
         "screen_viewed" to mapOf(
-            "screen" to setOf("files", "transfers", "trash", "search", "history", "account", "player"),
+            "screen" to setOf("home", "files", "transfers", "trash", "search", "history", "account", "player"),
         ),
         "settings_changed" to mapOf(
             "setting" to setOf(

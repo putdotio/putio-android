@@ -12,16 +12,23 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogWindowProvider
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import io.putdotio.android.R
@@ -37,6 +44,17 @@ import io.putdotio.android.design.PutioRadius
 @Composable
 internal fun TvDialog(
     title: String,
+    message: String?,
+    onDismiss: () -> Unit,
+    body: (@Composable () -> Unit)? = null,
+    actions: (@Composable (focus: FocusRequester) -> Unit)? = null,
+) {
+    TvDialog(AnnotatedString(title), message, onDismiss, body, actions)
+}
+
+@Composable
+internal fun TvDialog(
+    title: AnnotatedString,
     message: String?,
     onDismiss: () -> Unit,
     body: (@Composable () -> Unit)? = null,
@@ -61,8 +79,20 @@ internal fun TvConfirmDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
     destructive: Boolean = false,
+    titleStyle: TextStyle? = null,
+    balanceMessage: Boolean = false,
+    dimAmount: Float? = null,
+    confirmEnabled: Boolean = true,
 ) {
-    TvDialogFrame(title, message, onDismiss, focusesAction = true) { focus ->
+    TvDialogFrame(
+        AnnotatedString(title),
+        message,
+        onDismiss,
+        focusesAction = true,
+        titleStyle = titleStyle,
+        balanceMessage = balanceMessage,
+        dimAmount = dimAmount,
+    ) { focus ->
         TvDialogActions {
             TvButton(
                 onClick = onDismiss,
@@ -70,6 +100,7 @@ internal fun TvConfirmDialog(
             ) { Text(stringResource(R.string.tv_dialog_cancel)) }
             TvButton(
                 onClick = onConfirm,
+                enabled = confirmEnabled,
                 style = if (destructive) TvButtonStyle.Destructive else TvButtonStyle.Filled,
                 modifier = Modifier.focusRequester(focus),
             ) { Text(confirmLabel) }
@@ -82,13 +113,25 @@ internal fun TvNoticeDialog(
     title: String,
     onDismiss: () -> Unit,
     message: String? = null,
+    okStyle: TvButtonStyle = TvButtonStyle.Text,
+    balanceMessage: Boolean = false,
+    okHugsLabel: Boolean = false,
+    dimAmount: Float? = null,
 ) {
-    TvDialogFrame(title, message, onDismiss, focusesAction = true) { focus ->
+    TvDialogFrame(
+        AnnotatedString(title),
+        message,
+        onDismiss,
+        focusesAction = true,
+        balanceMessage = balanceMessage,
+        dimAmount = dimAmount,
+    ) { focus ->
         TvDialogActions {
             TvButton(
                 onClick = onDismiss,
-                style = TvButtonStyle.Text,
+                style = okStyle,
                 modifier = Modifier.focusRequester(focus),
+                hugsLabel = okHugsLabel,
             ) { Text(stringResource(R.string.tv_dialog_ok)) }
         }
     }
@@ -107,14 +150,21 @@ private fun TvDialogActions(content: @Composable () -> Unit) {
 
 @Composable
 private fun TvDialogFrame(
-    title: String,
+    title: AnnotatedString,
     message: String?,
     onDismiss: () -> Unit,
     focusesAction: Boolean,
+    titleStyle: TextStyle? = null,
+    balanceMessage: Boolean = false,
+    dimAmount: Float? = null,
     content: @Composable ColumnScope.(focus: FocusRequester) -> Unit,
 ) {
     val actionFocus = remember { FocusRequester() }
     Dialog(onDismissRequest = onDismiss) {
+        if (dimAmount != null) {
+            val dialog = LocalView.current.parent as? DialogWindowProvider
+            SideEffect { dialog?.window?.setDimAmount(dimAmount) }
+        }
         if (focusesAction) {
             LaunchedEffect(Unit) {
                 withFrameNanos {}
@@ -130,7 +180,8 @@ private fun TvDialogFrame(
         ) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.headlineSmall,
+                style = titleStyle
+                    ?: MaterialTheme.typography.headlineSmall.copy(fontSize = TITLE_SIZE, lineHeight = TITLE_LINE),
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
@@ -139,7 +190,9 @@ private fun TvDialogFrame(
                 // Bounded so a long server-supplied name cannot push the actions off screen.
                 Text(
                     text = message,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodySmall.let {
+                        if (balanceMessage) it.copy(lineBreak = BALANCED) else it
+                    },
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 4,
                     overflow = TextOverflow.Ellipsis,
@@ -151,5 +204,8 @@ private fun TvDialogFrame(
     }
 }
 
+private val BALANCED = LineBreak.Paragraph.copy(strategy = LineBreak.Strategy.Balanced)
 private val DIALOG_WIDTH = 380.dp
 private val ACTIONS_GAP = 20.dp
+private val TITLE_SIZE = 20.sp
+private val TITLE_LINE = 24.sp

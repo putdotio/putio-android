@@ -1,6 +1,7 @@
 package io.putdotio.android.playback
 
 import android.text.format.DateUtils
+import io.putdotio.android.playback.R as PlaybackR
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.AlertDialog
@@ -30,7 +31,7 @@ internal fun MobileResumePlaybackDialog(
     onDismiss: () -> Unit,
 ) {
     val time = DateUtils.formatElapsedTime(startFromSeconds.toLong())
-    val title = stringResource(R.string.mobile_playback_resume_title, RESUME_TIME_SLOT)
+    val title = stringResource(PlaybackR.string.playback_resume_title, RESUME_TIME_SLOT)
     AlertDialog(
         onDismissRequest = onDismiss,
         // The platform's default dialog width is narrower than the 380dp the prompt takes.
@@ -58,13 +59,13 @@ internal fun MobileResumePlaybackDialog(
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary,
                 ),
-            ) { Text(stringResource(R.string.mobile_playback_resume)) }
+            ) { Text(stringResource(PlaybackR.string.playback_resume)) }
         },
         dismissButton = {
             TextButton(
                 onClick = onRestart,
                 colors = neutralTextButtonColors(),
-            ) { Text(stringResource(R.string.mobile_playback_restart)) }
+            ) { Text(stringResource(PlaybackR.string.playback_start_over)) }
         },
     )
 }

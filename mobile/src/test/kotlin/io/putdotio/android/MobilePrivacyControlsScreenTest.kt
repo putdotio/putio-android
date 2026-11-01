@@ -20,8 +20,7 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.assertCountEquals
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.account.MOBILE_PRIVACY_CONTROLS_LIST_TAG
-import io.putdotio.android.account.MOBILE_PRIVACY_POLICY_URL
-import io.putdotio.android.account.MOBILE_SERVICES_WE_USE_URL
+import io.putdotio.android.account.PrivacyLinks
 import io.putdotio.android.account.MOBILE_STRICTLY_NECESSARY_TAG
 import io.putdotio.android.account.MobilePrivacyControlsScreen
 import io.putdotio.android.design.PutioTheme
@@ -99,7 +98,7 @@ class MobilePrivacyControlsScreenTest {
         compose.onNodeWithTag(MOBILE_PRIVACY_CONTROLS_LIST_TAG).performScrollToNode(hasText("Services we use"))
         compose.onNodeWithText("Services we use").performClick()
 
-        compose.runOnIdle { assertEquals(listOf(MOBILE_PRIVACY_POLICY_URL, MOBILE_SERVICES_WE_USE_URL), opened) }
+        compose.runOnIdle { assertEquals(listOf(PrivacyLinks.POLICY, PrivacyLinks.SERVICES_WE_USE), opened) }
     }
 
     @Test

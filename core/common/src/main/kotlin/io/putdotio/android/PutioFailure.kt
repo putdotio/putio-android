@@ -86,6 +86,17 @@ public fun PutioException.toPutioFailure(): PutioFailure {
     return current.leafFailure(context = this)
 }
 
+/**
+ * [toPutioFailure], except that an `invalid_scope` refusal anywhere in the chain is AccessDenied
+ * rather than a 401 that expires the session: put.io answers so for a scope this app lacks.
+ */
+public fun PutioException.toScopedFailure(): PutioFailure =
+    if (findPutioApiException()?.errorType == INVALID_SCOPE_ERROR_TYPE) {
+        PutioFailure.AccessDenied(this)
+    } else {
+        toPutioFailure()
+    }
+
 /** The API error under the SDK's operation wrappers and causes, if any; cycles end the walk. */
 public fun Throwable.findPutioApiException(): PutioApiException? {
     var current: Throwable? = this
@@ -128,3 +139,5 @@ private const val HTTP_TOO_MANY_REQUESTS = 429
 private val HTTP_SERVER_ERROR_RANGE = HTTP_SERVER_ERROR_START..HTTP_SERVER_ERROR_END
 private const val HTTP_SERVER_ERROR_START = 500
 private const val HTTP_SERVER_ERROR_END = 599
+
+private const val INVALID_SCOPE_ERROR_TYPE = "invalid_scope"

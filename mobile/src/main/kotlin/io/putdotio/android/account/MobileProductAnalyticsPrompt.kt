@@ -58,6 +58,7 @@ import androidx.compose.ui.unit.sp
 import io.putdotio.android.MobileSheetHandle
 import io.putdotio.android.BuildConfig
 import io.putdotio.android.R
+import io.putdotio.android.account.R as AccountR
 import io.putdotio.android.neutralTextButtonColors
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioRadius
@@ -242,7 +243,7 @@ private fun MobileProductAnalyticsPromptContent(
         TextButton(
             onClick = {
                 try {
-                    uriHandler.openUri(MOBILE_PRIVACY_POLICY_URL)
+                    uriHandler.openUri(PrivacyLinks.POLICY)
                 } catch (ignored: IllegalArgumentException) {
                     // No app can open the link; there is nothing else to open it with.
                 }
@@ -251,7 +252,7 @@ private fun MobileProductAnalyticsPromptContent(
             modifier = Modifier.align(Alignment.CenterHorizontally),
         ) {
             Text(
-                stringResource(R.string.mobile_settings_privacy_policy),
+                stringResource(AccountR.string.privacy_policy),
                 style = MaterialTheme.typography.bodySmall,
                 textDecoration = TextDecoration.Underline,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

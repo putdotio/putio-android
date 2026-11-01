@@ -60,35 +60,3 @@ private fun HistoryEvent.notice(type: HistoryNoticeType, subject: String?): Hist
     subject.nonBlank()?.let { HistoryEventKind.Notice(type, it) } ?: HistoryEventKind.Other(this.type.raw)
 
 private fun String?.nonBlank(): String? = this?.takeIf(String::isNotBlank)
-
-/**
- * Only the events [keep] accepts. A page it empties reads on from that page's oldest event,
- * so a run of dropped events neither ends the list nor shows as an empty page.
- */
-public fun HistoryRepository.keeping(keep: (HistoryEventKind) -> Boolean): HistoryRepository =
-    FilteredHistoryRepository(this, keep)
-
-private class FilteredHistoryRepository(
-    private val source: HistoryRepository,
-    private val keep: (HistoryEventKind) -> Boolean,
-) : HistoryRepository {
-    override suspend fun load(before: HistoryEventId?): PutioResult<HistoryPage> {
-        var cursor = before
-        while (true) {
-            val page = when (val result = source.load(cursor)) {
-                is PutioResult.Success -> result.value
-                is PutioResult.Failure -> return result
-            }
-            val kept = page.items.filter { keep(it.kind) }
-            val next = page.items.lastOrNull()?.id?.takeIf { page.hasMore && it.isOlderThan(cursor) }
-            if (kept.isNotEmpty() || next == null) {
-                return PutioResult.Success(HistoryPage(kept, page.hasMore))
-            }
-            cursor = next
-        }
-    }
-
-    override suspend fun clear(): PutioResult<Unit> = source.clear()
-}
-
-private fun HistoryEventId.isOlderThan(cursor: HistoryEventId?): Boolean = cursor == null || value < cursor.value
