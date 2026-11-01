@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import io.putdotio.android.MobilePlaybackService
 
 internal class MobilePlaybackViewModel(
     target: PlaybackTarget,
@@ -19,9 +20,15 @@ internal class MobilePlaybackViewModel(
         } else {
             PlaybackStartup.Resolve
         },
-        // Audio playback analytics, background service and Cast included, are not wired yet.
         analytics = target.mediaType == PlaybackMediaType.VIDEO,
     )
+
+    val analytics: PlaybackAnalyticsReporter =
+        if (target.mediaType == PlaybackMediaType.AUDIO) {
+            MobilePlaybackService.analytics.follow(controller, viewModelScope)
+        } else {
+            controller.analyticsReporter
+        }
 
     override fun onCleared() {
         controller.close()

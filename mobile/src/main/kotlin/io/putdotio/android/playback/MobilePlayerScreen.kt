@@ -323,6 +323,7 @@ private fun MobileReadyContent(
     ) { sessionPlayer ->
         MobileReadyPlayer(
             source = ready?.source,
+            offline = ready?.offline == true,
             useStartFrom = ready?.useStartFrom == true,
             fileId = state.target.fileId.value,
             title = state.target.name,
@@ -417,6 +418,7 @@ private fun MobilePlayerFrameBar(title: String, onBack: () -> Unit, modifier: Mo
 @Composable
 private fun MobileReadyPlayer(
     source: PlaybackSource?,
+    offline: Boolean,
     useStartFrom: Boolean,
     fileId: Long,
     title: String,
@@ -472,13 +474,13 @@ private fun MobileReadyPlayer(
     }
 
     val initialPlayback = remember(source, title, mediaType, startPositionMillis) {
-        source?.preparePlayback(title, mediaType, startPositionMillis)
+        source?.preparePlayback(title, mediaType, startPositionMillis, offline)
     }
     val retainedPosition = rememberSaveable(fileId) {
         mutableLongStateOf(initialPlayback?.startPositionMillis ?: startPositionMillis ?: 0L)
     }
-    val preparedPlayback = remember(source, title, mediaType, playerGeneration.intValue) {
-        source?.preparePlayback(title, mediaType, retainedPosition.longValue)
+    val preparedPlayback = remember(source, offline, title, mediaType, playerGeneration.intValue) {
+        source?.preparePlayback(title, mediaType, retainedPosition.longValue, offline)
     }
     val currentOnPlayerFailure = rememberUpdatedState(onPlayerFailure)
     val currentAutoplayNextVideo = rememberUpdatedState(autoplayNextVideo)

@@ -348,9 +348,7 @@ internal class TvSession internal constructor(
         this.subtitlesFirst.request(subtitlesFirst && mediaType == PlaybackMediaType.VIDEO)
         playingFromHome = fromHome
         val target = PlaybackTarget(item.id, item.name, mediaType, item.playback?.durationSeconds, item.screenshotUrl)
-        // Audio playback analytics are not wired yet, here or on mobile.
-        val analytics = mediaType == PlaybackMediaType.VIDEO
-        val controller = PlaybackController(target, playbackRepository, scope, analytics = analytics)
+        val controller = PlaybackController(target, playbackRepository, scope, analytics = true)
         playbackReporting.startPlayback()
         mutablePlayback.getAndUpdate { controller }?.close()
         playbackStart = item
