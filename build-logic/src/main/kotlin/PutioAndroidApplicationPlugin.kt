@@ -109,6 +109,7 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
         extensions.configure<DetektExtension> {
             config.setFrom(rootProject.file("detekt.yml"))
             buildUponDefaultConfig = true
+            source.setFrom("src")
         }
 
         extensions.configure<ApplicationAndroidComponentsExtension> {
