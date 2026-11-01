@@ -103,6 +103,7 @@ internal fun TvPlayerScreen(
     onSubtitlesShown: () -> Unit = {},
     upNext: TvUpNextLookup = TvUpNextLookup.Off,
     onOpenInVlc: (() -> Unit)? = null,
+    onPlayInVlc: (() -> Unit)? = null,
 ) {
     BackHandler(enabled = state.content !is PlaybackContent.Ready, onBack = onBack)
     Box(modifier = modifier.fillMaxSize().background(Color.Black)) {
@@ -157,6 +158,7 @@ internal fun TvPlayerScreen(
                     conversion = content,
                     onRefresh = onRefreshConversion,
                     onStartConversion = onStartConversion,
+                    onPlayInVlc = onPlayInVlc,
                 )
 
             is PlaybackContent.Unsupported -> TvUnsupportedScreen(state.target)

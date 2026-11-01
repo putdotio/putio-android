@@ -16,6 +16,10 @@
         android:name="android.hardware.faketouch"
         android:required="false" />
 
+    <queries>
+        <package android:name="org.videolan.vlc" />
+    </queries>
+
     <application
         android:name=".PutioApplication"
         android:banner="@drawable/tv_banner"

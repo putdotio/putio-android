@@ -89,6 +89,7 @@ internal fun TvConversionScreen(
     conversion: PlaybackContent.Conversion,
     onRefresh: () -> Unit,
     onStartConversion: () -> Unit,
+    onPlayInVlc: (() -> Unit)? = null,
 ) {
     PlaybackConversionPolling(conversion, onRefresh)
     val state = conversion.state
@@ -110,6 +111,13 @@ internal fun TvConversionScreen(
                     onClick = onClick,
                     icon = R.drawable.ic_ph_arrows_clockwise,
                     enabled = polling || conversion.refreshRequestId == null,
+                )
+            },
+            secondaryAction = onPlayInVlc?.let { onClick ->
+                TvEmptyStateAction(
+                    label = stringResource(R.string.tv_player_play_in_vlc),
+                    onClick = onClick,
+                    icon = R.drawable.ic_ph_traffic_cone,
                 )
             },
             supporting = if (running) {

@@ -159,8 +159,28 @@ class TvPlaybackStatesTest {
         compose.onNodeWithTag(TV_CONVERSION_PROGRESS_TAG).assertDoesNotExist()
         compose.onNodeWithText("Check again").assertDoesNotExist()
         compose.onNodeWithText("Convert again").assertDoesNotExist()
+        compose.onNodeWithText("Play in VLC now").assertDoesNotExist()
         compose.mainClock.advanceTimeBy(PLAYBACK_CONVERSION_POLL_MILLIS * 3)
         compose.runOnIdle { assertEquals(0, refreshes) }
+    }
+
+    @Test
+    fun withVlcAConversionOffersPlayInVlcNowBesideItsActionInEveryState() {
+        content = PlaybackContent.Conversion(PlaybackConversionState.Converting(42.4))
+        show(playInVlc = { vlcOpens += 1 })
+        compose.onNodeWithTag(TV_CONVERSION_PERCENT_TAG).assertTextEquals("42%")
+        compose.onNodeWithText("Check again").assertIsFocused().performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNodeWithText("Play in VLC now").assertIsFocused().performKeyInput { pressKey(Key.DirectionCenter) }
+        compose.runOnIdle { assertEquals(1, vlcOpens) }
+        assertEquals(0, refreshes)
+
+        change(PlaybackContent.Conversion(PlaybackConversionState.Failed))
+        compose.onNodeWithText("Convert again").assertIsDisplayed()
+        compose.onNodeWithText("Play in VLC now").assertIsFocused()
+
+        change(PlaybackContent.Conversion(PlaybackConversionState.NotAvailable))
+        compose.onNodeWithText("Convert again").assertDoesNotExist()
+        compose.onNodeWithText("Play in VLC now").assertIsFocused()
     }
 
     @Test
@@ -229,7 +249,7 @@ class TvPlaybackStatesTest {
         compose.waitForIdle()
     }
 
-    private fun show(openInVlc: (() -> Unit)? = null) {
+    private fun show(openInVlc: (() -> Unit)? = null, playInVlc: (() -> Unit)? = null) {
         compose.mainClock.autoAdvance = false
         compose.setContent {
             CompositionLocalProvider(LocalLifecycleOwner provides lifecycleOwner) {
@@ -249,6 +269,7 @@ class TvPlaybackStatesTest {
                         onStartConversion = { starts += 1 },
                         playerFactory = { _, _ -> error("No player before a source") },
                         onOpenInVlc = openInVlc,
+                        onPlayInVlc = playInVlc,
                     )
                 }
             }

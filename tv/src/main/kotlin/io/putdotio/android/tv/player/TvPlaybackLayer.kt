@@ -7,6 +7,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -25,6 +26,7 @@ import io.putdotio.android.telemetry.AnalyticsEvent
 import io.putdotio.android.telemetry.ProductAnalytics
 import io.putdotio.android.telemetry.PutioDiagnostics
 import io.putdotio.android.tv.TvNoticeDialog
+import io.putdotio.android.tv.files.hasVlc
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
@@ -82,6 +84,16 @@ internal fun TvPlaybackRoute(
     }
     val sessionRejected = failure?.putioFailure is PutioFailure.AuthenticationRequired
     LaunchedEffect(sessionRejected) { if (sessionRejected) onSessionRejected() }
+    val context = LocalContext.current
+    val vlcInstalled = remember(context) { context.hasVlc() }
+    val handOffToVlc = openInVlc?.let { open ->
+        {
+            if (vlcHandoff?.isActive != true) {
+                val target = state.target
+                vlcHandoff = vlcScope.launch { vlcNotice = open(target) }
+            }
+        }
+    }
     TvPlayerScreen(
         state = state,
         onBack = onExit,
@@ -108,14 +120,8 @@ internal fun TvPlaybackRoute(
         subtitlesFirst = subtitlesFirst,
         onSubtitlesShown = onSubtitlesShown,
         upNext = upNext,
-        onOpenInVlc = openInVlc?.let { open ->
-            {
-                if (vlcHandoff?.isActive != true) {
-                    val target = state.target
-                    vlcHandoff = vlcScope.launch { vlcNotice = open(target) }
-                }
-            }
-        },
+        onOpenInVlc = handOffToVlc,
+        onPlayInVlc = handOffToVlc?.takeIf { vlcInstalled },
     )
     vlcNotice?.let { notice -> TvNoticeDialog(title = stringResource(notice), onDismiss = { vlcNotice = null }) }
 }
