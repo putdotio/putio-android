@@ -610,7 +610,7 @@ private fun TvFilesDeleteStatus(
                 ),
                 action = stringResource(if (reloading) R.string.tv_files_retry else R.string.tv_files_check_status),
                 onAction = { onEvent(FilesBrowserEvent.Retry) },
-                actionModifier = Modifier.handsBackFocus(noticeFocus),
+                handBack = noticeFocus,
             )
         }
         operation == FilesFolderOperation.Idle &&
@@ -665,7 +665,7 @@ private fun TvFilesTrashLimitStatus(
         text = stringResource(R.string.tv_files_trash_limit_title),
         action = stringResource(R.string.tv_files_action_delete).takeIf { listed != null },
         onAction = { confirming = true },
-        actionModifier = Modifier.handsBackFocus(noticeFocus),
+        handBack = noticeFocus,
     )
     if (confirming && listed != null) {
         val close = { confirming = false }
@@ -693,7 +693,7 @@ private fun TvFilesNotice(
     action: String? = null,
     onAction: () -> Unit = {},
     error: Boolean = false,
-    actionModifier: Modifier = Modifier,
+    handBack: TvFocusHandBack? = null,
 ) {
     Row(
         modifier = Modifier
@@ -711,7 +711,12 @@ private fun TvFilesNotice(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
-        if (action != null) TvButton(onClick = onAction, modifier = actionModifier) { Text(action) }
+        if (action != null) {
+            TvButton(
+                onClick = onAction,
+                modifier = if (handBack != null) Modifier.handsBackFocus(handBack) else Modifier,
+            ) { Text(action) }
+        }
     }
 }
 
@@ -790,7 +795,7 @@ private fun TvFilesOperationStatus(
             action = stringResource(R.string.tv_files_retry),
             onAction = { onEvent(FilesBrowserEvent.Retry) },
             error = true,
-            actionModifier = Modifier.handsBackFocus(noticeFocus),
+            handBack = noticeFocus,
         )
     }
 }
