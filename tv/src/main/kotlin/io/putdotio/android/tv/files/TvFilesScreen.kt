@@ -374,7 +374,7 @@ internal fun TvFolderHeading(name: String, crumb: String) {
             Spacer(Modifier.width(3.dp))
             Text(
                 text = crumb,
-                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 softWrap = false,

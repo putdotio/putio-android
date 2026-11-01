@@ -500,7 +500,7 @@ private fun TvSheetChip(
     }
 }
 
-private val FOOTNOTE_SIZE = 11.sp
+private val FOOTNOTE_SIZE = 12.sp
 private val FOOTNOTE_LINE = 15.sp
 private val SPEED_STEP_BUTTON_WIDTH = 44.dp
 private val SPEED_STEP_LABEL = PutioTypeScale.tvBody.copy(fontSize = 18.sp, fontWeight = FontWeight.Medium)

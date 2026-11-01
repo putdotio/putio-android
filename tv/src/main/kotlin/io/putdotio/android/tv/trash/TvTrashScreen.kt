@@ -377,7 +377,7 @@ private const val RETENTION_DAYS = "14"
 private val HEADER_HEIGHT = 76.dp
 private val HEADER_BUTTON_GAP = 8.dp
 private val HEADER_BUTTON_LIFT = 1.dp
-private val HEADER_BUTTON_LABEL = PutioTypeScale.tvButton.copy(fontSize = 11.sp)
+private val HEADER_BUTTON_LABEL = PutioTypeScale.tvButton.copy(fontSize = 12.sp)
 private val INFO_GAP = 4.dp
 private val INFO_LABEL = PutioTypeScale.tvLabel.withFullLineBox()
 private val DETAIL_TOP = 26.dp

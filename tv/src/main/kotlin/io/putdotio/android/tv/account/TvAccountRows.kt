@@ -330,8 +330,8 @@ internal object TvAccountType {
     val row: TextStyle = PutioTypeScale.tvBody.boardLines()
     val rowValue: TextStyle = PutioTypeScale.tvMeta.boardLines()
     val rowTitle: TextStyle = PutioTypeScale.tvBody.boardLines(BOARD_LEADING)
-    val description: TextStyle = PutioTypeScale.tvMeta.copy(fontSize = 11.sp).boardLines(BOARD_LEADING)
-    val footnote: TextStyle = PutioTypeScale.tvMeta.copy(fontSize = 11.sp, lineHeight = 15.sp).boardLines()
+    val description: TextStyle = PutioTypeScale.tvMeta.copy(fontSize = 12.sp).boardLines(BOARD_LEADING)
+    val footnote: TextStyle = PutioTypeScale.tvMeta.copy(fontSize = 12.sp, lineHeight = 15.sp).boardLines()
     val name: TextStyle =
         PutioTypeScale.tvBody.copy(fontSize = 15.sp, fontWeight = FontWeight.Medium).boardLines(BOARD_LEADING)
     val email: TextStyle = PutioTypeScale.tvMeta.boardLines(BOARD_LEADING)
