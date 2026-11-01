@@ -81,6 +81,7 @@ class MobileDownloadsScreenTest {
         val running = FilesItemId(11L)
         val state = DownloadsState(concurrency = 2, speeds = mapOf(running to 12_000_000L)).withEntries(listOf(
             row(10L, "Running HLS", DownloadStatus.Downloading(4_096L, null), queuedAt = 1L),
+            row(15L, "Running HLS segments", DownloadStatus.Downloading(5_300_000L, 41f), queuedAt = 1L),
             row(11L, "Running original", DownloadStatus.Downloading(1_400_000L, 42f, 3_300_000L), queuedAt = 2L),
             row(13L, "Second in line", DownloadStatus.Queued, queuedAt = 4L),
             row(12L, "First in line", DownloadStatus.Queued, queuedAt = 3L),
@@ -90,9 +91,11 @@ class MobileDownloadsScreenTest {
         compose.setContent { PutioTheme { DownloadsTab(state, { events += it; true }) } }
 
         compose.onNodeWithText("Downloading").assertIsDisplayed()
-        // An original's size is known; HLS before its playlists are read has bytes alone.
+        // An original's size is known; HLS shows its segment percentage, or bytes before its playlists are read.
         compose.onNodeWithText("1.4 MB of 3.3 MB · 12 MB/s").assertIsDisplayed()
         compose.onNodeWithText("4.1 kB").assertIsDisplayed()
+        compose.onNodeWithText("41%").assertIsDisplayed()
+        compose.onNodeWithText("5.3 MB", substring = true).assertDoesNotExist()
         compose.onNodeWithText("Queued · #1 in line").assertIsDisplayed()
         compose.onNodeWithText("Queued · #2 in line").assertIsDisplayed()
         val places = compose.onAllNodesWithText("in line", substring = true).fetchSemanticsNodes()
@@ -103,6 +106,8 @@ class MobileDownloadsScreenTest {
 
         // A known percentage fills the ring; an HLS rendition before its playlists spins.
         compose.onNode(hasProgressBarRangeInfo(ProgressBarRangeInfo(0.42f, 0f..1f)), useUnmergedTree = true)
+            .assertExists()
+        compose.onNode(hasProgressBarRangeInfo(ProgressBarRangeInfo(0.41f, 0f..1f)), useUnmergedTree = true)
             .assertExists()
         compose.onNode(hasProgressBarRangeInfo(ProgressBarRangeInfo.Indeterminate), useUnmergedTree = true)
             .assertExists()
@@ -124,7 +129,7 @@ class MobileDownloadsScreenTest {
         val events = mutableListOf<DownloadsEvent>()
         compose.setContent { PutioTheme { DownloadsTab(state, { events += it; true }) } }
 
-        compose.onNodeWithText("Paused · 10 B · 26%").assertIsDisplayed()
+        compose.onNodeWithText("Paused · 26%").assertIsDisplayed()
         compose.onNodeWithContentDescription("Pause download").performClick()
         compose.onNodeWithContentDescription("Resume download").performClick()
         compose.onNodeWithContentDescription("Cancel download").performClick()
