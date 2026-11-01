@@ -8,6 +8,7 @@ import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesItemResolver
 import io.putdotio.android.files.PinnedFiles
 import io.putdotio.android.isNotFound
+import io.putdotio.sdk.files.PutioFolderType
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.TimeSource
 import kotlinx.coroutines.CoroutineScope
@@ -30,7 +31,7 @@ internal sealed interface TvPinnedRow {
     data class Failed(val failure: PutioFailure) : TvPinnedRow
 }
 
-internal data class TvPinnedCard(val item: FilesItem, val itemCount: Int?)
+internal data class TvPinnedCard(val item: FilesItem, val itemCount: Int?, val folderCount: Int? = null)
 
 internal class TvHomePins(
     private val pins: PinnedFiles,
@@ -93,10 +94,9 @@ internal class TvHomePins(
     private suspend fun read(id: FilesItemId): Resolved =
         when (val result = resolver.resolveItem(id)) {
             is PutioResult.Success -> {
-                val item = result.value
-                val count = if (item.isFolder) folderCount(id) else null
+                val card = cardFor(result.value)
                 gone.remove(id)
-                Resolved.Card(TvPinnedCard(item, count).also { cards[id] = it })
+                Resolved.Card(card.also { cards[id] = it })
             }
             is PutioResult.Failure -> {
                 val failure = result.failure
@@ -115,8 +115,15 @@ internal class TvHomePins(
             }
         }
 
-    private suspend fun folderCount(id: FilesItemId): Int? =
-        when (val result = folderCounts?.itemCount(id)) {
+    private suspend fun cardFor(item: FilesItem): TvPinnedCard = coroutineScope {
+        if (!item.isFolder) return@coroutineScope TvPinnedCard(item, itemCount = null)
+        val items = async { count { itemCount(item.id) } }
+        val folders = if (item.folderType == PutioFolderType.REGULAR) async { count { folderCount(item.id) } } else null
+        TvPinnedCard(item, items.await(), folders?.await())
+    }
+
+    private suspend fun count(read: suspend FilesFolderCounts.() -> PutioResult<Int?>): Int? =
+        when (val result = folderCounts?.read()) {
             is PutioResult.Success -> result.value
             is PutioResult.Failure -> {
                 (result.failure as? PutioFailure.AuthenticationRequired)?.let { mutableRejected.value = it }

@@ -845,6 +845,13 @@
     },
     {
       "resDir": "tv/src/main/res",
+      "resource": "ic_ph_users_three_fill",
+      "asset": "assets/fill/users-three-fill.svg",
+      "sourceSha256": "aca109558096eca83a60ded74a65b5ab9d341857f0c76f7b89bf93e3bd6df971",
+      "outputSha256": "4ab59025c0cafc90e0175ff61528b2edffc6a2976fa49201444dc275b8681f9a"
+    },
+    {
+      "resDir": "tv/src/main/res",
       "resource": "ic_ph_folder",
       "asset": "assets/regular/folder.svg",
       "sourceSha256": "4a882bcd4a91ae0a01887024f08d358932f183b6b171e87a3e48c5910364d507",

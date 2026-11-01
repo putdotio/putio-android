@@ -24,6 +24,7 @@ import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.tv.setTvContent
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
+import io.putdotio.sdk.files.PutioFolderType
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -126,6 +127,31 @@ class TvHomeScreenTest {
         compose.onNodeWithText("Pinned").assertIsDisplayed()
         compose.onNodeWithContentDescription("Big Buck Bunny").performSemanticsAction(SemanticsActions.OnClick)
         assertEquals(listOf("open Big Buck Bunny"), opened)
+    }
+
+    @Test
+    fun pinnedCardsSayWhatTheyHold() {
+        fun folder(id: Long, name: String, folderType: PutioFolderType = PutioFolderType.REGULAR) = FilesItem(
+            id = FilesItemId(id),
+            parentId = FilesItemId(0L),
+            name = name,
+            type = PutioFileType.FOLDER,
+            sizeBytes = 276_000_000L,
+            createdAt = "2026-10-23T10:00:00Z",
+            folderType = folderType,
+        )
+        val cards = listOf(
+            TvPinnedCard(folder(1L, "Series"), itemCount = 12, folderCount = 12),
+            TvPinnedCard(folder(2L, "Big Buck Bunny"), itemCount = 3, folderCount = 0),
+            TvPinnedCard(folder(3L, "Items shared with you", PutioFolderType.SHARED_ROOT), itemCount = 2),
+        )
+        compose.setTvContent {
+            TvHomeScreen(emptyList(), TvPinnedRow.Ready(cards), actions, remember { FocusRequester() }, onShown = {})
+        }
+
+        compose.onNodeWithText("12 folders").assertIsDisplayed()
+        compose.onNodeWithText("3 items · 276 MB").assertIsDisplayed()
+        compose.onNodeWithText("From 2 friends").assertIsDisplayed()
     }
 
     @Test

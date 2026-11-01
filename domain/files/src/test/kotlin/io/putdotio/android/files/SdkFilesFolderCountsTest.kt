@@ -29,6 +29,18 @@ class SdkFilesFolderCountsTest {
     }
 
     @Test
+    fun countsOnlyTheFoldersInside() = runBlocking {
+        val requests = mutableListOf<String>()
+        val body = """{"status":"OK","files":[],"parent":null,"cursor":null,"total":12}"""
+
+        val result = SdkFilesFolderCounts(client(requests, 200, body)).folderCount(FilesItemId(10L))
+
+        assertEquals(12, (result as PutioResult.Success).value)
+        val url = requests.single()
+        assertTrue(url, "parent_id=10" in url && "file_type=FOLDER" in url && "total=1" in url)
+    }
+
+    @Test
     fun aRejectedSessionIsTheSessionVerdict() = runBlocking {
         val result = SdkFilesFolderCounts(client(mutableListOf(), 401, UNAUTHORIZED)).itemCount(FilesItemId(10L))
 

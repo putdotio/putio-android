@@ -13,6 +13,7 @@ import io.putdotio.sdk.errors.PutioApiException
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.errors.PutioRequestData
 import io.putdotio.sdk.files.PutioFileType
+import io.putdotio.sdk.files.PutioFolderType
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.TestTimeSource
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -62,6 +63,37 @@ class TvHomePinsTest {
         home.retry()
         assertEquals("Try again reads now, inside the minute", 2, pins.reloads)
         assertEquals(7, reads.size)
+    }
+
+    @Test
+    fun aFolderCardCountsItsFoldersAndTheSharedRootCountsOnlyFriends() = runTest(UnconfinedTestDispatcher()) {
+        val shared = FilesItemId(4L)
+        val folderReads = mutableListOf<FilesItemId>()
+        val withShared = object : FilesItemResolver {
+            override suspend fun resolveItem(itemId: FilesItemId): PutioResult<FilesItem> =
+                if (itemId == shared) {
+                    PutioResult.Success(
+                        item(shared, "Items shared with you", PutioFileType.FOLDER)
+                            .copy(folderType = PutioFolderType.SHARED_ROOT),
+                    )
+                } else {
+                    resolver.resolveItem(itemId)
+                }
+        }
+        val split = object : FilesFolderCounts {
+            override suspend fun itemCount(folderId: FilesItemId) =
+                PutioResult.Success(if (folderId == shared) 2 else 12)
+
+            override suspend fun folderCount(folderId: FilesItemId): PutioResult<Int?> {
+                folderReads += folderId
+                return PutioResult.Success(12)
+            }
+        }
+        val home = TvHomePins(FakePinnedFiles(listOf(Series, shared)), withShared, split, backgroundScope, clock)
+
+        val cards = (home.row.value as TvPinnedRow.Ready).cards
+        assertEquals(listOf(12 to 12, 2 to null), cards.map { it.itemCount to it.folderCount })
+        assertEquals(listOf(Series), folderReads)
     }
 
     @Test

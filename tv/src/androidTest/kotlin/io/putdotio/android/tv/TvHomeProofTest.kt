@@ -34,6 +34,7 @@ import io.putdotio.android.settings.AccountSettingsPreferences
 import io.putdotio.android.tv.auth.TvAccount
 import io.putdotio.android.tv.home.TvShowHomeStore
 import io.putdotio.sdk.files.PutioFileType
+import io.putdotio.sdk.files.PutioFolderType
 import java.io.File
 import java.io.IOException
 import java.util.UUID
@@ -133,7 +134,11 @@ class TvHomeProofTest {
             filesItemResolver = object : FilesItemResolver {
                 override suspend fun resolveItem(itemId: FilesItemId) = PutioResult.Success(items.getValue(itemId))
             },
-            folderCounts = FilesFolderCounts { PutioResult.Success(FOLDER_COUNTS[it]) },
+            folderCounts = object : FilesFolderCounts {
+                override suspend fun itemCount(folderId: FilesItemId) = PutioResult.Success(ITEM_COUNTS[folderId])
+
+                override suspend fun folderCount(folderId: FilesItemId) = PutioResult.Success(FOLDER_COUNTS[folderId])
+            },
             pinnedFiles = {
                 FakePinnedFiles(pins).apply {
                     if (pins == null) failure.value = PutioFailure.NetworkUnavailable(IOException("offline"))
@@ -216,16 +221,22 @@ class TvHomeProofTest {
             entry(104, "Cosmos.Laundromat.2015.mkv", 610.0, 735.0, 1L),
         )
 
-        fun pinned(id: Long, name: String, type: PutioFileType, size: Long) =
-            FilesItem(FilesItemId(id), ROOT, name, type, size, "2026-10-23T10:00:00Z")
+        fun pinned(
+            id: Long,
+            name: String,
+            type: PutioFileType,
+            size: Long,
+            folderType: PutioFolderType = PutioFolderType.REGULAR,
+        ) = FilesItem(FilesItemId(id), ROOT, name, type, size, "2026-10-23T10:00:00Z", folderType = folderType)
 
         val PINNED = listOf(
             pinned(201, "Series", PutioFileType.FOLDER, 1_210_000_000_000L),
             pinned(202, "Big Buck Bunny", PutioFileType.FOLDER, 276_000_000L),
-            pinned(203, "Items shared with you", PutioFileType.FOLDER, 18_400_000_000L),
+            pinned(203, "Items shared with you", PutioFileType.FOLDER, 0L, PutioFolderType.SHARED_ROOT),
             pinned(204, "FFTT Tree Rings October 23, 2026.mp3", PutioFileType.AUDIO, 48_000_000L),
         )
 
-        val FOLDER_COUNTS = mapOf(FilesItemId(201) to 12, FilesItemId(202) to 3, FilesItemId(203) to 2)
+        val ITEM_COUNTS = mapOf(FilesItemId(201) to 12, FilesItemId(202) to 3, FilesItemId(203) to 2)
+        val FOLDER_COUNTS = mapOf(FilesItemId(201) to 12, FilesItemId(202) to 0)
     }
 }

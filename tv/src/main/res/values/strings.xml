@@ -56,6 +56,14 @@
     <string name="tv_home_first_run_title">Nothing here yet.</string>
     <string name="tv_home_first_run_message">Videos you start come back here. Press Menu on a folder or file to pin it.</string>
     <string name="tv_home_browse_files">Browse your files</string>
+    <plurals name="tv_home_folder_count">
+        <item quantity="one">%1$s folder</item>
+        <item quantity="other">%1$s folders</item>
+    </plurals>
+    <plurals name="tv_home_shared_friends">
+        <item quantity="one">From %1$s friend</item>
+        <item quantity="other">From %1$s friends</item>
+    </plurals>
     <string name="tv_account_show_home">Show Home</string>
     <string name="tv_account_signed_in_as">Signed in as %1$s</string>
     <string name="tv_account_sign_out">Sign out</string>

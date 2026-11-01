@@ -79,6 +79,7 @@ import io.putdotio.android.tv.files.tvMessageText
 import io.putdotio.android.tv.tvAccent
 import io.putdotio.android.tv.withFullLineBox
 import io.putdotio.sdk.files.PutioFileType
+import io.putdotio.sdk.files.PutioFolderType
 
 internal const val TV_HOME_CARD_TAG = "tv-home-card"
 
@@ -266,7 +267,7 @@ private fun TvContinueWatchingCard(entry: ContinueWatchingEntry, onClick: () -> 
 private fun TvPinnedFileCard(card: TvPinnedCard, onClick: () -> Unit, modifier: Modifier) {
     val meta = pinnedMeta(card)
     TvHomeCard(
-        icon = fileTypeIconRes(card.item.type),
+        icon = if (card.item.isSharedRoot) R.drawable.ic_ph_users_three_fill else fileTypeIconRes(card.item.type),
         name = card.item.name,
         description = card.item.name,
         progress = null,
@@ -278,10 +279,21 @@ private fun TvPinnedFileCard(card: TvPinnedCard, onClick: () -> Unit, modifier: 
 
 @Composable
 private fun pinnedMeta(card: TvPinnedCard): AnnotatedString {
-    val item = card.item
+    val items = card.itemCount
+    return when {
+        items != null && card.item.isSharedRoot ->
+            AnnotatedString(pluralStringResource(R.plurals.tv_home_shared_friends, items, items.toString()))
+        items != null && items > 0 && card.folderCount == items ->
+            AnnotatedString(pluralStringResource(R.plurals.tv_home_folder_count, items, items.toString()))
+        else -> itemMeta(card.item, items)
+    }
+}
+
+@Composable
+private fun itemMeta(item: FilesItem, items: Int?): AnnotatedString {
     val context = LocalContext.current
     val date = remember(item.createdAt, context) { item.createdAt.toDisplayDate(context) }
-    val count = card.itemCount?.let { pluralStringResource(R.plurals.tv_files_item_count, it, it.toString()) }
+    val count = items?.let { pluralStringResource(R.plurals.tv_files_item_count, it, it.toString()) }
     val parts = buildList {
         count?.let { add(AnnotatedString(it)) }
         add(formatFileSize(item.sizeBytes).asMonoRun())
@@ -409,3 +421,6 @@ private val INLINE_HEADLINE =
         .withFullLineBox()
 private val INLINE_MESSAGE = PutioTypeScale.tvMeta.copy(lineHeight = 15.sp).withFullLineBox()
 private const val META_SEPARATOR = " · "
+
+private val FilesItem.isSharedRoot: Boolean
+    get() = folderType == PutioFolderType.SHARED_ROOT
