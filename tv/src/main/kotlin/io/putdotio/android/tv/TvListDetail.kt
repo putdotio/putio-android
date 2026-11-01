@@ -247,6 +247,7 @@ internal fun TvDetailButton(
 
 internal val TV_MONO_RUN: SpanStyle = SpanStyle(
     fontFamily = PutioTypeScale.tvMono.fontFamily,
+    fontSize = MONO_RUN_SCALE.em,
     letterSpacing = MONO_RUN_TRACKING.em,
     fontFeatureSettings = PutioTypeScale.tvMono.fontFeatureSettings,
 )
@@ -265,6 +266,7 @@ internal fun monoNumber(label: String, number: String): AnnotatedString =
 
 internal fun TextStyle.asMonoRun(): TextStyle = copy(
     fontFamily = PutioTypeScale.tvMono.fontFamily,
+    fontSize = fontSize * MONO_RUN_SCALE,
     letterSpacing = MONO_RUN_TRACKING.em,
     fontFeatureSettings = PutioTypeScale.tvMono.fontFeatureSettings,
 )
@@ -299,4 +301,5 @@ private val DETAIL_FACT_MONO = DETAIL_FACT.asMonoRun()
 private val DETAIL_FACT_LABEL_WIDTH = 70.dp
 private val DETAIL_BUTTON_LABEL = PutioTypeScale.tvButton.copy(fontSize = 12.sp)
 private const val MAX_DETAIL_FACTS = 3
+private const val MONO_RUN_SCALE = 0.92f
 private const val MONO_RUN_TRACKING = -0.01f
