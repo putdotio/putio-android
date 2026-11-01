@@ -22,7 +22,13 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.style.BaselineShift
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -41,6 +47,7 @@ internal fun TvEmptyState(
     action: TvEmptyStateAction? = null,
     actionFocus: FocusRequester = remember { FocusRequester() },
     claimFocus: Boolean = true,
+    glyphRunPerCharacter: Boolean = false,
 ) {
     LaunchedEffect(action != null, claimFocus) {
         if (action == null || !claimFocus) return@LaunchedEffect
@@ -53,12 +60,18 @@ internal fun TvEmptyState(
         verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
     ) {
         if (glyph != null) {
+            val glyphStyle = PutioTypeScale.mono.copy(
+                fontSize = PutioTypeScale.headlineLg.fontSize,
+                lineHeight = GLYPH_LINE,
+            ).withFullLineBox()
+            val glyphText = if (glyphRunPerCharacter) {
+                glyph.text.runPerCharacter(glyphStyle)
+            } else {
+                AnnotatedString(glyph.text)
+            }
             Text(
-                text = glyph.text,
-                style = PutioTypeScale.mono.copy(
-                    fontSize = PutioTypeScale.headlineLg.fontSize,
-                    lineHeight = GLYPH_LINE,
-                ).withFullLineBox(),
+                text = glyphText,
+                style = glyphStyle,
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 softWrap = false,
@@ -101,6 +114,32 @@ internal fun TvEmptyState(
         }
     }
 }
+
+private fun String.runPerCharacter(style: TextStyle): AnnotatedString = buildAnnotatedString {
+    val text = this@runPerCharacter
+    var index = 0
+    while (index < text.length) {
+        val next = text.offsetByCodePoints(index, 1)
+        val runStyle = if (text[index] in FULL_WIDTH_PUNCTUATION) {
+            style.fullWidthPunctuationRun()
+        } else {
+            SpanStyle(fontFamily = style.fontFamily)
+        }
+        withStyle(runStyle) { append(text, index, next) }
+        index = next
+    }
+}
+
+private fun TextStyle.fullWidthPunctuationRun(): SpanStyle = SpanStyle(
+    fontFamily = fontFamily,
+    fontSize = fontSize * FULL_WIDTH_SCALE,
+    letterSpacing = fontSize * (1f - FULL_WIDTH_SCALE),
+    baselineShift = BaselineShift(FULL_WIDTH_RAISE),
+)
+
+private val FULL_WIDTH_PUNCTUATION = '\u3000'..'\u30FF'
+private const val FULL_WIDTH_SCALE = 0.75f
+private const val FULL_WIDTH_RAISE = 0.1f
 
 internal data class TvEmptyStateAction(
     val label: String,

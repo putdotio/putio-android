@@ -193,7 +193,7 @@ class TvExternalOpenProofTest {
 
         // Back while later pages are read leaves the folder and cancels the reads.
         press(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.waitUntil(5_000) { compose.onAllNodesWithText(LOADING).fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(5_000) { hasContentDescription(LOADING) }
         screenshot("23-reading-later-pages")
         press(KeyEvent.KEYCODE_BACK)
         compose.waitUntil(5_000) { isFocused("Open $PAGED_DOCUMENT") }

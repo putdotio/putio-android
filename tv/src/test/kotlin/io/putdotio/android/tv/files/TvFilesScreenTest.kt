@@ -42,7 +42,9 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.test.onNodeWithTag
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
+import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.android.files.FilesFolderCounts
 import io.putdotio.android.tv.setTvContent
 import io.putdotio.sdk.files.PutioFileType
@@ -129,11 +131,31 @@ class TvFilesScreenTest {
     }
 
     @Test
-    fun anEmptyFolderFocusesTheSortPillSoThePaneStaysReachable() {
+    fun anEmptyFolderHoldsFocusOnItsEmptyStateWithoutControls() {
         compose.showFiles(state = { state(FilesContent.Empty(FilesPaging.Complete)) })
-        compose.onNodeWithText("This folder is empty.").assertIsDisplayed()
-        compose.onNode(hasText("Account default") and hasClickAction()).assertIsFocused()
+        compose.onNodeWithText("Empty folder.").assertIsDisplayed().assertIsFocused()
+        compose.onNodeWithText("Files you add to this folder on put.io show up here.").assertIsDisplayed()
+        compose.onAllNodesWithText("Account default").assertCountEquals(0)
         compose.onAllNodesWithText("Refresh").assertCountEquals(0)
+    }
+
+    @Test
+    fun aLoadingFolderDrawsSkeletonsWithoutTheSortPill() {
+        compose.showFiles(state = { state(FilesContent.Loading(FilesRequestId(2))) })
+        compose.onNodeWithContentDescription("Loading").assertIsDisplayed()
+        compose.onNodeWithText("All files").assertIsDisplayed()
+        compose.onAllNodesWithText("Account default").assertCountEquals(0)
+    }
+
+    @Test
+    fun aFolderPutioDidNotAnswerForOffersTryAgain() {
+        val events = mutableListOf<FilesBrowserEvent>()
+        val failure = PutioFailure.ServerUnavailable(503, PutioConfigurationException("x"))
+        compose.showFiles(state = { state(FilesContent.Failed(failure)) }, onEvent = { events += it; true })
+        compose.onNodeWithText("Couldn't load your files.").assertIsDisplayed()
+        compose.onNodeWithText("put.io didn't answer. Check the TV's connection and try again.").assertIsDisplayed()
+        compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressCenter() }
+        assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.Retry), events)
     }
 
     @Test
@@ -233,18 +255,13 @@ class TvFilesScreenTest {
     }
 
     @Test
-    fun aFailedFolderKeepsSortInert() {
+    fun anOfflineFolderOffersTryNowAndNoSort() {
         val events = mutableListOf<FilesBrowserEvent>()
         compose.showFiles(state = { state(FilesContent.Failed(networkFailure())) }, onEvent = { events += it; true })
+        compose.onNodeWithText("Can’t reach put.io.").assertIsDisplayed()
         compose.onNodeWithText("Check the network and try again.").assertIsDisplayed()
-        compose.onNodeWithText("Try again").assertIsFocused().performKeyInput {
-            pressCenter()
-            pressKey(Key.DirectionUp)
-        }
-        compose.onNode(hasText("Account default") and hasClickAction()).assertIsFocused().performKeyInput {
-            pressCenter()
-        }
-        compose.onAllNodesWithText("Sort by").assertCountEquals(0)
+        compose.onNodeWithText("Try now").assertIsFocused().performKeyInput { pressCenter() }
+        compose.onAllNodesWithText("Account default").assertCountEquals(0)
         assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.Retry), events)
     }
 

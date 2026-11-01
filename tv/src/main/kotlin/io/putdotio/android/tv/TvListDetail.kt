@@ -237,6 +237,15 @@ internal val TV_MONO_RUN: SpanStyle = SpanStyle(
 internal fun String.asMonoRun(): AnnotatedString =
     buildAnnotatedString { withStyle(TV_MONO_RUN) { append(this@asMonoRun) } }
 
+internal fun monoNumber(label: String, number: String): AnnotatedString =
+    buildAnnotatedString {
+        append(label)
+        val start = label.indexOf(number)
+        if (start >= 0) {
+            addStyle(TV_MONO_RUN, start, start + number.length)
+        }
+    }
+
 internal fun TextStyle.asMonoRun(): TextStyle = copy(
     fontFamily = PutioTypeScale.tvMono.fontFamily,
     fontSize = fontSize * MONO_RUN_SCALE,
@@ -249,6 +258,8 @@ private fun String.breakableAtDots(): String = replace(".", ".​").removeSuffix
 internal val TV_LIST_WIDTH = 544.dp
 
 internal val ROW_BLEED = 12.dp
+
+internal val TV_LIST_ROW_HEIGHT = 48.dp
 
 private val DETAIL_GAP = 24.dp
 private val SECTION_PILL_HEIGHT = 24.dp

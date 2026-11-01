@@ -1,12 +1,16 @@
 package io.putdotio.android.tv.files
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.gestures.BringIntoViewSpec
+import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.SideEffect
@@ -30,6 +34,7 @@ import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesViewportPosition
 import io.putdotio.android.tv.focusRequesterIf
+import kotlin.math.abs
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 
@@ -139,47 +144,49 @@ internal fun TvFilesList(
         listState.reportViewport(viewport) { currentOnEvent(FilesBrowserEvent.ViewportChanged(it)) }
     }
 
-    LazyColumn(
-        state = listState,
-        modifier = modifier
-            .fillMaxWidth()
-            .focusRestorer(entryFocus)
-            .focusGroup()
-            .testTag(TV_FILES_LIST_TAG),
-    ) {
-        items(items = content.items, key = { it.id.value }) { item ->
-            TvFilesRow(
-                item = item,
-                onClick = { onOpen(item) },
-                onActions = { onActions(item) },
-                modifier = Modifier
-                    .focusRequesterIf(item.id.value == focusTarget, rowFocus)
-                    .focusRequesterIf(item.id.value == focusedRowId.value, liveRowFocus)
-                    .onFocusChanged {
-                        if (it.isFocused) {
-                            focusMemory[folderId] = item.id.value
-                            focusedRowId.value = item.id.value
-                            pagingHeldFocus.value = false
-                            onRowFocused(item)
-                        }
-                    },
-            )
-        }
-        if (content.paging != FilesPaging.Complete) {
-            item(key = TV_FILES_PAGING_KEY) {
-                TvFilesPaging(
-                    paging = content.paging,
-                    enabled = pagingEnabled,
-                    onEvent = onEvent,
-                    buttonModifier = Modifier
-                        .focusRequester(listPagingFocus)
+    RevealOnlyHiddenRows {
+        LazyColumn(
+            state = listState,
+            modifier = modifier
+                .fillMaxWidth()
+                .focusRestorer(entryFocus)
+                .focusGroup()
+                .testTag(TV_FILES_LIST_TAG),
+        ) {
+            items(items = content.items, key = { it.id.value }) { item ->
+                TvFilesRow(
+                    item = item,
+                    onClick = { onOpen(item) },
+                    onActions = { onActions(item) },
+                    modifier = Modifier
+                        .focusRequesterIf(item.id.value == focusTarget, rowFocus)
+                        .focusRequesterIf(item.id.value == focusedRowId.value, liveRowFocus)
                         .onFocusChanged {
                             if (it.isFocused) {
-                                pagingHeldFocus.value = true
-                                focusMemory[folderId] = PAGING_FOCUS_MARKER
+                                focusMemory[folderId] = item.id.value
+                                focusedRowId.value = item.id.value
+                                pagingHeldFocus.value = false
+                                onRowFocused(item)
                             }
                         },
                 )
+            }
+            if (content.paging != FilesPaging.Complete) {
+                item(key = TV_FILES_PAGING_KEY) {
+                    TvFilesPaging(
+                        paging = content.paging,
+                        enabled = pagingEnabled,
+                        onEvent = onEvent,
+                        buttonModifier = Modifier
+                            .focusRequester(listPagingFocus)
+                            .onFocusChanged {
+                                if (it.isFocused) {
+                                    pagingHeldFocus.value = true
+                                    focusMemory[folderId] = PAGING_FOCUS_MARKER
+                                }
+                            },
+                    )
+                }
             }
         }
     }
@@ -270,3 +277,21 @@ private const val TV_FILES_PAGING_KEY = "tv-files-paging"
 
 /** Item ids are positive, so this marks "the paging control" in the per-folder focus memory. */
 private const val PAGING_FOCUS_MARKER = -1L
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun RevealOnlyHiddenRows(content: @Composable () -> Unit) {
+    CompositionLocalProvider(LocalBringIntoViewSpec provides RevealOnlyHidden, content = content)
+}
+
+private object RevealOnlyHidden : BringIntoViewSpec {
+    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
+        val trailing = offset + size
+        return when {
+            offset >= 0f && trailing <= containerSize -> 0f
+            offset < 0f && trailing > containerSize -> 0f
+            abs(offset) < abs(trailing - containerSize) -> offset
+            else -> trailing - containerSize
+        }
+    }
+}

@@ -208,6 +208,48 @@ class TvShellFocusTest {
     }
 
     @Test
+    fun aLoadingPaneHoldsFocusOnItsSkeletonUntilTheRowsArrive() {
+        val ready = filesBrowserState(
+            stack = listOf(
+                FilesFolderState(
+                    FilesFolder.Root,
+                    FilesContent.Ready(listOf(row(1, "first.txt")), FilesPaging.Complete),
+                ),
+            ),
+            nextRequestValue = 10L,
+        )
+        val loading = filesBrowserState(
+            stack = listOf(FilesFolderState(FilesFolder.Root, FilesContent.Loading(FilesRequestId(11)))),
+            nextRequestValue = 12L,
+        )
+        var files by mutableStateOf(ready)
+        compose.setTvContent {
+            TvShell(
+                account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                onSignOut = {},
+                filesPane = { paneFocus ->
+                    TvFilesScreen(
+                        state = files,
+                        onEvent = { true },
+                        onPlayMedia = {},
+                        modifier = Modifier.focusRequester(paneFocus),
+                    )
+                },
+            )
+        }
+        compose.openTab(TvDestination.Files)
+        compose.onNodeWithContentDescription("first.txt").assertIsFocused()
+
+        files = loading
+        compose.waitForIdle()
+        compose.onNodeWithContentDescription("Loading").assertIsFocused()
+
+        files = ready
+        compose.waitForIdle()
+        compose.onNodeWithContentDescription("first.txt").assertIsFocused()
+    }
+
+    @Test
     fun aFolderThatFinishesLoadingWhileOnTheTabBarDoesNotStealFocus() {
         val loading = filesBrowserState(
             stack = listOf(FilesFolderState(FilesFolder.Root, FilesContent.Loading(FilesRequestId(1)))),
@@ -217,7 +259,7 @@ class TvShellFocusTest {
             FilesContent.Ready(listOf(row(1, "first.txt")), FilesPaging.Complete) to
                 { compose.onNodeWithContentDescription("first.txt") },
             FilesContent.Failed(PutioFailure.NetworkUnavailable(PutioConfigurationException("x"))) to
-                { compose.onNodeWithText("Try again") },
+                { compose.onNodeWithText("Try now") },
         )
         var mount by mutableIntStateOf(0)
         var files by mutableStateOf(loading)
@@ -243,7 +285,7 @@ class TvShellFocusTest {
                 files = loading
             }
             compose.openTab(TvDestination.Files)
-            compose.onNode(hasText("Account default") and hasClickAction()).assertIsFocused()
+            compose.onNodeWithContentDescription("Loading").assertIsFocused()
             compose.pressBack()
             compose.onTab("Files").assertIsFocused()
 

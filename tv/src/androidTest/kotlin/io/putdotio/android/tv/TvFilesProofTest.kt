@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -12,18 +13,24 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.putdotio.android.PutioResult
+import io.putdotio.android.account.InactiveAccountNotice
+import io.putdotio.android.tv.auth.TvAccount
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesFolderCounts
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPage
+import io.putdotio.android.files.FilesRepository
 import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.files.FilesSort
 import io.putdotio.android.files.FilesSubtitleLanguages
 import io.putdotio.android.files.FilesSubtitles
 import io.putdotio.sdk.files.PutioFileType
 import java.io.File
+import java.time.LocalDate
+import java.time.ZoneId
 import java.util.UUID
+import kotlinx.coroutines.awaitCancellation
 import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Rule
@@ -85,15 +92,79 @@ class TvFilesProofTest {
         screenshot("androidtv-st-d1-sort")
     }
 
+    @Test
+    fun loading() {
+        val listings = listings()
+        mount(
+            listings,
+            filesRepository = object : FilesRepository by ProofFilesRepository(listings) {
+                override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> = awaitCancellation()
+            },
+        )
+        compose.waitUntil(5_000) { isFocused(LOADING) }
+        screenshot("androidtv-st-s1-loading")
+    }
+
+    @Test
+    fun emptyFolder() {
+        val root = FilesFolder.Root.id
+        val empty = folder(EMPTY_ID, EMPTY, "2026-10-30T09:00:00", root)
+        mount(
+            mapOf(
+                root to FilesPage(listOf(empty), null, sort = FilesSort.NAME_ASCENDING),
+                empty.id to FilesPage(emptyList(), null, sort = FilesSort.NAME_ASCENDING, parent = empty, total = 0),
+            ),
+        )
+        compose.waitUntil(5_000) { isFocused("Open $EMPTY") }
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitUntil(5_000) {
+            compose.onAllNodesWithText("Empty folder.").fetchSemanticsNodes().any(::focused)
+        }
+        compose.focusTvTab("Files")
+        screenshot("androidtv-st-s2-empty-folder")
+    }
+
+    @Test
+    fun couldNotLoad() {
+        mount(emptyMap())
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Try again").fetchSemanticsNodes().any(::focused) }
+        screenshot("androidtv-st-s3-error")
+    }
+
+    @Test
+    fun inactiveAccount() {
+        val zone = ZoneId.systemDefault()
+        val deletion = LocalDate.now(zone).plusDays(INACTIVE_DAYS).atTime(12, 0).atZone(zone).toInstant()
+        mount(
+            listings(),
+            account = TvAccount(
+                userId = 1,
+                username = "proof",
+                email = "proof@example.invalid",
+                historyEnabled = true,
+                inactiveNotice = InactiveAccountNotice.Deactivated(deletion),
+            ),
+        )
+        compose.waitUntil(5_000) { isFocused("Open $BBB") }
+        focusBlueLights()
+        waitForText("English, English · SDH")
+        screenshot("androidtv-st-s10-inactive")
+    }
+
     private fun focusBlueLights() {
         repeat(BLUE_LIGHTS_INDEX) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
         compose.waitUntil(5_000) { isFocused("Play $BLUE_LIGHTS") }
     }
 
     private fun mount() {
+        mount(listings())
+        compose.waitUntil(5_000) { isFocused("Open $BBB") }
+    }
+
+    private fun listings(): Map<FilesItemId, FilesPage> {
         val root = FilesFolder.Root.id
         val bbb = folder(BBB_ID, BBB, "2026-08-31T09:00:00", root)
-        val listings = mapOf(
+        return mapOf(
             root to FilesPage(
                 listOf(
                     bbb,
@@ -124,6 +195,13 @@ class TvFilesProofTest {
                 total = 3,
             ),
         )
+    }
+
+    private fun mount(
+        listings: Map<FilesItemId, FilesPage>,
+        filesRepository: FilesRepository = ProofFilesRepository(listings),
+        account: TvAccount = TvAccount(userId = 1, username = "proof", email = "proof@example.invalid", historyEnabled = true),
+    ) {
         val subtitles = mapOf(
             14L to FilesSubtitles(listOf("English", "English · SDH")),
             22L to FilesSubtitles(listOf("English"), sidecarFiles = 1),
@@ -133,13 +211,13 @@ class TvFilesProofTest {
             searchResults = emptyList(),
             recentSearchStore = { ProofRecentSearchStore() },
         ).copy(
+            filesRepository = filesRepository,
             folderCounts = FilesFolderCounts { id -> PutioResult.Success(listings[id]?.items?.size ?: 0) },
             subtitleLanguages = FilesSubtitleLanguages { id ->
                 PutioResult.Success(subtitles[id.value] ?: FilesSubtitles(emptyList()))
             },
         )
-        compose.mountTvProofSession(dependencies)
-        compose.waitUntil(5_000) { isFocused("Open $BBB") }
+        compose.mountTvProofSession(dependencies, account = account)
     }
 
     private fun folder(id: Long, name: String, createdAt: String, parent: FilesItemId) =
@@ -155,7 +233,9 @@ class TvFilesProofTest {
     )
 
     private fun isFocused(label: String) = compose.onAllNodesWithContentDescription(label).fetchSemanticsNodes()
-        .any { it.config.getOrNull(SemanticsProperties.Focused) == true }
+        .any(::focused)
+
+    private fun focused(node: SemanticsNode) = node.config.getOrNull(SemanticsProperties.Focused) == true
 
     private fun waitForText(text: String) {
         compose.waitUntil(5_000) { compose.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() }
@@ -195,5 +275,9 @@ class TvFilesProofTest {
         const val SUBTITLES = "Big Buck Bunny.en.srt"
         const val BLUE_LIGHTS = "Blue.Lights.S04E01.1080p.HDTV.H264-ORGANiC.mkv"
         const val BLUE_LIGHTS_INDEX = 4
+        const val EMPTY_ID = 30L
+        const val EMPTY = "New folder"
+        const val LOADING = "Loading"
+        const val INACTIVE_DAYS = 12L
     }
 }
