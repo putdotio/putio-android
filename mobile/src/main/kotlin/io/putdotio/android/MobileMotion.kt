@@ -284,11 +284,6 @@ internal fun MobileRouteAnimation(scope: AnimatedVisibilityScope, content: @Comp
     CompositionLocalProvider(LocalMobileRouteAnimation provides scope, content = content)
 }
 
-/**
- * Bounds shared between a playable row and the player route for [fileId], the container transform
- * of DESIGN.md Motion. [route] defaults to the route the row sits in; outside the NavHost, or for a
- * row that does not play, it adds nothing.
- */
 internal fun Modifier.playbackContainer(
     fileId: Long,
     playable: Boolean = true,

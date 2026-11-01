@@ -87,12 +87,6 @@ internal const val MOBILE_SLEEP_TIMER_CHIP_TAG = "mobile-sleep-timer-chip"
 internal const val MOBILE_UP_NEXT_CHIP_TAG = "mobile-up-next-chip"
 internal const val MOBILE_NOW_PLAYING_SHEET_TAG = "mobile-now-playing-sheet"
 
-/**
- * Now Playing (DESIGN.md Player): a large type glyph, the filename and its folder, a scrubber with
- * mono times, an 88dp neutral play and pause between the skip buttons and the 15 and 30-second
- * seeks, then speed, sleep timer and Up next chips. Back sits above it, from the player screen, so
- * every audio state keeps the same way out.
- */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @Composable
 internal fun MobileNowPlayingScreen(

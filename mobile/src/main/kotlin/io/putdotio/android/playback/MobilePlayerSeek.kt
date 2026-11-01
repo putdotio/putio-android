@@ -50,10 +50,8 @@ internal data class SeekIntervals(val backMillis: Long, val forwardMillis: Long)
         if (direction == SeekDirection.Backward) backMillis else forwardMillis
 }
 
-/** Video moves 10 seconds either way (DESIGN.md Player). */
 internal val VideoSeekIntervals = SeekIntervals(backMillis = 10_000L, forwardMillis = 10_000L)
 
-/** Now Playing goes back 15 seconds and forward 30, as podcast players do (DESIGN.md Player). */
 internal val AudioSeekIntervals = SeekIntervals(backMillis = 15_000L, forwardMillis = 30_000L)
 
 internal data class PendingSeek(

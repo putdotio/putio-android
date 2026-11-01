@@ -6,7 +6,6 @@ import org.junit.Test
 class PutioWelcomeSequenceTest {
     @Test
     fun sequenceHoldsEachFrameThenRollsToTheNext() {
-        // DESIGN.md Welcome: each of the four frames holds 1.9 s, then the next rolls in over 0.6 s.
         assertEquals(0f, welcomeSequencePosition(0L, frameCount = 4))
         assertEquals(0f, welcomeSequencePosition(1_900L, frameCount = 4))
         // The roll eases on cubic-bezier(0.7, 0, 0.2, 1): slow out, fast through the middle.

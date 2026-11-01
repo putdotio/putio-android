@@ -11,91 +11,16 @@ phones, tablets, Android TV, and Fire TV from one codebase.
 
 ## What works today
 
-Mobile, on the emulator harness against the live API:
+- Mobile: sign-in, Files, Search, History, Transfers, Downloads with offline
+  playback, Trash and Account, video and audio playback with Cast, and the
+  widget, shortcuts and system file picker.
+- TV: device-code sign-in, Home, Files, Search, History, Trash and Account,
+  full-screen playback, and the launcher's Play Next row and system search.
+- Both: crash reports unless Diagnostics is off, and product analytics only
+  once the account turns them on.
 
-- OAuth sign-in, with the session in Android secure storage
-- Files, Search, History, Transfers, Downloads, Trash and Account, with
-  adaptive layouts for tablets
-- Item actions from the overflow, multi-select from a long-press, public
-  links and in-app image, PDF and text viewers
-- Items shared with you and friends' folders, also from `files/<id>` links;
-  Search there covers the whole account, since put.io can't scope it
-- Video and background audio playback with resume, tracks, subtitles,
-  picture-in-picture and positions saved to put.io
-- Offline downloads with offline playback, also after a start with no
-  network; the session is checked again when the network returns
-- Transfer intake from magnet links, `.torrent` files and shared links
-- A themed launcher icon, launcher shortcuts, a Transfers widget and the
-  system file picker; the widget and picker are proven only on an emulator
-  with faked data so far
-- Google Cast from the players, resuming locally where the receiver stopped
-
-TV:
-
-- Device-code sign-in: the phone's rolling Welcome stage, a QR code or the
-  code at put.io/link, and expired codes renewed silently up to three times
-- A startup that checks the session and, offline, retries when the network
-  returns
-- A top bar of Home, Files, Search, History and Account tabs, each with its
-  own Back history
-- Home with Continue watching, on the phone's store and recorded by the TV
-  player, and Pinned folders and files kept in the account's config; a
-  first-run state points to Files, and Account › Library can hide Home
-- Files and folders as a list beside the focused item's detail: Resume from
-  the saved position or Start over, a folder's count, size and last change,
-  and a sort side sheet with the phone's Sort by, Order and Videos groups;
-  skeleton rows while a folder loads, and empty, couldn't-load and offline
-  states in the empty-state voice
-- Item actions in a side sheet from More or the Menu key: Resume, Start over
-  and Subtitles tiles, then Open in VLC, Mark as watched or unwatched, and Pin
-  to Home or Unpin; Move to trash acts at once with a Moved to Trash snackbar
-  and Undo, and Delete permanently confirms with a red button
-- History as the phone's rows under day headers beside the focused event's
-  file, with its size, its folder and Open folder; Clear history confirms
-  with a red button, and History off links to Account
-- Search with a full-width field, the phone's type chips, recent searches as
-  chips, and Folders and Files groups beside the focused result's detail;
-  each result names its folder, and the Settings pill or Menu on the field
-  opens a side sheet to show or clear search history
-- An inactive-account notice under the tabs that never takes focus
-- Full-screen playback with the phone's controls: D-pad scrubbing, a Resume
-  prompt, and Audio, Subtitles (with size and timing) and Speed side sheets
-- Player states over the dimmed frame: a loading spinner, errors in the
-  empty-state voice with Try again, Open in VLC for formats the TV can't play,
-  and the phone's MP4 conversion progress, with Play in VLC now where VLC is
-  installed
-- With Autoplay next video on, an Up next card that counts 10 seconds, with
-  Play now and Cancel
-- Account as groups beside their rows: Library, Playback, Subtitles, the
-  phone's Privacy controls with the policy and services list as QR codes,
-  About with a support QR code, and Sign out; choices open as side sheets
-  with Cancel and Save
-- Trash from Account › Library as a list beside the focused item's detail:
-  each item's size and days left, Restore and Delete permanently, and Restore
-  all and Empty trash; Delete permanently and Empty trash confirm with a red
-  button
-- The launcher's Play Next row and Android TV system search, with the
-  wordmark for files without a screenshot
-- The redesign's foundations: GT America and Berkeley Mono type, one light
-  focus style with no scaling, 48dp side margins, a neutral switch, and a
-  red confirm before Sign out
-
-Both apps follow the system font size up to a 1.3 font scale, as the iOS app
-caps it; widgets and notifications keep the system scale.
-
-Both apps report crashes and player failures to Sentry only while the
-account's Diagnostics control is on, and send only exception types, stack
-frames, device facts and failure codes.
-
-Release builds send product analytics to PostHog only while the account's
-Product analytics control is on: app opens and backgrounds, screens, saved
-settings, and video playback starts, ends and failures. Every event passes the
-allowlist in
-[`AnalyticsEvent.kt`](core/telemetry/src/main/kotlin/io/putdotio/android/telemetry/AnalyticsEvent.kt),
-which follows put.io's Analytics event contract. Mobile asks once per launch
-while the control is off and unanswered, except on a launch that opens a link
-or a shared transfer; debug builds ask only on a launch with the
-`putio.harness.analytics_prompt` extra.
+[Architecture](./docs/architecture.md) describes the product areas and how
+the code is split.
 
 ## Build and verify
 
@@ -114,6 +39,7 @@ The [Agent guide](./AGENTS.md#build-and-verify) covers what the gate runs and
 ## Docs
 
 - [Design](./DESIGN.md): the Android design contract
+- [Architecture](./docs/architecture.md): product areas and module boundaries
 - [Agent guide](./AGENTS.md): module layout, hazards, proof map and CI
 
 ## Security

@@ -108,10 +108,6 @@ internal data class MobileAccountLibrary(
     val trashSizeBytes: Long? = null,
 )
 
-/**
- * The Account tab under its title: the identity line, the storage card, then the settings as segmented
- * groups in DESIGN.md's order, and Sign out alone behind its confirm.
- */
 @Composable
 internal fun MobileAccountScreen(
     account: MobileAccount,

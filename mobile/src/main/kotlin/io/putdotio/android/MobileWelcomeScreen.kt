@@ -70,7 +70,6 @@ internal data class MobileWelcomeFrame(
     @StringRes val caption: Int,
 )
 
-/** The signed-out sequence, in DESIGN.md's order. */
 internal val MobileWelcomeSequence: List<MobileWelcomeFrame> = listOf(
     MobileWelcomeFrame(R.string.mobile_welcome_kaomoji_magnet, R.string.mobile_welcome_caption_magnet),
     MobileWelcomeFrame(R.string.mobile_welcome_kaomoji_fetch, R.string.mobile_welcome_caption_fetch),
