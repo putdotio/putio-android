@@ -126,13 +126,10 @@ class TvSearchSuggestionsTest {
     @Test
     fun `results that arrive after their session signed out list nothing`() = runTest {
         var current = true
-        val search = globalSearch(
-            search = {
-                current = false
-                PutioResult.Success(SearchPage(listOf(video), nextCursor = null, total = 1))
-            },
-            isCurrent = { it == signedIn.sessionId && current },
-        )
+        val search = globalSearch(isCurrent = { it == signedIn.sessionId && current }) {
+            current = false
+            PutioResult.Success(SearchPage(listOf(video), nextCursor = null, total = 1))
+        }
 
         assertEquals(emptyList<FilesItem>(), search.files("harbor"))
     }
@@ -176,8 +173,8 @@ class TvSearchSuggestionsTest {
     private val suggestUri = "content://${context.packageName}.search/${SearchManager.SUGGEST_URI_PATH_QUERY}".toUri()
 
     private fun globalSearch(
-        search: suspend (SearchTerm) -> PutioResult<SearchPage>,
         isCurrent: (TvAuthSessionId) -> Boolean = { true },
+        search: suspend (SearchTerm) -> PutioResult<SearchPage>,
     ) = TvGlobalSearch(session = { signedIn }, search = search, reject = { error("not ended") }, isCurrent = isCurrent)
 
     private fun provider(search: TvGlobalSearch) =
