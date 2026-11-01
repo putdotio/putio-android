@@ -49,13 +49,28 @@ public class PlaybackPositionWriter(
      */
     public suspend fun <T> exclusive(block: suspend () -> T): T = requests.withLock { block() }
 
+    /**
+     * Runs [block], another write of [fileId]'s position, as the last word on it: positions this
+     * writer took for the file before the call are dropped unless already sent, and one already
+     * sent finishes before [block] starts.
+     */
+    public suspend fun <T> supersede(fileId: Long, block: suspend () -> T): T {
+        leases.values.filter { it.fileId == fileId }.forEach {
+            it.generation++
+            it.lastOffered = null
+        }
+        if (pending?.allowed() == false) pending = null
+        requests.withLock {}
+        return block()
+    }
+
     public fun offer(token: String, positionMillis: Long) {
         val lease = leases[token]?.takeIf { !closed && positionMillis > 0L && it.authorized() } ?: return
         if (lease.lastOffered?.div(POSITION_DEDUP_MILLIS) == positionMillis / POSITION_DEDUP_MILLIS) return
         lease.lastOffered = positionMillis
         // One in-flight request and one latest snapshot bound memory during slow requests
         // and rapid file switches. Intermediate queued exit positions may be superseded.
-        pending = Snapshot(token, lease.fileId, positionMillis)
+        pending = Snapshot(token, lease.fileId, positionMillis, lease.generation)
         drain()
     }
 
@@ -63,7 +78,7 @@ public class PlaybackPositionWriter(
     public fun reconcile() {
         leases.values.filterNot { it.authorized() }.forEach { it.lastOffered = null }
         if (pending?.allowed() == false) pending = null
-        if (active?.allowed() == false) activeJob?.cancel()
+        if (active?.let { leases[it.token]?.authorized?.invoke() } != true) activeJob?.cancel()
         mutableFailure.value = null
     }
 
@@ -75,7 +90,8 @@ public class PlaybackPositionWriter(
         mutableFailure.value = null
     }
 
-    private fun Snapshot.allowed(): Boolean = !closed && leases[token]?.authorized?.invoke() == true
+    private fun Snapshot.allowed(): Boolean =
+        !closed && leases[token]?.takeIf { it.generation == generation }?.authorized?.invoke() == true
 
     @Suppress("TooGenericExceptionCaught")
     private fun drain() {
@@ -120,8 +136,14 @@ public class PlaybackPositionWriter(
         job.start()
     }
 
-    private class Lease(val fileId: Long, val authorized: () -> Boolean, var lastOffered: Long? = null)
-    private data class Snapshot(val token: String, val fileId: Long, val positionMillis: Long)
+    private class Lease(
+        val fileId: Long,
+        val authorized: () -> Boolean,
+        var lastOffered: Long? = null,
+        var generation: Int = 0,
+    )
+
+    private data class Snapshot(val token: String, val fileId: Long, val positionMillis: Long, val generation: Int)
 }
 
 private const val MAX_LEASES = 8

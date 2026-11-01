@@ -1,12 +1,6 @@
 package io.putdotio.android
 
-import android.database.ContentObserver
-import android.os.Handler
-import android.os.Looper
-import android.provider.Settings
 import androidx.annotation.StringRes
-import androidx.compose.animation.core.CubicBezierEasing
-import androidx.compose.animation.core.withInfiniteAnimationFrameMillis
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -40,10 +34,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,7 +43,6 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.layout.layout
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -70,7 +59,8 @@ import androidx.compose.ui.unit.sp
 import io.putdotio.android.auth.MobileSignedOutReason
 import io.putdotio.android.design.PutioRadius
 import io.putdotio.android.design.PutioTypeScale
-import kotlinx.coroutines.delay
+import io.putdotio.android.design.rememberAnimationsOff
+import io.putdotio.android.design.rememberWelcomeSequencePosition
 import kotlin.math.abs
 import io.putdotio.android.design.R as DesignR
 
@@ -167,22 +157,6 @@ internal val MobileBrowserWelcomeContent = MobileWelcomeContent(
     frames = listOf(WaitingFrame),
     action = MobileWelcomeAction(R.string.mobile_auth_cancel, MobileWelcomeActionStyle.Text),
 )
-
-private const val WELCOME_HOLD_MS = 1_900L
-private const val WELCOME_ROLL_MS = 600L
-private const val WELCOME_FRAME_MS = WELCOME_HOLD_MS + WELCOME_ROLL_MS
-private val WelcomeRollEasing = CubicBezierEasing(a = 0.7f, b = 0f, c = 0.2f, d = 1f)
-
-/**
- * Where the Welcome sequence stands [elapsedMs] after it started, in frames: each frame holds, then
- * the next rolls up into its place. It runs from 0 to [frameCount], where the first frame has rolled
- * back in, and starts over at 0.
- */
-internal fun welcomeSequencePosition(elapsedMs: Long, frameCount: Int): Float {
-    val frame = (elapsedMs / WELCOME_FRAME_MS) % frameCount
-    val roll = (elapsedMs % WELCOME_FRAME_MS - WELCOME_HOLD_MS).coerceAtLeast(0L)
-    return frame + WelcomeRollEasing.transform(roll.toFloat() / WELCOME_ROLL_MS)
-}
 
 private val TOP_BAR_HEIGHT = 64.dp
 private val WORDMARK_WIDTH = 88.dp
@@ -288,19 +262,7 @@ private fun WelcomeStage(
     modifier: Modifier = Modifier,
 ) {
     val sequence = frames.size > 1
-    val animates = sequence && !rememberAnimationsOff()
-    val position = remember(frames) { mutableFloatStateOf(0f) }
-    LaunchedEffect(frames, animates) {
-        position.floatValue = 0f
-        if (!animates) return@LaunchedEffect
-        val start = withInfiniteAnimationFrameMillis { it }
-        while (true) {
-            val elapsed = withInfiniteAnimationFrameMillis { it } - start
-            position.floatValue = welcomeSequencePosition(elapsed, frames.size)
-            val hold = WELCOME_HOLD_MS - elapsed % WELCOME_FRAME_MS
-            if (hold > 0) delay(hold)
-        }
-    }
+    val position = rememberWelcomeSequencePosition(frames, animates = sequence && !rememberAnimationsOff())
     Column(
         modifier = modifier.fillMaxWidth().clearAndSetSemantics {},
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -326,34 +288,6 @@ private fun WelcomeStage(
             )
         }
     }
-}
-
-/**
- * Whether the system turned animations off (animator duration scale 0). [rememberMobileMotion] reads it on
- * lifecycle changes; the setting can also change while this screen stays resumed, as from Settings in
- * the other split-screen pane, so the stage watches it too.
- */
-@Composable
-private fun rememberAnimationsOff(): Boolean {
-    val atLifecycle = rememberMobileMotion().reducedMotion
-    val resolver = LocalContext.current.contentResolver
-    // One state both readings write, so the latest of the two wins.
-    val off = remember { mutableStateOf(atLifecycle) }
-    LaunchedEffect(atLifecycle) { off.value = atLifecycle }
-    DisposableEffect(resolver) {
-        val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
-            override fun onChange(selfChange: Boolean) {
-                off.value = Settings.Global.getFloat(resolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
-            }
-        }
-        resolver.registerContentObserver(
-            Settings.Global.getUriFor(Settings.Global.ANIMATOR_DURATION_SCALE),
-            false,
-            observer,
-        )
-        onDispose { resolver.unregisterContentObserver(observer) }
-    }
-    return off.value
 }
 
 @Composable

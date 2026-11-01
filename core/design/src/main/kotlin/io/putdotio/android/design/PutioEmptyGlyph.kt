@@ -10,4 +10,6 @@ public enum class PutioEmptyGlyph(public val text: String) {
     /** The player's error state, which shares the offline face. */
     CantPlay("(x_x)"),
     CouldNotLoad("(・_・;)"),
+    NothingYet("( ˘▽˘)っ"),
+    HistoryOff("(-_-) zZ"),
 }

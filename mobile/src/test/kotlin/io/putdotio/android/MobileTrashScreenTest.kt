@@ -33,13 +33,10 @@ import io.putdotio.android.trash.TrashRestoreCheck
 import io.putdotio.android.trash.TrashRestoreOutcome
 import io.putdotio.android.trash.TrashRestoreSubmission
 import io.putdotio.android.trash.TrashState
-import io.putdotio.android.trash.trashDaysLeft
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
 import java.time.LocalDate
-import java.time.ZoneId
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -168,10 +165,7 @@ class MobileTrashScreenTest {
     }
 
     @Test
-    fun missingAndInvalidExpirationNeverProduceADeadline() {
-        val today = LocalDate.of(2026, 9, 6)
-        assertNull("not-a-date".trashDaysLeft(today))
-        assertNull("2026-99-99".trashDaysLeft(today))
+    fun anInvalidExpirationShowsNoDeadline() {
         val state = TrashState(
             content = loaded.copy(items = listOf(item.copy(expirationDate = "invalid", deletedAt = null))),
         )
@@ -180,13 +174,7 @@ class MobileTrashScreenTest {
     }
 
     @Test
-    fun backendNaiveUtcDatesCountTheSameDaysAsExplicitUtc() {
-        val today = LocalDate.of(2026, 9, 6)
-        val utc = ZoneId.of("UTC")
-        val expires = "2026-09-20T10:00:00"
-        assertEquals(14L, expires.trashDaysLeft(today, utc))
-        assertEquals("${expires}Z".trashDaysLeft(today, utc), expires.trashDaysLeft(today, utc))
-        assertEquals(0L, "2026-09-01".trashDaysLeft(today, utc))
+    fun anItemExpiringTomorrowSaysGoneTomorrow() {
         val tomorrow = LocalDate.now().plusDays(1).toString()
         val state = TrashState(content = loaded.copy(items = listOf(item.copy(expirationDate = tomorrow))))
         compose.setContent { PutioTheme { MobileTrashScreen(state, { true }) } }

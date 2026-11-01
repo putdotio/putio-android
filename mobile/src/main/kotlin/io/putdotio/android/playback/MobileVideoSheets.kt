@@ -1,6 +1,7 @@
 package io.putdotio.android.playback
 
 import android.view.KeyEvent
+import io.putdotio.android.playback.R as PlaybackR
 import androidx.annotation.StringRes
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -44,7 +45,7 @@ internal fun MobileVideoChips(
 internal fun MobileNextEpisodeChip(nextEpisode: PlaybackTarget?, onNextEpisode: () -> Unit, modifier: Modifier) {
     if (nextEpisode == null) return
     MobilePlayerChip(
-        label = stringResource(R.string.mobile_playback_next_episode),
+        label = stringResource(PlaybackR.string.playback_next_episode),
         description = null,
         onClick = onNextEpisode,
         trailingIcon = R.drawable.ic_ph_skip_forward,
@@ -153,6 +154,6 @@ private fun MobileVideoSheet.title(): Int =
     when (this) {
         MobileVideoSheet.Audio -> R.string.mobile_playback_audio_control
         MobileVideoSheet.Subtitles -> R.string.mobile_playback_subtitles_title
-        MobileVideoSheet.SubtitleAppearance -> R.string.mobile_playback_subtitle_appearance
+        MobileVideoSheet.SubtitleAppearance -> PlaybackR.string.playback_size_and_timing
         MobileVideoSheet.Speed -> R.string.mobile_playback_speed
     }

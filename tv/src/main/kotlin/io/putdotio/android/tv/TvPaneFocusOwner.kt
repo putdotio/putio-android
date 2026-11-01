@@ -3,9 +3,15 @@ package io.putdotio.android.tv
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.State
+import androidx.compose.runtime.currentCompositeKeyHashCode
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
@@ -22,8 +28,12 @@ import kotlinx.coroutines.flow.first
 internal class TvPaneFocusOwner(
     private val entryTarget: MutableState<FocusRequester>,
     private val paneHasFocus: State<Boolean>,
+    private val lastSection: MutableState<Long?> = mutableStateOf(null),
+    private val onEnter: (FocusRequester) -> Unit = {},
     private val home: () -> FocusRequester,
 ) {
+    private val sections = mutableMapOf<Long, FocusRequester>()
+
     /** True while the pane holds focus and this section was the last to have it. */
     fun owns(requester: FocusRequester): Boolean = paneHasFocus.value && entryTarget.value === requester
 
@@ -37,18 +47,39 @@ internal class TvPaneFocusOwner(
         if (entryTarget.value === from) entryTarget.value = requester
     }
 
-    private val mutableRefocusRequests = mutableIntStateOf(0)
+    private val refocusRequests = mutableIntStateOf(0)
 
     /**
-     * Bumps when a section that held focus left composition, so the pane can move focus
-     * to the new entry point once the frame has settled; a pane that does not observe it
-     * leaves focus where the window puts it.
+     * Moves focus to the entry point a frame after a section that held it left composition,
+     * unless the user has left the pane or [blocked] holds focus over it.
      */
-    val refocusRequests: State<Int> = mutableRefocusRequests
+    @Composable
+    fun RefocusAfterLeave(blocked: State<Boolean>) {
+        val requests = refocusRequests.intValue
+        LaunchedEffect(requests) {
+            if (requests == 0) return@LaunchedEffect
+            withFrameNanos {}
+            if (paneHasFocus.value && !blocked.value) focusEntry()
+        }
+    }
 
     /** Records that the section behind [requester] holds focus, making it the entry point. */
-    fun enter(requester: FocusRequester) {
+    fun enter(requester: FocusRequester, section: Long? = null) {
         entryTarget.value = requester
+        if (section != null) lastSection.value = section
+        onEnter(requester)
+    }
+
+    fun register(section: Long, requester: FocusRequester) {
+        sections[section] = requester
+    }
+
+    fun unregister(section: Long, requester: FocusRequester) {
+        if (sections[section] === requester) sections.remove(section)
+    }
+
+    fun restoreLastSection() {
+        sections[lastSection.value]?.let { entryTarget.value = it }
     }
 
     /**
@@ -58,7 +89,7 @@ internal class TvPaneFocusOwner(
     fun leave(requester: FocusRequester, fallback: (() -> FocusRequester)?) {
         if (entryTarget.value === requester) {
             entryTarget.value = fallback?.invoke() ?: home()
-            if (paneHasFocus.value) mutableRefocusRequests.intValue += 1
+            if (paneHasFocus.value) refocusRequests.intValue += 1
         }
     }
 
@@ -67,20 +98,26 @@ internal class TvPaneFocusOwner(
     val hasFocus: Boolean get() = paneHasFocus.value
 }
 
-/**
- * The row a pane last opened something from: playback or Files replaces the pane, and the
- * row takes focus again when the pane next mounts, as Files does for its rows. Owned by the
- * session so it survives the pane being disposed. Plain, not snapshot state.
- */
 internal class TvPickedRow {
-    private var id: Long? = null
+    var id: Long? = null
+        private set
 
     fun pick(rowId: Long) {
         id = rowId
     }
 
-    /** The row to focus on this mount; read once, so a later visit starts as usual. */
-    fun take(): Long? = id.also { id = null }
+    fun forget() {
+        id = null
+    }
+
+    fun keptOnlyBy(rows: FocusRequester): (FocusRequester) -> Unit = { entered -> if (entered !== rows) forget() }
+
+    companion object {
+        val Saver: Saver<TvPickedRow, Long> = Saver(
+            save = { it.id },
+            restore = { id -> TvPickedRow().apply { pick(id) } },
+        )
+    }
 }
 
 /**
@@ -94,10 +131,61 @@ internal fun Modifier.paneSection(
     requester: FocusRequester,
     fallback: (() -> FocusRequester)? = null,
 ): Modifier {
+    val section = currentCompositeKeyHashCode
     DisposableEffect(requester) {
-        onDispose { owner.leave(requester, fallback) }
+        owner.register(section, requester)
+        onDispose {
+            owner.unregister(section, requester)
+            owner.leave(requester, fallback)
+        }
     }
-    return onFocusChanged { if (it.hasFocus) owner.enter(requester) }
+    return onFocusChanged { if (it.hasFocus) owner.enter(requester, section) }
+}
+
+/**
+ * Lets a control hand focus back to its pane when it leaves composition while focused; the pane
+ * runs [Refocus] to place focus on its entry point a frame later, unless the user has left the
+ * pane or a dialog blocks it. A focused node reports losing focus before its effects dispose, so
+ * the pane checks a frame later that the control is gone.
+ */
+internal class TvFocusHandBack {
+    private val requests = mutableIntStateOf(0)
+    private var lost: TvHandBackControl? = null
+
+    fun lose(control: TvHandBackControl) {
+        lost = control
+        requests.intValue += 1
+    }
+
+    @Composable
+    fun Refocus(paneHasFocus: State<Boolean>, blocked: State<Boolean>, target: State<FocusRequester>) {
+        val pending = requests.intValue
+        LaunchedEffect(pending) {
+            if (pending == 0) return@LaunchedEffect
+            withFrameNanos {}
+            val control = lost ?: return@LaunchedEffect
+            lost = null
+            if (!control.composed && paneHasFocus.value && !blocked.value) target.value.requestFocus()
+        }
+    }
+}
+
+internal class TvHandBackControl {
+    var focused = false
+    var composed = false
+}
+
+@Composable
+internal fun Modifier.handsBackFocus(handBack: TvFocusHandBack): Modifier {
+    val control = remember { TvHandBackControl() }
+    DisposableEffect(control) {
+        control.composed = true
+        onDispose { control.composed = false }
+    }
+    return onFocusChanged {
+        if (control.focused && !it.isFocused) handBack.lose(control)
+        control.focused = it.isFocused
+    }
 }
 
 internal fun Modifier.focusRequesterIf(condition: Boolean, requester: FocusRequester): Modifier =
@@ -127,4 +215,26 @@ internal suspend fun refocusAfterDialog(
     if (!closing || !paneHasFocus.value) return
     withFrameNanos {}
     if (paneHasFocus.value) entryTarget.value.requestFocus()
+}
+
+internal val LocalTvPaneReleased = staticCompositionLocalOf<State<Boolean>> { mutableStateOf(false) }
+
+@Composable
+internal fun rememberTvPaneHasFocus(): MutableState<Boolean> {
+    val released = LocalTvPaneReleased.current
+    return remember(released) { TvPaneHasFocus(released) }
+}
+
+private class TvPaneHasFocus(private val released: State<Boolean>) : MutableState<Boolean> {
+    private val own = mutableStateOf(true)
+
+    override var value: Boolean
+        get() = own.value && !released.value
+        set(value) {
+            own.value = value
+        }
+
+    override fun component1(): Boolean = value
+
+    override fun component2(): (Boolean) -> Unit = { value = it }
 }

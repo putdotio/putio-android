@@ -1,12 +1,12 @@
 package io.putdotio.android.tv.player
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import android.view.KeyEvent as AndroidKeyEvent
 import io.putdotio.android.design.PutioTvTheme
 import io.putdotio.android.tv.setTvContent
 import androidx.activity.ComponentActivity
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
 import androidx.lifecycle.Lifecycle
 import androidx.compose.ui.test.ExperimentalTestApi
@@ -34,7 +34,6 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import io.putdotio.android.playback.copyForTest
 
-/** The TV player on a fake Media3 player; the emulator lane plays real media through ExoPlayer. */
 @OptIn(ExperimentalTestApi::class)
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -69,23 +68,21 @@ class TvPlayerScreenTest {
             assertTrue(player.playWhenReady)
         }
         compose.onNodeWithText("Sintel.mp4").assertIsDisplayed()
-        compose.onNodeWithContentDescription("Playing").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Pause").assertIsDisplayed()
 
         compose.onNodeWithTag(TV_PLAYER_TAG).assertIsFocused().performKeyInput { pressKey(Key.DirectionCenter) }
         compose.settle()
         compose.runOnIdle { assertFalse(player.playWhenReady) }
-        // Paused controls stay up past the auto-hide delay.
         compose.mainClock.advanceTimeBy(TV_PLAYER_CONTROLS_HIDE_DELAY_MILLIS * 2)
-        compose.onNodeWithContentDescription("Paused").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Play").assertIsDisplayed()
 
         compose.onNodeWithTag(TV_PLAYER_TAG).performKeyInput { pressKey(Key.MediaPlayPause) }
         compose.settle()
         compose.runOnIdle { assertTrue(player.playWhenReady) }
-        compose.onNodeWithContentDescription("Playing").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Pause").assertIsDisplayed()
         compose.mainClock.advanceTimeBy(TV_PLAYER_CONTROLS_HIDE_DELAY_MILLIS + 100L)
         compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertDoesNotExist()
 
-        // Any key reveals the controls without changing playback.
         compose.onNodeWithTag(TV_PLAYER_TAG).performKeyInput { pressKey(Key.DirectionDown) }
         compose.settle()
         compose.onNodeWithText("Sintel.mp4").assertIsDisplayed()
@@ -122,7 +119,7 @@ class TvPlayerScreenTest {
             assertEquals(61_000L, recreated.startPositionMillis)
             assertFalse(recreated.playWhenReady)
         }
-        compose.onNodeWithContentDescription("Paused").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Play").assertIsDisplayed()
     }
 
     @Test
@@ -148,7 +145,7 @@ class TvPlayerScreenTest {
         assertEquals(61_000L, position)
 
         state = state.copyForTest(content = PlaybackContent.Failed(failure))
-        compose.onNodeWithText("Couldn’t play this file").assertIsDisplayed()
+        compose.onNodeWithText("Couldn't play this file.").assertIsDisplayed()
         compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressKey(Key.DirectionCenter) }
         compose.runOnIdle { assertEquals(1, retries) }
     }
@@ -159,18 +156,17 @@ class TvPlayerScreenTest {
         compose.showReady(player, resumePositionMillis = 42_000L)
 
         compose.onNodeWithTag(TV_PLAYER_TAG).performKeyInput {
+            pressKey(Key.DirectionDown)
             pressKey(Key.DirectionRight)
             advanceEventTime(TV_SCRUB_ACCUMULATE_MILLIS / 2)
             pressKey(Key.DirectionRight)
         }
         compose.settle()
-        // 42 s + 15 s + 30 s: the second press came inside the window, so its step doubled.
-        compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("01:27")
+        compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("1:27")
         compose.runOnIdle {
             assertFalse("Scrubbing pauses", player.playWhenReady)
             assertEquals("Nothing seeks before the commit", 42_000L, player.currentPosition)
         }
-        // Seek mode keeps the controls past the auto-hide delay.
         compose.mainClock.advanceTimeBy(TV_PLAYER_CONTROLS_HIDE_DELAY_MILLIS * 2)
         compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertIsDisplayed()
 
@@ -195,8 +191,7 @@ class TvPlayerScreenTest {
             pressKey(Key.MediaRewind)
         }
         compose.settle()
-        // 42 + 15 + 15 - 15: each press after a gap moves one step.
-        compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("00:57")
+        compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("0:57")
     }
 
     @Test
@@ -205,9 +200,12 @@ class TvPlayerScreenTest {
         var backs = 0
         compose.showReady(player, resumePositionMillis = 42_000L, onBack = { backs += 1 })
 
-        compose.onNodeWithTag(TV_PLAYER_TAG).performKeyInput { pressKey(Key.DirectionLeft) }
+        compose.onNodeWithTag(TV_PLAYER_TAG).performKeyInput {
+            pressKey(Key.DirectionDown)
+            pressKey(Key.DirectionLeft)
+        }
         compose.settle()
-        compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("00:27")
+        compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("0:27")
         compose.runOnIdle { assertFalse(player.playWhenReady) }
 
         compose.back()
@@ -216,7 +214,7 @@ class TvPlayerScreenTest {
             assertEquals("Dismissing seek mode never seeks", 42_000L, player.currentPosition)
             assertTrue("It resumes the playback the scrub paused", player.playWhenReady)
         }
-        compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("00:42")
+        compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("0:42")
 
         compose.back()
         compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertDoesNotExist()
@@ -249,10 +247,9 @@ class TvPlayerScreenTest {
             assertEquals(0, backs)
         }
 
-        // Any key brings the paused controls back.
         compose.onNodeWithTag(TV_PLAYER_TAG).performKeyInput { pressKey(Key.DirectionUp) }
         compose.settle()
-        compose.onNodeWithContentDescription("Paused").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Play").assertIsDisplayed()
         compose.runOnIdle { assertFalse(player.playWhenReady) }
     }
 

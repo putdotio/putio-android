@@ -26,11 +26,11 @@ internal class MobileFilesViewModel(
     )
 
     // Lives with the session, not the screen, so a rotation does not read every entry again.
-    private val continueWatching = SessionScopedHolder<MobileAuthState, MobileSessionKey, MobileContinueWatching>(
+    private val continueWatching = SessionScopedHolder<MobileAuthState, MobileSessionKey, ContinueWatching>(
         authState = authState,
         keyOf = MobileAuthState::sessionKey,
         scope = viewModelScope,
-        close = MobileContinueWatching::close,
+        close = ContinueWatching::close,
     )
 
     // The sheet's own requests outlive a rotation, so a restore put.io accepted still settles the folder.
@@ -54,8 +54,8 @@ internal class MobileFilesViewModel(
         userId: Long,
         sessionId: MobileAuthSessionId,
         store: () -> ContinueWatchingStore,
-    ): MobileContinueWatching? =
-        continueWatching.valueFor(MobileSessionKey(userId, sessionId)) { MobileContinueWatching(store()) }
+    ): ContinueWatching? =
+        continueWatching.valueFor(MobileSessionKey(userId, sessionId)) { ContinueWatching(store()) }
 
     fun actionsFor(
         userId: Long,

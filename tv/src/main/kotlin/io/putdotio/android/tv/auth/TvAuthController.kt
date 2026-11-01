@@ -54,11 +54,14 @@ internal sealed interface TvLinkPhase {
         val code: String,
     ) : TvLinkPhase
 
-    data object Validating : TvLinkPhase
+    data class Validating(
+        val code: String?,
+    ) : TvLinkPhase
 
     /** Polling stopped; the user asks for a new code to continue. */
     data class Stopped(
         val reason: TvLinkStop,
+        val code: String? = null,
     ) : TvLinkPhase
 }
 
@@ -154,7 +157,7 @@ internal class TvAuthController(
      */
     suspend fun requestNewCode(): Boolean = operationMutex.withLock {
         val current = mutableState.value as? TvAuthState.Linking ?: return@withLock false
-        if (current.phase == TvLinkPhase.Validating) {
+        if (current.phase is TvLinkPhase.Validating) {
             return@withLock false
         }
         // The caller is a UI scope; if it dies between the join and the launch the old

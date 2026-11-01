@@ -69,11 +69,11 @@ class TvPlayerConversionTest {
             )
         }
         compose.settle()
-        compose.onNodeWithTag(TV_CONVERSION_STATUS_TAG).assertTextEquals("In queue…")
+        compose.onNodeWithTag(TV_CONVERSION_PROGRESS_TAG).assertExists()
 
         compose.mainClock.advanceTimeBy(io.putdotio.android.playback.PLAYBACK_CONVERSION_POLL_MILLIS)
         compose.settle()
-        compose.onNodeWithTag(TV_CONVERSION_STATUS_TAG).assertTextEquals("60%")
+        compose.onNodeWithTag(TV_CONVERSION_PERCENT_TAG).assertTextEquals("60%")
         compose.runOnIdle { assertTrue("Nothing plays yet", player.mediaItems.isEmpty()) }
 
         compose.mainClock.advanceTimeBy(io.putdotio.android.playback.PLAYBACK_CONVERSION_POLL_MILLIS)
@@ -118,7 +118,7 @@ class TvPlayerConversionTest {
         repeat(2) { poll ->
             compose.mainClock.advanceTimeBy(io.putdotio.android.playback.PLAYBACK_CONVERSION_POLL_MILLIS)
             compose.settle()
-            compose.onNodeWithTag(TV_CONVERSION_STATUS_TAG).assertTextEquals("In queue…")
+            compose.onNodeWithTag(TV_CONVERSION_PROGRESS_TAG).assertExists()
             compose.runOnIdle { assertEquals(poll + 2, resolutions) }
         }
 

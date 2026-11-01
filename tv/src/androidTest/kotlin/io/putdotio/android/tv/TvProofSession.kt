@@ -5,7 +5,17 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.runtime.Composable
+import android.view.KeyEvent
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.SemanticsNodeInteractionsProvider
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.AndroidComposeTestRule
+import androidx.compose.ui.test.junit4.ComposeTestRule
+import androidx.compose.ui.test.assertIsFocused
+import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.ext.junit.rules.ActivityScenarioRule
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
@@ -53,9 +63,11 @@ import io.putdotio.android.tv.auth.TvAuthState
 import io.putdotio.sdk.files.FileDeleteResult
 import io.putdotio.sdk.files.FileMoveError
 import io.putdotio.sdk.files.PutioFileType
+import java.io.IOException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlin.math.abs
 
 /**
  * Fake account repositories for the controlled-state TV proofs: Files serves [listings] and
@@ -72,7 +84,18 @@ internal fun tvProofDependencies(
     playback: () -> PlaybackResolution = { error("No playback in this proof") },
     history: List<HistoryItem> = emptyList(),
     trash: List<TrashItem> = emptyList(),
+    trashSizeBytes: Long? = null,
+    trashFailingLoads: Set<Int> = emptySet(),
     historyEnabled: Boolean = true,
+    settings: AccountSettingsPreferences = AccountSettingsPreferences(
+        historyEnabled = historyEnabled,
+        trashEnabled = true,
+        showSubtitles = true,
+        autoSelectSubtitles = true,
+        resumePlayback = true,
+    ),
+    appConfig: AndroidAppConfigPreferences = AndroidAppConfigPreferences(),
+    tunnelRoutes: List<TunnelRouteOption> = emptyList(),
 ) = TvSessionDependencies(
     filesRepository = ProofFilesRepository(listings, continuations, pageDelayMillis),
     searchRepository = object : SearchRepository {
@@ -87,25 +110,16 @@ internal fun tvProofDependencies(
 
         override suspend fun clear() = PutioResult.Success(Unit)
     },
-    trashRepository = ProofTrashRepository(trash),
+    trashRepository = ProofTrashRepository(trash, trashSizeBytes, trashFailingLoads),
     settingsRepository = object : AccountSettingsRepository {
-        override suspend fun load() = AccountSettingsRepositoryResult.Success(
-            AccountSettingsPreferences(
-                historyEnabled = historyEnabled,
-                trashEnabled = true,
-                showSubtitles = true,
-                autoSelectSubtitles = true,
-                resumePlayback = true,
-            ),
-        )
+        override suspend fun load() = AccountSettingsRepositoryResult.Success(settings)
 
         override suspend fun save(change: AccountSettingsChange) = AccountSettingsRepositoryResult.Success(Unit)
 
-        override suspend fun loadTunnelRoutes() =
-            AccountSettingsRepositoryResult.Success(emptyList<TunnelRouteOption>())
+        override suspend fun loadTunnelRoutes() = AccountSettingsRepositoryResult.Success(tunnelRoutes)
     },
     appConfigRepository = object : AndroidAppConfigRepository {
-        override suspend fun load() = PutioResult.Success(AndroidAppConfigPreferences())
+        override suspend fun load() = PutioResult.Success(appConfig)
 
         override suspend fun save(change: AndroidAppConfigChange) = PutioResult.Success(Unit)
     },
@@ -117,7 +131,9 @@ internal fun tvProofDependencies(
     },
     streamUrls = FilesStreamUrls { FilesStreamUrlResult.DownloadTokenUnavailable },
     filesItemResolver = object : FilesItemResolver {
-        override suspend fun resolveItem(itemId: FilesItemId) = error("No history rows")
+        override suspend fun resolveItem(itemId: FilesItemId) =
+            listings.values.flatMap { it.items }.firstOrNull { it.id == itemId }?.let { PutioResult.Success(it) }
+                ?: PutioResult.Failure(PutioFailure.Unexpected(IllegalStateException("No item $itemId")))
     },
     recentSearchStore = recentSearchStore,
     playbackRepository = {
@@ -131,15 +147,13 @@ internal fun tvProofDependencies(
     writePlaybackPosition = { _, _ -> PlaybackRepositoryResult.Success(Unit) },
 )
 
-/**
- * Mounts the production TV session and signed-in shell on [dependencies]. [onExit] stands in for
- * the system leaving the app; it is registered before the shell. [overlay] draws over the shell.
- */
 internal fun AndroidComposeTestRule<ActivityScenarioRule<ComponentActivity>, ComponentActivity>.mountTvProofSession(
     dependencies: TvSessionDependencies,
     onExit: (() -> Unit)? = null,
     account: TvAccount = TvAccount(userId = 1, username = "proof", email = "proof@example.invalid", historyEnabled = true),
     overlay: @Composable BoxScope.() -> Unit = {},
+    tab: String? = "Files",
+    tunnelRoutes: List<TunnelRouteOption> = emptyList(),
 ): TvSession {
     val auth = MutableStateFlow<TvAuthState>(TvAuthState.SignedIn(account, TvAuthSessionId(1)))
     lateinit var session: TvSession
@@ -156,14 +170,57 @@ internal fun AndroidComposeTestRule<ActivityScenarioRule<ComponentActivity>, Com
                     sessionKey = 1L,
                     onSignOut = {},
                     onSessionRejected = { error("Unexpected rejection") },
-                    loadTunnelRoutes = { AccountSettingsRepositoryResult.Success(emptyList<TunnelRouteOption>()) },
+                    loadTunnelRoutes = { AccountSettingsRepositoryResult.Success(tunnelRoutes) },
                 )
                 overlay()
             }
         }
     }
+    tab?.let(::openTvTab)
     return session
 }
+
+internal fun SemanticsNodeInteractionsProvider.onTvTab(label: String) =
+    onNode(hasText(label) and SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab))
+
+internal fun ComposeTestRule.openTvTab(label: String) {
+    focusTvTab(label)
+    pressDpad(KeyEvent.KEYCODE_DPAD_DOWN)
+}
+
+internal fun ComposeTestRule.focusTvTab(label: String) {
+    waitForIdle()
+    var climbs = 0
+    while (tvTabs().none { it.focused }) {
+        check(climbs++ < MAX_TAB_BAR_CLIMB) { "No tab took focus after $MAX_TAB_BAR_CLIMB Up presses" }
+        pressDpad(KeyEvent.KEYCODE_DPAD_UP)
+    }
+    val tabs = tvTabs()
+    val from = tabs.indexOfFirst { it.focused }
+    val to = tabs.indexOfFirst { it.label == label }
+    check(to >= 0) { "No $label tab in ${tabs.map { it.label }}" }
+    repeat(abs(to - from)) { pressDpad(if (to > from) KeyEvent.KEYCODE_DPAD_RIGHT else KeyEvent.KEYCODE_DPAD_LEFT) }
+    onTvTab(label).assertIsFocused()
+}
+
+private class TvTabNode(val label: String, val focused: Boolean)
+
+private fun ComposeTestRule.tvTabs() =
+    onAllNodes(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab)).fetchSemanticsNodes()
+        .sortedBy { it.boundsInRoot.left }
+        .map { node ->
+            TvTabNode(
+                label = node.config.getOrNull(SemanticsProperties.Text).orEmpty().joinToString(" ") { it.text },
+                focused = node.config.getOrNull(SemanticsProperties.Focused) == true,
+            )
+        }
+
+private fun ComposeTestRule.pressDpad(keyCode: Int) {
+    InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(keyCode)
+    waitForIdle()
+}
+
+private const val MAX_TAB_BAR_CLIMB = 30
 
 internal fun proofItem(id: Long, name: String, type: PutioFileType, parentId: FilesItemId) = FilesItem(
     id = FilesItemId(id),
@@ -208,8 +265,21 @@ internal class ProofFilesRepository(
     override suspend fun checkCopy(copyId: FilesCopyId) = error("No copies")
 }
 
-internal class ProofTrashRepository(private val items: List<TrashItem>) : TrashRepository {
-    override suspend fun load() = PutioResult.Success(TrashPage(items, nextCursor = null))
+internal class ProofTrashRepository(
+    private val items: List<TrashItem>,
+    private val trashSizeBytes: Long? = null,
+    private val failingLoads: Set<Int> = emptySet(),
+) : TrashRepository {
+    private var loads = 0
+
+    override suspend fun load(): PutioResult<TrashPage> {
+        loads += 1
+        return if (loads in failingLoads) {
+            PutioResult.Failure(PutioFailure.NetworkUnavailable(IOException("offline")))
+        } else {
+            PutioResult.Success(TrashPage(items, nextCursor = null, trashSizeBytes = trashSizeBytes))
+        }
+    }
 
     override suspend fun loadNextPage(cursor: FilesCursor) = error("One page")
 

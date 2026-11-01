@@ -4,11 +4,14 @@ import android.content.Context
 import io.putdotio.android.auth.KeystoreAuthTokenStore
 import io.putdotio.android.auth.PendingTokenRevocations
 import io.putdotio.android.auth.PutioAuthTokenRevoker
+import io.putdotio.android.auth.watchNetworkReturns
+import io.putdotio.android.files.DeviceContinueWatchingStore
 import io.putdotio.android.search.SdkSearchRepository
 import io.putdotio.android.settings.SdkAccountSettingsRepository
 import io.putdotio.android.settings.confirmProductAnalytics
 import io.putdotio.android.telemetry.ProductAnalytics
 import io.putdotio.android.telemetry.PutioDiagnostics
+import io.putdotio.android.tv.home.TvDeviceShowHomeStore
 import io.putdotio.android.tv.search.TvGlobalSearch
 import io.putdotio.android.tv.search.tvGlobalSearch
 import io.putdotio.android.tv.watchnext.TvProviderWatchNextStore
@@ -79,7 +82,7 @@ internal class TvAuthRuntime(
                 tokenStore = tokenStore,
                 sessionGateway = PutioTvSessionGateway(putioClient),
                 tokenRevocations = PendingTokenRevocations(
-                    store = KeystoreAuthTokenStore.pendingRevocation(context),
+                    stores = KeystoreAuthTokenStore.pendingRevocations(context),
                     sessionStore = tokenStore,
                     revoker = PutioAuthTokenRevoker(putioClient.config),
                     scope = applicationScope,
@@ -96,6 +99,8 @@ internal class TvAuthRuntime(
                     }
                 }
             }
+            val revalidation = TvSessionRevalidation(authController, applicationScope)
+            watchNetworkReturns(context) { applicationScope.launch { revalidation.onNetworkReturned() } }
             val accountSettings = SdkAccountSettingsRepository(putioClient)
             ProductAnalytics.setConsentCheck { check ->
                 val accountId = (authController.state.value as? TvAuthState.SignedIn)?.account?.userId
@@ -105,7 +110,11 @@ internal class TvAuthRuntime(
             applicationScope.launch {
                 authController.quietSignOuts.filter { it > 0 }.collect {
                     ProductAnalytics.update(null, enabled = false)
+                    clearHome(context)
                 }
+            }
+            applicationScope.launch {
+                authController.state.filter { it is TvAuthState.Linking }.collect { clearHome(context) }
             }
             return TvAuthRuntime(
                 putioClient = putioClient,
@@ -122,6 +131,11 @@ internal class TvAuthRuntime(
     }
 }
 
+private fun clearHome(context: Context) {
+    DeviceContinueWatchingStore.clearAll(context)
+    TvDeviceShowHomeStore.clearAll(context)
+}
+
 /** Null while restoring, validating, signing out, or unable to read or clear the token, so the last answer stands. */
 internal fun TvAuthState.diagnosticsAllowed(): Boolean? =
     when (this) {
@@ -132,7 +146,8 @@ internal fun TvAuthState.diagnosticsAllowed(): Boolean? =
         TvAuthState.SigningOut,
         -> null
 
-        is TvAuthState.Linking -> true.takeUnless { phase == TvLinkPhase.Stopped(TvLinkStop.StorageUnavailable) }
+        is TvAuthState.Linking ->
+            true.takeUnless { (phase as? TvLinkPhase.Stopped)?.reason == TvLinkStop.StorageUnavailable }
         is TvAuthState.SignedIn -> account.diagnosticsEnabled
     }
 

@@ -4,6 +4,7 @@ import io.putdotio.android.PutioFailure
 import io.putdotio.android.apiReason
 import io.putdotio.android.files.FilesSort
 import io.putdotio.android.findPutioApiException
+import io.putdotio.android.toScopedFailure
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.account.AccountSettings
 import io.putdotio.sdk.account.AccountSettingsPatch
@@ -24,7 +25,7 @@ public sealed interface AccountSettingsRepositoryResult<out T> {
 public sealed interface AccountSettingsFailure {
     public val cause: Throwable
 
-    /** A put.io failure, classified by [toSettingsFailure]. */
+    /** A put.io failure, classified by [toScopedFailure]. */
     public data class Putio(
         val failure: PutioFailure,
     ) : AccountSettingsFailure {
@@ -168,7 +169,7 @@ private fun PutioException.toAccountSettingsFailure(routeChange: Boolean): Accou
     if (routeChange && findPutioApiException()?.errorType == UNAVAILABLE_VALUE_ERROR_TYPE) {
         AccountSettingsFailure.RouteUnavailable(this)
     } else {
-        AccountSettingsFailure.Putio(toSettingsFailure())
+        AccountSettingsFailure.Putio(toScopedFailure())
     }
 
 private const val UNAVAILABLE_VALUE_ERROR_TYPE = "UNAVAILABLE_VALUE"

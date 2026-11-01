@@ -5,35 +5,51 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import io.putdotio.android.files.ContinueWatching
+import io.putdotio.android.files.ContinueWatchingStore
 import io.putdotio.android.files.FilesBrowserController
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
+import io.putdotio.android.files.FilesFolderCounts
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesItemResolver
 import io.putdotio.android.files.FilesOpenOrigin
 import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.files.FilesRepository
+import io.putdotio.android.files.FilesRequestId
 import io.putdotio.android.files.FilesStreamUrlResult
 import io.putdotio.android.files.FilesStreamUrls
+import io.putdotio.android.files.FilesSubtitleLanguages
 import io.putdotio.android.files.FilesWatchedRepository
+import io.putdotio.android.files.PinnedFiles
+import io.putdotio.android.files.FilesDeleteMode
+import io.putdotio.android.files.FilesDeleteOutcome
+import io.putdotio.android.files.confirmedGone
+import io.putdotio.android.tv.home.TvHomePins
+import io.putdotio.android.tv.home.TvHomeReturn
+import io.putdotio.android.tv.home.TvMemoryContinueWatchingStore
+import io.putdotio.android.tv.home.TvNoPinnedFiles
+import io.putdotio.android.tv.home.TvShowHomeSetting
+import io.putdotio.android.tv.home.TvShowHomeStore
 import io.putdotio.android.history.HistoryController
 import io.putdotio.android.history.HistoryFileOpener
-import io.putdotio.android.history.HistoryEventKind
 import io.putdotio.android.history.HistoryRepository
-import io.putdotio.android.history.keeping
+import io.putdotio.android.tv.history.TvHistoryFiles
 import io.putdotio.android.settings.captureSavedAppConfig
 import io.putdotio.android.settings.captureSavedSettings
-import io.putdotio.android.tv.history.isShownOnTv
 import io.putdotio.android.playback.PlaybackController
 import io.putdotio.android.playback.PlaybackMediaType
+import io.putdotio.android.playback.PlaybackNeighbours
+import io.putdotio.android.playback.PlaybackNextResult
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.playback.playbackPreference
 import io.putdotio.android.search.RecentSearchStoreOwner
 import io.putdotio.android.search.SearchController
+import io.putdotio.android.search.SearchFolderNames
 import io.putdotio.android.search.SearchRepository
 import io.putdotio.android.session.SessionScopedHolder
 import io.putdotio.android.settings.AccountSettingsController
@@ -44,7 +60,9 @@ import io.putdotio.android.settings.diagnosticsAllowed
 import io.putdotio.android.settings.productAnalyticsAnswers
 import io.putdotio.android.telemetry.ProductAnalytics
 import io.putdotio.android.telemetry.PutioDiagnostics
+import io.putdotio.android.trash.TrashContent
 import io.putdotio.android.trash.TrashController
+import io.putdotio.android.trash.TrashEvent
 import io.putdotio.android.trash.TrashRepository
 import io.putdotio.android.tv.auth.TvAccount
 import io.putdotio.android.tv.auth.TvAuthSessionId
@@ -66,6 +84,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.getAndUpdate
 import kotlinx.coroutines.flow.map
@@ -96,6 +115,11 @@ internal data class TvSessionDependencies(
     /** The launcher's Watch Next row, as one signed-in session reports to it. */
     val watchNext: (userId: Long, sessionId: TvAuthSessionId) -> TvWatchNextRecorder =
         { _, _ -> TvWatchNextRecorder.None },
+    val folderCounts: FilesFolderCounts? = null,
+    val subtitleLanguages: FilesSubtitleLanguages? = null,
+    val pinnedFiles: (CoroutineScope) -> PinnedFiles = { TvNoPinnedFiles },
+    val continueWatchingStore: (userId: Long) -> ContinueWatchingStore = { TvMemoryContinueWatchingStore() },
+    val showHomeStore: (userId: Long) -> TvShowHomeStore = { TvShowHomeStore.Memory() },
 )
 
 /** What choosing a Search or History row did. */
@@ -124,13 +148,12 @@ internal class TvSession internal constructor(
     accountId: Long? = null,
 ) {
     private val recentSearches = dependencies.recentSearchStore(parentScope)
+    val continueWatching = ContinueWatching(dependencies.continueWatchingStore(accountId ?: 0L))
+    val pins: PinnedFiles = dependencies.pinnedFiles(parentScope)
+    val showHome = TvShowHomeSetting(dependencies.showHomeStore(accountId ?: 0L))
     val files = FilesBrowserController(dependencies.filesRepository, parentScope)
     val search = SearchController(dependencies.searchRepository, recentSearches, parentScope)
-    val history = HistoryController(
-        dependencies.historyRepository.keeping(HistoryEventKind::isShownOnTv),
-        historyEnabled,
-        parentScope,
-    )
+    val history = HistoryController(dependencies.historyRepository, historyEnabled, parentScope)
     val trash = TrashController(dependencies.trashRepository, parentScope)
 
     /** Account-wide `/account/settings`; shared with mobile, read once per session. */
@@ -139,6 +162,8 @@ internal class TvSession internal constructor(
     /** This app's `/config` playback keys; shared with mobile. */
     val appConfig = AndroidAppConfigController(dependencies.appConfigRepository, parentScope)
     private val filesRepository = dependencies.filesRepository
+    val folderCounts = dependencies.folderCounts
+    val subtitleLanguages = dependencies.subtitleLanguages
     private val filesItemResolver = dependencies.filesItemResolver
     private val watchedRepository = dependencies.watchedRepository
     private val streamUrls = dependencies.streamUrls
@@ -153,15 +178,34 @@ internal class TvSession internal constructor(
     )
     private val mutableFileActionFailure = MutableStateFlow<PutioFailure?>(null)
     private val watchedJobs = mutableMapOf<FilesItemId, Job>()
+    private val watchNextHandledDeletes = mutableSetOf<FilesRequestId>()
     private val playbackRepository = dependencies.playbackRepository { appConfig.state.value.playbackPreference() }
     private val mutablePlayback = MutableStateFlow<PlaybackController?>(null)
     /** The item that started playback; autoplay stays within its folder. */
     private var playbackStart: FilesItem? = null
     private var durationLookup: Job? = null
     private var continueSaved: Job? = null
+    private var continueWatchingFollow: Job? = null
+    private var playingFromHome = false
+    val homeReturn = TvHomeReturn()
 
     /** Pairs saved positions with the videos they belong to, for Watch Next. */
     internal val watchNextPlayback = TvWatchNextPlayback(watchNext, scope)
+
+    val trashUndo = TvTrashUndo(dependencies.trashRepository, files, scope, onUndone = trash::refreshIfLoaded)
+
+    val trashUndoOffer = TvTrashUndoOffer(scope, trashUndo::undo)
+
+    val homePins = TvHomePins(pins, dependencies.filesItemResolver, dependencies.folderCounts, scope)
+
+    val searchFolderNames = SearchFolderNames(dependencies.filesItemResolver, search.state, scope)
+
+    internal val positionSaved: (fileId: Long, seconds: Double) -> Unit = { fileId, seconds ->
+        files.dispatch(FilesBrowserEvent.PlaybackPositionReported(FilesItemId(fileId), seconds))
+        search.positionSaved(FilesItemId(fileId), seconds)
+        watchNextPlayback.saved(fileId, seconds)
+        continueWatching.positionSaved(FilesItemId(fileId), seconds)
+    }
 
     /** Start-from write-back for this session's playback; see [TvPlaybackReporting]. */
     val playbackReporting = TvPlaybackReporting(
@@ -169,11 +213,7 @@ internal class TvSession internal constructor(
         settings = settings.state,
         sessionCurrent = sessionCurrent,
         write = dependencies.writePlaybackPosition,
-        // The Files row shows the saved position once the server has it, and so does Watch Next.
-        onSaved = { fileId, seconds ->
-            files.dispatch(FilesBrowserEvent.PlaybackPositionReported(FilesItemId(fileId), seconds))
-            watchNextPlayback.saved(fileId, seconds)
-        },
+        onSaved = positionSaved,
     )
 
     /**
@@ -186,6 +226,8 @@ internal class TvSession internal constructor(
     /** The Search result and the History event last opened, focused again when their pane returns. */
     val searchPickedRow = TvPickedRow()
     val historyPickedRow = TvPickedRow()
+
+    val historyFiles = TvHistoryFiles(dependencies.filesItemResolver)
 
     val recentSearchFailure = recentSearches.failure
 
@@ -211,6 +253,31 @@ internal class TvSession internal constructor(
         scope.launch {
             watchNext.reconcile(filesItemResolver::resolveItem)?.let { mutableFileActionFailure.value = it }
         }
+        scope.launch {
+            continueWatching.reconcile(filesItemResolver::resolveItem)?.let { mutableFileActionFailure.value = it }
+        }
+        scope.launch {
+            files.state
+                .map { state -> state.stack.mapNotNull { it.deleteOutcome?.takeIf(::confirmsAnyGone) } }
+                .distinctUntilChanged()
+                .collect { deletes ->
+                    continueWatching.removed(deletes)
+                    deletes.filter { watchNextHandledDeletes.add(it.requestId) }
+                        .flatMap { it.confirmedGone() }
+                        .forEach { watchNext.fileGone(it.value) }
+                }
+        }
+        scope.launch {
+            files.state
+                .map { state -> state.stack.mapNotNull { it.deleteOutcome?.takeIf(::movesAnyToTrash) } }
+                .distinctUntilChanged()
+                .collect { moved -> if (moved.isNotEmpty()) trash.refreshIfLoaded() }
+        }
+        scope.launch {
+            continueWatching.recheckAfterDeletes(filesItemResolver::resolveItem)?.let {
+                mutableFileActionFailure.value = it
+            }
+        }
         scope.launch { settings.state.captureSavedSettings() }
         scope.launch { appConfig.state.captureSavedAppConfig() }
         scope.launch {
@@ -229,30 +296,40 @@ internal class TvSession internal constructor(
      */
     val playback: StateFlow<PlaybackController?> = mutablePlayback.asStateFlow()
 
-    /** Starts resolving [item] for playback, replacing whatever was playing. */
-    fun play(item: FilesItem) {
+    /** The video after a target in its folder, by autoplay's walk; Next episode offers it. */
+    val findNextVideo: suspend (PlaybackTarget) -> PlaybackNextResult = playbackRepository::findNextVideo
+
+    val findNeighbours: suspend (PlaybackTarget) -> PlaybackRepositoryResult<PlaybackNeighbours> =
+        playbackRepository::findNeighbours
+
+    fun play(item: FilesItem, start: TvPlayStart = TvPlayStart.Ask, subtitlesFirst: Boolean = false) {
         durationLookup?.cancel()
-        startPlayback(item)
+        startPlayback(item, start, fromHome = false, subtitlesFirst = subtitlesFirst)
     }
 
+    val subtitlesFirst = TvSubtitlesFirst()
+
     /**
-     * Opens a Search or History pick: media plays, a folder opens in Files, and any other file
-     * opens its folder with focus on it. Back returns to [origin] either way.
+     * Opens a pick from [origin]: media plays unless [playMedia] is false, a folder opens in Files,
+     * and any other file opens its folder with focus on it. Back returns to [origin] either way.
      */
     fun openExternal(
         item: FilesItem,
         origin: FilesOpenOrigin,
         continueWatching: Boolean = false,
+        playMedia: Boolean = true,
     ): TvExternalOpen {
         // A newer pick wins over media still waiting for its duration.
         durationLookup?.cancel()
         return when {
-            item.isPlayable -> {
+            item.isPlayable && playMedia -> {
+                val start = if (continueWatching) TvPlayStart.Resume else TvPlayStart.Ask
+                val fromHome = origin == FilesOpenOrigin.HOME
                 if (item.playback?.durationSeconds != null) {
-                    startPlayback(item, continueWatching)
+                    startPlayback(item, start, fromHome)
                 } else {
                     durationLookup = scope.launch {
-                        startPlayback(filesRepository.withListedDuration(item), continueWatching)
+                        startPlayback(filesRepository.withListedDuration(item), start, fromHome)
                     }
                 }
                 TvExternalOpen.PLAYING
@@ -265,9 +342,11 @@ internal class TvSession internal constructor(
         }
     }
 
-    private fun startPlayback(item: FilesItem, continueWatching: Boolean = false) {
+    private fun startPlayback(item: FilesItem, start: TvPlayStart, fromHome: Boolean, subtitlesFirst: Boolean = false) {
         val mediaType = PlaybackMediaType.fromFileType(item.type) ?: return
         if (!scope.isActive) return
+        this.subtitlesFirst.request(subtitlesFirst && mediaType == PlaybackMediaType.VIDEO)
+        playingFromHome = fromHome
         val target = PlaybackTarget(item.id, item.name, mediaType, item.playback?.durationSeconds, item.screenshotUrl)
         // Audio playback analytics are not wired yet, here or on mobile.
         val analytics = mediaType == PlaybackMediaType.VIDEO
@@ -276,8 +355,16 @@ internal class TvSession internal constructor(
         mutablePlayback.getAndUpdate { controller }?.close()
         playbackStart = item
         watchNextPlayback.follow(controller)
+        continueWatchingFollow?.cancel()
+        continueWatchingFollow = scope.launch {
+            controller.state.map { it.target }.distinctUntilChanged().collect { target ->
+                if (target.mediaType == PlaybackMediaType.VIDEO) {
+                    continueWatching.opened(target.fileId, target.name, target.durationSeconds)
+                }
+            }
+        }
         continueSaved?.cancel()
-        continueSaved = if (continueWatching) scope.launch { controller.continueSavedPosition() } else null
+        continueSaved = start.answer?.let { answer -> scope.launch { controller.answerResumePrompt(answer) } }
     }
 
     /**
@@ -289,8 +376,12 @@ internal class TvSession internal constructor(
         durationLookup?.cancel()
         continueSaved?.cancel()
         watchNextPlayback.stopFollowing()
-        val stopped = mutablePlayback.getAndUpdate { null } ?: return
+        continueWatchingFollow?.cancel()
+        subtitlesFirst.shown()
+        val stopped = mutablePlayback.value ?: return
         val last = stopped.state.value.target.fileId
+        if (playingFromHome) homeReturn.played(last)
+        mutablePlayback.value = null
         val start = playbackStart
         val folder = start?.parentId
         if (folder != null && last != start.id) {
@@ -314,10 +405,12 @@ internal class TvSession internal constructor(
         // Started lazily so the write is registered before its body can run and compare itself.
         val job = scope.launch(start = CoroutineStart.LAZY) {
             dismissFileActionFailure()
-            val result = if (watched) {
-                watchedRepository.setPosition(item.id, seconds)
-            } else {
-                watchedRepository.clearPosition(item.id)
+            val result = playbackReporting.supersede(item.id.value) {
+                if (watched) {
+                    watchedRepository.setPosition(item.id, seconds)
+                } else {
+                    watchedRepository.clearPosition(item.id)
+                }
             }
             // Cancellation is cooperative: a superseded write that still returns must not
             // settle the row or report, so only the write still registered for the file does.
@@ -325,7 +418,9 @@ internal class TvSession internal constructor(
             when (result) {
                 is PutioResult.Success -> {
                     files.dispatch(FilesBrowserEvent.PlaybackPositionReported(item.id, seconds))
+                    search.positionSaved(item.id, seconds)
                     watchNext.positionSaved(item.toWatchNextMedia(), seconds)
+                    continueWatching.positionSaved(item.id, seconds)
                 }
                 is PutioResult.Failure -> mutableFileActionFailure.update { current ->
                     if (current is PutioFailure.AuthenticationRequired) current else result.failure
@@ -341,8 +436,8 @@ internal class TvSession internal constructor(
      * The original file's URL for an external player, carrying the account's download token.
      * A 401 is recorded as the session verdict; the caller explains every other failure.
      */
-    suspend fun originalStreamUrl(item: FilesItem): FilesStreamUrlResult =
-        streamUrls.originalStreamUrl(item.id).also { result ->
+    suspend fun originalStreamUrl(id: FilesItemId): FilesStreamUrlResult =
+        streamUrls.originalStreamUrl(id).also { result ->
             val failure = (result as? FilesStreamUrlResult.Failure)?.failure
             if (failure is PutioFailure.AuthenticationRequired) mutableFileActionFailure.value = failure
         }
@@ -362,8 +457,11 @@ internal class TvSession internal constructor(
         historyOpener.close()
         historyOpenChannel.close()
         links.close()
+        searchFolderNames.close()
         search.close()
         recentSearches.close()
+        pins.close()
+        continueWatching.close()
         history.close()
         trash.close()
         appConfig.close()
@@ -414,15 +512,18 @@ internal class TvSessionViewModel(
         (this as? TvAuthState.SignedIn)?.let { TvSessionKey(it.account.userId, it.sessionId) }
 }
 
-/**
- * A Watch Next card is a choice to continue, so its saved position plays without the resume
- * prompt; the finished rule still starts a video saved near its end over. Waits through
- * loading and conversion, then answers only the first prompt: autoplay's next video asks.
- */
-private suspend fun PlaybackController.continueSavedPosition() {
+internal enum class TvPlayStart(val answer: PlaybackEvent?) {
+    Ask(null),
+
+    Resume(PlaybackEvent.Resume),
+
+    StartOver(PlaybackEvent.Restart),
+}
+
+private suspend fun PlaybackController.answerResumePrompt(answer: PlaybackEvent) {
     val settled = state.map { it.content }
         .first { it !is PlaybackContent.Loading && it !is PlaybackContent.Conversion }
-    if (settled is PlaybackContent.AwaitingResume) dispatch(PlaybackEvent.Resume)
+    if (settled is PlaybackContent.AwaitingResume) dispatch(answer)
 }
 
 // The resume dialog needs the duration, which search results and single-file reads omit;
@@ -437,3 +538,12 @@ private suspend fun FilesRepository.withListedDuration(item: FilesItem): FilesIt
 
 internal fun tvSessionViewModelFactory(authState: StateFlow<TvAuthState>): ViewModelProvider.Factory =
     viewModelFactory { initializer { TvSessionViewModel(authState) } }
+
+private fun confirmsAnyGone(outcome: FilesDeleteOutcome): Boolean = outcome.confirmedGone().isNotEmpty()
+
+private fun TrashController.refreshIfLoaded() {
+    if (state.value.content is TrashContent.Loaded) dispatch(TrashEvent.Refresh)
+}
+
+private fun movesAnyToTrash(outcome: FilesDeleteOutcome): Boolean =
+    outcome.intent.mode == FilesDeleteMode.TRASH && confirmsAnyGone(outcome)

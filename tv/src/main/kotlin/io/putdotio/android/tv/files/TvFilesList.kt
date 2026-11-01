@@ -1,13 +1,16 @@
 package io.putdotio.android.tv.files
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.focusGroup
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.gestures.BringIntoViewSpec
+import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.SideEffect
@@ -21,17 +24,18 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.unit.dp
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesViewportPosition
 import io.putdotio.android.tv.focusRequesterIf
+import kotlin.math.abs
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 
@@ -43,11 +47,15 @@ internal fun TvFilesList(
     focusMemory: MutableMap<Long, Long>,
     paneHasFocus: State<Boolean>,
     headerHasFocus: State<Boolean>,
+    detailOwnsFocus: State<Boolean>,
+    downFromLast: FocusRequester?,
     onEntryTarget: (FocusRequester) -> Unit,
     onEvent: (FilesBrowserEvent) -> Boolean,
     onOpen: (FilesItem) -> Unit,
     onActions: (FilesItem) -> Unit,
     modifier: Modifier = Modifier,
+    onRowFocused: (FilesItem) -> Unit = {},
+    rowsShowFocus: Boolean = true,
 ) {
     val viewport = content.viewport
     val listState = key(folderId) {
@@ -70,10 +78,8 @@ internal fun TvFilesList(
     // attached to a row that is still listed.
     val listedIds = remember(content.items) { content.items.mapTo(HashSet()) { it.id.value } }
     val liveRowListed = focusedRowId.value != null && focusedRowId.value in listedIds
-    // A listing change refocuses a row only when a row was what the user was on. A row being
-    // disposed by that change also reports losing focus, so ownership is inferred from the
-    // other in-pane owners instead: the header controls and the paging latch.
-    val rowOwnsFocus = focusedRowId.value != null && !headerHasFocus.value && !pagingHeldFocus.value
+    val rowStillFocused = { rowKeepsFocus(headerHasFocus, detailOwnsFocus, pagingHeldFocus) }
+    val rowOwnsFocus = focusedRowId.value != null && rowStillFocused()
     val entryFocus = content.paging.listEntryFocus(
         pagingHeld = pagingHeldFocus.value,
         liveRowListed = liveRowListed,
@@ -105,83 +111,96 @@ internal fun TvFilesList(
     LaunchedEffect(content.items) {
         if (!rowOwnsFocus) return@LaunchedEffect
         listState.revealFocusedRow(content.items, focusedRowId, focusTarget, liveRowFocus, rowFocus)
-            ?.requestFocusNextFrame(paneHasFocus)
+            ?.requestFocusNextFrame(paneHasFocus, rowStillFocused)
     }
     LaunchedEffect(handOffToLastRow.value) {
         if (!handOffToLastRow.value) return@LaunchedEffect
+        val detailOwnedAtStart = detailOwnsFocus.value
         val lastId = content.items.last().id.value
         listState.scrollIntoView(lastId, content.items.lastIndex)
         listState.awaitVisible(lastId)
         // The row is always scrolled into view so the rail's enter target is composed; the
         // restorer answers the removed node first, so the request goes out after that frame,
         // and only if the user has not left for the rail during the wait.
-        liveRowFocus.requestFocusNextFrame(paneHasFocus)
+        liveRowFocus.requestFocusNextFrame(paneHasFocus) { !detailOwnsFocus.enteredSince(detailOwnedAtStart) }
         handOffToLastRow.value = false
     }
     LaunchedEffect(listState) {
         // A list mounted while the user is on the rail (Loading → Ready after Left) keeps its
         // entry target ready but does not take focus; the enter redirect delivers it later.
-        // Read after the layout waits, since the user may leave for the rail during them.
+        // Read after the layout waits, since the user may leave for the rail or enter the
+        // detail during them.
+        val detailOwnedAtMount = detailOwnsFocus.value
+        val detailEntered = { detailOwnsFocus.enteredSince(detailOwnedAtMount) }
         listState.scrollIntoView(focusTarget, content.items.indexOfFirst { it.id.value == focusTarget })
         if (resumeOnPaging) {
             listState.scrollToItem(content.items.size)
             listState.awaitVisible(TV_FILES_PAGING_KEY)
-            listPagingFocus.requestFocusNextFrame(paneHasFocus)
+            listPagingFocus.requestFocusNextFrame(paneHasFocus) { !detailEntered() }
         } else {
             listState.awaitVisible(focusTarget)
             // The shell's pane request lands one frame earlier; this one settles on the row.
-            rowFocus.requestFocusNextFrame(paneHasFocus)
+            rowFocus.requestFocusNextFrame(paneHasFocus) { !detailEntered() }
         }
         // Started after the programmatic scroll so the settled position it reports is the one
         // on screen. Only the mount position is skipped: it came from the reducer already.
         listState.reportViewport(viewport) { currentOnEvent(FilesBrowserEvent.ViewportChanged(it)) }
     }
 
-    LazyColumn(
-        state = listState,
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = modifier
-            .fillMaxWidth()
-            .focusRestorer(entryFocus)
-            .focusGroup()
-            .testTag(TV_FILES_LIST_TAG),
-    ) {
-        items(items = content.items, key = { it.id.value }) { item ->
-            TvFilesRow(
-                item = item,
-                onClick = { onOpen(item) },
-                onActions = { onActions(item) },
-                modifier = Modifier
-                    .focusRequesterIf(item.id.value == focusTarget, rowFocus)
-                    .focusRequesterIf(item.id.value == focusedRowId.value, liveRowFocus)
-                    .onFocusChanged {
-                        if (it.isFocused) {
-                            focusMemory[folderId] = item.id.value
-                            focusedRowId.value = item.id.value
-                            pagingHeldFocus.value = false
-                        }
-                    },
-            )
-        }
-        if (content.paging != FilesPaging.Complete) {
-            item(key = TV_FILES_PAGING_KEY) {
-                TvFilesPaging(
-                    paging = content.paging,
-                    enabled = pagingEnabled,
-                    onEvent = onEvent,
-                    buttonModifier = Modifier
-                        .focusRequester(listPagingFocus)
+    val lastRowId = content.items.last().id.takeIf { content.paging == FilesPaging.Complete }
+    RevealOnlyHiddenRows {
+        LazyColumn(
+            state = listState,
+            modifier = modifier
+                .fillMaxWidth()
+                .focusRestorer(entryFocus)
+                .focusGroup()
+                .testTag(TV_FILES_LIST_TAG),
+        ) {
+            items(items = content.items, key = { it.id.value }) { item ->
+                TvFilesRow(
+                    item = item,
+                    onClick = { onOpen(item) },
+                    onActions = { onActions(item) },
+                    showsFocus = rowsShowFocus,
+                    modifier = Modifier
+                        .downTo(downFromLast.takeIf { item.id == lastRowId })
+                        .focusRequesterIf(item.id.value == focusTarget, rowFocus)
+                        .focusRequesterIf(item.id.value == focusedRowId.value, liveRowFocus)
                         .onFocusChanged {
                             if (it.isFocused) {
-                                pagingHeldFocus.value = true
-                                focusMemory[folderId] = PAGING_FOCUS_MARKER
+                                focusMemory[folderId] = item.id.value
+                                focusedRowId.value = item.id.value
+                                pagingHeldFocus.value = false
+                                onRowFocused(item)
                             }
                         },
                 )
             }
+            if (content.paging != FilesPaging.Complete) {
+                item(key = TV_FILES_PAGING_KEY) {
+                    TvFilesPaging(
+                        paging = content.paging,
+                        enabled = pagingEnabled,
+                        onEvent = onEvent,
+                        buttonModifier = Modifier
+                            .downTo(downFromLast)
+                            .focusRequester(listPagingFocus)
+                            .onFocusChanged {
+                                if (it.isFocused) {
+                                    pagingHeldFocus.value = true
+                                    focusMemory[folderId] = PAGING_FOCUS_MARKER
+                                }
+                            },
+                    )
+                }
+            }
         }
     }
 }
+
+private fun Modifier.downTo(target: FocusRequester?): Modifier =
+    if (target == null) this else focusProperties { down = target }
 
 private fun FilesPaging.listEntryFocus(
     pagingHeld: Boolean,
@@ -230,9 +249,17 @@ private suspend fun LazyListState.awaitVisible(key: Any) {
     snapshotFlow { layoutInfo.visibleItemsInfo.any { it.key == key } }.first { it }
 }
 
-private suspend fun FocusRequester.requestFocusNextFrame(paneHasFocus: State<Boolean>) {
+private fun rowKeepsFocus(
+    headerHasFocus: State<Boolean>,
+    detailOwnsFocus: State<Boolean>,
+    pagingHeldFocus: State<Boolean>,
+): Boolean = !headerHasFocus.value && !detailOwnsFocus.value && !pagingHeldFocus.value
+
+private fun State<Boolean>.enteredSince(heldAtStart: Boolean): Boolean = !heldAtStart && value
+
+private suspend fun FocusRequester.requestFocusNextFrame(paneHasFocus: State<Boolean>, stillWanted: () -> Boolean) {
     withFrameNanos {}
-    if (paneHasFocus.value) requestFocus()
+    if (paneHasFocus.value && stillWanted()) requestFocus()
 }
 
 private suspend fun LazyListState.reportViewport(
@@ -260,3 +287,21 @@ private const val TV_FILES_PAGING_KEY = "tv-files-paging"
 
 /** Item ids are positive, so this marks "the paging control" in the per-folder focus memory. */
 private const val PAGING_FOCUS_MARKER = -1L
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun RevealOnlyHiddenRows(content: @Composable () -> Unit) {
+    CompositionLocalProvider(LocalBringIntoViewSpec provides RevealOnlyHidden, content = content)
+}
+
+private object RevealOnlyHidden : BringIntoViewSpec {
+    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
+        val trailing = offset + size
+        return when {
+            offset >= 0f && trailing <= containerSize -> 0f
+            offset < 0f && trailing > containerSize -> 0f
+            abs(offset) < abs(trailing - containerSize) -> offset
+            else -> trailing - containerSize
+        }
+    }
+}

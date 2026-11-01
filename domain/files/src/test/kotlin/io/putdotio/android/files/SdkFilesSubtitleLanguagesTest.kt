@@ -17,21 +17,21 @@ import org.junit.Test
 
 class SdkFilesSubtitleLanguagesTest {
     @Test
-    fun eachLanguageShowsOnceInPutiosOrderAndANamelessLanguageFallsBackToTheName() = runBlocking {
+    fun languagesShowOnceInPutiosOrderWithNameFallbackAndSidecarFilesAreCounted() = runBlocking {
         val requests = mutableListOf<String>()
         val body = """
             {"status":"OK","default":"a","subtitles":[
               ${subtitle("a", "English", "Blue.Lights.S04E01.en.srt")},
               ${subtitle("b", "English", "Blue.Lights.S04E01.en.sdh.srt")},
-              ${subtitle("c", "", "Blue.Lights.S04E01.srt")},
-              ${subtitle("d", "Turkish", "Blue.Lights.S04E01.tr.srt")}
+              ${subtitle("c", "", "Blue.Lights.S04E01.srt", source = "mkv")},
+              ${subtitle("d", "Turkish", "Blue.Lights.S04E01.tr.srt", source = "opensubtitles")}
             ]}
         """.trimIndent()
 
         val result = SdkFilesSubtitleLanguages(client(requests, 200, body)).subtitleLanguages(FilesItemId(42L))
 
         assertEquals(
-            listOf("English", "Blue.Lights.S04E01.srt", "Turkish"),
+            FilesSubtitles(listOf("English", "Blue.Lights.S04E01.srt", "Turkish"), sidecarFiles = 2),
             (result as PutioResult.Success).value,
         )
         assertTrue(requests.single().endsWith("/files/42/subtitles"))
@@ -45,8 +45,8 @@ class SdkFilesSubtitleLanguagesTest {
         assertTrue((result as PutioResult.Failure).failure is PutioFailure.AuthenticationRequired)
     }
 
-    private fun subtitle(key: String, language: String, name: String): String =
-        """{"key":"$key","language":"$language","language_code":"","name":"$name","source":"folder","url":""}"""
+    private fun subtitle(key: String, language: String, name: String, source: String = "folder"): String =
+        """{"key":"$key","language":"$language","language_code":"","name":"$name","source":"$source","url":""}"""
 
     private fun client(requests: MutableList<String>, status: Int, body: String): PutioClient {
         val http = OkHttpClient.Builder()

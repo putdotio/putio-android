@@ -3,6 +3,8 @@ package io.putdotio.android.tv.account
 import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.buildAnnotatedString
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.apiReason
@@ -46,3 +48,27 @@ internal fun VideoPlaybackType.tvLabel(): Int =
         VideoPlaybackType.Hls -> R.string.tv_account_video_playback_hls
         VideoPlaybackType.Mp4 -> R.string.tv_account_video_playback_mp4
     }
+
+@StringRes
+internal fun VideoPlaybackType.tvDescription(): Int =
+    when (this) {
+        VideoPlaybackType.Hls -> R.string.tv_account_video_playback_hls_description
+        VideoPlaybackType.Mp4 -> R.string.tv_account_video_playback_mp4_description
+    }
+
+@Composable
+internal fun tvMonoArguments(@StringRes template: Int, vararg values: String): AnnotatedString {
+    val text = stringResource(template, *values)
+    val mono = TvAccountType.mono.toSpanStyle()
+    return buildAnnotatedString {
+        append(text)
+        var from = 0
+        values.forEach { value ->
+            val start = text.indexOf(value, from)
+            if (start >= 0) {
+                addStyle(mono, start, start + value.length)
+                from = start + value.length
+            }
+        }
+    }
+}
