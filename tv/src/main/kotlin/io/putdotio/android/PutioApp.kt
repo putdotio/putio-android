@@ -310,13 +310,7 @@ internal fun TvSessionShell(
             searchLaunches++
         },
     )
-    // A restore changes Files behind the browser's cache: one item's folder, or every folder.
-    LaunchedEffect(session, trashState.restoredVersion) {
-        trashState.lastRestoredItem?.let { session.files.dispatch(FilesBrowserEvent.InvalidateRestoredItem(it)) }
-    }
-    LaunchedEffect(session, trashState.bulkRestoreVersion) {
-        if (trashState.bulkRestoreVersion > 0L) session.files.dispatch(FilesBrowserEvent.InvalidateAllFolders)
-    }
+    InvalidateFilesOnRestore(session, trashState)
     val playback by session.playback.collectAsStateWithLifecycle()
     val subtitlesFirst by session.subtitlesFirst.requested.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -446,6 +440,17 @@ internal fun TvSessionShell(
 }
 
 /** Opens a Search or Home pick; false when Files refused it while a move or deletion settles. */
+/** A restore changes Files behind the browser's cache: one item's folder, or every folder. */
+@Composable
+private fun InvalidateFilesOnRestore(session: TvSession, trashState: TrashState) {
+    LaunchedEffect(session, trashState.restoredVersion) {
+        trashState.lastRestoredItem?.let { session.files.dispatch(FilesBrowserEvent.InvalidateRestoredItem(it)) }
+    }
+    LaunchedEffect(session, trashState.bulkRestoreVersion) {
+        if (trashState.bulkRestoreVersion > 0L) session.files.dispatch(FilesBrowserEvent.InvalidateAllFolders)
+    }
+}
+
 private fun TvSession.openPick(item: FilesItem, origin: FilesOpenOrigin, onInFiles: () -> Unit): Boolean =
     when (openExternal(item, origin)) {
         TvExternalOpen.PLAYING -> true
