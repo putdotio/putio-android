@@ -83,6 +83,9 @@ internal class TvPlaybackReporting(
             ?: writer.register(fileId, ::authorized).also { current = Lease(fileId, it) }
     }
 
+    /** Runs [block], another write of [fileId]'s position, after every position playback took for it. */
+    suspend fun <T> supersede(fileId: Long, block: suspend () -> T): T = writer.supersede(fileId, block)
+
     override fun observe(player: Player): Closeable =
         if (closed) Closeable {} else PlaybackPositionObserver(player, scope, writer::offer)
 

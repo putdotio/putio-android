@@ -2,9 +2,8 @@ package io.putdotio.android.files
 
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
-import io.putdotio.android.findPutioApiException
 import io.putdotio.android.putioRequest
-import io.putdotio.android.toPutioFailure
+import io.putdotio.android.toScopedFailure
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.config.AppConfig
 import io.putdotio.sdk.config.AppConfigUpdate
@@ -100,7 +99,7 @@ public class AppConfigPinnedFiles(
     }
 
     private suspend fun read(): List<FilesItemId>? =
-        when (val result = putioRequest(PutioException::toConfigFailure) { loadConfig().pinnedFiles() }) {
+        when (val result = putioRequest(PutioException::toScopedFailure) { loadConfig().pinnedFiles() }) {
             is PutioResult.Success -> result.value.also {
                 mutablePins.value = it
                 mutableFailure.value = null
@@ -123,7 +122,7 @@ public class AppConfigPinnedFiles(
         }
         if (next == current) return
         mutablePins.value = next
-        when (val result = putioRequest(PutioException::toConfigFailure) { saveConfig(pinnedFilesUpdate(next)) }) {
+        when (val result = putioRequest(PutioException::toScopedFailure) { saveConfig(pinnedFilesUpdate(next)) }) {
             is PutioResult.Success -> mutableFailure.value = null
             is PutioResult.Failure -> {
                 mutablePins.value = current
@@ -153,13 +152,5 @@ internal fun AppConfig.pinnedFiles(): List<FilesItemId> =
 internal fun pinnedFilesUpdate(ids: List<FilesItemId>): AppConfigUpdate =
     AppConfigUpdate(key = PINNED_FILES_KEY, value = JsonArray(ids.map { JsonPrimitive(it.value) }))
 
-private fun PutioException.toConfigFailure(): PutioFailure =
-    if (findPutioApiException()?.errorType == INVALID_SCOPE_ERROR_TYPE) {
-        PutioFailure.AccessDenied(this)
-    } else {
-        toPutioFailure()
-    }
-
 public const val PINNED_FILES_KEY: String = "pinned_files"
 internal const val MAX_PINNED_FILES = 40
-private const val INVALID_SCOPE_ERROR_TYPE = "invalid_scope"

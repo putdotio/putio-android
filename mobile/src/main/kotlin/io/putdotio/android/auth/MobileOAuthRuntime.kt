@@ -197,7 +197,7 @@ internal class MobileOAuthRuntime(
                     }
                 },
                 tokenRevocations = PendingTokenRevocations(
-                    store = KeystoreAuthTokenStore.pendingRevocation(context),
+                    stores = KeystoreAuthTokenStore.pendingRevocations(context),
                     sessionStore = tokenStore,
                     revoker = PutioAuthTokenRevoker(putioClient.config),
                     scope = applicationScope,

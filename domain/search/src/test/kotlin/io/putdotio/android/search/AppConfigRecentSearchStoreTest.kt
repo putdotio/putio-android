@@ -2,6 +2,9 @@ package io.putdotio.android.search
 
 import io.putdotio.android.PutioFailure
 import io.putdotio.sdk.config.AppConfig
+import io.putdotio.sdk.errors.PutioApiErrorEnvelope
+import io.putdotio.sdk.errors.PutioApiException
+import io.putdotio.sdk.errors.PutioRequestData
 import java.util.Collections
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -14,6 +17,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AppConfigRecentSearchStoreTest {
@@ -62,37 +66,71 @@ class AppConfigRecentSearchStoreTest {
     @Test
     fun loadsServerTermsThenRecordsNewestFirstDeduplicatesAndCapsAtFive() =
         runBlocking<Unit> {
-            val saved = mutableListOf<List<String>>()
-            store(
-                loadConfig = { RecentSearchConfig(enabled = true, terms = listOf(" existing ", "existing", "")) },
-                saveTerms = { saved += it },
-            ).use { store ->
+            val server = FakeConfigServer(RecentSearchConfig(enabled = true, terms = listOf(" existing ", "existing", "")))
+            server.store(this).use { store ->
                 store.awaitTerms("existing")
                 (1..6).forEach { store.record(SearchTerm("term-$it")) }
                 store.record(SearchTerm("term-4"))
 
                 store.awaitTerms("term-4", "term-6", "term-5", "term-3", "term-2")
-                awaitUntil { saved.size >= 7 }
-                assertEquals(listOf("term-4", "term-6", "term-5", "term-3", "term-2"), saved.last())
+                awaitUntil { server.writes.size >= 7 }
+                assertEquals(listOf("term-4", "term-6", "term-5", "term-3", "term-2"), server.config.terms)
             }
         }
 
     @Test
     fun removesAndClearsServerTerms() =
         runBlocking<Unit> {
-            val saved = mutableListOf<List<String>>()
-            store(
-                loadConfig = { RecentSearchConfig(enabled = true, terms = listOf("one", "two")) },
-                saveTerms = { saved += it },
-            ).use { store ->
+            val server = FakeConfigServer(RecentSearchConfig(enabled = true, terms = listOf("one", "two")))
+            server.store(this).use { store ->
                 store.awaitTerms("one", "two")
                 store.remove(SearchTerm("one"))
                 store.awaitTerms("two")
                 store.clear()
                 store.awaitTerms()
 
-                awaitUntil { saved.size >= 2 }
-                assertEquals(listOf(listOf("two"), emptyList()), saved)
+                awaitUntil { server.writes.size >= 2 }
+                assertEquals(listOf("$SEARCH_HISTORY_KEY=[two]", "$SEARCH_HISTORY_KEY=[]"), server.writes)
+            }
+        }
+
+    @Test
+    fun editsApplyToTermsAnotherClientRecordedAfterTheLoad() =
+        runBlocking<Unit> {
+            val server = FakeConfigServer(RecentSearchConfig(enabled = true, terms = listOf("one")))
+            server.store(this).use { store ->
+                store.awaitTerms("one")
+                server.config = server.config.copy(terms = listOf("from tv", "one"))
+
+                store.record(SearchTerm("two"))
+                store.awaitTerms("two", "from tv", "one")
+                server.config = server.config.copy(terms = listOf("from web") + server.config.terms)
+                store.remove(SearchTerm("one"))
+                store.awaitTerms("from web", "two", "from tv")
+
+                awaitUntil { server.writes.size >= 2 }
+                assertEquals(
+                    listOf("$SEARCH_HISTORY_KEY=[two, from tv, one]", "$SEARCH_HISTORY_KEY=[from web, two, from tv]"),
+                    server.writes,
+                )
+            }
+        }
+
+    @Test
+    fun aMissingConfigScopeIsAccessDeniedNotAnExpiredSession() =
+        runBlocking<Unit> {
+            val refused = PutioApiException(
+                request = PutioRequestData("GET", "https://api.put.io/v2/config"),
+                resolvedStatusCode = 401,
+                httpStatusCode = 401,
+                resolvedErrorType = "invalid_scope",
+                envelope = PutioApiErrorEnvelope(statusCode = 401, errorType = "invalid_scope"),
+                responseBody = "{}",
+                message = "Rejected",
+            )
+            store(loadConfig = { throw refused }).use { store ->
+                val failure = withTimeout(TIMEOUT) { store.failure.first { it != null } }
+                assertTrue(failure is PutioFailure.AccessDenied)
             }
         }
 
@@ -235,7 +273,6 @@ class AppConfigRecentSearchStoreTest {
 
                 store.awaitTerms("new", "existing")
                 awaitUntil { saved.isNotEmpty() }
-                assertEquals(2, loadCalls)
                 assertEquals(listOf("new", "existing"), saved.single())
                 assertEquals(null, store.failure.value)
             }
@@ -270,17 +307,9 @@ class AppConfigRecentSearchStoreTest {
     @Test
     fun retainsFailedWriteAndRetriesItBeforeTheNextEdit() =
         runBlocking<Unit> {
-            var attempts = 0
-            val saved = mutableListOf<List<String>>()
             val offline = IllegalStateException("offline")
-            store(
-                loadConfig = { RecentSearchConfig(enabled = true, terms = listOf("one")) },
-                saveTerms = {
-                    attempts += 1
-                    if (attempts == 1) throw offline
-                    saved += it
-                },
-            ).use { store ->
+            val server = FakeConfigServer(RecentSearchConfig(enabled = true, terms = listOf("one")), failNext = offline)
+            server.store(this).use { store ->
                 store.awaitTerms("one")
                 store.record(SearchTerm("two"))
                 val failure = withTimeout(TIMEOUT) { store.failure.first { it != null } }
@@ -290,8 +319,8 @@ class AppConfigRecentSearchStoreTest {
                 store.record(SearchTerm("three"))
 
                 store.awaitTerms("three", "two", "one")
-                awaitUntil { saved.size >= 2 }
-                assertEquals(listOf(listOf("two", "one"), listOf("three", "two", "one")), saved)
+                awaitUntil { server.writes.size >= 2 }
+                assertEquals(listOf("$SEARCH_HISTORY_KEY=[two, one]", "$SEARCH_HISTORY_KEY=[three, two, one]"), server.writes)
                 assertEquals(null, store.failure.value)
             }
         }
@@ -318,6 +347,7 @@ class AppConfigRecentSearchStoreTest {
     /** `/config` as the store and other clients see it: each save lands, each load reads it. */
     private class FakeConfigServer(
         @Volatile var config: RecentSearchConfig,
+        @Volatile var failNext: Throwable? = null,
     ) {
         val writes: MutableList<String> = Collections.synchronizedList(mutableListOf())
 
@@ -325,6 +355,10 @@ class AppConfigRecentSearchStoreTest {
             AppConfigRecentSearchStore(
                 loadConfig = { config },
                 saveTerms = {
+                    failNext?.let { error ->
+                        failNext = null
+                        throw error
+                    }
                     config = config.copy(terms = it)
                     writes += "$SEARCH_HISTORY_KEY=$it"
                 },

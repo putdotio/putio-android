@@ -68,7 +68,8 @@ internal class TvSearchSuggestionsProvider internal constructor(
 
 /**
  * A system search query: the first page of the account's file search, run in the signed-in
- * session. Nothing for a blank query, no session or a failed search. Nobody watches this
+ * session. Nothing for a blank query, no session, a failed search or a session that ended
+ * while it ran. Nobody watches this
  * process, so a 401 goes to [reject], which ends the session without requesting a code.
  */
 internal class TvGlobalSearch(
@@ -76,6 +77,8 @@ internal class TvGlobalSearch(
     private val session: suspend () -> TvAuthState.SignedIn?,
     private val search: suspend (SearchTerm) -> PutioResult<SearchPage>,
     private val reject: suspend (TvAuthSessionId) -> Unit,
+    /** Whether the session is still the signed-in one. */
+    private val isCurrent: (TvAuthSessionId) -> Boolean,
 ) {
     suspend fun files(query: String?): List<FilesItem> {
         val term = query?.trim()?.takeIf(String::isNotEmpty)?.let(::SearchTerm) ?: return emptyList()
@@ -84,6 +87,7 @@ internal class TvGlobalSearch(
         if (signedIn != null && (result as? PutioResult.Failure)?.failure is PutioFailure.AuthenticationRequired) {
             reject(signedIn.sessionId)
         }
+        if (signedIn == null || !isCurrent(signedIn.sessionId)) return emptyList()
         return (result as? PutioResult.Success)?.value?.items.orEmpty()
     }
 }
@@ -94,7 +98,12 @@ internal fun tvGlobalSearch(
     session: suspend () -> TvAuthState.SignedIn?,
     search: suspend (SearchTerm) -> PutioResult<SearchPage>,
 ): TvGlobalSearch =
-    TvGlobalSearch(session, search) { controller.rejectAuthoritativeSession(it, quiet = true) }
+    TvGlobalSearch(
+        session = session,
+        search = search,
+        reject = { controller.rejectAuthoritativeSession(it, quiet = true) },
+        isCurrent = { (controller.state.value as? TvAuthState.SignedIn)?.sessionId == it },
+    )
 
 /**
  * The rows the system search shows: the file's name, its kind, put.io's still or else

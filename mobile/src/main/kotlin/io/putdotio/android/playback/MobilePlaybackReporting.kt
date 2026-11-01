@@ -118,6 +118,9 @@ internal class MobilePlaybackReporting(
     /** Runs [block] between the player's position writes; the offline sync sends its writes here. */
     suspend fun exclusive(block: suspend () -> Unit) = writer.exclusive(block)
 
+    /** Runs [block], another write of [fileId]'s position, after every position playback took for it. */
+    suspend fun <T> supersede(fileId: Long, block: suspend () -> T): T = writer.supersede(fileId, block)
+
     fun observe(player: Player): PlaybackPositionObserver =
         PlaybackPositionObserver(player, scope, writer::offer)
 

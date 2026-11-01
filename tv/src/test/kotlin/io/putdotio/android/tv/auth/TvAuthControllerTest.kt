@@ -650,7 +650,7 @@ class TvAuthControllerTest {
             controller = TvAuthController(
                 tokenStore,
                 gateway,
-                PendingTokenRevocations(revocationStore, tokenStore, revoker, scope),
+                PendingTokenRevocations(listOf(revocationStore), tokenStore, revoker, scope),
                 scope,
                 legacySession,
             )
