@@ -62,7 +62,8 @@ TV:
   prompt, and Audio, Subtitles (with size and timing) and Speed side sheets
 - Player states over the dimmed frame: a loading spinner, errors in the
   empty-state voice with Try again, Open in VLC for formats the TV can't play,
-  and the phone's MP4 conversion progress
+  and the phone's MP4 conversion progress, with Play in VLC now where VLC is
+  installed
 - With Autoplay next video on, an Up next card that counts 10 seconds, with
   Play now and Cancel
 - Account as groups beside their rows: Library, Playback, Subtitles, the

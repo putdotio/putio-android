@@ -367,6 +367,7 @@
     <string name="tv_player_cant_play_title">This TV can\'t play this file.</string>
     <string name="tv_player_cant_play_message">Its format isn\'t supported here. VLC can usually play it.</string>
     <string name="tv_player_open_in_vlc">Open in VLC</string>
+    <string name="tv_player_play_in_vlc">Play in VLC now</string>
     <string name="tv_player_retry">Try again</string>
     <string name="tv_player_conversion_title">Converting to MP4</string>
     <string name="tv_player_conversion_message">It keeps going if you leave, and playback starts when it’s done.</string>

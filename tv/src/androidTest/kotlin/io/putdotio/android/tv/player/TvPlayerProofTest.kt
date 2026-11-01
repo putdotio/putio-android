@@ -506,6 +506,7 @@ class TvPlayerProofTest {
         val source = localSource(requireNotNull(fixture))
         val factory = ProofPlayerFactory()
         var content by mutableStateOf<PlaybackContent>(PlaybackContent.Loading(PlaybackRequestId(1L)))
+        var playInVlc by mutableStateOf<(() -> Unit)?>(null)
         compose.setContent {
             PutioTvTheme {
                 TvPlayerScreen(
@@ -530,6 +531,7 @@ class TvPlayerProofTest {
                     nextEpisode = PlaybackTarget(FilesItemId(FIXTURE_FILE_ID + 1), STATES_NEXT_TITLE),
                     upNext = TvUpNextLookup.Found(TvUpNext(PlaybackTarget(FilesItemId(FIXTURE_FILE_ID + 1), STATES_NEXT_TITLE), STATES_FOLDER)),
                     onOpenInVlc = {},
+                    onPlayInVlc = playInVlc,
                 )
             }
         }
@@ -556,6 +558,10 @@ class TvPlayerProofTest {
         elapse(POSTER_MILLIS)
         compose.onNodeWithText("Check again").assertIsFocused()
         screenshot("androidtv-st-p4-mp4")
+        playInVlc = {}
+        compose.waitUntil(10_000) { compose.onAllNodesWithText("Play in VLC now").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Check again").assertIsFocused()
+        screenshot("androidtv-st-p4-mp4-vlc")
 
         content = PlaybackContent.Ready(source)
         awaitPlayer(factory) { it.isPlaying && factory.renderedFrame && it.duration > 0L }
