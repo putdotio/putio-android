@@ -29,6 +29,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
@@ -273,7 +274,13 @@ private fun TvFilesActionsHeader(item: FilesItem) {
                 .size(HEADER_GLYPH),
         )
         Column {
-            Text(item.name, style = HEADER_NAME, color = MaterialTheme.colorScheme.onSurface)
+            Text(
+                text = item.name,
+                style = HEADER_NAME,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = HEADER_NAME_LINES,
+                overflow = TextOverflow.Ellipsis,
+            )
             Text(
                 text = headerMeta(item),
                 style = PutioTypeScale.tvMeta,
@@ -400,6 +407,7 @@ private val HEADER_GLYPH = 20.dp
 private val HEADER_GLYPH_TOP = 2.dp
 private val HEADER_BOTTOM = 15.5.dp
 private val HEADER_META_GAP = 4.5.dp
+private const val HEADER_NAME_LINES = 4
 private val HEADER_NAME =
     PutioTypeScale.tvBody.copy(fontSize = 15.sp, lineHeight = 19.sp, fontWeight = FontWeight.Medium)
 private val TILE_HEIGHT = 76.dp
