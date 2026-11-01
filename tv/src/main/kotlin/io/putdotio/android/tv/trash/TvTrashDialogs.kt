@@ -4,7 +4,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import io.putdotio.android.R
-import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.trash.TrashAction
 import io.putdotio.android.trash.TrashContent
 import io.putdotio.android.trash.TrashEvent
@@ -89,7 +88,6 @@ private fun TvTrashConfirm(
         onConfirm = onConfirm,
         onDismiss = onCancel,
         destructive = destructive,
-        titleStyle = PutioTypeScale.tvTitle,
         balanceMessage = true,
         dimAmount = FILES_SHEET_SCRIM.alpha,
         confirmEnabled = enabled,
