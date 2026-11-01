@@ -193,11 +193,7 @@ internal fun MobileCastPlayback(
         }
         val outcome = cast.handOver(state, load, preferences, playerFactory, currentOnSourceRequired)
         failed = outcome == CastHandoverOutcome.Failed
-        when (outcome) {
-            CastHandoverOutcome.Started -> currentAnalytics.castStarted()
-            CastHandoverOutcome.Failed -> currentAnalytics.castFailed()
-            CastHandoverOutcome.SourceRequested -> Unit
-        }
+        currentAnalytics.report(outcome)
     }
     // A file that finished on the receiver ends as one that finished here: the next one is cast in turn.
     val currentAutoplayNextVideo by rememberUpdatedState(autoplayNextVideo)
@@ -364,6 +360,14 @@ private suspend fun MobileCastController.handOver(
 }
 
 private enum class CastHandoverOutcome { Started, SourceRequested, Failed }
+
+private fun PlaybackAnalyticsReporter.report(outcome: CastHandoverOutcome) {
+    when (outcome) {
+        CastHandoverOutcome.Started -> castStarted()
+        CastHandoverOutcome.Failed -> castFailed()
+        CastHandoverOutcome.SourceRequested -> Unit
+    }
+}
 
 /** [intervals]' step from where the receiver is, within the file. */
 private fun androidx.media3.common.Player.seekBy(intervals: SeekIntervals, direction: SeekDirection) {
