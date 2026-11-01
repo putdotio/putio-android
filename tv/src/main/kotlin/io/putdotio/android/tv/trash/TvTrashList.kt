@@ -190,7 +190,12 @@ private fun TvTrashRowMeta(item: TrashItem, color: Color) {
     val daysLeft = rememberTrashDaysLeft(item)
     val parts = buildList<@Composable () -> Unit> {
         add {
-            Text(formatFileSize(item.sizeBytes, spaced = true), style = TV_LIST_ROW_META_MONO, color = color, maxLines = 1)
+            Text(
+                formatFileSize(item.sizeBytes, spaced = true),
+                style = TV_LIST_ROW_META_MONO,
+                color = color,
+                maxLines = 1,
+            )
         }
         daysLeft?.let { add { Text(daysLeftLabel(it), style = TV_LIST_ROW_META, color = color, maxLines = 1) } }
     }
