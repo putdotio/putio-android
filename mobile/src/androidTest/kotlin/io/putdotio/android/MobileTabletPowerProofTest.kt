@@ -267,7 +267,9 @@ class MobileTabletPowerProofTest {
             SystemClock.sleep(SETTLE_MS)
             touchDrag(from = probeCenter("Magnet link"), to = hostCenter())
             // Cancel kept the torrent as a draft, so the drop asks before replacing it, as a share does.
-            compose.waitUntil(TIMEOUT_MS) { compose.onAllNodes(hasText("Use shared link")).fetchSemanticsNodes().isNotEmpty() }
+            compose.waitUntil(TIMEOUT_MS) {
+                compose.onAllNodes(hasText("Use shared link")).fetchSemanticsNodes().isNotEmpty()
+            }
             screenshot("drag-07-replace-the-torrent-draft")
             compose.onNodeWithText("Use shared link").performClick()
             awaitCondition("magnet draft") { draft.state.value.input.startsWith("magnet:") }
@@ -337,7 +339,8 @@ class MobileTabletPowerProofTest {
         compose.onAllNodes(hasText(name) and hasAnyAncestor(hasTestTag(MOBILE_FILES_LIST_TAG)))
             .fetchSemanticsNodes().isNotEmpty()
 
-    private fun rowFocused(name: String): Boolean = rowExists(name) && runCatching { row(name).assertIsFocused() }.isSuccess
+    private fun rowFocused(name: String): Boolean =
+        rowExists(name) && runCatching { row(name).assertIsFocused() }.isSuccess
 
     private fun tagExists(tag: String): Boolean = compose.onAllNodes(hasTestTag(tag)).fetchSemanticsNodes().isNotEmpty()
 
@@ -382,7 +385,11 @@ class MobileTabletPowerProofTest {
         SystemClock.sleep(LONG_PRESS_HOLD_MS)
         for (step in 1..DRAG_STEPS) {
             val fraction = step / DRAG_STEPS.toFloat()
-            inject(MotionEvent.ACTION_MOVE, downTime, PointF(from.x + (to.x - from.x) * fraction, from.y + (to.y - from.y) * fraction))
+            inject(
+                MotionEvent.ACTION_MOVE,
+                downTime,
+                PointF(from.x + (to.x - from.x) * fraction, from.y + (to.y - from.y) * fraction),
+            )
             SystemClock.sleep(DRAG_STEP_MS)
         }
         SystemClock.sleep(SETTLE_MS)
@@ -477,7 +484,8 @@ class MobileTabletPowerProofTest {
             context.registerReceiver(receiver, IntentFilter(PROBE_RECEIVED), Context.RECEIVER_EXPORTED)
         }
 
-        fun next(): Intent = requireNotNull(queue.poll(TIMEOUT_MS, TimeUnit.MILLISECONDS)) { "The probe reported no drop" }
+        fun next(): Intent =
+            requireNotNull(queue.poll(TIMEOUT_MS, TimeUnit.MILLISECONDS)) { "The probe reported no drop" }
 
         override fun close() = context.unregisterReceiver(receiver)
     }

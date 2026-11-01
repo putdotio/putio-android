@@ -169,7 +169,9 @@ class TvCopyProofTest {
         check(directory.mkdirs() || directory.isDirectory)
         val bitmap = requireNotNull(instrumentation.uiAutomation.takeScreenshot())
         try {
-            File(directory, "$label.png").outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
+            File(directory, "$label.png").outputStream().use {
+                check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
+            }
         } finally {
             bitmap.recycle()
         }

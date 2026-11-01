@@ -152,10 +152,17 @@ class MobilePublicLinksProofTest {
             compose.onNodeWithText("You have reached the daily public link creation limit.").assertIsDisplayed()
             screenshot("09-daily-limit")
 
-            links.links += publicLink(id = 9L, fileId = FOLDER.id.value, name = FOLDER.name, type = PutioFileType.FOLDER)
+            links.links += publicLink(
+                id = 9L,
+                fileId = FOLDER.id.value,
+                name = FOLDER.name,
+                type = PutioFileType.FOLDER,
+            )
             showAccount = true
             awaitTag(MOBILE_PUBLIC_LINKS_LIST_TAG)
-            compose.waitUntil(5_000) { runCatching { compose.onNodeWithText(FOLDER.name).assertIsDisplayed() }.isSuccess }
+            compose.waitUntil(5_000) {
+                runCatching { compose.onNodeWithText(FOLDER.name).assertIsDisplayed() }.isSuccess
+            }
             screenshot("10-account-list")
         } finally {
             controller.close()

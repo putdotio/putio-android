@@ -254,7 +254,9 @@ class MobileDownloadsQueueProofTest {
         awaitState { it.entries.isEmpty() }
         assertTrue(manager.currentDownloads.isEmpty())
         // Let the dialog's exit animation finish before the capture.
-        awaitCondition { compose.onAllNodesWithTag(MOBILE_DOWNLOADS_REMOVE_CONFIRM_TAG).fetchSemanticsNodes().isEmpty() }
+        awaitCondition {
+            compose.onAllNodesWithTag(MOBILE_DOWNLOADS_REMOVE_CONFIRM_TAG).fetchSemanticsNodes().isEmpty()
+        }
         SystemClock.sleep(SHADE_SETTLE_MILLIS)
         screenshot("after-bulk-delete")
     }

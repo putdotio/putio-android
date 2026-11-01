@@ -212,9 +212,9 @@ private class TrashRestoreControlledRepository(private val awaitRequest: (() -> 
     val restores = CopyOnWriteArrayList<CompletableDeferred<PutioResult<Unit>>>()
     val checkIds = CopyOnWriteArrayList<FilesItemId>()
     private val checks = CopyOnWriteArrayList<CompletableDeferred<PutioResult<FilesItem>>>()
-    override suspend fun load() = list(null)
-    override suspend fun loadNextPage(cursor: FilesCursor) = list(cursor)
-    private suspend fun list(cursor: FilesCursor?): PutioResult<TrashPage> {
+    override suspend fun load() = list()
+    override suspend fun loadNextPage(cursor: FilesCursor) = list()
+    private suspend fun list(): PutioResult<TrashPage> {
         val result = CompletableDeferred<PutioResult<TrashPage>>()
         lists += result
         return result.await()

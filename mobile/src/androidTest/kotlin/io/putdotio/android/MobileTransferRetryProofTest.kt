@@ -64,7 +64,9 @@ class MobileTransferRetryProofTest {
         val retried = CopyOnWriteArrayList<Long>()
         val server = ConcurrentHashMap(TRANSFERS.associateBy(Transfer::id))
         val repository = scriptedSdkTransfersRepository(
-            list = { TransfersListResponse(cursor = null, transfers = server.values.sortedBy(Transfer::id), status = "OK") },
+            list = {
+                TransfersListResponse(cursor = null, transfers = server.values.sortedBy(Transfer::id), status = "OK")
+            },
             get = { id -> requireNotNull(server[id]) },
             retryTransfer = { id ->
                 retried += id

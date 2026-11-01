@@ -51,7 +51,7 @@ class PutioAndroidLibraryPlugin : Plugin<Project> {
         extensions.configure<DetektExtension> {
             config.setFrom(rootProject.file("detekt.yml"))
             buildUponDefaultConfig = true
-            source.setFrom("src/main/kotlin", "src/test/kotlin", "src/testFixtures/kotlin")
+            source.setFrom("src")
         }
 
         val libs = extensions.getByType<VersionCatalogsExtension>().named("libs")

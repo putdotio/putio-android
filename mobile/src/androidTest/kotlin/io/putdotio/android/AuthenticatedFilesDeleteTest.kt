@@ -241,6 +241,7 @@ class AuthenticatedFilesDeleteTest {
         )
     }
 
+    @Suppress("SwallowedException") // SDK exceptions can carry response details; report only the failed stage and type.
     private fun apiCheck(stage: String, block: suspend () -> Unit) {
         try { runBlocking { withTimeout(TIMEOUT) { block() } } }
         catch (error: Exception) { throw AssertionError("$stage failed (${error.javaClass.simpleName})") }

@@ -341,7 +341,12 @@ class TvFilesProofTest {
     private fun mount(
         listings: Map<FilesItemId, FilesPage>,
         filesRepository: FilesRepository = ProofFilesRepository(listings),
-        account: TvAccount = TvAccount(userId = 1, username = "proof", email = "proof@example.invalid", historyEnabled = true),
+        account: TvAccount = TvAccount(
+            userId = 1,
+            username = "proof",
+            email = "proof@example.invalid",
+            historyEnabled = true,
+        ),
         trashEnabled: Boolean = true,
         streamUrls: FilesStreamUrls? = null,
     ) {
