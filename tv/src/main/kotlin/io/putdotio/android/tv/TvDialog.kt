@@ -35,12 +35,6 @@ import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioRadius
 
-/**
- * A centred dialog per DESIGN.md › TV components: a title, an optional message, an optional
- * non-focusable body (such as a progress bar), and stacked full-width actions. The action given
- * the requester takes focus once the window is up; Back is the caller's dismissal. New dialogs
- * use [TvConfirmDialog] or [TvNoticeDialog].
- */
 @Composable
 internal fun TvDialog(
     title: String,

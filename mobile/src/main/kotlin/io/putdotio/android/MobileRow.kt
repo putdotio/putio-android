@@ -22,11 +22,6 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 
-/**
- * A one-line list row (DESIGN.md File rows): a 40dp leading slot, the headline in body-lg and the
- * meta in `on-surface-variant` below it, and an optional 48dp trailing button that sits 4dp from the
- * edge. The row is at least 64dp tall; the caller owns the headline's cut and the row's interaction.
- */
 @Composable
 internal fun MobileRow(
     leading: @Composable () -> Unit,

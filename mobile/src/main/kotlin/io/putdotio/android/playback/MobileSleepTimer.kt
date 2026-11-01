@@ -50,7 +50,6 @@ internal class MobileSleepTimer(private val clock: () -> Long = SystemClock::ela
         /** The process's one timer, as there is one audio session. */
         val Shared = MobileSleepTimer()
 
-        /** The choices Now Playing offers, in minutes (DESIGN.md Player). */
         val CHOICES = listOf(15, 30, 45, 60)
 
         private const val MILLIS_PER_MINUTE = 60_000L

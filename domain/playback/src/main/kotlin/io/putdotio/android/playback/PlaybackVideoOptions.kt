@@ -4,10 +4,10 @@ import androidx.media3.common.C
 import androidx.media3.common.MimeTypes
 import java.util.Locale
 
-@Suppress("MagicNumber") // The presets are the contract's own list (DESIGN.md Player).
+@Suppress("MagicNumber") // The product's preset list.
 public val PLAYBACK_SPEEDS: List<Float> = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f, 2.5f, 3f)
 
-@Suppress("MagicNumber") // DESIGN.md Player names these four.
+@Suppress("MagicNumber") // The product's four quick presets.
 public val QUICK_PLAYBACK_SPEEDS: List<Float> = listOf(1f, 1.25f, 1.5f, 2f)
 
 public fun formatPlaybackSpeed(speed: Float): String = speed.toString().removeSuffix(".0")

@@ -157,11 +157,6 @@ internal class NowPlayingHandle(
     }
 }
 
-/**
- * The mini player (DESIGN.md Player): a card above the nav bar with the type glyph, the filename cut
- * in the middle, the mono time, pause and close, and a 2dp yellow progress line along its foot.
- * Tapping the card opens Now Playing.
- */
 @Composable
 internal fun MobileNowPlayingBar(
     nowPlaying: NowPlaying,

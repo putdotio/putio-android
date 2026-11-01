@@ -41,11 +41,6 @@ internal fun DownloadEntry.ringAction(): DownloadRingAction? =
         else -> null
     }
 
-/**
- * DESIGN.md's 36dp progress ring in a 48dp target: yellow with pause bars while running, grey with
- * a play triangle while paused, dashed with a stop square while queued. A wait for the network or
- * storage is grey too, with pause bars, since a resume there would change nothing.
- */
 @Composable
 internal fun DownloadRing(status: DownloadStatus, action: DownloadRingAction, onClick: () -> Unit) {
     val label = stringResource(

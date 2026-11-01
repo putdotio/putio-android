@@ -3,8 +3,8 @@
 Ground-up native rewrite of the put.io Android app: Kotlin and Compose for
 phones and tablets (`mobile`) and Android TV / Fire TV (`tv`) from one
 codebase. It is not on Google Play yet; [#14](https://github.com/putdotio/putio-android/issues/14)
-tracks the rollout. The [README](README.md) lists what works and
-[Design](DESIGN.md) the Android design contract. Tests pin the product rules;
+tracks the rollout. [Architecture](docs/architecture.md) maps the product areas and modules, and
+[Design](DESIGN.md) is the Android design contract. Tests pin the product rules;
 script headers and `--help` own the harness.
 
 ## Conventions
@@ -66,7 +66,7 @@ script headers and `--help` own the harness.
   at each capture before attaching it. Captures of the Blender Foundation's
   Sintel trailer need the attribution "© copyright Blender Foundation |
   durian.blender.org" ([CC BY 3.0](https://durian.blender.org/sharing/)).
-- **Legal copy.** The Privacy controls page uses the legal-approved text from
+- **Legal copy.** The Privacy controls page on mobile and TV uses the legal-approved text from
   [support#135](https://github.com/putdotio/support/issues/135); don't reword
   it without a new approval.
 
@@ -120,7 +120,9 @@ that matches. Report skipped or unavailable proof.
 | Design tokens or icons              | `./scripts/sync-design-assets.sh` or `./scripts/generate-icons.sh`, then `./gradlew verify`                                                                         |
 | Visible change                      | Reviewed captures from `.evidence/`, attached with `gh pr comment <n> --attach <file>`                                                                              |
 
-Shipped user-facing behavior updates the README's "What works today".
+Docs stay high level: a new product area or module boundary updates
+[Architecture](docs/architecture.md) and the README's feature list, and a token or design-rule change updates
+DESIGN.md. Screen-level UI changes edit neither.
 
 ## Delivery and CI
 
