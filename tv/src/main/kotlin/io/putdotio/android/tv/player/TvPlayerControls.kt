@@ -168,7 +168,8 @@ internal fun TvPlayerTopBar(title: String, modifier: Modifier = Modifier) {
             style = PutioTypeScale.tvDetailTitle,
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
+            softWrap = false,
+            overflow = TextOverflow.MiddleEllipsis,
         )
     }
 }

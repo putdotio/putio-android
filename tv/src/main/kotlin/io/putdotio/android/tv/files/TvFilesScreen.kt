@@ -377,7 +377,8 @@ internal fun TvFolderHeading(name: String, crumb: String) {
                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+                softWrap = false,
+                overflow = TextOverflow.MiddleEllipsis,
             )
         }
         Text(
@@ -385,7 +386,8 @@ internal fun TvFolderHeading(name: String, crumb: String) {
             style = MaterialTheme.typography.headlineLarge.copy(fontSize = 27.sp, lineHeight = 31.sp),
             color = MaterialTheme.colorScheme.onBackground,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
+            softWrap = false,
+            overflow = TextOverflow.MiddleEllipsis,
             modifier = Modifier.padding(top = 3.dp),
         )
     }
@@ -866,7 +868,8 @@ private fun TvUnsupportedFileScreen(
             style = MaterialTheme.typography.headlineLarge,
             color = MaterialTheme.colorScheme.onBackground,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
+            softWrap = false,
+            overflow = TextOverflow.MiddleEllipsis,
         )
         Column(
             modifier = Modifier.fillMaxSize(),

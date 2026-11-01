@@ -251,7 +251,6 @@ private fun TvHistoryRow(
             .testTag(TV_HISTORY_ROW_TAG),
         glyphSize = GLYPH,
         neutralGlyph = true,
-        titleOverflow = TextOverflow.MiddleEllipsis,
     ) { secondary ->
         if (kind != null) {
             Text(

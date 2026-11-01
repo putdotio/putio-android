@@ -44,7 +44,6 @@ internal fun TvListRow(
     showsFocus: Boolean = true,
     glyphSize: Dp = ROW_GLYPH,
     neutralGlyph: Boolean = false,
-    titleOverflow: TextOverflow = TextOverflow.Ellipsis,
     meta: @Composable RowScope.(secondary: Color) -> Unit,
 ) {
     val interactions = remember { MutableInteractionSource() }
@@ -89,8 +88,8 @@ internal fun TvListRow(
                     title,
                     style = ROW_TITLE,
                     maxLines = 1,
-                    softWrap = titleOverflow == TextOverflow.Ellipsis,
-                    overflow = titleOverflow,
+                    softWrap = false,
+                    overflow = TextOverflow.MiddleEllipsis,
                 )
                 Row(
                     modifier = Modifier.padding(top = 1.dp),
