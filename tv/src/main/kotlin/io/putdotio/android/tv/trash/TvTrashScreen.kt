@@ -235,9 +235,9 @@ private fun TvTrashListDetail(
                         detailHasFocus = detailHasFocus,
                         onRestore = { onEvent(TrashEvent.SelectRestore(detailItem.id)) },
                         onDelete = { onEvent(TrashEvent.SelectDelete(detailItem.id)) },
+                        restoreModifier = Modifier.keyedPaneSection("restore", listFocus.owner, focus.restore),
+                        deleteModifier = Modifier.keyedPaneSection("delete", listFocus.owner, focus.delete),
                     ),
-                    restoreModifier = Modifier.keyedPaneSection("restore", listFocus.owner, focus.restore),
-                    deleteModifier = Modifier.keyedPaneSection("delete", listFocus.owner, focus.delete),
                 )
             }
         },
@@ -258,6 +258,8 @@ internal class TvTrashDetailActions(
     val detailHasFocus: Boolean,
     val onRestore: () -> Unit,
     val onDelete: () -> Unit,
+    val restoreModifier: Modifier,
+    val deleteModifier: Modifier,
 )
 
 private class TvTrashFocus {
@@ -288,10 +290,11 @@ private val TrashContent.isLoadingOrKnownEmpty: Boolean
 private fun TvTrashHeader(
     onRestoreAll: () -> Unit,
     onEmpty: () -> Unit,
-    restoreAllModifier: Modifier,
-    emptyModifier: Modifier,
+    modifier: Modifier = Modifier,
+    restoreAllModifier: Modifier = Modifier,
+    emptyModifier: Modifier = Modifier,
 ) {
-    Box(modifier = Modifier.height(HEADER_HEIGHT)) {
+    Box(modifier = modifier.height(HEADER_HEIGHT)) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
             TvFolderHeading(
                 name = stringResource(R.string.tv_trash_title),
@@ -325,7 +328,7 @@ private fun TvTrashHeaderButton(
     label: String,
     onClick: () -> Unit,
     style: TvButtonStyle,
-    modifier: Modifier,
+    modifier: Modifier = Modifier,
 ) {
     TvButton(onClick = onClick, modifier = modifier, style = style, size = TvButtonSize.Header) {
         Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(TvButtonSize.Header.icon))

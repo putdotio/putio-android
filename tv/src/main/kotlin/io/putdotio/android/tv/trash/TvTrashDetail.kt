@@ -37,8 +37,6 @@ import java.time.format.DateTimeParseException
 internal fun ColumnScope.TvTrashDetail(
     item: TrashItem,
     actions: TvTrashDetailActions,
-    restoreModifier: Modifier,
-    deleteModifier: Modifier,
 ) {
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
@@ -64,7 +62,7 @@ internal fun ColumnScope.TvTrashDetail(
             label = AnnotatedString(stringResource(R.string.tv_trash_restore)),
             icon = R.drawable.ic_ph_arrow_u_up_left,
             onClick = actions.onRestore,
-            modifier = restoreModifier,
+            modifier = actions.restoreModifier,
             primary = true,
             detailHasFocus = actions.detailHasFocus,
             enabled = actions.canRestore,
@@ -74,7 +72,7 @@ internal fun ColumnScope.TvTrashDetail(
             label = AnnotatedString(stringResource(R.string.tv_trash_delete)),
             icon = R.drawable.ic_ph_trash,
             onClick = actions.onDelete,
-            modifier = deleteModifier,
+            modifier = actions.deleteModifier,
             enabled = actions.canDelete,
             danger = true,
         )
