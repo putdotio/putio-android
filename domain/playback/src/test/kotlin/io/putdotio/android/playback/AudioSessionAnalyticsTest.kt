@@ -72,6 +72,8 @@ class AudioSessionAnalyticsTest {
             observer.close()
             screen.castStarted()
             screen.reachedEnd()
+            analytics.castFinished(42L)
+            analytics.castFinished(42L)
             val next = SessionPlayer()
             analytics.observe(next)
             next.setMediaItem(item(PlaybackSourceKind.MP4, offline = true))

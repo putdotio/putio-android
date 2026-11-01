@@ -49,6 +49,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
 
@@ -74,6 +75,7 @@ internal object MobileCast {
                 MobileCastController(gateway, MainScope(), SystemClock::elapsedRealtime).also { cast ->
                     // The receiver's positions reach put.io as the local player's do, under the item's lease.
                     DefaultMobilePlayerFactory.observePositions(appContext, cast.remotePlayer)
+                    MainScope().launch { cast.finished.collect(MobilePlaybackService.analytics::castFinished) }
                     controller = cast
                 }
             }

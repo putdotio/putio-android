@@ -62,8 +62,6 @@ public class AudioSessionAnalytics internal constructor(
             }
         }
         return object : PlaybackAnalyticsReporter {
-            override fun reachedEnd() = reportedEnd(controller.state.value.target.fileId.value)
-
             override fun castStarted() = castStarted(controller.state.value)
 
             override fun castFailed() {
@@ -108,8 +106,8 @@ public class AudioSessionAnalytics internal constructor(
     }
 
     @Synchronized
-    private fun reportedEnd(id: Long) {
-        if (id == fileId) end()
+    public fun castFinished(id: Long) {
+        if (id == fileId && started?.player == CAST) end()
     }
 
     private fun start(playback: AnalyticsEvent.Playback) {
