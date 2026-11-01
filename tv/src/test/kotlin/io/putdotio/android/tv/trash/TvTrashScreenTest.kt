@@ -11,8 +11,10 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.isFocused
 import androidx.compose.ui.test.isNotEnabled
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -74,14 +76,14 @@ class TvTrashScreenTest {
         compose.onNodeWithText("12 days left").assertIsDisplayed()
         compose.onNodeWithText("1 day left").assertIsDisplayed()
         compose.onNodeWithText("1.2 GB").assertIsDisplayed()
-        compose.onNodeWithText("1.4 GB · Deleted Sep 6").assertIsDisplayed()
+        compose.onNodeWithText("1.4 GB · Deleted Sep 6", substring = true).assertIsDisplayed()
         compose.onNodeWithText("in 12 days").assertIsDisplayed()
         compose.onNode(row).assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf<TrashEvent>(TrashEvent.SelectRestore(FilesItemId(7))), events)
 
         compose.runOnIdle { state = state.copy(confirmation = item, confirmationId = 3L) }
         compose.onNodeWithText("Restore item?").assertIsDisplayed()
-        compose.onNode(hasText("Restore") and isFocused()).performKeyInput { pressCenter() }
+        compose.onNode(hasText("Restore") and isFocused() and hasAnyAncestor(isDialog())).performKeyInput { pressCenter() }
         assertEquals(TrashEvent.ConfirmRestore(3L), events.last())
     }
 
@@ -107,7 +109,7 @@ class TvTrashScreenTest {
             state = state.copy(actionConfirmation = TrashAction.DeleteItem(folder), actionConfirmationId = 4L)
         }
         compose.onNodeWithText("Delete permanently?").assertIsDisplayed()
-        compose.onNode(hasText("Delete permanently") and isFocused()).performKeyInput {
+        compose.onNode(hasText("Delete permanently") and isFocused() and hasAnyAncestor(isDialog())).performKeyInput {
             pressKey(Key.DirectionLeft)
         }
         compose.onNodeWithText("Cancel").assertIsFocused().performKeyInput { pressCenter() }
@@ -132,7 +134,7 @@ class TvTrashScreenTest {
         compose.runOnIdle { state = state.copy(actionConfirmation = TrashAction.Empty, actionConfirmationId = 5L) }
         compose.onNodeWithText("Empty trash?").assertIsDisplayed()
         compose.onNodeWithText("2 items are deleted permanently. This can't be undone.").assertIsDisplayed()
-        compose.onNode(hasText("Empty trash") and isFocused()).performKeyInput { pressKey(Key.DirectionLeft) }
+        compose.onNode(hasText("Empty trash") and isFocused() and hasAnyAncestor(isDialog())).performKeyInput { pressKey(Key.DirectionLeft) }
         compose.onNodeWithText("Cancel").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(TrashEvent.CancelAction, events.last())
         compose.runOnIdle { state = state.copy(actionConfirmation = null, actionConfirmationId = null) }
@@ -166,7 +168,7 @@ class TvTrashScreenTest {
             TrashState(content = loaded.copy(items = listOf(item.copy(deletedAt = "2026-09-06"))))
         }
 
-        compose.onNodeWithText("1.4 GB · Deleted Sep 6").assertIsDisplayed()
+        compose.onNodeWithText("1.4 GB · Deleted Sep 6", substring = true).assertIsDisplayed()
     }
 
     @Test
@@ -247,7 +249,7 @@ class TvTrashScreenTest {
         show { TrashState(content = loaded, actionConfirmation = TrashAction.Empty, actionConfirmationId = 9L) }
 
         compose.onNodeWithText("Empty trash?").assertIsDisplayed()
-        compose.onNode(hasText("Empty trash") and isFocused()).assertIsDisplayed()
+        compose.onNode(hasText("Empty trash") and isFocused() and hasAnyAncestor(isDialog())).assertIsDisplayed()
     }
 
     @Test
