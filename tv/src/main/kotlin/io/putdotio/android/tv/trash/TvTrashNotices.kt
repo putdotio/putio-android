@@ -33,7 +33,6 @@ import io.putdotio.android.tv.TvPaneFocusOwner
 import io.putdotio.android.tv.files.tvMessageText
 import io.putdotio.android.tv.paneSection
 
-/** The restore and mutation outcomes and a failed refresh, one line each above the list. */
 @Composable
 internal fun TvTrashNotices(
     state: TrashState,
@@ -53,7 +52,6 @@ internal fun TvTrashNotices(
     }
 }
 
-/** One line above the list with an optional action; the action is a focus section. */
 @Composable
 private fun TvTrashNotice(
     text: String,

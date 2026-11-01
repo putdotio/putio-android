@@ -72,12 +72,10 @@ internal fun TvTrashScreen(
     state: TrashState,
     onEvent: (TrashEvent) -> Boolean,
     modifier: Modifier = Modifier,
-    /** Changes with the signed-in session so one account's list position never greets the next. */
     sessionKey: Any? = null,
 ) = key(sessionKey) {
     val content = state.content
     val loaded = content as? TrashContent.Loaded
-    // A page can be empty and still carry a cursor; only a known-empty trash shows the empty state.
     val hasRows = loaded?.isKnownEmpty == false
     val focus = remember { TvTrashFocus() }
     val paneHasFocus = rememberTvPaneHasFocus()
@@ -113,8 +111,6 @@ internal fun TvTrashScreen(
             }
             .focusGroup(),
     ) {
-        // Each header button is a section, so the one that opened a confirmation takes
-        // focus back when the dialog closes.
         TvTrashHeader(
             onRestoreAll = { onEvent(TrashEvent.SelectRestoreAll) },
             onEmpty = { onEvent(TrashEvent.SelectEmpty) },
