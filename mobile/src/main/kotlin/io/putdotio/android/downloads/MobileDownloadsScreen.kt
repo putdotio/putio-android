@@ -426,18 +426,20 @@ private class DownloadMetaParts(private val context: Context, private val mono: 
         }
     }
 
-    /** "1.4 GB of 3.3 GB" over a known size; else the bytes, with the percentage when Media3 has one. */
+    /**
+     * "1.4 GB of 3.3 GB" over a known size. An HLS rendition counts its percentage in segments,
+     * not bytes, so it shows the percentage alone, as its ring does; with neither, the bytes.
+     */
     fun progress(builder: AnnotatedString.Builder, bytes: Long, contentLength: Long?, percent: Float?) {
         val done = Formatter.formatShortFileSize(context, bytes)
-        if (contentLength != null) {
-            val template = context.getString(R.string.mobile_downloads_meta_of, VALUE_ONE, VALUE_TWO)
-            builder.appendTemplate(template, done, Formatter.formatShortFileSize(context, contentLength))
-        } else {
-            builder.withStyle(mono) { append(done) }
-            percent?.let {
-                builder.append(SEPARATOR)
-                builder.withStyle(mono) { append("${it.roundToInt().coerceIn(0, PERCENT.toInt())}%") }
+        when {
+            contentLength != null -> {
+                val template = context.getString(R.string.mobile_downloads_meta_of, VALUE_ONE, VALUE_TWO)
+                builder.appendTemplate(template, done, Formatter.formatShortFileSize(context, contentLength))
             }
+            percent != null ->
+                builder.withStyle(mono) { append("${percent.roundToInt().coerceIn(0, PERCENT.toInt())}%") }
+            else -> builder.withStyle(mono) { append(done) }
         }
     }
 
