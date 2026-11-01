@@ -279,6 +279,23 @@ class TvTrashScreenTest {
     }
 
     @Test
+    fun aPaneReturningFromAnotherTabKeepsItsLoadedPages() {
+        var shown by mutableStateOf(true)
+        compose.setTvContent {
+            val panes = rememberSaveableStateHolder()
+            if (shown) {
+                panes.SaveableStateProvider("trash") {
+                    TvTrashScreen(state = TrashState(content = loaded), onEvent = { events += it; true })
+                }
+            }
+        }
+
+        compose.runOnIdle { shown = false }
+        compose.runOnIdle { shown = true }
+        compose.runOnIdle { assertEquals(listOf<TrashEvent>(TrashEvent.Refresh), events) }
+    }
+
+    @Test
     fun aPaneOpenedBehindAConfirmationKeepsItOpen() {
         compose.setTvContent {
             TvTrashScreen(

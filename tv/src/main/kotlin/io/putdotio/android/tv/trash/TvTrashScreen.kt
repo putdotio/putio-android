@@ -92,7 +92,13 @@ internal fun TvTrashScreen(
     val headerOwnsFocus = content.isLoadingOrKnownEmpty
     val dialogOpen = state.confirmation != null || state.actionConfirmation != null
     val dialogShowing = rememberUpdatedState(dialogOpen)
-    LaunchedEffect(Unit) { if (content is TrashContent.Loaded && !dialogOpen) onEvent(TrashEvent.Refresh) }
+    val refreshedOnOpen = rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        if (!refreshedOnOpen.value) {
+            refreshedOnOpen.value = true
+            if (content is TrashContent.Loaded && !dialogOpen) onEvent(TrashEvent.Refresh)
+        }
+    }
     LaunchedEffect(headerOwnsFocus) {
         if (headerOwnsFocus && mayPlaceFocus(paneHasFocus, dialogShowing)) focus.restoreAll.requestFocus()
     }
