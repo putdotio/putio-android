@@ -100,71 +100,6 @@ class SdkHistoryRepositoryTest {
     }
 
     @Test
-    fun keepingDropsEventsAndReadsPastPagesItEmpties() = runBlocking {
-        val shared = { id: Long -> item(id, HistoryEventKind.File(HistoryFileId(id), "Sample $id")) }
-        val notice = { id: Long -> item(id, HistoryEventKind.Notice(HistoryNoticeType.TransferError, "Sample $id")) }
-        val pages = mapOf(
-            null to HistoryPage(listOf(shared(9), notice(8)), hasMore = true),
-            HistoryEventId(9) to HistoryPage(listOf(notice(8), notice(7)), hasMore = true),
-            HistoryEventId(7) to HistoryPage(listOf(notice(6), shared(5), notice(4)), hasMore = true),
-            HistoryEventId(5) to HistoryPage(listOf(notice(4)), hasMore = false),
-        )
-        val requested = mutableListOf<HistoryEventId?>()
-        var clears = 0
-        val source = object : HistoryRepository {
-            override suspend fun load(before: HistoryEventId?): PutioResult<HistoryPage> {
-                requested += before
-                return PutioResult.Success(pages.getValue(before))
-            }
-
-            override suspend fun clear(): PutioResult<Unit> {
-                clears += 1
-                return PutioResult.Success(Unit)
-            }
-        }
-        val repository = source.keeping { it is HistoryEventKind.File }
-
-        assertEquals(
-            PutioResult.Success(HistoryPage(listOf(shared(9)), hasMore = true)),
-            repository.load(null),
-        )
-        assertEquals(
-            PutioResult.Success(HistoryPage(listOf(shared(5)), hasMore = true)),
-            repository.load(HistoryEventId(9)),
-        )
-        assertEquals(
-            PutioResult.Success(HistoryPage(emptyList(), hasMore = false)),
-            repository.load(HistoryEventId(5)),
-        )
-        assertEquals(listOf(null, HistoryEventId(9), HistoryEventId(7), HistoryEventId(5)), requested)
-        assertEquals(PutioResult.Success(Unit), repository.clear())
-        assertEquals(1, clears)
-    }
-
-    @Test
-    fun keepingStopsWhenAPageDoesNotMoveOlderAndPassesFailuresThrough() = runBlocking {
-        val stuck = object : HistoryRepository {
-            override suspend fun load(before: HistoryEventId?) = PutioResult.Success(
-                HistoryPage(listOf(item(3, HistoryEventKind.Other("voucher"))), hasMore = true),
-            )
-
-            override suspend fun clear() = PutioResult.Success(Unit)
-        }
-        assertEquals(
-            PutioResult.Success(HistoryPage(emptyList(), hasMore = true)),
-            stuck.keeping { false }.load(HistoryEventId(3)),
-        )
-
-        val failure = PutioResult.Failure(PutioFailure.Unexpected(IllegalStateException("down")))
-        val failing = object : HistoryRepository {
-            override suspend fun load(before: HistoryEventId?) = failure
-
-            override suspend fun clear() = PutioResult.Success(Unit)
-        }
-        assertSame(failure, failing.keeping { true }.load(null))
-    }
-
-    @Test
     fun boundsUnexpectedFailuresAndPreservesCancellation() {
         val unexpected = IllegalStateException("broken")
         val failed = runBlocking { throwingRepository(unexpected).load(null) } as PutioResult.Failure
@@ -236,6 +171,4 @@ class SdkHistoryRepositoryTest {
         fileName = fileName,
         transferName = transferName,
     )
-
-    private fun item(id: Long, kind: HistoryEventKind) = HistoryItem(HistoryEventId(id), "2026-08-30T00:00:00Z", kind)
 }

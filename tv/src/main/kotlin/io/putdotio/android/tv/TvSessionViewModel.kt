@@ -34,12 +34,10 @@ import io.putdotio.android.tv.home.TvShowHomeSetting
 import io.putdotio.android.tv.home.TvShowHomeStore
 import io.putdotio.android.history.HistoryController
 import io.putdotio.android.history.HistoryFileOpener
-import io.putdotio.android.history.HistoryEventKind
 import io.putdotio.android.history.HistoryRepository
-import io.putdotio.android.history.keeping
+import io.putdotio.android.tv.history.TvHistoryFiles
 import io.putdotio.android.settings.captureSavedAppConfig
 import io.putdotio.android.settings.captureSavedSettings
-import io.putdotio.android.tv.history.isShownOnTv
 import io.putdotio.android.playback.PlaybackController
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackNeighbours
@@ -153,11 +151,7 @@ internal class TvSession internal constructor(
     val showHome = TvShowHomeSetting(dependencies.showHomeStore(accountId ?: 0L))
     val files = FilesBrowserController(dependencies.filesRepository, parentScope)
     val search = SearchController(dependencies.searchRepository, recentSearches, parentScope)
-    val history = HistoryController(
-        dependencies.historyRepository.keeping(HistoryEventKind::isShownOnTv),
-        historyEnabled,
-        parentScope,
-    )
+    val history = HistoryController(dependencies.historyRepository, historyEnabled, parentScope)
     val trash = TrashController(dependencies.trashRepository, parentScope)
 
     /** Account-wide `/account/settings`; shared with mobile, read once per session. */
@@ -226,6 +220,8 @@ internal class TvSession internal constructor(
     /** The Search result and the History event last opened, focused again when their pane returns. */
     val searchPickedRow = TvPickedRow()
     val historyPickedRow = TvPickedRow()
+
+    val historyFiles = TvHistoryFiles(dependencies.filesItemResolver)
 
     val recentSearchFailure = recentSearches.failure
 
@@ -303,18 +299,19 @@ internal class TvSession internal constructor(
     val subtitlesFirst = TvSubtitlesFirst()
 
     /**
-     * Opens a Search or History pick: media plays, a folder opens in Files, and any other file
-     * opens its folder with focus on it. Back returns to [origin] either way.
+     * Opens a pick from [origin]: media plays unless [playMedia] is false, a folder opens in Files,
+     * and any other file opens its folder with focus on it. Back returns to [origin] either way.
      */
     fun openExternal(
         item: FilesItem,
         origin: FilesOpenOrigin,
         continueWatching: Boolean = false,
+        playMedia: Boolean = true,
     ): TvExternalOpen {
         // A newer pick wins over media still waiting for its duration.
         durationLookup?.cancel()
         return when {
-            item.isPlayable -> {
+            item.isPlayable && playMedia -> {
                 val start = if (continueWatching) TvPlayStart.Resume else TvPlayStart.Ask
                 val fromHome = origin == FilesOpenOrigin.HOME
                 if (item.playback?.durationSeconds != null) {

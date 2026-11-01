@@ -38,7 +38,7 @@ import org.junit.runners.model.Statement
 
 /**
  * Controlled-state captures of the History, quota and Trash copy on the real signed-in TV
- * shell: History lists only shared files and completed transfers, the quota follows
+ * shell: History lists every event the phone lists, the quota follows
  * `show_optimistic_usage`, Trash states its 14 days. No API calls.
  */
 @RunWith(AndroidJUnit4::class)
@@ -58,15 +58,15 @@ class TvCopyProofTest {
     val rules: RuleChain = RuleChain.outerRule(optIn).around(compose)
 
     @Test
-    fun historyKeepsSharedFilesAndTransfersAndTheQuotaAndTrashUseTheReferenceCopy() {
+    fun historyListsThePhonesEventsAndTheQuotaAndTrashUseTheReferenceCopy() {
         mount(account(historyEnabled = true, optimistic = false), trash = listOf(trashItem()))
 
         compose.openTvTab("History")
         compose.waitUntil(5_000) { hasDescription("Open $SHARED") }
         assertTrue(hasDescription("Open $TRANSFER"))
-        assertTrue(compose.onAllNodesWithText(UPLOAD, substring = true).fetchSemanticsNodes().isEmpty())
-        assertTrue(compose.onAllNodesWithText(FAILED, substring = true).fetchSemanticsNodes().isEmpty())
-        screenshot("01-tv-history-shared-and-completed")
+        assertTrue(hasDescription(UPLOAD))
+        assertTrue(hasDescription(FAILED))
+        screenshot("01-tv-history-events")
 
         compose.openTvTab("Account")
         compose.waitUntil(5_000) { hasText("${size(USED)} of ${size(SIZE)} used") }
@@ -84,7 +84,9 @@ class TvCopyProofTest {
         mount(account(historyEnabled = false, optimistic = true), trash = emptyList())
 
         compose.openTvTab("History")
-        compose.waitUntil(5_000) { hasText("Turn on “Keep account history” in Account to see activity here.") }
+        compose.waitUntil(5_000) {
+            hasText("Turn on Keep account history in Account to see what happens to your files.")
+        }
         screenshot("04-tv-history-off")
 
         compose.openTvTab("Account")

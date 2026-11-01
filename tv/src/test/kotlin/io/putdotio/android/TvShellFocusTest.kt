@@ -13,8 +13,6 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
-import androidx.compose.ui.test.hasClickAction
-import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -302,7 +300,7 @@ class TvShellFocusTest {
     }
 
     @Test
-    fun historyRowsThatGoWhileTheUserIsOnTheTabBarLeaveClearAsTheEntryPoint() {
+    fun historyRowsThatGoWhileTheUserIsOnTheTabBarLeaveTheEmptyStateAsTheEntryPoint() {
         var history by mutableStateOf(
             historyState(
                 HistoryContent.Ready(
@@ -340,6 +338,6 @@ class TvShellFocusTest {
         compose.onTab("History").assertIsFocused().performKeyInput {
             pressKey(Key.DirectionDown)
         }
-        compose.onNode(hasText("Clear") and hasClickAction()).assertIsFocused()
+        compose.onNodeWithText("No activity yet.").assertIsFocused()
     }
 }

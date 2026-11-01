@@ -11,4 +11,5 @@ public enum class PutioEmptyGlyph(public val text: String) {
     CantPlay("(x_x)"),
     CouldNotLoad("(・_・;)"),
     NothingYet("( ˘▽˘)っ"),
+    HistoryOff("(-_-) zZ"),
 }

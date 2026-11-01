@@ -50,6 +50,9 @@ TV:
   and Subtitles tiles, then Open in VLC, Mark as watched or unwatched, and Pin
   to Home or Unpin; Move to trash acts at once with a Moved to Trash snackbar
   and Undo, and Delete permanently confirms with a red button
+- History as the phone's rows under day headers beside the focused event's
+  file, with its size, its folder and Open folder; Clear history confirms
+  with a red button, and History off links to Account
 - An inactive-account notice under the tabs that never takes focus
 - Full-screen playback with the phone's controls: D-pad scrubbing, a Resume
   prompt, and Audio, Subtitles (with size and timing) and Speed side sheets

@@ -254,8 +254,9 @@ internal fun TvSessionShell(
         confirmedHistoryEnabled?.let { session.history.dispatch(HistoryEvent.SetEnabled(it)) }
     }
 
-    // A search result or a history event plays when it is media; anything else opens in Files
-    // and the shell switches destinations. A refused jump stays put with an explanation.
+    // A search result or a Home pick plays when it is media; anything else opens in Files and the
+    // shell switches destinations. A history event always opens its folder in Files. A refused
+    // jump stays put with an explanation.
     var requestedDestination by remember(session) { mutableStateOf<TvDestination?>(null) }
     var openRejected by remember(session) { mutableStateOf(false) }
     var historyOpenRejected by remember(session) { mutableStateOf(false) }
@@ -271,7 +272,11 @@ internal fun TvSessionShell(
         }
     }
     LaunchedEffect(session) {
-        session.historyOpens.collect { item -> historyOpenRejected = !openExternal(item, FilesOpenOrigin.HISTORY) }
+        session.historyOpens.collect { item ->
+            val opened = session.openExternal(item, FilesOpenOrigin.HISTORY, playMedia = false)
+            historyOpenRejected = opened == TvExternalOpen.REFUSED
+            if (!historyOpenRejected) requestedDestination = TvDestination.Files
+        }
     }
     val linkNotice = rememberTvLaunchHandling(
         session = session,
@@ -390,6 +395,8 @@ internal fun TvSessionShell(
                     openRejected = historyOpenRejected,
                     openFailure = historyOpenFailure,
                     onClearOpenRejection = { historyOpenRejected = false },
+                    onOpenAccount = { requestedDestination = TvDestination.Account },
+                    onSessionRejected = onSessionRejected,
                     sessionKey = sessionKey,
                     paneFocus = paneFocus,
                 )
@@ -413,7 +420,7 @@ internal fun TvSessionShell(
     }
 }
 
-/** Opens a Search or History pick; false when Files refused it while a move or deletion settles. */
+/** Opens a Search or Home pick; false when Files refused it while a move or deletion settles. */
 private fun TvSession.openPick(item: FilesItem, origin: FilesOpenOrigin, onInFiles: () -> Unit): Boolean =
     when (openExternal(item, origin)) {
         TvExternalOpen.PLAYING -> true
@@ -641,6 +648,8 @@ private fun TvHistoryPane(
     openRejected: Boolean,
     openFailure: PutioFailure?,
     onClearOpenRejection: () -> Unit,
+    onOpenAccount: () -> Unit,
+    onSessionRejected: suspend () -> Unit,
     sessionKey: Any,
     paneFocus: FocusRequester,
 ) {
@@ -667,6 +676,9 @@ private fun TvHistoryPane(
         modifier = Modifier.focusRequester(paneFocus),
         sessionKey = sessionKey,
         pickedRow = session.historyPickedRow,
+        files = session.historyFiles,
+        onOpenAccount = onOpenAccount,
+        onAuthenticationRequired = onSessionRejected,
     )
 }
 

@@ -9,7 +9,6 @@ import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertIsFocused
-import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isFocused as hasFocus
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -142,7 +141,7 @@ class TvExternalOpenProofTest {
             "Search" to { compose.onNodeWithContentDescription(SEARCH_FIELD).assertIsFocused() },
             HISTORY to {
                 compose.waitUntil(5_000) { compose.onAllNodesWithText(NO_HISTORY).fetchSemanticsNodes().isNotEmpty() }
-                compose.onNode(hasText(CLEAR) and hasClickAction()).assertIsFocused()
+                compose.onNode(hasText(NO_HISTORY) and hasFocus()).assertExists()
             },
             "Account" to {
                 compose.waitUntil(5_000) {
@@ -346,7 +345,6 @@ class TvExternalOpenProofTest {
         const val SEARCH_FIELD = "Search files"
         const val NO_HISTORY = "No activity yet."
         const val HISTORY = "History"
-        const val CLEAR = "Clear"
         const val ACCOUNT_ENTRY = "Library"
         const val SAVED_SECONDS = 45.0
         const val CONTINUE_LABEL = "Continue playing from 00:45"
