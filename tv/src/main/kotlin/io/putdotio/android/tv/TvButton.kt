@@ -50,15 +50,7 @@ internal fun TvButton(
     content: @Composable RowScope.() -> Unit,
 ) {
     val focused by interactions.collectIsFocusedAsState()
-    val colors = MaterialTheme.colorScheme
-    val (styleRest, styleRestContent) = when (style) {
-        TvButtonStyle.Tonal -> PutioDesignTokens.componentBgActive to colors.onSurface
-        TvButtonStyle.TonalDanger -> PutioDesignTokens.componentBgActive to PutioDesignTokens.redTextSecondary
-        TvButtonStyle.Text -> Color.Transparent to colors.onSurface
-        TvButtonStyle.Filled -> colors.primary to colors.onPrimary
-        TvButtonStyle.Destructive -> colors.error to colors.onError
-    }
-    val (rest, restContent) = if (looksFocused) TvFocus.container to TvFocus.content else styleRest to styleRestContent
+    val (rest, restContent) = if (looksFocused) TvFocus.container to TvFocus.content else style.restColors()
     val keepsFill = style == TvButtonStyle.Filled || style == TvButtonStyle.Destructive
     val ring = TvFocus.container
     val gap = PutioDesignTokens.componentBgHover
@@ -148,6 +140,18 @@ private fun TvLabelButton(
                 content = content,
             )
         }
+    }
+}
+
+@Composable
+private fun TvButtonStyle.restColors(): Pair<Color, Color> {
+    val colors = MaterialTheme.colorScheme
+    return when (this) {
+        TvButtonStyle.Tonal -> PutioDesignTokens.componentBgActive to colors.onSurface
+        TvButtonStyle.TonalDanger -> PutioDesignTokens.componentBgActive to PutioDesignTokens.redTextSecondary
+        TvButtonStyle.Text -> Color.Transparent to colors.onSurface
+        TvButtonStyle.Filled -> colors.primary to colors.onPrimary
+        TvButtonStyle.Destructive -> colors.error to colors.onError
     }
 }
 
