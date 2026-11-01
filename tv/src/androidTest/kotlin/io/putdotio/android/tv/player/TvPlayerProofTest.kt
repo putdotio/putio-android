@@ -45,6 +45,7 @@ import io.putdotio.android.playback.PlaybackController
 import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
+import io.putdotio.android.playback.PlaybackRequestId
 import io.putdotio.android.playback.PlaybackResolution
 import io.putdotio.android.playback.SUBTITLE_CUES_TAG
 import io.putdotio.android.playback.SubtitleStartupPolicy
@@ -497,6 +498,83 @@ class TvPlayerProofTest {
         screenshot("androidtv-rde2-08-player")
     }
 
+    @Test
+    fun playerStatesFollowTheBoards() {
+        val fixture = arguments.getString("putio.tv.player.boardsFixture")
+        val poster = arguments.getString("putio.tv.player.boardsPoster")?.let { Uri.fromFile(File(it)).toString() }
+        assumeTrue("Needs the boards fixture and its poster", fixture != null && poster != null)
+        val source = localSource(requireNotNull(fixture))
+        val factory = ProofPlayerFactory()
+        var content by mutableStateOf<PlaybackContent>(PlaybackContent.Loading(PlaybackRequestId(1L)))
+        compose.setContent {
+            PutioTvTheme {
+                TvPlayerScreen(
+                    state = playbackState(
+                        target = PlaybackTarget(
+                            FilesItemId(FIXTURE_FILE_ID),
+                            STATES_TITLE,
+                            PlaybackMediaType.VIDEO,
+                            posterUrl = poster,
+                        ),
+                        content = content,
+                        nextRequestValue = 2L,
+                    ),
+                    onBack = {},
+                    onRetry = {},
+                    onResume = {},
+                    onRestart = {},
+                    onPlayerFailure = { failure, _ -> error("Local playback failed: $failure") },
+                    playerFactory = factory,
+                    autoplayNextVideo = true,
+                    onPlaybackEnded = { true },
+                    nextEpisode = PlaybackTarget(FilesItemId(FIXTURE_FILE_ID + 1), STATES_NEXT_TITLE),
+                    upNext = TvUpNextLookup.Found(TvUpNext(PlaybackTarget(FilesItemId(FIXTURE_FILE_ID + 1), STATES_NEXT_TITLE), STATES_FOLDER)),
+                    onOpenInVlc = {},
+                )
+            }
+        }
+        compose.waitUntil(10_000) { compose.onAllNodesWithText("Loading").fetchSemanticsNodes().isNotEmpty() }
+        elapse(DIALOG_EXIT_MILLIS)
+        screenshot("androidtv-st-p1-loading")
+
+        content = PlaybackContent.Failed(PlaybackFailure.MediaCredentialUnavailable(IOException()))
+        compose.waitUntil(10_000) { compose.onAllNodesWithText("Try again").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Try again").assertIsFocused()
+        elapse(POSTER_MILLIS)
+        screenshot("androidtv-st-p2-error")
+
+        content = PlaybackContent.Failed(PlaybackFailure.MediaUnsupported(IOException()))
+        compose.waitUntil(10_000) { compose.onAllNodesWithText("Open in VLC").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Open in VLC").assertIsFocused()
+        elapse(POSTER_MILLIS)
+        screenshot("androidtv-st-p3-unsupported")
+
+        content = PlaybackContent.Loading(PlaybackRequestId(1L))
+        compose.waitUntil(10_000) { compose.onAllNodesWithText("Loading").fetchSemanticsNodes().isNotEmpty() }
+        content = PlaybackContent.Conversion(PlaybackConversionState.Converting(BOARD_CONVERSION_PERCENT))
+        awaitConversionStatus("42%")
+        elapse(POSTER_MILLIS)
+        compose.onNodeWithText("Check again").assertIsFocused()
+        screenshot("androidtv-st-p4-mp4")
+
+        content = PlaybackContent.Ready(source)
+        awaitPlayer(factory) { it.isPlaying && factory.renderedFrame && it.duration > 0L }
+        compose.mainClock.autoAdvance = false
+        compose.runOnIdle { factory.current().let { it.seekTo(it.duration - UP_NEXT_LEAD_MILLIS) } }
+        compose.waitUntil(30_000) {
+            compose.mainClock.advanceTimeByFrame()
+            compose.onAllNodesWithTag(TV_UP_NEXT_TAG).fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithText("Playing in 10").assertExists()
+        compose.waitUntil(30_000) {
+            compose.mainClock.advanceTimeBy(UP_NEXT_STEP_MILLIS)
+            compose.onAllNodesWithText("Playing in 8").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.mainClock.advanceTimeBy(UP_NEXT_STEP_MILLIS * 2)
+        compose.onNodeWithText("Play now").assertIsFocused()
+        screenshot("androidtv-st-p8-upnext")
+    }
+
     /**
      * On the base fixture: the Audio, Subtitles and Speed sheets pick a track, turn subtitles off
      * (they stay off after a seek) and set the speed, and Back closes an open sheet before the
@@ -672,14 +750,13 @@ class TvPlayerProofTest {
         compose.onNodeWithContentDescription("Play $CONVERTING_TITLE").assertIsFocused()
 
         press(KeyEvent.KEYCODE_DPAD_CENTER)
-        awaitConversionStatus("Starting…")
+        compose.waitUntil(15_000) {
+            compose.onAllNodesWithTag(TV_CONVERSION_PROGRESS_TAG).fetchSemanticsNodes().isNotEmpty()
+        }
         compose.onNodeWithText(
-            "This video isn’t in a format this app can play yet, so its conversion has started. It plays here once it finishes.",
+            "It keeps going if you leave, and playback starts when it’s done.",
         ).assertExists()
         screenshot("49-conversion-starting")
-        awaitConversionStatus("In queue…")
-        compose.onNodeWithText("Conversion status").assertExists()
-        screenshot("50-conversion-queued")
         awaitConversionStatus("35%")
         screenshot("51-conversion-35")
         awaitConversionStatus("80%")
@@ -736,7 +813,7 @@ class TvPlayerProofTest {
 
     private fun awaitConversionStatus(text: String) {
         compose.waitUntil(15_000) {
-            compose.onAllNodesWithTag(TV_CONVERSION_STATUS_TAG).fetchSemanticsNodes().any { node ->
+            compose.onAllNodesWithTag(TV_CONVERSION_PERCENT_TAG).fetchSemanticsNodes().any { node ->
                 node.config.getOrNull(SemanticsProperties.Text)?.joinToString("") { it.text } == text
             }
         }
@@ -1146,6 +1223,13 @@ class TvPlayerProofTest {
         const val BOARD_OFFSET_STEPS = 5
         const val BOARD_PLAY_MILLIS = 1_500L
         const val DIALOG_EXIT_MILLIS = 500L
+        const val POSTER_MILLIS = 1_500L
+        const val UP_NEXT_LEAD_MILLIS = 1_500L
+        const val UP_NEXT_STEP_MILLIS = 100L
+        const val BOARD_CONVERSION_PERCENT = 42.0
+        const val STATES_TITLE = "Big Buck Bunny.mp4"
+        const val STATES_NEXT_TITLE = "Big Buck Bunny.part2.mp4"
+        const val STATES_FOLDER = "Big Buck Bunny"
     }
 }
 

@@ -3,6 +3,11 @@ package io.putdotio.android.tv.player
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.putdotio.android.PutioFailure
@@ -19,6 +24,9 @@ import io.putdotio.android.playback.rememberNextEpisode
 import io.putdotio.android.telemetry.AnalyticsEvent
 import io.putdotio.android.telemetry.ProductAnalytics
 import io.putdotio.android.telemetry.PutioDiagnostics
+import io.putdotio.android.tv.TvNoticeDialog
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 
 /**
  * Playback replaces the signed-in shell rather than covering it, so no shell control can
@@ -58,9 +66,15 @@ internal fun TvPlaybackRoute(
     findNextEpisode: (suspend (PlaybackTarget) -> PlaybackNextResult)? = null,
     subtitlesFirst: Boolean = false,
     onSubtitlesShown: () -> Unit = {},
+    findUpNext: TvFindNeighbours? = null,
+    openInVlc: (suspend (PlaybackTarget) -> Int?)? = null,
 ) {
     val state by controller.state.collectAsStateWithLifecycle()
     val nextEpisode = rememberNextEpisode(state, findNextEpisode, onSessionRejected)
+    val upNext = rememberUpNext(state, findUpNext.takeIf { autoplayNextVideo }, onSessionRejected)
+    val vlcScope = rememberCoroutineScope()
+    var vlcNotice by remember { mutableStateOf<Int?>(null) }
+    var vlcHandoff by remember { mutableStateOf<Job?>(null) }
     val failure = when (val content = state.content) {
         is PlaybackContent.Failed -> content.failure
         is PlaybackContent.NextFailed -> content.failure
@@ -89,10 +103,21 @@ internal fun TvPlaybackRoute(
         onPlaybackEnded = { controller.dispatch(PlaybackEvent.PlayerEnded) },
         nextEpisode = nextEpisode,
         onNextEpisode = { nextEpisode?.let { controller.dispatch(PlaybackEvent.NextChosen(it)) } },
+        onUpNext = { controller.dispatch(PlaybackEvent.NextChosen(it)) },
         analytics = controller.analyticsReporter,
         subtitlesFirst = subtitlesFirst,
         onSubtitlesShown = onSubtitlesShown,
+        upNext = upNext,
+        onOpenInVlc = openInVlc?.let { open ->
+            {
+                if (vlcHandoff?.isActive != true) {
+                    val target = state.target
+                    vlcHandoff = vlcScope.launch { vlcNotice = open(target) }
+                }
+            }
+        },
     )
+    vlcNotice?.let { notice -> TvNoticeDialog(title = stringResource(notice), onDismiss = { vlcNotice = null }) }
 }
 
 private const val SHELL_STATE_KEY = "tv-shell"

@@ -41,6 +41,7 @@ import io.putdotio.android.settings.captureSavedSettings
 import io.putdotio.android.tv.history.isShownOnTv
 import io.putdotio.android.playback.PlaybackController
 import io.putdotio.android.playback.PlaybackMediaType
+import io.putdotio.android.playback.PlaybackNeighbours
 import io.putdotio.android.playback.PlaybackNextResult
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
@@ -282,6 +283,9 @@ internal class TvSession internal constructor(
     /** The video after a target in its folder, by autoplay's walk; Next episode offers it. */
     val findNextVideo: suspend (PlaybackTarget) -> PlaybackNextResult = playbackRepository::findNextVideo
 
+    val findNeighbours: suspend (PlaybackTarget) -> PlaybackRepositoryResult<PlaybackNeighbours> =
+        playbackRepository::findNeighbours
+
     fun play(item: FilesItem, start: TvPlayStart = TvPlayStart.Ask, subtitlesFirst: Boolean = false) {
         durationLookup?.cancel()
         startPlayback(item, start, fromHome = false, subtitlesFirst = subtitlesFirst)
@@ -412,8 +416,8 @@ internal class TvSession internal constructor(
      * The original file's URL for an external player, carrying the account's download token.
      * A 401 is recorded as the session verdict; the caller explains every other failure.
      */
-    suspend fun originalStreamUrl(item: FilesItem): FilesStreamUrlResult =
-        streamUrls.originalStreamUrl(item.id).also { result ->
+    suspend fun originalStreamUrl(id: FilesItemId): FilesStreamUrlResult =
+        streamUrls.originalStreamUrl(id).also { result ->
             val failure = (result as? FilesStreamUrlResult.Failure)?.failure
             if (failure is PutioFailure.AuthenticationRequired) mutableFileActionFailure.value = failure
         }

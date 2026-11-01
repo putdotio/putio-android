@@ -276,7 +276,7 @@ class TvSessionViewModelTest {
         assertEquals(rejected, session.fileActionFailure.value)
         assertEquals(
             "https://api.put.io/v2/files/9/stream?oauth_token=t",
-            (session.originalStreamUrl(video) as FilesStreamUrlResult.Ready).url,
+            (session.originalStreamUrl(video.id) as FilesStreamUrlResult.Ready).url,
         )
     }
 
@@ -286,7 +286,7 @@ class TvSessionViewModelTest {
         streamResult = { FilesStreamUrlResult.Failure(rejected) }
         val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
 
-        val result = session.originalStreamUrl(streamItem)
+        val result = session.originalStreamUrl(streamItem.id)
 
         assertEquals(FilesStreamUrlResult.Failure(rejected), result)
         assertEquals(rejected, session.fileActionFailure.value)
@@ -299,12 +299,12 @@ class TvSessionViewModelTest {
         val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
 
         streamResult = { FilesStreamUrlResult.DownloadTokenUnavailable }
-        assertEquals(FilesStreamUrlResult.DownloadTokenUnavailable, session.originalStreamUrl(streamItem))
+        assertEquals(FilesStreamUrlResult.DownloadTokenUnavailable, session.originalStreamUrl(streamItem.id))
         assertNull(session.fileActionFailure.value)
 
         val offline = FilesStreamUrlResult.Failure(PutioFailure.Unexpected(IllegalStateException("offline")))
         streamResult = { offline }
-        assertEquals(offline, session.originalStreamUrl(streamItem))
+        assertEquals(offline, session.originalStreamUrl(streamItem.id))
         assertNull(session.fileActionFailure.value)
     }
 

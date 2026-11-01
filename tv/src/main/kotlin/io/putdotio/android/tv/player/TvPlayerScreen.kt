@@ -28,7 +28,6 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -47,7 +46,6 @@ import androidx.media3.common.text.CueGroup
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.SubtitleView
 import androidx.media3.ui.compose.ContentFrame
-import io.putdotio.android.R
 import io.putdotio.android.playback.AudioSelection
 import io.putdotio.android.playback.DelayedSubtitleCues
 import io.putdotio.android.playback.PlaybackAnalyticsReporter
@@ -73,7 +71,6 @@ import io.putdotio.android.playback.withAudioSelection
 import io.putdotio.android.playback.withAudioTrack
 import io.putdotio.android.playback.withReportingLease
 import io.putdotio.android.playback.withSubtitleSelection
-import io.putdotio.android.tv.TvStatusScreen
 import io.putdotio.sdk.files.PlaybackSource
 import java.util.UUID
 import kotlinx.coroutines.delay
@@ -100,9 +97,12 @@ internal fun TvPlayerScreen(
     onPlaybackEnded: () -> Boolean = { false },
     nextEpisode: PlaybackTarget? = null,
     onNextEpisode: () -> Unit = {},
+    onUpNext: (PlaybackTarget) -> Boolean = { false },
     analytics: PlaybackAnalyticsReporter = PlaybackAnalyticsReporter.None,
     subtitlesFirst: Boolean = false,
     onSubtitlesShown: () -> Unit = {},
+    upNext: TvUpNextLookup = TvUpNextLookup.Off,
+    onOpenInVlc: (() -> Unit)? = null,
 ) {
     BackHandler(enabled = state.content !is PlaybackContent.Ready, onBack = onBack)
     Box(modifier = modifier.fillMaxSize().background(Color.Black)) {
@@ -122,9 +122,12 @@ internal fun TvPlayerScreen(
                     onPlaybackEnded = onPlaybackEnded,
                     nextEpisode = nextEpisode != null && state.target.mediaType == PlaybackMediaType.VIDEO,
                     onNextEpisode = onNextEpisode,
+                    onUpNext = onUpNext,
                     analytics = analytics,
                     subtitlesFirst = subtitlesFirst,
                     onSubtitlesShown = onSubtitlesShown,
+                    upNext = upNext.takeIf { autoplayNextVideo && state.target.mediaType == PlaybackMediaType.VIDEO }
+                        ?: TvUpNextLookup.Off,
                 )
 
             is PlaybackContent.AwaitingResume -> {
@@ -139,28 +142,30 @@ internal fun TvPlayerScreen(
                     )
                 } else {
                     LaunchedEffect(content) { onResume() }
-                    TvStatusScreen(stringResource(R.string.tv_player_loading))
+                    TvPlayerLoading(state.target)
                 }
             }
 
             is PlaybackContent.Loading,
             is PlaybackContent.FindingNext,
             PlaybackContent.Session,
-            -> TvStatusScreen(stringResource(R.string.tv_player_loading))
+            -> TvPlayerLoading(state.target)
 
             is PlaybackContent.Conversion ->
                 TvConversionScreen(
-                    title = state.target.name,
+                    target = state.target,
                     conversion = content,
                     onRefresh = onRefreshConversion,
                     onStartConversion = onStartConversion,
                 )
 
-            is PlaybackContent.Unsupported -> TvStatusScreen(stringResource(R.string.tv_player_unsupported_title))
+            is PlaybackContent.Unsupported -> TvUnsupportedScreen(state.target)
 
-            is PlaybackContent.Failed -> TvPlaybackFailureScreen(content.failure, onRetry)
+            is PlaybackContent.Failed ->
+                TvPlaybackFailureScreen(state.target, content.failure, onRetry, onOpenInVlc)
 
-            is PlaybackContent.NextFailed -> TvPlaybackFailureScreen(content.failure, onRetry)
+            is PlaybackContent.NextFailed ->
+                TvPlaybackFailureScreen(state.target, content.failure, onRetry, onOpenInVlc)
 
             PlaybackContent.Ended -> LaunchedEffect(Unit) { onBack() }
         }
@@ -183,9 +188,11 @@ private fun TvReadyPlayer(
     onPlaybackEnded: () -> Boolean,
     nextEpisode: Boolean,
     onNextEpisode: () -> Unit,
+    onUpNext: (PlaybackTarget) -> Boolean,
     analytics: PlaybackAnalyticsReporter,
     subtitlesFirst: Boolean,
     onSubtitlesShown: () -> Unit,
+    upNext: TvUpNextLookup,
 ) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -207,7 +214,9 @@ private fun TvReadyPlayer(
     val currentAutoplayNextVideo by rememberUpdatedState(autoplayNextVideo)
     val currentOnPlaybackEnded by rememberUpdatedState(onPlaybackEnded)
     val currentOnNextEpisode by rememberUpdatedState(onNextEpisode)
+    val currentOnUpNext by rememberUpdatedState(onUpNext)
     val currentAnalytics by rememberUpdatedState(analytics)
+    val currentUpNext by rememberUpdatedState(upNext)
     val picksSubtitles = remember(player) { subtitlesFirst.picksSubtitles(stoppedAtMillis, target.mediaType) }
     val startsPlaying = startsPlaying(stoppedAtMillis, picksSubtitles)
     var overlay by remember(player) {
@@ -222,6 +231,7 @@ private fun TvReadyPlayer(
                     exit = { currentOnExit() },
                     playNext = { currentOnPlaybackEnded() },
                     chooseNext = { currentOnNextEpisode() },
+                    playChosen = { currentOnUpNext(it) },
                 )
             }
         }
@@ -257,7 +267,7 @@ private fun TvReadyPlayer(
                 playbackState = value
                 if (value == Player.STATE_ENDED) {
                     currentAnalytics.reachedEnd()
-                    apply(overlay.ended(autoplayNext = currentAutoplayNextVideo))
+                    apply(overlay.ended(autoplayNext = currentAutoplayNextVideo, lookup = currentUpNext))
                 }
             }
 
@@ -324,6 +334,7 @@ private fun TvReadyPlayer(
     }
     BackHandler { apply(overlay.back()) }
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
+        apply(overlay.cancelUpNext())
         apply(overlay.setPlaying(play = false))
         apply(overlay.reveal())
     }
@@ -371,7 +382,8 @@ private fun TvReadyPlayer(
         )
     }
     val focus = remember { FocusRequester() }
-    LaunchedEffect(focus, overlay.sheet == null) { if (overlay.sheet == null) focus.requestFocus() }
+    val playerHoldsFocus = overlay.holdsPlayerFocus
+    LaunchedEffect(focus, playerHoldsFocus) { if (playerHoldsFocus) focus.requestFocus() }
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -398,10 +410,12 @@ private fun TvReadyPlayer(
                 listingDurationMillis = target.durationSeconds?.toPlaybackMillis(),
                 chips = chips,
                 chipLabels = tvPlayerChipLabels(choices, speed),
-                focused = overlay.focusIn(chips),
+                focused = overlay.shownFocus(chips),
+                circles = !overlay.upNext,
             )
         }
     }
+    TvUpNextOverlay(overlay, upNext) { step -> apply(step(overlay)) }
 
     val closeSheet = { apply(overlay.closeSheet()) }
     TvPlayerSheets(
@@ -538,6 +552,7 @@ private fun Player.perform(
     exit: () -> Unit,
     playNext: () -> Boolean,
     chooseNext: () -> Unit,
+    playChosen: (PlaybackTarget) -> Boolean,
 ) {
     when (command) {
         TvPlayerCommand.Play -> play()
@@ -546,6 +561,7 @@ private fun Player.perform(
         TvPlayerCommand.Exit -> exit()
         TvPlayerCommand.PlayNext -> if (!playNext()) exit()
         TvPlayerCommand.ChooseNext -> chooseNext()
+        is TvPlayerCommand.PlayChosen -> if (!playChosen(command.target)) exit()
     }
 }
 
