@@ -382,6 +382,7 @@ internal fun TvFilesDeleteDialog(
         onDismiss = onDismiss,
         destructive = true,
         balanceMessage = true,
+        dimAmount = FILES_SHEET_SCRIM.alpha,
     )
 }
 

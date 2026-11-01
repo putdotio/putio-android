@@ -15,9 +15,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.dropShadow
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
@@ -54,6 +58,7 @@ internal fun TvSnackbarHost(
     modifier: Modifier = Modifier,
     actionSize: TvButtonSize = TvButtonSize.Regular,
     actionModifier: Modifier = Modifier,
+    raised: Boolean = false,
 ) {
     val showing = state.showing ?: return
     val message = showing.message
@@ -61,10 +66,12 @@ internal fun TvSnackbarHost(
         delay(SNACKBAR_MILLIS)
         if (state.showing === showing) state.dismiss()
     }
+    val shape = RoundedCornerShape(PutioRadius.small)
     Row(
         modifier = modifier
             .height(40.dp)
-            .background(PutioDesignTokens.componentBgActive, RoundedCornerShape(PutioRadius.small))
+            .then(if (raised) Modifier.dropShadow(shape, RAISED_SHADOW) else Modifier)
+            .background(PutioDesignTokens.componentBgActive, shape)
             .padding(start = 14.dp, end = if (message.actionLabel == null) 14.dp else 6.dp)
             .semantics { liveRegion = LiveRegionMode.Polite },
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -102,3 +109,9 @@ internal fun TvSnackbarHost(
 }
 
 internal const val SNACKBAR_MILLIS = 6_000L
+
+private val RAISED_SHADOW = Shadow(
+    radius = 16.dp,
+    color = Color.Black.copy(alpha = 0.5f),
+    offset = DpOffset(0.dp, 6.dp),
+)

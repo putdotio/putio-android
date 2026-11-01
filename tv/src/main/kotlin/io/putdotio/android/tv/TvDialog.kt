@@ -12,12 +12,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
@@ -26,6 +28,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogWindowProvider
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import io.putdotio.android.R
@@ -78,6 +81,7 @@ internal fun TvConfirmDialog(
     destructive: Boolean = false,
     titleStyle: TextStyle? = null,
     balanceMessage: Boolean = false,
+    dimAmount: Float? = null,
 ) {
     TvDialogFrame(
         AnnotatedString(title),
@@ -86,6 +90,7 @@ internal fun TvConfirmDialog(
         focusesAction = true,
         titleStyle = titleStyle,
         balanceMessage = balanceMessage,
+        dimAmount = dimAmount,
     ) { focus ->
         TvDialogActions {
             TvButton(
@@ -109,6 +114,7 @@ internal fun TvNoticeDialog(
     okStyle: TvButtonStyle = TvButtonStyle.Text,
     balanceMessage: Boolean = false,
     okHugsLabel: Boolean = false,
+    dimAmount: Float? = null,
 ) {
     TvDialogFrame(
         AnnotatedString(title),
@@ -116,6 +122,7 @@ internal fun TvNoticeDialog(
         onDismiss,
         focusesAction = true,
         balanceMessage = balanceMessage,
+        dimAmount = dimAmount,
     ) { focus ->
         TvDialogActions {
             TvButton(
@@ -147,10 +154,15 @@ private fun TvDialogFrame(
     focusesAction: Boolean,
     titleStyle: TextStyle? = null,
     balanceMessage: Boolean = false,
+    dimAmount: Float? = null,
     content: @Composable ColumnScope.(focus: FocusRequester) -> Unit,
 ) {
     val actionFocus = remember { FocusRequester() }
     Dialog(onDismissRequest = onDismiss) {
+        if (dimAmount != null) {
+            val dialog = LocalView.current.parent as? DialogWindowProvider
+            SideEffect { dialog?.window?.setDimAmount(dimAmount) }
+        }
         if (focusesAction) {
             LaunchedEffect(Unit) {
                 withFrameNanos {}

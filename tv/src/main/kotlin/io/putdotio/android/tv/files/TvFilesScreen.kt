@@ -315,6 +315,7 @@ internal fun TvFilesScreen(
             okStyle = TvButtonStyle.Filled,
             balanceMessage = true,
             okHugsLabel = true,
+            dimAmount = FILES_SHEET_SCRIM.alpha,
         )
     } else if (actionsItem != null) {
         TvFilesActionsMenu(
@@ -669,6 +670,7 @@ private fun TvFilesTrashLimitStatus(
             onDismiss = close,
             destructive = true,
             balanceMessage = true,
+            dimAmount = FILES_SHEET_SCRIM.alpha,
         )
     }
 }
@@ -943,6 +945,7 @@ private fun BoxScope.TvFilesTrashSnackbar(
             .align(Alignment.BottomStart)
             .padding(bottom = SNACKBAR_BOTTOM),
         actionSize = TvButtonSize.Snackbar,
+        raised = true,
         actionModifier = Modifier
             .focusRequester(undoFocus)
             .onFocusChanged { if (snackbar.showing != null) undoFocused = it.isFocused },
