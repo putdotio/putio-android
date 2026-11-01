@@ -56,7 +56,6 @@ import io.putdotio.android.trash.TrashItem
 import io.putdotio.android.tv.TV_LIST_ROW_HEIGHT
 import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.TvFocus
-import io.putdotio.android.tv.TvPaneFocusOwner
 import io.putdotio.android.tv.asMonoRun
 import io.putdotio.android.tv.bringIntoComposition
 import io.putdotio.android.tv.focusRequesterIf
@@ -67,13 +66,6 @@ import kotlinx.coroutines.flow.first
 
 internal const val TV_TRASH_LIST_TAG = "tv-trash-list"
 internal const val TV_TRASH_ROW_TAG = "tv-trash-row"
-
-internal class TvTrashListFocus(
-    val owner: TvPaneFocusOwner,
-    val list: FocusRequester,
-    val paneHasFocus: State<Boolean>,
-    val dialogShowing: State<Boolean>,
-)
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable

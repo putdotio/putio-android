@@ -17,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -106,9 +107,6 @@ internal fun TvTrashScreen(
     }
     val dialogWasOpen = remember { mutableStateOf(false) }
     LaunchedEffect(dialogOpen) { refocusAfterDialog(dialogOpen, dialogWasOpen, paneHasFocus, entryTarget) }
-    var detailId by remember { mutableStateOf(pickedRow.id) }
-    var rowHasFocus by remember { mutableStateOf(false) }
-    var detailHasFocus by remember { mutableStateOf(false) }
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -161,58 +159,14 @@ internal fun TvTrashScreen(
             }
             else -> {
                 EntryTarget(entryTarget, if (loaded != null) focus.list else focus.restoreAll)
-                val items = loaded?.items.orEmpty()
-                val detailItem = items.firstOrNull { it.id.value == detailId }
-                    ?: items.firstOrNull { it.id.value == pickedRow.id }
-                    ?: items.firstOrNull()
-                TvListDetail(
+                TvTrashListDetail(
+                    state = state,
+                    onEvent = onEvent,
+                    focus = focus,
+                    listFocus = TvTrashListFocus(owner, focus.list, paneHasFocus, dialogShowing),
+                    pickedRow = pickedRow,
+                    restoreRowId = restoreRowId,
                     modifier = Modifier.weight(1f),
-                    detailFocus = focus.restore,
-                    listFocus = focus.list,
-                    onDetailFocusChanged = { detailHasFocus = it },
-                    detailTop = DETAIL_TOP,
-                    list = {
-                        TvTrashInfo()
-                        TvTrashNotices(state, onEvent, owner)
-                        if (loaded == null) {
-                            TvListSkeleton()
-                        } else {
-                            TvTrashList(
-                                content = loaded,
-                                restoreRowId = restoreRowId,
-                                onChoose = { if (state.canRestore(it.id)) onEvent(TrashEvent.SelectRestore(it.id)) },
-                                onRowFocusChanged = { item, focused ->
-                                    rowHasFocus = focused
-                                    if (focused) {
-                                        pickedRow.pick(item.id.value)
-                                        detailId = item.id.value
-                                    }
-                                },
-                                onNextPage = { onEvent(TrashEvent.LoadNextPage) },
-                                onRetry = { onEvent(TrashEvent.Retry) },
-                                focus = TvTrashListFocus(owner, focus.list, paneHasFocus, dialogShowing),
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
-                    },
-                    detail = {
-                        when {
-                            loaded == null -> TvDetailSkeleton()
-                            detailItem != null -> TvTrashDetail(
-                                item = detailItem,
-                                actions = TvTrashDetailActions(
-                                    canRestore = state.canRestore(detailItem.id),
-                                    canDelete = state.canDelete(detailItem.id),
-                                    rowHasFocus = rowHasFocus,
-                                    detailHasFocus = detailHasFocus,
-                                    onRestore = { onEvent(TrashEvent.SelectRestore(detailItem.id)) },
-                                    onDelete = { onEvent(TrashEvent.SelectDelete(detailItem.id)) },
-                                ),
-                                restoreModifier = Modifier.keyedPaneSection("restore", owner, focus.restore),
-                                deleteModifier = Modifier.keyedPaneSection("delete", owner, focus.delete),
-                            )
-                        }
-                    },
                 )
             }
         }
@@ -220,6 +174,91 @@ internal fun TvTrashScreen(
     TvTrashConfirmations(state, onEvent)
     LaunchedEffect(owner) { owner.restoreLastSection() }
 }
+
+@Composable
+private fun TvTrashListDetail(
+    state: TrashState,
+    onEvent: (TrashEvent) -> Boolean,
+    focus: TvTrashFocus,
+    listFocus: TvTrashListFocus,
+    pickedRow: TvPickedRow,
+    restoreRowId: Long?,
+    modifier: Modifier = Modifier,
+) {
+    val loaded = state.content as? TrashContent.Loaded
+    var detailId by remember { mutableStateOf(pickedRow.id) }
+    var rowHasFocus by remember { mutableStateOf(false) }
+    var detailHasFocus by remember { mutableStateOf(false) }
+    val items = loaded?.items.orEmpty()
+    val detailItem = items.firstOrNull { it.id.value == detailId }
+        ?: items.firstOrNull { it.id.value == pickedRow.id }
+        ?: items.firstOrNull()
+    TvListDetail(
+        modifier = modifier,
+        detailFocus = focus.restore,
+        listFocus = focus.list,
+        onDetailFocusChanged = { detailHasFocus = it },
+        detailTop = DETAIL_TOP,
+        list = {
+            TvTrashInfo()
+            TvTrashNotices(state, onEvent, listFocus.owner)
+            if (loaded == null) {
+                TvListSkeleton()
+            } else {
+                TvTrashList(
+                    content = loaded,
+                    restoreRowId = restoreRowId,
+                    onChoose = { if (state.canRestore(it.id)) onEvent(TrashEvent.SelectRestore(it.id)) },
+                    onRowFocusChanged = { item, focused ->
+                        rowHasFocus = focused
+                        if (focused) {
+                            pickedRow.pick(item.id.value)
+                            detailId = item.id.value
+                        }
+                    },
+                    onNextPage = { onEvent(TrashEvent.LoadNextPage) },
+                    onRetry = { onEvent(TrashEvent.Retry) },
+                    focus = listFocus,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        },
+        detail = {
+            when {
+                loaded == null -> TvDetailSkeleton()
+                detailItem != null -> TvTrashDetail(
+                    item = detailItem,
+                    actions = TvTrashDetailActions(
+                        canRestore = state.canRestore(detailItem.id),
+                        canDelete = state.canDelete(detailItem.id),
+                        rowHasFocus = rowHasFocus,
+                        detailHasFocus = detailHasFocus,
+                        onRestore = { onEvent(TrashEvent.SelectRestore(detailItem.id)) },
+                        onDelete = { onEvent(TrashEvent.SelectDelete(detailItem.id)) },
+                    ),
+                    restoreModifier = Modifier.keyedPaneSection("restore", listFocus.owner, focus.restore),
+                    deleteModifier = Modifier.keyedPaneSection("delete", listFocus.owner, focus.delete),
+                )
+            }
+        },
+    )
+}
+
+internal class TvTrashListFocus(
+    val owner: TvPaneFocusOwner,
+    val list: FocusRequester,
+    val paneHasFocus: State<Boolean>,
+    val dialogShowing: State<Boolean>,
+)
+
+internal class TvTrashDetailActions(
+    val canRestore: Boolean,
+    val canDelete: Boolean,
+    val rowHasFocus: Boolean,
+    val detailHasFocus: Boolean,
+    val onRestore: () -> Unit,
+    val onDelete: () -> Unit,
+)
 
 private class TvTrashFocus {
     val restoreAll = FocusRequester()

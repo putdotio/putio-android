@@ -83,7 +83,7 @@ class TvTrashScreenTest {
 
         compose.runOnIdle { state = state.copy(confirmation = item, confirmationId = 3L) }
         compose.onNodeWithText("Restore item?").assertIsDisplayed()
-        compose.onNode(hasText("Restore") and isFocused() and hasAnyAncestor(isDialog())).performKeyInput { pressCenter() }
+        compose.onNode(focusedInDialog("Restore")).performKeyInput { pressCenter() }
         assertEquals(TrashEvent.ConfirmRestore(3L), events.last())
     }
 
@@ -109,7 +109,7 @@ class TvTrashScreenTest {
             state = state.copy(actionConfirmation = TrashAction.DeleteItem(folder), actionConfirmationId = 4L)
         }
         compose.onNodeWithText("Delete permanently?").assertIsDisplayed()
-        compose.onNode(hasText("Delete permanently") and isFocused() and hasAnyAncestor(isDialog())).performKeyInput {
+        compose.onNode(focusedInDialog("Delete permanently")).performKeyInput {
             pressKey(Key.DirectionLeft)
         }
         compose.onNodeWithText("Cancel").assertIsFocused().performKeyInput { pressCenter() }
@@ -134,7 +134,7 @@ class TvTrashScreenTest {
         compose.runOnIdle { state = state.copy(actionConfirmation = TrashAction.Empty, actionConfirmationId = 5L) }
         compose.onNodeWithText("Empty trash?").assertIsDisplayed()
         compose.onNodeWithText("2 items are deleted permanently. This can't be undone.").assertIsDisplayed()
-        compose.onNode(hasText("Empty trash") and isFocused() and hasAnyAncestor(isDialog())).performKeyInput { pressKey(Key.DirectionLeft) }
+        compose.onNode(focusedInDialog("Empty trash")).performKeyInput { pressKey(Key.DirectionLeft) }
         compose.onNodeWithText("Cancel").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(TrashEvent.CancelAction, events.last())
         compose.runOnIdle { state = state.copy(actionConfirmation = null, actionConfirmationId = null) }
@@ -249,7 +249,7 @@ class TvTrashScreenTest {
         show { TrashState(content = loaded, actionConfirmation = TrashAction.Empty, actionConfirmationId = 9L) }
 
         compose.onNodeWithText("Empty trash?").assertIsDisplayed()
-        compose.onNode(hasText("Empty trash") and isFocused() and hasAnyAncestor(isDialog())).assertIsDisplayed()
+        compose.onNode(focusedInDialog("Empty trash")).assertIsDisplayed()
     }
 
     @Test
@@ -258,6 +258,8 @@ class TvTrashScreenTest {
 
         compose.runOnIdle { assertEquals(listOf<TrashEvent>(TrashEvent.Refresh), events) }
     }
+
+    private fun focusedInDialog(label: String) = hasText(label) and isFocused() and hasAnyAncestor(isDialog())
 
     private fun show(state: () -> TrashState) {
         compose.setTvContent {

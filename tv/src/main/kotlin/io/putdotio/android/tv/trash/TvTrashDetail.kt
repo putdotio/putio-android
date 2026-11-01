@@ -28,15 +28,6 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeParseException
 
-internal class TvTrashDetailActions(
-    val canRestore: Boolean,
-    val canDelete: Boolean,
-    val rowHasFocus: Boolean,
-    val detailHasFocus: Boolean,
-    val onRestore: () -> Unit,
-    val onDelete: () -> Unit,
-)
-
 /**
  * The focused row's name, size and deletion date, then Restore and Delete permanently, then
  * when Trash drops it. Restore carries the focus look while the row is focused: Center on the
