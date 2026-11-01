@@ -60,6 +60,9 @@ class AppConfigPinnedFilesTest {
 
         assertEquals(listOf(9L), pins.pins.value?.map { it.value })
         assertTrue(pins.failure.value is PutioFailure.NetworkUnavailable)
+        assertTrue(pins.editFailure.value is PutioFailure.NetworkUnavailable)
+        pins.dismissEditFailure()
+        assertNull(pins.editFailure.value)
         pins.close()
     }
 
@@ -70,6 +73,7 @@ class AppConfigPinnedFilesTest {
         advanceUntilIdle()
         assertNull(pins.pins.value)
         assertTrue(pins.failure.value is PutioFailure.AccessDenied)
+        assertNull(pins.editFailure.value)
 
         server.readFailure = null
         pins.reload()

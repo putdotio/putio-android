@@ -133,6 +133,22 @@ class TvFilesRowActionsTest {
     }
 
     @Test
+    fun noSubtitlesTileWhenTheAccountHidesSubtitles() {
+        compose.setTvContent {
+            TvFilesScreen(
+                state = ready(item(2, "clip.mp4", PutioFileType.VIDEO)),
+                onEvent = { true },
+                onPlayMedia = {},
+                showSubtitles = false,
+            )
+        }
+
+        compose.onNodeWithContentDescription("Play clip.mp4").performKeyInput { pressKey(Key.Menu) }
+        compose.onNode(hasText("Play") and isFocused()).assertIsDisplayed()
+        compose.onAllNodesWithText("Subtitles").assertCountEquals(0)
+    }
+
+    @Test
     fun pinToHomeFollowsTheHomePins() {
         val pinned = mutableListOf<Pair<Long, Boolean>>()
         var pins by mutableStateOf<List<FilesItemId>?>(null)

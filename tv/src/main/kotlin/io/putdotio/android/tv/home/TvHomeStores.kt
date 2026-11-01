@@ -84,12 +84,15 @@ internal class TvMemoryContinueWatchingStore : ContinueWatchingStore {
 internal object TvNoPinnedFiles : PinnedFiles {
     override val pins: StateFlow<List<FilesItemId>?> = MutableStateFlow(emptyList())
     override val failure: StateFlow<PutioFailure?> = MutableStateFlow(null)
+    override val editFailure: StateFlow<PutioFailure?> = MutableStateFlow(null)
 
     override fun pin(id: FilesItemId) = Unit
 
     override fun unpin(id: FilesItemId) = Unit
 
     override fun reload() = Unit
+
+    override fun dismissEditFailure() = Unit
 
     override fun close() = Unit
 }

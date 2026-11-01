@@ -9,7 +9,6 @@ import io.putdotio.android.files.FilesDeleteOutcome
 import io.putdotio.android.trash.TrashRepository
 import io.putdotio.android.trash.undoTrashMove
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -24,14 +23,12 @@ internal class TvTrashUndo(
     private val scope: CoroutineScope,
 ) {
     private val mutableFailure = MutableStateFlow<TvUndoFailure?>(null)
-    private var running: Job? = null
 
     val failure: StateFlow<TvUndoFailure?> = mutableFailure.asStateFlow()
 
     fun undo(outcome: FilesDeleteOutcome) {
-        if (outcome.intent.mode != FilesDeleteMode.TRASH || running?.isActive == true) return
-        mutableFailure.value = null
-        running = scope.launch {
+        if (outcome.intent.mode != FilesDeleteMode.TRASH) return
+        scope.launch {
             when (val result = trash.undoTrashMove(outcome.intent.itemIds)) {
                 is PutioResult.Success -> {
                     if (!files.dispatch(FilesBrowserEvent.TrashUndone(outcome))) {
@@ -39,7 +36,10 @@ internal class TvTrashUndo(
                     }
                     files.dispatch(FilesBrowserEvent.ReloadIfStale)
                 }
-                is PutioResult.Failure -> mutableFailure.value = TvUndoFailure(outcome.itemName, result.failure)
+                is PutioResult.Failure -> mutableFailure.update { held ->
+                    held?.takeIf { it.failure is PutioFailure.AuthenticationRequired }
+                        ?: TvUndoFailure(outcome.itemName, result.failure)
+                }
             }
         }
     }

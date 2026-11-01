@@ -87,20 +87,12 @@ internal data class TvFilesActionContext(
     val canDelete: Boolean,
     val resumePlayback: Boolean = true,
     val pinned: Boolean? = null,
+    val showSubtitles: Boolean = true,
 )
 
 internal fun FilesItem.tvActions(context: TvFilesActionContext): List<TvFilesAction> =
     buildList {
-        if (isPlayable) {
-            if (resumePosition(context.resumePlayback) != null) {
-                add(TvFilesAction.Resume)
-                add(TvFilesAction.StartOver)
-            } else {
-                add(TvFilesAction.Play)
-            }
-            if (type == PutioFileType.VIDEO) add(TvFilesAction.Subtitles)
-            add(TvFilesAction.OpenInVlc)
-        }
+        if (isPlayable) addAll(playActions(context))
         val watched = playback?.isWatched == true
         if (!acceptsOwnerActions) return@buildList
         val canToggleWatched = watched || playback?.durationSeconds != null
@@ -111,6 +103,18 @@ internal fun FilesItem.tvActions(context: TvFilesActionContext): List<TvFilesAct
         if (pinned != null && id.value > 0L) add(TvFilesAction.SetPinned(!pinned))
         val trash = context.trashEnabled
         if (trash != null && context.canDelete && id.value > 0L) add(TvFilesAction.Delete(trash))
+    }
+
+private fun FilesItem.playActions(context: TvFilesActionContext): List<TvFilesAction> =
+    buildList {
+        if (resumePosition(context.resumePlayback) != null) {
+            add(TvFilesAction.Resume)
+            add(TvFilesAction.StartOver)
+        } else {
+            add(TvFilesAction.Play)
+        }
+        if (type == PutioFileType.VIDEO && context.showSubtitles) add(TvFilesAction.Subtitles)
+        add(TvFilesAction.OpenInVlc)
     }
 
 /** Otherwise the reducer would refuse the Delete a permanent-deletion confirmation sends. */

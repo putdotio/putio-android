@@ -125,6 +125,8 @@ internal fun TvFilesScreen(
     focusMemory: MutableMap<Long, Long> = remember(sessionKey) { mutableMapOf() },
     onPlay: (FilesItem, TvPlayStart) -> Unit = { item, _ -> onPlayMedia(item) },
     resumePlayback: Boolean = true,
+    /** False when the account's Show subtitles is off: the player offers no subtitle choice then. */
+    showSubtitles: Boolean = true,
     detailSources: TvFilesDetailSources = remember(sessionKey) { TvFilesDetailSources.None },
 ) {
     val current = state.current
@@ -210,6 +212,7 @@ internal fun TvFilesScreen(
         trashEnabled = confirmedTrashEnabled,
         canDelete = current.operation.canStartOperation,
         resumePlayback = resumePlayback,
+        showSubtitles = showSubtitles,
     )
     val actionContextOf = { item: FilesItem -> actionContext.copy(pinned = item.pinnedIn(pinnedIds)) }
     val actionsOf = { item: FilesItem -> item.tvActions(actionContextOf(item)) }

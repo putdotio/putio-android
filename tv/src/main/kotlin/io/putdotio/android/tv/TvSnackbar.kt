@@ -5,9 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -79,10 +77,6 @@ internal fun TvSnackbarHost(
         )
         if (message.actionLabel != null) {
             val hugsLabel = actionSize == TvButtonSize.Snackbar
-            val measurer = rememberTextMeasurer()
-            val labelWidth = with(LocalDensity.current) {
-                measurer.measure(message.actionLabel, PutioTypeScale.tvLabel).size.width.toDp()
-            }
             TvButton(
                 onClick = {
                     state.dismiss()
@@ -91,7 +85,7 @@ internal fun TvSnackbarHost(
                 style = TvButtonStyle.Text,
                 size = actionSize,
                 modifier = if (hugsLabel) {
-                    actionModifier.width(labelWidth + actionSize.padding * 2 + LABEL_ROUNDING)
+                    actionModifier.widthIn(min = actionSize.height)
                 } else {
                     actionModifier
                 },
@@ -107,5 +101,3 @@ internal fun TvSnackbarHost(
 }
 
 internal const val SNACKBAR_MILLIS = 6_000L
-
-private val LABEL_ROUNDING = 1.dp

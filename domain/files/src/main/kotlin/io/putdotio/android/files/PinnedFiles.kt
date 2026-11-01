@@ -28,11 +28,15 @@ public interface PinnedFiles : Closeable {
 
     public val failure: StateFlow<PutioFailure?>
 
+    public val editFailure: StateFlow<PutioFailure?>
+
     public fun pin(id: FilesItemId)
 
     public fun unpin(id: FilesItemId)
 
     public fun reload()
+
+    public fun dismissEditFailure()
 }
 
 public class AppConfigPinnedFiles(
@@ -50,9 +54,11 @@ public class AppConfigPinnedFiles(
     private val commands = Channel<PinCommand>(Channel.UNLIMITED)
     private val mutablePins = MutableStateFlow<List<FilesItemId>?>(null)
     private val mutableFailure = MutableStateFlow<PutioFailure?>(null)
+    private val mutableEditFailure = MutableStateFlow<PutioFailure?>(null)
 
     override val pins: StateFlow<List<FilesItemId>?> = mutablePins.asStateFlow()
     override val failure: StateFlow<PutioFailure?> = mutableFailure.asStateFlow()
+    override val editFailure: StateFlow<PutioFailure?> = mutableEditFailure.asStateFlow()
 
     init {
         scope.launch {
@@ -78,6 +84,10 @@ public class AppConfigPinnedFiles(
         commands.trySend(PinCommand.Reload)
     }
 
+    override fun dismissEditFailure() {
+        mutableEditFailure.value = null
+    }
+
     override fun close() {
         commands.close()
         scope.cancel()
@@ -96,7 +106,10 @@ public class AppConfigPinnedFiles(
         }
 
     private suspend fun edit(edit: PinCommand.Edit) {
-        val current = read() ?: return
+        val current = read() ?: run {
+            mutableEditFailure.value = mutableFailure.value
+            return
+        }
         val next = if (edit.pinned) {
             (listOf(edit.id) + (current - edit.id)).take(MAX_PINNED_FILES)
         } else {
@@ -109,6 +122,7 @@ public class AppConfigPinnedFiles(
             is PutioResult.Failure -> {
                 mutablePins.value = current
                 mutableFailure.value = result.failure
+                mutableEditFailure.value = result.failure
             }
         }
     }
