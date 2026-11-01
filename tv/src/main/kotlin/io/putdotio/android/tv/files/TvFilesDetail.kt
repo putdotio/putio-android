@@ -73,7 +73,7 @@ internal class TvFilesDetailSources(
         if (countSettled(id, listing)) {
             counts[id.value]
         } else {
-            folderCounts?.itemCount(id)?.settle {
+            folderCounts?.takeIf { id.value >= 0L }?.itemCount(id)?.settle {
                 counts[id.value] = it
                 countListings[id.value] = listing
             }
