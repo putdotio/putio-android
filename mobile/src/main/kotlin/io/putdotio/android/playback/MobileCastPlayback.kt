@@ -191,8 +191,9 @@ internal fun MobileCastPlayback(
                 loaded
             }
         }
-        failed = !cast.handOver(state, load, preferences, playerFactory, currentOnSourceRequired)
-        if (failed) currentAnalytics.castFailed() else currentAnalytics.castStarted()
+        val outcome = cast.handOver(state, load, preferences, playerFactory, currentOnSourceRequired)
+        failed = outcome == CastHandoverOutcome.Failed
+        currentAnalytics.report(outcome)
     }
     // A file that finished on the receiver ends as one that finished here: the next one is cast in turn.
     val currentAutoplayNextVideo by rememberUpdatedState(autoplayNextVideo)
@@ -323,7 +324,7 @@ private suspend fun MobileCastController.handOver(
     preferences: RetainedPlayerPreferences,
     playerFactory: MobilePlayerFactory,
     onSourceRequired: (Long?) -> Unit,
-): Boolean {
+): CastHandoverOutcome {
     val target = state.target
     val fileId = target.fileId.value
     val ready = state.content as? PlaybackContent.Ready
@@ -337,7 +338,7 @@ private suspend fun MobileCastController.handOver(
     val holds = holds(fileId)
     if (!holds && ready == null) {
         onSourceRequired(retained)
-        return true
+        return CastHandoverOutcome.SourceRequested
     }
     // The controls follow this file at once, so a failed lookup never leaves them driving another file;
     // the media resolves after, for Play to send again once the file has finished there.
@@ -355,7 +356,17 @@ private suspend fun MobileCastController.handOver(
             ),
         )
     }
-    return holds || loaded != null
+    return if (holds || loaded != null) CastHandoverOutcome.Started else CastHandoverOutcome.Failed
+}
+
+private enum class CastHandoverOutcome { Started, SourceRequested, Failed }
+
+private fun PlaybackAnalyticsReporter.report(outcome: CastHandoverOutcome) {
+    when (outcome) {
+        CastHandoverOutcome.Started -> castStarted()
+        CastHandoverOutcome.Failed -> castFailed()
+        CastHandoverOutcome.SourceRequested -> Unit
+    }
 }
 
 /** [intervals]' step from where the receiver is, within the file. */

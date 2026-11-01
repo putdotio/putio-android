@@ -27,15 +27,17 @@ public fun PlaybackSource.preparePlayback(
     title: String,
     mediaType: PlaybackMediaType = PlaybackMediaType.VIDEO,
     resumePositionMillis: Long? = null,
+    offline: Boolean = false,
 ): PreparedPlayback =
     PreparedPlayback(
-        mediaItem = toMediaItem(title, mediaType),
+        mediaItem = toMediaItem(title, mediaType, offline),
         startPositionMillis = resumePositionMillis ?: startFromSeconds.toPlaybackMillis(),
     )
 
 public fun PlaybackSource.toMediaItem(
     title: String,
     mediaType: PlaybackMediaType = PlaybackMediaType.VIDEO,
+    offline: Boolean = false,
 ): MediaItem {
     val sidecarTracks = (subtitles as? PlaybackSubtitles.Sidecar)?.tracks.orEmpty()
     // put.io's subtitle list names its first entry as `default`, the one the account's subtitle
@@ -67,6 +69,7 @@ public fun PlaybackSource.toMediaItem(
                         PlaybackMediaType.AUDIO -> MediaMetadata.MEDIA_TYPE_MUSIC
                     },
                 )
+                .setExtras(analyticsExtras(kind, offline))
                 .build(),
         )
         .setSubtitleConfigurations(subtitleConfigurations)

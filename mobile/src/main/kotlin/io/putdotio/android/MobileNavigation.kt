@@ -63,6 +63,7 @@ import io.putdotio.android.playback.castMediaFor
 import io.putdotio.android.playback.MobilePlaybackViewModel
 import io.putdotio.android.playback.MobilePlayerFactory
 import io.putdotio.android.playback.MobilePlayerScreen
+import io.putdotio.android.playback.PlaybackAnalyticsReporter
 import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackCastMedia
 import io.putdotio.android.playback.PlaybackController
@@ -383,6 +384,7 @@ internal fun MobileNavHost(
                     Box(Modifier.fillMaxSize().playbackContainer(fileId, route = this)) {
                         MobilePlaybackRoute(
                             controller = playbackViewModel.controller,
+                            analytics = playbackViewModel.analytics,
                             subtitleStartupPolicy = subtitleStartupPolicy,
                             autoplayNextVideo = appConfigState.confirmedAutoplayNextVideo(),
                             onAuthenticationRequired = onPlaybackAuthenticationRequired,
@@ -447,6 +449,7 @@ private fun MobileFilesTab(
 @Composable
 private fun MobilePlaybackRoute(
     controller: PlaybackController,
+    analytics: PlaybackAnalyticsReporter,
     subtitleStartupPolicy: SubtitleStartupPolicy?,
     autoplayNextVideo: Boolean,
     onAuthenticationRequired: suspend () -> Unit,
@@ -499,7 +502,7 @@ private fun MobilePlaybackRoute(
         subtitleStartupPolicy = subtitleStartupPolicy,
         autoplayNextVideo = autoplayNextVideo,
         onPlaybackEnded = { controller.dispatch(PlaybackEvent.PlayerEnded) },
-        analytics = controller.analyticsReporter,
+        analytics = analytics,
         playerFactory = playerFactory,
         onSourceRequired = { controller.dispatch(PlaybackEvent.SourceRequired(it)) },
         onResume = { controller.dispatch(PlaybackEvent.Resume) },

@@ -17,12 +17,14 @@ import androidx.media3.session.MediaSessionService
 import androidx.media3.session.SessionToken
 import io.putdotio.android.auth.MobileOAuthRuntime
 import io.putdotio.android.design.R as DesignR
+import io.putdotio.android.playback.AudioSessionAnalytics
 import io.putdotio.android.playback.DefaultMobilePlayerFactory
 import io.putdotio.android.playback.MobileSleepTimer
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackPositionObserver
 import io.putdotio.android.playback.playerFailureTelemetry
 import io.putdotio.android.telemetry.PutioDiagnostics
+import java.io.Closeable
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
@@ -36,6 +38,7 @@ class MobilePlaybackService : MediaSessionService() {
     private var session: MediaSession? = null
     private var taskRemoved = false
     private var positionObserver: PlaybackPositionObserver? = null
+    private var analyticsObserver: Closeable? = null
     private val scope = MainScope()
 
     @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
@@ -45,6 +48,7 @@ class MobilePlaybackService : MediaSessionService() {
         // Streaming with the screen off needs the CPU and radio awake; a foreground service alone does not.
         (player as? ExoPlayer)?.setWakeMode(C.WAKE_MODE_NETWORK)
         positionObserver = MobileOAuthRuntime.get(this).playbackReporting.observe(player)
+        analyticsObserver = analytics.observe(player)
         player.addListener(
             object : Media3Player.Listener {
                 override fun onEvents(player: Media3Player, events: Media3Player.Events) {
@@ -108,6 +112,8 @@ class MobilePlaybackService : MediaSessionService() {
         MobileSleepTimer.Shared.cancel()
         positionObserver?.close()
         positionObserver = null
+        analyticsObserver?.close()
+        analyticsObserver = null
         session?.let {
             it.player.release()
             it.release()
@@ -120,6 +126,8 @@ class MobilePlaybackService : MediaSessionService() {
         /** Launcher intent action from the media notification: land on the live player. */
         const val ACTION_OPEN_NOW_PLAYING = "io.putdotio.android.action.OPEN_NOW_PLAYING"
         private const val ACTION_STOP = "io.putdotio.android.action.STOP_PLAYBACK"
+
+        val analytics = AudioSessionAnalytics()
 
         fun sessionToken(context: Context): SessionToken =
             SessionToken(context, ComponentName(context, MobilePlaybackService::class.java))

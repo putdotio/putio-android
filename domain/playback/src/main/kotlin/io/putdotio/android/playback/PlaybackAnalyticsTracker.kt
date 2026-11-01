@@ -101,22 +101,29 @@ internal class PlaybackAnalyticsTracker(
     }
 }
 
-private fun playback(mediaType: PlaybackMediaType, ready: PlaybackContent.Ready?, player: AnalyticsEvent.Player) =
-    AnalyticsEvent.Playback(
-        media = when (mediaType) {
-            PlaybackMediaType.VIDEO -> AnalyticsEvent.Media.Video
-            PlaybackMediaType.AUDIO -> AnalyticsEvent.Media.Audio
-        },
-        // A receiver streams a downloaded file from put.io; only the local player reads the download.
-        streamMethod = if (ready?.offline == true && player == AnalyticsEvent.Player.ExoPlayer) {
-            AnalyticsEvent.StreamMethod.LocalFile
-        } else {
-            when (ready?.source?.kind) {
-                PlaybackSourceKind.HLS -> AnalyticsEvent.StreamMethod.Hls
-                PlaybackSourceKind.MP4 -> AnalyticsEvent.StreamMethod.Mp4
-                PlaybackSourceKind.ORIGINAL -> AnalyticsEvent.StreamMethod.Progressive
-                null -> null
-            }
-        },
-        player = player,
-    )
+internal fun playback(mediaType: PlaybackMediaType, ready: PlaybackContent.Ready?, player: AnalyticsEvent.Player) =
+    playback(mediaType, ready?.source?.kind, ready?.offline == true, player)
+
+internal fun playback(
+    mediaType: PlaybackMediaType,
+    kind: PlaybackSourceKind?,
+    offline: Boolean,
+    player: AnalyticsEvent.Player,
+) = AnalyticsEvent.Playback(
+    media = when (mediaType) {
+        PlaybackMediaType.VIDEO -> AnalyticsEvent.Media.Video
+        PlaybackMediaType.AUDIO -> AnalyticsEvent.Media.Audio
+    },
+    // A receiver streams a downloaded file from put.io; only the local player reads the download.
+    streamMethod = if (offline && player == AnalyticsEvent.Player.ExoPlayer) {
+        AnalyticsEvent.StreamMethod.LocalFile
+    } else {
+        when (kind) {
+            PlaybackSourceKind.HLS -> AnalyticsEvent.StreamMethod.Hls
+            PlaybackSourceKind.MP4 -> AnalyticsEvent.StreamMethod.Mp4
+            PlaybackSourceKind.ORIGINAL -> AnalyticsEvent.StreamMethod.Progressive
+            null -> null
+        }
+    },
+    player = player,
+)

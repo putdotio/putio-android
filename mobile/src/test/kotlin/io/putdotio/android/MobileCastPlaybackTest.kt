@@ -22,16 +22,19 @@ import io.putdotio.android.playback.MOBILE_CAST_RETRY_TAG
 import io.putdotio.android.playback.MobileCastController
 import io.putdotio.android.playback.MobilePlayerFactory
 import io.putdotio.android.playback.MobilePlayerScreen
+import io.putdotio.android.playback.PlaybackAnalyticsReporter
 import io.putdotio.android.playback.PlaybackCastMedia
 import io.putdotio.android.playback.PlaybackCastPlaylistSubtitle
 import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackController
 import io.putdotio.android.playback.PlaybackEvent
 import io.putdotio.android.playback.PlaybackFailure
+import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackNextResult
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
 import io.putdotio.android.playback.PlaybackResolution
+import io.putdotio.android.playback.PlaybackStartup
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.playback.SubtitleStartupPolicy
 import io.putdotio.android.playback.toCastMedia
@@ -206,6 +209,47 @@ class MobileCastPlaybackTest {
             }
         } finally {
             hls.close()
+        }
+    }
+
+    @Test
+    fun audioReopenedWithoutASourceStartsOnTheReceiverOnceItsSourceIsKnown() {
+        val song = PlaybackTarget(FilesItemId(3L), "song.mp3", PlaybackMediaType.AUDIO)
+        val audio = PlaybackController(song, Episodes, scope, PlaybackStartup.AttachAudioSession)
+        val starts = mutableListOf<PlaybackContent>()
+        val analytics = object : PlaybackAnalyticsReporter {
+            override fun castStarted() {
+                starts += audio.state.value.content
+            }
+        }
+        try {
+            compose.setContent {
+                val state by audio.state.collectAsState()
+                PutioTheme {
+                    MobilePlayerScreen(
+                        state = state,
+                        onRetry = {},
+                        onPlayerFailure = { _, _ -> },
+                        onBack = {},
+                        analytics = analytics,
+                        playerFactory = MobilePlayerFactory { _, _ -> error("Casting plays nothing on the phone") },
+                        onSourceRequired = { audio.dispatch(PlaybackEvent.SourceRequired(it)) },
+                        cast = cast,
+                        castMedia = { source, _ ->
+                            PlaybackRepositoryResult.Success(
+                                requireNotNull(requireNotNull(source).toCastMedia(song, "download-token")),
+                            )
+                        },
+                    )
+                }
+            }
+
+            compose.runOnIdle {
+                assertEquals(listOf(3L), gateway.loads)
+                assertEquals(listOf(PlaybackContent.Ready::class), starts.map { it::class })
+            }
+        } finally {
+            audio.close()
         }
     }
 
