@@ -84,6 +84,7 @@ internal fun TvSnackbarHost(
                 },
                 style = TvButtonStyle.Text,
                 size = actionSize,
+                hugsLabel = hugsLabel,
                 modifier = if (hugsLabel) {
                     actionModifier.widthIn(min = actionSize.height)
                 } else {

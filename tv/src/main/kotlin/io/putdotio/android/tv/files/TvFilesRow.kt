@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -65,9 +64,10 @@ internal fun TvFilesRow(
         item.isPlayable -> stringResource(R.string.tv_files_play_media, item.name)
         else -> item.name
     },
+    showsFocus: Boolean = true,
 ) {
     val interactions = remember { MutableInteractionSource() }
-    val focused by interactions.collectIsFocusedAsState()
+    val focused = interactions.collectIsFocusedAsState().value && showsFocus
     val colors = MaterialTheme.colorScheme
     val secondary = if (focused) TvFocus.secondaryContent else colors.onSurfaceVariant
     Surface(
@@ -90,8 +90,8 @@ internal fun TvFilesRow(
         colors = ClickableSurfaceDefaults.colors(
             containerColor = Color.Transparent,
             contentColor = colors.onSurface,
-            focusedContainerColor = TvFocus.container,
-            focusedContentColor = TvFocus.content,
+            focusedContainerColor = if (showsFocus) TvFocus.container else Color.Transparent,
+            focusedContentColor = if (showsFocus) TvFocus.content else colors.onSurface,
             pressedContainerColor = TvFocus.container,
             pressedContentColor = TvFocus.content,
         ),

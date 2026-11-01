@@ -108,6 +108,7 @@ internal fun TvNoticeDialog(
     message: String? = null,
     okStyle: TvButtonStyle = TvButtonStyle.Text,
     balanceMessage: Boolean = false,
+    okHugsLabel: Boolean = false,
 ) {
     TvDialogFrame(
         AnnotatedString(title),
@@ -121,6 +122,7 @@ internal fun TvNoticeDialog(
                 onClick = onDismiss,
                 style = okStyle,
                 modifier = Modifier.focusRequester(focus),
+                hugsLabel = okHugsLabel,
             ) { Text(stringResource(R.string.tv_dialog_ok)) }
         }
     }

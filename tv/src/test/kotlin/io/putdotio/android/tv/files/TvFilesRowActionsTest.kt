@@ -190,7 +190,7 @@ class TvFilesRowActionsTest {
         compose.onNodeWithContentDescription("notes.txt").assertIsFocused().performKeyInput { pressKey(Key.Menu) }
         compose.onNodeWithText("Delete permanently").assertIsFocused().performKeyInput { pressCenter() }
         compose.onNodeWithText("Delete permanently?").assertIsDisplayed()
-        compose.onNodeWithText("Trash is off for this account, so notes.txt can’t be restored.").assertIsDisplayed()
+        compose.onNodeWithText("Trash is off for this account, so notes.txt can't be restored.").assertIsDisplayed()
         compose.runOnIdle { assertEquals(emptyList<FilesBrowserEvent>(), events) }
         compose.onNodeWithText("Delete").assertIsFocused().performKeyInput { pressKey(Key.DirectionLeft) }
         compose.onNodeWithText("Cancel").assertIsFocused().performKeyInput { pressCenter() }

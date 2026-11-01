@@ -191,6 +191,7 @@ internal fun TvFilesScreen(
         }
     }
     val dialogOpen = actionsItem != null || notice != null
+    val centredDialogOpen = centredDialogOpen(notice, actionsItem, confirmingPermanentDelete, confirmationStale)
     val snackbar = remember(sessionKey) { TvSnackbarState() }
     val undoFocus = remember { FocusRequester() }
     val downToUndo = undoFocus.takeIf { snackbar.showing?.message?.actionLabel != null }
@@ -274,6 +275,7 @@ internal fun TvFilesScreen(
                             skeletonFocus = skeletonFocus,
                             downToUndo = downToUndo,
                             onEntryTarget = { listEntry.value = it },
+                            rowsShowFocus = !centredDialogOpen,
                             modifier = Modifier.weight(1f),
                             onEvent = onEvent,
                             onOpen = open,
@@ -312,6 +314,7 @@ internal fun TvFilesScreen(
             onDismiss = onDismissNotice,
             okStyle = TvButtonStyle.Filled,
             balanceMessage = true,
+            okHugsLabel = true,
         )
     } else if (actionsItem != null) {
         TvFilesActionsMenu(
@@ -421,6 +424,13 @@ private fun FilesContent.paneEntryTarget(
         is FilesContent.Ready -> listEntry.value
     }
 
+private fun centredDialogOpen(
+    notice: String?,
+    actionsItem: FilesItem?,
+    confirmingDelete: Boolean,
+    confirmationStale: Boolean,
+): Boolean = notice != null || (actionsItem != null && confirmingDelete && !confirmationStale)
+
 private fun FilesContent.fillsPane(): Boolean = this is FilesContent.Failed || this is FilesContent.Empty
 
 @Composable
@@ -437,6 +447,7 @@ private fun TvFilesRows(
     onOpen: (FilesItem) -> Unit,
     onActions: (FilesItem) -> Unit,
     onRowFocused: (FilesItem) -> Unit,
+    rowsShowFocus: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val folderId = current.folder.id.value
@@ -456,6 +467,7 @@ private fun TvFilesRows(
             onOpen = onOpen,
             onActions = onActions,
             onRowFocused = onRowFocused,
+            rowsShowFocus = rowsShowFocus,
         )
         is FilesContent.Loading -> {
             LaunchedEffect(folderId) { if (paneHasFocus.value) skeletonFocus.requestFocus() }

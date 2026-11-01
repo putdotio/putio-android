@@ -200,7 +200,7 @@ internal fun TvFilesActionsSheet(
     onAction: (TvFilesAction) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    TvSideSheet(onDismiss = onDismiss, returnFocus = null) { focus ->
+    TvSideSheet(onDismiss = onDismiss, returnFocus = null, scrim = FILES_SHEET_SCRIM) { focus ->
         TvFilesActionsHeader(item)
         val tiles = actions.filterIsInstance<TvFilesAction.Tile>()
         val rows = actions.filterNot { it is TvFilesAction.Tile || it is TvFilesAction.Delete }
@@ -327,7 +327,10 @@ private fun RowScope.TvFilesActionTile(
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1f, pressedScale = 1f),
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().height(TILE_HEIGHT),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(TILE_HEIGHT)
+                .padding(bottom = TILE_LIFT),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(TILE_ICON_GAP, Alignment.CenterVertically),
         ) {
@@ -414,7 +417,8 @@ private val TILE_HEIGHT = 76.dp
 private val TILE_GAP = 8.dp
 private val TILES_BOTTOM = 8.dp
 private val TILE_ICON = 22.dp
-private val TILE_ICON_GAP = 7.dp
+private val TILE_ICON_GAP = 8.5.dp
+private val TILE_LIFT = 1.5.dp
 private val TILE_LABEL = PutioTypeScale.tvBody.copy(fontWeight = FontWeight.Medium)
 private val DIVIDER = 1.dp
 private val DIVIDER_GAP = 6.dp

@@ -144,7 +144,7 @@
     <string name="tv_files_action_trash">Move to trash</string>
     <string name="tv_files_action_delete">Delete permanently</string>
     <string name="tv_files_delete_title">Delete permanently?</string>
-    <string name="tv_files_delete_message">Trash is off for this account, so %1$s can’t be restored.</string>
+    <string name="tv_files_delete_message">Trash is off for this account, so %1$s can\'t be restored.</string>
     <string name="tv_files_delete_confirm">Delete</string>
     <string name="tv_files_trashed">Moved to Trash</string>
     <string name="tv_files_undo">Undo</string>
