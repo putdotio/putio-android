@@ -280,14 +280,14 @@ private fun Modifier.focusOutline(focused: Boolean, color: Color): Modifier =
 /** A folder's last change, "3 days ago"; null for a file, or a folder put.io sent no time for. */
 internal fun FilesItem.updatedAgo(nowMillis: Long): String? = updatedAt?.takeIf { isFolder }?.toAgo(nowMillis)
 
-/** "3 hr. ago" from a put.io timestamp, in words, as dates read; a time ahead of now reads as now. */
+/** "3 hr. ago" from a put.io timestamp, "Oct 7" after a week; a time ahead of now reads as now. */
 internal fun String.toAgo(nowMillis: Long): String? =
     parsePutioTimestamp(this)?.toEpochMilli()?.let { time ->
         DateUtils.getRelativeTimeSpanString(
             time.coerceAtMost(nowMillis),
             nowMillis,
             DateUtils.MINUTE_IN_MILLIS,
-            DateUtils.FORMAT_ABBREV_RELATIVE,
+            DateUtils.FORMAT_ABBREV_RELATIVE or DateUtils.FORMAT_ABBREV_MONTH,
         ).toString()
     }
 

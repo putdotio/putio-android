@@ -21,6 +21,12 @@ class MobileFolderUpdatedTest {
     }
 
     @Test
+    fun aChangeOverAWeekAgoReadsAsAFileDateDoes() {
+        assertEquals("Oct 7", item(PutioFileType.FOLDER, updatedAt = "2026-10-07T12:00:00").updatedAgo(now))
+        assertEquals("Aug 3, 2024", item(PutioFileType.FOLDER, updatedAt = "2024-08-03T12:00:00").updatedAgo(now))
+    }
+
+    @Test
     fun aChangeAheadOfTheClockReadsAsNow() {
         assertEquals("0 min. ago", item(PutioFileType.FOLDER, updatedAt = "2026-10-31T12:05:00").updatedAgo(now))
     }
