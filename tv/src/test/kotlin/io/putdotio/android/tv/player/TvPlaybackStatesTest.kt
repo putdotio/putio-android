@@ -175,8 +175,8 @@ class TvPlaybackStatesTest {
         assertEquals(0, refreshes)
 
         change(PlaybackContent.Conversion(PlaybackConversionState.Failed))
-        compose.onNodeWithText("Convert again").assertIsFocused()
-        compose.onNodeWithText("Play in VLC now").assertIsDisplayed()
+        compose.onNodeWithText("Convert again").assertIsDisplayed()
+        compose.onNodeWithText("Play in VLC now").assertIsFocused()
 
         change(PlaybackContent.Conversion(PlaybackConversionState.NotAvailable))
         compose.onNodeWithText("Convert again").assertDoesNotExist()
