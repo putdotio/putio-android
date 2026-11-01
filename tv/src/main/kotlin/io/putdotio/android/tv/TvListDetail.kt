@@ -290,7 +290,7 @@ private val SECTION_LABEL_GAP = 8.dp
 private val SECTION_PILL_PADDING = 10.dp
 private val SECTION_PILL_ICON_GAP = 5.dp
 private val SECTION_PILL_ICON = 12.dp
-private val SECTION_PILL_LABEL = PutioTypeScale.tvButton.copy(fontSize = 11.sp, lineHeight = 16.sp)
+private val SECTION_PILL_LABEL = PutioTypeScale.tvButton.copy(fontSize = 12.sp, lineHeight = 16.sp)
 private val DETAIL_TITLE = PutioTypeScale.tvDetailTitle.copy(lineHeight = 22.sp)
 private val DETAIL_META_GAP = 5.dp
 private val DETAIL_ACTIONS_GAP = 16.dp

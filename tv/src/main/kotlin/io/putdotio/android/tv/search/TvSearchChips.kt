@@ -232,4 +232,4 @@ private val CHIP_ICON_GAP = 6.dp
 private val CHIP_GAP = 8.dp
 private val SETTINGS_EXTRA_GAP = 8.dp
 private val RECENT_LABEL_GAP = 8.dp
-private val CHIP_LABEL = PutioTypeScale.tvButton.copy(fontSize = 11.sp, lineHeight = 16.sp)
+private val CHIP_LABEL = PutioTypeScale.tvButton.copy(fontSize = 12.sp, lineHeight = 16.sp)
