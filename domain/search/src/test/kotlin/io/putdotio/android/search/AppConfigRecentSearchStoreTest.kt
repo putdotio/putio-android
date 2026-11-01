@@ -66,7 +66,8 @@ class AppConfigRecentSearchStoreTest {
     @Test
     fun loadsServerTermsThenRecordsNewestFirstDeduplicatesAndCapsAtFive() =
         runBlocking<Unit> {
-            val server = FakeConfigServer(RecentSearchConfig(enabled = true, terms = listOf(" existing ", "existing", "")))
+            val loaded = RecentSearchConfig(enabled = true, terms = listOf(" existing ", "existing", ""))
+            val server = FakeConfigServer(loaded)
             server.store(this).use { store ->
                 store.awaitTerms("existing")
                 (1..6).forEach { store.record(SearchTerm("term-$it")) }
@@ -320,7 +321,10 @@ class AppConfigRecentSearchStoreTest {
 
                 store.awaitTerms("three", "two", "one")
                 awaitUntil { server.writes.size >= 2 }
-                assertEquals(listOf("$SEARCH_HISTORY_KEY=[two, one]", "$SEARCH_HISTORY_KEY=[three, two, one]"), server.writes)
+                assertEquals(
+                    listOf("$SEARCH_HISTORY_KEY=[two, one]", "$SEARCH_HISTORY_KEY=[three, two, one]"),
+                    server.writes,
+                )
                 assertEquals(null, store.failure.value)
             }
         }

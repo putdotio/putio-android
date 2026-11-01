@@ -406,7 +406,11 @@ internal class TvSession internal constructor(
         val job = scope.launch(start = CoroutineStart.LAZY) {
             dismissFileActionFailure()
             val result = playbackReporting.supersede(item.id.value) {
-                if (watched) watchedRepository.setPosition(item.id, seconds) else watchedRepository.clearPosition(item.id)
+                if (watched) {
+                    watchedRepository.setPosition(item.id, seconds)
+                } else {
+                    watchedRepository.clearPosition(item.id)
+                }
             }
             // Cancellation is cooperative: a superseded write that still returns must not
             // settle the row or report, so only the write still registered for the file does.

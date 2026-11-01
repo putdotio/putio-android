@@ -136,7 +136,11 @@ internal class MobileFilesActionsController(
             previous?.join()
             val result = watchedPermits.withPermit {
                 sources.positionWrites(item.id) {
-                    if (watched) sources.watched.setPosition(item.id, seconds) else sources.watched.clearPosition(item.id)
+                    if (watched) {
+                        sources.watched.setPosition(item.id, seconds)
+                    } else {
+                        sources.watched.clearPosition(item.id)
+                    }
                 }
             }
             // A closed session settles nothing: a late 401 must not reject the session after it.

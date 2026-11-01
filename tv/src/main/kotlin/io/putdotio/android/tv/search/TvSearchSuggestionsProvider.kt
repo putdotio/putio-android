@@ -87,8 +87,8 @@ internal class TvGlobalSearch(
         if (signedIn != null && (result as? PutioResult.Failure)?.failure is PutioFailure.AuthenticationRequired) {
             reject(signedIn.sessionId)
         }
-        if (signedIn == null || !isCurrent(signedIn.sessionId)) return emptyList()
-        return (result as? PutioResult.Success)?.value?.items.orEmpty()
+        val current = signedIn != null && isCurrent(signedIn.sessionId)
+        return (result as? PutioResult.Success)?.value?.items?.takeIf { current }.orEmpty()
     }
 }
 
