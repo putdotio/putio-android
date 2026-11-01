@@ -510,6 +510,7 @@ private fun BoxScope.TvSubtitleCues(
             .offset { IntOffset(overlay.subtitleShift().roundToPx(), 0) },
         textScale = textScale,
         bottomPaddingFraction = subtitleBottomPadding(overlay.controlsVisible),
+        textSizeFraction = TV_SUBTITLE_TEXT_FRACTION,
     )
 }
 
@@ -535,7 +536,8 @@ private fun rememberShownCues(
 }
 
 private const val DELAYED_CUE_TICK_MILLIS = 50L
-private const val SUBTITLES_ABOVE_CONTROLS = 0.22f
+private const val SUBTITLES_ABOVE_CONTROLS = 117f / 540f
+private const val TV_SUBTITLE_TEXT_FRACTION = 22f / 540f
 private val SUBTITLES_BESIDE_SHEET = 180.dp
 
 private fun TvPlayerOverlay.previewsTiming(playing: Boolean): Boolean =
