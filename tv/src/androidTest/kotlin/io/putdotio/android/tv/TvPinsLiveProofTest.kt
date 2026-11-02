@@ -13,8 +13,6 @@ import io.putdotio.android.tv.auth.TvAuthRuntime
 import io.putdotio.android.tv.auth.TvAuthState
 import io.putdotio.sdk.config.AppConfigUpdate
 import java.io.File
-import java.net.HttpURLConnection
-import java.net.URL
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -78,26 +76,13 @@ class TvPinsLiveProofTest {
         } finally {
             scope.cancel()
             if (prior == null) {
-                deleteKey(client.config.baseUrl, checkNotNull(client.config.accessToken))
+                client.appConfig.delete(PINNED_FILES_KEY)
             } else {
                 client.appConfig.save(AppConfigUpdate(PINNED_FILES_KEY, prior))
             }
             val restored = client.appConfig.get()[PINNED_FILES_KEY]
             report("restored", restored?.toString() ?: "absent")
             assertEquals(prior, restored)
-        }
-    }
-
-    private fun deleteKey(baseUrl: String, token: String) {
-        val connection = URL("${baseUrl.trimEnd('/')}/config/$PINNED_FILES_KEY").openConnection() as HttpURLConnection
-        try {
-            connection.connectTimeout = HTTP_TIMEOUT_MILLIS
-            connection.readTimeout = HTTP_TIMEOUT_MILLIS
-            connection.requestMethod = "DELETE"
-            connection.setRequestProperty("Authorization", "Token $token")
-            check(connection.responseCode in 200..299) { "DELETE config key answered ${connection.responseCode}" }
-        } finally {
-            connection.disconnect()
         }
     }
 
@@ -123,7 +108,6 @@ class TvPinsLiveProofTest {
         const val TIMEOUT_MILLIS = 20_000L
         const val HOME_SETTLE_MILLIS = 8_000L
         const val POLL_MILLIS = 500L
-        const val HTTP_TIMEOUT_MILLIS = 10_000
         const val SHARED_ACCOUNT = "devs-auto"
     }
 }
