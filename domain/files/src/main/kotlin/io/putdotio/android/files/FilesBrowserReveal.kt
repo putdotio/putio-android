@@ -44,10 +44,14 @@ internal fun FilesBrowserState.listingLoaded(
     return settleReveal(index, summarized.copy(consumedCursors = consumedCursors), items, paging)
 }
 
-/** A reveal search page failed: the rows read so far show, with a retry for the rest. */
+/** A reveal search page failed: the rows read so far show, with a retry for the rest, and the item is dropped. */
 internal fun FilesFolderState.revealPageFailed(requestId: FilesRequestId, failure: PutioFailure): FilesFolderState? {
     val search = revealSearch?.takeIf { it.requestId == requestId } ?: return null
-    return copy(content = contentFor(search.items, FilesPaging.Failed(search.cursor, failure)), revealSearch = null)
+    return copy(
+        content = contentFor(search.items, FilesPaging.Failed(search.cursor, failure)),
+        revealItemId = null,
+        revealSearch = null,
+    )
 }
 
 /** Stops revealing a row: a running search shows the rows read so far, with the rest left to load. */

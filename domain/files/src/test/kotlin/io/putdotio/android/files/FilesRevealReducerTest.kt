@@ -107,6 +107,7 @@ class FilesRevealReducerTest {
         val content = failed.current.content as FilesContent.Ready
         assertEquals(pages[0].items, content.items)
         assertEquals(FilesPaging.Failed(FilesCursor("page-1"), failure), content.paging)
+        assertNull("a retried page that brings the file reveals nothing", failed.current.revealItemId)
         val retry = FilesBrowserReducer.reduce(failed, FilesBrowserEvent.Retry)
         assertEquals(FilesCursor("page-1"), (retry.effect as FilesBrowserEffect.LoadNextPage).cursor)
     }

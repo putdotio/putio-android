@@ -213,7 +213,6 @@ private fun TvReadyPlayer(
     ) { mutableStateOf(TvPlaybackOptions()) }
     val player = remember(source, playerFactory) { playerFactory.create(context, target.mediaType) }
     val defaultTrackSelection = remember(player) { player.trackSelectionParameters }
-    val captionLanguages = remember(player) { context.captionLanguages() }
     val prepared = remember(player) {
         source.preparePlayback(target.name, target.mediaType, stoppedAtMillis ?: resumePositionMillis)
     }
@@ -288,7 +287,13 @@ private fun TvReadyPlayer(
 
             override fun onTracksChanged(value: Tracks) {
                 tracks = value
-                player.keepChoices(value, options, currentSubtitlePolicy, defaultTrackSelection, captionLanguages)
+                player.keepChoices(
+                    value,
+                    options,
+                    currentSubtitlePolicy,
+                    defaultTrackSelection,
+                    context.captionLanguages(),
+                )
             }
 
             override fun onTrackSelectionParametersChanged(value: TrackSelectionParameters) {
@@ -349,7 +354,12 @@ private fun TvReadyPlayer(
         }
     }
     LaunchedEffect(player, subtitleStartupPolicy, options.subtitles == null) {
-        player.followSubtitlePolicy(subtitleStartupPolicy, options.subtitles, defaultTrackSelection, captionLanguages)
+        player.followSubtitlePolicy(
+            subtitleStartupPolicy,
+            options.subtitles,
+            defaultTrackSelection,
+            context.captionLanguages(),
+        )
     }
     BackHandler { apply(overlay.back()) }
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
@@ -468,7 +478,7 @@ private fun TvReadyPlayer(
                     selection = selection,
                     tracks = choices.subtitles,
                     textDefaults = defaultTrackSelection,
-                    captionLanguages = captionLanguages,
+                    captionLanguages = context.captionLanguages(),
                 )
                 closeSheet()
             },
