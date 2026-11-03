@@ -7,11 +7,12 @@ import org.junit.Test
 /** Transfer actions that act on one finished transfer or its folder. */
 class TransfersActionsReducerTest {
     @Test
-    fun removeTakesOnlyACompletedTransferOffTheListAndOnlyWhenPutioDeletedIt() {
+    fun removeTakesACompletedTransferOffOnlyWhenPutioDeletedItAndCancelsAFailedOne() {
         val rows = listOf(item(1L), item(2L, AppTransferStatus.Failed), item(3L, AppTransferStatus.Completed))
         val loaded = TransfersReducer.start().complete(TransfersPage(rows, null))
         assertFalse(TransfersReducer.reduce(loaded, TransfersEvent.Remove(TransferId(1L))).consumed)
-        assertFalse(TransfersReducer.reduce(loaded, TransfersEvent.Remove(TransferId(2L))).consumed)
+        val removeFailed = TransfersReducer.reduce(loaded, TransfersEvent.Remove(TransferId(2L)))
+        assertEquals(TransferAction.Cancel(TransferId(2L)), (removeFailed.effect as TransfersEffect.Mutate).action)
 
         val remove = TransfersReducer.reduce(loaded, TransfersEvent.Remove(TransferId(3L)))
         val mutate = remove.effect as TransfersEffect.Mutate

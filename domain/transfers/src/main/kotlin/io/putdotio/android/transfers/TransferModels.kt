@@ -96,9 +96,8 @@ public value class TransferSource(public val value: String) {
     override fun toString(): String = "TransferSource(<redacted>)"
 }
 
-/** Only a finished transfer leaves the list on its own; put.io keeps running and failed ones. */
 public val TransferItem.canRemove: Boolean
-    get() = status == AppTransferStatus.Completed
+    get() = status == AppTransferStatus.Completed || status == AppTransferStatus.Failed
 
 public data class TransfersPage(
     val items: List<TransferItem>,

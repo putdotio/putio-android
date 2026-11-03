@@ -44,7 +44,6 @@ internal fun TransfersRefresh.hasRequest(requestId: TransfersRequestId): Boolean
 public sealed interface TransferAction {
     public data class Add(val request: TransferAddRequest) : TransferAction
     public data class Cancel(val id: TransferId) : TransferAction
-    /** Cancels every listed failed transfer, which deletes it from put.io. */
     public data class ClearFailed(val ids: Set<TransferId>) : TransferAction
     public data class Retry(val id: TransferId) : TransferAction
     public data object Clean : TransferAction
@@ -200,7 +199,8 @@ public object TransfersReducer {
             TransfersEvent.Poll -> state.poll()
             is TransfersEvent.VisibilityChanged -> state.visibilityChanged(event.visible)
             is TransfersEvent.Add, is TransfersEvent.AddTorrent -> state.add(event)
-            is TransfersEvent.Cancel, TransfersEvent.ClearFailed -> state.cancel(event)
+            is TransfersEvent.Cancel, TransfersEvent.ClearFailed ->
+                state.cancel((event as? TransfersEvent.Cancel)?.id)
             is TransfersEvent.RetryTransfer -> state.retryTransfer(event.id)
             TransfersEvent.CleanCompleted, is TransfersEvent.Remove ->
                 state.clean((event as? TransfersEvent.Remove)?.id)

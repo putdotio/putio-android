@@ -399,10 +399,10 @@ class TransfersControllerTest {
     }
 
     @Test
-    fun aFailedTransferCancelsWhichTakesItOffTheList(): Unit = runBlocking {
+    fun removingAFailedTransferCancelsItWhichTakesItOffTheList(): Unit = runBlocking {
         val failed = item(1L, AppTransferStatus.Failed)
         val running = item(2L)
-        val (cancelled, left) = cancelThrough(listOf(failed, running), TransfersEvent.Cancel(failed.id))
+        val (cancelled, left) = cancelThrough(listOf(failed, running), TransfersEvent.Remove(failed.id))
 
         assertEquals(listOf(failed.id), cancelled)
         assertEquals(listOf(running.id), left)

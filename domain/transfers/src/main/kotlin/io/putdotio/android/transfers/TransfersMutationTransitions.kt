@@ -15,18 +15,15 @@ internal fun TransfersState.add(event: TransfersEvent): TransfersTransition {
     }
 }
 
-/** Cancels one transfer that still can, or with [TransfersEvent.ClearFailed] every listed failed one. */
-internal fun TransfersState.cancel(event: TransfersEvent): TransfersTransition {
+internal fun TransfersState.cancel(id: TransferId?): TransfersTransition {
     val items = content.items()
-    val action = when (event) {
-        is TransfersEvent.Cancel ->
-            items.firstOrNull { it.id == event.id && it.status.canCancel }?.let { TransferAction.Cancel(it.id) }
-        TransfersEvent.ClearFailed ->
-            items.filter { it.status == AppTransferStatus.Failed }
-                .mapTo(linkedSetOf(), TransferItem::id)
-                .takeIf { it.isNotEmpty() }
-                ?.let(TransferAction::ClearFailed)
-        else -> null
+    val action = if (id != null) {
+        items.firstOrNull { it.id == id && it.status.canCancel }?.let { TransferAction.Cancel(it.id) }
+    } else {
+        items.filter { it.status == AppTransferStatus.Failed }
+            .mapTo(linkedSetOf(), TransferItem::id)
+            .takeIf { it.isNotEmpty() }
+            ?.let(TransferAction::ClearFailed)
     }
     return action?.let(::mutate) ?: TransfersTransition(this, consumed = false)
 }
@@ -40,13 +37,17 @@ internal fun TransfersState.retryTransfer(id: TransferId): TransfersTransition {
     }
 }
 
-/** Clears every completed transfer, or with [id] only that one, which must be completed itself. */
+/**
+ * Clears every completed transfer, or with [id] only that one, which must be completed or failed; a
+ * failed one is cancelled, which deletes it.
+ */
 internal fun TransfersState.clean(id: TransferId? = null): TransfersTransition {
-    val allowed = content is TransfersContent.Ready &&
-        (id == null || content.items().firstOrNull { it.id == id }?.canRemove == true)
+    val item = id?.let { content.items().firstOrNull { it.id == id } }
+    val allowed = content is TransfersContent.Ready && (id == null || item?.canRemove == true)
     return when {
         !allowed -> TransfersTransition(this, consumed = false)
         id == null -> mutate(TransferAction.Clean)
+        item?.status == AppTransferStatus.Failed -> mutate(TransferAction.Cancel(id))
         else -> mutate(TransferAction.Remove(id))
     }
 }

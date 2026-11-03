@@ -148,8 +148,12 @@ class MobileTransfersScreenTest {
         assertEquals(TransfersEvent.RetryTransfer(TransferId(1L)), events.last())
 
         compose.onNodeWithTag(mobileTransferCardTag(TransferId(2L))).performClick()
-        compose.onNodeWithText("Remove from list").performClick()
-        assertEquals(TransfersEvent.Cancel(TransferId(2L)), events.last())
+        compose.onAllNodesWithText("Remove from list").assertCountEquals(0)
+        compose.onNodeWithText("Delete transfer").performClick()
+        compose.onNodeWithText("Delete transfer?").assertIsDisplayed()
+        assertEquals(TransfersEvent.RetryTransfer(TransferId(1L)), events.last())
+        compose.onNodeWithText("Delete").performClick()
+        assertEquals(TransfersEvent.Remove(TransferId(2L)), events.last())
         compose.onNodeWithTag(MOBILE_TRANSFER_ACTIONS_TAG).assertDoesNotExist()
     }
 
@@ -179,6 +183,7 @@ class MobileTransfersScreenTest {
         compose.onNodeWithContentDescription("More options").performClick()
         compose.onNodeWithText("Clear failed").performClick()
         compose.onNodeWithText("Clear failed transfers?").assertIsDisplayed()
+        compose.onNodeWithText("Delete the failed transfer listed here?", substring = true).assertIsDisplayed()
         compose.runOnIdle { assertTrue(events.isEmpty()) }
         compose.onNodeWithText("Clear").performClick()
         assertEquals(listOf<TransfersEvent>(TransfersEvent.ClearFailed), events)

@@ -99,6 +99,7 @@ internal fun MobileTransfersScreen(
         draft.reconcileTransfers(state)
     }
     var stopping by remember(sessionId) { mutableStateOf<TransferItem?>(null) }
+    var deleting by remember(sessionId) { mutableStateOf<TransferItem?>(null) }
     var actionsFor by remember(sessionId) { mutableStateOf<TransferId?>(null) }
     val snackbarHostState = remember(sessionId) { SnackbarHostState() }
     MobileTransfersNews(state, snackbarHostState, sessionId, onEvent)
@@ -166,9 +167,11 @@ internal fun MobileTransfersScreen(
                 onStop = { stopping = actionsItem },
                 onRetry = { onEvent(TransfersEvent.RetryTransfer(actionsItem.id)) },
                 onRemove = {
-                    val id = actionsItem.id
-                    val failed = actionsItem.status == AppTransferStatus.Failed
-                    onEvent(if (failed) TransfersEvent.Cancel(id) else TransfersEvent.Remove(id))
+                    if (actionsItem.status == AppTransferStatus.Failed) {
+                        deleting = actionsItem
+                    } else {
+                        onEvent(TransfersEvent.Remove(actionsItem.id))
+                    }
                 },
             ),
             onDismiss = { actionsFor = null },
@@ -184,6 +187,18 @@ internal fun MobileTransfersScreen(
             onConfirm = {
                 stopping = null
                 onEvent(TransfersEvent.Cancel(item.id))
+            },
+        )
+    }
+    deleting?.let { item ->
+        MobileTransferConfirmation(
+            title = R.string.mobile_transfers_delete_title,
+            message = stringResource(R.string.mobile_transfers_delete_message, item.name),
+            confirm = R.string.mobile_transfers_delete_confirm,
+            onDismiss = { deleting = null },
+            onConfirm = {
+                deleting = null
+                onEvent(TransfersEvent.Remove(item.id))
             },
         )
     }
@@ -284,8 +299,8 @@ internal fun MobileTransfersOverflow(
     val enabled = state.enabledInteractions()
     var expanded by remember(sessionId) { mutableStateOf(false) }
     var confirming by remember(sessionId) { mutableStateOf<TransfersEvent?>(null) }
-    val failedListed = (state.content as? TransfersContent.Ready)?.items.orEmpty()
-        .any { it.status == AppTransferStatus.Failed }
+    val failedCount = (state.content as? TransfersContent.Ready)?.items.orEmpty()
+        .count { it.status == AppTransferStatus.Failed }
     Box {
         IconButton(onClick = { expanded = true }, modifier = Modifier.testTag(MOBILE_TRANSFERS_OVERFLOW_TAG)) {
             Icon(
@@ -312,7 +327,7 @@ internal fun MobileTransfersOverflow(
                     },
                 )
             }
-            if (failedListed) {
+            if (failedCount > 0) {
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.mobile_transfers_clear_failed)) },
                     enabled = enabled.controls,
@@ -328,9 +343,11 @@ internal fun MobileTransfersOverflow(
         val failed = event == TransfersEvent.ClearFailed
         MobileTransferConfirmation(
             title = if (failed) R.string.mobile_transfers_clear_failed_title else R.string.mobile_transfers_clean_title,
-            message = stringResource(
-                if (failed) R.string.mobile_transfers_clear_failed_message else R.string.mobile_transfers_clean_message,
-            ),
+            message = if (failed) {
+                pluralStringResource(R.plurals.mobile_transfers_clear_failed_message, failedCount, failedCount)
+            } else {
+                stringResource(R.string.mobile_transfers_clean_message)
+            },
             confirm = R.string.mobile_transfers_clean_confirm,
             onDismiss = { confirming = null },
             onConfirm = {
