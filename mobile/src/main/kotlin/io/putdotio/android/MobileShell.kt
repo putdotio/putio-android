@@ -224,6 +224,7 @@ internal fun MobileShell(
     val isTrash = backStackEntry?.destination?.route == MOBILE_TRASH_ROUTE
     // Search opens over Files and stays open across tab switches, like a folder does.
     var searchOpen by rememberSaveable(sessionId) { mutableStateOf(false) }
+    var linkedFile by rememberSaveable(sessionId) { mutableStateOf<Long?>(null) }
     ScreenViewedEffect(analyticsScreen(selectedDestination, isPlayback, isTrash, searchOpen), sessionId)
     // Which way Search last moved: forward when opened or left for a result, back on a Back.
     var searchForward by remember { mutableStateOf(true) }
@@ -289,7 +290,10 @@ internal fun MobileShell(
         navigationBlocked = shareNavigationBlocked,
         navController = navController,
         targets = DeepLinkTargets(
-            openFile = onOpenFile,
+            openFile = { id ->
+                linkedFile = id.value
+                onOpenFile(id)
+            },
             openDownload = { fileId, play -> navController.openDownload(downloadsController, fileId, play) },
             addTransfer = transferDraft::open,
             openSearch = openSearch,
@@ -498,6 +502,8 @@ internal fun MobileShell(
                             continueWatching = continueWatching,
                             onNewFolder = requestNewFolder,
                             filesListPaneTopBar = paneTopBar.takeIf { filesListDetail },
+                            linkedFile = linkedFile?.let(::FilesItemId),
+                            onLinkedFileLanded = { linkedFile = null },
                             subtitleLanguages = subtitleLanguages,
                             filesActions = filesActions,
                             folderCreator = folderCreator,

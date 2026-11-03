@@ -257,7 +257,8 @@ private fun MobileFilesDetailButtons(
 private fun primaryAction(item: FilesItem, resumePlayback: Boolean): Pair<Int, AnnotatedString> {
     val resumeAt = item.resumeAt(resumePlayback)
     return when {
-        resumeAt != null -> DesignR.drawable.ic_ph_play_fill to AnnotatedString(resumeLabel(resumeAt))
+        resumeAt != null ->
+            DesignR.drawable.ic_ph_play_fill to resumeLabel(resumeAt, MaterialTheme.typography.labelLarge)
         item.isPlayable ->
             DesignR.drawable.ic_ph_play_fill to AnnotatedString(stringResource(R.string.mobile_files_play))
         else -> R.drawable.ic_ph_arrow_square_out to AnnotatedString(stringResource(R.string.mobile_files_detail_open))

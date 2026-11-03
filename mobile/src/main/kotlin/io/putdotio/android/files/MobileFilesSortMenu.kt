@@ -103,7 +103,7 @@ internal fun MobileFilesSortMenu(
     accountSort: FilesSort? = null,
     colors: IconButtonColors = IconButtonDefaults.iconButtonColors(),
     /** The overflow button sits right of sort; the menu's end then lines up with it. */
-    besideOverflow: Boolean = false,
+    besideNewFolder: Boolean = false,
 ) {
     var expanded by remember(folder.folder.id.value) { mutableStateOf(false) }
     val current = folder.folder.sort ?: accountSort
@@ -135,7 +135,7 @@ internal fun MobileFilesSortMenu(
         DropdownMenu(
             expanded = expanded && enabled,
             onDismissRequest = { expanded = false },
-            offset = DpOffset(x = if (besideOverflow) SORT_MENU_END_SHIFT else 0.dp, y = 0.dp),
+            offset = DpOffset(x = if (besideNewFolder) SORT_MENU_END_SHIFT else 0.dp, y = 0.dp),
             shape = RoundedCornerShape(PutioRadius.large),
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
             modifier = Modifier.width(SORT_MENU_WIDTH),
@@ -175,7 +175,6 @@ internal fun MobileFilesSortMenu(
     }
 }
 
-/** The button names the sort in effect; with none known it names none. */
 private fun Modifier.sortState(label: String?): Modifier =
     if (label == null) this else semantics { stateDescription = label }
 

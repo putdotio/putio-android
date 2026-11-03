@@ -69,6 +69,7 @@ import io.putdotio.android.MobileSheetHandle
 import io.putdotio.android.R
 import io.putdotio.android.appendMonoFigures
 import io.putdotio.android.mobileFileSize
+import io.putdotio.android.monoFigures
 import io.putdotio.android.design.FileTypeIcon
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioDestructiveButton
@@ -207,10 +208,8 @@ private fun LazyListScope.section(section: DownloadSection, rows: DownloadRows, 
             first = first,
             trailing = storage?.let { bytes ->
                 {
-                    Text(
-                        mobileFileSize(bytes),
-                        style = MaterialTheme.typography.bodySmall.putioMono(),
-                    )
+                    val style = MaterialTheme.typography.bodySmall
+                    Text(monoFigures(mobileFileSize(bytes), style.putioMono().toSpanStyle()), style = style)
                 }
             },
         )

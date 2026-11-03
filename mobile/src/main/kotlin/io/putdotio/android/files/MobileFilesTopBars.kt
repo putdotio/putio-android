@@ -44,7 +44,6 @@ internal class MobileFilesBarActions(
     /** Null where this folder can't take a new one. */
     val onNewFolder: (() -> Unit)?,
     val navigation: (@Composable () -> Unit)? = null,
-    /** The account's default sort, which a folder without its own order follows; null while unknown. */
     val accountSort: FilesSort? = null,
 ) {
     /** An empty folder has nothing to order, so it has no sort button. */
@@ -97,7 +96,7 @@ internal fun MobileFilesSearchBar(actions: MobileFilesBarActions, modifier: Modi
                         actions.onSelectSort,
                         accountSort = actions.accountSort,
                         colors = muted,
-                        besideOverflow = actions.onNewFolder != null,
+                        besideNewFolder = actions.onNewFolder != null,
                     )
                 }
                 MobileFilesNewFolderAction(actions.onNewFolder, colors = muted)
@@ -139,7 +138,7 @@ internal fun MobileFolderTopBar(
                     actions.folder,
                     actions.onSelectSort,
                     accountSort = actions.accountSort,
-                    besideOverflow = actions.onNewFolder != null,
+                    besideNewFolder = actions.onNewFolder != null,
                 )
             }
             MobileFilesNewFolderAction(actions.onNewFolder)
@@ -148,7 +147,6 @@ internal fun MobileFolderTopBar(
     )
 }
 
-/** New folder, the bar's one action beyond search and sort, where this folder takes one. */
 @Composable
 private fun MobileFilesNewFolderAction(
     onNewFolder: (() -> Unit)?,

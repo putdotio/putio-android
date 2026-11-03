@@ -262,7 +262,6 @@ private fun MobileFilesMeta(item: FilesItem, onDevice: Boolean, place: MobileFil
     }
 }
 
-/** How far into a video or song playback got, as a short bar where the finished eye would sit. */
 @Composable
 private fun MobileWatchProgress(fraction: Float, color: Color) {
     val description = stringResource(R.string.mobile_files_in_progress, (fraction * PERCENT).roundToInt())
