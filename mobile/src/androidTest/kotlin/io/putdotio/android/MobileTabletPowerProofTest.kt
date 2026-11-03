@@ -173,7 +173,7 @@ class MobileTabletPowerProofTest {
         screenshot("keys-06-notes-focused")
         press(KeyEvent.KEYCODE_FORWARD_DEL)
         compose.waitUntil(TIMEOUT_MS) { files.deleted == listOf(NOTES.id to FilesDeleteMode.TRASH) }
-        compose.onNodeWithText("Moved to Trash").assertExists()
+        compose.onNodeWithText("Moved to trash").assertExists()
         // The focused row left the listing; keyboard focus stays in it, on the row now in its place.
         awaitCondition("a row keeps focus") { rowFocused("poster.jpg") }
         screenshot("keys-07-delete-moved-to-trash")

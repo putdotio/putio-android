@@ -220,7 +220,7 @@ class MobilePublicLinksTest {
         compose.onNodeWithTag(mobilePublicLinkRevokeTag(first.id)).performClick()
         compose.onNodeWithTag(MOBILE_PUBLIC_LINK_REVOKE_CONFIRM_TAG).performClick()
 
-        compose.onNodeWithText("You don’t have any shared links.").assertIsDisplayed()
+        compose.onNodeWithText("No exclusive links").assertIsDisplayed()
     }
 
     @Test

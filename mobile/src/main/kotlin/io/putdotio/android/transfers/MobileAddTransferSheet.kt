@@ -101,7 +101,8 @@ internal fun MobileAddTransfer(
             input = input,
             failure = addFailure,
             adding = adding,
-            submitEnabled = enabled && !input.readingTorrent && input.validation != MobileShareValidation.TooLong,
+            submitEnabled = enabled && !input.readingTorrent &&
+                (input.torrent != null || input.validation !in INPUT_ERRORS),
             actions = MobileAddTransferActions(
                 onInputChanged = {
                     draft.edit(it)
@@ -218,6 +219,8 @@ private fun MobileAddTransferSheet(
     actions: MobileAddTransferActions,
 ) {
     val lines = remember(input.input) { checkMobileTransferLines(input.input) }
+    val onlyBadLines = input.torrent == null && lines.links.isEmpty() && lines.badLines.isNotEmpty()
+    val canSubmit = submitEnabled && !onlyBadLines
     ModalBottomSheet(
         onDismissRequest = actions.onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -248,7 +251,7 @@ private fun MobileAddTransferSheet(
                     lines = lines,
                     isError = input.validation != null || failure != null,
                     enabled = !adding,
-                    submitEnabled = submitEnabled,
+                    submitEnabled = canSubmit,
                     actions = actions,
                 )
             }
@@ -265,7 +268,7 @@ private fun MobileAddTransferSheet(
             MobileAddTransferButtons(
                 count = if (input.torrent == null) lines.links.size else 0,
                 adding = adding,
-                submitEnabled = submitEnabled,
+                submitEnabled = canSubmit,
                 onDismiss = actions.onDismiss,
                 onSubmit = actions.onSubmit,
             )
@@ -464,5 +467,10 @@ private fun MobileTransferDraftState.reason(lines: MobileTransferLines, failure:
 }
 
 private val TORRENT_PICKER_TYPES = arrayOf(TORRENT_MEDIA_TYPE, "application/octet-stream")
+private val INPUT_ERRORS = setOf(
+    MobileShareValidation.InvalidLink,
+    MobileShareValidation.TooManyLinks,
+    MobileShareValidation.TooLong,
+)
 private const val COUNT_SLOT = "\u0001"
 private val PASTE_SCHEMES = setOf("http", "https", "magnet")

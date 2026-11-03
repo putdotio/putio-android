@@ -122,14 +122,14 @@ class MobileAccountLargeTextTest {
     fun shortLandscapeTrashConfirmationKeepsConsequencesAndBothActionsReachable() {
         val events = mutableListOf<AccountSettingsEvent>()
         mount(settingsEvents = events)
-        scrollTo("Move deleted files to Trash")
-        compose.onNodeWithText("Move deleted files to Trash").performClick()
-        val consequence = "Deleted files will no longer be recoverable. Files already in Trash stay for their 14 days."
+        scrollTo("Move deleted files to trash")
+        compose.onNodeWithText("Move deleted files to trash").performClick()
+        val consequence = "Deleted files will no longer be recoverable. Files already in trash stay for their 14 days."
         compose.onNodeWithText(consequence).assertIsDisplayed()
         assertCompleteText(consequence)
         compose.onNodeWithText("Cancel").assertIsDisplayed().performClick()
         assertTrue(events.isEmpty())
-        compose.onNodeWithText("Move deleted files to Trash").performClick()
+        compose.onNodeWithText("Move deleted files to trash").performClick()
         compose.onNodeWithText("Turn off").assertIsDisplayed().performClick()
         assertEquals(
             listOf(AccountSettingsEvent.ChangeRequested(AccountSettingsChange(AccountSettingsKey.Trash, false))),

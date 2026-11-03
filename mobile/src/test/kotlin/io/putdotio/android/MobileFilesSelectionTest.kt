@@ -220,11 +220,11 @@ class MobileFilesSelectionTest {
         setShell()
 
         compose.onNodeWithText(SINTEL.name).performClick()
-        compose.onNodeWithText("No file selected.").assertDoesNotExist()
+        compose.onNodeWithText("No file selected").assertDoesNotExist()
         selectFromTheSheet(FINISHED)
 
         compose.onNodeWithText("1 selected").assertExists()
-        compose.onNodeWithText("No file selected.").assertExists()
+        compose.onNodeWithText("No file selected").assertExists()
     }
 
     private fun selectFromTheSheet(item: FilesItem) {

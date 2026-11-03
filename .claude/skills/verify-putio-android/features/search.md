@@ -36,7 +36,7 @@ Preconditions:
   `Remove <term> from recent searches`.
 - **No results.** Type `zz-no-such-$RUN` without Enter, so it is not kept.
   Run `$S/ui.sh type $SERIAL "zz-no-such-$RUN"` and
-  `$S/ui.sh wait $SERIAL --text "Nothing matches."`. The message names the
+  `$S/ui.sh wait $SERIAL --text "Nothing matches"`. The message names the
   term and the chips hide.
 - **Link entry.** From the Files root run
   `$S/ui.sh link $SERIAL putio://search`. Search opens without the keyboard

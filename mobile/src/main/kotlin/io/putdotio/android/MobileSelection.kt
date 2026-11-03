@@ -3,6 +3,7 @@ package io.putdotio.android
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -102,7 +103,7 @@ internal class MobileSelection(selecting: Boolean = false, selected: List<Long> 
 
 /**
  * The bar that replaces a list's top bar in selection: close, the count in mono and select all, on
- * `surface-container-high`. The status bar keeps the page colour.
+ * `surface-container-high`, status bar included.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -112,7 +113,11 @@ internal fun MobileSelectionBar(
     onClear: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Box(modifier.windowInsetsPadding(TopAppBarDefaults.windowInsets)) {
+    Box(
+        modifier
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .windowInsetsPadding(TopAppBarDefaults.windowInsets),
+    ) {
         TopAppBar(
             title = { Text(mobileSelectedCount(count)) },
             navigationIcon = {

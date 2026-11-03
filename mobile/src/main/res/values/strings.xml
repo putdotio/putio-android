@@ -29,8 +29,8 @@
     <string name="mobile_files_copy_too_many_files">That’s too many files to copy at once.</string>
     <string name="mobile_files_trash">Move to trash</string>
     <string name="mobile_files_delete">Delete</string>
-    <string name="mobile_files_trash_done">Moved to Trash</string>
-    <string name="mobile_files_delete_settings_unknown">Waiting for confirmed Trash settings.</string>
+    <string name="mobile_files_trash_done">Moved to trash</string>
+    <string name="mobile_files_delete_settings_unknown">Waiting for confirmed trash settings.</string>
     <string name="mobile_files_deleting">Sending request…</string>
     <string name="mobile_files_delete_checking">Checking item status…</string>
     <string name="mobile_files_delete_reloading">Refreshing files…</string>
@@ -77,13 +77,13 @@
     <string name="mobile_files_open_folder">Open %1$s</string>
     <string name="mobile_files_play_media">Play %1$s</string>
     <string name="mobile_files_loading">Loading files</string>
-    <string name="mobile_files_empty_title">Empty folder.</string>
+    <string name="mobile_files_empty_title">Empty folder</string>
     <string name="mobile_files_empty_message">Move something in from elsewhere, or add a transfer that saves here.</string>
     <string name="mobile_files_offline_title">put.io is out of reach</string>
     <string name="mobile_files_offline_message">Your connection dropped, or we did. Retrying on its own.</string>
     <string name="mobile_files_offline_banner">Offline. Showing what’s on this device.</string>
     <string name="mobile_files_show_details">Show %1$s</string>
-    <string name="mobile_files_detail_empty_title">No file selected.</string>
+    <string name="mobile_files_detail_empty_title">No file selected</string>
     <string name="mobile_files_detail_empty_message">Tap a file to see it here.</string>
     <string name="mobile_files_detail_resume">Resume from %1$s</string>
     <string name="mobile_files_detail_open">Open</string>
@@ -201,7 +201,7 @@
     <string name="mobile_account_storage_free">%1$s of %2$s free</string>
     <string name="mobile_account_storage">Storage</string>
     <string name="mobile_account_storage_full_value">%1$s of %2$s</string>
-    <string name="mobile_account_storage_full">Full. New transfers wait until you free up space. Empty Trash or delete files to make room.</string>
+    <string name="mobile_account_storage_full">Full. New transfers wait until you free up space. Empty trash or delete files to make room.</string>
     <string name="mobile_account_sign_out">Sign out</string>
     <string name="mobile_account_sign_out_title">Sign out of put.io?</string>
     <string name="mobile_account_sign_out_message">Downloads stay on this device and come back when you sign in again.</string>
@@ -269,9 +269,9 @@
     <string name="mobile_settings_tunnel_route_unavailable">That proxy isn’t available for your account. Choose another one.</string>
     <string name="mobile_settings_resume_playback">Resume where you left off</string>
     <string name="mobile_settings_history">Keep account history</string>
-    <string name="mobile_settings_trash">Move deleted files to Trash</string>
-    <string name="mobile_settings_trash_confirm_title">Turn off Trash?</string>
-    <string name="mobile_settings_trash_confirm_message">Deleted files will no longer be recoverable. Files already in Trash stay for their 14 days.</string>
+    <string name="mobile_settings_trash">Move deleted files to trash</string>
+    <string name="mobile_settings_trash_confirm_title">Turn off trash?</string>
+    <string name="mobile_settings_trash_confirm_message">Deleted files will no longer be recoverable. Files already in trash stay for their 14 days.</string>
     <string name="mobile_settings_trash_confirm_action">Turn off</string>
     <string name="mobile_action_back">Back</string>
     <string name="mobile_auth_restoring">Restoring your session</string>
@@ -294,14 +294,14 @@
     <string name="mobile_welcome_back_title">Welcome back!</string>
     <string name="mobile_welcome_lede">Your put.io files, streaming and offline on this phone.</string>
     <string name="mobile_welcome_expired">Your session expired. Sign in again to continue.</string>
-    <string name="mobile_welcome_failed_title">Sign-in didn’t finish.</string>
+    <string name="mobile_welcome_failed_title">Sign-in didn’t finish</string>
     <string name="mobile_welcome_failed">Nothing was saved, so you can try again.</string>
     <string name="mobile_welcome_browser_title">Almost there</string>
     <!-- "signing in in your browser" is the phrasal verb "sign in" followed by "in", not a repeated word. -->
     <string name="mobile_welcome_browser_lede" tools:ignore="Typos">Finish signing in in your browser, then come back here.</string>
     <string name="mobile_auth_not_configured_title">Mobile sign-in isn’t configured</string>
     <string name="mobile_auth_not_configured_message">This build needs its own Android sign-in registration before it can open the browser.</string>
-    <string name="mobile_auth_storage_title">Secure storage is unavailable.</string>
+    <string name="mobile_auth_storage_title">Secure storage is unavailable</string>
     <string name="mobile_auth_storage_message">Your session couldn’t be read or saved safely on this device. Reset clears it so you can sign in again.</string>
     <string name="mobile_auth_storage_reset">Reset and sign in</string>
     <string name="mobile_auth_sign_in">Sign in</string>
@@ -326,7 +326,7 @@
     <string name="mobile_search_clear_recent">Clear</string>
     <string name="mobile_search_remove_named">Remove %1$s from recent searches</string>
     <string name="mobile_search_recent_error_title">Couldn’t update recent searches</string>
-    <string name="mobile_search_no_results_title">Nothing matches.</string>
+    <string name="mobile_search_no_results_title">Nothing matches</string>
     <string name="mobile_search_no_results_message">No files or folders named %1$s. Try fewer words.</string>
     <string name="mobile_search_open_result">Open %1$s</string>
     <string name="mobile_history_loading">Loading history</string>
@@ -359,7 +359,7 @@
     <string name="mobile_history_metadata">%1$s · %2$s</string>
     <string name="mobile_navigation_error_title">Couldn’t open this file</string>
     <string name="mobile_transfers_loading">Loading transfers</string>
-    <string name="mobile_transfers_empty_title">Nothing in the queue.</string>
+    <string name="mobile_transfers_empty_title">Nothing in the queue</string>
     <string name="mobile_transfers_empty_message">Paste a magnet link or a URL, and put.io handles the rest.</string>
     <string name="mobile_transfers_error_title">Couldn’t load transfers</string>
     <string name="mobile_transfer_actions">Transfer actions</string>
@@ -589,10 +589,10 @@
         <item quantity="other">Downloading %1$d files</item>
     </plurals>
     <string name="mobile_trash_title">Trash</string>
-    <string name="mobile_trash_loading">Loading Trash…</string>
+    <string name="mobile_trash_loading">Loading trash…</string>
     <string name="mobile_action_refresh">Refresh</string>
     <string name="mobile_trash_empty_title">Your trash is empty</string>
-    <string name="mobile_trash_empty_message">When you send files to trash, we keep them here for 14 days.</string>
+    <string name="mobile_trash_empty_message">Files you move to trash stay here for 14 days.</string>
     <string name="mobile_trash_restore_title">Restore item?</string>
     <string name="mobile_trash_restore_message">Restoration may take a moment. You can check when this item is available again.</string>
     <string name="mobile_trash_restore_folder_message">Restore this folder and its contents. Restoration may take a moment.</string>
@@ -603,36 +603,36 @@
     <string name="mobile_trash_started">Restore started.</string>
     <string name="mobile_trash_uncertain">We could not confirm the restore request. Check status before taking another action.</string>
     <string name="mobile_trash_rejected">Restore could not start.</string>
-    <string name="mobile_trash_incomplete">This item is still moving to Trash. You can try restoring it later.</string>
+    <string name="mobile_trash_incomplete">This item is still moving to trash. You can try restoring it later.</string>
     <string name="mobile_trash_checking">Checking availability…</string>
     <string name="mobile_trash_not_available">Not available in Files yet. Check status again in a moment.</string>
     <string name="mobile_trash_check_status">Check status</string>
-    <string name="mobile_trash_access_denied">You don’t have access to Trash.</string>
+    <string name="mobile_trash_access_denied">You don’t have access to trash.</string>
     <string name="mobile_trash_actions_named">Actions for %1$s</string>
     <string name="mobile_trash_delete">Delete permanently</string>
     <string name="mobile_trash_delete_title">Delete permanently?</string>
-    <string name="mobile_trash_delete_message">“%1$s” will be removed from Trash right away. This cannot be undone.</string>
+    <string name="mobile_trash_delete_message">“%1$s” will be removed from trash right away. This cannot be undone.</string>
     <string name="mobile_trash_restore_all">Restore all</string>
     <string name="mobile_trash_restore_all_title">Restore everything?</string>
-    <string name="mobile_trash_restore_all_message">Every item in Trash goes back to Files. Restoration may take a moment.</string>
-    <string name="mobile_trash_empty_action">Empty Trash</string>
-    <string name="mobile_trash_empty_confirm_title">Empty Trash?</string>
-    <string name="mobile_trash_empty_confirm_message">Every item in Trash will be removed right away. This cannot be undone.</string>
+    <string name="mobile_trash_restore_all_message">Every item in trash goes back to Files. Restoration may take a moment.</string>
+    <string name="mobile_trash_empty_action">Empty trash</string>
+    <string name="mobile_trash_empty_confirm_title">Empty trash?</string>
+    <string name="mobile_trash_empty_confirm_message">Every item in trash will be removed right away. This cannot be undone.</string>
     <string name="mobile_trash_action_submitting">Sending request…</string>
     <string name="mobile_trash_delete_started">Deletion requested.</string>
-    <string name="mobile_trash_restore_all_started">Restore started for everything in Trash.</string>
-    <string name="mobile_trash_empty_started">Emptying Trash.</string>
-    <string name="mobile_trash_action_uncertain">We could not confirm the request. Check Trash before taking another action.</string>
+    <string name="mobile_trash_restore_all_started">Restore started for everything in trash.</string>
+    <string name="mobile_trash_empty_started">Emptying trash.</string>
+    <string name="mobile_trash_action_uncertain">We could not confirm the request. Check trash before taking another action.</string>
     <string name="mobile_trash_action_rejected">The request could not start.</string>
-    <string name="mobile_trash_action_checking">Checking Trash…</string>
-    <string name="mobile_trash_delete_verified">“%1$s” is no longer in Trash.</string>
+    <string name="mobile_trash_action_checking">Checking trash…</string>
+    <string name="mobile_trash_delete_verified">“%1$s” is no longer in trash.</string>
     <string name="mobile_trash_restore_all_verified">Restored items are back in Files.</string>
     <string name="mobile_trash_empty_verified">Trash is empty.</string>
-    <string name="mobile_trash_delete_inconclusive">“%1$s” was not in the first page. Check Trash again in a moment.</string>
-    <string name="mobile_trash_restore_all_inconclusive">Items are still leaving Trash. Check again in a moment.</string>
-    <string name="mobile_trash_delete_still_present">“%1$s” is still in Trash.</string>
+    <string name="mobile_trash_delete_inconclusive">“%1$s” was not in the first page. Check trash again in a moment.</string>
+    <string name="mobile_trash_restore_all_inconclusive">Items are still leaving trash. Check again in a moment.</string>
+    <string name="mobile_trash_delete_still_present">“%1$s” is still in trash.</string>
     <string name="mobile_trash_empty_still_present">Trash still has items. Refresh in a moment and try again.</string>
-    <string name="mobile_trash_check_trash">Check Trash</string>
+    <string name="mobile_trash_check_trash">Check trash</string>
     <string name="mobile_playback_subtitles_title">Subtitles</string>
     <string name="mobile_playback_subtitles_disabled">Off</string>
     <string name="mobile_playback_position">Playback position</string>
@@ -641,7 +641,7 @@
     <string name="mobile_playback_no_captions">No captions available</string>
     <string name="mobile_playback_picture_in_picture">Picture in picture</string>
     <string name="mobile_playback_subtitle_caption_settings">Font and colours follow Android’s caption settings.</string>
-    <string name="mobile_playback_cant_play_title">Can’t play this here.</string>
+    <string name="mobile_playback_cant_play_title">Can’t play this here</string>
     <string name="mobile_playback_cant_play_message">This format needs another player.</string>
     <string name="mobile_cast">Cast</string>
     <string name="mobile_cast_casting_to">Casting to %1$s</string>
@@ -668,8 +668,8 @@
     <string name="mobile_public_links_creating">Creating link…</string>
     <string name="mobile_public_links_created">Link created. Copy or share it below.</string>
     <string name="mobile_public_links_loading">Loading links…</string>
-    <!-- en.json sharing_public_links_empty, verbatim. -->
-    <string name="mobile_public_links_empty">You don’t have any shared links.</string>
+    <string name="mobile_public_links_empty_title">No exclusive links</string>
+    <string name="mobile_public_links_empty">Links you make with Exclusive access show up here.</string>
     <!-- en.json sharing_public_links_expires_in. -->
     <string name="mobile_public_links_expiry_unknown">Expires within 72 hours</string>
     <string name="mobile_public_links_copy">Copy link</string>
@@ -730,12 +730,12 @@
         <item quantity="other">Actions for %1$d items</item>
     </plurals>
     <plurals name="mobile_files_trash_done_many">
-        <item quantity="one">Moved %1$d item to Trash</item>
-        <item quantity="other">Moved %1$d items to Trash</item>
+        <item quantity="one">Moved %1$d item to trash</item>
+        <item quantity="other">Moved %1$d items to trash</item>
     </plurals>
     <plurals name="mobile_files_undo_failed_many">
-        <item quantity="one">Couldn’t restore %1$d item from Trash. %2$s</item>
-        <item quantity="other">Couldn’t restore %1$d items from Trash. %2$s</item>
+        <item quantity="one">Couldn’t restore %1$d item from trash. %2$s</item>
+        <item quantity="other">Couldn’t restore %1$d items from trash. %2$s</item>
     </plurals>
     <plurals name="mobile_files_mark_watched_failed_many">
         <item quantity="one">Couldn’t mark %1$d item as watched. %2$s</item>
@@ -780,7 +780,7 @@
     <string name="mobile_files_delete_permanently_message">Trash is off for this account, so this can’t be undone.</string>
     <string name="mobile_files_shared_by">Shared by %1$s</string>
     <string name="mobile_files_undo">Undo</string>
-    <string name="mobile_files_undo_failed">Couldn’t restore “%1$s” from Trash. %2$s</string>
+    <string name="mobile_files_undo_failed">Couldn’t restore “%1$s” from trash. %2$s</string>
     <string name="mobile_files_mark_watched_failed">Couldn’t mark “%1$s” as watched. %2$s</string>
     <string name="mobile_files_mark_unwatched_failed">Couldn’t mark “%1$s” as unwatched. %2$s</string>
     <string name="mobile_files_vlc_missing">Install VLC to open “%1$s”.</string>

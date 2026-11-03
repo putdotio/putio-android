@@ -29,7 +29,7 @@ Preconditions:
   `Inner folder` and the text file's full name.
 - **Back.** Press Back. Run `$S/ui.sh key $SERIAL BACK` and
   `$S/ui.sh wait $SERIAL --text "Search your files"`. The root returns.
-- **Empty folder.** Open `Inner folder`. The state reads `Empty folder.` with
+- **Empty folder.** Open `Inner folder`. The state reads `Empty folder` with
   New folder.
 - **New folder.** Run `$S/fixture.sh intend $RUN "new folder"`. In the fixture folder, tap the bar's
   `New folder`; type a name; tap `Create`. Run

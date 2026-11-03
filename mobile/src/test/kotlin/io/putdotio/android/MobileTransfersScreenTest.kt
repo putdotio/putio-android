@@ -364,7 +364,7 @@ class MobileTransfersScreenTest {
         compose.onNodeWithText("Loading transfers").assertIsDisplayed()
         compose.onNodeWithTag(MOBILE_TRANSFERS_ADD_FAB_TAG).assertIsDisplayed()
         compose.runOnIdle { current = transfersTestState(TransfersContent.Empty) }
-        compose.onNodeWithText("Nothing in the queue.").assertIsDisplayed()
+        compose.onNodeWithText("Nothing in the queue").assertIsDisplayed()
         compose.onNodeWithText("Paste a magnet link or a URL, and put.io handles the rest.").assertIsDisplayed()
         compose.onNodeWithTag(MOBILE_TRANSFERS_ADD_FAB_TAG).assertDoesNotExist()
         compose.onNode(AddTransferAction).performClick()

@@ -65,14 +65,14 @@ class MobileWelcomeScreenTest {
 
         compose.runOnIdle { reason = MobileSignedOutReason.SignInFailed }
         compose.onNodeWithText("Welcome!").assertIsDisplayed()
-        compose.onNodeWithText("Sign-in didn’t finish.").assertIsDisplayed()
+        compose.onNodeWithText("Sign-in didn’t finish").assertIsDisplayed()
         compose.onNodeWithText("Nothing was saved, so you can try again.").assertIsDisplayed()
         compose.onAllNodesWithText("Sign in").assertCountEquals(0)
         compose.onNodeWithText("Try again").performScrollTo().performClick()
         assertEquals(3, actions)
 
         compose.runOnIdle { reason = MobileSignedOutReason.SecureStorageUnavailable }
-        compose.onNodeWithText("Secure storage is unavailable.").assertIsDisplayed()
+        compose.onNodeWithText("Secure storage is unavailable").assertIsDisplayed()
         compose.onNodeWithText(
             "Your session couldn’t be read or saved safely on this device. Reset clears it so you can sign in again.",
         ).assertIsDisplayed()

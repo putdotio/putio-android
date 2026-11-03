@@ -19,7 +19,7 @@ Preconditions:
   and tap `Move to Target folder`. Both rows leave and selection ends; `putio files list --parent-id <target id>` lists both.
   Adopt both ids, then settle.
 - **Trash.** Intend `trash <id>`. Select the remaining file and tap `Trash`. The snackbar reads
-  `Moved to Trash` with Undo. Tap Undo and adopt the id, or delete it
+  `Moved to trash` with Undo. Tap Undo and adopt the id, or delete it
   from Trash by id as in [Item actions](./item-actions.md); then settle.
 - **Exit.** Long-press a file again, then press Back. Run `$S/ui.sh key $SERIAL BACK`. The
   bar leaves and the folder stays.

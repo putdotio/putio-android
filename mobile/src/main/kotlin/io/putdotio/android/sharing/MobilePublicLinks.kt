@@ -71,7 +71,9 @@ import io.putdotio.android.MobileMiddleCutText
 import io.putdotio.android.MobileRow
 import io.putdotio.android.MobileSectionLabel
 import io.putdotio.android.PutioFailure
+import io.putdotio.android.MobileEmptyState
 import io.putdotio.android.R
+import io.putdotio.android.design.PutioEmptyGlyph
 import io.putdotio.android.apiReason
 import io.putdotio.android.design.FileTypeIcon
 import io.putdotio.android.design.PutioDesignTokens
@@ -356,11 +358,11 @@ internal fun MobilePublicLinksScreen(
                 is PublicLinksContent.Ready -> {
                     if (content.links.isEmpty()) {
                         item(key = "empty") {
-                            Text(
-                                text = stringResource(R.string.mobile_public_links_empty),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(16.dp),
+                            MobileEmptyState(
+                                title = stringResource(R.string.mobile_public_links_empty_title),
+                                message = stringResource(R.string.mobile_public_links_empty),
+                                modifier = Modifier.fillParentMaxHeight(EMPTY_HEIGHT_FRACTION),
+                                glyph = PutioEmptyGlyph.NothingYet,
                             )
                         }
                     }
@@ -604,6 +606,7 @@ private fun Context.sharePublicLink(link: PublicLink) {
 }
 
 /** put.io's hours before a link stops working, which its API does not return. */
+private const val EMPTY_HEIGHT_FRACTION = 0.7f
 private const val PUBLIC_LINK_HOURS = 72
 private const val HOURS_PER_DAY = 24
 private const val MINUTES_PER_HOUR = 60

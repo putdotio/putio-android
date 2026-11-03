@@ -146,7 +146,7 @@ class MobileSearchScreensTest {
         compose.onNodeWithTag(MOBILE_SEARCH_FILTERS_TAG).assertExists()
         search = searchState("cassini ring scans", empty, emptyList(), 1L)
         compose.onNodeWithTag(MOBILE_SEARCH_FILTERS_TAG).assertDoesNotExist()
-        compose.onNodeWithText("Nothing matches.").assertIsDisplayed()
+        compose.onNodeWithText("Nothing matches").assertIsDisplayed()
         compose.onNodeWithText("No files or folders named cassini ring scans. Try fewer words.").assertIsDisplayed()
     }
 

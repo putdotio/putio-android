@@ -21,6 +21,7 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -120,7 +121,7 @@ internal fun trashTopBarActions(
         null
     }
 
-/** Refresh, Restore all and Empty Trash, from the overflow in Trash's top bar. */
+/** Refresh, Restore all and Empty trash, from the overflow in Trash's top bar. */
 @Composable
 internal fun MobileTrashOverflow(state: TrashState, onEvent: (TrashEvent) -> Boolean) {
     val content = state.content as? TrashContent.Loaded
@@ -156,11 +157,10 @@ internal fun MobileTrashOverflow(state: TrashState, onEvent: (TrashEvent) -> Boo
                 modifier = Modifier.testTag(MOBILE_TRASH_RESTORE_ALL_TAG),
             )
             DropdownMenuItem(
-                text = {
-                    Text(stringResource(R.string.mobile_trash_empty_action), color = PutioDesignTokens.redTextSecondary)
-                },
+                text = { Text(stringResource(R.string.mobile_trash_empty_action)) },
                 onClick = { choose(TrashEvent.SelectEmpty) },
                 enabled = state.canActOnAll,
+                colors = MenuDefaults.itemColors(textColor = PutioDesignTokens.redTextSecondary),
                 modifier = Modifier.testTag(MOBILE_TRASH_EMPTY_TAG),
             )
         }

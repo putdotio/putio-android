@@ -351,8 +351,8 @@ class MobileTransfersAddSheetTest {
 
         compose.onNode(AddTransferAction).performClick()
         compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).performTextInput("not a link")
-        addButton().performClick()
         compose.onNodeWithText("Line 1 isn’t a magnet or a file link.").assertIsDisplayed()
+        addButton().assertIsNotEnabled()
         assertAddInput("not a link")
 
         val magnet = "magnet:?xt=urn:btih:abc"

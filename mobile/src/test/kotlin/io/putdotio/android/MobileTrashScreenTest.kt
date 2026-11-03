@@ -80,7 +80,7 @@ class MobileTrashScreenTest {
         val state = TrashState(content = loaded, restoreOutcome = TrashRestoreOutcome(item,
             TrashRestoreSubmission.REJECTED, submissionFailure = putioRefusal(400, body).toPutioFailure()))
         compose.setContent { PutioTheme { MobileTrashScreen(state, { true }) } }
-        compose.onNodeWithText("This item is still moving to Trash. You can try restoring it later.")
+        compose.onNodeWithText("This item is still moving to trash. You can try restoring it later.")
             .assertIsDisplayed()
         compose.onNodeWithText("Item is still being trashed").assertDoesNotExist()
     }
@@ -148,16 +148,16 @@ class MobileTrashScreenTest {
         compose.setContent { PutioTheme { MobileTrashScreen(state, { true }) } }
         compose.onNodeWithText("Your trash is empty").assertDoesNotExist()
         compose.onNodeWithText("Load more").assertIsDisplayed()
-        compose.onNodeWithText("When you send files to trash, we keep them here for 14 days.").assertDoesNotExist()
+        compose.onNodeWithText("Files you move to trash stay here for 14 days.").assertDoesNotExist()
     }
 
     @Test
-    fun trashStatesWebsFourteenDayRetention() {
+    fun trashStatesItsFourteenDayRetentionOnce() {
         var state by mutableStateOf(TrashState(content = TrashContent.Loaded(emptyList(), null, 0, 0)))
         compose.setContent { PutioTheme { MobileTrashScreen(state, { true }) } }
-        compose.onNodeWithText("deleted items stay 14 days").assertIsDisplayed()
+        compose.onNodeWithText("deleted items stay 14 days").assertDoesNotExist()
         compose.onNodeWithText("Your trash is empty").assertIsDisplayed()
-        compose.onNodeWithText("When you send files to trash, we keep them here for 14 days.").assertIsDisplayed()
+        compose.onNodeWithText("Files you move to trash stay here for 14 days.").assertIsDisplayed()
 
         compose.runOnIdle { state = TrashState(content = loaded) }
         compose.onNodeWithText("deleted items stay 14 days").assertIsDisplayed()
