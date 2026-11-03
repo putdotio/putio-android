@@ -606,6 +606,62 @@ class TvSessionViewModelTest {
     }
 
     @Test
+    fun `removing a Continue watching card clears its position and takes it off Home and Watch Next`() = runTest {
+        val recorder = FakeWatchNextRecorder()
+        val session = sessionWithContinueWatching(recorder)
+        val entry = session.continueWatching.entries.value.single()
+
+        session.removeFromContinueWatching(entry)
+
+        assertEquals(FilesItemId(9) to null, watched.calls.single())
+        assertTrue(session.continueWatching.entries.value.isEmpty())
+        assertEquals(9L to 0.0, recorder.saved.last().let { (media, seconds) -> media.fileId to seconds })
+        assertNull(session.continueWatchingFailure.failure.value)
+        assertNull(session.fileActionFailure.value)
+    }
+
+    @Test
+    fun `a failed removal keeps the card and explains it on Home, not in Files`() = runTest {
+        val recorder = FakeWatchNextRecorder()
+        val session = sessionWithContinueWatching(recorder)
+        val entry = session.continueWatching.entries.value.single()
+        val offline = PutioFailure.NetworkUnavailable(PutioConfigurationException("offline"))
+        watched.failure = offline
+
+        session.removeFromContinueWatching(entry)
+
+        assertEquals(listOf(entry), session.continueWatching.entries.value)
+        assertEquals(listOf(9L to 120.0), recorder.saved.map { (media, seconds) -> media.fileId to seconds })
+        assertEquals(offline, session.continueWatchingFailure.failure.value)
+        assertNull(session.fileActionFailure.value)
+        session.continueWatchingFailure.dismiss()
+        assertNull(session.continueWatchingFailure.failure.value)
+
+        val rejected = PutioFailure.AuthenticationRequired(PutioConfigurationException("401"))
+        watched.failure = rejected
+        session.removeFromContinueWatching(entry)
+        session.continueWatchingFailure.dismiss()
+        assertEquals(rejected, session.continueWatchingFailure.failure.value)
+    }
+
+    private fun sessionWithContinueWatching(recorder: FakeWatchNextRecorder): TvSession {
+        val session = checkNotNull(
+            TvSessionViewModel(auth).sessionFor(
+                account(),
+                TvAuthSessionId(1),
+                dependencies.copy(
+                    watchNext = { _, _ -> recorder },
+                    continueWatchingStore = { TvMemoryContinueWatchingStore() },
+                ),
+            ),
+        )
+        session.play(media(9, "clip.mp4", PutioFileType.VIDEO).copy(playback = FilesPlaybackProgress(0.0, 600.0)))
+        session.stopPlayback()
+        session.positionSaved(9L, 120.0)
+        return session
+    }
+
+    @Test
     fun `deleting a folder in Files takes its videos out of Continue watching`() = runTest {
         var deleted = false
         rootPages = listOf(FilesPage(listOf(media(30, "Season 1", PutioFileType.FOLDER)), nextCursor = null))

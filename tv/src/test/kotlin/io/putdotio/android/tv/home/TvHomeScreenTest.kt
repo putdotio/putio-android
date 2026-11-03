@@ -191,6 +191,82 @@ class TvHomeScreenTest {
     }
 
     @Test
+    fun menuOnAContinueWatchingCardOffersRemovalAndFocusMovesToTheNextCardOnceItLeaves() {
+        val removed = mutableListOf<FilesItemId>()
+        val entries = (1L..3L).map { id -> entry.copy(fileId = FilesItemId(id), name = "clip-$id.mkv") }
+        var continueWatching by mutableStateOf(entries)
+        val paneFocus = FocusRequester()
+        compose.setTvContent {
+            TvHomeScreen(
+                continueWatching,
+                TvPinnedRow.Ready(emptyList()),
+                removing { removed += it.fileId },
+                paneFocus,
+                onShown = {},
+            )
+        }
+        compose.runOnIdle { paneFocus.requestFocus() }
+        compose.onNodeWithContentDescription(resume("clip-1.mkv")).assertIsFocused()
+            .performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNodeWithContentDescription(resume("clip-2.mkv")).assertIsFocused()
+            .performKeyInput { pressKey(Key.Menu) }
+
+        compose.onNodeWithText("Remove from Continue watching").assertIsFocused().performKeyInput { pressCenter() }
+        assertEquals(listOf(FilesItemId(2L)), removed)
+        compose.onNodeWithContentDescription(resume("clip-2.mkv")).assertIsFocused()
+
+        compose.runOnIdle { continueWatching = entries.filterNot { it.fileId == FilesItemId(2L) } }
+        compose.onNodeWithContentDescription(resume("clip-3.mkv")).assertIsFocused()
+    }
+
+    @Test
+    fun removingTheOnlyCardHandsFocusToBrowseFiles() {
+        var continueWatching by mutableStateOf(listOf(entry))
+        val paneFocus = FocusRequester()
+        compose.setTvContent {
+            TvHomeScreen(continueWatching, TvPinnedRow.Ready(emptyList()), removing {}, paneFocus, onShown = {})
+        }
+        compose.runOnIdle { paneFocus.requestFocus() }
+        compose.onNodeWithContentDescription(resume(entry.name)).performSemanticsAction(SemanticsActions.OnLongClick)
+        compose.onNodeWithText("Remove from Continue watching").assertIsFocused().performKeyInput { pressCenter() }
+
+        compose.runOnIdle { continueWatching = emptyList() }
+        compose.onNodeWithText("Browse your files").assertIsFocused()
+    }
+
+    @Test
+    fun aFailedRemovalKeepsTheCardAndExplainsWhy() {
+        var failure by mutableStateOf<PutioFailure?>(null)
+        var dismissed = 0
+        val paneFocus = FocusRequester()
+        compose.setTvContent {
+            TvHomeScreen(
+                listOf(entry),
+                TvPinnedRow.Ready(emptyList()),
+                removing {},
+                paneFocus,
+                onShown = {},
+                continueWatchingFailure = failure,
+                onDismissContinueWatchingFailure = {
+                    dismissed++
+                    failure = null
+                },
+            )
+        }
+        compose.runOnIdle { paneFocus.requestFocus() }
+        compose.onNodeWithContentDescription(resume(entry.name)).performSemanticsAction(SemanticsActions.OnLongClick)
+        compose.onNodeWithText("Remove from Continue watching").performKeyInput { pressCenter() }
+
+        compose.runOnIdle { failure = PutioFailure.NetworkUnavailable(PutioConfigurationException("offline")) }
+        compose.onNodeWithText("Couldn’t remove it from Continue watching.", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("OK").assertIsFocused().performKeyInput { pressCenter() }
+
+        assertEquals(1, dismissed)
+        compose.onAllNodesWithText("Couldn’t remove it from Continue watching.", substring = true).assertCountEquals(0)
+        compose.onNodeWithContentDescription(resume(entry.name)).assertIsDisplayed().assertIsFocused()
+    }
+
+    @Test
     fun aLongPressedPinOffersUnpinAndFocusMovesToTheNextCard() {
         val unpinned = mutableListOf<FilesItemId>()
         val cards = (1L..3L).map { id ->
@@ -262,4 +338,14 @@ class TvHomeScreenTest {
     )
 
     private val entry = ContinueWatchingEntry(FilesItemId(7L), "Sintel.2010.1080p.mkv", 356.0, 891.0, 5L)
+
+    private fun resume(name: String) = "Resume $name, 8:55 left"
+
+    private fun removing(onRemove: (ContinueWatchingEntry) -> Unit) = TvHomeActions(
+        onResume = {},
+        onOpen = {},
+        onBrowseFiles = {},
+        onRetryPinned = {},
+        onRemoveFromContinueWatching = onRemove,
+    )
 }
