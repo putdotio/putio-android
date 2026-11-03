@@ -137,7 +137,7 @@ private fun LazyListScope.loadedTrashItems(
             MobileEmptyState(
                 title = stringResource(R.string.mobile_trash_empty_title),
                 message = stringResource(R.string.mobile_trash_empty_message),
-                modifier = Modifier.fillParentMaxSize(),
+                modifier = Modifier.fillParentMaxHeight(EMPTY_HEIGHT_FRACTION),
                 glyph = PutioEmptyGlyph.NothingYet,
             )
         }
@@ -339,3 +339,5 @@ private fun TrashRestoreSubmission.messageResource(): Int = when (this) {
 @Composable
 private fun PutioFailure.trashMessage(): String =
     if (this is PutioFailure.AccessDenied) stringResource(R.string.mobile_trash_access_denied) else mobileMessage()
+
+private const val EMPTY_HEIGHT_FRACTION = 0.7f

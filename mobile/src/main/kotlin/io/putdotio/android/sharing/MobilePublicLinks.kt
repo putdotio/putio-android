@@ -361,7 +361,7 @@ internal fun MobilePublicLinksScreen(
                             MobileEmptyState(
                                 title = stringResource(R.string.mobile_public_links_empty_title),
                                 message = stringResource(R.string.mobile_public_links_empty),
-                                modifier = Modifier.fillParentMaxSize(),
+                                modifier = Modifier.fillParentMaxHeight(EMPTY_HEIGHT_FRACTION),
                                 glyph = PutioEmptyGlyph.NothingYet,
                             )
                         }
@@ -606,6 +606,7 @@ private fun Context.sharePublicLink(link: PublicLink) {
 }
 
 /** put.io's hours before a link stops working, which its API does not return. */
+private const val EMPTY_HEIGHT_FRACTION = 0.7f
 private const val PUBLIC_LINK_HOURS = 72
 private const val HOURS_PER_DAY = 24
 private const val MINUTES_PER_HOUR = 60

@@ -101,7 +101,8 @@ internal fun MobileAddTransfer(
             input = input,
             failure = addFailure,
             adding = adding,
-            submitEnabled = enabled && !input.readingTorrent && input.validation == null,
+            submitEnabled = enabled && !input.readingTorrent &&
+                (input.torrent != null || input.validation !in INPUT_ERRORS),
             actions = MobileAddTransferActions(
                 onInputChanged = {
                     draft.edit(it)
@@ -466,5 +467,10 @@ private fun MobileTransferDraftState.reason(lines: MobileTransferLines, failure:
 }
 
 private val TORRENT_PICKER_TYPES = arrayOf(TORRENT_MEDIA_TYPE, "application/octet-stream")
+private val INPUT_ERRORS = setOf(
+    MobileShareValidation.InvalidLink,
+    MobileShareValidation.TooManyLinks,
+    MobileShareValidation.TooLong,
+)
 private const val COUNT_SLOT = "\u0001"
 private val PASTE_SCHEMES = setOf("http", "https", "magnet")

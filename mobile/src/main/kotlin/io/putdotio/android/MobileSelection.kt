@@ -103,7 +103,7 @@ internal class MobileSelection(selecting: Boolean = false, selected: List<Long> 
 
 /**
  * The bar that replaces a list's top bar in selection: close, the count in mono and select all, on
- * `surface-container-high`, which runs up under the status bar so no band of page colour splits them.
+ * `surface-container-high`, status bar included.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
