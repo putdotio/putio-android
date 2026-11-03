@@ -530,10 +530,10 @@ class TvSessionViewModelTest {
     }
 
     @Test
-    fun `a video played without its duration looks it up and starts over when it was finished`() = runTest {
+    fun `a finished video played without its duration starts over`() = runTest {
         playbackRepository.savedSeconds = 595.0
         val video = media(56, "Sintel.mkv", PutioFileType.VIDEO).copy(playback = FilesPlaybackProgress(595.0, null))
-        listedItems[video.id] = video.copy(playback = FilesPlaybackProgress(595.0, 600.0))
+        playbackRepository.listedDurations[video.id] = 600.0
         val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
 
         session.play(video)
@@ -935,11 +935,20 @@ class TvSessionViewModelTest {
         /** The account's saved position for every file, with resume playback on when positive. */
         var savedSeconds = 0.0
 
+        /** Durations the file's own listing carries, filled in for a video target without one. */
+        val listedDurations = mutableMapOf<FilesItemId, Double>()
+
         override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> {
             resolved += target
             preferencesSeen += preference()
+            val duration = listedDurations[target.fileId]
+                ?.takeIf { target.durationSeconds == null && target.mediaType == PlaybackMediaType.VIDEO }
             return PlaybackRepositoryResult.Success(
-                PlaybackResolution.Ready(source(target.fileId.value), useStartFrom = savedSeconds > 0.0),
+                PlaybackResolution.Ready(
+                    source(target.fileId.value),
+                    useStartFrom = savedSeconds > 0.0,
+                    durationSeconds = duration,
+                ),
             )
         }
 
