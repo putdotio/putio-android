@@ -167,7 +167,7 @@ class PlaybackSubtitleSelectionTest {
     }
 
     @Test
-    fun automaticSubtitlesPreferANamedTrackOverAnUnlabelledServerDefault() {
+    fun anUnlabelledServerDefaultStaysWhenNoDeviceLanguageMatches() {
         val deviceDefaults = TrackSelectionParameters.Builder().build()
         val flagged = TrackGroup(
             *listOf("unknown" to true, "en" to false).map { (language, default) ->
@@ -187,7 +187,7 @@ class PlaybackSubtitleSelectionTest {
             deviceDefaults,
         )
 
-        assertEquals("en", selectedTextId(automatic, flagged))
+        assertEquals("unknown", selectedTextId(automatic, flagged))
     }
 
     @Test
@@ -224,6 +224,33 @@ class PlaybackSubtitleSelectionTest {
     }
 
     @Test
+    fun anUnlabelledDefaultGivesWayToTheSystemCaptionLanguage() {
+        val group = TrackGroup(
+            *listOf(Triple("dflt", "und", "Unknown"), Triple("en", "en", "English"), Triple("tr", "tr", "Turkish"))
+                .map { (id, language, label) ->
+                    Format.Builder()
+                        .setId(id)
+                        .setSampleMimeType(MimeTypes.TEXT_VTT)
+                        .setLanguage(language)
+                        .setLabel(label)
+                        .setSelectionFlags(if (id == "dflt") C.SELECTION_FLAG_DEFAULT else 0)
+                        .build()
+                }.toTypedArray(),
+        )
+        val captioningDefaults =
+            TrackSelectionParameters.Builder().setPreferredTextLanguageAndRoleFlagsToCaptioningManagerSettings().build()
+
+        val automatic = captioningDefaults.withSubtitleSelection(
+            SubtitleSelection.Automatic,
+            group.subtitleTracks(),
+            captioningDefaults,
+            captionLanguages = listOf("tr-TR"),
+        )
+
+        assertEquals("tr", selectedTextId(automatic, group))
+    }
+
+    @Test
     fun anUnlabelledDefaultNeverGivesWayToAForcedTrack() {
         val group = TrackGroup(
             *listOf(Triple("dflt", C.SELECTION_FLAG_DEFAULT, "und"), Triple("en", C.SELECTION_FLAG_FORCED, "en"))
@@ -237,15 +264,15 @@ class PlaybackSubtitleSelectionTest {
                         .build()
                 }.toTypedArray(),
         )
-        val noPreference = TrackSelectionParameters.Builder().build()
+        val englishDevice = TrackSelectionParameters.Builder().setPreferredTextLanguages("en").build()
 
-        val automatic = noPreference.withSubtitleSelection(
+        val automatic = englishDevice.withSubtitleSelection(
             SubtitleSelection.Automatic,
             group.subtitleTracks(),
-            noPreference,
+            englishDevice,
         )
 
-        assertEquals("tr", selectedTextId(automatic, group))
+        assertEquals("dflt", selectedTextId(automatic, group))
     }
 
     @Test

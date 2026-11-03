@@ -73,6 +73,7 @@ import io.putdotio.android.playback.toPlaybackMillis
 import io.putdotio.android.playback.withAudioSelection
 import io.putdotio.android.playback.withAudioTrack
 import io.putdotio.android.playback.withReportingLease
+import io.putdotio.android.playback.captionLanguages
 import io.putdotio.android.playback.withSubtitleSelection
 import io.putdotio.sdk.files.PlaybackSource
 import java.util.UUID
@@ -212,6 +213,7 @@ private fun TvReadyPlayer(
     ) { mutableStateOf(TvPlaybackOptions()) }
     val player = remember(source, playerFactory) { playerFactory.create(context, target.mediaType) }
     val defaultTrackSelection = remember(player) { player.trackSelectionParameters }
+    val captionLanguages = remember(player) { context.captionLanguages() }
     val prepared = remember(player) {
         source.preparePlayback(target.name, target.mediaType, stoppedAtMillis ?: resumePositionMillis)
     }
@@ -286,7 +288,7 @@ private fun TvReadyPlayer(
 
             override fun onTracksChanged(value: Tracks) {
                 tracks = value
-                player.keepChoices(value, options, currentSubtitlePolicy, defaultTrackSelection)
+                player.keepChoices(value, options, currentSubtitlePolicy, defaultTrackSelection, captionLanguages)
             }
 
             override fun onTrackSelectionParametersChanged(value: TrackSelectionParameters) {
@@ -347,7 +349,7 @@ private fun TvReadyPlayer(
         }
     }
     LaunchedEffect(player, subtitleStartupPolicy, options.subtitles == null) {
-        player.followSubtitlePolicy(subtitleStartupPolicy, options.subtitles, defaultTrackSelection)
+        player.followSubtitlePolicy(subtitleStartupPolicy, options.subtitles, defaultTrackSelection, captionLanguages)
     }
     BackHandler { apply(overlay.back()) }
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
@@ -466,6 +468,7 @@ private fun TvReadyPlayer(
                     selection = selection,
                     tracks = choices.subtitles,
                     textDefaults = defaultTrackSelection,
+                    captionLanguages = captionLanguages,
                 )
                 closeSheet()
             },

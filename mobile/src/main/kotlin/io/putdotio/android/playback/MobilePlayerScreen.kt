@@ -777,6 +777,7 @@ private fun SubtitleStartupEffect(
     retainedSubtitleSelection: SubtitleSelection?,
     subtitleStartupPolicy: SubtitleStartupPolicy?,
 ) {
+    val context = LocalContext.current
     val player = playerState.player
     LaunchedEffect(player, playerState.activeFileId, subtitleStartupPolicy, retainedSubtitleSelection) {
         val policy = subtitleStartupPolicy ?: return@LaunchedEffect
@@ -789,6 +790,7 @@ private fun SubtitleStartupEffect(
                         SubtitleSelection.Automatic,
                         player.currentTracks.playbackSubtitleTracks(),
                         playerState.defaultTrackSelection,
+                        context.captionLanguages(),
                     )
                 } else {
                     restoreSubtitleSelection(
@@ -986,6 +988,7 @@ private fun PlayerListenerEffect(
     currentOnPositionChanged: State<(Long) -> Unit>,
     pictureInPicture: State<Boolean>,
 ) {
+    val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val activity = LocalActivity.current
     val player = playerState.player
@@ -1004,6 +1007,7 @@ private fun PlayerListenerEffect(
                 startupPolicy = currentSubtitleStartupPolicy.value,
                 tracks = tracks,
                 textDefaults = playerState.defaultTrackSelection,
+                captionLanguages = context.captionLanguages(),
             )
             if (parameters != player.trackSelectionParameters) {
                 player.trackSelectionParameters = parameters

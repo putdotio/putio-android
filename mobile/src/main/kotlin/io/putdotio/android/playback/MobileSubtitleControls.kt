@@ -24,6 +24,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -94,12 +95,14 @@ internal fun MobileSubtitlesSheetContent(
     onAppearance: () -> Unit,
     onDone: () -> Unit,
 ) {
+    val context = LocalContext.current
     fun select(selection: SubtitleSelection) {
         onSubtitleSelectionChanged(selection)
         player.trackSelectionParameters = player.trackSelectionParameters.withSubtitleSelection(
             selection = selection,
             tracks = snapshot.subtitleTracks,
             textDefaults = defaultTrackSelection,
+            captionLanguages = context.captionLanguages(),
         )
         onDone()
     }

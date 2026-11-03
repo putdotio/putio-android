@@ -64,6 +64,14 @@ public fun SubtitleCueOverlay(
     }
 }
 
+public fun Context.captionLanguages(): List<String> =
+    getSystemService(CaptioningManager::class.java)
+        ?.takeIf { it.isEnabled }
+        ?.locale
+        ?.toLanguageTag()
+        ?.let(::listOf)
+        .orEmpty()
+
 @UnstableApi
 internal class SubtitleCueRenderer(
     context: Context,

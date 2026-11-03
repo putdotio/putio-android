@@ -63,7 +63,15 @@ class FilesRevealReducerTest {
         assertEquals(FilesViewportPosition(), content.viewport)
         assertEquals(FilesPaging.Available(FilesCursor("page-10")), content.paging)
         val loadMore = FilesBrowserReducer.reduce(settled, FilesBrowserEvent.LoadNextPage)
-        assertEquals(FilesCursor("page-10"), (loadMore.effect as FilesBrowserEffect.LoadNextPage).cursor)
+        val request = loadMore.effect as FilesBrowserEffect.LoadNextPage
+        assertEquals(FilesCursor("page-10"), request.cursor)
+        assertNull(settled.current.revealItemId)
+
+        val more =
+            FilesBrowserReducer.reduce(loadMore.state, FilesBrowserEvent.LoadSucceeded(request.requestId, pages[10]))
+
+        assertTrue((more.state.current.content as FilesContent.Ready).items.any { it.id == beyondCap.id })
+        assertNull("the file found by Load more is not revealed", more.state.current.revealItemId)
     }
 
     @Test
