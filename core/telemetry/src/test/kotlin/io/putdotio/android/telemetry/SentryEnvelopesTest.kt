@@ -28,7 +28,7 @@ class SentryEnvelopesTest {
     private val received = CopyOnWriteArrayList<String>()
     private val server = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
     private val root = Files.createTempDirectory("diagnostics").toFile()
-    private val files = DiagnosticsFiles(File(root, "cache"), File(root, "INSTALLATION"), File(root, "io.put.diagnostics.installation"))
+    private val files = DiagnosticsFiles(File(root, "cache"), File(root, "INSTALLATION"), File(root, "id"))
 
     @Before
     fun listen() {

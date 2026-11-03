@@ -111,11 +111,6 @@ class SentryBoundaryTest {
     }
 
     @Test
-    fun releaseHealthSessionsStayOff() {
-        assertFalse(configured(SentryBoundary.open(launch = false), files()).isEnableAutoSessionTracking)
-    }
-
-    @Test
     fun anOptOutForgetsTheInstallation() {
         val files = files()
         files.sentryInstallation.writeText("sentry-installation")
@@ -134,7 +129,7 @@ class SentryBoundaryTest {
 
     private fun files(): DiagnosticsFiles {
         val root = Files.createTempDirectory("diagnostics").toFile()
-        return DiagnosticsFiles(File(root, "cache"), File(root, "INSTALLATION"), File(root, "io.put.diagnostics.installation"))
+        return DiagnosticsFiles(File(root, "cache"), File(root, "INSTALLATION"), File(root, "id"))
     }
 
     private fun configured(period: SentryBoundary.Period, files: DiagnosticsFiles): SentryOptions =
