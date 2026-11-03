@@ -25,6 +25,8 @@ import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.files.MOBILE_FILES_COPY_ACTION_TAG
 import io.putdotio.android.files.MOBILE_FILES_DELETE_ACTION_TAG
 import io.putdotio.android.files.MOBILE_FILES_MOVE_ACTION_TAG
+import io.putdotio.android.files.MOBILE_FILES_OPEN_ACTION_TAG
+import io.putdotio.android.files.MOBILE_FILES_OPEN_WITH_ACTION_TAG
 import io.putdotio.android.files.MOBILE_FILES_PLAY_ACTION_TAG
 import io.putdotio.android.files.MOBILE_FILES_RENAME_ACTION_TAG
 import io.putdotio.android.files.MOBILE_FILES_RENAME_FIELD_TAG
@@ -95,7 +97,7 @@ class MobileFilesActionsSheetTest {
         // The header keeps the whole name the list cut.
         compose.onNodeWithText(started.name).assertIsDisplayed()
         compose.onNodeWithText("3.2GB").assertIsDisplayed()
-        compose.onNodeWithText("Resume").assertIsDisplayed()
+        compose.onNodeWithText("Resume from 10:00").assertIsDisplayed()
         compose.onNodeWithText("Download").assertIsDisplayed()
         compose.onNodeWithText("Share").assertIsDisplayed()
         compose.onNodeWithText("Move to trash").performScrollTo().assertIsDisplayed()
@@ -107,6 +109,35 @@ class MobileFilesActionsSheetTest {
         compose.onNodeWithTag(MOBILE_FILES_WATCHED_ACTION_TAG).performScrollTo().performClick()
         compose.onNodeWithTag(MOBILE_FILES_PLAY_ACTION_TAG).performClick()
         compose.runOnIdle { assertEquals(listOf("vlc", "select", "watched=true", "play"), chosen) }
+    }
+
+    @Test
+    fun aFileTheViewerShowsOpensThereFirstAndOffersOtherApps() {
+        val chosen = mutableListOf<String>()
+        val note = started.copy(id = FilesItemId(8L), name = "notes.txt", type = PutioFileType.TEXT, playback = null)
+        compose.setContent {
+            PutioTheme {
+                MobileFilesActions(
+                    item = note,
+                    folderId = FilesFolder.Root.id,
+                    operation = FilesFolderOperation.Idle,
+                    renameCompletion = null,
+                    onEvent = {},
+                    onDismiss = {},
+                    confirmedTrashEnabled = true,
+                    onShareItem = { chosen += "share" },
+                    itemActions = MobileFilesItemActions(
+                        onOpen = { chosen += "open" },
+                        onOpenWith = { chosen += "open with" },
+                        onOpenInVlc = { chosen += "vlc" },
+                    ),
+                )
+            }
+        }
+        compose.onNodeWithTag(MOBILE_FILES_VLC_ACTION_TAG).assertDoesNotExist()
+        compose.onNodeWithTag(MOBILE_FILES_OPEN_WITH_ACTION_TAG).performScrollTo().performClick()
+        compose.onNodeWithTag(MOBILE_FILES_OPEN_ACTION_TAG).performClick()
+        compose.runOnIdle { assertEquals(listOf("open with", "open"), chosen) }
     }
 
     @Test
@@ -208,7 +239,7 @@ class MobileFilesActionsSheetTest {
             }
         }
         // The player still offers to resume 100 s before the end, so the sheet does too.
-        compose.onNodeWithText("Resume").assertIsDisplayed()
+        compose.onNodeWithText("Resume from 48:20").assertIsDisplayed()
         compose.onNodeWithText("Mark as watched").performScrollTo().assertIsDisplayed()
         compose.runOnIdle { progress = FilesPlaybackProgress(startFromSeconds = 2_995.0, durationSeconds = 3_000.0) }
         compose.onNodeWithText("Play").assertIsDisplayed()

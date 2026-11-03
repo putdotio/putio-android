@@ -26,7 +26,11 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.design.PutioTheme
+import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserState
+import io.putdotio.android.files.FilesCursor
+import io.putdotio.android.files.MOBILE_FILES_OPEN_ACTION_TAG
+import io.putdotio.android.files.MOBILE_FILES_OPEN_WITH_ACTION_TAG
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesFolderState
@@ -119,6 +123,32 @@ class MobileFilesListDetailTest {
         compose.onNodeWithTag(MOBILE_FILE_VIEWER_TAG).assertExists()
         compose.onNodeWithTag(MOBILE_FILE_VIEWER_POSITION_TAG).assertExists()
         compose.onNode(hasContentDescription("2 of 2")).assertExists()
+    }
+
+    @Test
+    fun theViewerLoadsTheFoldersNextPageNearItsLastFile() {
+        val events = mutableListOf<FilesBrowserEvent>()
+        setRoute(width = 400.dp, wide = false, state = blueLights(FilesPaging.Available(FilesCursor("next"))), events)
+        // The short list already asked for the page itself; only the viewer's own ask counts here.
+        compose.runOnIdle { events.clear() }
+
+        compose.onNodeWithText(SECOND_IMAGE.name).performClick()
+
+        compose.onNode(hasContentDescription("2 of 2 or more")).assertExists()
+        compose.runOnIdle { assertEquals(listOf(FilesBrowserEvent.LoadNextPage), events) }
+    }
+
+    @Test
+    fun theViewersSheetLeavesOutOpenAndShareItsBarAlreadyHas() {
+        setRoute(width = 400.dp, wide = false)
+        compose.onNodeWithText(SECOND_IMAGE.name).performClick()
+
+        val inViewer = hasAnyAncestor(hasTestTag(MOBILE_FILE_VIEWER_TAG))
+        compose.onNode(hasContentDescription("Actions for ${SECOND_IMAGE.name}") and inViewer).performClick()
+
+        compose.onNodeWithTag(MOBILE_FILES_OPEN_WITH_ACTION_TAG).assertExists()
+        compose.onNodeWithTag(MOBILE_FILES_OPEN_ACTION_TAG).assertDoesNotExist()
+        compose.onNodeWithTag(MOBILE_FILES_SHARE_ACTION_TAG).assertDoesNotExist()
     }
 
     @Test
@@ -231,14 +261,19 @@ class MobileFilesListDetailTest {
         override suspend fun findNextVideo(target: PlaybackTarget) = PlaybackNextResult.Ended
     }
 
-    private fun setRoute(width: Dp, wide: Boolean = true) {
+    private fun setRoute(
+        width: Dp,
+        wide: Boolean = true,
+        state: FilesBrowserState = blueLights(),
+        events: MutableList<FilesBrowserEvent> = mutableListOf(),
+    ) {
         compose.setContent {
             PutioTheme {
                 Box(Modifier.requiredSize(width = width, height = 700.dp)) {
                     MobileFilesRoute(
-                        state = blueLights(),
+                        state = state,
                         repository = null,
-                        onEvent = { true },
+                        onEvent = { events += it; true },
                         onPlayMedia = { played += it },
                         confirmedTrashEnabled = true,
                         onAuthenticationRequired = {},
@@ -251,7 +286,7 @@ class MobileFilesListDetailTest {
         }
     }
 
-    private fun blueLights(): FilesBrowserState {
+    private fun blueLights(paging: FilesPaging = FilesPaging.Complete): FilesBrowserState {
         val series = FilesFolder(FilesItemId(10L), "Series")
         val blueLights = FilesFolder(FilesItemId(11L), "Blue Lights")
         val items = listOf(EPISODE, FIRST_IMAGE, ARCHIVE, SECOND_IMAGE)
@@ -273,7 +308,7 @@ class MobileFilesListDetailTest {
                     series,
                     FilesContent.Ready(listOf(folderItem(blueLights, series)), FilesPaging.Complete),
                 ),
-                FilesFolderState(blueLights, FilesContent.Ready(items, FilesPaging.Complete)),
+                FilesFolderState(blueLights, FilesContent.Ready(items, paging)),
             ),
             nextRequestValue = 2L,
         )

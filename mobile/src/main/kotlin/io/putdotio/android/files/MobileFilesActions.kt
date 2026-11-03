@@ -1,5 +1,6 @@
 package io.putdotio.android.files
 
+import android.text.format.DateUtils
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -79,6 +80,8 @@ import io.putdotio.android.design.R as DesignR
 internal const val MOBILE_FILES_RENAME_FIELD_TAG = "mobile-files-rename-field"
 internal const val MOBILE_FILES_RENAME_CONFIRM_TAG = "mobile-files-rename-confirm"
 internal const val MOBILE_FILES_PLAY_ACTION_TAG = "mobile-files-play-action"
+internal const val MOBILE_FILES_OPEN_ACTION_TAG = "mobile-files-open-action"
+internal const val MOBILE_FILES_OPEN_WITH_ACTION_TAG = "mobile-files-open-with-action"
 internal const val MOBILE_FILES_DOWNLOAD_ACTION_TAG = "mobile-files-download-action"
 internal const val MOBILE_FILES_SHARE_ACTION_TAG = "mobile-files-share-action"
 internal const val MOBILE_FILES_VLC_ACTION_TAG = "mobile-files-vlc-action"
@@ -95,8 +98,13 @@ internal const val MOBILE_FILES_DELETE_ACTION_TAG = "mobile-files-delete-action"
  * [onSetWatched] is null while the account's resume setting is unknown or off, since "watched" is
  * the saved position that setting keeps.
  */
-internal class MobileFilesItemActions(
+internal data class MobileFilesItemActions(
+    /** Null unless VLC is installed. */
     val onOpenInVlc: ((FilesItem) -> Unit)? = null,
+    /** Shows an image, PDF or text file in the app's own viewer. */
+    val onOpen: ((FilesItem) -> Unit)? = null,
+    /** Offers the file to other apps through the system chooser. */
+    val onOpenWith: ((FilesItem) -> Unit)? = null,
     /** Starts selection with the item; only a sheet opened from the item's own listing offers it. */
     val onSelect: ((FilesItem) -> Unit)? = null,
     /** Marks one file from the sheet, or the selection's files, watched or unwatched. */
@@ -111,14 +119,11 @@ internal class MobileFilesItemActions(
     /** The resume setting [onSetWatched] needs is also what makes playback start from a saved position. */
     val resumes: Boolean get() = onSetWatched != null
 
-    fun withSelect(onSelect: ((FilesItem) -> Unit)?): MobileFilesItemActions = MobileFilesItemActions(
-        onOpenInVlc = onOpenInVlc,
-        onSelect = onSelect,
-        onSetWatched = onSetWatched,
-        onUndoTrash = onUndoTrash,
-        notices = notices,
-        onLinkCopied = onLinkCopied,
-    )
+    fun withSelect(onSelect: ((FilesItem) -> Unit)?): MobileFilesItemActions = copy(onSelect = onSelect)
+
+    /** From the viewer the file is already open, and Select would close it. */
+    fun inViewer(inViewer: Boolean): MobileFilesItemActions =
+        if (inViewer) copy(onOpen = null, onSelect = null) else this
 }
 
 /**
@@ -232,6 +237,7 @@ internal fun MobileFilesActions(
                     resumes = itemActions.resumes,
                     downloadStatus = downloadStatus,
                     onPlayItem = onPlayItem,
+                    onOpenItem = itemActions.onOpen,
                     onDownloadItem = onDownloadItem,
                     onShareItem = onShareItem,
                     onDismiss = onDismiss,
@@ -283,6 +289,7 @@ internal fun MobileFilesOfflineActions(
                 resumes = false,
                 downloadStatus = DownloadStatus.Completed(item.sizeBytes),
                 onPlayItem = onPlayItem,
+                onOpenItem = null,
                 onDownloadItem = {},
                 onShareItem = null,
                 onDismiss = onDismiss,
@@ -434,32 +441,47 @@ private fun MobileFilesSheetMeta(item: FilesItem, sharedBy: String?) {
     }
 }
 
-/** Play or Resume, Download and Share as 72dp tiles; the ones the file allows share the row. */
+/**
+ * Play or Resume, or Open for a file the viewer shows, then Download and Share as 72dp tiles; the
+ * ones the file allows share the row.
+ */
 @Composable
 private fun MobileFilesActionTiles(
     item: FilesItem,
     resumes: Boolean,
     downloadStatus: DownloadStatus?,
     onPlayItem: ((FilesItem) -> Unit)?,
+    onOpenItem: ((FilesItem) -> Unit)?,
     onDownloadItem: ((FilesItem) -> Unit)?,
     onShareItem: ((FilesItem) -> Unit)?,
     onDismiss: () -> Unit,
 ) {
     val playable = item.isPlayable && item.id.value > 0L
     val play = onPlayItem?.takeIf { playable }
+    val open = onOpenItem?.takeIf { item.viewerKind != null }
     val download = onDownloadItem?.takeIf { playable }
     val share = onShareItem?.takeIf { !item.isFolder && item.id.value > 0L }
-    if (play == null && download == null && share == null) return
+    if (listOf(play, open, download, share).all { it == null }) return
     Row(
         modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         play?.let {
-            val resume = resumes && item.playback?.resumesPlayback() == true
+            val resumeAt = item.resumeAt(resumes)
             MobileFilesActionTile(
                 icon = DesignR.drawable.ic_ph_play_fill,
-                label = stringResource(if (resume) R.string.mobile_files_resume else R.string.mobile_files_play),
+                label = resumeAt?.let { seconds -> resumeLabel(seconds) } ?: stringResource(R.string.mobile_files_play),
                 tag = MOBILE_FILES_PLAY_ACTION_TAG,
+            ) {
+                onDismiss()
+                it(item)
+            }
+        }
+        open?.let {
+            MobileFilesActionTile(
+                icon = R.drawable.ic_ph_eye,
+                label = stringResource(R.string.mobile_files_detail_open),
+                tag = MOBILE_FILES_OPEN_ACTION_TAG,
             ) {
                 onDismiss()
                 it(item)
@@ -568,6 +590,10 @@ private fun MobileFilesActionRows(
             action(item)
             onDismiss()
         }
+    }
+    itemActions.onOpenWith?.takeIf { listed && !item.isFolder }?.let {
+        MobileFilesActionRow(R.drawable.ic_ph_arrow_square_out, R.string.mobile_files_open_with,
+            MOBILE_FILES_OPEN_WITH_ACTION_TAG, onClick = then(it))
     }
     itemActions.onOpenInVlc?.takeIf { item.opensInVlc }?.let {
         MobileFilesActionRow(R.drawable.ic_ph_traffic_cone, R.string.mobile_files_open_in_vlc,
@@ -772,6 +798,15 @@ internal fun FilesItem.watchedChoice(): Boolean? {
         else -> true
     }
 }
+
+/** Where Play picks up when the account resumes playback and the file has a position to resume. */
+internal fun FilesItem.resumeAt(resumes: Boolean): Double? =
+    playback?.takeIf { resumes && it.resumesPlayback() }?.startFromSeconds
+
+/** "Resume from 18:42", the same words on phone and tablet. */
+@Composable
+internal fun resumeLabel(seconds: Double): String =
+    stringResource(R.string.mobile_files_detail_resume, DateUtils.formatElapsedTime(seconds.toLong()))
 
 /**
  * Whether opening the file offers to resume: a saved position more than [FINISHED_WITHIN_SECONDS]

@@ -84,9 +84,10 @@ internal class MobileFilesActionsController(
     /** What went wrong, for the Files snackbar; nothing is replayed to a later screen. */
     val notices: SharedFlow<MobileFilesNotice> = mutableNotices.asSharedFlow()
 
-    fun itemActions(watchedToggle: Boolean): MobileFilesItemActions =
+    /** Open in VLC shows only where VLC is installed; elsewhere Open with reaches every player. */
+    fun itemActions(watchedToggle: Boolean, vlcInstalled: Boolean): MobileFilesItemActions =
         MobileFilesItemActions(
-            onOpenInVlc = { openInVlc(it.id, it.name) },
+            onOpenInVlc = if (vlcInstalled) { item -> openInVlc(item.id, item.name) } else null,
             onSetWatched = if (watchedToggle) { items, watched -> setWatched(items, watched) } else null,
             onUndoTrash = ::undoTrash,
             notices = notices,

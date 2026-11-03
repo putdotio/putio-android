@@ -28,6 +28,7 @@ import io.putdotio.android.sharing.MobilePublicLinkSheet
 import io.putdotio.android.sharing.MobilePublicLinks
 import io.putdotio.android.viewer.MobileFileViewer
 import io.putdotio.android.viewer.MobileFileViewerActions
+import io.putdotio.android.viewer.MobileFileViewerPaging
 import kotlinx.coroutines.flow.MutableSharedFlow
 
 @Composable
@@ -72,9 +73,15 @@ internal fun MobileFilesRoute(
     var viewerId by rememberSaveable { mutableStateOf<Long?>(null) }
     // Select from a viewer's actions closes the viewer, so the selection shows.
     LaunchedEffect(selecting) { if (selecting) viewerId = null }
-    val actionsRequests = remember { MutableSharedFlow<FilesItemId>(extraBufferCapacity = 1) }
+    val actionsRequests = remember { MutableSharedFlow<MobileFilesActionsRequest>(extraBufferCapacity = 1) }
     val openWithAnotherApp: (FilesItem) -> Unit = { item -> fileOpener?.openWithAnotherApp(context, item) }
-    val openFile = fileOpenAction(onPlayMedia, onView = { viewerId = it.id.value }, onOther = openWithAnotherApp)
+    val viewFile: (FilesItem) -> Unit = { viewerId = it.id.value }
+    val openFile = fileOpenAction(onPlayMedia, onView = viewFile, onOther = openWithAnotherApp)
+    val sheetActions = if (fileOpener == null) {
+        itemActions
+    } else {
+        itemActions.copy(onOpen = viewFile, onOpenWith = openWithAnotherApp)
+    }
     val fileOpening = fileOpener?.let {
         MobileFilesOpening(
             onOpenFile = if (showsDetail) { item -> detailId = item.id.value } else openFile,
@@ -83,11 +90,14 @@ internal fun MobileFilesRoute(
             actionsRequests = actionsRequests,
         )
     }
-    val openActions: (FilesItem) -> Unit = { item ->
-        if (item.hasMobileActions(onDownloadItem != null, onShareItem != null, repository != null)) {
-            actionsRequests.tryEmit(item.id)
+    val actionsFrom = { inViewer: Boolean ->
+        { item: FilesItem ->
+            if (item.hasMobileActions(onDownloadItem != null, onShareItem != null, repository != null)) {
+                actionsRequests.tryEmit(MobileFilesActionsRequest(item.id, inViewer))
+            }
         }
     }
+    val openActions = actionsFrom(false)
     // Movable, so crossing 840dp keeps the folder's sheet, rename draft and pickers.
     val folders = remember { movableContentOf { args: MobileFilesFoldersArgs -> MobileFilesFolders(args) } }
     val foldersArgs =
@@ -109,7 +119,7 @@ internal fun MobileFilesRoute(
             continueWatching = continueWatching,
             onNewFolder = onNewFolder,
             fileOpening = fileOpening,
-            itemActions = itemActions,
+            itemActions = sheetActions,
             folderCreator = folderCreator,
             selection = selection,
         )
@@ -143,11 +153,12 @@ internal fun MobileFilesRoute(
         MobileFilesViewerHost(
             state = state,
             viewerId = viewerId,
+            onLoadNextPage = { onEvent(FilesBrowserEvent.LoadNextPage) },
             actions = MobileFileViewerActions(
                 documentUri = { fileOpener.documentUri(context, it) },
                 onOpenWithAnotherApp = openWithAnotherApp,
                 onShare = onShareItem,
-                onMore = openActions,
+                onMore = actionsFrom(true),
             ),
             onShown = { id ->
                 viewerId = id.value
@@ -171,11 +182,15 @@ private fun fileOpenAction(
     }
 }
 
-/** The viewer over the folder's files of the shown file's kind, while that file is still listed. */
+/**
+ * The viewer over the folder's files of the shown file's kind, while that file is still listed. It
+ * pages the folder as the list does, so every file of that kind is a swipe away.
+ */
 @Composable
 private fun MobileFilesViewerHost(
     state: FilesBrowserState,
     viewerId: Long?,
+    onLoadNextPage: () -> Unit,
     actions: MobileFileViewerActions,
     onShown: (FilesItemId) -> Unit,
     onClose: () -> Unit,
@@ -184,12 +199,19 @@ private fun MobileFilesViewerHost(
     val viewerItem = items.firstOrNull { it.id.value == viewerId }
     if (viewerItem != null) {
         val kind = viewerItem.viewerKind
+        val paging = (state.current.content as? FilesContent.Ready)?.paging
+        val idle = state.current.operation == FilesFolderOperation.Idle
         MobileFileViewer(
             files = items.filter { it.viewerKind == kind },
             shownId = viewerItem.id,
             actions = actions,
             onShown = onShown,
             onDismiss = onClose,
+            paging = MobileFileViewerPaging(
+                nextPage = (paging as? FilesPaging.Available)?.takeIf { idle },
+                more = paging != null && paging != FilesPaging.Complete,
+                onLoadNextPage = onLoadNextPage,
+            ),
         )
     } else if (viewerId != null && state.current.content !is FilesContent.Loading) {
         // The file left the listing, or the listing changed folder: there is nothing left to view.

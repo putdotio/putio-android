@@ -16,6 +16,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import io.putdotio.android.files.hasVlc
 import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -202,6 +203,7 @@ internal fun MobileNavHost(
                     }
                     val filesItemActions = filesActions?.itemActions(
                         watchedToggle = accountSettingsState.confirmedResumePlayback() == true,
+                        vlcInstalled = LocalContext.current.hasVlc(),
                     ) ?: MobileFilesItemActions()
                     MobileFilesTab(
                         routeAnimation = this,

@@ -30,6 +30,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -56,9 +60,11 @@ import java.io.IOException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
+import kotlin.math.ceil
 
 /**
- * The image, fitted to the frame. Coil decodes it at the frame's size, never at its own, so a
+ * The image, fitted to the frame over a checkerboard, so a dark picture on a transparent ground
+ * still shows on the black frame. Coil decodes it at the frame's size, never at its own, so a
  * 50-megapixel photo costs one screen of memory.
  */
 @Composable
@@ -70,8 +76,42 @@ internal fun MobileImagePage(file: FilesItem, uri: Uri, onOpenWithAnotherApp: ()
         modifier = Modifier.fillMaxSize(),
         loading = { MobileViewerLoading() },
         error = { MobileViewerFailure(onOpenWithAnotherApp) },
-        success = { SubcomposeAsyncImageContent() },
+        success = {
+            val image = this
+            val size = painter.intrinsicSize
+            if (size.isSpecified && size.width > 0f && size.height > 0f) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    image.SubcomposeAsyncImageContent(
+                        Modifier
+                            .aspectRatio(size.width / size.height)
+                            .transparencyGrid(),
+                    )
+                }
+            } else {
+                SubcomposeAsyncImageContent()
+            }
+        },
     )
+}
+
+/** Two neutral surface tones in squares behind an image; an opaque image hides them. */
+@Composable
+private fun Modifier.transparencyGrid(): Modifier {
+    val light = MaterialTheme.colorScheme.surfaceContainerHighest
+    val dark = MaterialTheme.colorScheme.surfaceContainerHigh
+    return drawBehind {
+        drawRect(dark)
+        val cell = TRANSPARENCY_CELL.toPx()
+        val columns = ceil(size.width / cell).toInt()
+        val rows = ceil(size.height / cell).toInt()
+        for (row in 0 until rows) {
+            for (column in 0 until columns) {
+                if ((row + column) % 2 == 0) {
+                    drawRect(light, topLeft = Offset(column * cell, row * cell), size = Size(cell, cell))
+                }
+            }
+        }
+    }
 }
 
 private sealed interface PdfState {
@@ -268,4 +308,5 @@ private fun viewerContentPadding(horizontal: Dp = 0.dp): PaddingValues {
 
 private const val A4_RATIO = 1.414f
 private const val TEXT_LINES_PER_ITEM = 200
+private val TRANSPARENCY_CELL = 12.dp
 private val TEXT_LIMIT_LABEL = formatFileSize(TEXT_PREVIEW_LIMIT_BYTES.toLong())

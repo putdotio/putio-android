@@ -191,8 +191,11 @@ internal class MobileFilesOpening(
     val onOpenFile: (FilesItem) -> Unit,
     val showsDetail: Boolean = false,
     val selectedFileId: FilesItemId? = null,
-    val actionsRequests: Flow<FilesItemId> = emptyFlow(),
+    val actionsRequests: Flow<MobileFilesActionsRequest> = emptyFlow(),
 )
+
+/** A listed file's sheet asked for from outside the list; [inViewer] when the viewer shows the file. */
+internal data class MobileFilesActionsRequest(val id: FilesItemId, val inViewer: Boolean = false)
 /** On-device files while put.io is out of reach; each row's sheet offers what works offline. */
 @Composable
 private fun MobileFilesOfflineWithActions(
@@ -269,6 +272,7 @@ private fun MobileRefreshableFilesContent(
     val currentState by rememberUpdatedState(state)
     val sheetActions = itemActions.selectingIn(selection) { currentState }
     var selectedItemId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var sheetInViewer by rememberSaveable { mutableStateOf(false) }
     // Delete on a focused row goes straight to the sheet's delete step, in the mode the setting had then.
     var keyDelete by rememberSaveable { mutableStateOf<FilesDeleteMode?>(null) }
     var focusedItemId by remember { mutableStateOf<Long?>(null) }
@@ -278,9 +282,10 @@ private fun MobileRefreshableFilesContent(
         if (selectedItem == null) selectedItemId = null
     }
     // While rows are selected, the detail pane and the viewer open no sheet.
-    MobileFilesActionsRequests(fileOpening, items, enabled = !selecting) { id ->
+    MobileFilesActionsRequests(fileOpening, items, enabled = !selecting) { request ->
         keyDelete = null
-        selectedItemId = id.value
+        sheetInViewer = request.inViewer
+        selectedItemId = request.id.value
     }
     MobileFilesKeyboardEffect(
         selectionOpen = selectedItemId != null,
@@ -297,6 +302,7 @@ private fun MobileRefreshableFilesContent(
     val dismissSelection = {
         selectedItemId = null
         keyDelete = null
+        sheetInViewer = false
     }
     if (selectedItem != null) {
         key(selectedItem.id.value) {
@@ -323,12 +329,12 @@ private fun MobileRefreshableFilesContent(
                     onMoveItem = onMoveItem,
                     downloadStatus = downloads.entry(selectedItem.id)?.status,
                     onDownloadItem = onDownloadItem,
-                    onShareItem = onShareItem,
+                    onShareItem = shareOutsideViewer(onShareItem, sheetInViewer),
                     onCopyItem = onCopyItem,
                     canStartCopy = state.canStartCopy,
                     onPublicLinkItem = onPublicLinkItem,
                     onPlayItem = onPlayMedia,
-                    itemActions = sheetActions,
+                    itemActions = sheetActions.inViewer(sheetInViewer),
                     sharedBy = state.sharedByName(),
                 )
             }
@@ -555,20 +561,26 @@ private fun MobileFilesTrashedAnnouncement(
     }
 }
 
+/** The viewer's bar has Share already, so its sheet leaves it out. */
+private fun shareOutsideViewer(share: ((FilesItem) -> Unit)?, inViewer: Boolean): ((FilesItem) -> Unit)? =
+    if (inViewer) null else share
+
 /** Opens the sheet for a listed file the detail pane or the viewer asks for, while [enabled]. */
 @Composable
 private fun MobileFilesActionsRequests(
     fileOpening: MobileFilesOpening?,
     items: List<FilesItem>,
     enabled: Boolean,
-    onOpenSheet: (FilesItemId) -> Unit,
+    onOpenSheet: (MobileFilesActionsRequest) -> Unit,
 ) {
     val currentItems by rememberUpdatedState(items)
     val currentEnabled by rememberUpdatedState(enabled)
     val currentOnOpenSheet by rememberUpdatedState(onOpenSheet)
     val requests = fileOpening?.actionsRequests ?: return
     LaunchedEffect(requests) {
-        requests.collect { id -> if (currentEnabled && currentItems.any { it.id == id }) currentOnOpenSheet(id) }
+        requests.collect { request ->
+            if (currentEnabled && currentItems.any { it.id == request.id }) currentOnOpenSheet(request)
+        }
     }
 }
 
