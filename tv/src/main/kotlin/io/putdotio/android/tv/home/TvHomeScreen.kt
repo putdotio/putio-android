@@ -232,9 +232,10 @@ private fun TvPinSheetHost(
     val gone = removed != null && cards.none { it.item.id == removed }
     LaunchedEffect(gone) {
         if (!gone) return@LaunchedEffect
-        val next = pinSheet.refocusAt(cards)
+        val next = pinSheet.retarget(cards)
         withFrameNanos {}
         (if (next) pinSheet.card else paneFocus).returnFocusFromSheet()
+        pinSheet.handedOff()
     }
     val item = pinSheet.item ?: return
     TvFilesActionsSheet(
@@ -276,10 +277,13 @@ private class TvPinSheet {
         onUnpin(pinned)
     }
 
-    fun refocusAt(cards: List<TvPinnedCard>): Boolean {
-        removed = null
+    fun retarget(cards: List<TvPinnedCard>): Boolean {
         cardId = (cards.getOrNull(removedAt) ?: cards.getOrNull(removedAt - 1))?.item?.id
         return cardId != null
+    }
+
+    fun handedOff() {
+        removed = null
     }
 }
 
