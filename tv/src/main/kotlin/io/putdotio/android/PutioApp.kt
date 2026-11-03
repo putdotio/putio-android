@@ -58,6 +58,7 @@ import io.putdotio.android.settings.confirmedResumePlayback
 import io.putdotio.android.settings.confirmedTrashEnabled
 import io.putdotio.android.tv.files.openInVlc
 import io.putdotio.android.tv.files.tvMessageText
+import io.putdotio.android.tv.TvNoticeDialog
 import androidx.compose.ui.platform.LocalContext
 import io.putdotio.android.trash.TrashContent
 import io.putdotio.android.trash.TrashState
@@ -363,6 +364,7 @@ internal fun TvSessionShell(
                     returnTo = homeReturn,
                     onReturned = session.homeReturn::handled,
                 )
+                TvHomePinNotice(session)
             },
             requestedDestination = requestedDestination,
             onDestinationRequestHandled = { requestedDestination = null },
@@ -434,6 +436,17 @@ internal fun TvSessionShell(
                     paneFocus = paneFocus,
                 )
             },
+        )
+    }
+}
+
+@Composable
+private fun TvHomePinNotice(session: TvSession) {
+    val failure by session.pins.editFailure.collectAsStateWithLifecycle()
+    failure?.takeIf { it.shown() }?.let {
+        TvNoticeDialog(
+            title = stringResource(R.string.tv_files_pin_error, it.tvMessageText()),
+            onDismiss = session.pins::dismissEditFailure,
         )
     }
 }

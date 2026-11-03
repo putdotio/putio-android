@@ -141,6 +141,7 @@ internal fun TvHomeScreen(
     }
     val retry = rememberTvPinnedRetry(pinned, paneFocus)
     val pinSheet = remember { TvPinSheet() }
+    TvPinSheetHost(pinSheet, pinnedCards.orEmpty(), actions.onUnpin, paneFocus)
     if (continueWatching.isEmpty() && pinnedCards?.isEmpty() == true) {
         TvEmptyState(
             glyph = PutioEmptyGlyph.NothingYet,
@@ -218,7 +219,6 @@ internal fun TvHomeScreen(
             }
         }
     }
-    TvPinSheetHost(pinSheet, pinnedCards.orEmpty(), actions.onUnpin, paneFocus)
 }
 
 @Composable
@@ -228,10 +228,12 @@ private fun TvPinSheetHost(
     onUnpin: (FilesItem) -> Unit,
     paneFocus: FocusRequester,
 ) {
-    LaunchedEffect(pinSheet.refocus) {
-        if (!pinSheet.refocus) return@LaunchedEffect
+    val removed = pinSheet.removed
+    val gone = removed != null && cards.none { it.item.id == removed }
+    LaunchedEffect(gone) {
+        if (!gone) return@LaunchedEffect
         withFrameNanos {}
-        pinSheet.refocus = false
+        pinSheet.refocused()
         (if (pinSheet.cardId != null) pinSheet.card else paneFocus).returnFocusFromSheet()
     }
     val item = pinSheet.item ?: return
@@ -251,7 +253,8 @@ private class TvPinSheet {
         private set
     var cardId by mutableStateOf<FilesItemId?>(null)
         private set
-    var refocus by mutableStateOf(false)
+    var removed by mutableStateOf<FilesItemId?>(null)
+        private set
 
     fun open(pinned: FilesItem) {
         item = pinned
@@ -267,8 +270,12 @@ private class TvPinSheet {
         val index = cards.indexOfFirst { it.item.id == pinned.id }
         cardId = (cards.getOrNull(index + 1) ?: cards.getOrNull(index - 1))?.item?.id
         item = null
-        refocus = true
+        removed = pinned.id
         onUnpin(pinned)
+    }
+
+    fun refocused() {
+        removed = null
     }
 }
 

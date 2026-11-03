@@ -219,6 +219,26 @@ class TvHomeScreenTest {
     }
 
     @Test
+    fun unpinningTheLastPinFocusesBrowseFilesOnceTheRowEmpties() {
+        var pinned by mutableStateOf<TvPinnedRow>(TvPinnedRow.Ready(listOf(TvPinnedCard(bunny, itemCount = 3))))
+        compose.setTvContent {
+            TvHomeScreen(
+                emptyList(),
+                pinned,
+                TvHomeActions(onResume = {}, onOpen = {}, onBrowseFiles = {}, onRetryPinned = {}, onUnpin = {}),
+                remember { FocusRequester() },
+                onShown = {},
+            )
+        }
+
+        compose.onNodeWithContentDescription("Big Buck Bunny").performSemanticsAction(SemanticsActions.OnLongClick)
+        compose.onNodeWithText("Unpin").assertIsFocused().performKeyInput { pressCenter() }
+        compose.mainClock.advanceTimeBy(1_000)
+        compose.runOnIdle { pinned = TvPinnedRow.Ready(emptyList()) }
+        compose.onNodeWithText("Browse your files").assertIsFocused()
+    }
+
+    @Test
     fun returningFromThePlayerFocusesTheCardThatPlayed() {
         val cards = (1L..8L).map { id ->
             TvPinnedCard(
