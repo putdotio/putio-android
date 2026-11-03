@@ -39,15 +39,33 @@ class MobileFileViewerPagingTest {
         compose.runOnIdle { assertEquals(FOLDER_PAGES, reads()) }
     }
 
-    private fun showViewer(pageBringsImage: (Int) -> Boolean): () -> Int {
+    @Test
+    fun reachingTheLastFileAgainReadsOnAfterTheStop() {
         val first = image(1L)
-        var files by mutableStateOf(listOf(first))
+        val last = image(2L)
+        var shown by mutableStateOf(last.id)
+        val reads = showViewer(listOf(first, last), { shown }, pageBringsImage = { false })
+        compose.runOnIdle { assertEquals(3, reads()) }
+
+        compose.runOnIdle { shown = first.id }
+        compose.runOnIdle { assertEquals(3, reads()) }
+        compose.runOnIdle { shown = last.id }
+
+        compose.runOnIdle { assertEquals(6, reads()) }
+    }
+
+    private fun showViewer(
+        initial: List<FilesItem> = listOf(image(1L)),
+        shownId: () -> FilesItemId = { initial.last().id },
+        pageBringsImage: (Int) -> Boolean,
+    ): () -> Int {
+        var files by mutableStateOf(initial)
         var read by mutableIntStateOf(0)
         compose.setContent {
             PutioTheme {
                 MobileFileViewerContent(
                     files = files,
-                    shownId = first.id,
+                    shownId = shownId(),
                     actions = MobileFileViewerActions(documentUri = { Uri.EMPTY }, onOpenWithAnotherApp = {}),
                     onShown = {},
                     onDismiss = {},

@@ -609,4 +609,3 @@ class MobileTransfersScreenTest {
 
 // Longer than SnackbarDuration.Short.
 private const val SNACKBAR_TIMEOUT_MS = 10_000L
-private const val RETRY_CLOCK_MILLIS = 30_000L

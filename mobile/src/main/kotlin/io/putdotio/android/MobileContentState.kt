@@ -26,6 +26,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -165,7 +166,8 @@ internal fun MobileInlineError(
  * Calls [onRetry] once the default network is validated again, while this is on screen and the app
  * is started, and on a slow clock: the network may have returned before this was on screen, or
  * put.io itself was down. Keyed on [failure], so a retry that fails again before a frame draws
- * still restarts the clock; each return to the foreground restarts it too.
+ * still restarts the clock; each return to the foreground restarts it too, and retries at once
+ * when the network is validated by then.
  */
 @Composable
 internal fun RetryWhenOnline(failure: Any?, onRetry: () -> Unit) {
@@ -178,16 +180,18 @@ internal fun RetryWhenOnline(failure: Any?, onRetry: () -> Unit) {
             retry()
         }
     }
+    // Only a network that was missing or unvalidated, or a return from the background, and then a
+    // validated network counts, so a put.io outage on a working network does not retry in a loop.
+    val waiting = remember(context) {
+        AtomicBoolean(!context.getSystemService(ConnectivityManager::class.java).defaultNetworkValidated())
+    }
     LifecycleStartEffect(context) {
         val connectivity = context.getSystemService(ConnectivityManager::class.java)
-        // Registration reports the current network at once. Only a network that was missing or
-        // unvalidated and then validates counts, so a put.io outage on a working network does not
-        // retry in a loop.
-        val waiting = AtomicBoolean(
-            connectivity?.activeNetwork
-                ?.let(connectivity::getNetworkCapabilities)
-                ?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) != true,
-        )
+        if (!connectivity.defaultNetworkValidated()) {
+            waiting.set(true)
+        } else if (waiting.compareAndSet(true, false)) {
+            retry()
+        }
         val callback = object : ConnectivityManager.NetworkCallback() {
             override fun onLost(network: Network) {
                 waiting.set(true)
@@ -203,9 +207,17 @@ internal fun RetryWhenOnline(failure: Any?, onRetry: () -> Unit) {
             }
         }
         val registered = connectivity?.runCatching { registerDefaultNetworkCallback(callback) }?.isSuccess == true
-        onStopOrDispose { if (registered) connectivity?.unregisterNetworkCallback(callback) }
+        onStopOrDispose {
+            if (registered) connectivity?.unregisterNetworkCallback(callback)
+            waiting.set(true)
+        }
     }
 }
+
+private fun ConnectivityManager?.defaultNetworkValidated(): Boolean =
+    this?.activeNetwork
+        ?.let(::getNetworkCapabilities)
+        ?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true
 
 private const val OFFLINE_RETRY_MILLIS = 30_000L
 

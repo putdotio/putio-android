@@ -80,7 +80,7 @@ internal class MobileFileViewerPaging(
 )
 
 private sealed interface ViewerPageAsk {
-    data class Next(val page: FilesPaging.Available) : ViewerPageAsk
+    data class Next(val page: FilesPaging.Available, val atLast: Boolean) : ViewerPageAsk
 
     data class Retry(val fromPage: Int) : ViewerPageAsk
 }
@@ -90,7 +90,8 @@ private sealed interface ViewerPageAsk {
  * sit on a top scrim; a swipe moves between the folder's files of the same kind, and the position
  * shows in mono below. [files] are those files in listing order; [onShown] follows the swipe.
  * Near the last of them the folder's next page loads, so a swipe reaches every file it holds; after
- * [VIEWER_FRUITLESS_PAGES] pages in a row bring none of this kind, it stops reading.
+ * [VIEWER_FRUITLESS_PAGES] pages in a row bring none of this kind, it reads on only when the last
+ * file is reached again.
  */
 @Composable
 internal fun MobileFileViewer(
@@ -230,14 +231,13 @@ private fun LoadNextPageNearLast(pager: PagerState, count: Int, paging: MobileFi
     val currentPaging by rememberUpdatedState(paging)
     val currentCount by rememberUpdatedState(count)
     LaunchedEffect(pager) {
-        var askedAtCount = -1
-        var fruitless = 0
+        val reads = ViewerPageReads()
         snapshotFlow {
             val near = pager.settledPage >= currentCount - 1 - VIEWER_PAGING_THRESHOLD
             val next = currentPaging.nextPage
             when {
                 !near -> null
-                next != null -> ViewerPageAsk.Next(next)
+                next != null -> ViewerPageAsk.Next(next, atLast = pager.settledPage >= currentCount - 1)
                 currentPaging.failed -> ViewerPageAsk.Retry(pager.settledPage)
                 else -> null
             }
@@ -246,18 +246,38 @@ private fun LoadNextPageNearLast(pager: PagerState, count: Int, paging: MobileFi
             .distinctUntilChanged()
             .collect { ask ->
                 when (ask) {
-                    is ViewerPageAsk.Next -> {
-                        if (currentCount > askedAtCount) {
-                            askedAtCount = currentCount
-                            fruitless = 0
-                        } else {
-                            fruitless++
-                        }
-                        if (fruitless < VIEWER_FRUITLESS_PAGES) currentPaging.onLoadNextPage()
-                    }
+                    is ViewerPageAsk.Next ->
+                        if (reads.shouldRead(ask, currentCount)) currentPaging.onLoadNextPage()
                     is ViewerPageAsk.Retry -> currentPaging.onRetry()
                 }
             }
+    }
+}
+
+private class ViewerPageReads {
+    private var seen: FilesPaging.Available? = null
+    private var read: FilesPaging.Available? = null
+    private var countBeforeRead = 0
+    private var fruitless = 0
+
+    fun shouldRead(ask: ViewerPageAsk.Next, count: Int): Boolean {
+        val reads = when {
+            ask.page != seen -> {
+                if (read != null) fruitless = if (count > countBeforeRead) 0 else fruitless + 1
+                seen = ask.page
+                fruitless < VIEWER_FRUITLESS_PAGES
+            }
+            ask.atLast && ask.page != read -> {
+                fruitless = 0
+                true
+            }
+            else -> false
+        }
+        if (reads) {
+            read = ask.page
+            countBeforeRead = count
+        }
+        return reads
     }
 }
 
