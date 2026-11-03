@@ -77,16 +77,16 @@ class TvFilesScreenTest {
                         2,
                         "Tears of Steel.webm",
                         PutioFileType.VIDEO,
-                        playback = FilesPlaybackProgress(243.0, 734.0),
+                        playback = FilesPlaybackProgress(734.0, 734.0),
                     ),
                     item(3, "notes.txt", PutioFileType.TEXT, sizeBytes = 1_137),
+                    item(4, "Sintel.mkv", PutioFileType.VIDEO, playback = FilesPlaybackProgress(243.0, 888.0)),
                 )
             },
             onEvent = { events += it; true },
         )
 
-        compose.onNodeWithText("Your Files").assertDoesNotExist()
-        compose.onNodeWithText("All files").assertIsDisplayed()
+        compose.onNodeWithText("Your files").assertIsDisplayed()
         compose.onNodeWithContentDescription("Open tears_of_steel").assertIsFocused()
         compose.onNodeWithContentDescription("Watched", useUnmergedTree = true).assertIsDisplayed()
         compose.onAllNodesWithText("33%", substring = true).assertCountEquals(0)
@@ -137,7 +137,7 @@ class TvFilesScreenTest {
         compose.showFiles(state = { state(FilesContent.Empty(FilesPaging.Complete)) })
         compose.onNodeWithText("Empty folder.").assertIsDisplayed().assertIsFocused()
         compose.onNodeWithText("Files you add to this folder on put.io show up here.").assertIsDisplayed()
-        compose.onAllNodesWithText("Account default").assertCountEquals(0)
+        compose.onAllNodesWithText("Sort").assertCountEquals(0)
         compose.onAllNodesWithText("Refresh").assertCountEquals(0)
     }
 
@@ -145,8 +145,8 @@ class TvFilesScreenTest {
     fun aLoadingFolderDrawsSkeletonsWithoutTheSortPill() {
         compose.showFiles(state = { state(FilesContent.Loading(FilesRequestId(2))) })
         compose.onNodeWithContentDescription("Loading").assertIsDisplayed()
-        compose.onNodeWithText("All files").assertIsDisplayed()
-        compose.onAllNodesWithText("Account default").assertCountEquals(0)
+        compose.onNodeWithText("Your files").assertIsDisplayed()
+        compose.onAllNodesWithText("Sort").assertCountEquals(0)
     }
 
     @Test
@@ -174,13 +174,13 @@ class TvFilesScreenTest {
             onEvent = { events += it; true },
         )
         compose.onNodeWithContentDescription("a.txt").performKeyInput { pressKey(Key.DirectionUp) }
-        compose.onNode(hasText("Account default") and hasClickAction()).assertIsFocused()
+        compose.onNode(hasText("Sort") and hasClickAction()).assertIsFocused()
         operation = FilesFolderOperation.Loading(
             FilesRequestId(3),
             FilesFolderOperationIntent.Refresh,
             FilesFolderOperationPhase.RELOADING,
         )
-        compose.onNode(hasText("Account default") and hasClickAction()).assertIsFocused()
+        compose.onNode(hasText("Sort") and hasClickAction()).assertIsFocused()
             .performKeyInput { pressCenter() }
         compose.onAllNodesWithText("Sort by").assertCountEquals(0)
         assertEquals(emptyList<FilesBrowserEvent>(), events)
@@ -245,7 +245,7 @@ class TvFilesScreenTest {
             },
         )
         compose.onNodeWithContentDescription("a.txt").performKeyInput { pressKey(Key.DirectionUp) }
-        compose.onNode(hasText("Account default") and hasClickAction()).performKeyInput { pressCenter() }
+        compose.onNode(hasText("Sort") and hasClickAction()).performKeyInput { pressCenter() }
         compose.onNodeWithText("Sort by").assertIsDisplayed()
 
         operation = FilesFolderOperation.Loading(
@@ -263,7 +263,7 @@ class TvFilesScreenTest {
         compose.onNodeWithText("Can’t reach put.io.").assertIsDisplayed()
         compose.onNodeWithText("Check the network and try again.").assertIsDisplayed()
         compose.onNodeWithText("Try now").assertIsFocused().performKeyInput { pressCenter() }
-        compose.onAllNodesWithText("Account default").assertCountEquals(0)
+        compose.onAllNodesWithText("Sort").assertCountEquals(0)
         assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.Retry), events)
     }
 
@@ -381,14 +381,34 @@ class TvFilesScreenTest {
             pressKey(Key.DirectionUp)
             pressKey(Key.DirectionUp)
         }
-        compose.onNode(hasText("Account default") and hasClickAction()).assertIsFocused()
+        compose.onNode(hasText("Sort") and hasClickAction()).assertIsFocused()
 
         state = ready(
             item(1, "a.txt", PutioFileType.TEXT),
             item(2, "b.txt", PutioFileType.TEXT),
             item(3, "c.txt", PutioFileType.TEXT),
         )
-        compose.onNode(hasText("Account default") and hasClickAction()).assertIsFocused()
+        compose.onNode(hasText("Sort") and hasClickAction()).assertIsFocused()
+    }
+
+    @Test
+    fun aFolderWithoutItsOwnSortNamesTheAccountSortInEffect() {
+        var accountSort by mutableStateOf<FilesSort?>(FilesSort.DATE_ADDED_DESCENDING)
+        compose.setTvContent {
+            TvFilesScreen(
+                state = ready(item(1, "a.txt", PutioFileType.TEXT)),
+                onEvent = { true },
+                onPlayMedia = {},
+                accountDefaultSort = accountSort,
+            )
+        }
+        compose.onNodeWithContentDescription("a.txt").performKeyInput { pressKey(Key.DirectionUp) }
+        compose.onNode(hasText("Date added, newest first") and hasClickAction()).assertIsFocused()
+            .performKeyInput { pressCenter() }
+        compose.onNode(hasText("Newest first") and hasClickAction() and hasSelectedState()).assertIsDisplayed()
+
+        accountSort = null
+        compose.onNode(hasText("Sort") and hasClickAction()).assertIsDisplayed()
     }
 
     @Test
@@ -435,6 +455,7 @@ class TvFilesScreenTest {
         compose.onNodeWithContentDescription("notes.txt").performKeyInput { pressKey(Key.DirectionDown) }
         compose.onNodeWithText("Length").assertIsDisplayed()
         compose.onNodeWithText("49:49").assertIsDisplayed()
+        compose.onAllNodesWithText("Watched", substring = true).assertCountEquals(0)
         compose.onNodeWithContentDescription("Play Blue.Lights.S04E01.mkv").performKeyInput {
             pressKey(Key.DirectionRight)
         }
@@ -485,7 +506,7 @@ class TvFilesScreenTest {
         }
         compose.onNode(hasText("Play") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
         compose.onAllNodesWithText("Start over").assertCountEquals(0)
-        assertEquals(listOf(TvPlayStart.Ask), played)
+        assertEquals(listOf(TvPlayStart.Resume), played)
     }
 
     @Test
@@ -535,7 +556,7 @@ class TvFilesScreenTest {
         compose.onNodeWithContentDescription("Play Tree Rings.mp3").performKeyInput { pressKey(Key.DirectionRight) }
         compose.onNode(hasText("Play") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
         compose.onAllNodesWithText("Start over").assertCountEquals(0)
-        assertEquals(listOf(TvPlayStart.Ask), played)
+        assertEquals(listOf(TvPlayStart.Resume), played)
     }
 
     @Test

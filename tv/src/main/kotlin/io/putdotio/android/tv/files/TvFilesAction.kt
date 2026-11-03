@@ -127,7 +127,7 @@ internal class TvFilesActionHandlers(
 internal fun TvFilesActionHandlers.run(action: TvFilesAction, item: FilesItem) {
     when (action) {
         TvFilesAction.Resume -> onPlay(item, TvPlayStart.Resume)
-        TvFilesAction.Play -> onPlay(item, TvPlayStart.Ask)
+        TvFilesAction.Play -> onPlay(item, TvPlayStart.Resume)
         TvFilesAction.StartOver -> onPlay(item, TvPlayStart.StartOver)
         TvFilesAction.OpenInVlc -> onOpenInVlc(item)
         is TvFilesAction.SetWatched -> onSetWatched(item, action.watched)

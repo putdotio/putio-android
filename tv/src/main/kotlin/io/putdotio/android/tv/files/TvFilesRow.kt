@@ -55,6 +55,7 @@ internal fun TvFilesRow(
     },
     showsFocus: Boolean = true,
     place: TvFilesRowPlace = TvFilesRowPlace.Listing,
+    resumePlayback: Boolean = true,
 ) {
     TvListRow(
         glyph = fileTypeIconRes(item.type),
@@ -74,18 +75,18 @@ internal fun TvFilesRow(
             }
             .semantics { contentDescription = label }
             .testTag(TV_FILES_ROW_TAG),
-    ) { secondary -> TvFilesRowMeta(item, place, secondary) }
+    ) { secondary -> TvFilesRowMeta(item, place, resumePlayback, secondary) }
 }
 
 @Composable
-private fun TvFilesRowMeta(item: FilesItem, place: TvFilesRowPlace, color: Color) {
+private fun TvFilesRowMeta(item: FilesItem, place: TvFilesRowPlace, resumePlayback: Boolean, color: Color) {
     val size = item.metaSize
     val date = rememberMetaDate(item)
     val where = when (place) {
         TvFilesRowPlace.Listing -> date
         is TvFilesRowPlace.SearchResult -> place.folderName
     }
-    val watched = item.playback?.isWatched == true
+    val watched = item.showsWatched(resumePlayback)
     val parts = buildList<@Composable () -> Unit> {
         size?.let { add { Text(it, style = TV_LIST_ROW_META_MONO, color = color, maxLines = 1) } }
         where?.let {

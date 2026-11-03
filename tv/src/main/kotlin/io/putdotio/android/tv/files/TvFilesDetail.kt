@@ -209,7 +209,7 @@ internal fun ColumnScope.TvFilesDetail(
     val secondary = actions.secondary
     TvDetailBody(
         title = item.name,
-        meta = detailMeta(item, count),
+        meta = detailMeta(item, count, resumePlayback),
         facts = detailFacts(item, subtitles, place),
         secondaryActions = if (secondary.isEmpty()) {
             null
@@ -252,7 +252,7 @@ internal fun ColumnScope.TvFilesDetail(
 }
 
 @Composable
-private fun detailMeta(item: FilesItem, count: Int?): AnnotatedString {
+private fun detailMeta(item: FilesItem, count: Int?, resumePlayback: Boolean): AnnotatedString {
     val date = rememberMetaDate(item)
     val watched = stringResource(R.string.tv_files_watched)
     val itemCount = count?.let { pluralStringResource(R.plurals.tv_files_item_count, it, it.toString()) }
@@ -260,7 +260,7 @@ private fun detailMeta(item: FilesItem, count: Int?): AnnotatedString {
         itemCount?.let { add(AnnotatedString(it)) }
         item.metaSize?.let { add(it.asMonoRun()) }
         date?.let { add(AnnotatedString(it)) }
-        if (!item.isFolder && item.playback?.isWatched == true) add(AnnotatedString(watched))
+        if (item.showsWatched(resumePlayback)) add(AnnotatedString(watched))
     }
     return buildAnnotatedString {
         parts.forEachIndexed { index, part ->
@@ -326,7 +326,7 @@ private fun TvFilesPrimaryActions(
         item.isPlayable -> PrimaryAction(
             AnnotatedString(stringResource(R.string.tv_files_detail_play)),
             DesignR.drawable.ic_ph_play_fill,
-            { actions.onPlay(current(), TvPlayStart.Ask) },
+            { actions.onPlay(current(), TvPlayStart.Resume) },
         )
         else -> PrimaryAction(
             AnnotatedString(stringResource(R.string.tv_files_detail_open)),
@@ -350,6 +350,9 @@ private fun TvFilesPrimaryActions(
 }
 
 private class PrimaryAction(val label: AnnotatedString, @param:DrawableRes val icon: Int, val onClick: () -> Unit)
+
+internal fun FilesItem.showsWatched(resumePlayback: Boolean): Boolean =
+    !isFolder && playback?.isWatched == true && resumePosition(resumePlayback) == null
 
 internal fun FilesItem.resumePosition(resumePlayback: Boolean): Double? {
     val playback = playback?.takeIf { type == PutioFileType.VIDEO } ?: return null

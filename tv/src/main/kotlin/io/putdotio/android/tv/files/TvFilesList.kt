@@ -56,6 +56,7 @@ internal fun TvFilesList(
     modifier: Modifier = Modifier,
     onRowFocused: (FilesItem) -> Unit = {},
     rowsShowFocus: Boolean = true,
+    resumePlayback: Boolean = true,
 ) {
     val viewport = content.viewport
     val listState = key(folderId) {
@@ -163,6 +164,7 @@ internal fun TvFilesList(
                     onClick = { onOpen(item) },
                     onActions = { onActions(item) },
                     showsFocus = rowsShowFocus,
+                    resumePlayback = resumePlayback,
                     modifier = Modifier
                         .downTo(downFromLast.takeIf { item.id == lastRowId })
                         .focusRequesterIf(item.id.value == focusTarget, rowFocus)

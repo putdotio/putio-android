@@ -89,7 +89,7 @@ class TvHistoryScreenTest {
             files = TvHistoryFiles(resolver(FilesItemId(1) to file(1, "Big Buck Bunny", FilesFolder.Root.id))),
         ) { historyState(HistoryContent.Ready(items(), HistoryPaging.Complete)) }
 
-        compose.waitUntil(5_000) { compose.onAllNodesWithText("Your Files").fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Your files").fetchSemanticsNodes().isNotEmpty() }
         compose.onNode(hasText("Size") and hasText("3.1 GB")).assertIsDisplayed()
         compose.onNodeWithText("Transfer completed · Today, 05:22").assertIsDisplayed()
         compose.onNodeWithContentDescription("Open Big Buck Bunny").assertIsFocused().performKeyInput {

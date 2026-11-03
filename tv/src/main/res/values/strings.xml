@@ -72,8 +72,7 @@
     <string name="tv_dialog_cancel">Cancel</string>
     <string name="tv_dialog_ok">OK</string>
 
-    <string name="tv_files_title">Your Files</string>
-    <string name="tv_files_all_files">All files</string>
+    <string name="tv_files_title">Your files</string>
     <plurals name="tv_files_item_count">
         <item quantity="one">%1$s item</item>
         <item quantity="other">%1$s items</item>
@@ -93,7 +92,6 @@
     <string name="tv_files_sort_largest_first">Largest first</string>
     <string name="tv_files_sort_oldest_first">Oldest first</string>
     <string name="tv_files_sort_newest_first">Newest first</string>
-    <string name="tv_files_sort_account_default">Account default</string>
     <string name="tv_files_sort_name_ascending">Name, A–Z</string>
     <string name="tv_files_sort_name_descending">Name, Z–A</string>
     <string name="tv_files_sort_size_ascending">Size, smallest first</string>

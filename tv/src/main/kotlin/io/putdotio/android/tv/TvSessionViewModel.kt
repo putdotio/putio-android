@@ -244,7 +244,7 @@ internal class TvSession internal constructor(
     val links = TvLinkOpener(
         resolver = filesItemResolver,
         scope = scope,
-        open = { item, continueWatching -> openExternal(item, FilesOpenOrigin.LINK, continueWatching) },
+        open = { item, _ -> openExternal(item, FilesOpenOrigin.LINK) },
         onCardGone = watchNext::fileGone,
     )
 
@@ -302,7 +302,7 @@ internal class TvSession internal constructor(
     val findNeighbours: suspend (PlaybackTarget) -> PlaybackRepositoryResult<PlaybackNeighbours> =
         playbackRepository::findNeighbours
 
-    fun play(item: FilesItem, start: TvPlayStart = TvPlayStart.Ask) {
+    fun play(item: FilesItem, start: TvPlayStart = TvPlayStart.Resume) {
         durationLookup?.cancel()
         startPlayback(item, start, fromHome = false)
     }
@@ -314,14 +314,13 @@ internal class TvSession internal constructor(
     fun openExternal(
         item: FilesItem,
         origin: FilesOpenOrigin,
-        continueWatching: Boolean = false,
         playMedia: Boolean = true,
     ): TvExternalOpen {
         // A newer pick wins over media still waiting for its duration.
         durationLookup?.cancel()
         return when {
             item.isPlayable && playMedia -> {
-                val start = if (continueWatching) TvPlayStart.Resume else TvPlayStart.Ask
+                val start = TvPlayStart.Resume
                 val fromHome = origin == FilesOpenOrigin.HOME
                 if (item.playback?.durationSeconds != null) {
                     startPlayback(item, start, fromHome)
@@ -359,7 +358,7 @@ internal class TvSession internal constructor(
             }
         }
         continueSaved?.cancel()
-        continueSaved = start.answer?.let { answer -> scope.launch { controller.answerResumePrompt(answer) } }
+        continueSaved = scope.launch { controller.answerResumePrompt(start.answer) }
     }
 
     /**
@@ -506,9 +505,7 @@ internal class TvSessionViewModel(
         (this as? TvAuthState.SignedIn)?.let { TvSessionKey(it.account.userId, it.sessionId) }
 }
 
-internal enum class TvPlayStart(val answer: PlaybackEvent?) {
-    Ask(null),
-
+internal enum class TvPlayStart(val answer: PlaybackEvent) {
     Resume(PlaybackEvent.Resume),
 
     StartOver(PlaybackEvent.Restart),

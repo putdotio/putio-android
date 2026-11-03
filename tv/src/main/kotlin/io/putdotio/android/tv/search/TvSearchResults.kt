@@ -57,6 +57,7 @@ internal class TvSearchRows(
     val onFocused: (FilesItem) -> Unit,
     val detailId: Long?,
     val detailRow: FocusRequester,
+    val resumePlayback: Boolean,
 )
 
 internal fun TvSearchRows.place(item: FilesItem): TvFilesRowPlace.SearchResult =
@@ -188,6 +189,7 @@ private fun TvSearchResultRow(item: FilesItem, rows: TvSearchRows, requesters: T
         onActions = rows.onActions?.let { open -> { open(item) } },
         label = stringResource(item.resultLabel(), item.name),
         place = rows.place(item),
+        resumePlayback = rows.resumePlayback,
         modifier = Modifier
             .onFocusChanged { if (it.isFocused) rows.onFocused(item) }
             .focusRequesterIf(id == requesters.anchorId(), requesters.anchor)

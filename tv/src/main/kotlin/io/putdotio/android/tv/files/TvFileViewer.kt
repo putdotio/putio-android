@@ -7,6 +7,7 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -47,6 +48,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.tv.material3.MaterialTheme
@@ -344,32 +346,39 @@ private fun TvPdfPages(document: FilesPdfDocument, keys: TvViewerKeys, onDismiss
     }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val margins = with(LocalDensity.current) { tvSafeAreaMargins(constraints) }
-        val widthPx = constraints.maxWidth
-        val heightPx = with(LocalDensity.current) { constraints.maxHeight - (margins.vertical * 2).roundToPx() }
-        val state by produceState<PageState>(PageState.Loading, document, page, widthPx, heightPx) {
-            value = PageState.Loading
-            value = try {
-                PageState.Ready(document.renderFitting(page, widthPx, heightPx))
-            } catch (_: IllegalStateException) {
-                // The document closed under the page, or the renderer refused it.
-                PageState.Failed
-            } catch (_: IllegalArgumentException) {
-                PageState.Failed
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(vertical = margins.vertical),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
+                val widthPx = constraints.maxWidth
+                val heightPx = constraints.maxHeight
+                val state by produceState<PageState>(PageState.Loading, document, page, widthPx, heightPx) {
+                    value = PageState.Loading
+                    value = try {
+                        PageState.Ready(document.renderFitting(page, widthPx, heightPx))
+                    } catch (_: IllegalStateException) {
+                        // The document closed under the page, or the renderer refused it.
+                        PageState.Failed
+                    } catch (_: IllegalArgumentException) {
+                        PageState.Failed
+                    }
+                }
+                when (val current = state) {
+                    PageState.Loading -> TvViewerLoading()
+                    PageState.Failed -> TvViewerFailure(onDismiss)
+                    is PageState.Ready -> Image(
+                        bitmap = current.bitmap.asImageBitmap(),
+                        contentDescription = stringResource(R.string.tv_viewer_page, page + 1, count),
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
             }
+            if (count > 1) TvViewerPositionText(page + 1, count, Modifier.padding(top = PAGE_POSITION_GAP))
         }
-        when (val current = state) {
-            PageState.Loading -> TvViewerLoading()
-            PageState.Failed -> TvViewerFailure(onDismiss)
-            is PageState.Ready -> Image(
-                bitmap = current.bitmap.asImageBitmap(),
-                contentDescription = stringResource(R.string.tv_viewer_page, page + 1, count),
-                contentScale = ContentScale.Fit,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(vertical = margins.vertical),
-            )
-        }
-        if (count > 1) TvViewerPosition(page + 1, count, Modifier.align(Alignment.BottomCenter))
     }
 }
 
@@ -464,7 +473,6 @@ private fun TvViewerFailure(onDismiss: () -> Unit) {
 /** "n / total" in mono over a scrim that fades up, so it stays readable over a light picture. */
 @Composable
 private fun TvViewerPosition(position: Int, count: Int, modifier: Modifier = Modifier) {
-    val description = stringResource(R.string.tv_viewer_position, position, count)
     val scrim = MaterialTheme.colorScheme.scrim
     BoxWithConstraints(
         modifier = modifier
@@ -473,15 +481,23 @@ private fun TvViewerPosition(position: Int, count: Int, modifier: Modifier = Mod
         contentAlignment = Alignment.Center,
     ) {
         val margins = with(LocalDensity.current) { tvSafeAreaMargins(constraints) }
-        Text(
-            text = "$position / $count",
-            style = PutioTypeScale.tvMono,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier
-                .padding(top = margins.vertical, bottom = margins.vertical / 2)
-                .semantics { contentDescription = description },
+        TvViewerPositionText(
+            position,
+            count,
+            Modifier.padding(top = margins.vertical, bottom = margins.vertical / 2),
         )
     }
+}
+
+@Composable
+private fun TvViewerPositionText(position: Int, count: Int, modifier: Modifier = Modifier) {
+    val description = stringResource(R.string.tv_viewer_position, position, count)
+    Text(
+        text = "$position / $count",
+        style = PutioTypeScale.tvMono,
+        color = MaterialTheme.colorScheme.onSurface,
+        modifier = modifier.semantics { contentDescription = description },
+    )
 }
 
 /** The file's bytes from put.io; blocking, so callers run it off the main thread. */
@@ -498,5 +514,6 @@ private val viewerHttp: OkHttpClient by lazy { OkHttpClient() }
 
 private const val TEXT_LINES_PER_ITEM = 200
 private const val POSITION_SCRIM_ALPHA = 0.6f
+private val PAGE_POSITION_GAP = 8.dp
 private const val TEXT_SCROLL_FRACTION = 0.8f
 private val TEXT_LIMIT_LABEL = formatFileSize(TEXT_PREVIEW_LIMIT_BYTES.toLong())
