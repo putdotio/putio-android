@@ -46,7 +46,6 @@ import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioRadius
 import io.putdotio.android.design.PutioTypeScale
-import io.putdotio.android.files.FilesSort
 import io.putdotio.android.settings.AccountSettingsRepositoryResult
 import io.putdotio.android.settings.TunnelRouteName
 import io.putdotio.android.settings.TunnelRouteOption
@@ -57,7 +56,6 @@ import io.putdotio.android.tv.TvButtonStyle
 import io.putdotio.android.tv.TvFocus
 import io.putdotio.android.tv.TvQrCode
 import io.putdotio.android.tv.TvSideSheet
-import io.putdotio.android.tv.files.tvLabel
 import io.putdotio.android.tv.focusRequesterIf
 
 @Composable
@@ -310,23 +308,6 @@ internal fun TvVideoPlaybackSheet(
         choices = VideoPlaybackType.entries.map {
             TvSheetChoice(it, stringResource(it.tvLabel()), stringResource(it.tvDescription()))
         },
-        selected = selected,
-        onSave = onSave,
-        onDismiss = onDismiss,
-        returnFocus = returnFocus,
-    )
-}
-
-@Composable
-internal fun TvDefaultSortSheet(
-    selected: FilesSort?,
-    onSave: (FilesSort) -> Unit,
-    onDismiss: () -> Unit,
-    returnFocus: FocusRequester?,
-) {
-    TvChoiceSheet(
-        title = stringResource(R.string.tv_account_default_sort),
-        choices = FilesSort.entries.map { TvSheetChoice(it, stringResource(it.tvLabel())) },
         selected = selected,
         onSave = onSave,
         onDismiss = onDismiss,
