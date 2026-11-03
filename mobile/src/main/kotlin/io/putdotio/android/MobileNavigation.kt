@@ -50,6 +50,7 @@ import io.putdotio.android.files.FilesRepository
 import io.putdotio.android.files.FilesSubtitleLanguages
 import io.putdotio.android.files.MobileFileOpener
 import io.putdotio.android.files.ContinueWatching
+import io.putdotio.android.files.ContinueWatchingEntry
 import io.putdotio.android.files.MobileFilesActionsController
 import io.putdotio.android.files.MobileFilesItemActions
 import io.putdotio.android.files.FilesSelection
@@ -200,10 +201,14 @@ internal fun MobileNavHost(
                             if (controller.dispatch(start)) askForDownloadNotifications()
                         }
                     }
-                    val filesItemActions = filesActions?.itemActions(
-                        watchedToggle = accountSettingsState.confirmedResumePlayback() == true,
-                        vlcInstalled = rememberVlcInstalled(),
-                    ) ?: MobileFilesItemActions()
+                    val hideStarted: ((ContinueWatchingEntry) -> Unit)? =
+                        continueWatching?.let { row -> { entry -> row.removed(entry.fileId) } }
+                    val filesItemActions = (
+                        filesActions?.itemActions(
+                            watchedToggle = accountSettingsState.confirmedResumePlayback() == true,
+                            vlcInstalled = rememberVlcInstalled(),
+                        ) ?: MobileFilesItemActions()
+                        ).copy(onRemoveFromContinueWatching = hideStarted)
                     val fileOpener = remember(account.userId) { MobileFileOpener(account.userId) }
                     val filesContext = LocalContext.current
                     MobileFilesTab(

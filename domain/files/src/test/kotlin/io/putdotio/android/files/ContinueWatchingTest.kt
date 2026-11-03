@@ -104,6 +104,23 @@ class ContinueWatchingTest {
     }
 
     @Test
+    fun aRemovedVideoStaysOffThisDeviceUntilItPlaysHereAgain() = runBlocking {
+        row.opened(Tears, "Tears.of.Steel.mkv", 600.0)
+        row.positionSaved(Tears, 60.0)
+        row.removed(Tears)
+        row.positionSaved(Tears, 90.0)
+
+        val reopened = ContinueWatching(MemoryStore(store.saved))
+        reopened.reconcile { PutioResult.Success(video(Tears, "Tears.of.Steel.mkv", startFrom = 90.0)) }
+        reopened.positionSaved(Tears, 120.0)
+        assertTrue(reopened.entries.value.isEmpty())
+
+        reopened.opened(Tears, "Tears.of.Steel.mkv", 600.0)
+        reopened.positionSaved(Tears, 150.0)
+        assertEquals(listOf(Tears), reopened.entries.value.map { it.fileId })
+    }
+
+    @Test
     fun aSaveAnsweredAfterADeleteLeavesTheCardGone() {
         row.opened(Tears, "Tears.of.Steel.mkv", 600.0)
         row.positionSaved(Tears, 60.0)

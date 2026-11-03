@@ -110,7 +110,7 @@ internal data class MobileFilesItemActions(
     val onSelect: ((FilesItem) -> Unit)? = null,
     /** Marks one file from the sheet, or the selection's files, watched or unwatched. */
     val onSetWatched: ((List<FilesItem>, Boolean) -> Unit)? = null,
-    /** Drops a started video's saved position, which takes it off Continue watching. */
+    /** Takes a started video off this device's Continue watching; its position on put.io stays. */
     val onRemoveFromContinueWatching: ((ContinueWatchingEntry) -> Unit)? = null,
     /** Restores a confirmed Trash move from the snackbar's Undo. */
     val onUndoTrash: ((FilesDeleteOutcome) -> Unit)? = null,

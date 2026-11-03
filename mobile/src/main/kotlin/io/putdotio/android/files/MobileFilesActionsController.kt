@@ -95,7 +95,6 @@ internal class MobileFilesActionsController(
         MobileFilesItemActions(
             onOpenInVlc = if (vlcInstalled) { item -> openInVlc(item.id, item.name) } else null,
             onSetWatched = if (watchedToggle) { items, watched -> setWatched(items, watched) } else null,
-            onRemoveFromContinueWatching = ::removeFromContinueWatching,
             onUndoTrash = ::undoTrash,
             notices = notices,
             onLinkCopied = { mutableNotices.tryEmit(MobileFilesNotice(R.string.mobile_public_links_link_copied, "")) },
@@ -126,16 +125,6 @@ internal class MobileFilesActionsController(
             }
             val (item, failure) = refused.firstOrNull() ?: return@launch
             report(watchedRefusal(watched, item, failure, refused.size))
-        }
-    }
-
-    /** Clears the video's saved position, as Mark as unwatched does; put.io taking it drops the card. */
-    fun removeFromContinueWatching(entry: ContinueWatchingEntry) {
-        val item = entry.toFilesItem()
-        val write = writeWatched(item, watched = false) ?: return
-        scope.launch {
-            val failure = (write.await() as? PutioResult.Failure)?.failure ?: return@launch
-            report(MobileFilesNotice(R.string.mobile_files_continue_watching_remove_failed, item.name, failure))
         }
     }
 
