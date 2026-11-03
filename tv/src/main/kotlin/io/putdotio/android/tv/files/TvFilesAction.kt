@@ -90,12 +90,13 @@ internal data class TvFilesActionContext(
 internal fun FilesItem.tvActions(context: TvFilesActionContext): List<TvFilesAction> =
     buildList {
         if (isPlayable) addAll(playActions(context))
-        val watched = showsWatched
         if (!acceptsOwnerActions) return@buildList
-        val canToggleWatched = watched || playback?.durationSeconds != null
-        if (type == PutioFileType.VIDEO && context.watchedToggleEnabled && canToggleWatched) {
-            add(TvFilesAction.SetWatched(!watched))
+        val watchedToggle = when {
+            playback?.durationSeconds != null -> TvFilesAction.SetWatched(!showsWatched)
+            playback?.isWatched == true -> TvFilesAction.SetWatched(false)
+            else -> null
         }
+        if (type == PutioFileType.VIDEO && context.watchedToggleEnabled && watchedToggle != null) add(watchedToggle)
         val pinned = context.pinned
         if (pinned != null && id.value > 0L) add(TvFilesAction.SetPinned(!pinned))
         val trash = context.trashEnabled
