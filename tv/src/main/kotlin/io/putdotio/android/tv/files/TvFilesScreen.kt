@@ -71,7 +71,6 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import io.putdotio.android.design.PutioTypeScale
-import io.putdotio.android.files.FilesOpenOrigin
 import io.putdotio.android.files.FilesSort
 import io.putdotio.android.tv.TV_MONO_RUN
 import io.putdotio.android.files.formatFileSize
@@ -401,11 +400,9 @@ internal fun TvFolderHeading(name: String, crumb: String) {
 
 @Composable
 private fun FilesBrowserState.crumbLabel(): String =
-    when (val origin = current.openedFrom) {
-        FilesOpenOrigin.HOME -> null
-        else -> origin.returnDestination()?.let { stringResource(it.label) }
-            ?: stack.dropLast(1).lastOrNull()?.folder?.name
-    } ?: stringResource(R.string.tv_files_title)
+    current.openedFrom.returnDestination()?.let { stringResource(it.label) }
+        ?: stack.dropLast(1).lastOrNull()?.folder?.name
+        ?: stringResource(R.string.tv_files_title)
 
 private fun FilesContent.detailItem(focusedId: Long?, rememberedId: Long?): FilesItem? =
     (this as? FilesContent.Ready)?.items?.let { items ->
