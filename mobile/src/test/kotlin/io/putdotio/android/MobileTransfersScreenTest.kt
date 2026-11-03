@@ -185,8 +185,15 @@ class MobileTransfersScreenTest {
         compose.onNodeWithText("Clear failed transfers?").assertIsDisplayed()
         compose.onNodeWithText("Delete the failed transfer listed here?", substring = true).assertIsDisplayed()
         compose.runOnIdle { assertTrue(events.isEmpty()) }
-        compose.onNodeWithText("Clear").performClick()
-        assertEquals(listOf<TransfersEvent>(TransfersEvent.ClearFailed), events)
+        compose.onNodeWithText("Delete").performClick()
+        assertEquals(listOf<TransfersEvent>(TransfersEvent.ClearFailed(setOf(TransferId(2L)))), events)
+
+        compose.onNodeWithContentDescription("More options").performClick()
+        compose.onNodeWithText("Clear failed").performClick()
+        compose.runOnIdle {
+            current = transfersTestState(TransfersContent.Ready(listOf(completed), TransfersPaging.Complete))
+        }
+        compose.onAllNodesWithText("Clear failed transfers?").assertCountEquals(0)
     }
 
     @Test

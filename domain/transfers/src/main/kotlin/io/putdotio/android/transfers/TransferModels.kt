@@ -40,9 +40,9 @@ public val AppTransferStatus.canCancel: Boolean
     get() =
         when (this) {
             AppTransferStatus.Completed,
+            AppTransferStatus.Failed,
             is AppTransferStatus.Unknown,
             -> false
-            AppTransferStatus.Failed,
             AppTransferStatus.Waiting,
             AppTransferStatus.PreparingDownload,
             AppTransferStatus.Queued,

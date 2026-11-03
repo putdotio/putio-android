@@ -15,17 +15,13 @@ internal fun TransfersState.add(event: TransfersEvent): TransfersTransition {
     }
 }
 
-internal fun TransfersState.cancel(id: TransferId?): TransfersTransition {
-    val items = content.items()
-    val action = if (id != null) {
-        items.firstOrNull { it.id == id && it.status.canCancel }?.let { TransferAction.Cancel(it.id) }
+internal fun TransfersState.cancel(id: TransferId): TransfersTransition {
+    val item = content.items().firstOrNull { it.id == id }
+    return if (item == null || !item.status.canCancel) {
+        TransfersTransition(this, consumed = false)
     } else {
-        items.filter { it.status == AppTransferStatus.Failed }
-            .mapTo(linkedSetOf(), TransferItem::id)
-            .takeIf { it.isNotEmpty() }
-            ?.let(TransferAction::ClearFailed)
+        mutate(TransferAction.Cancel(id))
     }
-    return action?.let(::mutate) ?: TransfersTransition(this, consumed = false)
 }
 
 internal fun TransfersState.retryTransfer(id: TransferId): TransfersTransition {
@@ -37,10 +33,6 @@ internal fun TransfersState.retryTransfer(id: TransferId): TransfersTransition {
     }
 }
 
-/**
- * Clears every completed transfer, or with [id] only that one, which must be completed or failed; a
- * failed one is cancelled, which deletes it.
- */
 internal fun TransfersState.clean(id: TransferId? = null): TransfersTransition {
     val item = id?.let { content.items().firstOrNull { it.id == id } }
     val allowed = content is TransfersContent.Ready && (id == null || item?.canRemove == true)

@@ -409,16 +409,19 @@ class TransfersControllerTest {
     }
 
     @Test
-    fun clearFailedCancelsEveryListedFailedTransferInOneCall(): Unit = runBlocking {
+    fun clearFailedCancelsTheFailedTransfersItWasGivenInOneCall(): Unit = runBlocking {
         val failed = item(1L, AppTransferStatus.Failed)
         val completed = item(2L, AppTransferStatus.Completed)
         val running = item(3L)
         val alsoFailed = item(4L, AppTransferStatus.Failed)
         val (cancelled, left) =
-            cancelThrough(listOf(failed, completed, running, alsoFailed), TransfersEvent.ClearFailed)
+            cancelThrough(
+                listOf(failed, completed, running, alsoFailed),
+                TransfersEvent.ClearFailed(setOf(failed.id, completed.id, running.id)),
+            )
 
-        assertEquals(listOf(failed.id, alsoFailed.id), cancelled)
-        assertEquals(listOf(completed.id, running.id), left)
+        assertEquals(listOf(failed.id), cancelled)
+        assertEquals(listOf(completed.id, running.id, alsoFailed.id), left)
     }
 
     private suspend fun CoroutineScope.cancelThrough(

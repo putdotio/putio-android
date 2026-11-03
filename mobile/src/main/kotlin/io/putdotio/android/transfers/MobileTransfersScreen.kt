@@ -299,8 +299,11 @@ internal fun MobileTransfersOverflow(
     val enabled = state.enabledInteractions()
     var expanded by remember(sessionId) { mutableStateOf(false) }
     var confirming by remember(sessionId) { mutableStateOf<TransfersEvent?>(null) }
-    val failedCount = (state.content as? TransfersContent.Ready)?.items.orEmpty()
-        .count { it.status == AppTransferStatus.Failed }
+    val failedIds = (state.content as? TransfersContent.Ready)?.items.orEmpty()
+        .filter { it.status == AppTransferStatus.Failed }
+        .mapTo(linkedSetOf()) { it.id }
+    val clearedElsewhere = (confirming as? TransfersEvent.ClearFailed)?.ids?.none { it in failedIds } == true
+    LaunchedEffect(clearedElsewhere) { if (clearedElsewhere) confirming = null }
     Box {
         IconButton(onClick = { expanded = true }, modifier = Modifier.testTag(MOBILE_TRANSFERS_OVERFLOW_TAG)) {
             Icon(
@@ -327,28 +330,29 @@ internal fun MobileTransfersOverflow(
                     },
                 )
             }
-            if (failedCount > 0) {
+            if (failedIds.isNotEmpty()) {
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.mobile_transfers_clear_failed)) },
                     enabled = enabled.controls,
                     onClick = {
                         expanded = false
-                        confirming = TransfersEvent.ClearFailed
+                        confirming = TransfersEvent.ClearFailed(failedIds)
                     },
                 )
             }
         }
     }
     confirming?.let { event ->
-        val failed = event == TransfersEvent.ClearFailed
+        val count = (event as? TransfersEvent.ClearFailed)?.ids?.size
+        val failed = count != null
         MobileTransferConfirmation(
             title = if (failed) R.string.mobile_transfers_clear_failed_title else R.string.mobile_transfers_clean_title,
-            message = if (failed) {
-                pluralStringResource(R.plurals.mobile_transfers_clear_failed_message, failedCount, failedCount)
+            message = if (count != null) {
+                pluralStringResource(R.plurals.mobile_transfers_clear_failed_message, count, count)
             } else {
                 stringResource(R.string.mobile_transfers_clean_message)
             },
-            confirm = R.string.mobile_transfers_clean_confirm,
+            confirm = if (failed) R.string.mobile_transfers_delete_confirm else R.string.mobile_transfers_clean_confirm,
             onDismiss = { confirming = null },
             onConfirm = {
                 confirming = null
