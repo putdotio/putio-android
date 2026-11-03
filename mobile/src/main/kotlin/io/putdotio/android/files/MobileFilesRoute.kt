@@ -12,6 +12,7 @@ import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
@@ -59,6 +60,8 @@ internal fun MobileFilesRoute(
     folderCreator: FilesFolderCreator? = null,
     /** The current folder's selection, shared with the shell's top bar; null leaves Select out. */
     selection: FilesSelection? = null,
+    linkedFile: FilesItemId? = null,
+    onLinkedFileLanded: () -> Unit = {},
 ) {
     val context = LocalContext.current
     // Opening a folder pushes along the shared axis and Back pops; the leaving folder keeps its own state.
@@ -73,6 +76,15 @@ internal fun MobileFilesRoute(
     var viewerId by rememberSaveable { mutableStateOf<Long?>(null) }
     // Select from a viewer's actions closes the viewer, so the selection shows.
     LaunchedEffect(selecting) { if (selecting) viewerId = null }
+    LandOnLinkedFile(
+        state = state,
+        linkedFile = linkedFile,
+        showsDetail = showsDetail,
+        views = fileOpener != null,
+        onDetail = { detailId = it.id.value },
+        onView = { viewerId = it.id.value },
+        onLanded = onLinkedFileLanded,
+    )
     val actionsRequests = remember { MutableSharedFlow<MobileFilesActionsRequest>(extraBufferCapacity = 1) }
     val openWithAnotherApp: (FilesItem) -> Unit = { item -> fileOpener?.openWithAnotherApp(context, item) }
     val viewFile: (FilesItem) -> Unit = { viewerId = it.id.value }
@@ -168,6 +180,30 @@ internal fun MobileFilesRoute(
             onClose = { viewerId = null },
         )
     }
+}
+
+@Composable
+private fun LandOnLinkedFile(
+    state: FilesBrowserState,
+    linkedFile: FilesItemId?,
+    showsDetail: Boolean,
+    views: Boolean,
+    onDetail: (FilesItem) -> Unit,
+    onView: (FilesItem) -> Unit,
+    onLanded: () -> Unit,
+) {
+    val folder = state.current
+    val pending = linkedFile?.takeIf { folder.openedFrom == FilesOpenOrigin.LINK && folder.revealItemId == it }
+    val linkedItem = folder.content.items().firstOrNull { it.id == pending && !it.isFolder }
+    val land = { item: FilesItem ->
+        when {
+            showsDetail -> onDetail(item)
+            views && item.viewerKind != null -> onView(item)
+        }
+        onLanded()
+    }
+    val currentLand by rememberUpdatedState(land)
+    LaunchedEffect(linkedItem?.id) { linkedItem?.let(currentLand) }
 }
 
 /** Media plays, images, PDFs and text open in the viewer, and anything else in another app. */

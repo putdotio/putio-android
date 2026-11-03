@@ -167,6 +167,8 @@ internal fun MobileNavHost(
     onNewFolder: (() -> Unit)? = null,
     /** From 840dp, the Files bar over the list pane; Files then shows the selected file beside the list. */
     filesListPaneTopBar: (@Composable () -> Unit)? = null,
+    linkedFile: FilesItemId? = null,
+    onLinkedFileLanded: () -> Unit = {},
     subtitleLanguages: FilesSubtitleLanguages? = null,
     filesActions: MobileFilesActionsController? = null,
     folderCreator: FilesFolderCreator? = null,
@@ -262,6 +264,8 @@ internal fun MobileNavHost(
                             continueWatching = startedVideos.orEmpty(),
                             onNewFolder = onNewFolder,
                             listPaneTopBar = filesListPaneTopBar,
+                            linkedFile = linkedFile,
+                            onLinkedFileLanded = onLinkedFileLanded,
                             fileOpener = fileOpener,
                             subtitleLanguages = subtitleLanguages,
                             resumePlayback = accountSettingsState.confirmedResumePlayback() != false,

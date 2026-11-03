@@ -93,20 +93,22 @@ internal fun FilesSortField.orderLabel(ascending: Boolean): Int =
 
 /**
  * The sort button and its menu in three labelled groups, with a check on the current choice: Sort
- * by, Order and Videos. The button's state names the current sort.
+ * by, Order and Videos. The current choice is the folder's own sort, else the account's default,
+ * which the button's state then names; with neither known, it names none.
  */
 @Composable
 internal fun MobileFilesSortMenu(
     folder: FilesFolderState,
     onSelect: (FilesSort) -> Unit,
+    accountSort: FilesSort? = null,
     colors: IconButtonColors = IconButtonDefaults.iconButtonColors(),
     /** The overflow button sits right of sort; the menu's end then lines up with it. */
-    besideOverflow: Boolean = false,
+    besideNewFolder: Boolean = false,
 ) {
     var expanded by remember(folder.folder.id.value) { mutableStateOf(false) }
-    val current = folder.folder.sort
+    val current = folder.folder.sort ?: accountSort
     val sortLabel = stringResource(R.string.mobile_files_sort)
-    val currentLabel = stringResource(current?.labelResource() ?: R.string.mobile_files_sort_account_default)
+    val currentLabel = current?.labelResource()?.let { stringResource(it) }
     // A loading or failed folder keeps the button in place but has no listing to order yet.
     val enabled = folder.operation.canStartOperation && folder.content is FilesContent.Ready
 
@@ -126,14 +128,14 @@ internal fun MobileFilesSortMenu(
             colors = colors,
             modifier = Modifier
                 .testTag(MOBILE_FILES_SORT_TAG)
-                .semantics { stateDescription = currentLabel },
+                .sortState(currentLabel),
         ) {
             Icon(painter = painterResource(R.drawable.ic_ph_sort_ascending), contentDescription = sortLabel)
         }
         DropdownMenu(
             expanded = expanded && enabled,
             onDismissRequest = { expanded = false },
-            offset = DpOffset(x = if (besideOverflow) SORT_MENU_END_SHIFT else 0.dp, y = 0.dp),
+            offset = DpOffset(x = if (besideNewFolder) SORT_MENU_END_SHIFT else 0.dp, y = 0.dp),
             shape = RoundedCornerShape(PutioRadius.large),
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
             modifier = Modifier.width(SORT_MENU_WIDTH),
@@ -172,6 +174,9 @@ internal fun MobileFilesSortMenu(
         }
     }
 }
+
+private fun Modifier.sortState(label: String?): Modifier =
+    if (label == null) this else semantics { stateDescription = label }
 
 @Composable
 private fun SortGroup(content: @Composable () -> Unit) {

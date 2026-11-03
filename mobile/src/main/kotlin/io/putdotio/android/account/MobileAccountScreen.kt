@@ -1,6 +1,5 @@
 package io.putdotio.android.account
 
-import android.text.format.Formatter
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -37,7 +36,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -58,6 +56,7 @@ import io.putdotio.android.AccountStorage
 import io.putdotio.android.BuildConfig
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
+import io.putdotio.android.mobileFileSize
 import io.putdotio.android.account.R as AccountR
 import io.putdotio.android.apiReason
 import io.putdotio.android.auth.MobileAccount
@@ -204,13 +203,12 @@ private fun LazyListScope.libraryGroup(
         }
     }
     val trash = SettingsRow { segment ->
-        val context = LocalContext.current
         rows.Link(
             segment = segment,
             title = R.string.mobile_settings_trash_row,
             icon = R.drawable.ic_ph_trash,
             value = library.trashSizeBytes?.let {
-                settingsValue(Formatter.formatShortFileSize(context, it.coerceAtLeast(0L)), mono = true)
+                settingsValue(mobileFileSize(it.coerceAtLeast(0L)), mono = true)
             },
             onClick = onManageTrash,
             tag = MOBILE_MANAGE_TRASH_TAG,
@@ -725,9 +723,8 @@ internal val AccountStorage.isFull: Boolean
 
 @Composable
 private fun MobileAccountStorage(storage: AccountStorage) {
-    val context = LocalContext.current
     val mono = MaterialTheme.typography.bodySmall.putioMono().toSpanStyle()
-    fun size(bytes: Long) = Formatter.formatShortFileSize(context, bytes.coerceAtLeast(0L))
+    fun size(bytes: Long) = mobileFileSize(bytes.coerceAtLeast(0L))
     val full = storage.isFull
     val (template, shown) = when {
         full -> R.string.mobile_account_storage_full_value to storage.usedBytes

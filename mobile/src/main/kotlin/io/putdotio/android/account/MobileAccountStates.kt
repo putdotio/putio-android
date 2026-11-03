@@ -28,10 +28,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
+import io.putdotio.android.appendMonoFigures
 import io.putdotio.android.apiReason
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioTypeScale
@@ -58,7 +58,7 @@ internal fun monoArguments(template: String, mono: SpanStyle, vararg values: Str
         for (match in slot.findAll(template)) {
             append(template.substring(cursor, match.range.first))
             val value = values.getOrNull(match.groupValues[1].toInt() - 1).orEmpty()
-            withStyle(mono) { append(value) }
+            appendMonoFigures(value, mono)
             cursor = match.range.last + 1
         }
         append(template.substring(cursor))

@@ -76,6 +76,7 @@ import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesOpenOrigin
 import io.putdotio.android.files.FilesRepository
+import io.putdotio.android.files.FilesSort
 import io.putdotio.android.files.FilesSubtitleLanguages
 import io.putdotio.android.files.isFilesListDetail
 import io.putdotio.android.files.showsFilesListDetail
@@ -223,6 +224,7 @@ internal fun MobileShell(
     val isTrash = backStackEntry?.destination?.route == MOBILE_TRASH_ROUTE
     // Search opens over Files and stays open across tab switches, like a folder does.
     var searchOpen by rememberSaveable(sessionId) { mutableStateOf(false) }
+    var linkedFile by rememberSaveable(sessionId) { mutableStateOf<Long?>(null) }
     ScreenViewedEffect(analyticsScreen(selectedDestination, isPlayback, isTrash, searchOpen), sessionId)
     // Which way Search last moved: forward when opened or left for a result, back on a Back.
     var searchForward by remember { mutableStateOf(true) }
@@ -255,6 +257,15 @@ internal fun MobileShell(
         searchForward = forward
         searchOpen = false
     }
+    // A tap on the Files tab while it shows, or a link to Files, lands on the root: Search closes
+    // and the folders above it pop.
+    val showFilesRoot = {
+        leaveSearch(false)
+        popFilesToRoot(filesState, onFilesEvent)
+    }
+    val selectDestination = { destination: MobileDestination ->
+        navController.select(destination, selectedDestination, showFilesRoot)
+    }
     val publicLinks = publicLinksController?.let { controller ->
         val state = controller.state.collectAsStateWithLifecycle().value
         remember(controller, state) { MobilePublicLinks(state, controller::dispatch) }
@@ -279,11 +290,15 @@ internal fun MobileShell(
         navigationBlocked = shareNavigationBlocked,
         navController = navController,
         targets = DeepLinkTargets(
-            openFile = onOpenFile,
+            openFile = { id ->
+                linkedFile = id.value
+                onOpenFile(id)
+            },
             openDownload = { fileId, play -> navController.openDownload(downloadsController, fileId, play) },
             addTransfer = transferDraft::open,
             openSearch = openSearch,
             closeSearch = { leaveSearch(true) },
+            showFilesRoot = showFilesRoot,
         ),
     )
     IncomingTransferNavigationEffect(
@@ -375,7 +390,7 @@ internal fun MobileShell(
                 MobileNavigationContainer(
                     layout = navigationLayout,
                     selectedDestination = selectedDestination,
-                    onDestination = { navController.navigateTo(it) },
+                    onDestination = selectDestination,
                     enabled = !isPlayback,
                 ) { openNavigation ->
                     val topBar: @Composable () -> Unit = {
@@ -431,6 +446,7 @@ internal fun MobileShell(
                                 MobileDownloadsBar(downloadsState, downloadsSelection, it::dispatch)
                             },
                             filesSelection = filesSelection.takeIf { filesSelecting },
+                            accountSort = accountSettingsState.defaultSort(),
                         )
                     }
                     val paneTopBar: @Composable () -> Unit = {
@@ -441,6 +457,7 @@ internal fun MobileShell(
                         layout = navigationLayout,
                         navController = navController,
                         selectedDestination = selectedDestination,
+                        onDestination = selectDestination,
                         playbackPlayerFactory = playbackPlayerFactory,
                         inactiveNotice = account.inactiveNotice,
                         topBarInContent = topBarInFilesPane,
@@ -485,6 +502,8 @@ internal fun MobileShell(
                             continueWatching = continueWatching,
                             onNewFolder = requestNewFolder,
                             filesListPaneTopBar = paneTopBar.takeIf { filesListDetail },
+                            linkedFile = linkedFile?.let(::FilesItemId),
+                            onLinkedFileLanded = { linkedFile = null },
                             subtitleLanguages = subtitleLanguages,
                             filesActions = filesActions,
                             folderCreator = folderCreator,
@@ -578,6 +597,7 @@ private class DeepLinkTargets(
     val addTransfer: () -> Unit,
     val openSearch: () -> Unit,
     val closeSearch: () -> Unit,
+    val showFilesRoot: () -> Unit,
 )
 
 @Composable
@@ -605,7 +625,7 @@ private suspend fun NavHostController.openDeepLink(link: MobileDeepLink, targets
     when (link) {
         MobileDeepLink.Files -> {
             showTab(MobileDestination.Files)
-            targets.closeSearch()
+            targets.showFilesRoot()
         }
         is MobileDeepLink.File -> {
             showTab(MobileDestination.Files)
@@ -924,6 +944,7 @@ private fun MobileChrome(
     layout: MobileNavigationLayout,
     navController: NavHostController,
     selectedDestination: MobileDestination,
+    onDestination: (MobileDestination) -> Unit,
     playbackPlayerFactory: MobilePlayerFactory,
     inactiveNotice: InactiveAccountNotice?,
     topBar: @Composable () -> Unit,
@@ -955,7 +976,7 @@ private fun MobileChrome(
                         val selected = destination == selectedDestination
                         NavigationSuiteItem(
                             selected = selected,
-                            onClick = { navController.navigateTo(destination) },
+                            onClick = { onDestination(destination) },
                             icon = { MobileDestinationIcon(destination, selected) },
                             label = { Text(stringResource(destination.labelRes)) },
                             navigationSuiteType = suiteType,
@@ -1058,6 +1079,7 @@ private fun MobileTopBar(
     subpageActions: (@Composable RowScope.() -> Unit)? = null,
     /** Set while Files is selecting; its bar then replaces the folder's or the root's. */
     filesSelection: FilesSelection? = null,
+    accountSort: FilesSort? = null,
 ) {
     val subpageTitle = accountSubpageTitle(route)
     when {
@@ -1091,7 +1113,15 @@ private fun MobileTopBar(
             onClear = filesSelection::end,
             modifier = Modifier.testTag(MOBILE_FILES_SELECTION_BAR_TAG),
         )
-        else -> MobileFilesTopBar(filesState, onFilesBack, onFilesEvent, onOpenSearch, onNewFolder, openNavigation)
+        else -> MobileFilesTopBar(
+            filesState,
+            onFilesBack,
+            onFilesEvent,
+            onOpenSearch,
+            onNewFolder,
+            openNavigation,
+            accountSort,
+        )
     }
 }
 
@@ -1125,6 +1155,7 @@ private fun MobileFilesTopBar(
     onOpenSearch: (SearchScope?) -> Unit,
     onNewFolder: (() -> Unit)?,
     openNavigation: (() -> Unit)?,
+    accountSort: FilesSort?,
 ) {
     val folder = filesState.current.folder
     val atRoot = !filesState.canNavigateBack && folder.id == FilesFolder.Root.id
@@ -1137,6 +1168,7 @@ private fun MobileFilesTopBar(
         },
         onNewFolder = onNewFolder,
         navigation = openNavigation?.let { { MobileNavigationMenuButton(it) } },
+        accountSort = accountSort,
     )
     if (atRoot) {
         MobileFilesSearchBar(actions)

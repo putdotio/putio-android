@@ -56,12 +56,16 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.MobileDialogDismissButton
+import io.putdotio.android.mobileFileSize
+import io.putdotio.android.monoFigures
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.design.FileTypeIcon
@@ -425,11 +429,11 @@ private fun MobileFilesSheetMeta(item: FilesItem, sharedBy: String?) {
     val context = LocalContext.current
     val style = MaterialTheme.typography.bodySmall
     val color = MaterialTheme.colorScheme.onSurfaceVariant
-    val size = if (item.isFolder) null else formatFileSize(item.sizeBytes)
+    val size = if (item.isFolder) null else mobileFileSize(item.sizeBytes)
     val second = sharedBy?.let { stringResource(R.string.mobile_files_shared_by, it) }
         ?: item.createdAt.toDisplayDate(context)
     Row(horizontalArrangement = Arrangement.spacedBy(META_GAP), verticalAlignment = Alignment.CenterVertically) {
-        size?.let { Text(it, style = style.putioMono(), color = color, maxLines = 1) }
+        size?.let { Text(monoFigures(it, style.putioMono().toSpanStyle()), style = style, color = color, maxLines = 1) }
         if (size != null && second != null) {
             Text("·", style = style, color = color, modifier = Modifier.clearAndSetSemantics {})
         }
@@ -463,7 +467,8 @@ private fun MobileFilesActionTiles(
             val resumeAt = item.resumeAt(resumes)
             MobileFilesActionTile(
                 icon = DesignR.drawable.ic_ph_play_fill,
-                label = resumeAt?.let { seconds -> resumeLabel(seconds) } ?: stringResource(R.string.mobile_files_play),
+                label = resumeAt?.let { seconds -> resumeLabel(seconds, MaterialTheme.typography.titleSmall) }
+                    ?: AnnotatedString(stringResource(R.string.mobile_files_play)),
                 tag = MOBILE_FILES_PLAY_ACTION_TAG,
             ) {
                 onDismiss()
@@ -473,7 +478,7 @@ private fun MobileFilesActionTiles(
         open?.let {
             MobileFilesActionTile(
                 icon = R.drawable.ic_ph_eye,
-                label = stringResource(R.string.mobile_files_detail_open),
+                label = AnnotatedString(stringResource(R.string.mobile_files_detail_open)),
                 tag = MOBILE_FILES_OPEN_ACTION_TAG,
             ) {
                 onDismiss()
@@ -484,7 +489,7 @@ private fun MobileFilesActionTiles(
         share?.let {
             MobileFilesActionTile(
                 icon = R.drawable.ic_ph_share_network,
-                label = stringResource(R.string.mobile_files_share_action),
+                label = AnnotatedString(stringResource(R.string.mobile_files_share_action)),
                 tag = MOBILE_FILES_SHARE_ACTION_TAG,
             ) {
                 it(item)
@@ -512,7 +517,7 @@ private fun RowScope.MobileFilesDownloadTile(
     }
     MobileFilesActionTile(
         icon = icon,
-        label = stringResource(label),
+        label = AnnotatedString(stringResource(label)),
         tag = MOBILE_FILES_DOWNLOAD_ACTION_TAG,
         enabled = downloadable,
         iconTint = if (downloadStatus is DownloadStatus.Completed) PutioDesignTokens.yellowSolid else Color.Unspecified,
@@ -525,7 +530,7 @@ private fun RowScope.MobileFilesDownloadTile(
 @Composable
 private fun RowScope.MobileFilesActionTile(
     @DrawableRes icon: Int,
-    label: String,
+    label: AnnotatedString,
     tag: String,
     enabled: Boolean = true,
     iconTint: Color = Color.Unspecified,
@@ -796,8 +801,10 @@ internal fun FilesItem.resumeAt(resumes: Boolean): Double? =
     playback?.takeIf { resumes && it.resumesPlayback() }?.startFromSeconds
 
 @Composable
-internal fun resumeLabel(seconds: Double): String =
-    stringResource(R.string.mobile_files_detail_resume, DateUtils.formatElapsedTime(seconds.toLong()))
+internal fun resumeLabel(seconds: Double, style: TextStyle): AnnotatedString = monoFigures(
+    stringResource(R.string.mobile_files_detail_resume, DateUtils.formatElapsedTime(seconds.toLong())),
+    style.putioMono().toSpanStyle(),
+)
 
 /**
  * Whether opening the file offers to resume: a saved position more than [FINISHED_WITHIN_SECONDS]

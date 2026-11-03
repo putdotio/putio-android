@@ -2,7 +2,6 @@ package io.putdotio.android
 
 import android.content.Context
 import android.os.StatFs
-import android.text.format.Formatter
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,7 +31,6 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.design.putioMono
 import io.putdotio.android.downloads.DownloadsState
@@ -145,7 +143,7 @@ internal fun summaryOf(parts: List<SummaryPart>, mono: SpanStyle): AnnotatedStri
                     append(part.template)
                 } else {
                     append(part.template.substring(0, slot))
-                    withStyle(mono) { append(part.value) }
+                    appendMonoFigures(part.value, mono)
                     append(part.template.substring(slot + VALUE_SLOT.length))
                 }
             }
@@ -172,7 +170,7 @@ internal fun transfersSummaryParts(context: Context, state: TransfersState): Lis
         if (speed > 0.0) {
             add(SummaryPart(VALUE_SLOT, context.getString(
                 R.string.mobile_transfer_speed,
-                Formatter.formatShortFileSize(context, speed.toLong()),
+                mobileFileSize(speed.toLong()),
             )))
         }
     }
@@ -203,12 +201,12 @@ internal fun downloadsSummaryParts(context: Context, storageBytes: Long, freeByt
     buildList {
         add(SummaryPart(
             context.getString(R.string.mobile_downloads_storage, VALUE_SLOT),
-            Formatter.formatShortFileSize(context, storageBytes),
+            mobileFileSize(storageBytes),
         ))
         freeBytes?.let {
             add(SummaryPart(
                 context.getString(R.string.mobile_downloads_free, VALUE_SLOT),
-                Formatter.formatShortFileSize(context, it),
+                mobileFileSize(it),
             ))
         }
     }

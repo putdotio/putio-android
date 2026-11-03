@@ -183,7 +183,7 @@ class MobileTabSummaryTest {
         val state = transfersState(
             TransfersContent.Ready(
                 listOf(
-                    transfer(1, AppTransferStatus.Downloading, speed = 1_000_000.0),
+                    transfer(1, AppTransferStatus.Downloading, speed = 1_400_000.0),
                     transfer(2, AppTransferStatus.Queued, speed = null),
                     transfer(3, AppTransferStatus.Seeding, speed = 9_000_000.0),
                     transfer(4, AppTransferStatus.Failed, speed = null),
@@ -194,9 +194,10 @@ class MobileTabSummaryTest {
         )
         val summary = summaryOf(transfersSummaryParts(context, state), mono)!!
         // Queued transfers wait; only the downloading one counts as active.
-        assertEquals("1 active · 1 failed · 1.0 MB/s", summary.text)
+        assertEquals("1 active · 1 failed · 1.4 MB/s", summary.text)
+        // Only the figures are mono: a mono point and space would open gaps in the sans line.
         val monoRuns = summary.spanStyles.filter { it.item == mono }.map { summary.text.substring(it.start, it.end) }
-        assertEquals(listOf("1", "1", "1.0 MB/s"), monoRuns)
+        assertEquals(listOf("1", "1", "1", "4"), monoRuns)
     }
 
     @Test

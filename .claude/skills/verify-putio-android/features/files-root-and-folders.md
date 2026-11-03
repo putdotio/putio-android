@@ -31,10 +31,9 @@ Preconditions:
   `$S/ui.sh wait $SERIAL --text "Search your files"`. The root returns.
 - **Empty folder.** Open `Inner folder`. The state reads `Empty folder.` with
   New folder.
-- **New folder.** Run `$S/fixture.sh intend $RUN "new folder"`. In the fixture folder, tap `More options`, then
+- **New folder.** Run `$S/fixture.sh intend $RUN "new folder"`. In the fixture folder, tap the bar's
   `New folder`; type a name; tap `Create`. Run
-  `$S/ui.sh tap $SERIAL --desc "More options"`,
-  `$S/ui.sh tap $SERIAL --text "New folder"`,
+  `$S/ui.sh tap $SERIAL --desc "New folder"`,
   `$S/ui.sh type $SERIAL "Made in app"` and
   `$S/ui.sh tap $SERIAL --text "Create"`. The listing reloads with
   `Made in app`. Read its id with `putio files list`, adopt it and settle.

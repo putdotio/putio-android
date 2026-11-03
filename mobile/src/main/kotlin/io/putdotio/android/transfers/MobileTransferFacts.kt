@@ -1,9 +1,9 @@
 package io.putdotio.android.transfers
 
 import android.content.Context
-import android.text.format.Formatter
 import androidx.annotation.StringRes
 import io.putdotio.android.R
+import io.putdotio.android.mobileFileSize
 import io.putdotio.android.files.toAgo
 import java.text.NumberFormat
 import kotlin.math.roundToLong
@@ -53,7 +53,7 @@ internal data class MobileTransferPart(val text: String, val mono: Boolean = fal
 
 /** A size, or "847 MB of 3.42 GB" while a transfer is still getting its bytes. */
 internal fun TransferItem.sizeParts(context: Context): List<MobileTransferPart> {
-    val total = sizeBytes?.takeIf { it > 0.0 }?.let { size(context, it) }
+    val total = sizeBytes?.takeIf { it > 0.0 }?.let { size(it) }
     val done = downloadedBytes?.takeIf { section == MobileTransferSection.Active && it >= 0.0 }
     return when {
         total == null -> emptyList()
@@ -62,7 +62,7 @@ internal fun TransferItem.sizeParts(context: Context): List<MobileTransferPart> 
             val template = context.getString(R.string.mobile_transfer_of, SLOT_ONE, SLOT_TWO)
             listOf(
                 MobileTransferPart(template.substringBefore(SLOT_ONE)),
-                MobileTransferPart(size(context, done), mono = true),
+                MobileTransferPart(size(done), mono = true),
                 MobileTransferPart(template.substringAfter(SLOT_ONE).substringBefore(SLOT_TWO)),
                 MobileTransferPart(total, mono = true),
                 MobileTransferPart(template.substringAfter(SLOT_TWO)),
@@ -73,7 +73,7 @@ internal fun TransferItem.sizeParts(context: Context): List<MobileTransferPart> 
 
 internal fun TransferItem.speedText(context: Context): String? =
     (downloadSpeedBytesPerSecond?.takeIf { it > 0.0 } ?: uploadSpeedBytesPerSecond?.takeIf { it > 0.0 })
-        ?.let { context.getString(R.string.mobile_transfer_speed, size(context, it)) }
+        ?.let { context.getString(R.string.mobile_transfer_speed, size(it)) }
 
 internal fun TransferItem.timeLeftText(context: Context): String? =
     estimatedSecondsRemaining?.takeIf { it > 0.0 && it.isFinite() }?.let { timeLeft(context, it.roundToLong()) }
@@ -119,7 +119,7 @@ internal fun middleCut(name: String, budget: Int = TRANSFER_NAME_BUDGET): String
 internal const val TRANSFER_NAME_BUDGET = 28
 private const val TRANSFER_NAME_TAIL = 11
 
-private fun size(context: Context, bytes: Double): String = Formatter.formatShortFileSize(context, bytes.toLong())
+private fun size(bytes: Double): String = mobileFileSize(bytes.toLong())
 
 private const val PERCENT = 100.0
 private const val RATIO_DIGITS = 2

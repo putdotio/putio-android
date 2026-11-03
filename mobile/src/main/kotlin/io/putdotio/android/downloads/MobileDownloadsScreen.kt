@@ -2,7 +2,6 @@ package io.putdotio.android.downloads
 
 import android.content.Context
 import android.text.format.DateUtils
-import android.text.format.Formatter
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
@@ -68,6 +67,9 @@ import io.putdotio.android.MobileSelectionToolbarClearance
 import io.putdotio.android.MobileSelectionToolbarOffset
 import io.putdotio.android.MobileSheetHandle
 import io.putdotio.android.R
+import io.putdotio.android.appendMonoFigures
+import io.putdotio.android.mobileFileSize
+import io.putdotio.android.monoFigures
 import io.putdotio.android.design.FileTypeIcon
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioDestructiveButton
@@ -206,10 +208,8 @@ private fun LazyListScope.section(section: DownloadSection, rows: DownloadRows, 
             first = first,
             trailing = storage?.let { bytes ->
                 {
-                    Text(
-                        Formatter.formatShortFileSize(LocalContext.current, bytes),
-                        style = MaterialTheme.typography.bodySmall.putioMono(),
-                    )
+                    val style = MaterialTheme.typography.bodySmall
+                    Text(monoFigures(mobileFileSize(bytes), style.putioMono().toSpanStyle()), style = style)
                 }
             },
         )
@@ -370,12 +370,7 @@ private fun downloadMeta(entry: DownloadEntry, state: DownloadsState, removing: 
                 parts.progress(this, status.bytesDownloaded, status.contentLength, status.percent)
                 state.speeds[entry.fileId]?.takeIf { it > 0L }?.let { speed ->
                     append(SEPARATOR)
-                    withStyle(mono) {
-                        append(resources.getString(
-                            R.string.mobile_transfer_speed,
-                            Formatter.formatShortFileSize(context, speed),
-                        ))
-                    }
+                    appendMonoFigures(resources.getString(R.string.mobile_transfer_speed, mobileFileSize(speed)), mono)
                 }
             }
             is DownloadStatus.Paused -> {
@@ -398,7 +393,7 @@ private fun downloadMeta(entry: DownloadEntry, state: DownloadsState, removing: 
             }
             DownloadStatus.Missing -> append(resources.getString(R.string.mobile_files_download_missing))
             is DownloadStatus.Completed -> {
-                withStyle(mono) { append(Formatter.formatShortFileSize(context, status.bytes)) }
+                appendMonoFigures(mobileFileSize(status.bytes), mono)
                 append(SEPARATOR)
                 append(DateUtils.formatDateTime(
                     context,
@@ -431,15 +426,15 @@ private class DownloadMetaParts(private val context: Context, private val mono: 
      * not bytes, so it shows the percentage alone, as its ring does; with neither, the bytes.
      */
     fun progress(builder: AnnotatedString.Builder, bytes: Long, contentLength: Long?, percent: Float?) {
-        val done = Formatter.formatShortFileSize(context, bytes)
+        val done = mobileFileSize(bytes)
         when {
             contentLength != null -> {
                 val template = context.getString(R.string.mobile_downloads_meta_of, VALUE_ONE, VALUE_TWO)
-                builder.appendTemplate(template, done, Formatter.formatShortFileSize(context, contentLength))
+                builder.appendTemplate(template, done, mobileFileSize(contentLength))
             }
             percent != null ->
                 builder.withStyle(mono) { append("${percent.roundToInt().coerceIn(0, PERCENT.toInt())}%") }
-            else -> builder.withStyle(mono) { append(done) }
+            else -> builder.appendMonoFigures(done, mono)
         }
     }
 
@@ -454,7 +449,7 @@ private class DownloadMetaParts(private val context: Context, private val mono: 
                 rest = ""
             } else {
                 append(rest.substring(0, next))
-                withStyle(mono) { append(if (next == one) first else second) }
+                appendMonoFigures(if (next == one) first else second, mono)
                 rest = rest.substring(next + VALUE_ONE.length)
             }
         }
@@ -604,17 +599,17 @@ internal fun DownloadStatus.description(context: Context, queuePosition: Int? = 
                 DownloadPauseReason.STORAGE -> R.string.mobile_downloads_status_waiting_storage
                 DownloadPauseReason.USER -> R.string.mobile_downloads_status_paused
             },
-            Formatter.formatShortFileSize(context, bytesDownloaded),
+            mobileFileSize(bytesDownloaded),
         )
         is DownloadStatus.Downloading -> percent?.let {
             val rounded = it.roundToInt().coerceIn(0, PERCENT.toInt())
             context.getString(R.string.mobile_downloads_status_downloading, rounded)
         } ?: context.getString(
             R.string.mobile_downloads_status_downloading_unknown,
-            Formatter.formatShortFileSize(context, bytesDownloaded),
+            mobileFileSize(bytesDownloaded),
         )
         is DownloadStatus.Completed ->
-            context.getString(R.string.mobile_downloads_status_completed, Formatter.formatShortFileSize(context, bytes))
+            context.getString(R.string.mobile_downloads_status_completed, mobileFileSize(bytes))
         is DownloadStatus.Failed -> context.getString(reason.message())
         DownloadStatus.Missing -> context.getString(R.string.mobile_downloads_status_missing)
     }
