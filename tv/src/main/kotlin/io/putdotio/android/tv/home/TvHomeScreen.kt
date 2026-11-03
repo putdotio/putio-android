@@ -232,9 +232,9 @@ private fun TvPinSheetHost(
     val gone = removed != null && cards.none { it.item.id == removed }
     LaunchedEffect(gone) {
         if (!gone) return@LaunchedEffect
+        val next = pinSheet.refocusAt(cards)
         withFrameNanos {}
-        pinSheet.refocused()
-        (if (pinSheet.cardId != null) pinSheet.card else paneFocus).returnFocusFromSheet()
+        (if (next) pinSheet.card else paneFocus).returnFocusFromSheet()
     }
     val item = pinSheet.item ?: return
     TvFilesActionsSheet(
@@ -256,9 +256,12 @@ private class TvPinSheet {
     var removed by mutableStateOf<FilesItemId?>(null)
         private set
 
+    private var removedAt = -1
+
     fun open(pinned: FilesItem) {
         item = pinned
         cardId = pinned.id
+        removed = null
     }
 
     fun close() {
@@ -267,15 +270,16 @@ private class TvPinSheet {
 
     fun unpinned(cards: List<TvPinnedCard>, onUnpin: (FilesItem) -> Unit) {
         val pinned = item ?: return
-        val index = cards.indexOfFirst { it.item.id == pinned.id }
-        cardId = (cards.getOrNull(index + 1) ?: cards.getOrNull(index - 1))?.item?.id
+        removedAt = cards.indexOfFirst { it.item.id == pinned.id }
         item = null
         removed = pinned.id
         onUnpin(pinned)
     }
 
-    fun refocused() {
+    fun refocusAt(cards: List<TvPinnedCard>): Boolean {
         removed = null
+        cardId = (cards.getOrNull(removedAt) ?: cards.getOrNull(removedAt - 1))?.item?.id
+        return cardId != null
     }
 }
 

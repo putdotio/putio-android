@@ -59,6 +59,8 @@ import io.putdotio.android.settings.confirmedTrashEnabled
 import io.putdotio.android.tv.files.openInVlc
 import io.putdotio.android.tv.files.tvMessageText
 import io.putdotio.android.tv.TvNoticeDialog
+import androidx.compose.runtime.withFrameNanos
+import io.putdotio.android.tv.returnFocusFromSheet
 import androidx.compose.ui.platform.LocalContext
 import io.putdotio.android.trash.TrashContent
 import io.putdotio.android.trash.TrashState
@@ -364,7 +366,7 @@ internal fun TvSessionShell(
                     returnTo = homeReturn,
                     onReturned = session.homeReturn::handled,
                 )
-                TvHomePinNotice(session)
+                TvHomePinNotice(session, paneFocus)
             },
             requestedDestination = requestedDestination,
             onDestinationRequestHandled = { requestedDestination = null },
@@ -441,8 +443,17 @@ internal fun TvSessionShell(
 }
 
 @Composable
-private fun TvHomePinNotice(session: TvSession) {
+private fun TvHomePinNotice(session: TvSession, paneFocus: FocusRequester) {
     val failure by session.pins.editFailure.collectAsStateWithLifecycle()
+    val showing = failure.shown()
+    val wasShowing = remember { mutableStateOf(false) }
+    LaunchedEffect(showing) {
+        val closed = wasShowing.value && !showing
+        wasShowing.value = showing
+        if (!closed) return@LaunchedEffect
+        withFrameNanos {}
+        paneFocus.returnFocusFromSheet()
+    }
     failure?.takeIf { it.shown() }?.let {
         TvNoticeDialog(
             title = stringResource(R.string.tv_files_pin_error, it.tvMessageText()),

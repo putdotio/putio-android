@@ -107,7 +107,9 @@ internal fun TvTrashScreen(
     LaunchedEffect(headerOwnsFocus, knownEmpty) {
         if (headerOwnsFocus && mayPlaceFocus(paneHasFocus, dialogShowing)) {
             withFrameNanos {}
-            focus.idleTarget(rows = false, empty = knownEmpty).requestFocus()
+            if (mayPlaceFocus(paneHasFocus, dialogShowing)) {
+                focus.idleTarget(rows = false, empty = knownEmpty).requestFocus()
+            }
         }
     }
     val dialogWasOpen = remember { mutableStateOf(false) }
