@@ -28,8 +28,17 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.isSpecified
+import androidx.compose.ui.graphics.Canvas
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.ImageShader
+import androidx.compose.ui.graphics.Paint
+import androidx.compose.ui.graphics.ShaderBrush
+import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -58,8 +67,8 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 
 /**
- * The image, fitted to the frame. Coil decodes it at the frame's size, never at its own, so a
- * 50-megapixel photo costs one screen of memory.
+ * The image, fitted to the frame over a checkerboard. Coil decodes it at the frame's size, never at
+ * its own, so a 50-megapixel photo costs one screen of memory.
  */
 @Composable
 internal fun MobileImagePage(file: FilesItem, uri: Uri, onOpenWithAnotherApp: () -> Unit) {
@@ -70,8 +79,42 @@ internal fun MobileImagePage(file: FilesItem, uri: Uri, onOpenWithAnotherApp: ()
         modifier = Modifier.fillMaxSize(),
         loading = { MobileViewerLoading() },
         error = { MobileViewerFailure(onOpenWithAnotherApp) },
-        success = { SubcomposeAsyncImageContent() },
+        success = {
+            val image = this
+            val size = painter.intrinsicSize
+            if (size.isSpecified && size.width > 0f && size.height > 0f) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    image.SubcomposeAsyncImageContent(
+                        Modifier
+                            .aspectRatio(size.width / size.height)
+                            .transparencyGrid(),
+                    )
+                }
+            } else {
+                SubcomposeAsyncImageContent()
+            }
+        },
     )
+}
+
+@Composable
+private fun Modifier.transparencyGrid(): Modifier {
+    val light = MaterialTheme.colorScheme.surfaceContainerHighest
+    val dark = MaterialTheme.colorScheme.surfaceContainerHigh
+    val cell = with(LocalDensity.current) { TRANSPARENCY_CELL.roundToPx() }
+    val brush = remember(light, dark, cell) {
+        val tile = ImageBitmap(cell * 2, cell * 2)
+        Canvas(tile).apply {
+            val paint = Paint()
+            paint.color = dark
+            drawRect(0f, 0f, cell * 2f, cell * 2f, paint)
+            paint.color = light
+            drawRect(0f, 0f, cell.toFloat(), cell.toFloat(), paint)
+            drawRect(cell.toFloat(), cell.toFloat(), cell * 2f, cell * 2f, paint)
+        }
+        ShaderBrush(ImageShader(tile, TileMode.Repeated, TileMode.Repeated))
+    }
+    return drawBehind { drawRect(brush) }
 }
 
 private sealed interface PdfState {
@@ -268,4 +311,5 @@ private fun viewerContentPadding(horizontal: Dp = 0.dp): PaddingValues {
 
 private const val A4_RATIO = 1.414f
 private const val TEXT_LINES_PER_ITEM = 200
+private val TRANSPARENCY_CELL = 12.dp
 private val TEXT_LIMIT_LABEL = formatFileSize(TEXT_PREVIEW_LIMIT_BYTES.toLong())

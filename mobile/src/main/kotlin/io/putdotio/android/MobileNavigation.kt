@@ -16,6 +16,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import io.putdotio.android.files.rememberVlcInstalled
 import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -202,7 +203,10 @@ internal fun MobileNavHost(
                     }
                     val filesItemActions = filesActions?.itemActions(
                         watchedToggle = accountSettingsState.confirmedResumePlayback() == true,
+                        vlcInstalled = rememberVlcInstalled(),
                     ) ?: MobileFilesItemActions()
+                    val fileOpener = remember(account.userId) { MobileFileOpener(account.userId) }
+                    val filesContext = LocalContext.current
                     MobileFilesTab(
                         routeAnimation = this,
                         searchOpen = searchOpen,
@@ -213,7 +217,9 @@ internal fun MobileNavHost(
                             MobileSearchResultActionsHost(
                                 results = searchResults.orEmpty(),
                                 actions = MobileSearchResultActions(
-                                    itemActions = filesItemActions,
+                                    itemActions = filesItemActions.copy(
+                                        onOpenWith = { fileOpener.openWithAnotherApp(filesContext, it) },
+                                    ),
                                     downloads = downloadsState,
                                     // Through the result's own open, so the query joins Recent searches.
                                     onPlayItem = searchHistoryActions.onResult,
@@ -256,7 +262,7 @@ internal fun MobileNavHost(
                             continueWatching = startedVideos.orEmpty(),
                             onNewFolder = onNewFolder,
                             listPaneTopBar = filesListPaneTopBar,
-                            fileOpener = remember(account.userId) { MobileFileOpener(account.userId) },
+                            fileOpener = fileOpener,
                             subtitleLanguages = subtitleLanguages,
                             resumePlayback = accountSettingsState.confirmedResumePlayback() != false,
                             itemActions = filesItemActions,

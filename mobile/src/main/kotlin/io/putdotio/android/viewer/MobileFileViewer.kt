@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -51,6 +52,8 @@ import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPdfDocument
 import io.putdotio.android.files.FilesViewerKind
 import io.putdotio.android.files.viewerKind
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
 
 internal const val MOBILE_FILE_VIEWER_TAG = "mobile-file-viewer"
 internal const val MOBILE_FILE_VIEWER_POSITION_TAG = "mobile-file-viewer-position"
@@ -63,10 +66,25 @@ internal class MobileFileViewerActions(
     val onMore: ((FilesItem) -> Unit)? = null,
 )
 
+internal class MobileFileViewerPaging(
+    val nextPage: Any? = null,
+    val more: Boolean = false,
+    val onLoadNextPage: () -> Unit = {},
+    val failed: Boolean = false,
+    val onRetry: () -> Unit = {},
+)
+
+private sealed interface ViewerPageAsk {
+    data class Next(val page: Any) : ViewerPageAsk
+
+    data class Retry(val fromPage: Int) : ViewerPageAsk
+}
+
 /**
  * Images, PDFs and text on a black frame, over the whole window. The name and the file's actions
  * sit on a top scrim; a swipe moves between the folder's files of the same kind, and the position
  * shows in mono below. [files] are those files in listing order; [onShown] follows the swipe.
+ * Near the last of them the folder's next page loads, so a swipe reaches every file it holds.
  */
 @Composable
 internal fun MobileFileViewer(
@@ -75,6 +93,7 @@ internal fun MobileFileViewer(
     actions: MobileFileViewerActions,
     onShown: (FilesItemId) -> Unit,
     onDismiss: () -> Unit,
+    paging: MobileFileViewerPaging = MobileFileViewerPaging(),
 ) {
     val context = LocalContext.current
     LaunchedEffect(Unit) { FilesPdfDocument.clearCache(context) }
@@ -82,7 +101,7 @@ internal fun MobileFileViewer(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
     ) {
-        MobileFileViewerContent(files, shownId, actions, onShown, onDismiss)
+        MobileFileViewerContent(files, shownId, actions, onShown, onDismiss, paging)
     }
 }
 
@@ -93,6 +112,7 @@ internal fun MobileFileViewerContent(
     actions: MobileFileViewerActions,
     onShown: (FilesItemId) -> Unit,
     onDismiss: () -> Unit,
+    paging: MobileFileViewerPaging = MobileFileViewerPaging(),
 ) {
     val shownIndex = files.indexOfFirst { it.id == shownId }.coerceAtLeast(0)
     val pager = rememberPagerState(initialPage = shownIndex) { files.size }
@@ -107,6 +127,7 @@ internal fun MobileFileViewerContent(
             currentFiles.getOrNull(page)?.let { currentOnShown(it.id) }
         }
     }
+    LoadNextPageNearLast(pager, files.size, paging)
     val frame = MaterialTheme.colorScheme.scrim
     Box(
         modifier = Modifier
@@ -141,6 +162,7 @@ internal fun MobileFileViewerContent(
             MobileFileViewerPosition(
                 position = pager.currentPage + 1,
                 count = files.size,
+                more = paging.more,
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
         }
@@ -193,10 +215,40 @@ private fun MobileFileViewerBar(
     }
 }
 
+@Composable
+private fun LoadNextPageNearLast(pager: PagerState, count: Int, paging: MobileFileViewerPaging) {
+    val currentPaging by rememberUpdatedState(paging)
+    val currentCount by rememberUpdatedState(count)
+    LaunchedEffect(pager) {
+        snapshotFlow {
+            val near = pager.settledPage >= currentCount - 1 - VIEWER_PAGING_THRESHOLD
+            val next = currentPaging.nextPage
+            when {
+                !near -> null
+                next != null -> ViewerPageAsk.Next(next)
+                currentPaging.failed -> ViewerPageAsk.Retry(pager.settledPage)
+                else -> null
+            }
+        }
+            .filterNotNull()
+            .distinctUntilChanged()
+            .collect { ask ->
+                when (ask) {
+                    is ViewerPageAsk.Next -> currentPaging.onLoadNextPage()
+                    is ViewerPageAsk.Retry -> currentPaging.onRetry()
+                }
+            }
+    }
+}
+
 /** The position in mono over a scrim that fades up, so it stays readable over a light picture. */
 @Composable
-private fun MobileFileViewerPosition(position: Int, count: Int, modifier: Modifier = Modifier) {
-    val description = stringResource(R.string.mobile_viewer_position, position, count)
+private fun MobileFileViewerPosition(position: Int, count: Int, more: Boolean, modifier: Modifier = Modifier) {
+    val description = stringResource(
+        if (more) R.string.mobile_viewer_position_more else R.string.mobile_viewer_position,
+        position,
+        count,
+    )
     val scrim = MaterialTheme.colorScheme.scrim
     Box(
         modifier = modifier
@@ -207,7 +259,7 @@ private fun MobileFileViewerPosition(position: Int, count: Int, modifier: Modifi
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            text = "$position / $count",
+            text = if (more) "$position / $count+" else "$position / $count",
             style = PutioTypeScale.mono,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier
@@ -241,4 +293,5 @@ internal val VIEWER_CONTENT_TOP = 64.dp
 internal val VIEWER_CONTENT_BOTTOM = 56.dp
 
 private const val VIEWER_SCRIM_ALPHA = 0.6f
+private const val VIEWER_PAGING_THRESHOLD = 5
 private val VIEWER_POSITION_BOTTOM = 16.dp

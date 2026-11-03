@@ -93,6 +93,7 @@
     <string name="mobile_files_detail_subtitles">Subtitles</string>
     <string name="mobile_files_detail_folder">Folder</string>
     <string name="mobile_viewer_position">%1$d of %2$d</string>
+    <string name="mobile_viewer_position_more">%1$d of %2$d or more</string>
     <string name="mobile_viewer_page">Page %1$d of %2$d</string>
     <string name="mobile_viewer_failed">Can’t show this file here.</string>
     <string name="mobile_viewer_open_with">Open with another app</string>
@@ -718,10 +719,10 @@
     <!-- Item actions and dialogs (#373) -->
     <string name="mobile_action_dismiss">Dismiss</string>
     <string name="mobile_files_play">Play</string>
-    <string name="mobile_files_resume">Resume</string>
     <string name="mobile_files_download_action">Download</string>
     <string name="mobile_files_share_action">Share</string>
     <string name="mobile_files_open_in_vlc">Open in VLC</string>
+    <string name="mobile_files_open_with">Open with…</string>
     <string name="mobile_files_select">Select</string>
     <!-- Selection toolbar words; each tile's spoken label is the full action. -->
     <string name="mobile_files_unwatched">Unwatched</string>
