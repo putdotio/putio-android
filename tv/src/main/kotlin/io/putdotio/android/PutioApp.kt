@@ -238,7 +238,6 @@ internal fun TvSessionShell(
     val undoFailure by session.trashUndo.failure.collectAsStateWithLifecycle()
     val showHome by session.showHome.shown.collectAsStateWithLifecycle()
     val homeReturn by session.homeReturn.file.collectAsStateWithLifecycle()
-    val continueWatchingFailure by session.continueWatchingFailure.failure.collectAsStateWithLifecycle()
     // A 401 from the proxy list is as authoritative as one from any controller.
     var tunnelRoutesRejected by remember(session) { mutableStateOf(false) }
     val controllerRejected = listOf(
@@ -257,7 +256,6 @@ internal fun TvSessionShell(
             linkOpenFailure,
             pinsFailure,
             pinRejected,
-            continueWatchingFailure,
             undoFailure?.failure,
             searchFolderNamesRejected,
         ).any { it is PutioFailure.AuthenticationRequired }
@@ -370,8 +368,6 @@ internal fun TvSessionShell(
                     onShown = session.homePins::refresh,
                     returnTo = homeReturn,
                     onReturned = session.homeReturn::handled,
-                    continueWatchingFailure = continueWatchingFailure,
-                    onDismissContinueWatchingFailure = session.continueWatchingFailure::dismiss,
                     pinFailure = pinFailure,
                     onDismissPinFailure = session.pins::dismissEditFailure,
                 )

@@ -6,7 +6,6 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import io.putdotio.android.files.ContinueWatching
-import io.putdotio.android.isNotFound
 import io.putdotio.android.files.ContinueWatchingEntry
 import io.putdotio.android.files.ContinueWatchingStore
 import io.putdotio.android.files.FilesBrowserController
@@ -145,7 +144,7 @@ internal class TvSession internal constructor(
     historyEnabled: Boolean,
     sessionCurrent: () -> Boolean,
     parentScope: CoroutineScope,
-    private val watchNext: TvWatchNextRecorder = TvWatchNextRecorder.None,
+    val watchNext: TvWatchNextRecorder = TvWatchNextRecorder.None,
     /** The signed-in account, which product analytics identifies; null in tests. */
     accountId: Long? = null,
 ) {
@@ -241,8 +240,6 @@ internal class TvSession internal constructor(
 
     /** Why the last watched toggle failed; cleared by the next attempt or dismissal. */
     val fileActionFailure: StateFlow<PutioFailure?> = fileActionFailures.failure
-
-    val continueWatchingFailure = TvActionFailure()
 
     /** Files that system search and Watch Next cards ask to open. */
     val links = TvLinkOpener(
@@ -389,10 +386,9 @@ internal class TvSession internal constructor(
         stopped.close()
     }
 
-    fun setWatched(item: FilesItem, watched: Boolean, onFailure: ((PutioFailure) -> Unit)? = null) {
+    fun setWatched(item: FilesItem, watched: Boolean) {
         val seconds = if (watched) item.playback?.durationSeconds ?: return else 0.0
-        if (onFailure == null) fileActionFailures.dismiss()
-        val report: (PutioFailure) -> Unit = onFailure ?: fileActionFailures::report
+        fileActionFailures.dismiss()
         watchedJobs.remove(item.id)?.cancel()
         val job = scope.launch(start = CoroutineStart.LAZY) {
             val result = playbackReporting.supersede(item.id.value) {
@@ -410,7 +406,7 @@ internal class TvSession internal constructor(
                     watchNext.positionSaved(item.toWatchNextMedia(), seconds)
                     continueWatching.positionSaved(item.id, seconds)
                 }
-                is PutioResult.Failure -> report(result.failure)
+                is PutioResult.Failure -> fileActionFailures.report(result.failure)
             }
         }
         watchedJobs[item.id] = job
@@ -518,10 +514,10 @@ private suspend fun FilesRepository.withListedDuration(item: FilesItem): FilesIt
     return if (progress == null) item else item.copy(playback = progress)
 }
 
-internal fun TvSession.removeFromContinueWatching(entry: ContinueWatchingEntry) =
-    setWatched(entry.toFilesItem(), watched = false) { failure ->
-        if (failure.isNotFound) continueWatching.removed(entry.fileId) else continueWatchingFailure.report(failure)
-    }
+internal fun TvSession.removeFromContinueWatching(entry: ContinueWatchingEntry) {
+    continueWatching.removed(entry.fileId)
+    watchNext.fileGone(entry.fileId.value)
+}
 
 internal fun tvSessionViewModelFactory(authState: StateFlow<TvAuthState>): ViewModelProvider.Factory =
     viewModelFactory { initializer { TvSessionViewModel(authState) } }

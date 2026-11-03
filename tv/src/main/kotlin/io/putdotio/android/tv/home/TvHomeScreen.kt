@@ -123,8 +123,6 @@ internal fun TvHomeScreen(
     modifier: Modifier = Modifier,
     returnTo: FilesItemId? = null,
     onReturned: () -> Unit = {},
-    continueWatchingFailure: PutioFailure? = null,
-    onDismissContinueWatchingFailure: () -> Unit = {},
     pinFailure: PutioFailure? = null,
     onDismissPinFailure: () -> Unit = {},
 ) {
@@ -160,16 +158,7 @@ internal fun TvHomeScreen(
         actions = actions,
         paneFocus = paneFocus,
     )
-    TvHomeNotices(
-        pin = TvHomeFailure(pinFailure, R.string.tv_files_pin_error, onDismissPinFailure),
-        removal = TvHomeFailure(
-            continueWatchingFailure,
-            R.string.tv_home_remove_continue_watching_error,
-            onDismissContinueWatchingFailure,
-        ),
-        continueSheet = continueSheet,
-        paneFocus = paneFocus,
-    )
+    TvHomeNotice(pinFailure, R.string.tv_files_pin_error, onDismissPinFailure, paneFocus)
     if (continueWatching.isEmpty() && pinnedCards?.isEmpty() == true) {
         TvEmptyState(
             glyph = PutioEmptyGlyph.NothingYet,
@@ -279,22 +268,14 @@ private fun TvHomeSheets(
     )
 }
 
-private class TvHomeFailure(val failure: PutioFailure?, @StringRes val title: Int, val onDismiss: () -> Unit)
-
 @Composable
-private fun TvHomeNotices(
-    pin: TvHomeFailure,
-    removal: TvHomeFailure,
-    continueSheet: TvHomeCardSheet,
+private fun TvHomeNotice(
+    failure: PutioFailure?,
+    @StringRes title: Int,
+    onDismiss: () -> Unit,
     paneFocus: FocusRequester,
 ) {
-    LaunchedEffect(removal.failure) { if (removal.failure != null) continueSheet.handedOff() }
-    TvHomeNotice(listOf(pin, removal).firstOrNull { it.failure.shown() }, paneFocus)
-}
-
-@Composable
-private fun TvHomeNotice(notice: TvHomeFailure?, paneFocus: FocusRequester) {
-    val showing = notice != null
+    val showing = failure.shown()
     val wasShowing = remember { mutableStateOf(false) }
     LaunchedEffect(showing) {
         val closed = wasShowing.value && !showing
@@ -303,10 +284,10 @@ private fun TvHomeNotice(notice: TvHomeFailure?, paneFocus: FocusRequester) {
         withFrameNanos {}
         paneFocus.returnFocusFromSheet()
     }
-    val failure = notice?.failure ?: return
+    if (failure == null || !showing) return
     TvNoticeDialog(
-        title = stringResource(notice.title, failure.tvMessageText()),
-        onDismiss = notice.onDismiss,
+        title = stringResource(title, failure.tvMessageText()),
+        onDismiss = onDismiss,
     )
 }
 
