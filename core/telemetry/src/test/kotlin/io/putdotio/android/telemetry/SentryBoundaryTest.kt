@@ -29,6 +29,7 @@ import java.nio.file.Files
 import java.util.Date
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -37,7 +38,8 @@ import org.junit.Test
 class SentryBoundaryTest {
     @Test
     fun onlyAllowlistedFieldsLeaveTheDevice() {
-        val options = configured(SentryBoundary.open(launch = true))
+        val files = files()
+        val options = configured(SentryBoundary.open(launch = true), files)
         val attachment = Attachment(LEAK.toByteArray(), LEAK)
         val hint = Hint.withAttachment(attachment).apply {
             screenshot = attachment
@@ -55,7 +57,7 @@ class SentryBoundaryTest {
         assertTrue(Scope(options).apply { addBreadcrumb(Breadcrumb(LEAK)) }.breadcrumbs.isEmpty())
         assertEquals(SentryLevel.FATAL, sent.level)
         assertEquals("io.put.putio@0.1.0+1", sent.release)
-        assertEquals("installation", sent.user?.id)
+        assertEquals(files.installation.readText(), sent.user?.id)
         assertEquals(mapOf("surface" to "tv"), sent.tags)
         assertEquals("IOException", sent.exceptions?.single()?.type)
         assertEquals("play", sent.exceptions?.single()?.stacktrace?.frames?.single()?.function)
@@ -68,7 +70,7 @@ class SentryBoundaryTest {
     fun aReportedFailureLeavesAsCodes() {
         val failure = TelemetryFailure("playback_failure", listOf("network", RELEASE_NAME), mapOf("file_id" to TITLE))
         val hint = Hint().apply { set(SentryBoundary.FAILURE_HINT, failure) }
-        val options = configured(SentryBoundary.open(launch = true))
+        val options = configured(SentryBoundary.open(launch = true), files())
 
         val sent = checkNotNull(options.beforeSend?.execute(SentryEvent(), hint))
 
@@ -79,17 +81,17 @@ class SentryBoundaryTest {
 
     @Test
     fun switchingOffSendsNothingRecordedBefore() {
-        val cacheDir = Files.createTempDirectory("diagnostics").toFile()
-        val pending = File(cacheDir, "outbox/pending").apply { parentFile?.mkdirs() }
+        val files = files()
+        val pending = File(files.cache, "outbox/pending").apply { parentFile?.mkdirs() }
         pending.writeText("synthetic")
-        val closing = configured(SentryBoundary.open(launch = true), cacheDir)
+        val closing = configured(SentryBoundary.open(launch = false), files)
         assertNotNull(closing.beforeSend?.execute(SentryEvent(), Hint()))
         assertTrue(closing.transportGate.isConnected)
 
-        SentryBoundary.stop(cacheDir).get()
+        SentryBoundary.stop(files).get()
         assertFalse("an opt-out left the transport open", closing.transportGate.isConnected)
         assertFalse("pending envelopes would upload at the next start", pending.exists())
-        val reopened = configured(SentryBoundary.open(launch = false), cacheDir)
+        val reopened = configured(SentryBoundary.open(launch = false), files)
 
         assertNull(closing.beforeSend?.execute(SentryEvent(), Hint()))
         assertFalse("the closing SDK's transport reopened", closing.transportGate.isConnected)
@@ -97,10 +99,48 @@ class SentryBoundaryTest {
         assertNotNull(reopened.beforeSend?.execute(SentryEvent(), Hint()))
     }
 
-    private fun configured(period: SentryBoundary.Period, cacheDir: File = File("/nonexistent")): SentryOptions =
+    @Test
+    fun aLaunchKeepsEnvelopesOnTheDeviceUntilTheAccountAnswers() {
+        val launch = configured(SentryBoundary.open(launch = true), files())
+
+        assertNotNull("a crash before the answer was lost", launch.beforeSend?.execute(SentryEvent(), Hint()))
+        assertFalse("a launch sent before the account answered", launch.transportGate.isConnected)
+
+        SentryBoundary.confirm()
+        assertTrue("an answer of on kept the transport closed", launch.transportGate.isConnected)
+    }
+
+    @Test
+    fun releaseHealthSessionsStayOff() {
+        assertFalse(configured(SentryBoundary.open(launch = false), files()).isEnableAutoSessionTracking)
+    }
+
+    @Test
+    fun anOptOutForgetsTheInstallation() {
+        val files = files()
+        files.sentryInstallation.writeText("sentry-installation")
+        val before = checkNotNull(configured(SentryBoundary.open(launch = false), files).beforeSend)
+            .execute(SentryEvent(), Hint())?.user?.id
+
+        SentryBoundary.stop(files).get()
+        val after = checkNotNull(configured(SentryBoundary.open(launch = false), files).beforeSend)
+            .execute(SentryEvent(), Hint())?.user?.id
+
+        assertFalse("Sentry's installation id outlived the opt-out", files.sentryInstallation.exists())
+        assertNotNull(before)
+        assertNotNull(after)
+        assertNotEquals("an opt-in reused the opted-out installation id", before, after)
+    }
+
+    private fun files(): DiagnosticsFiles {
+        val root = Files.createTempDirectory("diagnostics").toFile()
+        return DiagnosticsFiles(File(root, "cache"), File(root, "INSTALLATION"), File(root, "installation"))
+    }
+
+    private fun configured(period: SentryBoundary.Period, files: DiagnosticsFiles): SentryOptions =
         SentryOptions().also { options ->
             val configuration = SentryConfiguration.of("https://synthetickey@o0.example.invalid/1", "n", "tv")
-            SentryBoundary.configure(options, checkNotNull(configuration), period, cacheDir)
+            SentryBoundary.configure(options, checkNotNull(configuration), period, files)
         }
 
     /** Every unlisted field an app, integration, or cached scope can fill carries [LEAK]. */

@@ -3,6 +3,7 @@ package io.putdotio.android.telemetry
 import android.content.Context
 import io.sentry.Hint
 import io.sentry.IConnectionStatusProvider.ConnectionStatus
+import io.sentry.IConnectionStatusProvider.IConnectionStatusObserver
 import io.sentry.Sentry
 import io.sentry.SentryEvent
 import io.sentry.SentryLevel
@@ -21,6 +22,7 @@ import io.sentry.protocol.SentryStackFrame
 import io.sentry.protocol.SentryStackTrace
 import io.sentry.protocol.User
 import java.io.File
+import java.util.UUID
 import java.util.concurrent.Executors
 import java.util.concurrent.Future
 
@@ -35,26 +37,53 @@ internal object SentryBoundary {
     var current: Period? = null
         private set
 
-    /** One uninterrupted on-period. Each SDK checks its own, so one still closing never reopens. */
-    class Period(val since: Long) {
+    /**
+     * One uninterrupted on-period. Each SDK checks its own, so one still closing never reopens. A
+     * launch period keeps envelopes on the device until the account confirms diagnostics.
+     */
+    class Period(val since: Long, confirmed: Boolean) {
+        @Volatile
+        var confirmed: Boolean = confirmed
+            private set
+
         val isCurrent: Boolean get() = current === this
+        val sends: Boolean get() = isCurrent && confirmed
+
+        fun confirm() {
+            confirmed = true
+        }
     }
 
     // A start after launch drops events stamped before it: Android hands the SDK ANRs from its exit
     // history, which can date from an opted-out period, and Sentry marks a dropped one as reported.
-    fun open(launch: Boolean): Period = Period(if (launch) 0 else System.currentTimeMillis()).also { current = it }
+    fun open(launch: Boolean): Period =
+        Period(if (launch) 0 else System.currentTimeMillis(), confirmed = !launch).also { current = it }
 
     fun start(context: Context, configuration: SentryConfiguration, launch: Boolean) {
         val period = open(launch)
-        val init = { SentryAndroid.init(context) { configure(it, configuration, period, cacheDir(context)) } }
+        val files = DiagnosticsFiles(context)
+        val init = { SentryAndroid.init(context) { configure(it, configuration, period, files) } }
         // At launch on the caller's thread, so the crash handler is in place before the first screen.
         if (launch) runCatching(init) else executor.submit(init)
     }
 
-    fun stop(cacheDir: File): Future<*> {
+    /** Opens the launch period's transport and sends what it kept, as Sentry does when a network returns. */
+    fun confirm() {
+        val period = current?.takeUnless { it.confirmed } ?: return
+        period.confirm()
+        executor.submit {
+            val options = Sentry.getCurrentScopes().options
+            val status = options.connectionStatusProvider.connectionStatus
+            options.integrations.filterIsInstance<IConnectionStatusObserver>().forEach {
+                it.onConnectionStatusChanged(status)
+            }
+        }
+    }
+
+    fun stop(files: DiagnosticsFiles): Future<*> {
         current = null
         executor.submit { Sentry.close() }
-        return executor.submit { cacheDir.deleteRecursively() }
+        return executor.submit { files.delete() }
     }
 
     fun capture(failure: TelemetryFailure) {
@@ -63,17 +92,18 @@ internal object SentryBoundary {
         executor.submit { Sentry.captureEvent(SentryEvent().apply { level = SentryLevel.ERROR }, hint) }
     }
 
-    fun cacheDir(context: Context): File = File(context.cacheDir, "io.put.diagnostics")
-
-    fun configure(options: SentryOptions, configuration: SentryConfiguration, period: Period, cacheDir: File) {
+    fun configure(options: SentryOptions, configuration: SentryConfiguration, period: Period, files: DiagnosticsFiles) {
         options.dsn = configuration.dsn
         options.environment = configuration.environment
-        options.cacheDirPath = cacheDir.path
+        options.cacheDirPath = files.cache.path
         options.maxBreadcrumbs = 0
-        // Cached envelopes and sessions upload without passing beforeSend.
+        // Release-health sessions skip beforeSend and carry Sentry's own installation id.
+        options.isEnableAutoSessionTracking = false
+        // Cached envelopes upload without passing beforeSend.
         options.setTransportGate {
-            period.isCurrent && options.connectionStatusProvider.connectionStatus != ConnectionStatus.DISCONNECTED
+            period.sends && options.connectionStatusProvider.connectionStatus != ConnectionStatus.DISCONNECTED
         }
+        val installation = lazy(files::installationId)
         options.setBeforeSend { event, hint ->
             // Sentry sends the hint's attachments with whatever event this returns.
             hint.clearAttachments()
@@ -83,8 +113,32 @@ internal object SentryBoundary {
             hint.tombstone = null
             val failure = hint.getAs(FAILURE_HINT, TelemetryFailure::class.java)
             val admitted = period.isCurrent && event.timestamp.time >= period.since
-            if (admitted) allowlisted(event, configuration.surface, failure) else null
+            if (admitted) allowlisted(event, installation.value, configuration.surface, failure) else null
         }
+    }
+}
+
+/**
+ * What diagnostics keep on the device: Sentry's cache, Sentry's installation id, and the id events
+ * carry. That one is ours, since Sentry holds its own in memory for the life of the process.
+ */
+internal class DiagnosticsFiles(val cache: File, val sentryInstallation: File, val installation: File) {
+    constructor(context: Context) : this(
+        File(context.cacheDir, "io.put.diagnostics"),
+        File(context.filesDir, "INSTALLATION"),
+        File(context.noBackupFilesDir, "io.put.diagnostics.installation"),
+    )
+
+    @Synchronized
+    fun installationId(): String =
+        installation.takeIf { it.isFile }?.readText()?.takeIf { it.isNotBlank() }
+            ?: UUID.randomUUID().toString().also { installation.writeText(it) }
+
+    @Synchronized
+    fun delete() {
+        cache.deleteRecursively()
+        sentryInstallation.delete()
+        installation.delete()
     }
 }
 
@@ -92,7 +146,7 @@ internal object SentryBoundary {
  * Copies listed fields into a new event, so unlisted ones, including any a Sentry upgrade adds,
  * stay on the device. A throwable's message can quote a media title, so exceptions keep their type.
  */
-private fun allowlisted(event: SentryEvent, surface: String, failure: TelemetryFailure?) =
+private fun allowlisted(event: SentryEvent, installation: String, surface: String, failure: TelemetryFailure?) =
     SentryEvent(event.timestamp).apply {
         eventId = event.eventId
         level = event.level
@@ -101,7 +155,7 @@ private fun allowlisted(event: SentryEvent, surface: String, failure: TelemetryF
         environment = event.environment
         dist = event.dist
         sdk = event.sdk?.let { SdkVersion(it.name, it.version) }
-        user = event.user?.id?.let { id -> User().apply { this.id = id } }
+        user = User().apply { id = installation }
         tags = mapOf("surface" to surface) + failure?.tags.orEmpty()
         exceptions = failure?.let { listOf(it.exception()) } ?: event.exceptions?.map(::allowlisted)
         // Sentry picks the R8 mapping that deobfuscates the frames by this id.
