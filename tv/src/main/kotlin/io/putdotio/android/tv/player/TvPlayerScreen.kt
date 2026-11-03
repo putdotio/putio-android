@@ -386,16 +386,7 @@ private fun TvReadyPlayer(
             .onKeyEvent { event -> overlay.onPlayerKey(event, player, chips, apply) }
             .focusable(),
     ) {
-        if (target.mediaType == PlaybackMediaType.VIDEO) {
-            ContentFrame(
-                player = player,
-                modifier = Modifier.fillMaxSize(),
-                surfaceType = playbackSurfaceType(Build.VERSION.SDK_INT, Build.HARDWARE),
-            )
-            if (!firstFrameShown && !overlay.controlsVisible) TvPlayerLoading(target)
-        } else if (!overlay.controlsVisible) {
-            TvAudioStage(target.name)
-        }
+        TvPlayerStage(player, target, firstFrameShown = firstFrameShown, controlsVisible = overlay.controlsVisible)
         cueLayer.takeUnless { overlay.sheet == TvPlayerSheet.SizeAndTiming }?.invoke(this)
         if (overlay.controlsVisible) {
             TvPlayerControls(
@@ -450,6 +441,21 @@ private fun TvReadyPlayer(
         onDismiss = { apply(overlay.back()) },
         timingPreview = cueLayer,
     )
+}
+
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+@Composable
+private fun TvPlayerStage(player: Player, target: PlaybackTarget, firstFrameShown: Boolean, controlsVisible: Boolean) {
+    if (target.mediaType == PlaybackMediaType.VIDEO) {
+        ContentFrame(
+            player = player,
+            modifier = Modifier.fillMaxSize(),
+            surfaceType = playbackSurfaceType(Build.VERSION.SDK_INT, Build.HARDWARE),
+        )
+        if (!firstFrameShown && !controlsVisible) TvPlayerLoading(target)
+    } else if (!controlsVisible) {
+        TvAudioStage(target.name)
+    }
 }
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])

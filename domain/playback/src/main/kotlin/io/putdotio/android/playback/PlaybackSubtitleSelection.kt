@@ -98,7 +98,7 @@ public fun TrackSelectionParameters.withSubtitleSelection(
         buildUpon()
             .clearOverridesOfType(C.TRACK_TYPE_TEXT)
             .setIgnoredTextSelectionFlags(0)
-    return when (selection) {
+    return when (val chosen = selection.preferringNamedTrack(tracks)) {
         SubtitleSelection.Off ->
             builder
                 .setSelectTextByDefault(false)
@@ -106,14 +106,6 @@ public fun TrackSelectionParameters.withSubtitleSelection(
                 .build()
 
         SubtitleSelection.Automatic -> {
-            val known = tracks.knownOverUnlabelledDefault()
-            if (known != null) {
-                return builder
-                    .setSelectTextByDefault(true)
-                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
-                    .setOverrideForType(TrackSelectionOverride(known.group, known.trackIndex))
-                    .build()
-            }
             if (tracks.any(PlaybackSubtitleTrack::isServerDefault)) {
                 // Media3 ranks the device's caption language above a track's default flag; with no
                 // preference left, the account's default subtitle wins.
@@ -144,7 +136,7 @@ public fun TrackSelectionParameters.withSubtitleSelection(
         }
 
         is SubtitleSelection.Track -> {
-            val track = tracks.resolve(selection.identity)
+            val track = tracks.resolve(chosen.identity)
             if (track == null) {
                 builder
                     .setSelectTextByDefault(false)
@@ -167,12 +159,6 @@ public fun TrackSelectionParameters.withSubtitleSelection(
  */
 internal val PlaybackSubtitleTrack.isServerDefault: Boolean
     get() = (identity.selectionFlags and C.SELECTION_FLAG_DEFAULT) != 0
-
-private fun List<PlaybackSubtitleTrack>.knownOverUnlabelledDefault(): PlaybackSubtitleTrack? {
-    val default = firstOrNull(PlaybackSubtitleTrack::isServerDefault) ?: return null
-    if (languageName(default.identity.language) != null) return null
-    return firstOrNull { languageName(it.identity.language) != null }
-}
 
 /**
  * Reapplies the subtitle choice in effect to [tracks] as they arrive: off while the account hides

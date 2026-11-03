@@ -117,3 +117,11 @@ public fun rememberSubtitleAppearanceStore(): SubtitleAppearanceStore {
     val context = LocalContext.current.applicationContext
     return remember(context) { SubtitleAppearanceStore(context) }
 }
+
+internal fun SubtitleSelection.preferringNamedTrack(tracks: List<PlaybackSubtitleTrack>): SubtitleSelection =
+    tracks.takeIf { this == SubtitleSelection.Automatic }
+        ?.firstOrNull(PlaybackSubtitleTrack::isServerDefault)
+        ?.takeIf { languageName(it.identity.language) == null }
+        ?.let { tracks.firstOrNull { track -> languageName(track.identity.language) != null } }
+        ?.let { SubtitleSelection.Track(it.identity) }
+        ?: this

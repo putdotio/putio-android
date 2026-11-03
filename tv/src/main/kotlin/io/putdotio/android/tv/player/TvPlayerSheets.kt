@@ -224,7 +224,10 @@ private fun ColumnScope.TvSubtitlesSheet(
     val inFile = rows.filter { it.third.origin() == SubtitleOrigin.File }
     val found = rows.filter { it.third.origin() != SubtitleOrigin.File }.sortedBy { it.third.origin() }
     val groups = if (originsKnown) {
-        listOf(PlaybackR.string.playback_subtitles_in_file to inFile, PlaybackR.string.playback_subtitles_found to found)
+        listOf(
+            PlaybackR.string.playback_subtitles_in_file to inFile,
+            PlaybackR.string.playback_subtitles_found to found,
+        )
     } else {
         listOf(null to rows)
     }
