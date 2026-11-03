@@ -36,6 +36,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -85,6 +86,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.launch
 import io.putdotio.android.MobileSnackbarHost
 
 internal const val MOBILE_FILES_LIST_TAG = "mobile-files-list"
@@ -362,6 +364,7 @@ private fun MobileRefreshableFilesContent(
     val snackbarHostState = remember { SnackbarHostState() }
     MobileFilesTrashedAnnouncement(state.current, snackbarHostState, onEvent, itemActions.onUndoTrash)
     MobileFilesNotices(itemActions.notices, snackbarHostState)
+    val hideStarted = rememberHideWithUndo(itemActions, snackbarHostState)
 
     Box(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -418,7 +421,7 @@ private fun MobileRefreshableFilesContent(
                                 content = content,
                                 headers = headers,
                                 onPlayEntry = { onPlayMedia(it.toFilesItem()) },
-                                onRemoveEntry = itemActions.onRemoveFromContinueWatching,
+                                onRemoveEntry = hideStarted,
                                 revealItemId = state.current.revealItemId,
                                 pagingEnabled = operation == FilesFolderOperation.Idle,
                                 onEvent = onEvent,
@@ -567,6 +570,30 @@ private fun MobileFilesTrashedAnnouncement(
             if (result == SnackbarResult.ActionPerformed) currentOnUndo?.invoke(outcome)
         } finally {
             currentOnEvent(FilesBrowserEvent.DeleteOutcomeAnnounced(outcome))
+        }
+    }
+}
+
+@Composable
+private fun rememberHideWithUndo(
+    itemActions: MobileFilesItemActions,
+    snackbarHostState: SnackbarHostState,
+): ((ContinueWatchingEntry) -> Unit)? {
+    val remove = itemActions.onRemoveFromContinueWatching ?: return null
+    val restore by rememberUpdatedState(itemActions.onRestoreToContinueWatching)
+    val scope = rememberCoroutineScope()
+    val removed = stringResource(R.string.mobile_files_continue_watching_removed)
+    val undo = stringResource(R.string.mobile_files_undo)
+    return { entry ->
+        remove(entry)
+        scope.launch {
+            snackbarHostState.currentSnackbarData?.dismiss()
+            val result = snackbarHostState.showSnackbar(
+                message = removed,
+                actionLabel = undo.takeIf { restore != null },
+                duration = SnackbarDuration.Long,
+            )
+            if (result == SnackbarResult.ActionPerformed) restore?.invoke(entry)
         }
     }
 }

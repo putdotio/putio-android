@@ -187,7 +187,6 @@ public sealed interface FilesBrowserEvent {
 
     public data object NavigateBack : FilesBrowserEvent
 
-    /** Every folder above the root closes at once; only the root reloads, and only when stale. */
     public data object PopToRoot : FilesBrowserEvent
 
     public data object LoadNextPage : FilesBrowserEvent

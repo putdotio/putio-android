@@ -51,6 +51,27 @@ class FilesDeleteReducerTest {
     }
 
     @Test
+    fun popToRootStopsAtTheFolderWhoseDeleteIsSettling() {
+        val shows = file(7L)
+        val season = file(9L)
+        val doomed = file(8L)
+        val opened = FilesBrowserReducer.reduce(loadedRoot(listOf(shows)), FilesBrowserEvent.OpenFolder(shows.id))
+        val inShows = FilesBrowserReducer.reduce(opened.state, FilesBrowserEvent.LoadSucceeded(
+            checkNotNull(opened.effect).requestId, FilesPage(listOf(season, doomed), null),
+        )).state
+        val deleting = FilesBrowserReducer.reduce(
+            inShows, FilesBrowserEvent.Delete(shows.id, doomed.id, FilesDeleteMode.TRASH),
+        ).state
+        val inSeason = FilesBrowserReducer.reduce(deleting, FilesBrowserEvent.OpenFolder(season.id)).state
+
+        val popped = FilesBrowserReducer.reduce(inSeason, FilesBrowserEvent.PopToRoot)
+
+        assertTrue(popped.consumed)
+        assertEquals(listOf(FilesFolder.Root.id, shows.id), popped.state.path.map { it.id })
+        assertFalse(FilesBrowserReducer.reduce(popped.state, FilesBrowserEvent.PopToRoot).consumed)
+    }
+
+    @Test
     fun acknowledgementChecksExactIdBeforeReloadAndDoesNotInferRemovalFromFirstPageAbsence() {
         val viewport = FilesViewportPosition(4, 20)
         val root = FilesBrowserReducer.reduce(loadedRoot(), FilesBrowserEvent.ViewportChanged(viewport)).state

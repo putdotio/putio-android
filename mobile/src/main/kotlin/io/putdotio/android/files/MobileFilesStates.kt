@@ -198,10 +198,7 @@ private fun MobileContinueWatchingRow(
     }
 }
 
-/**
- * A started video: its name, a yellow progress line and the time left in mono. A long press, or
- * TalkBack's actions, offers Remove from Continue watching.
- */
+/** A started video: its name, a yellow progress line and the time left in mono. */
 @Composable
 private fun MobileContinueWatchingCard(
     entry: ContinueWatchingEntry,
@@ -222,7 +219,6 @@ private fun MobileContinueWatchingCard(
                 .combinedClickable(
                     role = Role.Button,
                     onClick = { onPlay(entry) },
-                    onLongClickLabel = removeLabel.takeIf { onRemove != null },
                     onLongClick = if (onRemove != null) ({ menu = true }) else null,
                 )
                 .clearAndSetSemantics {

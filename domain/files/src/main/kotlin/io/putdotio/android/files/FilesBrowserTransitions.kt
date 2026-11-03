@@ -68,12 +68,11 @@ internal fun FilesBrowserState.openExternalItem(
 private fun FilesBrowserState.outsideOpenIndex(): Int? =
     stack.indexOfFirst { it.openedFrom != null }.takeIf { it >= 0 }
 
-/** Closes the current folder, or with [toRoot] every folder above the root; only the one left shown reloads. */
 internal fun FilesBrowserState.navigateBack(toRoot: Boolean = false): FilesBrowserTransition {
-    val kept = if (toRoot) 1 else stack.size - 1
-    val settling = stack.drop(kept).any { it.operation.pendingDelete != null } ||
-        stack.any { it.operation.pendingMove != null }
-    return if (canNavigateBack && !settling) {
+    val floor = stack.indexOfLast { it.operation.pendingDelete != null } + 1
+    val kept = if (toRoot) maxOf(1, floor) else stack.size - 1
+    val allowed = kept in maxOf(1, floor) until stack.size && stack.none { it.operation.pendingMove != null }
+    return if (allowed) {
         val back = copy(stack = stack.take(kept))
         if (back.current.needsReload) back.reloadStaleFolder() else FilesBrowserTransition(back)
     } else {

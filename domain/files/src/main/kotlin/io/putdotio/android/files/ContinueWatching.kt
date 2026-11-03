@@ -122,10 +122,6 @@ public class ContinueWatching(
         return rejected
     }
 
-    /**
-     * The video leaves this device's row: put.io confirmed the file gone, or the user removed it.
-     * Its position on put.io stays; only playing it here again brings the card back.
-     */
     public fun removed(fileId: FilesItemId) {
         // Forget the media too, so a save answered after the delete can't bring the card back.
         media.remove(fileId)

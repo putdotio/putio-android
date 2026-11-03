@@ -102,6 +102,7 @@
     <string name="mobile_files_continue_watching_left">%1$s left</string>
     <string name="mobile_files_continue_watching_resume">Resume %1$s, %2$s left</string>
     <string name="mobile_files_continue_watching_remove">Remove from Continue watching</string>
+    <string name="mobile_files_continue_watching_removed">Removed from Continue watching</string>
     <string name="mobile_files_all_files">All files</string>
     <plurals name="mobile_files_item_count">
         <item quantity="one">%1$s item</item>
