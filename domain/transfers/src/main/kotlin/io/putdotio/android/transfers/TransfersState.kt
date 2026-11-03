@@ -200,9 +200,8 @@ public object TransfersReducer {
             TransfersEvent.Poll -> state.poll()
             is TransfersEvent.VisibilityChanged -> state.visibilityChanged(event.visible)
             is TransfersEvent.Add, is TransfersEvent.AddTorrent -> state.add(event)
-            is TransfersEvent.Cancel -> state.cancel(event.id)
+            is TransfersEvent.Cancel, TransfersEvent.ClearFailed -> state.cancel(event)
             is TransfersEvent.RetryTransfer -> state.retryTransfer(event.id)
-            TransfersEvent.ClearFailed -> state.clearFailed()
             TransfersEvent.CleanCompleted, is TransfersEvent.Remove ->
                 state.clean((event as? TransfersEvent.Remove)?.id)
             TransfersEvent.DismissMutationFailure -> state.dismissMutationFailure()

@@ -166,8 +166,9 @@ internal fun MobileTransfersScreen(
                 onStop = { stopping = actionsItem },
                 onRetry = { onEvent(TransfersEvent.RetryTransfer(actionsItem.id)) },
                 onRemove = {
+                    val id = actionsItem.id
                     val failed = actionsItem.status == AppTransferStatus.Failed
-                    onEvent(if (failed) TransfersEvent.Cancel(actionsItem.id) else TransfersEvent.Remove(actionsItem.id))
+                    onEvent(if (failed) TransfersEvent.Cancel(id) else TransfersEvent.Remove(id))
                 },
             ),
             onDismiss = { actionsFor = null },

@@ -15,13 +15,20 @@ internal fun TransfersState.add(event: TransfersEvent): TransfersTransition {
     }
 }
 
-internal fun TransfersState.cancel(id: TransferId): TransfersTransition {
-    val item = content.items().firstOrNull { it.id == id }
-    return if (item == null || !item.status.canCancel) {
-        TransfersTransition(this, consumed = false)
-    } else {
-        mutate(TransferAction.Cancel(id))
+/** Cancels one transfer that still can, or with [TransfersEvent.ClearFailed] every listed failed one. */
+internal fun TransfersState.cancel(event: TransfersEvent): TransfersTransition {
+    val items = content.items()
+    val action = when (event) {
+        is TransfersEvent.Cancel ->
+            items.firstOrNull { it.id == event.id && it.status.canCancel }?.let { TransferAction.Cancel(it.id) }
+        TransfersEvent.ClearFailed ->
+            items.filter { it.status == AppTransferStatus.Failed }
+                .mapTo(linkedSetOf(), TransferItem::id)
+                .takeIf { it.isNotEmpty() }
+                ?.let(TransferAction::ClearFailed)
+        else -> null
     }
+    return action?.let(::mutate) ?: TransfersTransition(this, consumed = false)
 }
 
 internal fun TransfersState.retryTransfer(id: TransferId): TransfersTransition {
@@ -31,11 +38,6 @@ internal fun TransfersState.retryTransfer(id: TransferId): TransfersTransition {
     } else {
         mutate(TransferAction.Retry(id))
     }
-}
-
-internal fun TransfersState.clearFailed(): TransfersTransition {
-    val ids = content.items().filter { it.status == AppTransferStatus.Failed }.mapTo(linkedSetOf(), TransferItem::id)
-    return if (ids.isEmpty()) TransfersTransition(this, consumed = false) else mutate(TransferAction.ClearFailed(ids))
 }
 
 /** Clears every completed transfer, or with [id] only that one, which must be completed itself. */
