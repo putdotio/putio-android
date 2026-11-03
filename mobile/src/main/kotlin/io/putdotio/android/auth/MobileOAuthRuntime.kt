@@ -19,6 +19,7 @@ import io.putdotio.android.settings.SdkAccountSettingsRepository
 import io.putdotio.android.settings.confirmProductAnalytics
 import io.putdotio.android.share.MobileFileShareService
 import io.putdotio.android.telemetry.ProductAnalytics
+import io.putdotio.android.telemetry.DiagnosticsAnswer
 import io.putdotio.android.telemetry.PutioDiagnostics
 import io.putdotio.android.widgets.MobileWidgets
 import io.putdotio.sdk.PutioClient
@@ -225,7 +226,6 @@ internal class MobileOAuthRuntime(
         }
 
         /** What a session leaves behind on this device, ended or removed once it is gone. */
-        // Sessions also change without a UI, so the process scope tells diagnostics and analytics.
         private fun reportConsent(
             authController: MobileAuthController,
             putioClient: PutioClient,
@@ -233,7 +233,7 @@ internal class MobileOAuthRuntime(
         ) {
             applicationScope.launch {
                 authController.state.collect { state ->
-                    state.diagnosticsAllowed()?.let(PutioDiagnostics::update)
+                    state.diagnosticsAnswer()?.let(PutioDiagnostics::update)
                     state.productAnalyticsAnswer()?.let { (accountId, enabled) ->
                         ProductAnalytics.update(accountId, enabled)
                     }
@@ -281,11 +281,7 @@ internal fun oauthRuntimeFailureLog(error: Exception): String =
 
 private const val MOBILE_OAUTH_LOG_TAG = "PutioOAuth"
 
-/**
- * Null while restoring, validating, signed in offline before put.io confirms the account, signing out,
- * or unable to read or clear the token, so the last answer stands.
- */
-internal fun MobileAuthState.diagnosticsAllowed(): Boolean? =
+internal fun MobileAuthState.diagnosticsAnswer(): DiagnosticsAnswer? =
     when (this) {
         MobileAuthState.Initializing,
         MobileAuthState.RestoringSession,
@@ -294,9 +290,10 @@ internal fun MobileAuthState.diagnosticsAllowed(): Boolean? =
         MobileAuthState.SigningOut,
         -> null
 
-        is MobileAuthState.SignedOut -> true.takeUnless { reason == MobileSignedOutReason.SecureStorageUnavailable }
-        MobileAuthState.AwaitingOAuthCallback -> true
-        is MobileAuthState.SignedIn -> account.diagnosticsEnabled.takeIf { validated }
+        is MobileAuthState.SignedOut ->
+            DiagnosticsAnswer.SignedOut.takeUnless { reason == MobileSignedOutReason.SecureStorageUnavailable }
+        MobileAuthState.AwaitingOAuthCallback -> DiagnosticsAnswer.SignedOut
+        is MobileAuthState.SignedIn -> DiagnosticsAnswer.Account(account.diagnosticsEnabled).takeIf { validated }
     }
 
 /** The account and its product analytics answer: signed out is `null to false`; null keeps the last answer. */
