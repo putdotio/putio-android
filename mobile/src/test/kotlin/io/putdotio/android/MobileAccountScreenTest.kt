@@ -399,7 +399,7 @@ class MobileAccountScreenTest {
     }
 
     @Test
-    fun defaultSortUsesTheFilesSortMenuAndSavesOnlyAChange() {
+    fun defaultSortUsesTheFilesSortMenuAndAppliesTheOrderAtOnce() {
         val events = mutableListOf<AccountSettingsEvent>()
         compose.setAccountContent(
             state = {
@@ -413,10 +413,7 @@ class MobileAccountScreenTest {
         compose.onNodeWithTag(MOBILE_DEFAULT_SORT_ROW_TAG).assertTextContains("Name, A to Z").performClick()
         listOf("Sort by", "Order", "Videos").forEach { compose.onNodeWithText(it).assertIsDisplayed() }
         compose.onNode(hasText("Name") and isSelected()).assertIsDisplayed()
-        compose.onNode(hasText("A to Z") and isSelected()).performClick()
-        compose.runOnIdle { assertEquals(emptyList<AccountSettingsEvent>(), events) }
-        compose.onNodeWithText("Sort by").assertDoesNotExist()
-        compose.onNodeWithTag(MOBILE_DEFAULT_SORT_ROW_TAG).performClick()
+        compose.onNode(hasText("A to Z") and isSelected()).assertIsDisplayed()
         compose.onNodeWithText("Z to A").performClick()
         compose.runOnIdle {
             assertEquals(

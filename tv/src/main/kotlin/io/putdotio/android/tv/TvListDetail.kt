@@ -162,8 +162,8 @@ internal data class TvDetailFact(
 
 @Composable
 internal fun ColumnScope.TvDetailBody(
-    key: Any,
     title: String,
+    key: Any = title,
     meta: AnnotatedString?,
     facts: List<TvDetailFact>,
     secondaryActions: (@Composable ColumnScope.() -> Unit)? = null,

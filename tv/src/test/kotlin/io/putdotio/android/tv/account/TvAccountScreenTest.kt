@@ -222,7 +222,7 @@ class TvAccountScreenTest {
     }
 
     @Test
-    fun defaultSortUsesTheFilesSortSheetAndSavesOnlyAChange() {
+    fun defaultSortUsesTheFilesSortSheetAndAppliesTheOrderAtOnce() {
         show(settingsState = { ready(preferences) })
 
         group("Library").performKeyInput { pressKey(Key.DirectionRight) }
@@ -230,11 +230,7 @@ class TvAccountScreenTest {
         compose.onNodeWithText("Name, A to Z").assertIsDisplayed()
         compose.onNodeWithText("Default sort order").assertIsFocused().performKeyInput { pressCenter() }
         compose.onNode(hasText("Sort by") and hasAnyAncestor(isDialog())).assertIsDisplayed()
-        compose.onNode(inSheet("Name")).assertIsSelected().performKeyInput { pressCenter() }
-        assertEquals(emptyList<AccountSettingsEvent>(), settingsEvents)
-        compose.onNode(hasText("Sort by") and hasAnyAncestor(isDialog())).assertDoesNotExist()
-        compose.onNodeWithText("Default sort order").assertIsFocused().performKeyInput { pressCenter() }
-        compose.onNode(inSheet("Name")).performKeyInput {
+        compose.onNode(inSheet("Name")).assertIsSelected().performKeyInput {
             repeat(6) { pressKey(Key.DirectionDown) }
         }
         compose.onNode(inSheet("Z to A")).performKeyInput { pressCenter() }

@@ -492,7 +492,7 @@ private fun TvAccountSheets(
             TvSortSheet(
                 title = stringResource(R.string.tv_account_default_sort),
                 selected = settings.defaultSort,
-                onSelect = { if (it == settings.defaultSort) onClose() else change(AccountSettingsChange.Sort(it)) },
+                onSelect = { change(AccountSettingsChange.Sort(it)) },
                 onDismiss = onClose,
                 returnFocus = returnFocus(RowKey.DEFAULT_SORT),
             )

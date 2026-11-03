@@ -59,7 +59,7 @@ internal fun ColumnScope.TvTrashDetail(
         }
         TvDetailFact(stringResource(R.string.tv_trash_expires), styled.text, styled = styled)
     }
-    TvDetailBody(key = item.id, title = item.name, meta = meta, facts = listOfNotNull(expires)) {
+    TvDetailBody(title = item.name, meta = meta, facts = listOfNotNull(expires)) {
         TvDetailButton(
             label = AnnotatedString(stringResource(R.string.tv_trash_restore)),
             icon = R.drawable.ic_ph_arrow_u_up_left,

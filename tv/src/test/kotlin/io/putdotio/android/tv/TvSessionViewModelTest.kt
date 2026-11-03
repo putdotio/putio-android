@@ -621,6 +621,26 @@ class TvSessionViewModelTest {
         assertNull(session.fileActionFailure.value)
     }
 
+    @Test
+    fun `a save answered after hiding a card brings it back only once the file plays again`() = runTest {
+        val recorder = FakeWatchNextRecorder()
+        val session = sessionWithContinueWatching(recorder)
+        val savedBefore = recorder.saved.toList()
+
+        session.removeFromContinueWatching(session.continueWatching.entries.value.single())
+        session.positionSaved(9L, 200.0)
+
+        assertEquals(savedBefore, recorder.saved)
+        assertTrue(session.continueWatching.entries.value.isEmpty())
+
+        session.play(media(9, "clip.mp4", PutioFileType.VIDEO).copy(playback = FilesPlaybackProgress(0.0, 600.0)))
+        session.stopPlayback()
+        session.positionSaved(9L, 240.0)
+
+        assertEquals(9L to 240.0, recorder.saved.last().let { (media, seconds) -> media.fileId to seconds })
+        assertEquals(listOf(FilesItemId(9)), session.continueWatching.entries.value.map { it.fileId })
+    }
+
     private fun sessionWithContinueWatching(recorder: FakeWatchNextRecorder): TvSession {
         val session = checkNotNull(
             TvSessionViewModel(auth).sessionFor(

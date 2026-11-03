@@ -1,7 +1,6 @@
 package io.putdotio.android.tv.home
 
 import androidx.annotation.DrawableRes
-import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -158,7 +157,7 @@ internal fun TvHomeScreen(
         actions = actions,
         paneFocus = paneFocus,
     )
-    TvHomeNotice(pinFailure, R.string.tv_files_pin_error, onDismissPinFailure, paneFocus)
+    TvHomePinNotice(pinFailure, onDismissPinFailure, paneFocus)
     if (continueWatching.isEmpty() && pinnedCards?.isEmpty() == true) {
         TvEmptyState(
             glyph = PutioEmptyGlyph.NothingYet,
@@ -269,12 +268,7 @@ private fun TvHomeSheets(
 }
 
 @Composable
-private fun TvHomeNotice(
-    failure: PutioFailure?,
-    @StringRes title: Int,
-    onDismiss: () -> Unit,
-    paneFocus: FocusRequester,
-) {
+private fun TvHomePinNotice(failure: PutioFailure?, onDismiss: () -> Unit, paneFocus: FocusRequester) {
     val showing = failure.shown()
     val wasShowing = remember { mutableStateOf(false) }
     LaunchedEffect(showing) {
@@ -286,7 +280,7 @@ private fun TvHomeNotice(
     }
     if (failure == null || !showing) return
     TvNoticeDialog(
-        title = stringResource(title, failure.tvMessageText()),
+        title = stringResource(R.string.tv_files_pin_error, failure.tvMessageText()),
         onDismiss = onDismiss,
     )
 }

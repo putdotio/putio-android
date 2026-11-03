@@ -144,7 +144,7 @@ internal class TvSession internal constructor(
     historyEnabled: Boolean,
     sessionCurrent: () -> Boolean,
     parentScope: CoroutineScope,
-    val watchNext: TvWatchNextRecorder = TvWatchNextRecorder.None,
+    private val watchNext: TvWatchNextRecorder = TvWatchNextRecorder.None,
     /** The signed-in account, which product analytics identifies; null in tests. */
     accountId: Long? = null,
 ) {
@@ -516,7 +516,7 @@ private suspend fun FilesRepository.withListedDuration(item: FilesItem): FilesIt
 
 internal fun TvSession.removeFromContinueWatching(entry: ContinueWatchingEntry) {
     continueWatching.removed(entry.fileId)
-    watchNext.fileGone(entry.fileId.value)
+    watchNextPlayback.hidden(entry.fileId.value)
 }
 
 internal fun tvSessionViewModelFactory(authState: StateFlow<TvAuthState>): ViewModelProvider.Factory =
