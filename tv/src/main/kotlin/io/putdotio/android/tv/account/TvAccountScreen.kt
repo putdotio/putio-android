@@ -98,7 +98,7 @@ import io.putdotio.android.account.R as AccountR
 internal const val TV_ACCOUNT_STORAGE_TAG = "tv-account-storage"
 
 internal enum class TvAccountGroup(@StringRes val label: Int, @DrawableRes val icon: Int) {
-    Library(R.string.tv_account_group_library, R.drawable.ic_ph_trash),
+    Library(R.string.tv_account_group_library, R.drawable.ic_ph_books),
     Playback(R.string.tv_account_group_playback, R.drawable.ic_ph_play_circle),
     Subtitles(R.string.tv_account_group_subtitles, R.drawable.ic_ph_subtitles),
     Privacy(R.string.tv_account_group_privacy, R.drawable.ic_ph_shield_check),
@@ -826,12 +826,12 @@ private class TvAccountRowsScope(
                 TvSettingRow(
                     title = stringResource(title),
                     icon = icon,
-                    segment = segmentOf(index, facts.size),
+                    segment = segmentOf(index, facts.size + 1),
                     modifier = Modifier.accountFocus(context, rowKey),
                 ) { focused -> TvSettingValue(value, focused) }
             }
+            TvSupportQr(diagnostics.supportText(), segmentOf(facts.size, facts.size + 1))
         }
-        TvSupportQr(diagnostics.supportText())
     }
 
     @Composable
@@ -1027,11 +1027,14 @@ private fun TvStorageCard(account: TvAccount) {
 }
 
 @Composable
-private fun TvSupportQr(supportText: String) {
+private fun TvSupportQr(supportText: String, segment: TvSegment) {
     val light = MaterialTheme.colorScheme.inverseSurface
     Row(
-        modifier = Modifier.padding(start = 16.dp, top = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceVariant, segment.shape())
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         TvQrCode(
@@ -1112,8 +1115,8 @@ private val LEFT_WIDTH = 372.dp
 private val RIGHT_START = 432.dp
 private val AVATAR_SIZE = 40.dp
 private val STORAGE_BAR_TOP = 11.dp
-private val SUPPORT_QR_SIZE = 80.dp
-private val SUPPORT_QR_RADIUS = 10.dp
-private val SUPPORT_QR_PADDING = 5.dp
-private val SUPPORT_QR_QUIET_ZONE = 8.dp
+private val SUPPORT_QR_SIZE = 72.dp
+private val SUPPORT_QR_RADIUS = 8.dp
+private val SUPPORT_QR_PADDING = 4.dp
+private val SUPPORT_QR_QUIET_ZONE = 6.dp
 private const val PERCENT = 100

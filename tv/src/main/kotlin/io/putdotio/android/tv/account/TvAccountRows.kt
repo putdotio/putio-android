@@ -70,7 +70,7 @@ internal fun segmentOf(index: Int, count: Int): TvSegment =
         else -> TvSegment.Middle
     }
 
-private fun TvSegment.shape(): Shape {
+internal fun TvSegment.shape(): Shape {
     val outer = PutioRadius.large
     val inner = PutioRadius.extraSmall
     return when (this) {
