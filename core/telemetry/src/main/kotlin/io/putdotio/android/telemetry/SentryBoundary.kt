@@ -38,10 +38,6 @@ internal object SentryBoundary {
     var current: Period? = null
         private set
 
-    /**
-     * One uninterrupted on-period. Each SDK checks its own, so one still closing never reopens. A
-     * launch period keeps envelopes on the device until the account confirms diagnostics.
-     */
     class Period(val since: Long, confirmed: Boolean) {
         @Volatile
         var confirmed: Boolean = confirmed
@@ -67,11 +63,9 @@ internal object SentryBoundary {
         val period = open(launch)
         val files = DiagnosticsFiles(context)
         val init = { SentryAndroid.init(context) { configure(it, configuration, period, files) } }
-        // At launch on the caller's thread, so the crash handler is in place before the first screen.
         if (launch) runCatching(init) else executor.submit(init)
     }
 
-    /** Opens the launch period's transport and starts the senders it held, which send what it kept. */
     fun confirm() {
         val period = current?.takeUnless { it.confirmed } ?: return
         period.confirm()
@@ -102,36 +96,29 @@ internal object SentryBoundary {
         options.environment = configuration.environment
         options.cacheDirPath = files.cache.path
         options.maxBreadcrumbs = 0
-        // Release-health sessions skip beforeSend and carry Sentry's own installation id.
         options.isEnableAutoSessionTracking = false
-        // Cached envelopes upload without passing beforeSend.
         options.setTransportGate {
             period.sends && options.connectionStatusProvider.connectionStatus != ConnectionStatus.DISCONNECTED
         }
         if (!period.confirmed) {
-            // A cached-envelope sender never retries, for the life of the process, a file it queued.
             period.heldSenders = options.integrations.filter { it is IConnectionStatusObserver }
             options.integrations.removeAll(period.heldSenders)
         }
-        val installation = lazy(files::installationId)
         options.setBeforeSend { event, hint ->
-            // Sentry sends the hint's attachments with whatever event this returns.
             hint.clearAttachments()
             hint.screenshot = null
             hint.viewHierarchy = null
             hint.threadDump = null
             hint.tombstone = null
             val failure = hint.getAs(FAILURE_HINT, TelemetryFailure::class.java)
-            val admitted = period.isCurrent && event.timestamp.time >= period.since
-            if (admitted) allowlisted(event, installation.value, configuration.surface, failure) else null
+            files.locked {
+                val admitted = period.isCurrent && event.timestamp.time >= period.since
+                if (admitted) allowlisted(event, files.installationId(), configuration.surface, failure) else null
+            }
         }
     }
 }
 
-/**
- * What diagnostics keep on the device: Sentry's cache, Sentry's installation id, and the id events
- * carry. That one is ours, since Sentry holds its own in memory for the life of the process.
- */
 internal class DiagnosticsFiles(val cache: File, val sentryInstallation: File, val installation: File) {
     constructor(context: Context) : this(
         File(context.cacheDir, "io.put.diagnostics"),
@@ -139,16 +126,26 @@ internal class DiagnosticsFiles(val cache: File, val sentryInstallation: File, v
         File(context.noBackupFilesDir, "io.put.diagnostics.installation"),
     )
 
-    @Synchronized
-    fun installationId(): String =
-        installation.takeIf { it.isFile }?.readText()?.takeIf { it.isNotBlank() }
-            ?: UUID.randomUUID().toString().also { installation.writeText(it) }
+    fun <T> locked(block: () -> T): T = synchronized(LOCK, block)
 
-    @Synchronized
+    fun installationId(): String? =
+        locked {
+            runCatching {
+                installation.takeIf { it.isFile }?.readText()?.takeIf { it.isNotBlank() }
+                    ?: UUID.randomUUID().toString().also { installation.writeText(it) }
+            }.getOrNull()
+        }
+
     fun delete() {
-        cache.deleteRecursively()
-        sentryInstallation.delete()
-        installation.delete()
+        locked {
+            cache.deleteRecursively()
+            sentryInstallation.delete()
+            installation.delete()
+        }
+    }
+
+    private companion object {
+        val LOCK = Any()
     }
 }
 
@@ -156,7 +153,7 @@ internal class DiagnosticsFiles(val cache: File, val sentryInstallation: File, v
  * Copies listed fields into a new event, so unlisted ones, including any a Sentry upgrade adds,
  * stay on the device. A throwable's message can quote a media title, so exceptions keep their type.
  */
-private fun allowlisted(event: SentryEvent, installation: String, surface: String, failure: TelemetryFailure?) =
+private fun allowlisted(event: SentryEvent, installation: String?, surface: String, failure: TelemetryFailure?) =
     SentryEvent(event.timestamp).apply {
         eventId = event.eventId
         level = event.level
@@ -165,7 +162,7 @@ private fun allowlisted(event: SentryEvent, installation: String, surface: Strin
         environment = event.environment
         dist = event.dist
         sdk = event.sdk?.let { SdkVersion(it.name, it.version) }
-        user = User().apply { id = installation }
+        user = installation?.let { User().apply { id = it } }
         tags = mapOf("surface" to surface) + failure?.tags.orEmpty()
         exceptions = failure?.let { listOf(it.exception()) } ?: event.exceptions?.map(::allowlisted)
         // Sentry picks the R8 mapping that deobfuscates the frames by this id.

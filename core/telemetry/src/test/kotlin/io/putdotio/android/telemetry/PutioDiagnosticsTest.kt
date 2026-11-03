@@ -10,6 +10,7 @@ import io.sentry.android.core.SentryAndroidOptions
 import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -53,9 +54,39 @@ class PutioDiagnosticsTest {
         PutioDiagnostics.update(allowed = false)
 
         assertNull(SentryBoundary.current)
+        awaitDeleted(kept, "an envelope kept at launch outlived the opt-out")
+    }
+
+    @Test
+    fun signingOutBeforeTheAccountAnswersDeletesWhatTheLaunchKept() {
+        val application = ApplicationProvider.getApplicationContext<Application>()
+        PutioDiagnostics.start(application, CONFIGURATION)
+        val kept = File(DiagnosticsFiles(application).cache, "kept.envelope").apply { parentFile?.mkdirs() }
+        kept.writeText("synthetic")
+
+        PutioDiagnostics.update(DiagnosticsAnswer.SignedOut)
+
+        assertEquals("signed out kept diagnostics off", true, SentryBoundary.current?.confirmed)
+        assertNotEquals("signed out reused the launch period", 0L, SentryBoundary.current?.since)
+        awaitDeleted(kept, "a signed-out answer released an envelope the previous account kept")
+    }
+
+    @Test
+    fun aSessionAnOlderBuildLeftNeverLeaves() {
+        val application = ApplicationProvider.getApplicationContext<Application>()
+        val session = File(DiagnosticsFiles(application).cache, "dsn/previous_session.json")
+        session.parentFile?.mkdirs()
+        session.writeText("synthetic")
+
+        PutioDiagnostics.start(application, CONFIGURATION)
+
+        assertFalse("a session from an older build waited for the answer", session.exists())
+    }
+
+    private fun awaitDeleted(file: File, message: String) {
         val deadline = System.currentTimeMillis() + PURGE_MILLIS
-        while (kept.exists() && System.currentTimeMillis() < deadline) Thread.sleep(POLL_MILLIS)
-        assertFalse("an envelope kept at launch outlived the opt-out", kept.exists())
+        while (file.exists() && System.currentTimeMillis() < deadline) Thread.sleep(POLL_MILLIS)
+        assertFalse(message, file.exists())
     }
 
     @Implements(SentryAndroid::class)

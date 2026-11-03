@@ -10,6 +10,7 @@ import io.putdotio.android.search.SdkSearchRepository
 import io.putdotio.android.settings.SdkAccountSettingsRepository
 import io.putdotio.android.settings.confirmProductAnalytics
 import io.putdotio.android.telemetry.ProductAnalytics
+import io.putdotio.android.telemetry.DiagnosticsAnswer
 import io.putdotio.android.telemetry.PutioDiagnostics
 import io.putdotio.android.tv.home.TvDeviceShowHomeStore
 import io.putdotio.android.tv.search.TvGlobalSearch
@@ -90,10 +91,9 @@ internal class TvAuthRuntime(
                 scope = applicationScope,
                 legacySession = AsyncStorageLegacyTvSession(context),
             )
-            // Sessions also change without a UI, so the process scope tells diagnostics and analytics.
             applicationScope.launch {
                 authController.state.collect { state ->
-                    state.diagnosticsAllowed()?.let(PutioDiagnostics::update)
+                    state.diagnosticsAnswer()?.let(PutioDiagnostics::update)
                     state.productAnalyticsAnswer()?.let { (accountId, enabled) ->
                         ProductAnalytics.update(accountId, enabled)
                     }
@@ -136,8 +136,7 @@ private fun clearHome(context: Context) {
     TvDeviceShowHomeStore.clearAll(context)
 }
 
-/** Null while restoring, validating, signing out, or unable to read or clear the token, so the last answer stands. */
-internal fun TvAuthState.diagnosticsAllowed(): Boolean? =
+internal fun TvAuthState.diagnosticsAnswer(): DiagnosticsAnswer? =
     when (this) {
         TvAuthState.Initializing,
         TvAuthState.RestoringSession,
@@ -147,8 +146,10 @@ internal fun TvAuthState.diagnosticsAllowed(): Boolean? =
         -> null
 
         is TvAuthState.Linking ->
-            true.takeUnless { (phase as? TvLinkPhase.Stopped)?.reason == TvLinkStop.StorageUnavailable }
-        is TvAuthState.SignedIn -> account.diagnosticsEnabled
+            DiagnosticsAnswer.SignedOut.takeUnless {
+                (phase as? TvLinkPhase.Stopped)?.reason == TvLinkStop.StorageUnavailable
+            }
+        is TvAuthState.SignedIn -> DiagnosticsAnswer.Account(account.diagnosticsEnabled)
     }
 
 /** The account and its product analytics answer: signed out is `null to false`; null keeps the last answer. */

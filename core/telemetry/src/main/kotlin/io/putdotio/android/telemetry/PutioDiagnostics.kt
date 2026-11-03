@@ -5,40 +5,57 @@ import android.app.Application
 import android.content.Context
 import android.content.SharedPreferences
 
-/**
- * Runs Sentry only while the build has a DSN and diagnostics are allowed: the signed-in account's
- * `diagnostics_enabled`, and allowed while signed out. A cold launch after an opt-out stays off; any
- * other launch starts Sentry but keeps envelopes on the device until the first answer, since the
- * account may have opted out elsewhere.
- */
+public sealed interface DiagnosticsAnswer {
+    public data object SignedOut : DiagnosticsAnswer
+
+    public data class Account(public val allowed: Boolean) : DiagnosticsAnswer
+}
+
 public object PutioDiagnostics {
     private const val ALLOWED = "allowed"
+    private const val CACHE_FORMAT = "cache_format"
+    private const val SESSIONLESS_CACHE = 1
     private lateinit var application: Application
     private lateinit var preferences: SharedPreferences
     private var configuration: SentryConfiguration? = null
 
     private val allowed: Boolean get() = preferences.getBoolean(ALLOWED, true)
 
-    /** Once per process, from `Application.onCreate`; a null [configuration] keeps Sentry off. */
     @Synchronized
+    @SuppressLint("ApplySharedPref")
     public fun start(application: Application, configuration: SentryConfiguration?) {
         this.application = application
         this.configuration = configuration
         preferences = application.getSharedPreferences("io.put.diagnostics", Context.MODE_PRIVATE)
+        if (preferences.getInt(CACHE_FORMAT, 0) < SESSIONLESS_CACHE) {
+            DiagnosticsFiles(application).cache.deleteRecursively()
+            preferences.edit().putInt(CACHE_FORMAT, SESSIONLESS_CACHE).commit()
+        }
         apply(allowed, launch = true)
+    }
+
+    public fun update(allowed: Boolean) {
+        update(DiagnosticsAnswer.Account(allowed))
     }
 
     @Synchronized
     @SuppressLint("ApplySharedPref")
-    public fun update(allowed: Boolean) {
+    public fun update(answer: DiagnosticsAnswer) {
         if (!::preferences.isInitialized) return
-        val awaitingAnswer = SentryBoundary.current?.confirmed == false
+        val allowed = when (answer) {
+            DiagnosticsAnswer.SignedOut -> true
+            is DiagnosticsAnswer.Account -> answer.allowed
+        }
+        val held = SentryBoundary.current?.confirmed == false
         when {
-            awaitingAnswer && allowed -> SentryBoundary.confirm()
-            awaitingAnswer || allowed != this.allowed -> apply(allowed, launch = false)
+            held && answer == DiagnosticsAnswer.SignedOut -> {
+                apply(false, launch = false)
+                apply(true, launch = false)
+            }
+            held && allowed -> SentryBoundary.confirm()
+            held || allowed != this.allowed -> apply(allowed, launch = false)
         }
         if (allowed == this.allowed) return
-        // On disk at once, so a process killed before the queued purge relaunches with the opt-out.
         preferences.edit().putBoolean(ALLOWED, allowed).commit()
     }
 
