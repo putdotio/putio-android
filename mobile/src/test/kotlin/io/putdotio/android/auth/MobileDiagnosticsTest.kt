@@ -1,5 +1,6 @@
 package io.putdotio.android.auth
 
+import io.putdotio.android.telemetry.DiagnosticsAnswer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -14,11 +15,14 @@ class MobileDiagnosticsTest {
             MobileAuthState.ValidationUnavailable(SessionValidationSource.RETRY),
             MobileAuthState.SigningOut,
             MobileAuthState.SignedOut(MobileSignedOutReason.SecureStorageUnavailable),
-        ).forEach { state -> assertNull("$state", state.diagnosticsAllowed()) }
-        assertEquals(true, MobileAuthState.SignedOut(MobileSignedOutReason.SessionExpired).diagnosticsAllowed())
-        assertEquals(true, MobileAuthState.AwaitingOAuthCallback.diagnosticsAllowed())
+        ).forEach { state -> assertNull("$state", state.diagnosticsAnswer()) }
+        listOf(
+            MobileAuthState.SignedOut(MobileSignedOutReason.SessionExpired),
+            MobileAuthState.AwaitingOAuthCallback,
+        ).forEach { state -> assertEquals("$state", DiagnosticsAnswer.SignedOut, state.diagnosticsAnswer()) }
 
         val optedOut = MobileAccount(7, "fixture", "fixture@example.invalid", diagnosticsEnabled = false)
-        assertEquals(false, MobileAuthState.SignedIn(optedOut, MobileAuthSessionId(3)).diagnosticsAllowed())
+        val signedIn = MobileAuthState.SignedIn(optedOut, MobileAuthSessionId(3))
+        assertEquals(DiagnosticsAnswer.Account(allowed = false), signedIn.diagnosticsAnswer())
     }
 }

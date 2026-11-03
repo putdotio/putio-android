@@ -127,6 +127,18 @@ class SentryBoundaryTest {
         assertNotEquals("an opt-in reused the opted-out installation id", before, after)
     }
 
+    @Test
+    fun anUnwritableInstallationIdStillSendsTheReportWithoutIt() {
+        val files = files()
+        files.installation.mkdirs()
+        val options = configured(SentryBoundary.open(launch = false), files)
+
+        val sent = options.beforeSend?.execute(SentryEvent(), Hint())
+
+        assertNotNull("an id the device could not keep dropped the report", sent)
+        assertNull(sent?.user)
+    }
+
     private fun files(): DiagnosticsFiles {
         val root = Files.createTempDirectory("diagnostics").toFile()
         return DiagnosticsFiles(File(root, "cache"), File(root, "INSTALLATION"), File(root, "id"))
