@@ -164,6 +164,23 @@ class MobileFilesListDetailTest {
     }
 
     @Test
+    fun aLinkToAFileOpensItInTheViewerOnAPhone() {
+        setRoute(width = 400.dp, wide = false, state = blueLights(linkedTo = SECOND_IMAGE))
+
+        compose.onNodeWithTag(MOBILE_FILE_VIEWER_TAG).assertExists()
+        compose.onNode(hasContentDescription("2 of 2")).assertExists()
+    }
+
+    @Test
+    fun aLinkToAFileShowsItInTheDetailPaneBesideTheList() {
+        setRoute(width = 1184.dp, state = blueLights(linkedTo = SECOND_IMAGE))
+
+        val inDetail = hasAnyAncestor(hasTestTag(MOBILE_FILES_DETAIL_TAG))
+        compose.onNode(hasText(SECOND_IMAGE.name) and inDetail).assertExists()
+        compose.onNodeWithTag(MOBILE_FILE_VIEWER_TAG).assertDoesNotExist()
+    }
+
+    @Test
     fun aTypeNoViewerTakesGoesToOtherAppsThroughTheDocumentsProviderWithOnlyAReadGrant() {
         setRoute(width = 400.dp, wide = false)
 
@@ -298,7 +315,10 @@ class MobileFilesListDetailTest {
         }
     }
 
-    private fun blueLights(paging: FilesPaging = FilesPaging.Complete): FilesBrowserState {
+    private fun blueLights(
+        paging: FilesPaging = FilesPaging.Complete,
+        linkedTo: FilesItem? = null,
+    ): FilesBrowserState {
         val series = FilesFolder(FilesItemId(10L), "Series")
         val blueLights = FilesFolder(FilesItemId(11L), "Blue Lights")
         val items = listOf(EPISODE, FIRST_IMAGE, ARCHIVE, SECOND_IMAGE)
@@ -320,7 +340,12 @@ class MobileFilesListDetailTest {
                     series,
                     FilesContent.Ready(listOf(folderItem(blueLights, series)), FilesPaging.Complete),
                 ),
-                FilesFolderState(blueLights, FilesContent.Ready(items, paging)),
+                FilesFolderState(
+                    blueLights,
+                    FilesContent.Ready(items, paging),
+                    openedFrom = linkedTo?.let { FilesOpenOrigin.LINK },
+                    revealItemId = linkedTo?.id,
+                ),
             ),
             nextRequestValue = 2L,
         )

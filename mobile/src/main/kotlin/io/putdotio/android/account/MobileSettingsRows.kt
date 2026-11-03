@@ -29,6 +29,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.design.PutioRadius
+import io.putdotio.android.monoFigures
 import io.putdotio.android.design.PutioSwitch
 import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.design.putioMono
@@ -117,12 +118,12 @@ internal sealed interface SettingsTrailing {
     data class Switch(val checked: Boolean, val enabled: Boolean) : SettingsTrailing
 }
 
-/** Plain text in a value slot; [mono] sets the whole value in Berkeley Mono, for a number. */
+/** Plain text in a value slot; [mono] sets its figures in Berkeley Mono, for a number. */
 @Composable
 internal fun settingsValue(text: String, mono: Boolean = false, color: Color? = null): SettingsTrailing.Value =
     SettingsTrailing.Value(
         if (mono) {
-            AnnotatedString(text, MaterialTheme.typography.bodySmall.putioMono().toSpanStyle())
+            monoFigures(text, MaterialTheme.typography.bodySmall.putioMono().toSpanStyle())
         } else {
             AnnotatedString(text)
         },

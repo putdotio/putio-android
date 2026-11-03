@@ -388,22 +388,26 @@ class MobileFilesScreenTest {
     }
 
     @Test
-    fun playedMediaShowsOneEyeGlyphAndNoProgressInTheRow() {
+    fun aRowTellsPartWayFromFinished() {
         val partly = filesItem(1L, "partly.mkv", PutioFileType.VIDEO)
             .copy(playback = FilesPlaybackProgress(90.0, 360.0))
+        val finished = filesItem(5L, "finished.mkv", PutioFileType.VIDEO)
+            .copy(playback = FilesPlaybackProgress(355.0, 360.0))
         val unknown = filesItem(2L, "unknown.mp3", PutioFileType.AUDIO)
             .copy(playback = FilesPlaybackProgress(5.0, null))
         val fresh = filesItem(3L, "fresh.mkv", PutioFileType.VIDEO).copy(playback = FilesPlaybackProgress(0.0, 100.0))
         val plain = filesItem(4L, "plain.txt")
-        val state = browserState(FilesContent.Ready(listOf(partly, unknown, fresh, plain), FilesPaging.Complete))
+        val items = listOf(partly, finished, unknown, fresh, plain)
+        val state = browserState(FilesContent.Ready(items, FilesPaging.Complete))
         compose.setContent { PutioTheme { MobileFilesScreen(state, onEvent = {}, onPlayMedia = {}) } }
-        compose.onAllNodesWithTag(MOBILE_FILES_WATCHED_TAG, useUnmergedTree = true).assertCountEquals(2)
-        // One merged row node carries the name, the size and the watched glyph's name together.
-        compose.onNode(hasText("partly.mkv") and hasText("128B") and hasContentDescription("Watched"))
+        // Resumable reads as progress, never as the finished eye.
+        compose.onNode(hasText("partly.mkv") and hasText("128 B") and hasContentDescription("25% watched"))
             .assertIsDisplayed()
+        compose.onNode(hasText("partly.mkv") and hasContentDescription("Watched")).assertDoesNotExist()
+        compose.onNode(hasText("finished.mkv") and hasContentDescription("Watched")).assertIsDisplayed()
+        // Played with no known length can't resume to a place, so it reads as finished.
         compose.onNode(hasText("unknown.mp3") and hasContentDescription("Watched")).assertIsDisplayed()
-        compose.onAllNodes(hasProgressBarRangeInfo(ProgressBarRangeInfo(0.25f, 0f..1f))).assertCountEquals(0)
-        compose.onAllNodesWithText("watched", substring = true, ignoreCase = true).assertCountEquals(0)
+        compose.onAllNodesWithTag(MOBILE_FILES_WATCHED_TAG, useUnmergedTree = true).assertCountEquals(2)
         compose.onNode(hasText("fresh.mkv") and hasContentDescription("Watched")).assertDoesNotExist()
     }
 

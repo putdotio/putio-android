@@ -12,6 +12,7 @@ import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
@@ -73,6 +74,14 @@ internal fun MobileFilesRoute(
     var viewerId by rememberSaveable { mutableStateOf<Long?>(null) }
     // Select from a viewer's actions closes the viewer, so the selection shows.
     LaunchedEffect(selecting) { if (selecting) viewerId = null }
+    LandOnLinkedFile(
+        state = state,
+        folderKey = currentKey,
+        showsDetail = showsDetail,
+        views = fileOpener != null,
+        onDetail = { detailId = it.id.value },
+        onView = { viewerId = it.id.value },
+    )
     val actionsRequests = remember { MutableSharedFlow<MobileFilesActionsRequest>(extraBufferCapacity = 1) }
     val openWithAnotherApp: (FilesItem) -> Unit = { item -> fileOpener?.openWithAnotherApp(context, item) }
     val viewFile: (FilesItem) -> Unit = { viewerId = it.id.value }
@@ -167,6 +176,38 @@ internal fun MobileFilesRoute(
             },
             onClose = { viewerId = null },
         )
+    }
+}
+
+/**
+ * A link to a file lands on it once its folder lists it, once per link: the detail pane shows it
+ * beside the list, or a phone opens it in the viewer when the viewer [views] it.
+ */
+@Composable
+private fun LandOnLinkedFile(
+    state: FilesBrowserState,
+    folderKey: Pair<Int, Long>,
+    showsDetail: Boolean,
+    views: Boolean,
+    onDetail: (FilesItem) -> Unit,
+    onView: (FilesItem) -> Unit,
+) {
+    val onLanded = { item: FilesItem ->
+        when {
+            showsDetail -> onDetail(item)
+            views && item.viewerKind != null -> onView(item)
+        }
+    }
+    val linked = state.current.revealItemId?.takeIf { state.current.openedFrom == FilesOpenOrigin.LINK }
+    val linkedItem = state.current.content.items().firstOrNull { it.id == linked && !it.isFolder }
+    var landed by rememberSaveable(folderKey.first, folderKey.second) { mutableStateOf<Long?>(null) }
+    val currentOnLanded by rememberUpdatedState(onLanded)
+    LaunchedEffect(linkedItem?.id) {
+        val item = linkedItem ?: return@LaunchedEffect
+        if (landed != item.id.value) {
+            landed = item.id.value
+            currentOnLanded(item)
+        }
     }
 }
 

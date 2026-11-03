@@ -58,6 +58,8 @@ import coil3.compose.SubcomposeAsyncImageContent
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
 import io.putdotio.android.R
+import io.putdotio.android.mobileFileSize
+import io.putdotio.android.monoFigures
 import io.putdotio.android.design.FileTypeIcon
 import io.putdotio.android.design.PutioEmptyState
 import io.putdotio.android.design.PutioRadius
@@ -335,7 +337,7 @@ private fun MobileFilesDetailFacts(
         }
     }
     val facts = buildList {
-        add(DetailFact(R.string.mobile_files_detail_size, formatFileSize(item.sizeBytes), mono = true))
+        add(DetailFact(R.string.mobile_files_detail_size, mobileFileSize(item.sizeBytes), mono = true))
         item.createdAt.toFullDate(context)?.let { add(DetailFact(R.string.mobile_files_detail_added, it)) }
         item.playback?.durationSeconds?.let { seconds ->
             val length = DateUtils.formatElapsedTime(seconds.toLong())
@@ -365,9 +367,10 @@ private fun MobileFilesDetailFact(fact: DetailFact, style: TextStyle) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.width(FACT_LABEL_WIDTH),
         )
+        val mono = style.putioMono().toSpanStyle()
         Text(
-            text = fact.value,
-            style = if (fact.mono) style.putioMono() else style,
+            text = if (fact.mono) monoFigures(fact.value, mono) else AnnotatedString(fact.value),
+            style = style,
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f),
         )

@@ -19,7 +19,17 @@ import io.putdotio.android.files.FilesFolderCreator
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPage
-import io.putdotio.android.files.MOBILE_FILES_OVERFLOW_TAG
+import io.putdotio.android.files.MOBILE_FILES_NEW_FOLDER_ACTION_TAG
+import io.putdotio.android.files.MOBILE_FILES_SORT_TAG
+import io.putdotio.android.files.FilesSort
+import io.putdotio.android.settings.AccountSettingsState
+import io.putdotio.android.settings.DefaultAccountSettingsPreferences
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import io.putdotio.android.files.MOBILE_NEW_FOLDER_CREATE_TAG
 import io.putdotio.android.files.MOBILE_NEW_FOLDER_FIELD_TAG
 import io.putdotio.android.playback.PlaybackNextResult
@@ -78,7 +88,7 @@ class MobileFilesBarsTest {
     }
 
     @Test
-    fun newFolderFromTheOverflowCreatesInTheCurrentFolderAndMarksItStale() {
+    fun newFolderFromTheBarCreatesInTheCurrentFolderAndMarksItStale() {
         val created = mutableListOf<Pair<FilesItemId, String>>()
         val events = mutableListOf<FilesBrowserEvent>()
         val creator = object : FilesFolderCreator {
@@ -89,8 +99,7 @@ class MobileFilesBarsTest {
         }
         compose.setShell({ folderState() }, creator = creator, onFilesEvent = { events += it })
 
-        compose.onNodeWithTag(MOBILE_FILES_OVERFLOW_TAG).performClick()
-        compose.onNodeWithText("New folder").performClick()
+        compose.onNodeWithTag(MOBILE_FILES_NEW_FOLDER_ACTION_TAG).performClick()
         compose.onNodeWithText("In Blue Lights").assertExists()
         compose.onNodeWithTag(MOBILE_NEW_FOLDER_FIELD_TAG).performTextInput("Shorts")
         compose.onNodeWithTag(MOBILE_NEW_FOLDER_CREATE_TAG).performClick()
@@ -104,18 +113,40 @@ class MobileFilesBarsTest {
         compose.onNodeWithTag(MOBILE_NEW_FOLDER_FIELD_TAG).assertDoesNotExist()
     }
 
+    @Test
+    fun aTapOnTheFilesTabWhileItShowsPopsToTheRoot() {
+        val events = mutableListOf<FilesBrowserEvent>()
+        compose.setShell({ folderState() }, onFilesEvent = { events += it })
+
+        compose.onNode(hasText("Files") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))).performClick()
+
+        compose.runOnIdle { assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.NavigateBack), events) }
+    }
+
+    @Test
+    fun aFolderWithoutItsOwnOrderNamesTheAccountsDefaultSort() {
+        val settings = readyAccountSettingsState(
+            DefaultAccountSettingsPreferences.copy(defaultSort = FilesSort.SIZE_DESCENDING),
+        )
+        compose.setShell({ folderState() }, settings = settings)
+
+        compose.onNodeWithTag(MOBILE_FILES_SORT_TAG)
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Size, largest first"))
+    }
+
     private fun ComposeContentTestRule.setShell(
         files: () -> FilesBrowserState,
         creator: FilesFolderCreator? = null,
         onScope: (SearchScope?) -> Unit = {},
         onFilesEvent: (FilesBrowserEvent) -> Unit = {},
+        settings: AccountSettingsState = readyAccountSettingsState(),
     ) {
         setContent {
             PutioTheme {
                 MobileShell(
                     playbackPlayerFactory = NoAudioSessionFactory,
                     filesState = files(),
-                    accountSettingsState = readyAccountSettingsState(),
+                    accountSettingsState = settings,
                     appConfigState = readyAndroidAppConfigState(),
                     account = MobileAccount(userId = 42L, username = "user", email = "user@example.com"),
                     playbackRepository = NoPlayback,

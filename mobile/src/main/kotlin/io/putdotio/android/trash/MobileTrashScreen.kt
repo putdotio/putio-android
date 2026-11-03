@@ -52,9 +52,10 @@ import io.putdotio.android.MobileMiddleCutText
 import io.putdotio.android.MobileRow
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
+import io.putdotio.android.mobileFileSize
+import io.putdotio.android.monoFigures
 import io.putdotio.android.design.FileTypeIcon
 import io.putdotio.android.design.putioMono
-import io.putdotio.android.files.formatFileSize
 import io.putdotio.android.files.mobileMessage
 import java.time.LocalDate
 
@@ -207,7 +208,8 @@ private fun MobileTrashRow(
         headline = { MobileMiddleCutText(item.name) },
         meta = {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(formatFileSize(item.sizeBytes), style = style.putioMono(), maxLines = 1)
+                val size = mobileFileSize(item.sizeBytes)
+                Text(monoFigures(size, style.putioMono().toSpanStyle()), style = style, maxLines = 1)
                 item.expirationDate?.trashDaysLeft(LocalDate.now())?.let { days ->
                     Text("·", style = style, modifier = Modifier.clearAndSetSemantics {})
                     Text(context.goneIn(days), style = style, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -247,7 +249,7 @@ private fun MobileTrashSummary(content: TrashContent.Loaded) {
     ) {
         CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurfaceVariant) {
             content.trashSizeBytes?.let { size ->
-                Text(formatFileSize(size), style = style.putioMono(), maxLines = 1)
+                Text(monoFigures(mobileFileSize(size), style.putioMono().toSpanStyle()), style = style, maxLines = 1)
                 Text("·", style = style, modifier = Modifier.clearAndSetSemantics {})
             }
             Text(stringResource(R.string.mobile_trash_retention), style = style)
