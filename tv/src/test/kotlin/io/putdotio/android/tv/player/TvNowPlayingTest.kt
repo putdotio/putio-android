@@ -3,9 +3,13 @@ package io.putdotio.android.tv.player
 import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -22,8 +26,10 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
 import androidx.media3.session.MediaSession
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.playback.PlaybackController
+import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackNeighbours
 import io.putdotio.android.playback.PlaybackNextResult
@@ -33,6 +39,7 @@ import io.putdotio.android.playback.PlaybackResolution
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.tv.pressCenter
 import io.putdotio.android.tv.setTvContent
+import io.putdotio.sdk.errors.PutioConfigurationException
 import java.io.Closeable
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -108,6 +115,88 @@ class TvNowPlayingTest {
         compose.runOnIdle { players.last().end() }
         compose.waitForIdle()
         assertEquals(1, exits)
+
+        compose.back()
+        assertEquals(1, exits)
+    }
+
+    @Test
+    fun aFinishedTrackWithoutAFolderLookupLeaves() {
+        showFolder(start = SECOND, findUpNext = false)
+
+        compose.runOnIdle { players.last().end() }
+        compose.waitForIdle()
+
+        assertEquals(1, exits)
+    }
+
+    @Test
+    fun aTrackOpenedDirectlyResumesButOneSkippedToStartsOver() {
+        val controller = showFolder(start = SECOND, folder = FolderRepository(folderRead, savedSeconds = 300.0))
+        compose.runOnIdle { assertEquals(300_000L, players.last().startPositionMillis) }
+
+        player().performKeyInput { pressKey(Key.MediaNext) }
+        assertPlaying(controller, THIRD)
+
+        compose.runOnIdle { assertEquals(0L, players.last().startPositionMillis) }
+    }
+
+    @Test
+    fun nextIsNotFocusableOnTheFoldersLastTrack() {
+        showFolder(start = THIRD)
+
+        player().performKeyInput {
+            pressKey(Key.DirectionDown)
+            pressKey(Key.DirectionRight)
+        }
+        compose.waitForIdle()
+
+        compose.onNodeWithContentDescription("Pause").assertIsSelected()
+        compose.onNodeWithContentDescription("Next file").assertIsNotSelected()
+    }
+
+    @Test
+    fun aRejectedFolderLookupReachesTheCurrentSessionHandler() {
+        val pending = CompletableDeferred<Unit>()
+        val rejections = mutableListOf<String>()
+        var handler by mutableStateOf("first")
+        val folder = FolderRepository(pending, rejected = true)
+        val controller = PlaybackController(
+            SECOND,
+            folder,
+            CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
+        )
+        compose.setTvContent {
+            val current = handler
+            TvPlaybackRoute(
+                controller = controller,
+                onExit = { exits += 1 },
+                onSessionRejected = { rejections += current },
+                playerFactory = playerFactory,
+                findUpNext = folder::findNeighbours,
+            )
+        }
+        compose.waitForIdle()
+
+        compose.runOnIdle { handler = "second" }
+        compose.waitForIdle()
+        pending.complete(Unit)
+        compose.waitForIdle()
+
+        assertEquals(listOf("second"), rejections)
+    }
+
+    @Test
+    fun theSystemKeepsTheSkipControlsWhenThePlayersCommandsChange() {
+        showFolder(start = SECOND)
+        val session = connect(sessions.last())
+
+        compose.runOnIdle { players.last().allow(Player.COMMAND_SET_SPEED_AND_PITCH) }
+        idleSession()
+
+        assertTrue(session.isCommandAvailable(Player.COMMAND_SEEK_TO_NEXT))
+        assertTrue(session.isCommandAvailable(Player.COMMAND_SEEK_TO_PREVIOUS))
+        session.release()
     }
 
     @Test
@@ -233,6 +322,7 @@ class TvNowPlayingTest {
         start: PlaybackTarget,
         folder: FolderRepository = repository,
         lifecycleOwner: LifecycleOwner? = null,
+        findUpNext: Boolean = true,
     ): PlaybackController {
         val controller = PlaybackController(
             start,
@@ -246,7 +336,7 @@ class TvNowPlayingTest {
                     onExit = { exits += 1 },
                     onSessionRejected = {},
                     playerFactory = playerFactory,
-                    findUpNext = folder::findNeighbours,
+                    findUpNext = if (findUpNext) folder::findNeighbours else null,
                 )
             }
         }
@@ -288,16 +378,30 @@ class TvNowPlayingTest {
         compose.waitForIdle()
     }
 
-    private class FolderRepository(private val read: CompletableDeferred<Unit>) : PlaybackRepository {
+    private class FolderRepository(
+        private val read: CompletableDeferred<Unit>,
+        private val savedSeconds: Double = 0.0,
+        private val rejected: Boolean = false,
+    ) : PlaybackRepository {
         private val folder = listOf(FIRST, SECOND, THIRD)
 
         override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> =
-            PlaybackRepositoryResult.Success(PlaybackResolution.Ready(source(fileId = target.fileId.value)))
+            PlaybackRepositoryResult.Success(
+                PlaybackResolution.Ready(
+                    source(startFromSeconds = savedSeconds, fileId = target.fileId.value),
+                    useStartFrom = savedSeconds > 0.0,
+                ),
+            )
 
         override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult = PlaybackNextResult.Ended
 
         override suspend fun findNeighbours(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackNeighbours> {
             read.await()
+            if (rejected) {
+                return PlaybackRepositoryResult.Failure(
+                    PlaybackFailure.Putio(PutioFailure.AuthenticationRequired(PutioConfigurationException("401"))),
+                )
+            }
             val at = folder.indexOfFirst { it.fileId == target.fileId }
             return PlaybackRepositoryResult.Success(
                 PlaybackNeighbours(folder.getOrNull(at - 1), folder.getOrNull(at + 1), "Mixtapes"),

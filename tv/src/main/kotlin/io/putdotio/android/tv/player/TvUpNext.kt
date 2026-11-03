@@ -147,8 +147,8 @@ internal val TvPlayerOverlay.upNextPending: Boolean
 internal val TvPlayerOverlay.holdsPlayerFocus: Boolean
     get() = sheet == null && !upNext
 
-internal fun TvPlayerOverlay.shownFocus(chips: List<TvPlayerControl>): TvPlayerControl =
-    if (upNext) TvPlayerControl.PlayPause else focusIn(chips)
+internal fun TvPlayerOverlay.shownFocus(chips: List<TvPlayerControl>, nextTrack: Boolean = true): TvPlayerControl =
+    if (upNext) TvPlayerControl.PlayPause else focusIn(chips, nextTrack)
 
 @Composable
 internal fun TvUpNextOverlay(
