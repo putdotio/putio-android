@@ -27,7 +27,7 @@ class MobileAuthControllerOfflineTest {
         assertEquals(ACCOUNT, state.account)
         assertFalse(state.validated)
         assertEquals(TOKEN, fixture.gateway.configuredToken?.reveal())
-        assertNull(state.diagnosticsAllowed())
+        assertNull(state.diagnosticsAnswer())
     }
 
     @Test
