@@ -509,6 +509,7 @@ private fun TvFilesPane(
         detailSources = remember(session) {
             TvFilesDetailSources(session.folderCounts, session.subtitleLanguages, onSessionRejected)
         },
+        viewerUrl = session::originalStreamUrl,
         onOpenInVlc = { item ->
             streamScope.launch {
                 val stream = session.originalStreamUrl(item.id)
@@ -722,6 +723,7 @@ private fun TvSearchPane(
                 TvFilesDetailSources(session.folderCounts, session.subtitleLanguages, onSessionRejected)
             },
             resumePlayback = resumePlayback,
+            viewerUrl = session::originalStreamUrl,
         ),
         dialogNotice = noticeTitle?.let { title ->
             TvSearchDialogNotice(

@@ -65,6 +65,9 @@ import io.putdotio.android.tv.files.TvFilesDetail
 import io.putdotio.android.tv.files.TvFilesDetailActions
 import io.putdotio.android.tv.files.TvFilesDetailFocus
 import io.putdotio.android.tv.files.TvFilesDetailSources
+import io.putdotio.android.tv.files.TvFileViewerLayer
+import io.putdotio.android.tv.files.TvFileViewerState
+import io.putdotio.android.tv.files.TvViewerUrl
 import io.putdotio.android.tv.files.secondary
 import io.putdotio.android.tv.files.run
 import io.putdotio.android.tv.files.tvMessageText
@@ -99,6 +102,8 @@ internal class TvSearchDetail(
     val folderNames: Map<FilesItemId, String>,
     val sources: TvFilesDetailSources,
     val resumePlayback: Boolean,
+    /** Opens images, PDFs and text in the viewer instead of revealing them in Files. */
+    val viewerUrl: TvViewerUrl? = null,
 )
 
 internal class TvSearchDialogNotice(
@@ -355,9 +360,13 @@ private fun TvSearchReady(
     val itemActions = results.itemActions
     val actionsOf = { item: FilesItem -> itemActions.actionsOf(item).filterNot { it is TvFilesAction.Delete } }
     val openActions = { item: FilesItem -> if (actionsOf(item).isNotEmpty()) actionsFor = item.id.value }
+    val viewer = remember { TvFileViewerState() }
+    val openResult = { item: FilesItem, returnFocus: FocusRequester ->
+        viewer.openOr(item, detail.viewerUrl, { returnFocus }, actions.onResult)
+    }
     val rows = TvSearchRows(
         folderName = folderNameOf(detail.folderNames, stringResource(R.string.tv_destination_files)),
-        onResult = actions.onResult,
+        onResult = { openResult(it, detailRow) },
         onActions = openActions,
         onFocused = {
             detailId = it.id.value
@@ -396,7 +405,7 @@ private fun TvSearchReady(
                 actions = TvFilesDetailActions(
                     onOpenFolder = actions.onResult,
                     onPlay = results.onPlay,
-                    onUnsupported = actions.onResult,
+                    onUnsupported = { openResult(it, detailFocus.primary) },
                     secondary = actionsOf(detailItem).secondary(),
                     onSecondary = { item, action -> itemActions.handlers.run(action, item) },
                 ),
@@ -404,6 +413,7 @@ private fun TvSearchReady(
             )
         },
     )
+    TvFileViewerLayer(viewer, groups.ordered, detail.viewerUrl, siblings = false)
     val open = actionsFor
     val openItem = open?.let { id -> groups.ordered.firstOrNull { it.id.value == id } }
     if (open != null && openItem != null) {

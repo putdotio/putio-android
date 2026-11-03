@@ -74,6 +74,7 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.okhttp)
     implementation(libs.putio.sdk.kotlin)
     // Encodes the sign-in QR code on the device: pure Java, no transitive dependencies, and R8
     // keeps only the encoder. Its decoder reads the rendered code back in the unit tests.

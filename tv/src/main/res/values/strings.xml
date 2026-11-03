@@ -132,6 +132,11 @@
     <string name="tv_files_unsupported_title">Unsupported file type</string>
     <string name="tv_files_unsupported_message">This app plays video and audio. Other files stay in your account.</string>
     <string name="tv_files_go_back">Go back</string>
+    <string name="tv_viewer_failed_title">Can’t show this file here.</string>
+    <string name="tv_viewer_failed_message">put.io didn’t send it, or the TV can’t read it.</string>
+    <string name="tv_viewer_position">%1$d of %2$d</string>
+    <string name="tv_viewer_page">Page %1$d of %2$d</string>
+    <string name="tv_viewer_text_truncated">Showing the first %1$s.</string>
     <string name="tv_files_refresh_error">Couldn’t refresh files.</string>
     <string name="tv_files_sort_error">Couldn’t change sorting.</string>
     <string name="tv_files_reload_error">Couldn’t reload files.</string>

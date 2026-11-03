@@ -407,4 +407,4 @@ tokens, type, glyphs, rows, switch, empty-state voice and copy.
 - **Back** closes the topmost layer first: a sheet, then seek mode, then the
   player controls, and only then the screen.
 - **Phone-only:** Transfers, Downloads, Cast, selection, rename, move, share,
-  exclusive links, the viewers and audio's Now Playing.
+  exclusive links and audio's Now Playing.

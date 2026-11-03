@@ -48,7 +48,8 @@ import io.putdotio.android.R
 import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
-import io.putdotio.android.files.MobileFileViewerKind
+import io.putdotio.android.files.FilesPdfDocument
+import io.putdotio.android.files.FilesViewerKind
 import io.putdotio.android.files.viewerKind
 
 internal const val MOBILE_FILE_VIEWER_TAG = "mobile-file-viewer"
@@ -76,7 +77,7 @@ internal fun MobileFileViewer(
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
-    LaunchedEffect(Unit) { MobilePdfDocument.clearCache(context) }
+    LaunchedEffect(Unit) { FilesPdfDocument.clearCache(context) }
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
@@ -122,9 +123,9 @@ internal fun MobileFileViewerContent(
             val uri = actions.documentUri(file)
             val openElsewhere = { actions.onOpenWithAnotherApp(file) }
             when (file.viewerKind) {
-                MobileFileViewerKind.Image -> MobileImagePage(file, uri, openElsewhere)
-                MobileFileViewerKind.Pdf -> MobilePdfPage(file, uri, openElsewhere)
-                MobileFileViewerKind.Text -> MobileTextPage(uri, openElsewhere)
+                FilesViewerKind.Image -> MobileImagePage(file, uri, openElsewhere)
+                FilesViewerKind.Pdf -> MobilePdfPage(file, uri, openElsewhere)
+                FilesViewerKind.Text -> MobileTextPage(uri, openElsewhere)
                 null -> MobileViewerFailure(openElsewhere)
             }
         }

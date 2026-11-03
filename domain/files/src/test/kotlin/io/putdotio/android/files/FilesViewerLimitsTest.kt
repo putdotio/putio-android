@@ -1,4 +1,4 @@
-package io.putdotio.android.viewer
+package io.putdotio.android.files
 
 import java.io.ByteArrayInputStream
 import org.junit.Assert.assertEquals
@@ -7,7 +7,7 @@ import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-class MobileViewerLimitsTest {
+class FilesViewerLimitsTest {
     @Test
     fun aShortFileReadsWholeWithItsByteOrderMarkDroppedAndEveryLineEndingSplit() {
         val bytes = byteArrayOf(0xEF.toByte(), 0xBB.toByte(), 0xBF.toByte()) + "1\r\n00:00\rHi\nçay".toByteArray()
@@ -51,5 +51,12 @@ class MobileViewerLimitsTest {
         assertThrows(IllegalArgumentException::class.java) {
             pdfBitmapSize(pageWidth = 10, pageHeight = 3_000, widthPx = 1080)
         }
+    }
+
+    @Test
+    fun aPageFitsTheFrameBySideWhicheverLimitsIt() {
+        // An A4 page on a 1920x1080 screen is as tall as the screen; a wide slide is as wide.
+        assertEquals(763, pdfFittingWidth(pageWidth = 595, pageHeight = 842, widthPx = 1920, heightPx = 1080))
+        assertEquals(1920, pdfFittingWidth(pageWidth = 1600, pageHeight = 900, widthPx = 1920, heightPx = 1080))
     }
 }

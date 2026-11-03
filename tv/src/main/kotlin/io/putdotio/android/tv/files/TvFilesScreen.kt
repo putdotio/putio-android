@@ -132,6 +132,8 @@ internal fun TvFilesScreen(
     onPlay: (FilesItem, TvPlayStart) -> Unit = { item, _ -> onPlayMedia(item) },
     resumePlayback: Boolean = true,
     detailSources: TvFilesDetailSources = remember(sessionKey) { TvFilesDetailSources.None },
+    /** Opens images, PDFs and text in the viewer; without it they land on the unsupported screen. */
+    viewerUrl: TvViewerUrl? = null,
 ) {
     val current = state.current
     // Whether D-pad focus belongs to this pane. A content change while the user is on the
@@ -228,7 +230,13 @@ internal fun TvFilesScreen(
         if (action is TvFilesAction.Delete) actions.pressDelete(item, action) else handlers.run(action, item)
     }
     TvFilesDetailLeaves(detailItem, folderId, detailFocus, paneHasFocus, entryTarget)
-    val open = { item: FilesItem -> item.open(onEvent, onPlayMedia, onUnsupported = { unsupported = it.id.value }) }
+    val viewer = remember(sessionKey, folderId) { TvFileViewerState() }
+    val openOther = { item: FilesItem, returnFocus: () -> FocusRequester ->
+        viewer.openOr(item, viewerUrl, returnFocus) { unsupported = it.id.value }
+    }
+    val open = { item: FilesItem ->
+        item.open(onEvent, onPlayMedia, onUnsupported = { openOther(it) { entryTarget.value } })
+    }
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -298,7 +306,7 @@ internal fun TvFilesScreen(
                             listing = listing,
                             onOpenFolder = open,
                             onPlay = onPlay,
-                            onUnsupported = { unsupported = it.id.value },
+                            onUnsupported = { openOther(it) { detailFocus.primary } },
                             secondaryOf = detailActionsOf,
                             onSecondary = runDetailAction,
                             deleteEnabled = current.operation.canStartOperation,
@@ -310,6 +318,7 @@ internal fun TvFilesScreen(
         TvFilesTrashSnackbar(current, snackbar, onEvent, trashUndo, undoFocus, refocus = entryTarget)
     }
 
+    TvFileViewerLayer(viewer, (content as? FilesContent.Ready)?.items.orEmpty(), viewerUrl, siblings = true)
     if (notice != null) {
         TvNoticeDialog(
             title = notice,
