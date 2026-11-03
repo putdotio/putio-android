@@ -63,6 +63,9 @@ internal fun TvPlayerOverlay.queueEnded(next: PlaybackTarget?): TvPlayerTransiti
 
 internal val PlaybackNeighbours?.hasNextTrack: Boolean get() = this?.next != null
 
+internal fun TvPlayerOverlay.focusesNextTrack(neighbours: PlaybackNeighbours?): Boolean =
+    !nowPlaying || neighbours.hasNextTrack
+
 internal class TvNowPlayingState(
     val title: String,
     val neighbours: PlaybackNeighbours?,

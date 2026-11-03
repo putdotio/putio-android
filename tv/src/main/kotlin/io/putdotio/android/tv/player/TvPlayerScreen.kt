@@ -395,7 +395,7 @@ private fun TvReadyPlayer(
             textScale = appearance.textSize.scale,
         )
     }
-    val nextTrack = !nowPlaying || neighbours.hasNextTrack
+    val nextTrack = overlay.focusesNextTrack(neighbours)
     val focus = remember { FocusRequester() }
     val playerHoldsFocus = overlay.holdsPlayerFocus
     LaunchedEffect(focus, playerHoldsFocus) { if (playerHoldsFocus) focus.requestFocus() }

@@ -87,16 +87,16 @@ internal fun tvMediaSession(context: Context, player: Player): MediaSession.Buil
             },
         )
 
-/**
- * [player] as the media session drives it: the system's play and pause reach [onPlayingRequested],
- * which decides with the overlay and then plays or pauses [player] itself.
- */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal fun tvSessionPlayer(
     player: Player,
     onSkipRequested: ((forward: Boolean) -> Unit)? = null,
     onPlayingRequested: (Boolean) -> Unit,
-): Player = TvSessionPlayer(player, onPlayingRequested, onSkipRequested)
+): Player = TvSessionPlayer(
+    if (onSkipRequested == null) player else SkipCommandsPlayer(player),
+    onPlayingRequested,
+    onSkipRequested,
+)
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 private class TvSessionPlayer(
@@ -112,20 +112,6 @@ private class TvSessionPlayer(
 
     override fun setPlayWhenReady(playWhenReady: Boolean) = onPlayingRequested(playWhenReady)
 
-    override fun getAvailableCommands(): Player.Commands {
-        val commands = super.getAvailableCommands()
-        return if (skipsTracks) withSkipCommands(commands) else commands
-    }
-
-    override fun isCommandAvailable(command: Int): Boolean =
-        (skipsTracks && TV_SKIP_COMMANDS.contains(command)) || super.isCommandAvailable(command)
-
-    override fun addListener(listener: Player.Listener) =
-        super.addListener(if (skipsTracks) SkipCommandsListener(listener) else listener)
-
-    override fun removeListener(listener: Player.Listener) =
-        super.removeListener(if (skipsTracks) SkipCommandsListener(listener) else listener)
-
     override fun seekToNext() = onSkipRequested?.invoke(true) ?: super.seekToNext()
 
     override fun seekToNextMediaItem() = onSkipRequested?.invoke(true) ?: super.seekToNextMediaItem()
@@ -133,6 +119,18 @@ private class TvSessionPlayer(
     override fun seekToPrevious() = onSkipRequested?.invoke(false) ?: super.seekToPrevious()
 
     override fun seekToPreviousMediaItem() = onSkipRequested?.invoke(false) ?: super.seekToPreviousMediaItem()
+}
+
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+private class SkipCommandsPlayer(player: Player) : ForwardingPlayer(player) {
+    override fun getAvailableCommands(): Player.Commands = withSkipCommands(super.getAvailableCommands())
+
+    override fun isCommandAvailable(command: Int): Boolean =
+        TV_SKIP_COMMANDS.contains(command) || super.isCommandAvailable(command)
+
+    override fun addListener(listener: Player.Listener) = super.addListener(SkipCommandsListener(listener))
+
+    override fun removeListener(listener: Player.Listener) = super.removeListener(SkipCommandsListener(listener))
 }
 
 private class SkipCommandsListener(private val listener: Player.Listener) : Player.Listener by listener {
