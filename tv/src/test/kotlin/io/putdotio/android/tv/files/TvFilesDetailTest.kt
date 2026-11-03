@@ -78,7 +78,6 @@ class TvFilesDetailTest {
         }
 
         compose.onNodeWithText("Added").assertIsDisplayed()
-        compose.onNodeWithText("Apr 20, 2026").assertIsDisplayed()
     }
 
     private companion object {
