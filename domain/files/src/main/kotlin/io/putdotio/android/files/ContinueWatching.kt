@@ -122,10 +122,20 @@ public class ContinueWatching(
         return rejected
     }
 
-    public fun removed(fileId: FilesItemId) {
-        // Forget the media too, so a save answered after the delete can't bring the card back.
-        media.remove(fileId)
+    /**
+     * The entry leaves: put.io confirmed the file gone, or the user hid it on this device. A save
+     * answered later can't bring it back; only playing the file again does.
+     */
+    public fun removed(fileId: FilesItemId): () -> Unit {
+        val entry = mutableEntries.value.firstOrNull { it.fileId == fileId }
+        val known = media.remove(fileId)
         update(mutableEntries.value.filterNot { it.fileId == fileId })
+        return {
+            if (entry != null && mutableEntries.value.none { it.fileId == fileId }) {
+                media[fileId] = known ?: Media(entry.name, entry.durationSeconds)
+                update(mutableEntries.value + entry)
+            }
+        }
     }
 
     /**

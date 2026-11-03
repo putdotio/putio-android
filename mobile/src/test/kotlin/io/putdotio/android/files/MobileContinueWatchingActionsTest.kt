@@ -1,7 +1,6 @@
 package io.putdotio.android.files
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class MobileContinueWatchingActionsTest {
@@ -14,19 +13,27 @@ class MobileContinueWatchingActionsTest {
             saved = entries
         }
     }
-    private val row = ContinueWatching(store)
+    private var now = 1_000L
+    private val row = ContinueWatching(store, clock = { now++ })
 
     @Test
-    fun undoPutsAHiddenVideoBackAtItsPosition() {
-        row.opened(FilesItemId(7L), "Sintel.mkv", 888.0)
-        row.positionSaved(FilesItemId(7L), 120.0)
-        val entry = row.entries.value.single()
+    fun undoPutsAHiddenVideoBackWhereItWas() {
+        row.opened(Tears, "Tears.of.Steel.mkv", 734.0)
+        row.positionSaved(Tears, 120.0)
+        row.opened(Sintel, "Sintel.mkv", 888.0)
+        row.positionSaved(Sintel, 300.0)
+        val before = store.saved
         val actions = MobileFilesItemActions().withContinueWatching(row)
 
-        checkNotNull(actions.onRemoveFromContinueWatching)(entry)
-        assertTrue(store.saved.isEmpty())
-        checkNotNull(actions.onRestoreToContinueWatching)(entry)
+        val undo = checkNotNull(actions.onRemoveFromContinueWatching)(before.single { it.fileId == Tears })
+        assertEquals(listOf(Sintel), store.saved.map { it.fileId })
+        undo()
 
-        assertEquals(listOf(FilesItemId(7L) to 120.0), store.saved.map { it.fileId to it.positionSeconds })
+        assertEquals(before, store.saved)
+    }
+
+    private companion object {
+        val Tears = FilesItemId(7L)
+        val Sintel = FilesItemId(8L)
     }
 }

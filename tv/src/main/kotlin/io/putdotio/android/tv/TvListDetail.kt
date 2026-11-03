@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -54,6 +55,7 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioTypeScale
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -161,6 +163,7 @@ internal data class TvDetailFact(
 @Composable
 internal fun ColumnScope.TvDetailBody(
     title: String,
+    key: Any = title,
     meta: AnnotatedString?,
     facts: List<TvDetailFact>,
     secondaryActions: (@Composable ColumnScope.() -> Unit)? = null,
@@ -185,17 +188,20 @@ internal fun ColumnScope.TvDetailBody(
             modifier = Modifier.padding(top = DETAIL_META_GAP),
         )
     }
+    val scroll = if (secondaryActions == null) null else remember(key) { ScrollState(0) }
+    val scope = rememberCoroutineScope()
     Row(
-        modifier = Modifier.padding(top = DETAIL_ACTIONS_GAP),
+        modifier = Modifier
+            .padding(top = DETAIL_ACTIONS_GAP)
+            .onFocusChanged { if (it.hasFocus && scroll != null) scope.launch { scroll.animateScrollTo(0) } },
         horizontalArrangement = Arrangement.spacedBy(DETAIL_ACTION_SPACING),
         verticalAlignment = Alignment.CenterVertically,
         content = actions,
     )
-    val scroll = remember(title) { ScrollState(0) }
     Column(
         modifier = Modifier
             .weight(1f, fill = false)
-            .then(if (secondaryActions == null) Modifier.clipToBounds() else Modifier.verticalScroll(scroll)),
+            .then(if (scroll == null) Modifier.clipToBounds() else Modifier.verticalScroll(scroll)),
     ) {
         Column(
             modifier = Modifier.padding(top = DETAIL_FACTS_GAP),

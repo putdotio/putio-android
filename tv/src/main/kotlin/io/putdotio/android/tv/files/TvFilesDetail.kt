@@ -209,6 +209,7 @@ internal fun ColumnScope.TvFilesDetail(
     val current by rememberUpdatedState(item)
     val secondary = actions.secondary
     TvDetailBody(
+        key = item.id,
         title = item.name,
         meta = detailMeta(item, count),
         facts = detailFacts(item, subtitles, place),

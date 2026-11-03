@@ -579,23 +579,23 @@ private fun rememberHideWithUndo(
     itemActions: MobileFilesItemActions,
     snackbarHostState: SnackbarHostState,
 ): ((ContinueWatchingEntry) -> Unit)? {
-    val remove = itemActions.onRemoveFromContinueWatching ?: return null
-    val restore by rememberUpdatedState(itemActions.onRestoreToContinueWatching)
+    val remove by rememberUpdatedState(itemActions.onRemoveFromContinueWatching)
     val scope = rememberCoroutineScope()
     val removed = stringResource(R.string.mobile_files_continue_watching_removed)
     val undo = stringResource(R.string.mobile_files_undo)
-    return { entry ->
-        remove(entry)
-        scope.launch {
-            snackbarHostState.currentSnackbarData?.dismiss()
-            val result = snackbarHostState.showSnackbar(
-                message = removed,
-                actionLabel = undo.takeIf { restore != null },
-                duration = SnackbarDuration.Long,
-            )
-            if (result == SnackbarResult.ActionPerformed) restore?.invoke(entry)
+    val hide = remember(scope, snackbarHostState, removed, undo) {
+        { entry: ContinueWatchingEntry ->
+            val restore = remove?.invoke(entry)
+            if (restore != null) {
+                scope.launch {
+                    snackbarHostState.currentSnackbarData?.dismiss()
+                    val result = snackbarHostState.showSnackbar(removed, undo, duration = SnackbarDuration.Long)
+                    if (result == SnackbarResult.ActionPerformed) restore()
+                }
+            }
         }
     }
+    return hide.takeIf { itemActions.onRemoveFromContinueWatching != null }
 }
 
 private fun shareOutsideViewer(share: ((FilesItem) -> Unit)?, inViewer: Boolean): ((FilesItem) -> Unit)? =

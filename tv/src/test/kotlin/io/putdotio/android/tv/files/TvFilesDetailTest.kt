@@ -10,6 +10,10 @@ import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.hasAnyDescendant
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isHeading
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -23,6 +27,7 @@ import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.tv.setTvContent
 import io.putdotio.sdk.files.PutioFileType
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -90,10 +95,27 @@ class TvFilesDetailTest {
             pressKey(Key.DirectionDown)
         }
         compose.onNode(hasText("Open in VLC") and hasClickAction()).assertIsFocused().assertIsDisplayed()
+            .performKeyInput { repeat(SECONDARY_ACTIONS - 1) { pressKey(Key.DirectionDown) } }
+        compose.waitForIdle()
+        assertTrue(factsScroll() > 0f)
+
+        compose.onNode(hasText("Open in VLC") and hasClickAction())
+            .performKeyInput { repeat(SECONDARY_ACTIONS) { pressKey(Key.DirectionUp) } }
+        compose.waitForIdle()
+        assertEquals(0f, factsScroll())
+        compose.onNodeWithText("Added").assertIsDisplayed()
     }
+
+    private fun factsScroll(): Float =
+        compose.onNode(
+            SemanticsMatcher.keyIsDefined(SemanticsProperties.VerticalScrollAxisRange) and
+                hasAnyDescendant(hasText("Added")) and
+                !hasTestTag(TV_FILES_LIST_TAG),
+        ).fetchSemanticsNode().config[SemanticsProperties.VerticalScrollAxisRange].value()
 
     private companion object {
         val DETAIL_TITLE_LINE = 22.dp
         const val EPISODES = 9
+        const val SECONDARY_ACTIONS = 4
     }
 }

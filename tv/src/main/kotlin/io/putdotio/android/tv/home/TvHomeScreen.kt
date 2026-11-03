@@ -1,7 +1,6 @@
 package io.putdotio.android.tv.home
 
 import androidx.annotation.DrawableRes
-import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -25,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -86,6 +86,7 @@ import io.putdotio.android.tv.TvEmptyState
 import io.putdotio.android.tv.TvEmptyStateAction
 import io.putdotio.android.tv.TvFocus
 import io.putdotio.android.tv.TvNoticeDialog
+import io.putdotio.android.shown
 import io.putdotio.android.tv.asMonoRun
 import io.putdotio.android.tv.bringIntoComposition
 import io.putdotio.android.tv.focusRequesterIf
@@ -121,8 +122,8 @@ internal fun TvHomeScreen(
     modifier: Modifier = Modifier,
     returnTo: FilesItemId? = null,
     onReturned: () -> Unit = {},
-    continueWatchingFailure: PutioFailure? = null,
-    onDismissContinueWatchingFailure: () -> Unit = {},
+    pinFailure: PutioFailure? = null,
+    onDismissPinFailure: () -> Unit = {},
 ) {
     LaunchedEffect(Unit) { onShown() }
     val pinnedCards = (pinned as? TvPinnedRow.Ready)?.cards
@@ -155,9 +156,8 @@ internal fun TvHomeScreen(
         continueWatching = continueWatching,
         actions = actions,
         paneFocus = paneFocus,
-        continueWatchingFailure = continueWatchingFailure,
-        onDismissContinueWatchingFailure = onDismissContinueWatchingFailure,
     )
+    TvHomePinNotice(pinFailure, onDismissPinFailure, paneFocus)
     if (continueWatching.isEmpty() && pinnedCards?.isEmpty() == true) {
         TvEmptyState(
             glyph = PutioEmptyGlyph.NothingYet,
@@ -248,8 +248,6 @@ private fun TvHomeSheets(
     continueWatching: List<ContinueWatchingEntry>,
     actions: TvHomeActions,
     paneFocus: FocusRequester,
-    continueWatchingFailure: PutioFailure?,
-    onDismissContinueWatchingFailure: () -> Unit,
 ) {
     TvHomeCardSheetHost(
         sheet = pinSheet,
@@ -257,13 +255,6 @@ private fun TvHomeSheets(
         action = TvFilesAction.SetPinned(pinned = false),
         onRemove = { id -> pinnedCards.firstOrNull { it.item.id == id }?.let { actions.onUnpin(it.item) } },
         paneFocus = paneFocus,
-    )
-    LaunchedEffect(continueWatchingFailure) { if (continueWatchingFailure != null) continueSheet.handedOff() }
-    TvHomeNotice(
-        continueWatchingFailure,
-        R.string.tv_home_remove_continue_watching_error,
-        onDismissContinueWatchingFailure,
-        paneFocus,
     )
     TvHomeCardSheetHost(
         sheet = continueSheet,
@@ -277,13 +268,8 @@ private fun TvHomeSheets(
 }
 
 @Composable
-internal fun TvHomeNotice(
-    failure: PutioFailure?,
-    @StringRes title: Int,
-    onDismiss: () -> Unit,
-    paneFocus: FocusRequester,
-) {
-    val showing = failure.shownOnHome()
+private fun TvHomePinNotice(failure: PutioFailure?, onDismiss: () -> Unit, paneFocus: FocusRequester) {
+    val showing = failure.shown()
     val wasShowing = remember { mutableStateOf(false) }
     LaunchedEffect(showing) {
         val closed = wasShowing.value && !showing
@@ -292,15 +278,12 @@ internal fun TvHomeNotice(
         withFrameNanos {}
         paneFocus.returnFocusFromSheet()
     }
-    failure?.takeIf { it.shownOnHome() }?.let {
-        TvNoticeDialog(
-            title = stringResource(title, it.tvMessageText()),
-            onDismiss = onDismiss,
-        )
-    }
+    if (failure == null || !showing) return
+    TvNoticeDialog(
+        title = stringResource(R.string.tv_files_pin_error, failure.tvMessageText()),
+        onDismiss = onDismiss,
+    )
 }
-
-private fun PutioFailure?.shownOnHome(): Boolean = this != null && this !is PutioFailure.AuthenticationRequired
 
 @Composable
 private fun TvHomeCardSheetHost(
@@ -310,6 +293,7 @@ private fun TvHomeCardSheetHost(
     onRemove: (FilesItemId) -> Unit,
     paneFocus: FocusRequester,
 ) {
+    SideEffect { sheet.track(cards) }
     val removed = sheet.removed
     val gone = removed != null && removed !in cards
     LaunchedEffect(gone) {
@@ -326,7 +310,7 @@ private fun TvHomeCardSheetHost(
         onAction = { sheet.removing(cards, onRemove) },
         onDismiss = sheet::close,
         returnFocus = sheet.card,
-        meta = sheet.meta?.let(::AnnotatedString),
+        meta = sheet.meta,
     )
 }
 
@@ -335,7 +319,7 @@ private class TvHomeCardSheet {
     val card = FocusRequester()
     var item by mutableStateOf<FilesItem?>(null)
         private set
-    var meta by mutableStateOf<String?>(null)
+    var meta by mutableStateOf<AnnotatedString?>(null)
         private set
     var cardId by mutableStateOf<FilesItemId?>(null)
         private set
@@ -344,7 +328,7 @@ private class TvHomeCardSheet {
 
     private var removedAt = -1
 
-    fun open(card: FilesItem, meta: String? = null) {
+    fun open(card: FilesItem, meta: AnnotatedString? = null) {
         item = card
         this.meta = meta
         cardId = card.id
@@ -361,6 +345,11 @@ private class TvHomeCardSheet {
         item = null
         removed = card.id
         onRemove(card.id)
+    }
+
+    fun track(cards: List<FilesItemId>) {
+        val index = removed?.let(cards::indexOf) ?: return
+        if (index >= 0) removedAt = index
     }
 
     fun retarget(cards: List<FilesItemId>): Boolean {
@@ -488,7 +477,7 @@ private fun TvHomeInlineState(
 private fun TvContinueWatchingCard(
     entry: ContinueWatchingEntry,
     onClick: () -> Unit,
-    onLongClick: (left: String) -> Unit,
+    onLongClick: (left: AnnotatedString) -> Unit,
     modifier: Modifier,
 ) {
     val left = tvClock(entry.remainingSeconds.toDouble())
@@ -501,7 +490,7 @@ private fun TvContinueWatchingCard(
         meta = AnnotatedString(leftLabel),
         metaStyle = CARD_META_MONO,
         onClick = onClick,
-        onLongClick = { onLongClick(leftLabel) },
+        onLongClick = { onLongClick(leftLabel.asMonoRun()) },
         modifier = modifier,
     )
 }

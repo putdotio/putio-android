@@ -235,35 +235,48 @@ class TvHomeScreenTest {
     }
 
     @Test
-    fun aFailedRemovalKeepsTheCardAndExplainsWhy() {
-        var failure by mutableStateOf<PutioFailure?>(null)
-        var dismissed = 0
+    fun overlappingRemovalsHandFocusToTheCardNextToTheLastOneRemoved() {
+        val entries = (1L..4L).map { id -> entry.copy(fileId = FilesItemId(id), name = "clip-$id.mkv") }
+        var continueWatching by mutableStateOf(entries)
+        val paneFocus = FocusRequester()
+        compose.setTvContent {
+            TvHomeScreen(continueWatching, TvPinnedRow.Ready(emptyList()), removing {}, paneFocus, onShown = {})
+        }
+        compose.runOnIdle { paneFocus.requestFocus() }
+        compose.onNodeWithContentDescription(resume("clip-1.mkv")).performKeyInput { pressKey(Key.Menu) }
+        compose.onNodeWithText("Remove from Continue watching").performKeyInput { pressCenter() }
+        compose.onNodeWithContentDescription(resume("clip-1.mkv")).performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNodeWithContentDescription(resume("clip-2.mkv")).performKeyInput { pressKey(Key.Menu) }
+        compose.onNodeWithText("Remove from Continue watching").performKeyInput { pressCenter() }
+
+        compose.runOnIdle { continueWatching = entries.drop(1) }
+        compose.onNodeWithContentDescription(resume("clip-2.mkv")).assertIsFocused()
+        compose.runOnIdle { continueWatching = entries.drop(2) }
+        compose.onNodeWithContentDescription(resume("clip-3.mkv")).assertIsFocused()
+    }
+
+    @Test
+    fun aPinFailureExplainsWhyAndHandsFocusBack() {
+        var pinFailure by mutableStateOf<PutioFailure?>(null)
         val paneFocus = FocusRequester()
         compose.setTvContent {
             TvHomeScreen(
                 listOf(entry),
                 TvPinnedRow.Ready(emptyList()),
-                removing {},
+                actions,
                 paneFocus,
                 onShown = {},
-                continueWatchingFailure = failure,
-                onDismissContinueWatchingFailure = {
-                    dismissed++
-                    failure = null
-                },
+                pinFailure = pinFailure,
+                onDismissPinFailure = { pinFailure = null },
             )
         }
         compose.runOnIdle { paneFocus.requestFocus() }
-        compose.onNodeWithContentDescription(resume(entry.name)).performSemanticsAction(SemanticsActions.OnLongClick)
-        compose.onNodeWithText("Remove from Continue watching").performKeyInput { pressCenter() }
+        compose.runOnIdle { pinFailure = PutioFailure.NetworkUnavailable(PutioConfigurationException("offline")) }
 
-        compose.runOnIdle { failure = PutioFailure.NetworkUnavailable(PutioConfigurationException("offline")) }
-        compose.onNodeWithText("Couldn’t remove it from Continue watching.", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("Couldn’t update your pins.", substring = true).assertIsDisplayed()
         compose.onNodeWithText("OK").assertIsFocused().performKeyInput { pressCenter() }
-
-        assertEquals(1, dismissed)
-        compose.onAllNodesWithText("Couldn’t remove it from Continue watching.", substring = true).assertCountEquals(0)
-        compose.onNodeWithContentDescription(resume(entry.name)).assertIsDisplayed().assertIsFocused()
+        compose.onAllNodesWithText("OK").assertCountEquals(0)
+        compose.onNodeWithContentDescription(resume(entry.name)).assertIsFocused()
     }
 
     @Test
