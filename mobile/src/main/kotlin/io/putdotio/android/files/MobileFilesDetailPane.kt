@@ -370,7 +370,8 @@ private fun MobileFilesDetailFacts(
             add(DetailFact(R.string.mobile_files_detail_length, length, mono = true))
         }
         subtitles?.takeIf { it.isNotEmpty() }?.let {
-            add(DetailFact(R.string.mobile_files_detail_subtitles, it.joinToString(", ") { name -> name ?: unknownLanguage }))
+            val names = it.joinToString(", ") { name -> name ?: unknownLanguage }
+            add(DetailFact(R.string.mobile_files_detail_subtitles, names))
         }
         folderPath?.let { add(DetailFact(R.string.mobile_files_detail_folder, it)) }
     }

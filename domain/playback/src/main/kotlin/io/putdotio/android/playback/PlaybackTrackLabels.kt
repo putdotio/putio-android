@@ -60,7 +60,9 @@ public fun subtitleTrackLabels(
 
 @Composable
 public fun subtitleTrackName(track: PlaybackSubtitleTrack): String {
-    val name = languageName(track.identity.language) ?: stringResource(R.string.playback_subtitle_unknown)
+    val name = languageName(track.identity.language)
+        ?: track.label?.trim()?.takeUnless { it.isEmpty() || it.lowercase(Locale.ROOT) in UNKNOWN_LANGUAGE_NAMES }
+        ?: stringResource(R.string.playback_subtitle_unknown)
     return if (track.identity.roleFlags and C.ROLE_FLAG_DESCRIBES_MUSIC_AND_SOUND != 0) {
         name + TRACK_DETAIL_SEPARATOR + stringResource(R.string.playback_subtitle_sdh)
     } else {
@@ -100,5 +102,6 @@ private fun numberRepeatedRows(names: List<String>, details: List<String?>): Lis
 private fun numberedTrack(name: String, index: Int): String =
     stringResource(R.string.playback_track_disambiguated, name, index + 1)
 
+private val UNKNOWN_LANGUAGE_NAMES = setOf("unknown", "undetermined", "und")
 private const val SURROUND_5_1 = 6
 private const val SURROUND_7_1 = 8
