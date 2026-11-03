@@ -65,6 +65,8 @@ import androidx.compose.ui.unit.dp
 import io.putdotio.android.FilesFailure
 import io.putdotio.android.LoadNextPageNearEnd
 import io.putdotio.android.LoadNextPageNow
+import io.putdotio.android.MobileInlineError
+import io.putdotio.android.RetryWhenOnline
 import io.putdotio.android.MobileErrorState
 import io.putdotio.android.MobileKeyCommand
 import io.putdotio.android.MobileShortcutScope
@@ -364,6 +366,11 @@ private fun MobileRefreshableFilesContent(
     Box(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
             MobileFilesCopyLine(state, onEvent)
+            MobileFilesOperationFailure(
+                operation,
+                autoRetry = selectedItemId == null,
+                onRetry = { onEvent(FilesBrowserEvent.Retry) },
+            )
             val refreshState = rememberPullToRefreshState()
             PullToRefreshBox(
                 isRefreshing = isRefreshing,
@@ -505,7 +512,7 @@ private fun MobileFilesFolderStatus(
     onEvent: (FilesBrowserEvent) -> Unit,
 ) {
     val operation = state.current.operation
-    MobileFilesOperationStatus(operation = operation, onRetry = { onEvent(FilesBrowserEvent.Retry) })
+    MobileFilesOperationStatus(operation = operation)
     if (operation == FilesFolderOperation.Idle) {
         state.current.deleteOutcome?.takeUnless { it.isConfirmedTrash }?.let { outcome ->
             if (outcome.status == FilesDeleteStatus.TOO_LARGE_FOR_TRASH) {
@@ -658,10 +665,7 @@ private fun MobileEmptyFilesContent(
 }
 
 @Composable
-private fun MobileFilesOperationStatus(
-    operation: FilesFolderOperation,
-    onRetry: () -> Unit,
-) {
+private fun MobileFilesOperationStatus(operation: FilesFolderOperation) {
     when (operation) {
         FilesFolderOperation.Idle -> Unit
         is FilesFolderOperation.Loading -> {
@@ -687,31 +691,22 @@ private fun MobileFilesOperationStatus(
             }
         }
 
-        is FilesFolderOperation.Failed -> {
-            val message = stringResource(operation.failureMessage())
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 16.dp, end = 8.dp)
-                    .semantics { liveRegion = LiveRegionMode.Polite },
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = message,
-                    modifier = Modifier.weight(1f),
-                    color = PutioDesignTokens.redTextSecondary,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                TextButton(
-                    onClick = onRetry,
-                    modifier = Modifier.testTag(MOBILE_FILES_OPERATION_RETRY_TAG),
-                ) {
-                    Text(stringResource(operation.retryLabel()))
-                }
-            }
-        }
+        is FilesFolderOperation.Failed -> Unit
     }
+}
+
+@Composable
+private fun MobileFilesOperationFailure(operation: FilesFolderOperation, autoRetry: Boolean, onRetry: () -> Unit) {
+    val failed = operation as? FilesFolderOperation.Failed ?: return
+    val offlineReread = failed.phase == FilesFolderOperationPhase.RELOADING &&
+        failed.failure is PutioFailure.NetworkUnavailable
+    if (autoRetry && offlineReread) RetryWhenOnline(failed, onRetry)
+    MobileInlineError(
+        message = stringResource(failed.failureMessage()),
+        onRetry = onRetry,
+        retryLabel = stringResource(failed.retryLabel()),
+        retryModifier = Modifier.testTag(MOBILE_FILES_OPERATION_RETRY_TAG),
+    )
 }
 
 @StringRes

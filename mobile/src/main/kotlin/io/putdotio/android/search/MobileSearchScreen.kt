@@ -53,6 +53,7 @@ import io.putdotio.android.LoadNextPageNearEnd
 import io.putdotio.android.LoadNextPageNow
 import io.putdotio.android.MobileEmptyState
 import io.putdotio.android.MobileErrorState
+import io.putdotio.android.RetryWhenOnline
 import io.putdotio.android.MobileRow
 import io.putdotio.android.MobileSectionLabel
 import io.putdotio.android.PutioFailure
@@ -127,14 +128,18 @@ internal fun MobileSearchScreen(
                     onRetry = onSearchRetry,
                     modifier = fill,
                 )
-            is SearchContent.Failed ->
+            is SearchContent.Failed -> {
+                val offline = content.failure is PutioFailure.NetworkUnavailable
+                if (offline) RetryWhenOnline(content.failure, onSearchRetry)
                 MobileErrorState(
                     title = stringResource(R.string.mobile_search_error_title),
                     message = content.failure.mobileMessage(),
                     retryLabel = stringResource(R.string.mobile_action_retry),
                     onRetry = onSearchRetry,
                     modifier = fill,
+                    glyph = PutioEmptyGlyph.Offline.takeIf { offline },
                 )
+            }
         }
     }
 }

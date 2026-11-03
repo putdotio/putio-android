@@ -58,11 +58,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.MobileEmptyState
 import io.putdotio.android.MobileErrorState
+import io.putdotio.android.MobileInlineError
+import io.putdotio.android.RetryWhenOnline
 import io.putdotio.android.MobileLoadingState
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.auth.MobileAuthSessionId
-import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioDestructiveButton
 import io.putdotio.android.design.PutioEmptyGlyph
 import io.putdotio.android.design.PutioTypeScale
@@ -350,14 +351,18 @@ private fun MobileTransfersContent(
                     Text(stringResource(R.string.mobile_transfers_add), modifier = Modifier.padding(start = 8.dp))
                 }
             }
-        is TransfersContent.Failed ->
+        is TransfersContent.Failed -> {
+            val offline = content.failure is PutioFailure.NetworkUnavailable
+            if (offline && enabled.rows) RetryWhenOnline(content.failure) { onEvent(TransfersEvent.RetryLoad) }
             MobileErrorState(
                 title = stringResource(R.string.mobile_transfers_error_title),
                 message = content.failure.mobileMessage(),
                 retryLabel = stringResource(R.string.mobile_action_retry),
                 onRetry = { onEvent(TransfersEvent.RetryLoad) },
                 retryEnabled = enabled.rows,
+                glyph = PutioEmptyGlyph.Offline.takeIf { offline },
             )
+        }
         is TransfersContent.Ready ->
             MobileTransfersList(content, state.mutation, listState, enabled, onEvent, onActions)
     }
@@ -497,25 +502,13 @@ private fun MobileTransfersRefreshFailure(
     onEvent: (TransfersEvent) -> Unit,
 ) {
     if (refresh is TransfersRefresh.Failed) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = stringResource(R.string.mobile_transfers_refresh_error),
-                modifier = Modifier.weight(1f),
-                color = PutioDesignTokens.redTextSecondary,
-            )
-            TextButton(
-                colors = neutralTextButtonColors(),
-                onClick = { onEvent(TransfersEvent.Refresh) },
-                enabled = interactionsEnabled,
-            ) {
-                Text(stringResource(R.string.mobile_action_retry))
-            }
-        }
+        val retry = { onEvent(TransfersEvent.Refresh) }
+        if (interactionsEnabled && refresh.failure is PutioFailure.NetworkUnavailable) RetryWhenOnline(refresh, retry)
+        MobileInlineError(
+            message = stringResource(R.string.mobile_transfers_refresh_error),
+            onRetry = retry,
+            retryEnabled = interactionsEnabled,
+        )
     }
 }
 

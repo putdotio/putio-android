@@ -35,12 +35,12 @@ Preconditions:
   keeps the root it loaded and shows `Couldn’t refresh files.` with
   `Try again`.
 - **Offline cold start.** Run `adb -s $SERIAL shell am force-stop io.put.putio.mobile.debug`
-  and start MainActivity. Files opens offline: `Can’t reach put.io.` and
+  and start MainActivity. Files opens offline: `put.io is out of reach` and
   `Offline. Showing what’s on this device.` list the clip. Capture
   `offline-cold-start`. Downloads plays the clip as in Offline play.
 - **Back online.** Open Files, run
   `adb -s $SERIAL shell cmd connectivity airplane-mode disable`, and
-  `$S/ui.sh gone $SERIAL --text "Can’t reach put.io."` with no tap. Files
+  `$S/ui.sh gone $SERIAL --text "put.io is out of reach"` with no tap. Files
   reloads, and `./scripts/sign-in-devs-auto.sh $SERIAL` passes with no
   approval: put.io confirmed the session again.
 - **Remove.** Changes only the device, so no ledger intent. Open the row's `Download actions for verify-clip.mp4`, tap

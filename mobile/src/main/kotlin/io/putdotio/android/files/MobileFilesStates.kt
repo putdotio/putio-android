@@ -1,8 +1,5 @@
 package io.putdotio.android.files
 
-import android.net.ConnectivityManager
-import android.net.Network
-import android.net.NetworkCapabilities
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.StartOffset
@@ -32,24 +29,18 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -66,8 +57,9 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
 import io.putdotio.android.MobileMiddleCutText
+import io.putdotio.android.MobileRetryButton
+import io.putdotio.android.RetryWhenOnline
 import io.putdotio.android.R
 import io.putdotio.android.mobileFileSize
 import io.putdotio.android.monoFigures
@@ -81,8 +73,6 @@ import io.putdotio.android.downloads.DownloadsState
 import io.putdotio.android.rememberMobileMotion
 import io.putdotio.sdk.files.PutioFileType
 import java.time.Instant
-import java.util.concurrent.atomic.AtomicBoolean
-import kotlinx.coroutines.delay
 
 internal const val MOBILE_FILES_CONTINUE_WATCHING_TAG = "mobile-files-continue-watching"
 internal const val MOBILE_FILES_SUMMARY_TAG = "mobile-files-summary"
@@ -341,7 +331,7 @@ private fun SkeletonBlock(color: Color, modifier: Modifier, radius: Dp = 6.dp) {
 @Composable
 internal fun MobileFilesOffline(
     onDevice: List<FilesItem>,
-    /** Null while a retry runs: Try now waits and no other retry starts. */
+    /** Null while a retry runs: Try again waits and no other retry starts. */
     onRetry: (() -> Unit)?,
     onPlayMedia: (FilesItem) -> Unit,
     modifier: Modifier = Modifier,
@@ -372,17 +362,7 @@ internal fun MobileFilesOffline(
                 message = stringResource(R.string.mobile_files_offline_message),
                 modifier = if (onDevice.isEmpty()) Modifier.fillParentMaxSize() else Modifier.padding(top = 40.dp),
                 bottomPadding = if (onDevice.isEmpty()) EMPTY_BOTTOM_PADDING else 0.dp,
-                action = {
-                    // DESIGN.md's button-tonal: neutral, so the screen keeps no yellow action.
-                    FilledTonalButton(
-                        onClick = { onRetry?.invoke() },
-                        enabled = onRetry != null,
-                        colors = ButtonDefaults.filledTonalButtonColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                            contentColor = MaterialTheme.colorScheme.onSurface,
-                        ),
-                    ) { Text(stringResource(R.string.mobile_files_offline_retry)) }
-                },
+                action = { MobileRetryButton(onClick = { onRetry?.invoke() }, enabled = onRetry != null) },
             )
         }
     }
@@ -413,47 +393,6 @@ private fun MobileOfflineBanner() {
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f),
         )
-    }
-}
-
-/** Calls [onRetry] once the default network is validated again, while this is on screen. */
-@Composable
-private fun RetryWhenOnline(failure: Any?, onRetry: () -> Unit) {
-    val context = LocalContext.current
-    val retry by rememberUpdatedState(onRetry)
-    // Also try again on a slow clock: the network may have returned before this was on screen,
-    // or put.io itself was down. The try replaces this screen, so it runs once per failure.
-    // Keyed on the failure: a retry that fails again before a frame draws still restarts the clock.
-    LaunchedEffect(failure) {
-        delay(OFFLINE_RETRY_MILLIS)
-        retry()
-    }
-    DisposableEffect(context) {
-        val connectivity = context.getSystemService(ConnectivityManager::class.java)
-        // Registration reports the current network at once. Only a network that was missing or
-        // unvalidated and then validates counts, so a put.io outage on a working network does not
-        // retry in a loop.
-        val waiting = AtomicBoolean(
-            connectivity?.activeNetwork
-                ?.let(connectivity::getNetworkCapabilities)
-                ?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) != true,
-        )
-        val callback = object : ConnectivityManager.NetworkCallback() {
-            override fun onLost(network: Network) {
-                waiting.set(true)
-            }
-
-            override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
-                val validated = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
-                if (!validated) {
-                    waiting.set(true)
-                } else if (waiting.compareAndSet(true, false)) {
-                    ContextCompat.getMainExecutor(context).execute { retry() }
-                }
-            }
-        }
-        val registered = connectivity?.runCatching { registerDefaultNetworkCallback(callback) }?.isSuccess == true
-        onDispose { if (registered) connectivity?.unregisterNetworkCallback(callback) }
     }
 }
 
@@ -506,7 +445,6 @@ internal fun DownloadsState.onDeviceItems(): List<FilesItem> =
     }
 
 private const val CONTINUE_WATCHING_ITEMS = 3
-private const val OFFLINE_RETRY_MILLIS = 30_000L
 private val CONTINUE_WATCHING_CARD_WIDTH = 172.dp
 private val SKELETON_ROW_HEIGHT = 72.dp
 private val EMPTY_BOTTOM_PADDING = 80.dp

@@ -762,6 +762,30 @@ class MobileFilesListTest {
     }
 
     @Test
+    fun anOfflineRefreshWaitsWhileARowSheetIsOpen() {
+        val item = filesItem(id = 1L, name = "visible.txt")
+        val failed = FilesFolderOperation.Failed(
+            failure = PutioFailure.NetworkUnavailable(java.io.IOException("offline")),
+            intent = FilesFolderOperationIntent.Refresh,
+            phase = FilesFolderOperationPhase.RELOADING,
+        )
+        val events = mutableListOf<FilesBrowserEvent>()
+        compose.setContent {
+            PutioTheme {
+                MobileFilesScreen(
+                    state = browserState(FilesContent.Ready(listOf(item), FilesPaging.Complete), operation = failed),
+                    onEvent = events::add,
+                    onPlayMedia = {},
+                )
+            }
+        }
+        compose.onNodeWithContentDescription("Actions for visible.txt").performClick()
+        compose.runOnIdle { events.clear() }
+        compose.mainClock.advanceTimeBy(RETRY_CLOCK_MILLIS)
+        compose.runOnIdle { assertTrue(FilesBrowserEvent.Retry !in events) }
+    }
+
+    @Test
     fun operationFailuresKeepRowsAndRefreshRecoverable() {
         val content = FilesContent.Ready(
             items = listOf(filesItem(id = 1L, name = "visible.txt")),
@@ -886,3 +910,4 @@ private fun filesItem(
         sizeBytes = sizeBytes,
         createdAt = "2026-04-20T10:00:00Z",
     )
+private const val RETRY_CLOCK_MILLIS = 30_000L

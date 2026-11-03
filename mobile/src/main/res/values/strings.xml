@@ -79,9 +79,8 @@
     <string name="mobile_files_loading">Loading files</string>
     <string name="mobile_files_empty_title">Empty folder.</string>
     <string name="mobile_files_empty_message">Move something in from elsewhere, or add a transfer that saves here.</string>
-    <string name="mobile_files_offline_title">Can’t reach put.io.</string>
+    <string name="mobile_files_offline_title">put.io is out of reach</string>
     <string name="mobile_files_offline_message">Your connection dropped, or we did. Retrying on its own.</string>
-    <string name="mobile_files_offline_retry">Try now</string>
     <string name="mobile_files_offline_banner">Offline. Showing what’s on this device.</string>
     <string name="mobile_files_show_details">Show %1$s</string>
     <string name="mobile_files_detail_empty_title">No file selected.</string>
