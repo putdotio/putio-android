@@ -194,7 +194,6 @@ internal class MobileFilesOpening(
     val actionsRequests: Flow<MobileFilesActionsRequest> = emptyFlow(),
 )
 
-/** A listed file's sheet asked for from outside the list; [inViewer] when the viewer shows the file. */
 internal data class MobileFilesActionsRequest(val id: FilesItemId, val inViewer: Boolean = false)
 /** On-device files while put.io is out of reach; each row's sheet offers what works offline. */
 @Composable
@@ -272,19 +271,22 @@ private fun MobileRefreshableFilesContent(
     val currentState by rememberUpdatedState(state)
     val sheetActions = itemActions.selectingIn(selection) { currentState }
     var selectedItemId by rememberSaveable { mutableStateOf<Long?>(null) }
-    var sheetInViewer by rememberSaveable { mutableStateOf(false) }
+    var viewerSheetId by rememberSaveable { mutableStateOf<Long?>(null) }
     // Delete on a focused row goes straight to the sheet's delete step, in the mode the setting had then.
     var keyDelete by rememberSaveable { mutableStateOf<FilesDeleteMode?>(null) }
     var focusedItemId by remember { mutableStateOf<Long?>(null) }
     val items = (content as? FilesContent.Ready)?.items.orEmpty()
     val selectedItem = items.firstOrNull { it.id.value == selectedItemId }
     LaunchedEffect(selectedItemId, selectedItem) {
-        if (selectedItem == null) selectedItemId = null
+        if (selectedItem == null) {
+            selectedItemId = null
+            viewerSheetId = null
+        }
     }
     // While rows are selected, the detail pane and the viewer open no sheet.
     MobileFilesActionsRequests(fileOpening, items, enabled = !selecting) { request ->
         keyDelete = null
-        sheetInViewer = request.inViewer
+        viewerSheetId = request.id.value.takeIf { request.inViewer }
         selectedItemId = request.id.value
     }
     MobileFilesKeyboardEffect(
@@ -302,7 +304,7 @@ private fun MobileRefreshableFilesContent(
     val dismissSelection = {
         selectedItemId = null
         keyDelete = null
-        sheetInViewer = false
+        viewerSheetId = null
     }
     if (selectedItem != null) {
         key(selectedItem.id.value) {
@@ -329,12 +331,12 @@ private fun MobileRefreshableFilesContent(
                     onMoveItem = onMoveItem,
                     downloadStatus = downloads.entry(selectedItem.id)?.status,
                     onDownloadItem = onDownloadItem,
-                    onShareItem = shareOutsideViewer(onShareItem, sheetInViewer),
+                    onShareItem = shareOutsideViewer(onShareItem, viewerSheetId == selectedItem.id.value),
                     onCopyItem = onCopyItem,
                     canStartCopy = state.canStartCopy,
                     onPublicLinkItem = onPublicLinkItem,
                     onPlayItem = onPlayMedia,
-                    itemActions = sheetActions.inViewer(sheetInViewer),
+                    itemActions = sheetActions.inViewer(viewerSheetId == selectedItem.id.value),
                     sharedBy = state.sharedByName(),
                 )
             }
@@ -561,7 +563,6 @@ private fun MobileFilesTrashedAnnouncement(
     }
 }
 
-/** The viewer's bar has Share already, so its sheet leaves it out. */
 private fun shareOutsideViewer(share: ((FilesItem) -> Unit)?, inViewer: Boolean): ((FilesItem) -> Unit)? =
     if (inViewer) null else share
 

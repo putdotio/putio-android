@@ -28,12 +28,17 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.isSpecified
+import androidx.compose.ui.graphics.Canvas
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.ImageShader
+import androidx.compose.ui.graphics.Paint
+import androidx.compose.ui.graphics.ShaderBrush
+import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -60,12 +65,10 @@ import java.io.IOException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
-import kotlin.math.ceil
 
 /**
- * The image, fitted to the frame over a checkerboard, so a dark picture on a transparent ground
- * still shows on the black frame. Coil decodes it at the frame's size, never at its own, so a
- * 50-megapixel photo costs one screen of memory.
+ * The image, fitted to the frame over a checkerboard. Coil decodes it at the frame's size, never at
+ * its own, so a 50-megapixel photo costs one screen of memory.
  */
 @Composable
 internal fun MobileImagePage(file: FilesItem, uri: Uri, onOpenWithAnotherApp: () -> Unit) {
@@ -94,27 +97,24 @@ internal fun MobileImagePage(file: FilesItem, uri: Uri, onOpenWithAnotherApp: ()
     )
 }
 
-/** Two neutral surface tones in squares behind an image; an opaque image hides them. */
 @Composable
 private fun Modifier.transparencyGrid(): Modifier {
     val light = MaterialTheme.colorScheme.surfaceContainerHighest
     val dark = MaterialTheme.colorScheme.surfaceContainerHigh
-    return drawBehind {
-        drawRect(dark)
-        val cell = TRANSPARENCY_CELL.toPx()
-        val columns = ceil(size.width / cell).toInt()
-        val rows = ceil(size.height / cell).toInt()
-        for (row in 0 until rows) {
-            for (column in 0 until columns) {
-                if ((row + column) % 2 == 0) {
-                    val x = column * cell
-                    val y = row * cell
-                    val square = Size(minOf(cell, size.width - x), minOf(cell, size.height - y))
-                    drawRect(light, topLeft = Offset(x, y), size = square)
-                }
-            }
+    val cell = with(LocalDensity.current) { TRANSPARENCY_CELL.roundToPx() }
+    val brush = remember(light, dark, cell) {
+        val tile = ImageBitmap(cell * 2, cell * 2)
+        Canvas(tile).apply {
+            val paint = Paint()
+            paint.color = dark
+            drawRect(0f, 0f, cell * 2f, cell * 2f, paint)
+            paint.color = light
+            drawRect(0f, 0f, cell.toFloat(), cell.toFloat(), paint)
+            drawRect(cell.toFloat(), cell.toFloat(), cell * 2f, cell * 2f, paint)
         }
+        ShaderBrush(ImageShader(tile, TileMode.Repeated, TileMode.Repeated))
     }
+    return drawBehind { drawRect(brush) }
 }
 
 private sealed interface PdfState {

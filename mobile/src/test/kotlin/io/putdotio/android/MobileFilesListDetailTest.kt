@@ -139,6 +139,18 @@ class MobileFilesListDetailTest {
     }
 
     @Test
+    fun theViewerRetriesAFailedPageOnceFromWhereItSettled() {
+        val events = mutableListOf<FilesBrowserEvent>()
+        val failed = FilesPaging.Failed(FilesCursor("next"), PutioFailure.Unexpected(IllegalStateException("page")))
+        setRoute(width = 400.dp, wide = false, state = blueLights(failed), events)
+
+        compose.onNodeWithText(SECOND_IMAGE.name).performClick()
+
+        compose.onNode(hasContentDescription("2 of 2 or more")).assertExists()
+        compose.runOnIdle { assertEquals(listOf(FilesBrowserEvent.Retry), events) }
+    }
+
+    @Test
     fun theViewersSheetLeavesOutOpenAndShareItsBarAlreadyHas() {
         setRoute(width = 400.dp, wide = false)
         compose.onNodeWithText(SECOND_IMAGE.name).performClick()

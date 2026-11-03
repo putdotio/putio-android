@@ -154,6 +154,7 @@ internal fun MobileFilesRoute(
             state = state,
             viewerId = viewerId,
             onLoadNextPage = { onEvent(FilesBrowserEvent.LoadNextPage) },
+            onRetryPage = { onEvent(FilesBrowserEvent.Retry) },
             actions = MobileFileViewerActions(
                 documentUri = { fileOpener.documentUri(context, it) },
                 onOpenWithAnotherApp = openWithAnotherApp,
@@ -182,15 +183,13 @@ private fun fileOpenAction(
     }
 }
 
-/**
- * The viewer over the folder's files of the shown file's kind, while that file is still listed. It
- * pages the folder as the list does, so every file of that kind is a swipe away.
- */
+/** The viewer over the folder's files of the shown file's kind, while that file is still listed. */
 @Composable
 private fun MobileFilesViewerHost(
     state: FilesBrowserState,
     viewerId: Long?,
     onLoadNextPage: () -> Unit,
+    onRetryPage: () -> Unit,
     actions: MobileFileViewerActions,
     onShown: (FilesItemId) -> Unit,
     onClose: () -> Unit,
@@ -211,6 +210,8 @@ private fun MobileFilesViewerHost(
                 nextPage = (paging as? FilesPaging.Available)?.takeIf { idle },
                 more = paging != null && paging != FilesPaging.Complete,
                 onLoadNextPage = onLoadNextPage,
+                failed = paging is FilesPaging.Failed && idle,
+                onRetry = onRetryPage,
             ),
         )
     } else if (viewerId != null && state.current.content !is FilesContent.Loading) {

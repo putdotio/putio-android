@@ -66,15 +66,19 @@ internal class MobileFileViewerActions(
     val onMore: ((FilesItem) -> Unit)? = null,
 )
 
-/**
- * The folder's paging as the viewer reaches it: [nextPage] names the page that may load now (its
- * cursor), or is null when none may; [more] holds while the folder has pages still to load.
- */
 internal class MobileFileViewerPaging(
     val nextPage: Any? = null,
     val more: Boolean = false,
     val onLoadNextPage: () -> Unit = {},
+    val failed: Boolean = false,
+    val onRetry: () -> Unit = {},
 )
+
+private sealed interface ViewerPageAsk {
+    data class Next(val page: Any) : ViewerPageAsk
+
+    data class Retry(val fromPage: Int) : ViewerPageAsk
+}
 
 /**
  * Images, PDFs and text on a black frame, over the whole window. The name and the file's actions
@@ -211,29 +215,33 @@ private fun MobileFileViewerBar(
     }
 }
 
-/**
- * Asks for the folder's next page once the settled page is within [VIEWER_PAGING_THRESHOLD] of the
- * last file, once per page. A page with none of the shown kind leaves the pager where it was, so
- * the page after it loads too.
- */
 @Composable
 private fun LoadNextPageNearLast(pager: PagerState, count: Int, paging: MobileFileViewerPaging) {
     val currentPaging by rememberUpdatedState(paging)
     val currentCount by rememberUpdatedState(count)
     LaunchedEffect(pager) {
         snapshotFlow {
-            currentPaging.nextPage?.takeIf { pager.settledPage >= currentCount - 1 - VIEWER_PAGING_THRESHOLD }
+            val near = pager.settledPage >= currentCount - 1 - VIEWER_PAGING_THRESHOLD
+            val next = currentPaging.nextPage
+            when {
+                !near -> null
+                next != null -> ViewerPageAsk.Next(next)
+                currentPaging.failed -> ViewerPageAsk.Retry(pager.settledPage)
+                else -> null
+            }
         }
-            .distinctUntilChanged()
             .filterNotNull()
-            .collect { currentPaging.onLoadNextPage() }
+            .distinctUntilChanged()
+            .collect { ask ->
+                when (ask) {
+                    is ViewerPageAsk.Next -> currentPaging.onLoadNextPage()
+                    is ViewerPageAsk.Retry -> currentPaging.onRetry()
+                }
+            }
     }
 }
 
-/**
- * The position in mono over a scrim that fades up, so it stays readable over a light picture. While
- * the folder has pages still to load, the count reads as a floor.
- */
+/** The position in mono over a scrim that fades up, so it stays readable over a light picture. */
 @Composable
 private fun MobileFileViewerPosition(position: Int, count: Int, more: Boolean, modifier: Modifier = Modifier) {
     val description = stringResource(
@@ -285,6 +293,5 @@ internal val VIEWER_CONTENT_TOP = 64.dp
 internal val VIEWER_CONTENT_BOTTOM = 56.dp
 
 private const val VIEWER_SCRIM_ALPHA = 0.6f
-/** Files left after the shown one when the next page is asked for, so a swipe rarely waits. */
 private const val VIEWER_PAGING_THRESHOLD = 5
 private val VIEWER_POSITION_BOTTOM = 16.dp

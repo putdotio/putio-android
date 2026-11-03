@@ -3,7 +3,14 @@ package io.putdotio.android.files
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 import androidx.core.net.toUri
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
 import io.putdotio.android.R
@@ -84,7 +91,6 @@ internal class MobileFilesActionsController(
     /** What went wrong, for the Files snackbar; nothing is replayed to a later screen. */
     val notices: SharedFlow<MobileFilesNotice> = mutableNotices.asSharedFlow()
 
-    /** Open in VLC shows only where VLC is installed; elsewhere Open with reaches every player. */
     fun itemActions(watchedToggle: Boolean, vlcInstalled: Boolean): MobileFilesItemActions =
         MobileFilesItemActions(
             onOpenInVlc = if (vlcInstalled) { item -> openInVlc(item.id, item.name) } else null,
@@ -255,6 +261,14 @@ internal const val VLC_PACKAGE = "org.videolan.vlc"
 
 /** Whether VLC is on this phone; the manifest's queries make it visible. */
 internal fun Context.hasVlc(): Boolean = packageManager.getLaunchIntentForPackage(VLC_PACKAGE) != null
+
+@Composable
+internal fun rememberVlcInstalled(): Boolean {
+    val context = LocalContext.current
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val resumed by lifecycle.currentStateFlow.collectAsState()
+    return remember(context, resumed == Lifecycle.State.RESUMED) { context.hasVlc() }
+}
 
 /** Watched writes in flight at once for a selection; the rest wait their turn. */
 private const val WATCHED_CONCURRENCY = 4

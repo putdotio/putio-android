@@ -99,11 +99,8 @@ internal const val MOBILE_FILES_DELETE_ACTION_TAG = "mobile-files-delete-action"
  * the saved position that setting keeps.
  */
 internal data class MobileFilesItemActions(
-    /** Null unless VLC is installed. */
     val onOpenInVlc: ((FilesItem) -> Unit)? = null,
-    /** Shows an image, PDF or text file in the app's own viewer. */
     val onOpen: ((FilesItem) -> Unit)? = null,
-    /** Offers the file to other apps through the system chooser. */
     val onOpenWith: ((FilesItem) -> Unit)? = null,
     /** Starts selection with the item; only a sheet opened from the item's own listing offers it. */
     val onSelect: ((FilesItem) -> Unit)? = null,
@@ -121,7 +118,6 @@ internal data class MobileFilesItemActions(
 
     fun withSelect(onSelect: ((FilesItem) -> Unit)?): MobileFilesItemActions = copy(onSelect = onSelect)
 
-    /** From the viewer the file is already open, and Select would close it. */
     fun inViewer(inViewer: Boolean): MobileFilesItemActions =
         if (inViewer) copy(onOpen = null, onSelect = null) else this
 }
@@ -441,10 +437,7 @@ private fun MobileFilesSheetMeta(item: FilesItem, sharedBy: String?) {
     }
 }
 
-/**
- * Play or Resume, or Open for a file the viewer shows, then Download and Share as 72dp tiles; the
- * ones the file allows share the row.
- */
+/** Play or Resume, or Open, then Download and Share as 72dp tiles; the ones the file allows share the row. */
 @Composable
 private fun MobileFilesActionTiles(
     item: FilesItem,
@@ -799,11 +792,9 @@ internal fun FilesItem.watchedChoice(): Boolean? {
     }
 }
 
-/** Where Play picks up when the account resumes playback and the file has a position to resume. */
 internal fun FilesItem.resumeAt(resumes: Boolean): Double? =
     playback?.takeIf { resumes && it.resumesPlayback() }?.startFromSeconds
 
-/** "Resume from 18:42", the same words on phone and tablet. */
 @Composable
 internal fun resumeLabel(seconds: Double): String =
     stringResource(R.string.mobile_files_detail_resume, DateUtils.formatElapsedTime(seconds.toLong()))
