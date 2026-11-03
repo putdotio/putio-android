@@ -91,11 +91,7 @@ internal fun TvTrashScreen(
     val lastSection = rememberSaveable { mutableStateOf<Long?>(null) }
     val owner = remember {
         TvPaneFocusOwner(entryTarget, paneHasFocus, lastSection, onEnter = pickedRow.keptOnlyBy(focus.list)) {
-            when {
-                rowsPresent.value -> focus.list
-                emptyNow.value -> focus.emptyState
-                else -> focus.restoreAll
-            }
+            focus.idleTarget(rows = rowsPresent.value, empty = emptyNow.value)
         }
     }
     val headerOwnsFocus = content.isLoadingOrKnownEmpty
@@ -111,7 +107,7 @@ internal fun TvTrashScreen(
     LaunchedEffect(headerOwnsFocus, knownEmpty) {
         if (headerOwnsFocus && mayPlaceFocus(paneHasFocus, dialogShowing)) {
             withFrameNanos {}
-            (if (knownEmpty) focus.emptyState else focus.restoreAll).requestFocus()
+            focus.idleTarget(rows = false, empty = knownEmpty).requestFocus()
         }
     }
     val dialogWasOpen = remember { mutableStateOf(false) }
@@ -284,6 +280,13 @@ private class TvTrashFocus {
     val retry = FocusRequester()
     val restore = FocusRequester()
     val delete = FocusRequester()
+
+    fun idleTarget(rows: Boolean, empty: Boolean): FocusRequester =
+        when {
+            rows -> list
+            empty -> emptyState
+            else -> restoreAll
+        }
 }
 
 @Composable

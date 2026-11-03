@@ -371,7 +371,7 @@ internal fun TvSessionShell(
                 {
                     val returnTo = filesState.current.openedFrom.returnDestination()
                     if (session.files.dispatch(FilesBrowserEvent.NavigateBack) && returnTo != null) {
-                        if (returnTo == TvDestination.Home) session.returnHome()
+                        if (returnTo == TvDestination.Home) session.homeReturn.leftFiles()
                         requestedDestination = returnTo
                     }
                 }

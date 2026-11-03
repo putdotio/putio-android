@@ -66,6 +66,31 @@ import java.time.LocalDate
 internal const val TV_HISTORY_LIST_TAG = "tv-history-list"
 internal const val TV_HISTORY_ROW_TAG = "tv-history-row"
 
+private fun HistoryContent.entryTarget(stateFocus: FocusRequester, rowsTarget: FocusRequester): FocusRequester =
+    when (this) {
+        HistoryContent.Empty -> FocusRequester.Cancel
+        is HistoryContent.Ready -> rowsTarget
+        else -> stateFocus
+    }
+
+private suspend fun placeStateFocus(
+    content: HistoryContent,
+    paneHasFocus: MutableState<Boolean>,
+    stateFocus: FocusRequester,
+    tabFocus: FocusRequester?,
+) {
+    val empty = content == HistoryContent.Empty
+    if (!(empty || content is HistoryContent.Loading) || !paneHasFocus.value) return
+    withFrameNanos {}
+    if (!paneHasFocus.value) return
+    if (empty) {
+        paneHasFocus.value = false
+        tabFocus?.requestFocus()
+    } else {
+        stateFocus.requestFocus()
+    }
+}
+
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 internal fun TvHistoryScreen(
@@ -89,25 +114,9 @@ internal fun TvHistoryScreen(
     val clearHadFocus = remember { mutableStateOf(pickedRow.id == TV_HISTORY_CLEAR_PICK) }
     val tabFocus = LocalTvTabFocus.current
     val entryTarget = rememberUpdatedState(
-        when {
-            content == HistoryContent.Empty -> FocusRequester.Cancel
-            content !is HistoryContent.Ready -> stateFocus
-            clearHadFocus.value -> clearFocus
-            else -> listFocus
-        },
+        content.entryTarget(stateFocus, if (clearHadFocus.value) clearFocus else listFocus),
     )
-    val holdsOwnFocus = content is HistoryContent.Loading || content == HistoryContent.Empty
-    LaunchedEffect(content::class) {
-        if (!holdsOwnFocus || !paneHasFocus.value) return@LaunchedEffect
-        withFrameNanos {}
-        if (!paneHasFocus.value) return@LaunchedEffect
-        if (content == HistoryContent.Empty) {
-            paneHasFocus.value = false
-            tabFocus?.requestFocus()
-        } else {
-            stateFocus.requestFocus()
-        }
-    }
+    LaunchedEffect(content::class) { placeStateFocus(content, paneHasFocus, stateFocus, tabFocus) }
     val dialogOpen = state.clearing != HistoryClearing.Idle
     val dialogWasOpen = remember { mutableStateOf(false) }
     LaunchedEffect(dialogOpen) { refocusAfterDialog(dialogOpen, dialogWasOpen, paneHasFocus, entryTarget) }

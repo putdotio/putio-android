@@ -61,6 +61,16 @@ internal class TvDeviceShowHomeStore(context: Context, userId: Long) : TvShowHom
 internal class TvHomeReturn {
     private val mutableFile = MutableStateFlow<FilesItemId?>(null)
     val file: StateFlow<FilesItemId?> = mutableFile.asStateFlow()
+    private var openedInFiles: FilesItemId? = null
+
+    fun opened(fileId: FilesItemId?) {
+        openedInFiles = fileId
+    }
+
+    fun leftFiles() {
+        openedInFiles?.let(::played)
+        openedInFiles = null
+    }
 
     fun played(fileId: FilesItemId) {
         mutableFile.value = fileId

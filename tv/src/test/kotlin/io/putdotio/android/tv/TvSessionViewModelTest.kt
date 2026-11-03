@@ -724,12 +724,12 @@ class TvSessionViewModelTest {
         val folder = media(44, "Documents", PutioFileType.FOLDER)
 
         assertEquals(TvExternalOpen.IN_FILES, session.openExternal(folder, FilesOpenOrigin.HOME))
-        session.returnHome()
+        session.homeReturn.leftFiles()
         assertEquals(FilesItemId(44), session.homeReturn.file.value)
 
         session.homeReturn.handled()
         session.openExternal(folder, FilesOpenOrigin.SEARCH)
-        session.returnHome()
+        session.homeReturn.leftFiles()
         assertEquals(null, session.homeReturn.file.value)
     }
 

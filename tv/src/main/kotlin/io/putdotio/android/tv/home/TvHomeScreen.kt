@@ -141,12 +141,6 @@ internal fun TvHomeScreen(
     }
     val retry = rememberTvPinnedRetry(pinned, paneFocus)
     val pinSheet = remember { TvPinSheet() }
-    LaunchedEffect(pinSheet.refocus) {
-        if (!pinSheet.refocus) return@LaunchedEffect
-        withFrameNanos {}
-        pinSheet.refocus = false
-        (if (pinSheet.cardId != null) pinSheet.card else paneFocus).returnFocusFromSheet()
-    }
     if (continueWatching.isEmpty() && pinnedCards?.isEmpty() == true) {
         TvEmptyState(
             glyph = PutioEmptyGlyph.NothingYet,
@@ -224,15 +218,30 @@ internal fun TvHomeScreen(
             }
         }
     }
-    pinSheet.item?.let { item ->
-        TvFilesActionsSheet(
-            item = item,
-            actions = listOf(TvFilesAction.SetPinned(pinned = false)),
-            onAction = { pinSheet.unpinned(pinnedCards.orEmpty(), actions.onUnpin) },
-            onDismiss = pinSheet::close,
-            returnFocus = pinSheet.card,
-        )
+    TvPinSheetHost(pinSheet, pinnedCards.orEmpty(), actions.onUnpin, paneFocus)
+}
+
+@Composable
+private fun TvPinSheetHost(
+    pinSheet: TvPinSheet,
+    cards: List<TvPinnedCard>,
+    onUnpin: (FilesItem) -> Unit,
+    paneFocus: FocusRequester,
+) {
+    LaunchedEffect(pinSheet.refocus) {
+        if (!pinSheet.refocus) return@LaunchedEffect
+        withFrameNanos {}
+        pinSheet.refocus = false
+        (if (pinSheet.cardId != null) pinSheet.card else paneFocus).returnFocusFromSheet()
     }
+    val item = pinSheet.item ?: return
+    TvFilesActionsSheet(
+        item = item,
+        actions = listOf(TvFilesAction.SetPinned(pinned = false)),
+        onAction = { pinSheet.unpinned(cards, onUnpin) },
+        onDismiss = pinSheet::close,
+        returnFocus = pinSheet.card,
+    )
 }
 
 @Stable
