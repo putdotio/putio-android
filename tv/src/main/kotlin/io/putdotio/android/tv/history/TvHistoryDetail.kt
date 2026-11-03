@@ -90,7 +90,7 @@ private fun detailFacts(file: TvHistoryFile?): List<TvDetailFact> {
     return listOfNotNull(
         TvDetailFact(
             stringResource(R.string.tv_history_detail_size),
-            formatFileSize(file.sizeBytes, spaced = true),
+            formatFileSize(file.sizeBytes),
             mono = true,
         ),
         savedTo?.let { TvDetailFact(stringResource(R.string.tv_history_detail_saved_to), it) },

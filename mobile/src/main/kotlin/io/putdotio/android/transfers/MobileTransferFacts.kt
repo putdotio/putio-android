@@ -3,7 +3,7 @@ package io.putdotio.android.transfers
 import android.content.Context
 import androidx.annotation.StringRes
 import io.putdotio.android.R
-import io.putdotio.android.mobileFileSize
+import io.putdotio.android.files.formatFileSize
 import io.putdotio.android.files.toAgo
 import java.text.NumberFormat
 import kotlin.math.roundToLong
@@ -119,7 +119,7 @@ internal fun middleCut(name: String, budget: Int = TRANSFER_NAME_BUDGET): String
 internal const val TRANSFER_NAME_BUDGET = 28
 private const val TRANSFER_NAME_TAIL = 11
 
-private fun size(bytes: Double): String = mobileFileSize(bytes.toLong())
+private fun size(bytes: Double): String = formatFileSize(bytes.toLong())
 
 private const val PERCENT = 100.0
 private const val RATIO_DIGITS = 2

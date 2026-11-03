@@ -11,6 +11,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
@@ -56,6 +57,7 @@ import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.settings.readyAccountSettingsState
 import io.putdotio.android.settings.readyAndroidAppConfigState
 import io.putdotio.sdk.files.PlaybackConversionState
+import io.putdotio.android.viewer.MOBILE_FILE_VIEWER_PAGES_TAG
 import io.putdotio.android.viewer.MOBILE_FILE_VIEWER_POSITION_TAG
 import io.putdotio.android.viewer.MOBILE_FILE_VIEWER_TAG
 import io.putdotio.sdk.files.PutioFileType
@@ -124,6 +126,17 @@ class MobileFilesListDetailTest {
         compose.onNodeWithTag(MOBILE_FILE_VIEWER_TAG).assertExists()
         compose.onNodeWithTag(MOBILE_FILE_VIEWER_POSITION_TAG).assertExists()
         compose.onNode(hasContentDescription("2 of 2")).assertExists()
+    }
+
+    @Test
+    fun theViewersPositionSitsBelowItsPagesSoNoPageRunsUnderIt() {
+        setRoute(width = 400.dp, wide = false)
+
+        compose.onNodeWithText(SECOND_IMAGE.name).performClick()
+
+        val pages = compose.onNodeWithTag(MOBILE_FILE_VIEWER_PAGES_TAG).getUnclippedBoundsInRoot()
+        val position = compose.onNodeWithTag(MOBILE_FILE_VIEWER_POSITION_TAG).getUnclippedBoundsInRoot()
+        assertTrue("pages end at ${pages.bottom}, position starts at ${position.top}", pages.bottom <= position.top)
     }
 
     @Test

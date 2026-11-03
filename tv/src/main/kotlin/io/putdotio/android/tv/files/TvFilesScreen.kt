@@ -790,7 +790,7 @@ private fun TvFilesSectionLine(
         } else if (summary != null) {
             val count = summary.itemCount.toString()
             val label = pluralStringResource(R.plurals.tv_files_item_count, summary.itemCount, count)
-            val size = summary.sizeBytes?.let { formatFileSize(it, spaced = true) }
+            val size = summary.sizeBytes?.let { formatFileSize(it) }
             Text(
                 buildAnnotatedString {
                     append(monoNumber(label, count))

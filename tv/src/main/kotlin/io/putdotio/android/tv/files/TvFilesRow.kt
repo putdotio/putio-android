@@ -107,7 +107,7 @@ private fun TvFilesRowMeta(item: FilesItem, place: TvFilesRowPlace, color: Color
 
 /** A file's size, or a folder's own; the shared folders have none. */
 internal val FilesItem.metaSize: String?
-    get() = formatFileSize(sizeBytes, spaced = true).takeIf { !isFolder || folderType == PutioFolderType.REGULAR }
+    get() = formatFileSize(sizeBytes).takeIf { !isFolder || folderType == PutioFolderType.REGULAR }
 
 /** A folder dates itself by its last change, "3 days ago"; a file by when it was added, "Oct 13". */
 @Composable

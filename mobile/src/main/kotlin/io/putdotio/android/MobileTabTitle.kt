@@ -40,6 +40,7 @@ import io.putdotio.android.transfers.TransfersContent
 import io.putdotio.android.transfers.TransfersState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import io.putdotio.android.files.formatFileSize
 
 internal const val MOBILE_TAB_TITLE_TAG = "mobile-tab-title"
 internal const val MOBILE_TAB_SUMMARY_TAG = "mobile-tab-summary"
@@ -170,7 +171,7 @@ internal fun transfersSummaryParts(context: Context, state: TransfersState): Lis
         if (speed > 0.0) {
             add(SummaryPart(VALUE_SLOT, context.getString(
                 R.string.mobile_transfer_speed,
-                mobileFileSize(speed.toLong()),
+                formatFileSize(speed.toLong()),
             )))
         }
     }
@@ -201,12 +202,12 @@ internal fun downloadsSummaryParts(context: Context, storageBytes: Long, freeByt
     buildList {
         add(SummaryPart(
             context.getString(R.string.mobile_downloads_storage, VALUE_SLOT),
-            mobileFileSize(storageBytes),
+            formatFileSize(storageBytes),
         ))
         freeBytes?.let {
             add(SummaryPart(
                 context.getString(R.string.mobile_downloads_free, VALUE_SLOT),
-                mobileFileSize(it),
+                formatFileSize(it),
             ))
         }
     }

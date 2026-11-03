@@ -191,7 +191,7 @@ private fun TvTrashRowMeta(item: TrashItem, color: Color) {
     val parts = buildList<@Composable () -> Unit> {
         add {
             Text(
-                formatFileSize(item.sizeBytes, spaced = true),
+                formatFileSize(item.sizeBytes),
                 style = TV_LIST_ROW_META_MONO,
                 color = color,
                 maxLines = 1,

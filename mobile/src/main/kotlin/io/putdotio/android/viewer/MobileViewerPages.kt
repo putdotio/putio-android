@@ -54,7 +54,7 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.SubcomposeAsyncImage
 import coil3.compose.SubcomposeAsyncImageContent
 import io.putdotio.android.R
-import io.putdotio.android.mobileFileSize
+import io.putdotio.android.files.formatFileSize
 import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesPdfDocument
@@ -296,7 +296,6 @@ internal fun MobileViewerLoading() {
     }
 }
 
-/** Under the bar on top and the position line at the bottom, and clear of the system bars. */
 @Composable
 private fun viewerContentPadding(horizontal: Dp = 0.dp): PaddingValues {
     val safe = WindowInsets.safeDrawing.asPaddingValues()
@@ -305,11 +304,11 @@ private fun viewerContentPadding(horizontal: Dp = 0.dp): PaddingValues {
         start = safe.calculateStartPadding(direction) + horizontal,
         end = safe.calculateEndPadding(direction) + horizontal,
         top = safe.calculateTopPadding() + VIEWER_CONTENT_TOP,
-        bottom = safe.calculateBottomPadding() + VIEWER_CONTENT_BOTTOM,
+        bottom = VIEWER_CONTENT_BOTTOM,
     )
 }
 
 private const val A4_RATIO = 1.414f
 private const val TEXT_LINES_PER_ITEM = 200
 private val TRANSPARENCY_CELL = 12.dp
-private val TEXT_LIMIT_LABEL = mobileFileSize(TEXT_PREVIEW_LIMIT_BYTES.toLong())
+private val TEXT_LIMIT_LABEL = formatFileSize(TEXT_PREVIEW_LIMIT_BYTES.toLong())

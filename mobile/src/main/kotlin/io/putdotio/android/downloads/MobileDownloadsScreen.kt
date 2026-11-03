@@ -68,7 +68,7 @@ import io.putdotio.android.MobileSelectionToolbarOffset
 import io.putdotio.android.MobileSheetHandle
 import io.putdotio.android.R
 import io.putdotio.android.appendMonoFigures
-import io.putdotio.android.mobileFileSize
+import io.putdotio.android.files.formatFileSize
 import io.putdotio.android.monoFigures
 import io.putdotio.android.design.FileTypeIcon
 import io.putdotio.android.design.PutioDesignTokens
@@ -209,7 +209,7 @@ private fun LazyListScope.section(section: DownloadSection, rows: DownloadRows, 
             trailing = storage?.let { bytes ->
                 {
                     val style = MaterialTheme.typography.bodySmall
-                    Text(monoFigures(mobileFileSize(bytes), style.putioMono().toSpanStyle()), style = style)
+                    Text(monoFigures(formatFileSize(bytes), style.putioMono().toSpanStyle()), style = style)
                 }
             },
         )
@@ -370,7 +370,7 @@ private fun downloadMeta(entry: DownloadEntry, state: DownloadsState, removing: 
                 parts.progress(this, status.bytesDownloaded, status.contentLength, status.percent)
                 state.speeds[entry.fileId]?.takeIf { it > 0L }?.let { speed ->
                     append(SEPARATOR)
-                    appendMonoFigures(resources.getString(R.string.mobile_transfer_speed, mobileFileSize(speed)), mono)
+                    appendMonoFigures(resources.getString(R.string.mobile_transfer_speed, formatFileSize(speed)), mono)
                 }
             }
             is DownloadStatus.Paused -> {
@@ -393,7 +393,7 @@ private fun downloadMeta(entry: DownloadEntry, state: DownloadsState, removing: 
             }
             DownloadStatus.Missing -> append(resources.getString(R.string.mobile_files_download_missing))
             is DownloadStatus.Completed -> {
-                appendMonoFigures(mobileFileSize(status.bytes), mono)
+                appendMonoFigures(formatFileSize(status.bytes), mono)
                 append(SEPARATOR)
                 append(DateUtils.formatDateTime(
                     context,
@@ -426,11 +426,11 @@ private class DownloadMetaParts(private val context: Context, private val mono: 
      * not bytes, so it shows the percentage alone, as its ring does; with neither, the bytes.
      */
     fun progress(builder: AnnotatedString.Builder, bytes: Long, contentLength: Long?, percent: Float?) {
-        val done = mobileFileSize(bytes)
+        val done = formatFileSize(bytes)
         when {
             contentLength != null -> {
                 val template = context.getString(R.string.mobile_downloads_meta_of, VALUE_ONE, VALUE_TWO)
-                builder.appendTemplate(template, done, mobileFileSize(contentLength))
+                builder.appendTemplate(template, done, formatFileSize(contentLength))
             }
             percent != null ->
                 builder.withStyle(mono) { append("${percent.roundToInt().coerceIn(0, PERCENT.toInt())}%") }
@@ -599,17 +599,17 @@ internal fun DownloadStatus.description(context: Context, queuePosition: Int? = 
                 DownloadPauseReason.STORAGE -> R.string.mobile_downloads_status_waiting_storage
                 DownloadPauseReason.USER -> R.string.mobile_downloads_status_paused
             },
-            mobileFileSize(bytesDownloaded),
+            formatFileSize(bytesDownloaded),
         )
         is DownloadStatus.Downloading -> percent?.let {
             val rounded = it.roundToInt().coerceIn(0, PERCENT.toInt())
             context.getString(R.string.mobile_downloads_status_downloading, rounded)
         } ?: context.getString(
             R.string.mobile_downloads_status_downloading_unknown,
-            mobileFileSize(bytesDownloaded),
+            formatFileSize(bytesDownloaded),
         )
         is DownloadStatus.Completed ->
-            context.getString(R.string.mobile_downloads_status_completed, mobileFileSize(bytes))
+            context.getString(R.string.mobile_downloads_status_completed, formatFileSize(bytes))
         is DownloadStatus.Failed -> context.getString(reason.message())
         DownloadStatus.Missing -> context.getString(R.string.mobile_downloads_status_missing)
     }

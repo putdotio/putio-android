@@ -6,14 +6,15 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
@@ -32,12 +33,14 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -56,6 +59,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 
 internal const val MOBILE_FILE_VIEWER_TAG = "mobile-file-viewer"
+internal const val MOBILE_FILE_VIEWER_PAGES_TAG = "mobile-file-viewer-pages"
 internal const val MOBILE_FILE_VIEWER_POSITION_TAG = "mobile-file-viewer-position"
 
 /** What a viewer reaches outside itself: the file's bytes and the same actions the Files sheet runs. */
@@ -135,20 +139,32 @@ internal fun MobileFileViewerContent(
             .background(frame)
             .testTag(MOBILE_FILE_VIEWER_TAG),
     ) {
-        HorizontalPager(
-            state = pager,
-            key = { files.getOrNull(it)?.id?.value ?: it },
-            modifier = Modifier.fillMaxSize(),
-        ) { page ->
-            val file = files.getOrNull(page) ?: return@HorizontalPager
-            val uri = actions.documentUri(file)
-            val openElsewhere = { actions.onOpenWithAnotherApp(file) }
-            when (file.viewerKind) {
-                FilesViewerKind.Image -> MobileImagePage(file, uri, openElsewhere)
-                FilesViewerKind.Pdf -> MobilePdfPage(file, uri, openElsewhere)
-                FilesViewerKind.Text -> MobileTextPage(uri, openElsewhere)
-                null -> MobileViewerFailure(openElsewhere)
+        Column(Modifier.fillMaxSize()) {
+            HorizontalPager(
+                state = pager,
+                key = { files.getOrNull(it)?.id?.value ?: it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .testTag(MOBILE_FILE_VIEWER_PAGES_TAG),
+            ) { page ->
+                val file = files.getOrNull(page) ?: return@HorizontalPager
+                val uri = actions.documentUri(file)
+                val openElsewhere = { actions.onOpenWithAnotherApp(file) }
+                when (file.viewerKind) {
+                    FilesViewerKind.Image -> MobileImagePage(file, uri, openElsewhere)
+                    FilesViewerKind.Pdf -> MobilePdfPage(file, uri, openElsewhere)
+                    FilesViewerKind.Text -> MobileTextPage(uri, openElsewhere)
+                    null -> MobileViewerFailure(openElsewhere)
+                }
             }
+            MobileFileViewerPosition(
+                position = pager.currentPage + 1,
+                count = files.size,
+                more = paging.more,
+                shown = files.size > 1,
+            )
+            Spacer(Modifier.windowInsetsBottomHeight(WindowInsets.safeDrawing))
         }
         files.getOrNull(pager.currentPage)?.let { shown ->
             MobileFileViewerBar(
@@ -156,14 +172,6 @@ internal fun MobileFileViewerContent(
                 actions = actions,
                 onBack = onDismiss,
                 modifier = Modifier.align(Alignment.TopCenter),
-            )
-        }
-        if (files.size > 1) {
-            MobileFileViewerPosition(
-                position = pager.currentPage + 1,
-                count = files.size,
-                more = paging.more,
-                modifier = Modifier.align(Alignment.BottomCenter),
             )
         }
     }
@@ -241,30 +249,32 @@ private fun LoadNextPageNearLast(pager: PagerState, count: Int, paging: MobileFi
     }
 }
 
-/** The position in mono over a scrim that fades up, so it stays readable over a light picture. */
 @Composable
-private fun MobileFileViewerPosition(position: Int, count: Int, more: Boolean, modifier: Modifier = Modifier) {
+private fun MobileFileViewerPosition(position: Int, count: Int, more: Boolean, shown: Boolean) {
     val description = stringResource(
         if (more) R.string.mobile_viewer_position_more else R.string.mobile_viewer_position,
         position,
         count,
     )
-    val scrim = MaterialTheme.colorScheme.scrim
     Box(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxWidth()
-            .background(Brush.verticalGradient(listOf(Color.Transparent, scrim.copy(alpha = VIEWER_SCRIM_ALPHA))))
-            .windowInsetsPadding(WindowInsets.navigationBars)
-            .padding(top = 16.dp, bottom = VIEWER_POSITION_BOTTOM),
+            .padding(top = 8.dp, bottom = VIEWER_POSITION_BOTTOM),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             text = if (more) "$position / $count+" else "$position / $count",
             style = PutioTypeScale.mono,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier
-                .semantics { contentDescription = description }
-                .testTag(MOBILE_FILE_VIEWER_POSITION_TAG),
+            modifier = if (shown) {
+                Modifier
+                    .semantics { contentDescription = description }
+                    .testTag(MOBILE_FILE_VIEWER_POSITION_TAG)
+            } else {
+                Modifier
+                    .alpha(0f)
+                    .clearAndSetSemantics {}
+            },
         )
     }
 }
@@ -288,9 +298,8 @@ internal fun MobileViewerFailure(onOpenWithAnotherApp: () -> Unit, modifier: Mod
     }
 }
 
-/** Top clear of the bar, bottom clear of the position line, for pages that scroll under both. */
 internal val VIEWER_CONTENT_TOP = 64.dp
-internal val VIEWER_CONTENT_BOTTOM = 56.dp
+internal val VIEWER_CONTENT_BOTTOM = 16.dp
 
 private const val VIEWER_SCRIM_ALPHA = 0.6f
 private const val VIEWER_PAGING_THRESHOLD = 5
