@@ -22,7 +22,7 @@ internal interface TvWatchNextRecorder {
     /** put.io saved [positionSeconds] for [media], from playback or the watched toggle. */
     fun positionSaved(media: TvWatchNextMedia, positionSeconds: Double)
 
-    /** put.io no longer has the file. */
+    /** The card leaves: put.io no longer has the file, or the user hid it on this TV. */
     fun fileGone(fileId: Long)
 
     /**

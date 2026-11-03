@@ -70,7 +70,7 @@ internal fun segmentOf(index: Int, count: Int): TvSegment =
         else -> TvSegment.Middle
     }
 
-internal fun TvSegment.shape(): Shape {
+private fun TvSegment.shape(): Shape {
     val outer = PutioRadius.large
     val inner = PutioRadius.extraSmall
     return when (this) {
@@ -230,12 +230,7 @@ internal fun TvSettingRow(
         }
     }
     if (!focusable) {
-        Box(
-            modifier
-                .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.surfaceVariant, shape)
-                .semantics(mergeDescendants = true) {},
-        ) { body(false) }
+        TvStaticSegment(segment, modifier) { body(false) }
         return
     }
     Surface(
@@ -255,6 +250,16 @@ internal fun TvSettingRow(
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1f, pressedScale = 1f),
         interactionSource = interactions,
     ) { body(focused) }
+}
+
+@Composable
+internal fun TvStaticSegment(segment: TvSegment, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    Box(
+        modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceVariant, segment.shape())
+            .semantics(mergeDescendants = true) {},
+    ) { content() }
 }
 
 @Composable

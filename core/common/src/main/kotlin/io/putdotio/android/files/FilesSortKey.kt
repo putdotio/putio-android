@@ -29,7 +29,22 @@ public val FilesSort.field: FilesSortKey?
     }
 
 public val FilesSort.ascending: Boolean
-    get() = name.endsWith("_ASCENDING")
+    get() = when (this) {
+        FilesSort.NAME_ASCENDING,
+        FilesSort.SIZE_ASCENDING,
+        FilesSort.DATE_ADDED_ASCENDING,
+        FilesSort.DATE_MODIFIED_ASCENDING,
+        FilesSort.TYPE_ASCENDING,
+        FilesSort.WATCH_STATUS_ASCENDING,
+        -> true
+        FilesSort.NAME_DESCENDING,
+        FilesSort.SIZE_DESCENDING,
+        FilesSort.DATE_ADDED_DESCENDING,
+        FilesSort.DATE_MODIFIED_DESCENDING,
+        FilesSort.TYPE_DESCENDING,
+        FilesSort.WATCH_STATUS_DESCENDING,
+        -> false
+    }
 
 public val FILES_WATCH_SORTS: List<FilesSort> =
     listOf(FilesSort.WATCH_STATUS_ASCENDING, FilesSort.WATCH_STATUS_DESCENDING)

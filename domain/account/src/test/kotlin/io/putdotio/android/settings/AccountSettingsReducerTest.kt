@@ -233,6 +233,7 @@ class AccountSettingsReducerTest {
         val same =
             loaded.reduce(AccountSettingsEvent.ChangeRequested(AccountSettingsChange.Sort(FilesSort.NAME_ASCENDING)))
         assertFalse(same.consumed)
+        assertNull(same.effect)
 
         val saving = loaded.reduce(
             AccountSettingsEvent.ChangeRequested(AccountSettingsChange.Sort(FilesSort.DATE_ADDED_DESCENDING)),
