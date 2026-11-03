@@ -121,7 +121,6 @@
     <string name="tv_files_detail_play">Play</string>
     <string name="tv_files_detail_start_over">Start over</string>
     <string name="tv_files_detail_open">Open</string>
-    <string name="tv_files_detail_more">More actions</string>
     <string name="tv_files_detail_length">Length</string>
     <string name="tv_files_detail_added">Added</string>
     <string name="tv_files_detail_folder">Folder</string>

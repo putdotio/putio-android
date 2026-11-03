@@ -76,17 +76,3 @@ internal class TvTrashUndoOffer(
         onUndo(outcome)
     }
 }
-
-internal class TvSubtitlesFirst {
-    private val pending = MutableStateFlow(false)
-
-    val requested: StateFlow<Boolean> = pending.asStateFlow()
-
-    fun request(first: Boolean) {
-        pending.value = first
-    }
-
-    fun shown() {
-        pending.value = false
-    }
-}

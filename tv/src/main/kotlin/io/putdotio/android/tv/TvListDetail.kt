@@ -5,6 +5,9 @@ import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.FlowRowScope
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -154,11 +157,13 @@ internal data class TvDetailFact(
     val styled: AnnotatedString? = null,
 )
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun ColumnScope.TvDetailBody(
     title: String,
     meta: AnnotatedString?,
     facts: List<TvDetailFact>,
+    secondaryActions: (@Composable FlowRowScope.() -> Unit)? = null,
     actions: @Composable RowScope.() -> Unit,
 ) {
     Text(
@@ -186,6 +191,14 @@ internal fun ColumnScope.TvDetailBody(
         verticalAlignment = Alignment.CenterVertically,
         content = actions,
     )
+    if (secondaryActions != null) {
+        FlowRow(
+            modifier = Modifier.padding(top = DETAIL_ACTION_SPACING),
+            horizontalArrangement = Arrangement.spacedBy(DETAIL_ACTION_SPACING),
+            verticalArrangement = Arrangement.spacedBy(DETAIL_ACTION_SPACING),
+            content = secondaryActions,
+        )
+    }
     Column(
         modifier = Modifier
             .weight(1f, fill = false)

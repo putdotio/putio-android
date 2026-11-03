@@ -70,8 +70,6 @@ internal sealed interface TvFilesAction {
 
     data object StartOver : Tile
 
-    data object Subtitles : Tile
-
     data object OpenInVlc : TvFilesAction
 
     data class SetWatched(val watched: Boolean) : TvFilesAction
@@ -87,7 +85,6 @@ internal data class TvFilesActionContext(
     val canDelete: Boolean,
     val resumePlayback: Boolean = true,
     val pinned: Boolean? = null,
-    val showSubtitles: Boolean = true,
 )
 
 internal fun FilesItem.tvActions(context: TvFilesActionContext): List<TvFilesAction> =
@@ -113,7 +110,6 @@ private fun FilesItem.playActions(context: TvFilesActionContext): List<TvFilesAc
         } else {
             add(TvFilesAction.Play)
         }
-        if (type == PutioFileType.VIDEO && context.showSubtitles) add(TvFilesAction.Subtitles)
         add(TvFilesAction.OpenInVlc)
     }
 
@@ -123,18 +119,16 @@ internal fun FilesFolderState.permanentDeleteConfirmable(trashEnabled: Boolean?)
 
 internal class TvFilesActionHandlers(
     val onPlay: (FilesItem, TvPlayStart) -> Unit,
-    val onPickSubtitles: (FilesItem, TvPlayStart) -> Unit,
     val onOpenInVlc: (FilesItem) -> Unit,
     val onSetWatched: (FilesItem, Boolean) -> Unit,
     val onSetPinned: (FilesItem, Boolean) -> Unit,
 )
 
-internal fun TvFilesActionHandlers.run(action: TvFilesAction, item: FilesItem, playFrom: TvPlayStart) {
+internal fun TvFilesActionHandlers.run(action: TvFilesAction, item: FilesItem) {
     when (action) {
         TvFilesAction.Resume -> onPlay(item, TvPlayStart.Resume)
         TvFilesAction.Play -> onPlay(item, TvPlayStart.Ask)
         TvFilesAction.StartOver -> onPlay(item, TvPlayStart.StartOver)
-        TvFilesAction.Subtitles -> onPickSubtitles(item, playFrom)
         TvFilesAction.OpenInVlc -> onOpenInVlc(item)
         is TvFilesAction.SetWatched -> onSetWatched(item, action.watched)
         is TvFilesAction.SetPinned -> onSetPinned(item, action.pinned)
@@ -147,6 +141,7 @@ internal fun TvFilesActionsMenu(
     item: FilesItem,
     folder: FilesFolderState,
     context: TvFilesActionContext,
+    showSheet: Boolean,
     confirmingPermanentDelete: Boolean,
     onConfirmPermanentDelete: () -> Unit,
     trashPressed: Boolean,
@@ -165,7 +160,7 @@ internal fun TvFilesActionsMenu(
         val trashStillOn = trashEnabled == true && canStartOperation
         SideEffect {
             onTrashPressedChange(false)
-            if (trashStillOn) delete(FilesDeleteMode.TRASH)
+            if (trashStillOn) delete(FilesDeleteMode.TRASH) else if (!showSheet) onClose()
         }
     }
     if (confirmingPermanentDelete && folder.permanentDeleteConfirmable(trashEnabled)) {
@@ -176,7 +171,7 @@ internal fun TvFilesActionsMenu(
         )
         return
     }
-    val playFrom = if (item.resumePosition(context.resumePlayback) != null) TvPlayStart.Resume else TvPlayStart.Ask
+    if (!showSheet) return
     TvFilesActionsSheet(
         item = item,
         actions = item.tvActions(context.copy(canDelete = canStartOperation)),
@@ -185,7 +180,7 @@ internal fun TvFilesActionsMenu(
                 if (action.trash) onTrashPressedChange(true) else onConfirmPermanentDelete()
             } else {
                 onClose()
-                handlers.run(action, item, playFrom)
+                handlers.run(action, item)
             }
         },
         onDismiss = onClose,
@@ -346,7 +341,6 @@ internal fun TvFilesAction.label(): String =
             TvFilesAction.Resume -> R.string.tv_files_action_resume
             TvFilesAction.Play -> R.string.tv_files_detail_play
             TvFilesAction.StartOver -> R.string.tv_files_detail_start_over
-            TvFilesAction.Subtitles -> R.string.tv_player_subtitles
             TvFilesAction.OpenInVlc -> R.string.tv_files_action_vlc
             is TvFilesAction.SetWatched ->
                 if (watched) R.string.tv_files_action_mark_watched else R.string.tv_files_action_mark_unwatched
@@ -356,11 +350,10 @@ internal fun TvFilesAction.label(): String =
     )
 
 @DrawableRes
-private fun TvFilesAction.icon(): Int =
+internal fun TvFilesAction.icon(): Int =
     when (this) {
         TvFilesAction.Resume, TvFilesAction.Play -> DesignR.drawable.ic_ph_play_fill
         TvFilesAction.StartOver -> R.drawable.ic_ph_arrow_counter_clockwise
-        TvFilesAction.Subtitles -> R.drawable.ic_ph_subtitles
         TvFilesAction.OpenInVlc -> R.drawable.ic_ph_traffic_cone
         is TvFilesAction.SetWatched -> if (watched) R.drawable.ic_ph_eye else R.drawable.ic_ph_eye_slash
         is TvFilesAction.SetPinned -> if (pinned) R.drawable.ic_ph_push_pin else R.drawable.ic_ph_push_pin_slash

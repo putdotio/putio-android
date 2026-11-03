@@ -99,8 +99,6 @@ internal fun TvPlayerScreen(
     onNextEpisode: () -> Unit = {},
     onUpNext: (PlaybackTarget) -> Boolean = { false },
     analytics: PlaybackAnalyticsReporter = PlaybackAnalyticsReporter.None,
-    subtitlesFirst: Boolean = false,
-    onSubtitlesShown: () -> Unit = {},
     upNext: TvUpNextLookup = TvUpNextLookup.Off,
     onOpenInVlc: (() -> Unit)? = null,
     onPlayInVlc: (() -> Unit)? = null,
@@ -125,8 +123,6 @@ internal fun TvPlayerScreen(
                     onNextEpisode = onNextEpisode,
                     onUpNext = onUpNext,
                     analytics = analytics,
-                    subtitlesFirst = subtitlesFirst,
-                    onSubtitlesShown = onSubtitlesShown,
                     upNext = upNext.takeIf { autoplayNextVideo && state.target.mediaType == PlaybackMediaType.VIDEO }
                         ?: TvUpNextLookup.Off,
                 )
@@ -192,8 +188,6 @@ private fun TvReadyPlayer(
     onNextEpisode: () -> Unit,
     onUpNext: (PlaybackTarget) -> Boolean,
     analytics: PlaybackAnalyticsReporter,
-    subtitlesFirst: Boolean,
-    onSubtitlesShown: () -> Unit,
     upNext: TvUpNextLookup,
 ) {
     val context = LocalContext.current
@@ -219,11 +213,8 @@ private fun TvReadyPlayer(
     val currentOnUpNext by rememberUpdatedState(onUpNext)
     val currentAnalytics by rememberUpdatedState(analytics)
     val currentUpNext by rememberUpdatedState(upNext)
-    val picksSubtitles = remember(player) { subtitlesFirst.picksSubtitles(stoppedAtMillis, target.mediaType) }
-    val startsPlaying = startsPlaying(stoppedAtMillis, picksSubtitles)
-    var overlay by remember(player) {
-        mutableStateOf(TvPlayerOverlay(sheet = TvPlayerSheet.Subtitles.takeIf { picksSubtitles }))
-    }
+    val startsPlaying = stoppedAtMillis == null
+    var overlay by remember(player) { mutableStateOf(TvPlayerOverlay()) }
     val apply: (TvPlayerTransition) -> Unit = remember(player) {
         { transition ->
             overlay = transition.overlay
@@ -355,9 +346,6 @@ private fun TvReadyPlayer(
         val subtitleSheet = overlay.sheet == TvPlayerSheet.Subtitles || overlay.sheet == TvPlayerSheet.SizeAndTiming
         if (subtitlesHidden && subtitleSheet) apply(overlay.closeSheet())
     }
-    TvSubtitlesFirstEffects(player, picksSubtitles, overlay.sheet == null, onSubtitlesShown) {
-        apply(overlay.setPlaying(play = true))
-    }
     val appearance = rememberSubtitleAppearanceStore()
     TvSubtitleOffsetEffect(player, options.subtitleOffsetMillis)
 
@@ -455,32 +443,6 @@ private fun TvReadyPlayer(
         onDismiss = { apply(overlay.back()) },
         timingPreview = cueLayer,
     )
-}
-
-private fun Boolean.picksSubtitles(stoppedAtMillis: Long?, mediaType: PlaybackMediaType): Boolean =
-    this && stoppedAtMillis == null && mediaType == PlaybackMediaType.VIDEO
-
-private fun startsPlaying(stoppedAtMillis: Long?, picksSubtitles: Boolean): Boolean =
-    stoppedAtMillis == null && !picksSubtitles
-
-@Composable
-private fun TvSubtitlesFirstEffects(
-    player: Player,
-    picksSubtitles: Boolean,
-    sheetClosed: Boolean,
-    onShown: () -> Unit,
-    onPicked: () -> Unit,
-) {
-    var awaiting by remember(player) { mutableStateOf(picksSubtitles) }
-    val currentOnShown by rememberUpdatedState(onShown)
-    val currentOnPicked by rememberUpdatedState(onPicked)
-    LaunchedEffect(player) { if (picksSubtitles) currentOnShown() }
-    LaunchedEffect(awaiting, sheetClosed) {
-        if (awaiting && sheetClosed) {
-            awaiting = false
-            currentOnPicked()
-        }
-    }
 }
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])

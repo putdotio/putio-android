@@ -1,5 +1,6 @@
 package io.putdotio.android.tv.files
 
+import android.os.Bundle
 import androidx.annotation.StringRes
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.focusGroup
@@ -26,6 +27,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -115,7 +118,6 @@ internal fun TvFilesScreen(
     onSetWatched: (FilesItem, Boolean) -> Unit = { _, _ -> },
     pinnedIds: List<FilesItemId>? = null,
     onSetPinned: (FilesItem, Boolean) -> Unit = { _, _ -> },
-    onPickSubtitles: (FilesItem, TvPlayStart) -> Unit = { _, _ -> },
     trashUndo: TvTrashUndoOffer? = null,
     /** An explanation from outside the browser (a failed watched write, no VLC); OK dismisses it. */
     notice: String? = null,
@@ -129,7 +131,6 @@ internal fun TvFilesScreen(
     focusMemory: MutableMap<Long, Long> = remember(sessionKey) { mutableMapOf() },
     onPlay: (FilesItem, TvPlayStart) -> Unit = { item, _ -> onPlayMedia(item) },
     resumePlayback: Boolean = true,
-    showSubtitles: Boolean = true,
     detailSources: TvFilesDetailSources = remember(sessionKey) { TvFilesDetailSources.None },
 ) {
     val current = state.current
@@ -167,33 +168,16 @@ internal fun TvFilesScreen(
         return
     }
 
-    // The row whose actions are up, and whether its permanent deletion is being confirmed.
-    // Both close when the row leaves the listing, like the unsupported overlay.
-    var actionsFor by rememberSaveable(sessionKey, current.folder.id.value) { mutableStateOf<Long?>(null) }
-    // Only permanent deletion confirms; Move to trash runs at once, as on web and iOS. Trash
-    // turning on underneath, or an operation the folder starts on its own (a reload after a
-    // restore), closes the confirmation rather than offering a Delete the reducer would refuse.
-    var confirmingPermanentDelete by rememberSaveable(sessionKey, current.folder.id.value) {
-        mutableStateOf(false)
+    val actions = rememberSaveable(sessionKey, current.folder.id.value, saver = TvFilesActionsTarget.Saver) {
+        TvFilesActionsTarget()
     }
-    // A Move to trash press is sent after the next composition, against the latest Trash setting:
-    // a press made before a change to the setting reached the menu must not send TRASH, which
-    // the server applies as permanent deletion once Trash is off.
-    var trashPressed by remember(sessionKey, current.folder.id.value) { mutableStateOf(false) }
-    val actionsItem = (current.content as? FilesContent.Ready)?.items?.firstOrNull { it.id.value == actionsFor }
-    val actionsOrphaned = actionsFor != null && actionsItem == null
-    val confirmationStale = confirmingPermanentDelete && !current.permanentDeleteConfirmable(confirmedTrashEnabled)
-    SideEffect {
-        if (actionsOrphaned) {
-            actionsFor = null
-            confirmingPermanentDelete = false
-            trashPressed = false
-        } else if (confirmationStale) {
-            confirmingPermanentDelete = false
-        }
-    }
+    val actionsItem = (current.content as? FilesContent.Ready)?.items?.firstOrNull { it.id.value == actions.itemId }
+    val confirmationStale =
+        actions.confirmingPermanentDelete && !current.permanentDeleteConfirmable(confirmedTrashEnabled)
+    SideEffect { actions.settle(orphaned = actions.itemId != null && actionsItem == null, confirmationStale) }
     val dialogOpen = actionsItem != null || notice != null
-    val centredDialogOpen = centredDialogOpen(notice, actionsItem, confirmingPermanentDelete, confirmationStale)
+    val centredDialogOpen =
+        centredDialogOpen(notice, actionsItem, actions.confirmingPermanentDelete, confirmationStale)
     val snackbar = remember(sessionKey) { TvSnackbarState() }
     val undoFocus = remember { FocusRequester() }
     val downToUndo = undoFocus.takeIf { snackbar.showing?.message?.actionLabel != null }
@@ -219,19 +203,31 @@ internal fun TvFilesScreen(
         trashEnabled = confirmedTrashEnabled,
         canDelete = current.operation.canStartOperation,
         resumePlayback = resumePlayback,
-        showSubtitles = showSubtitles,
     )
     val actionContextOf = { item: FilesItem -> actionContext.copy(pinned = item.pinnedIn(pinnedIds)) }
     val actionsOf = { item: FilesItem -> item.tvActions(actionContextOf(item)) }
+    val detailActionsOf = { item: FilesItem ->
+        item.tvActions(actionContextOf(item).copy(canDelete = true)).secondary()
+    }
+    val handlers = TvFilesActionHandlers(
+        onPlay = onPlay,
+        onOpenInVlc = onOpenInVlc,
+        onSetWatched = onSetWatched,
+        onSetPinned = onSetPinned,
+    )
     val dialogReturn = remember { mutableStateOf(FocusRequester.Default) }
-    dialogReturn.value = detailFocus.dialogReturn(detailItem.offersActions(actionsOf), entryTarget.value)
+    dialogReturn.value = detailFocus.dialogReturn(detailItem, detailActionsOf, entryTarget.value)
     val dialogWasOpen = remember { mutableStateOf(false) }
     LaunchedEffect(dialogOpen) { refocusAfterDialog(dialogOpen, dialogWasOpen, paneHasFocus, dialogReturn) }
     val noticeFocus = remember { TvFocusHandBack() }
     val dialogShowing = rememberUpdatedState(dialogOpen)
     noticeFocus.Refocus(paneHasFocus, blocked = dialogShowing, target = entryTarget)
     // As in tv-native, a row with nothing to offer opens no menu.
-    val openActions = { item: FilesItem -> if (actionsOf(item).isNotEmpty()) actionsFor = item.id.value }
+    val openActions = { item: FilesItem -> if (actionsOf(item).isNotEmpty()) actions.openSheet(item) }
+    val runDetailAction = { item: FilesItem, action: TvFilesAction ->
+        if (action is TvFilesAction.Delete) actions.pressDelete(item, action) else handlers.run(action, item)
+    }
+    TvFilesDetailLeaves(detailItem, folderId, detailFocus, paneHasFocus, entryTarget)
     val open = { item: FilesItem -> item.open(onEvent, onPlayMedia, onUnsupported = { unsupported = it.id.value }) }
     Box(
         modifier = modifier
@@ -303,8 +299,9 @@ internal fun TvFilesScreen(
                             onOpenFolder = open,
                             onPlay = onPlay,
                             onUnsupported = { unsupported = it.id.value },
-                            onMore = openActions,
-                            offersMore = { actionsOf(it).isNotEmpty() },
+                            secondaryOf = detailActionsOf,
+                            onSecondary = runDetailAction,
+                            deleteEnabled = current.operation.canStartOperation,
                         )
                     },
                 )
@@ -328,23 +325,14 @@ internal fun TvFilesScreen(
             item = actionsItem,
             folder = current,
             context = actionContextOf(actionsItem),
-            confirmingPermanentDelete = confirmingPermanentDelete,
-            onConfirmPermanentDelete = { confirmingPermanentDelete = true },
-            trashPressed = trashPressed,
-            onTrashPressedChange = { trashPressed = it },
+            showSheet = actions.sheet,
+            confirmingPermanentDelete = actions.confirmingPermanentDelete,
+            onConfirmPermanentDelete = { actions.confirmingPermanentDelete = true },
+            trashPressed = actions.trashPressed,
+            onTrashPressedChange = { actions.trashPressed = it },
             onEvent = onEvent,
-            handlers = TvFilesActionHandlers(
-                onPlay = onPlay,
-                onPickSubtitles = onPickSubtitles,
-                onOpenInVlc = onOpenInVlc,
-                onSetWatched = onSetWatched,
-                onSetPinned = onSetPinned,
-            ),
-            onClose = {
-                actionsFor = null
-                confirmingPermanentDelete = false
-                trashPressed = false
-            },
+            handlers = handlers,
+            onClose = actions::close,
         )
     }
 }
@@ -497,15 +485,15 @@ private fun ColumnScope.TvFilesDetailPane(
     onOpenFolder: (FilesItem) -> Unit,
     onPlay: (FilesItem, TvPlayStart) -> Unit,
     onUnsupported: (FilesItem) -> Unit,
-    onMore: (FilesItem) -> Unit,
-    offersMore: (FilesItem) -> Boolean,
+    secondaryOf: (FilesItem) -> List<TvFilesAction>,
+    onSecondary: (FilesItem, TvFilesAction) -> Unit,
+    deleteEnabled: Boolean,
 ) {
     if (loading) TvDetailSkeleton()
     if (item == null) return
     TvFilesDetail(
         item = item,
-        detailHasFocus = detailFocus.hasFocus,
-        primaryFocus = detailFocus.primary,
+        focus = detailFocus,
         resumePlayback = resumePlayback,
         sources = sources,
         listing = listing,
@@ -513,10 +501,30 @@ private fun ColumnScope.TvFilesDetailPane(
             onOpenFolder = onOpenFolder,
             onPlay = onPlay,
             onUnsupported = onUnsupported,
-            onMore = onMore.takeIf { offersMore(item) },
+            secondary = secondaryOf(item),
+            onSecondary = onSecondary,
+            deleteEnabled = deleteEnabled,
         ),
-        moreFocus = detailFocus.more,
     )
+}
+
+@Composable
+private fun TvFilesDetailLeaves(
+    detailItem: FilesItem?,
+    folderId: Long,
+    detailFocus: TvFilesDetailFocus,
+    paneHasFocus: State<Boolean>,
+    entryTarget: State<FocusRequester>,
+) {
+    val shown = detailItem?.id?.value
+    val previous = remember(folderId) { mutableStateOf(shown) }
+    LaunchedEffect(folderId, shown) {
+        val left = previous.value != null && shown != null && previous.value != shown
+        previous.value = shown
+        if (!left || !detailFocus.owns.value || !paneHasFocus.value) return@LaunchedEffect
+        withFrameNanos {}
+        if (paneHasFocus.value) entryTarget.value.requestFocus()
+    }
 }
 
 @Composable
@@ -972,6 +980,80 @@ private fun BoxScope.TvFilesTrashSnackbar(
             .focusRequester(undoFocus)
             .onFocusChanged { if (snackbar.showing != null) undoFocused = it.isFocused },
     )
+}
+
+/**
+ * The row whose actions are up, whether they show as a sheet (the list's shortcut) or only run a
+ * deletion pressed in the detail pane, and whether that deletion is being confirmed. All close
+ * when the row leaves the listing, like the unsupported overlay.
+ */
+@Stable
+private class TvFilesActionsTarget(itemId: Long? = null, sheet: Boolean = false, confirming: Boolean = false) {
+    var itemId by mutableStateOf(itemId)
+        private set
+    var sheet by mutableStateOf(sheet)
+        private set
+
+    // Only permanent deletion confirms; Move to trash runs at once, as on web and iOS. Trash
+    // turning on underneath, or an operation the folder starts on its own (a reload after a
+    // restore), closes the confirmation rather than offering a Delete the reducer would refuse.
+    var confirmingPermanentDelete by mutableStateOf(confirming)
+
+    // A Move to trash press is sent after the next composition, against the latest Trash setting:
+    // a press made before a change to the setting reached the menu must not send TRASH, which
+    // the server applies as permanent deletion once Trash is off.
+    var trashPressed by mutableStateOf(false)
+
+    fun openSheet(item: FilesItem) {
+        itemId = item.id.value
+        sheet = true
+    }
+
+    fun pressDelete(item: FilesItem, delete: TvFilesAction.Delete) {
+        itemId = item.id.value
+        sheet = false
+        if (delete.trash) trashPressed = true else confirmingPermanentDelete = true
+    }
+
+    fun close() {
+        itemId = null
+        sheet = false
+        confirmingPermanentDelete = false
+        trashPressed = false
+    }
+
+    fun settle(orphaned: Boolean, confirmationStale: Boolean) {
+        when {
+            orphaned -> close()
+            confirmationStale -> confirmingPermanentDelete = false
+            itemId != null && !sheet && !pending -> itemId = null
+        }
+    }
+
+    private val pending: Boolean get() = confirmingPermanentDelete || trashPressed
+
+    companion object {
+        val Saver: Saver<TvFilesActionsTarget, Bundle> = Saver(
+            save = { target ->
+                Bundle().apply {
+                    target.itemId?.let { putLong(ITEM_KEY, it) }
+                    putBoolean(SHEET_KEY, target.sheet)
+                    putBoolean(CONFIRMING_KEY, target.confirmingPermanentDelete)
+                }
+            },
+            restore = { bundle ->
+                TvFilesActionsTarget(
+                    itemId = bundle.getLong(ITEM_KEY).takeIf { bundle.containsKey(ITEM_KEY) },
+                    sheet = bundle.getBoolean(SHEET_KEY),
+                    confirming = bundle.getBoolean(CONFIRMING_KEY),
+                )
+            },
+        )
+
+        private const val ITEM_KEY = "item"
+        private const val SHEET_KEY = "sheet"
+        private const val CONFIRMING_KEY = "confirming"
+    }
 }
 
 private fun FilesItem.pinnedIn(pinnedIds: List<FilesItemId>?): Boolean? = pinnedIds?.let { id in it }

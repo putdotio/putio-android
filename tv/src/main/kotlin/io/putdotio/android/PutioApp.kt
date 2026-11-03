@@ -312,7 +312,6 @@ internal fun TvSessionShell(
     )
     InvalidateFilesOnRestore(session, trashState)
     val playback by session.playback.collectAsStateWithLifecycle()
-    val subtitlesFirst by session.subtitlesFirst.requested.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     TvPlaybackLayer(
@@ -327,8 +326,6 @@ internal fun TvSessionShell(
                     subtitleStartupPolicy = settingsState.subtitleStartupPolicy(),
                     autoplayNextVideo = appConfigState.confirmedAutoplayNextVideo(),
                     findNextEpisode = session.findNextVideo.takeIf { settingsState.nextEpisodeEnabled() },
-                    subtitlesFirst = subtitlesFirst,
-                    onSubtitlesShown = session.subtitlesFirst::shown,
                     findUpNext = session.findNeighbours,
                     openInVlc = { target ->
                         session.originalStreamUrl(target.fileId).openPlaybackInVlc(context, target)
@@ -509,7 +506,6 @@ private fun TvFilesPane(
         confirmedTrashEnabled = settingsState.confirmedTrashEnabled(),
         watchedToggleEnabled = settingsState.confirmedResumePlayback() == true,
         resumePlayback = settingsState.confirmedResumePlayback() != false,
-        showSubtitles = settingsState.subtitleStartupPolicy()?.showSubtitles == true,
         detailSources = remember(session) {
             TvFilesDetailSources(session.folderCounts, session.subtitleLanguages, onSessionRejected)
         },
@@ -525,7 +521,6 @@ private fun TvFilesPane(
         onSetWatched = session::setWatched,
         pinnedIds = pins,
         onSetPinned = { item, pinned -> if (pinned) session.pins.pin(item.id) else session.pins.unpin(item.id) },
-        onPickSubtitles = { item, start -> session.play(item, start, subtitlesFirst = true) },
         trashUndo = session.trashUndoOffer,
         notice = linkNotice.text()
             ?: filesNoticeText(filesNotice, streamFailure, fileActionFailure, undoFailure, pinFailure),
@@ -675,7 +670,6 @@ private fun TvSearchPane(
         trashEnabled = null,
         canDelete = false,
         resumePlayback = resumePlayback,
-        showSubtitles = settingsState.subtitleStartupPolicy()?.showSubtitles == true,
     )
     val currentPins by rememberUpdatedState(pins)
     val currentContext by rememberUpdatedState(actionContext)
@@ -693,9 +687,6 @@ private fun TvSearchPane(
                     },
                     handlers = TvFilesActionHandlers(
                         onPlay = { item, start -> playStart.open(session, item, start) },
-                        onPickSubtitles = { item, start ->
-                            playStart.open(session, item) { session.play(it, start, subtitlesFirst = true) }
-                        },
                         onOpenInVlc = { item ->
                             playStart.open(session, item) { picked ->
                                 streamScope.launch {
