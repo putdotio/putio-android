@@ -1,6 +1,7 @@
 package io.putdotio.android.tv.home
 
 import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -67,6 +68,7 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioEmptyGlyph
@@ -83,6 +85,7 @@ import io.putdotio.android.tv.TvButtonSize
 import io.putdotio.android.tv.TvEmptyState
 import io.putdotio.android.tv.TvEmptyStateAction
 import io.putdotio.android.tv.TvFocus
+import io.putdotio.android.tv.TvNoticeDialog
 import io.putdotio.android.tv.asMonoRun
 import io.putdotio.android.tv.bringIntoComposition
 import io.putdotio.android.tv.focusRequesterIf
@@ -105,6 +108,7 @@ internal class TvHomeActions(
     val onBrowseFiles: () -> Unit,
     val onRetryPinned: () -> Unit,
     val onUnpin: (FilesItem) -> Unit = {},
+    val onRemoveFromContinueWatching: (ContinueWatchingEntry) -> Unit = {},
 )
 
 @Composable
@@ -117,6 +121,8 @@ internal fun TvHomeScreen(
     modifier: Modifier = Modifier,
     returnTo: FilesItemId? = null,
     onReturned: () -> Unit = {},
+    continueWatchingFailure: PutioFailure? = null,
+    onDismissContinueWatchingFailure: () -> Unit = {},
 ) {
     LaunchedEffect(Unit) { onShown() }
     val pinnedCards = (pinned as? TvPinnedRow.Ready)?.cards
@@ -140,8 +146,18 @@ internal fun TvHomeScreen(
         onReturned()
     }
     val retry = rememberTvPinnedRetry(pinned, paneFocus)
-    val pinSheet = remember { TvPinSheet() }
-    TvPinSheetHost(pinSheet, pinnedCards.orEmpty(), actions.onUnpin, paneFocus)
+    val pinSheet = remember { TvHomeCardSheet() }
+    val continueSheet = remember { TvHomeCardSheet() }
+    TvHomeSheets(
+        pinSheet = pinSheet,
+        continueSheet = continueSheet,
+        pinnedCards = pinnedCards.orEmpty(),
+        continueWatching = continueWatching,
+        actions = actions,
+        paneFocus = paneFocus,
+        continueWatchingFailure = continueWatchingFailure,
+        onDismissContinueWatchingFailure = onDismissContinueWatchingFailure,
+    )
     if (continueWatching.isEmpty() && pinnedCards?.isEmpty() == true) {
         TvEmptyState(
             glyph = PutioEmptyGlyph.NothingYet,
@@ -175,7 +191,10 @@ internal fun TvHomeScreen(
                         TvContinueWatchingCard(
                             entry,
                             onClick = { actions.onResume(entry) },
-                            modifier = Modifier.focusRequesterIf(index == continueReturn, returnFocus),
+                            onLongClick = { left -> continueSheet.open(entry.toFilesItem(), meta = left) },
+                            modifier = Modifier
+                                .focusRequesterIf(index == continueReturn, returnFocus)
+                                .focusRequesterIf(entry.fileId == continueSheet.cardId, continueSheet.card),
                         )
                     }
                 }
@@ -222,35 +241,101 @@ internal fun TvHomeScreen(
 }
 
 @Composable
-private fun TvPinSheetHost(
-    pinSheet: TvPinSheet,
-    cards: List<TvPinnedCard>,
-    onUnpin: (FilesItem) -> Unit,
+private fun TvHomeSheets(
+    pinSheet: TvHomeCardSheet,
+    continueSheet: TvHomeCardSheet,
+    pinnedCards: List<TvPinnedCard>,
+    continueWatching: List<ContinueWatchingEntry>,
+    actions: TvHomeActions,
+    paneFocus: FocusRequester,
+    continueWatchingFailure: PutioFailure?,
+    onDismissContinueWatchingFailure: () -> Unit,
+) {
+    TvHomeCardSheetHost(
+        sheet = pinSheet,
+        cards = pinnedCards.map { it.item.id },
+        action = TvFilesAction.SetPinned(pinned = false),
+        onRemove = { id -> pinnedCards.firstOrNull { it.item.id == id }?.let { actions.onUnpin(it.item) } },
+        paneFocus = paneFocus,
+    )
+    LaunchedEffect(continueWatchingFailure) { if (continueWatchingFailure != null) continueSheet.handedOff() }
+    TvHomeNotice(
+        continueWatchingFailure,
+        R.string.tv_home_remove_continue_watching_error,
+        onDismissContinueWatchingFailure,
+        paneFocus,
+    )
+    TvHomeCardSheetHost(
+        sheet = continueSheet,
+        cards = continueWatching.map { it.fileId },
+        action = TvFilesAction.RemoveFromContinueWatching,
+        onRemove = { id ->
+            continueWatching.firstOrNull { it.fileId == id }?.let(actions.onRemoveFromContinueWatching)
+        },
+        paneFocus = paneFocus,
+    )
+}
+
+@Composable
+internal fun TvHomeNotice(
+    failure: PutioFailure?,
+    @StringRes title: Int,
+    onDismiss: () -> Unit,
     paneFocus: FocusRequester,
 ) {
-    val removed = pinSheet.removed
-    val gone = removed != null && cards.none { it.item.id == removed }
+    val showing = failure.shownOnHome()
+    val wasShowing = remember { mutableStateOf(false) }
+    LaunchedEffect(showing) {
+        val closed = wasShowing.value && !showing
+        wasShowing.value = showing
+        if (!closed) return@LaunchedEffect
+        withFrameNanos {}
+        paneFocus.returnFocusFromSheet()
+    }
+    failure?.takeIf { it.shownOnHome() }?.let {
+        TvNoticeDialog(
+            title = stringResource(title, it.tvMessageText()),
+            onDismiss = onDismiss,
+        )
+    }
+}
+
+private fun PutioFailure?.shownOnHome(): Boolean = this != null && this !is PutioFailure.AuthenticationRequired
+
+@Composable
+private fun TvHomeCardSheetHost(
+    sheet: TvHomeCardSheet,
+    cards: List<FilesItemId>,
+    action: TvFilesAction,
+    onRemove: (FilesItemId) -> Unit,
+    paneFocus: FocusRequester,
+) {
+    val removed = sheet.removed
+    val gone = removed != null && removed !in cards
     LaunchedEffect(gone) {
         if (!gone) return@LaunchedEffect
-        val next = pinSheet.retarget(cards)
+        val next = sheet.retarget(cards)
         withFrameNanos {}
-        (if (next) pinSheet.card else paneFocus).returnFocusFromSheet()
-        pinSheet.handedOff()
+        (if (next) sheet.card else paneFocus).returnFocusFromSheet()
+        sheet.handedOff()
     }
-    val item = pinSheet.item ?: return
+    val item = sheet.item ?: return
     TvFilesActionsSheet(
         item = item,
-        actions = listOf(TvFilesAction.SetPinned(pinned = false)),
-        onAction = { pinSheet.unpinned(cards, onUnpin) },
-        onDismiss = pinSheet::close,
-        returnFocus = pinSheet.card,
+        actions = listOf(action),
+        onAction = { sheet.removing(cards, onRemove) },
+        onDismiss = sheet::close,
+        returnFocus = sheet.card,
+        meta = sheet.meta?.let(::AnnotatedString),
     )
 }
 
 @Stable
-private class TvPinSheet {
+private class TvHomeCardSheet {
     val card = FocusRequester()
     var item by mutableStateOf<FilesItem?>(null)
+        private set
+    var meta by mutableStateOf<String?>(null)
         private set
     var cardId by mutableStateOf<FilesItemId?>(null)
         private set
@@ -259,9 +344,10 @@ private class TvPinSheet {
 
     private var removedAt = -1
 
-    fun open(pinned: FilesItem) {
-        item = pinned
-        cardId = pinned.id
+    fun open(card: FilesItem, meta: String? = null) {
+        item = card
+        this.meta = meta
+        cardId = card.id
         removed = null
     }
 
@@ -269,16 +355,16 @@ private class TvPinSheet {
         item = null
     }
 
-    fun unpinned(cards: List<TvPinnedCard>, onUnpin: (FilesItem) -> Unit) {
-        val pinned = item ?: return
-        removedAt = cards.indexOfFirst { it.item.id == pinned.id }
+    fun removing(cards: List<FilesItemId>, onRemove: (FilesItemId) -> Unit) {
+        val card = item ?: return
+        removedAt = cards.indexOf(card.id)
         item = null
-        removed = pinned.id
-        onUnpin(pinned)
+        removed = card.id
+        onRemove(card.id)
     }
 
-    fun retarget(cards: List<TvPinnedCard>): Boolean {
-        cardId = (cards.getOrNull(removedAt) ?: cards.getOrNull(removedAt - 1))?.item?.id
+    fun retarget(cards: List<FilesItemId>): Boolean {
+        cardId = cards.getOrNull(removedAt) ?: cards.getOrNull(removedAt - 1)
         return cardId != null
     }
 
@@ -399,7 +485,12 @@ private fun TvHomeInlineState(
 }
 
 @Composable
-private fun TvContinueWatchingCard(entry: ContinueWatchingEntry, onClick: () -> Unit, modifier: Modifier) {
+private fun TvContinueWatchingCard(
+    entry: ContinueWatchingEntry,
+    onClick: () -> Unit,
+    onLongClick: (left: String) -> Unit,
+    modifier: Modifier,
+) {
     val left = tvClock(entry.remainingSeconds.toDouble())
     val leftLabel = stringResource(R.string.tv_home_left, left)
     TvHomeCard(
@@ -410,6 +501,7 @@ private fun TvContinueWatchingCard(entry: ContinueWatchingEntry, onClick: () -> 
         meta = AnnotatedString(leftLabel),
         metaStyle = CARD_META_MONO,
         onClick = onClick,
+        onLongClick = { onLongClick(leftLabel) },
         modifier = modifier,
     )
 }

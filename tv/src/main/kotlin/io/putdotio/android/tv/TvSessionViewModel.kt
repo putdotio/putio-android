@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import io.putdotio.android.files.ContinueWatching
+import io.putdotio.android.files.ContinueWatchingEntry
 import io.putdotio.android.files.ContinueWatchingStore
 import io.putdotio.android.files.FilesBrowserController
 import io.putdotio.android.files.FilesBrowserEvent
@@ -176,7 +177,7 @@ internal class TvSession internal constructor(
         { item, _ -> historyOpenChannel.send(item) },
         scope,
     )
-    private val mutableFileActionFailure = MutableStateFlow<PutioFailure?>(null)
+    private val fileActionFailures = TvActionFailure()
     private val watchedJobs = mutableMapOf<FilesItemId, Job>()
     private val watchNextHandledDeletes = mutableSetOf<FilesRequestId>()
     private val playbackRepository = dependencies.playbackRepository { appConfig.state.value.playbackPreference() }
@@ -238,7 +239,9 @@ internal class TvSession internal constructor(
     val historyOpenFailure: StateFlow<PutioFailure?> = historyOpener.failure
 
     /** Why the last watched toggle failed; cleared by the next attempt or dismissal. */
-    val fileActionFailure: StateFlow<PutioFailure?> = mutableFileActionFailure.asStateFlow()
+    val fileActionFailure: StateFlow<PutioFailure?> = fileActionFailures.failure
+
+    val continueWatchingFailure = TvActionFailure()
 
     /** Files that system search and Watch Next cards ask to open. */
     val links = TvLinkOpener(
@@ -251,10 +254,10 @@ internal class TvSession internal constructor(
     init {
         // A card whose file put.io no longer has, or that another device finished, leaves the row.
         scope.launch {
-            watchNext.reconcile(filesItemResolver::resolveItem)?.let { mutableFileActionFailure.value = it }
+            watchNext.reconcile(filesItemResolver::resolveItem)?.let(fileActionFailures::report)
         }
         scope.launch {
-            continueWatching.reconcile(filesItemResolver::resolveItem)?.let { mutableFileActionFailure.value = it }
+            continueWatching.reconcile(filesItemResolver::resolveItem)?.let(fileActionFailures::report)
         }
         scope.launch {
             files.state
@@ -275,7 +278,7 @@ internal class TvSession internal constructor(
         }
         scope.launch {
             continueWatching.recheckAfterDeletes(filesItemResolver::resolveItem)?.let {
-                mutableFileActionFailure.value = it
+                fileActionFailures.report(it)
             }
         }
         scope.launch { settings.state.captureSavedSettings() }
@@ -390,7 +393,7 @@ internal class TvSession internal constructor(
      * position). Runs here so a choice made just before the pane is disposed still lands;
      * the listing row follows through the browser's own position invalidation.
      */
-    fun setWatched(item: FilesItem, watched: Boolean) {
+    fun setWatched(item: FilesItem, watched: Boolean, failures: TvActionFailure = fileActionFailures) {
         val seconds = if (watched) item.playback?.durationSeconds ?: return else 0.0
         // One write per file at a time: a newer choice for the same file supersedes an
         // unfinished one, so a slow first request cannot report after a faster second one
@@ -398,7 +401,7 @@ internal class TvSession internal constructor(
         watchedJobs.remove(item.id)?.cancel()
         // Started lazily so the write is registered before its body can run and compare itself.
         val job = scope.launch(start = CoroutineStart.LAZY) {
-            dismissFileActionFailure()
+            failures.dismiss()
             val result = playbackReporting.supersede(item.id.value) {
                 if (watched) {
                     watchedRepository.setPosition(item.id, seconds)
@@ -416,9 +419,7 @@ internal class TvSession internal constructor(
                     watchNext.positionSaved(item.toWatchNextMedia(), seconds)
                     continueWatching.positionSaved(item.id, seconds)
                 }
-                is PutioResult.Failure -> mutableFileActionFailure.update { current ->
-                    if (current is PutioFailure.AuthenticationRequired) current else result.failure
-                }
+                is PutioResult.Failure -> failures.report(result.failure)
             }
         }
         watchedJobs[item.id] = job
@@ -433,13 +434,11 @@ internal class TvSession internal constructor(
     suspend fun originalStreamUrl(id: FilesItemId): FilesStreamUrlResult =
         streamUrls.originalStreamUrl(id).also { result ->
             val failure = (result as? FilesStreamUrlResult.Failure)?.failure
-            if (failure is PutioFailure.AuthenticationRequired) mutableFileActionFailure.value = failure
+            if (failure is PutioFailure.AuthenticationRequired) fileActionFailures.report(failure)
         }
 
     /** Drops the explanation the pane showed; a 401 stays, since it is a session verdict. */
-    fun dismissFileActionFailure() {
-        mutableFileActionFailure.update { it?.takeIf { failure -> failure is PutioFailure.AuthenticationRequired } }
-    }
+    fun dismissFileActionFailure() = fileActionFailures.dismiss()
 
     /** Drops the explanation the pane showed; a 401 stays, since it is a session verdict. */
     fun dismissHistoryOpenFailure() = historyOpener.dismissFailure()
@@ -530,6 +529,22 @@ private suspend fun FilesRepository.withListedDuration(item: FilesItem): FilesIt
 
 internal fun tvSessionViewModelFactory(authState: StateFlow<TvAuthState>): ViewModelProvider.Factory =
     viewModelFactory { initializer { TvSessionViewModel(authState) } }
+
+internal fun TvSession.removeFromContinueWatching(entry: ContinueWatchingEntry) =
+    setWatched(entry.toFilesItem(), watched = false, failures = continueWatchingFailure)
+
+internal class TvActionFailure {
+    private val mutableFailure = MutableStateFlow<PutioFailure?>(null)
+    val failure: StateFlow<PutioFailure?> = mutableFailure.asStateFlow()
+
+    fun report(failure: PutioFailure) {
+        mutableFailure.update { current -> if (current is PutioFailure.AuthenticationRequired) current else failure }
+    }
+
+    fun dismiss() {
+        mutableFailure.update { it?.takeIf { failure -> failure is PutioFailure.AuthenticationRequired } }
+    }
+}
 
 private fun confirmsAnyGone(outcome: FilesDeleteOutcome): Boolean = outcome.confirmedGone().isNotEmpty()
 
