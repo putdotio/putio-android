@@ -292,7 +292,8 @@ class TvHomeScreenTest {
 
         compose.runOnIdle { failure = PutioFailure.NetworkUnavailable(PutioConfigurationException("offline")) }
         compose.onNodeWithText("OK").performKeyInput { pressCenter() }
-        compose.onNodeWithContentDescription(resume("clip-2.mkv")).assertIsFocused()
+        compose.onNodeWithContentDescription(resume("clip-1.mkv")).assertIsFocused()
+            .performKeyInput { pressKey(Key.DirectionRight) }
         compose.runOnIdle { continueWatching = entries.drop(1) }
         compose.onNodeWithContentDescription(resume("clip-2.mkv")).assertIsFocused()
         compose.runOnIdle { continueWatching = entries.drop(2) }
