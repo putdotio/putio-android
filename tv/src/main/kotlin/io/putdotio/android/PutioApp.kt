@@ -53,7 +53,7 @@ import io.putdotio.android.settings.AndroidAppConfigState
 import io.putdotio.android.settings.SdkAccountSettingsRepository
 import io.putdotio.android.settings.TunnelRouteOption
 import io.putdotio.android.settings.authoritativeSessionFailure
-import io.putdotio.android.settings.ConfirmedDefaultSort
+import io.putdotio.android.files.FilesSort
 import io.putdotio.android.settings.confirmedDefaultSort
 import io.putdotio.android.settings.confirmedHistoryEnabled
 import io.putdotio.android.settings.confirmedResumePlayback
@@ -313,7 +313,7 @@ internal fun TvSessionShell(
         },
     )
     InvalidateFilesOnRestore(session, trashState)
-    InvalidateFilesOnDefaultSort(session, settingsState)
+    val accountDefaultSort = rememberAccountDefaultSort(session, settingsState)
     val playback by session.playback.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
@@ -384,6 +384,7 @@ internal fun TvSessionShell(
                     session = session,
                     filesState = filesState,
                     settingsState = settingsState,
+                    accountDefaultSort = accountDefaultSort,
                     fileActionFailure = fileActionFailure,
                     undoFailure = undoFailure,
                     linkNotice = linkNotice,
@@ -452,14 +453,15 @@ private fun InvalidateFilesOnRestore(session: TvSession, trashState: TrashState)
 }
 
 @Composable
-private fun InvalidateFilesOnDefaultSort(session: TvSession, settingsState: AccountSettingsState) {
+private fun rememberAccountDefaultSort(session: TvSession, settingsState: AccountSettingsState): FilesSort? {
     val confirmed = settingsState.confirmedDefaultSort()
-    var known by remember(session) { mutableStateOf<ConfirmedDefaultSort?>(null) }
+    var known by remember(session) { mutableStateOf(confirmed) }
     LaunchedEffect(session, confirmed) {
         if (confirmed == null) return@LaunchedEffect
         if (known != null && known != confirmed) session.files.dispatch(FilesBrowserEvent.InvalidateSortOrder)
         known = confirmed
     }
+    return (confirmed ?: known)?.sort
 }
 
 private fun TvSession.openPick(item: FilesItem, origin: FilesOpenOrigin, onInFiles: () -> Unit): Boolean =
@@ -477,6 +479,7 @@ private fun TvFilesPane(
     session: TvSession,
     filesState: FilesBrowserState,
     settingsState: AccountSettingsState,
+    accountDefaultSort: FilesSort?,
     fileActionFailure: PutioFailure?,
     undoFailure: TvUndoFailure?,
     linkNotice: TvLinkNotice,
@@ -524,7 +527,7 @@ private fun TvFilesPane(
             TvFilesDetailSources(session.folderCounts, session.subtitleLanguages, onSessionRejected)
         },
         viewerUrl = session::originalStreamUrl,
-        accountDefaultSort = settingsState.confirmedDefaultSort()?.sort,
+        accountDefaultSort = accountDefaultSort,
         onOpenInVlc = { item ->
             streamScope.launch {
                 val stream = session.originalStreamUrl(item.id)

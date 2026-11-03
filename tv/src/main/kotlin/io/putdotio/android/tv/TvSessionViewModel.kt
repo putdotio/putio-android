@@ -244,7 +244,7 @@ internal class TvSession internal constructor(
     val links = TvLinkOpener(
         resolver = filesItemResolver,
         scope = scope,
-        open = { item, _ -> openExternal(item, FilesOpenOrigin.LINK) },
+        open = { item -> openExternal(item, FilesOpenOrigin.LINK) },
         onCardGone = watchNext::fileGone,
     )
 
@@ -517,9 +517,9 @@ private suspend fun PlaybackController.answerResumePrompt(answer: PlaybackEvent)
     if (settled is PlaybackContent.AwaitingResume) dispatch(answer)
 }
 
-// The resume dialog needs the duration, which search results and single-file reads omit;
-// listing the file itself returns it as the parent. Without one, playback continues from
-// the saved position without asking, as for any row without a duration.
+// A position within 10 s of the end starts over, which needs the duration that search results
+// and single-file reads omit; listing the file itself returns it as the parent. Without one,
+// playback continues from the saved position.
 private suspend fun FilesRepository.withListedDuration(item: FilesItem): FilesItem {
     val listed = (loadFolder(item.id) as? PutioResult.Success)?.value?.parent
     val duration = listed?.takeIf { it.id == item.id }?.playback?.durationSeconds

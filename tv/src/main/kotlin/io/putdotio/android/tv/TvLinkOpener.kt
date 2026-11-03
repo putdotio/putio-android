@@ -25,7 +25,7 @@ import kotlinx.coroutines.launch
 internal class TvLinkOpener(
     private val resolver: FilesItemResolver,
     private val scope: CoroutineScope,
-    private val open: (item: FilesItem, continueWatching: Boolean) -> TvExternalOpen,
+    private val open: (item: FilesItem) -> TvExternalOpen,
     private val onCardGone: (fileId: Long) -> Unit,
 ) {
     private var pending: Job? = null
@@ -44,7 +44,7 @@ internal class TvLinkOpener(
             when (val result = resolver.resolveItem(id)) {
                 is PutioResult.Success -> {
                     mutableFailure.value = null
-                    opened.send(open(result.value, continueWatching))
+                    opened.send(open(result.value))
                 }
                 is PutioResult.Failure -> {
                     mutableFailure.value = result.failure
