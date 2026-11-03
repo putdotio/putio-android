@@ -134,7 +134,7 @@ class SentryBoundaryTest {
 
     private fun files(): DiagnosticsFiles {
         val root = Files.createTempDirectory("diagnostics").toFile()
-        return DiagnosticsFiles(File(root, "cache"), File(root, "INSTALLATION"), File(root, "installation"))
+        return DiagnosticsFiles(File(root, "cache"), File(root, "INSTALLATION"), File(root, "io.put.diagnostics.installation"))
     }
 
     private fun configured(period: SentryBoundary.Period, files: DiagnosticsFiles): SentryOptions =
