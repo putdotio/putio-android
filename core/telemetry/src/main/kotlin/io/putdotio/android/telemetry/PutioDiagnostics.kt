@@ -7,8 +7,9 @@ import android.content.SharedPreferences
 
 /**
  * Runs Sentry only while the build has a DSN and diagnostics are allowed: the signed-in account's
- * `diagnostics_enabled`, and allowed while signed out or before any account answered. The answer
- * is kept so a cold launch honours an opt-out before the session restores.
+ * `diagnostics_enabled`, and allowed while signed out. A cold launch after an opt-out stays off; any
+ * other launch starts Sentry but keeps envelopes on the device until the first answer, since the
+ * account may have opted out elsewhere.
  */
 public object PutioDiagnostics {
     private const val ALLOWED = "allowed"
@@ -30,8 +31,13 @@ public object PutioDiagnostics {
     @Synchronized
     @SuppressLint("ApplySharedPref")
     public fun update(allowed: Boolean) {
-        if (!::preferences.isInitialized || allowed == this.allowed) return
-        apply(allowed, launch = false)
+        if (!::preferences.isInitialized) return
+        val awaitingAnswer = SentryBoundary.current?.confirmed == false
+        when {
+            awaitingAnswer && allowed -> SentryBoundary.confirm()
+            awaitingAnswer || allowed != this.allowed -> apply(allowed, launch = false)
+        }
+        if (allowed == this.allowed) return
         // On disk at once, so a process killed before the queued purge relaunches with the opt-out.
         preferences.edit().putBoolean(ALLOWED, allowed).commit()
     }
@@ -45,7 +51,7 @@ public object PutioDiagnostics {
         if (configuration != null && allowed) {
             SentryBoundary.start(application, configuration, launch)
         } else {
-            SentryBoundary.stop(SentryBoundary.cacheDir(application))
+            SentryBoundary.stop(DiagnosticsFiles(application))
         }
     }
 }
