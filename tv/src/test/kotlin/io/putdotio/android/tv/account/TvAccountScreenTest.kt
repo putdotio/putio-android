@@ -221,23 +221,25 @@ class TvAccountScreenTest {
     }
 
     @Test
-    fun defaultSortSavesTheChosenOrder() {
+    fun defaultSortUsesTheFilesSortSheetAndAppliesTheOrderAtOnce() {
         show(settingsState = { ready(preferences) })
 
         group("Library").performKeyInput { pressKey(Key.DirectionRight) }
         compose.onNodeWithText("Manage your trash").performKeyInput { repeat(2) { pressKey(Key.DirectionDown) } }
+        compose.onNodeWithText("Name, A to Z").assertIsDisplayed()
         compose.onNodeWithText("Default sort order").assertIsFocused().performKeyInput { pressCenter() }
-        compose.onNode(inSheet("Name, A–Z")).performKeyInput {
-            pressKey(Key.DirectionDown)
-            pressCenter()
+        compose.onNode(hasText("Sort by") and hasAnyAncestor(isDialog())).assertIsDisplayed()
+        compose.onNode(inSheet("Name")).assertIsSelected().performKeyInput {
+            repeat(6) { pressKey(Key.DirectionDown) }
         }
-        compose.onNode(inSheet("Save")).performKeyInput { pressCenter() }
+        compose.onNode(inSheet("Z to A")).performKeyInput { pressCenter() }
         assertEquals(
             listOf<AccountSettingsEvent>(
                 AccountSettingsEvent.ChangeRequested(AccountSettingsChange.Sort(FilesSort.NAME_DESCENDING)),
             ),
             settingsEvents,
         )
+        compose.onNode(hasText("Sort by") and hasAnyAncestor(isDialog())).assertDoesNotExist()
     }
 
     @Test

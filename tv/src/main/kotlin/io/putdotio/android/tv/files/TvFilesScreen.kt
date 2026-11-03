@@ -808,6 +808,7 @@ private fun TvFilesSectionLine(
     }
     if (sorting) {
         TvSortSheet(
+            title = stringResource(R.string.tv_files_sort_title),
             selected = sortInEffect,
             onSelect = { sort ->
                 sorting = false
@@ -815,6 +816,7 @@ private fun TvFilesSectionLine(
             },
             onDismiss = { sorting = false },
             returnFocus = sortFocus,
+            scrim = FILES_SHEET_SCRIM,
         )
     }
 }
