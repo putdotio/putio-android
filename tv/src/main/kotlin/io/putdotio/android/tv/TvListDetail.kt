@@ -1,13 +1,11 @@
 package io.putdotio.android.tv
 
 import androidx.annotation.DrawableRes
+import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.FlowRowScope
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -19,6 +17,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -157,13 +156,12 @@ internal data class TvDetailFact(
     val styled: AnnotatedString? = null,
 )
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun ColumnScope.TvDetailBody(
     title: String,
     meta: AnnotatedString?,
     facts: List<TvDetailFact>,
-    secondaryActions: (@Composable FlowRowScope.() -> Unit)? = null,
+    secondaryActions: (@Composable ColumnScope.() -> Unit)? = null,
     actions: @Composable RowScope.() -> Unit,
 ) {
     Text(
@@ -191,14 +189,6 @@ internal fun ColumnScope.TvDetailBody(
         verticalAlignment = Alignment.CenterVertically,
         content = actions,
     )
-    if (secondaryActions != null) {
-        FlowRow(
-            modifier = Modifier.padding(top = DETAIL_ACTION_SPACING),
-            horizontalArrangement = Arrangement.spacedBy(DETAIL_ACTION_SPACING),
-            verticalArrangement = Arrangement.spacedBy(DETAIL_ACTION_SPACING),
-            content = secondaryActions,
-        )
-    }
     Column(
         modifier = Modifier
             .weight(1f, fill = false)
@@ -227,6 +217,26 @@ internal fun ColumnScope.TvDetailBody(
             }
         }
     }
+    if (secondaryActions != null) {
+        Column(
+            modifier = Modifier
+                .padding(top = DETAIL_FACTS_GAP)
+                .offset(x = -DETAIL_SECONDARY_INSET)
+                .widthIn(max = DETAIL_SECONDARY_MAX_WIDTH),
+            content = secondaryActions,
+        )
+    }
+}
+
+@Composable
+internal fun TvDetailDivider() {
+    Spacer(
+        Modifier
+            .padding(horizontal = DETAIL_SECONDARY_INSET, vertical = DETAIL_DIVIDER_GAP)
+            .fillMaxWidth()
+            .height(DETAIL_DIVIDER)
+            .background(MaterialTheme.colorScheme.borderVariant),
+    )
 }
 
 @Composable
@@ -235,8 +245,6 @@ internal fun TvDetailButton(
     @DrawableRes icon: Int,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    primary: Boolean = false,
-    detailHasFocus: Boolean = false,
     enabled: Boolean = true,
     danger: Boolean = false,
     looksFocused: Boolean = false,
@@ -248,11 +256,7 @@ internal fun TvDetailButton(
         enabled = enabled,
         looksFocused = looksFocused,
         showsFocus = showsFocus,
-        style = when {
-            danger -> TvButtonStyle.TonalDanger
-            primary && detailHasFocus -> TvButtonStyle.Filled
-            else -> TvButtonStyle.Tonal
-        },
+        style = if (danger) TvButtonStyle.TonalDanger else TvButtonStyle.Tonal,
         size = if (label == null) TvButtonSize.DetailIcon else TvButtonSize.Detail,
     ) {
         Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(TvButtonSize.Detail.icon))
@@ -309,6 +313,10 @@ private val DETAIL_META_GAP = 5.dp
 private val DETAIL_ACTIONS_GAP = 16.dp
 private val DETAIL_ACTION_SPACING = 4.dp
 private val DETAIL_FACTS_GAP = 17.5.dp
+private val DETAIL_SECONDARY_INSET = 12.dp
+private val DETAIL_SECONDARY_MAX_WIDTH = 320.dp
+private val DETAIL_DIVIDER = 1.dp
+private val DETAIL_DIVIDER_GAP = 6.dp
 private val DETAIL_FACT_SPACING = 5.5.dp
 private val DETAIL_FACT = PutioTypeScale.tvMeta.copy(lineHeight = 17.4.sp).withFullLineBox()
 private val DETAIL_FACT_MONO = DETAIL_FACT.asMonoRun()

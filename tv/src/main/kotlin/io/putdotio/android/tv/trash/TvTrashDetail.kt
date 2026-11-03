@@ -65,8 +65,6 @@ internal fun ColumnScope.TvTrashDetail(
             icon = R.drawable.ic_ph_arrow_u_up_left,
             onClick = actions.onRestore,
             modifier = actions.restoreModifier,
-            primary = true,
-            detailHasFocus = actions.detailHasFocus,
             enabled = actions.canRestore,
             looksFocused = actions.rowHasFocus && actions.canRestore && actions.showsFocus,
             showsFocus = actions.showsFocus,

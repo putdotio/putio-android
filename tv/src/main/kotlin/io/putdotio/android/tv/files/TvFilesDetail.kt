@@ -12,11 +12,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -39,6 +41,8 @@ import io.putdotio.android.files.items
 import io.putdotio.android.files.toFullDate
 import io.putdotio.android.tv.TvDetailBody
 import io.putdotio.android.tv.TvDetailButton
+import io.putdotio.android.tv.TvDetailDivider
+import io.putdotio.android.tv.TvSheetOption
 import io.putdotio.android.tv.TvDetailFact
 import io.putdotio.android.tv.TvPlayStart
 import io.putdotio.android.tv.TV_MONO_RUN
@@ -212,19 +216,24 @@ internal fun ColumnScope.TvFilesDetail(
         } else {
             {
                 secondary.forEachIndexed { index, action ->
-                    TvDetailButton(
-                        label = AnnotatedString(action.label()),
-                        icon = action.icon(),
+                    val delete = action is TvFilesAction.Delete
+                    val pressed = focus.pressed == TvFilesDetailPress(item.id.value, index)
+                    if (delete && index > 0) TvDetailDivider()
+                    TvSheetOption(
+                        label = action.label(),
+                        detail = null,
+                        selected = false,
                         onClick = {
                             focus.pressed = TvFilesDetailPress(current.id.value, index)
                             actions.onSecondary(current, action)
                         },
-                        modifier = Modifier.focusRequesterIf(
-                            focus.pressed == TvFilesDetailPress(item.id.value, index),
-                            focus.secondary,
-                        ),
-                        enabled = action !is TvFilesAction.Delete || actions.deleteEnabled,
-                        danger = action is TvFilesAction.Delete,
+                        leadingIcon = action.icon(),
+                        role = Role.Button,
+                        enabled = !delete || actions.deleteEnabled,
+                        danger = delete,
+                        modifier = Modifier
+                            .focusRequesterIf(pressed, focus.secondary)
+                            .focusProperties { if (index == 0) up = focus.primary },
                     )
                 }
             }
@@ -233,7 +242,6 @@ internal fun ColumnScope.TvFilesDetail(
         TvFilesPrimaryActions(
             item = item,
             resumeAt = item.resumePosition(resumePlayback),
-            detailHasFocus = focus.hasFocus,
             actions = actions,
             current = { current },
             modifier = Modifier
@@ -297,7 +305,6 @@ private fun detailFacts(item: FilesItem, subtitles: FilesSubtitles?, place: TvFi
 private fun TvFilesPrimaryActions(
     item: FilesItem,
     resumeAt: Double?,
-    detailHasFocus: Boolean,
     actions: TvFilesDetailActions,
     current: () -> FilesItem,
     modifier: Modifier = Modifier,
@@ -332,8 +339,6 @@ private fun TvFilesPrimaryActions(
         icon = action.icon,
         onClick = action.onClick,
         modifier = modifier,
-        primary = true,
-        detailHasFocus = detailHasFocus,
     )
     if (resumeAt != null) {
         TvDetailButton(

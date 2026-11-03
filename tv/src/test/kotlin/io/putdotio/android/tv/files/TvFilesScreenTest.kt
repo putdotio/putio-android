@@ -590,7 +590,7 @@ class TvFilesScreenTest {
             pressKey(Key.DirectionDown)
         }
         compose.onNode(hasText("Open in VLC") and hasClickAction()).assertIsFocused().performKeyInput {
-            pressKey(Key.DirectionRight)
+            pressKey(Key.DirectionDown)
         }
         compose.onNode(hasText("Mark as unwatched") and hasClickAction()).assertIsFocused().performKeyInput {
             pressCenter()
@@ -601,7 +601,7 @@ class TvFilesScreenTest {
             assertEquals(emptyList<Long>(), opened)
         }
         compose.onNode(hasText("Mark as unwatched") and hasClickAction()).assertIsFocused().performKeyInput {
-            pressKey(Key.DirectionLeft)
+            pressKey(Key.DirectionUp)
         }
         compose.onNode(hasText("Open in VLC") and hasClickAction()).assertIsFocused().performKeyInput {
             pressKey(Key.DirectionUp)
