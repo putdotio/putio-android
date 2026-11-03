@@ -187,7 +187,6 @@ private fun TvTrashListDetail(
     val loaded = state.content as? TrashContent.Loaded
     var detailId by rememberSaveable { mutableStateOf(pickedRow.id) }
     var rowHasFocus by remember { mutableStateOf(false) }
-    var detailHasFocus by remember { mutableStateOf(false) }
     val items = loaded?.items.orEmpty()
     val detailItem = items.firstOrNull { it.id.value == detailId }
         ?: items.firstOrNull { it.id.value == pickedRow.id }
@@ -196,7 +195,6 @@ private fun TvTrashListDetail(
         modifier = modifier,
         detailFocus = focus.restore,
         listFocus = focus.list,
-        onDetailFocusChanged = { detailHasFocus = it },
         detailTop = DETAIL_TOP,
         list = {
             TvTrashInfo()
@@ -231,7 +229,6 @@ private fun TvTrashListDetail(
                         canRestore = state.canRestore(detailItem.id),
                         canDelete = state.canDelete(detailItem.id),
                         rowHasFocus = rowHasFocus,
-                        detailHasFocus = detailHasFocus,
                         onRestore = { onEvent(TrashEvent.SelectRestore(detailItem.id)) },
                         onDelete = { onEvent(TrashEvent.SelectDelete(detailItem.id)) },
                         showsFocus = !listFocus.dialogShowing.value,
@@ -255,7 +252,6 @@ internal data class TvTrashDetailActions(
     val canRestore: Boolean,
     val canDelete: Boolean,
     val rowHasFocus: Boolean,
-    val detailHasFocus: Boolean,
     val onRestore: () -> Unit,
     val onDelete: () -> Unit,
     val showsFocus: Boolean,
