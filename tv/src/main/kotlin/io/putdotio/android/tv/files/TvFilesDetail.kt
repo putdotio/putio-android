@@ -17,8 +17,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -45,6 +43,7 @@ import io.putdotio.android.tv.TvDetailFact
 import io.putdotio.android.tv.TvPlayStart
 import io.putdotio.android.tv.TV_MONO_RUN
 import io.putdotio.android.tv.asMonoRun
+import io.putdotio.android.tv.focusRequesterIf
 import io.putdotio.android.design.R as DesignR
 import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.delay
@@ -138,7 +137,8 @@ private fun FilesFolderState.fullReadRequest(): FilesRequestId? {
 @Stable
 internal class TvFilesDetailFocus {
     val primary = FocusRequester()
-    val more = FocusRequester()
+    val secondary = FocusRequester()
+    var pressed by mutableStateOf<TvFilesDetailPress?>(null)
     var hasFocus by mutableStateOf(false)
         private set
     val owns = mutableStateOf(false)
@@ -152,30 +152,39 @@ internal class TvFilesDetailFocus {
         if (focused) owns.value = false
     }
 
-    fun dialogReturn(moreShown: Boolean, entry: FocusRequester): FocusRequester =
-        if (owns.value && moreShown) more else entry
+    fun dialogReturn(
+        item: FilesItem?,
+        secondaryOf: (FilesItem) -> List<TvFilesAction>,
+        entry: FocusRequester,
+    ): FocusRequester {
+        val held = item != null && pressed?.holds(item, secondaryOf(item).size) == true
+        return if (owns.value && held) secondary else entry
+    }
 }
 
-internal fun FilesItem?.offersActions(actionsOf: (FilesItem) -> List<TvFilesAction>): Boolean =
-    this != null && actionsOf(this).isNotEmpty()
+internal data class TvFilesDetailPress(val itemId: Long, val index: Int) {
+    fun holds(item: FilesItem, secondaryCount: Int): Boolean = item.id.value == itemId && index < secondaryCount
+}
+
+internal fun List<TvFilesAction>.secondary(): List<TvFilesAction> = filterNot { it is TvFilesAction.Tile }
 
 internal class TvFilesDetailActions(
     val onOpenFolder: (FilesItem) -> Unit,
     val onPlay: (FilesItem, TvPlayStart) -> Unit,
     val onUnsupported: (FilesItem) -> Unit,
-    val onMore: ((FilesItem) -> Unit)?,
+    val secondary: List<TvFilesAction> = emptyList(),
+    val onSecondary: (FilesItem, TvFilesAction) -> Unit = { _, _ -> },
+    val deleteEnabled: Boolean = true,
 )
 
 @Composable
 internal fun ColumnScope.TvFilesDetail(
     item: FilesItem,
-    detailHasFocus: Boolean,
-    primaryFocus: FocusRequester,
+    focus: TvFilesDetailFocus,
     resumePlayback: Boolean,
     sources: TvFilesDetailSources,
     listing: Any,
     actions: TvFilesDetailActions,
-    moreFocus: FocusRequester,
     place: TvFilesRowPlace = TvFilesRowPlace.Listing,
 ) {
     val count by produceState(sources.knownCount(item.id), item.id, sources, listing) {
@@ -193,28 +202,44 @@ internal fun ColumnScope.TvFilesDetail(
         }
     }
     val current by rememberUpdatedState(item)
-    TvDetailBody(title = item.name, meta = detailMeta(item, count), facts = detailFacts(item, subtitles, place)) {
+    val secondary = actions.secondary
+    TvDetailBody(
+        title = item.name,
+        meta = detailMeta(item, count),
+        facts = detailFacts(item, subtitles, place),
+        secondaryActions = if (secondary.isEmpty()) {
+            null
+        } else {
+            {
+                secondary.forEachIndexed { index, action ->
+                    TvDetailButton(
+                        label = AnnotatedString(action.label()),
+                        icon = action.icon(),
+                        onClick = {
+                            focus.pressed = TvFilesDetailPress(current.id.value, index)
+                            actions.onSecondary(current, action)
+                        },
+                        modifier = Modifier.focusRequesterIf(
+                            focus.pressed == TvFilesDetailPress(item.id.value, index),
+                            focus.secondary,
+                        ),
+                        enabled = action !is TvFilesAction.Delete || actions.deleteEnabled,
+                        danger = action is TvFilesAction.Delete,
+                    )
+                }
+            }
+        },
+    ) {
         TvFilesPrimaryActions(
             item = item,
             resumeAt = item.resumePosition(resumePlayback),
-            detailHasFocus = detailHasFocus,
+            detailHasFocus = focus.hasFocus,
             actions = actions,
             current = { current },
             modifier = Modifier
-                .focusRequester(primaryFocus)
+                .focusRequester(focus.primary)
                 .testTag(TV_FILES_DETAIL_PRIMARY_TAG),
         )
-        actions.onMore?.let { more ->
-            val description = stringResource(R.string.tv_files_detail_more)
-            TvDetailButton(
-                label = null,
-                icon = R.drawable.ic_ph_dots_three,
-                onClick = { more(current) },
-                modifier = Modifier
-                    .focusRequester(moreFocus)
-                    .semantics { contentDescription = description },
-            )
-        }
     }
 }
 

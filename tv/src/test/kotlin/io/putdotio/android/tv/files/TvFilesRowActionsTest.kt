@@ -20,6 +20,7 @@ import androidx.compose.ui.test.isFocused
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performSemanticsAction
@@ -83,8 +84,8 @@ class TvFilesRowActionsTest {
 
         compose.onNodeWithContentDescription("Play clip.mp4").assertIsFocused().performKeyInput { pressKey(Key.Menu) }
         compose.onNode(hasText("Play") and isFocused()).performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithText("Open in VLC").assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithText("Mark as watched").assertIsFocused().performKeyInput { pressCenter() }
+        compose.onNode(hasText("Open in VLC") and isFocused()).performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNode(hasText("Mark as watched") and isFocused()).performKeyInput { pressCenter() }
         assertEquals(listOf(2L to true), toggled)
         compose.onNodeWithContentDescription("Play clip.mp4").assertIsFocused().performKeyInput { pressKey(Key.Menu) }
         compose.onNode(hasText("Play") and isFocused()).performKeyInput {
@@ -92,7 +93,7 @@ class TvFilesRowActionsTest {
             pressKey(Key.DirectionDown)
             pressKey(Key.DirectionDown)
         }
-        compose.onNodeWithText("Move to trash").assertIsFocused().performKeyInput { pressCenter() }
+        compose.onNode(hasText("Move to trash") and isFocused()).performKeyInput { pressCenter() }
         compose.onAllNodesWithText("Cancel").assertCountEquals(0)
         assertEquals(
             listOf<FilesBrowserEvent>(
@@ -105,9 +106,8 @@ class TvFilesRowActionsTest {
     }
 
     @Test
-    fun theTilesResumeStartOverOrPickSubtitlesFirst() {
+    fun theTilesResumeOrStartOver() {
         val played = mutableListOf<Pair<Long, TvPlayStart>>()
-        val subtitles = mutableListOf<Pair<Long, TvPlayStart>>()
         compose.setTvContent {
             TvFilesScreen(
                 state = ready(
@@ -116,41 +116,18 @@ class TvFilesRowActionsTest {
                 onEvent = { true },
                 onPlayMedia = {},
                 onPlay = { item, start -> played += item.id.value to start },
-                onPickSubtitles = { item, start -> subtitles += item.id.value to start },
             )
         }
 
         compose.onNodeWithContentDescription("Play clip.mp4").performKeyInput { pressKey(Key.Menu) }
+        compose.onAllNodesWithText("Subtitles").assertCountEquals(0)
         compose.onNode(hasText("Resume") and isFocused()).performKeyInput { pressCenter() }
         compose.onNodeWithContentDescription("Play clip.mp4").assertIsFocused().performKeyInput { pressKey(Key.Menu) }
         compose.onNode(hasText("Resume") and isFocused()).performKeyInput { pressKey(Key.DirectionRight) }
         compose.onNode(hasText("Start over") and isFocused()).performKeyInput { pressCenter() }
-        compose.onNodeWithContentDescription("Play clip.mp4").performKeyInput { pressKey(Key.Menu) }
-        compose.onNode(hasText("Resume") and isFocused()).performKeyInput {
-            pressKey(Key.DirectionRight)
-            pressKey(Key.DirectionRight)
-        }
-        compose.onNode(hasText("Subtitles") and isFocused()).performKeyInput { pressCenter() }
         compose.runOnIdle {
             assertEquals(listOf(2L to TvPlayStart.Resume, 2L to TvPlayStart.StartOver), played)
-            assertEquals(listOf(2L to TvPlayStart.Resume), subtitles)
         }
-    }
-
-    @Test
-    fun noSubtitlesTileWhenTheAccountHidesSubtitles() {
-        compose.setTvContent {
-            TvFilesScreen(
-                state = ready(item(2, "clip.mp4", PutioFileType.VIDEO)),
-                onEvent = { true },
-                onPlayMedia = {},
-                showSubtitles = false,
-            )
-        }
-
-        compose.onNodeWithContentDescription("Play clip.mp4").performKeyInput { pressKey(Key.Menu) }
-        compose.onNode(hasText("Play") and isFocused()).assertIsDisplayed()
-        compose.onAllNodesWithText("Subtitles").assertCountEquals(0)
     }
 
     @Test
@@ -171,10 +148,10 @@ class TvFilesRowActionsTest {
         compose.onAllNodesWithText("Pin to Home").assertCountEquals(0)
         compose.runOnIdle { pins = emptyList() }
         compose.onNodeWithContentDescription("notes.txt").performKeyInput { pressKey(Key.Menu) }
-        compose.onNodeWithText("Pin to Home").assertIsFocused().performKeyInput { pressCenter() }
+        compose.onNode(hasText("Pin to Home") and isFocused()).performKeyInput { pressCenter() }
         compose.runOnIdle { pins = listOf(FilesItemId(3)) }
         compose.onNodeWithContentDescription("notes.txt").assertIsFocused().performKeyInput { pressKey(Key.Menu) }
-        compose.onNodeWithText("Unpin").assertIsFocused().performKeyInput { pressCenter() }
+        compose.onNode(hasText("Unpin") and isFocused()).performKeyInput { pressCenter() }
         compose.runOnIdle { assertEquals(listOf(3L to true, 3L to false), pinned) }
     }
 
@@ -188,7 +165,7 @@ class TvFilesRowActionsTest {
         )
 
         compose.onNodeWithContentDescription("notes.txt").assertIsFocused().performKeyInput { pressKey(Key.Menu) }
-        compose.onNodeWithText("Delete permanently").assertIsFocused().performKeyInput { pressCenter() }
+        compose.onNode(hasText("Delete permanently") and isFocused()).performKeyInput { pressCenter() }
         compose.onNodeWithText("Delete permanently?").assertIsDisplayed()
         compose.onNodeWithText("Trash is off for this account, so notes.txt can't be restored.").assertIsDisplayed()
         compose.runOnIdle { assertEquals(emptyList<FilesBrowserEvent>(), events) }
@@ -198,7 +175,7 @@ class TvFilesRowActionsTest {
         compose.runOnIdle { assertEquals(emptyList<FilesBrowserEvent>(), events) }
 
         compose.onNodeWithContentDescription("notes.txt").assertIsFocused().performKeyInput { pressKey(Key.Menu) }
-        compose.onNodeWithText("Delete permanently").performKeyInput { pressCenter() }
+        compose.onNode(hasText("Delete permanently") and isFocused()).performKeyInput { pressCenter() }
         compose.onNodeWithText("Delete").assertIsFocused().performKeyInput { pressCenter() }
         compose.runOnIdle {
             assertEquals(
@@ -313,13 +290,62 @@ class TvFilesRowActionsTest {
         )
 
         compose.onNodeWithContentDescription("notes.txt").assertIsFocused().performKeyInput { pressKey(Key.Menu) }
-        compose.onNodeWithText("Move to trash").assertIsFocused()
+        compose.onNode(hasText("Move to trash") and isFocused()).assertExists()
         compose.mainClock.autoAdvance = false
         trash = false
-        compose.onNodeWithText("Move to trash").performKeyInput { pressCenter() }
+        compose.onNode(hasText("Move to trash") and isFocused()).performKeyInput { pressCenter() }
         compose.mainClock.autoAdvance = true
         compose.runOnIdle { assertEquals(emptyList<FilesBrowserEvent>(), events) }
-        compose.onNodeWithText("Delete permanently").assertIsFocused()
+        compose.onNode(hasText("Delete permanently") and isFocused()).assertExists()
+    }
+
+    @Test
+    fun deletionFromTheDetailRunsAgainstTheLatestTrashSetting() {
+        val events = mutableListOf<FilesBrowserEvent>()
+        var trash by mutableStateOf<Boolean?>(true)
+        compose.showFiles(
+            state = { ready(item(3, "notes.txt", PutioFileType.TEXT)) },
+            onEvent = { events += it; true },
+            confirmedTrashEnabled = { trash },
+        )
+        val moveToTrash = hasText("Move to trash") and hasClickAction()
+        val deletePermanently = hasText("Delete permanently") and hasClickAction()
+
+        compose.onNodeWithContentDescription("notes.txt").performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNodeWithTag(TV_FILES_DETAIL_PRIMARY_TAG).assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionDown)
+        }
+        compose.onNode(moveToTrash).assertIsFocused().performKeyInput { pressCenter() }
+        compose.onAllNodesWithText("Cancel").assertCountEquals(0)
+        compose.runOnIdle {
+            assertEquals(
+                listOf<FilesBrowserEvent>(
+                    FilesBrowserEvent.Delete(FilesFolder.Root.id, FilesItemId(3), FilesDeleteMode.TRASH),
+                ),
+                events,
+            )
+        }
+
+        events.clear()
+        compose.onNode(moveToTrash).assertIsFocused()
+        compose.mainClock.autoAdvance = false
+        trash = false
+        compose.onNode(moveToTrash).performKeyInput { pressCenter() }
+        compose.mainClock.autoAdvance = true
+        compose.runOnIdle { assertEquals(emptyList<FilesBrowserEvent>(), events) }
+        compose.onAllNodesWithText("Delete permanently?").assertCountEquals(0)
+
+        compose.onNode(deletePermanently).assertIsFocused().performKeyInput { pressCenter() }
+        compose.onNodeWithText("Delete permanently?").assertIsDisplayed()
+        compose.onNodeWithText("Delete").assertIsFocused().performKeyInput { pressCenter() }
+        compose.runOnIdle {
+            assertEquals(
+                listOf<FilesBrowserEvent>(
+                    FilesBrowserEvent.Delete(FilesFolder.Root.id, FilesItemId(3), FilesDeleteMode.PERMANENT),
+                ),
+                events,
+            )
+        }
     }
 
     @Test
@@ -335,13 +361,13 @@ class TvFilesRowActionsTest {
         compose.onNodeWithContentDescription("notes.txt").assertIsFocused()
         compose.runOnIdle { trash = false }
         compose.onNodeWithContentDescription("notes.txt").assertIsFocused().performKeyInput { pressKey(Key.Menu) }
-        compose.onNodeWithText("Delete permanently").assertIsFocused().performKeyInput { pressCenter() }
+        compose.onNode(hasText("Delete permanently") and isFocused()).performKeyInput { pressCenter() }
         compose.onAllNodesWithText("Mark as watched").assertCountEquals(0)
         // The setting flipping under an open confirmation withdraws it rather than rewording it.
         compose.onNodeWithText("Delete permanently?").assertIsDisplayed()
         compose.runOnIdle { trash = true }
         compose.onAllNodesWithText("Delete permanently?").assertCountEquals(0)
-        compose.onNodeWithText("Move to trash").assertIsFocused()
+        compose.onNode(hasText("Move to trash") and isFocused()).assertExists()
     }
 
     @Test
@@ -361,8 +387,8 @@ class TvFilesRowActionsTest {
 
         compose.onNodeWithContentDescription("Play clip.mp4").assertIsFocused().performKeyInput { pressKey(Key.Menu) }
         compose.onNode(hasText("Play") and isFocused()).performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithText("Open in VLC").assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithText("Open in VLC").assertIsFocused()
+        compose.onNode(hasText("Open in VLC") and isFocused()).performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNode(hasText("Open in VLC") and isFocused()).assertExists()
         compose.onAllNodesWithText("Mark as watched").assertCountEquals(0)
         compose.onAllNodesWithText("Move to trash").assertCountEquals(0)
     }

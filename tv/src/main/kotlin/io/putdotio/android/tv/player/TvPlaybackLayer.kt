@@ -66,8 +66,6 @@ internal fun TvPlaybackRoute(
     subtitleStartupPolicy: SubtitleStartupPolicy? = null,
     autoplayNextVideo: Boolean = false,
     findNextEpisode: (suspend (PlaybackTarget) -> PlaybackNextResult)? = null,
-    subtitlesFirst: Boolean = false,
-    onSubtitlesShown: () -> Unit = {},
     findUpNext: TvFindNeighbours? = null,
     openInVlc: (suspend (PlaybackTarget) -> Int?)? = null,
 ) {
@@ -117,8 +115,6 @@ internal fun TvPlaybackRoute(
         onNextEpisode = { nextEpisode?.let { controller.dispatch(PlaybackEvent.NextChosen(it)) } },
         onUpNext = { controller.dispatch(PlaybackEvent.NextChosen(it)) },
         analytics = controller.analyticsReporter,
-        subtitlesFirst = subtitlesFirst,
-        onSubtitlesShown = onSubtitlesShown,
         upNext = upNext,
         onOpenInVlc = handOffToVlc,
         onPlayInVlc = handOffToVlc?.takeIf { vlcInstalled },

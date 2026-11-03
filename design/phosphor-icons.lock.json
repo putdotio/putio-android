@@ -894,13 +894,6 @@
     },
     {
       "resDir": "tv/src/main/res",
-      "resource": "ic_ph_dots_three",
-      "asset": "assets/regular/dots-three.svg",
-      "sourceSha256": "ca4e748007101155641ec3041cd129bb03a8030d0eed16e313b9dd75e6beac77",
-      "outputSha256": "4caea555cd84b9dd15a7ffd9e982881400deb3e13419bb61a4078ff2f010dd2f"
-    },
-    {
-      "resDir": "tv/src/main/res",
       "resource": "ic_ph_arrow_square_out",
       "asset": "assets/regular/arrow-square-out.svg",
       "sourceSha256": "8610e8f5c7d4952ae1ada34ef56fa7cbab1780bc85f25a5c9482b74144790fc8",

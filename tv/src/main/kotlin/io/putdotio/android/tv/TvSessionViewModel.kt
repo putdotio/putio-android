@@ -302,12 +302,10 @@ internal class TvSession internal constructor(
     val findNeighbours: suspend (PlaybackTarget) -> PlaybackRepositoryResult<PlaybackNeighbours> =
         playbackRepository::findNeighbours
 
-    fun play(item: FilesItem, start: TvPlayStart = TvPlayStart.Ask, subtitlesFirst: Boolean = false) {
+    fun play(item: FilesItem, start: TvPlayStart = TvPlayStart.Ask) {
         durationLookup?.cancel()
-        startPlayback(item, start, fromHome = false, subtitlesFirst = subtitlesFirst)
+        startPlayback(item, start, fromHome = false)
     }
-
-    val subtitlesFirst = TvSubtitlesFirst()
 
     /**
      * Opens a pick from [origin]: media plays unless [playMedia] is false, a folder opens in Files,
@@ -342,10 +340,9 @@ internal class TvSession internal constructor(
         }
     }
 
-    private fun startPlayback(item: FilesItem, start: TvPlayStart, fromHome: Boolean, subtitlesFirst: Boolean = false) {
+    private fun startPlayback(item: FilesItem, start: TvPlayStart, fromHome: Boolean) {
         val mediaType = PlaybackMediaType.fromFileType(item.type) ?: return
         if (!scope.isActive) return
-        this.subtitlesFirst.request(subtitlesFirst && mediaType == PlaybackMediaType.VIDEO)
         playingFromHome = fromHome
         val target = PlaybackTarget(item.id, item.name, mediaType, item.playback?.durationSeconds, item.screenshotUrl)
         val controller = PlaybackController(target, playbackRepository, scope, analytics = true)
@@ -375,7 +372,6 @@ internal class TvSession internal constructor(
         continueSaved?.cancel()
         watchNextPlayback.stopFollowing()
         continueWatchingFollow?.cancel()
-        subtitlesFirst.shown()
         val stopped = mutablePlayback.value ?: return
         val last = stopped.state.value.target.fileId
         if (playingFromHome) homeReturn.played(last)

@@ -569,8 +569,9 @@ class TvFilesScreenTest {
     }
 
     @Test
-    fun closingTheActionsOpenedFromMoreFocusesMore() {
+    fun everySecondaryActionIsOnePressFromTheDetail() {
         val toggled = mutableListOf<Boolean>()
+        val opened = mutableListOf<Long>()
         compose.setTvContent {
             TvFilesScreen(
                 state = ready(
@@ -580,21 +581,33 @@ class TvFilesScreenTest {
                 onEvent = { true },
                 onPlayMedia = {},
                 watchedToggleEnabled = true,
+                onOpenInVlc = { opened += it.id.value },
                 onSetWatched = { _, watched -> toggled += watched },
             )
         }
         compose.onNodeWithContentDescription("Play clip.mp4").performKeyInput { pressKey(Key.DirectionRight) }
         compose.onNodeWithTag(TV_FILES_DETAIL_PRIMARY_TAG).assertIsFocused().performKeyInput {
-            pressKey(Key.DirectionRight)
+            pressKey(Key.DirectionDown)
+        }
+        compose.onNode(hasText("Open in VLC") and hasClickAction()).assertIsFocused().performKeyInput {
             pressKey(Key.DirectionRight)
         }
-        compose.onNodeWithContentDescription("More actions").assertIsFocused().performKeyInput { pressCenter() }
-        compose.onNode(hasText("Resume") and isFocused()).performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithText("Open in VLC").assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithText("Mark as unwatched").assertIsFocused().performKeyInput { pressCenter() }
+        compose.onNode(hasText("Mark as unwatched") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressCenter()
+        }
 
-        assertEquals(listOf(false), toggled)
-        compose.onNodeWithContentDescription("More actions").assertIsFocused()
+        compose.runOnIdle {
+            assertEquals(listOf(false), toggled)
+            assertEquals(emptyList<Long>(), opened)
+        }
+        compose.onNode(hasText("Mark as unwatched") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionLeft)
+        }
+        compose.onNode(hasText("Open in VLC") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionUp)
+        }
+        compose.onNodeWithTag(TV_FILES_DETAIL_PRIMARY_TAG).assertIsFocused()
+        compose.onAllNodesWithText("More actions").assertCountEquals(0)
     }
 
     @Test

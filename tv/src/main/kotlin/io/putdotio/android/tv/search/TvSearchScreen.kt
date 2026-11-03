@@ -65,7 +65,7 @@ import io.putdotio.android.tv.files.TvFilesDetail
 import io.putdotio.android.tv.files.TvFilesDetailActions
 import io.putdotio.android.tv.files.TvFilesDetailFocus
 import io.putdotio.android.tv.files.TvFilesDetailSources
-import io.putdotio.android.tv.files.resumePosition
+import io.putdotio.android.tv.files.secondary
 import io.putdotio.android.tv.files.run
 import io.putdotio.android.tv.files.tvMessageText
 
@@ -351,16 +351,14 @@ private fun TvSearchReady(
     val detailFocus = remember { TvFilesDetailFocus() }
     val detailRow = remember { FocusRequester() }
     val listing = remember(content.items) { Any() }
-    var actionsFor by remember { mutableStateOf<Pair<Long, FocusRequester>?>(null) }
+    var actionsFor by remember { mutableStateOf<Long?>(null) }
     val itemActions = results.itemActions
-    val offersMore = { item: FilesItem -> itemActions.actionsOf(item).isNotEmpty() }
-    val openActions = { item: FilesItem, from: FocusRequester ->
-        if (offersMore(item)) actionsFor = item.id.value to from
-    }
+    val actionsOf = { item: FilesItem -> itemActions.actionsOf(item).filterNot { it is TvFilesAction.Delete } }
+    val openActions = { item: FilesItem -> if (actionsOf(item).isNotEmpty()) actionsFor = item.id.value }
     val rows = TvSearchRows(
         folderName = folderNameOf(detail.folderNames, stringResource(R.string.tv_destination_files)),
         onResult = actions.onResult,
-        onActions = { openActions(it, detailRow) },
+        onActions = openActions,
         onFocused = {
             detailId = it.id.value
             pickedRow.pick(it.id.value)
@@ -389,11 +387,9 @@ private fun TvSearchReady(
             )
         },
         detail = {
-            val current by rememberUpdatedState(detailItem)
             TvFilesDetail(
                 item = detailItem,
-                detailHasFocus = detailFocus.hasFocus,
-                primaryFocus = detailFocus.primary,
+                focus = detailFocus,
                 resumePlayback = detail.resumePlayback,
                 sources = detail.sources,
                 listing = listing,
@@ -401,34 +397,25 @@ private fun TvSearchReady(
                     onOpenFolder = actions.onResult,
                     onPlay = results.onPlay,
                     onUnsupported = actions.onResult,
-                    onMore = if (offersMore(detailItem)) {
-                        { openActions(current, detailFocus.more) }
-                    } else {
-                        null
-                    },
+                    secondary = actionsOf(detailItem).secondary(),
+                    onSecondary = { item, action -> itemActions.handlers.run(action, item) },
                 ),
-                moreFocus = detailFocus.more,
                 place = rows.place(detailItem),
             )
         },
     )
     val open = actionsFor
-    val openItem = open?.let { (id, _) -> groups.ordered.firstOrNull { it.id.value == id } }
+    val openItem = open?.let { id -> groups.ordered.firstOrNull { it.id.value == id } }
     if (open != null && openItem != null) {
-        val playFrom = if (openItem.resumePosition(detail.resumePlayback) != null) {
-            TvPlayStart.Resume
-        } else {
-            TvPlayStart.Ask
-        }
         TvFilesActionsSheet(
             item = openItem,
-            actions = itemActions.actionsOf(openItem).filterNot { it is TvFilesAction.Delete },
+            actions = actionsOf(openItem),
             onAction = { action ->
                 actionsFor = null
-                itemActions.handlers.run(action, openItem, playFrom)
+                itemActions.handlers.run(action, openItem)
             },
             onDismiss = { actionsFor = null },
-            returnFocus = open.second,
+            returnFocus = detailRow,
         )
     } else if (open != null) {
         LaunchedEffect(Unit) { actionsFor = null }
