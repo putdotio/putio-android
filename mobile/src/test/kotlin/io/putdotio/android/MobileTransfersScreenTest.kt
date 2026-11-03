@@ -395,6 +395,24 @@ class MobileTransfersScreenTest {
     }
 
     @Test
+    fun aRefreshThatFailedOfflineTriesAgainOnItsOwn() {
+        val events = mutableListOf<TransfersEvent>()
+        val offline = PutioFailure.NetworkUnavailable(java.io.IOException("offline"))
+        setScreen(
+            transfersTestState(
+                TransfersContent.Ready(listOf(transferRow(9L, AppTransferStatus.Waiting)), TransfersPaging.Complete),
+                refresh = TransfersRefresh.Failed(offline),
+            ),
+        ) { events += it }
+        compose.onNodeWithText("Couldn’t refresh transfers.").assertIsDisplayed()
+        compose.runOnIdle { events.clear() }
+
+        compose.mainClock.advanceTimeBy(RETRY_CLOCK_MILLIS)
+
+        compose.runOnIdle { assertEquals(listOf<TransfersEvent>(TransfersEvent.Refresh), events) }
+    }
+
+    @Test
     fun busyStatesDisableTheCardsAndActionsTheyBlock() {
         val active = listOf(
             transferRow(1L, AppTransferStatus.Downloading),
@@ -521,3 +539,4 @@ class MobileTransfersScreenTest {
 
 // Longer than SnackbarDuration.Short.
 private const val SNACKBAR_TIMEOUT_MS = 10_000L
+private const val RETRY_CLOCK_MILLIS = 30_000L

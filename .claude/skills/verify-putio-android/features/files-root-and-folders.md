@@ -44,7 +44,7 @@ Preconditions:
 - **Offline.** Run `$S/ui.sh link $SERIAL putio://files`, then
   `adb -s $SERIAL shell cmd connectivity airplane-mode enable` and pull to
   refresh. The listing stays and `Couldn’t refresh files.` shows with
-  `Try again`. Disable airplane mode and tap `Try again`; the folder reloads.
+  `Try again`. Disable airplane mode; the folder reloads with no tap.
 
 ## Gotchas
 
