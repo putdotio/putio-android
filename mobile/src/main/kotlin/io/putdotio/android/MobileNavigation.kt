@@ -475,6 +475,7 @@ private fun MobilePlaybackRoute(
     val currentOnAuthenticationRequired by rememberUpdatedState(onAuthenticationRequired)
     val nextEpisode = rememberNextEpisode(state, findNextEpisode) { currentOnAuthenticationRequired() }
     val neighbours = rememberFolderNeighbours(state, findNeighbours) { currentOnAuthenticationRequired() }
+        ?: PlaybackNeighbours()
     val authenticationFailure =
         when (val content = state.content) {
             is PlaybackContent.Failed -> content.failure

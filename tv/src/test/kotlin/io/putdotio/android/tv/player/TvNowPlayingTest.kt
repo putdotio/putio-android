@@ -29,6 +29,7 @@ import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.tv.pressCenter
 import io.putdotio.android.tv.setTvContent
 import java.io.Closeable
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -53,6 +54,8 @@ class TvNowPlayingTest {
     private val players = mutableListOf<FakePlayer>()
     private val sessions = mutableListOf<MediaSession>()
     private var exits = 0
+    private val folderRead = CompletableDeferred(Unit)
+    private val repository = FolderRepository(folderRead)
 
     @Test
     fun nextAndPreviousMoveThroughTheFolderAndPreviousRestartsAPlayingTrack() {
@@ -102,6 +105,20 @@ class TvNowPlayingTest {
     }
 
     @Test
+    fun aTrackThatEndsBeforeItsFolderIsReadWaitsForTheQueue() {
+        val pending = CompletableDeferred<Unit>()
+        val controller = showFolder(start = SECOND, folder = FolderRepository(pending))
+
+        compose.runOnIdle { players.last().end() }
+        compose.waitForIdle()
+        assertEquals(0, exits)
+
+        pending.complete(Unit)
+        assertPlaying(controller, THIRD)
+        assertEquals(0, exits)
+    }
+
+    @Test
     fun theSystemsSkipControlsMoveThroughTheFolder() {
         val controller = showFolder(start = SECOND)
         val session = connect(sessions.last())
@@ -119,10 +136,10 @@ class TvNowPlayingTest {
         next.release()
     }
 
-    private fun showFolder(start: PlaybackTarget): PlaybackController {
+    private fun showFolder(start: PlaybackTarget, folder: FolderRepository = repository): PlaybackController {
         val controller = PlaybackController(
             start,
-            FolderRepository,
+            folder,
             CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
         )
         compose.setTvContent {
@@ -140,7 +157,7 @@ class TvNowPlayingTest {
                         return Closeable { session.release() }
                     }
                 },
-                findUpNext = FolderRepository::findNeighbours,
+                findUpNext = folder::findNeighbours,
             )
         }
         compose.waitForIdle()
@@ -170,7 +187,7 @@ class TvNowPlayingTest {
         compose.waitForIdle()
     }
 
-    private object FolderRepository : PlaybackRepository {
+    private class FolderRepository(private val read: CompletableDeferred<Unit>) : PlaybackRepository {
         private val folder = listOf(FIRST, SECOND, THIRD)
 
         override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> =
@@ -179,6 +196,7 @@ class TvNowPlayingTest {
         override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult = PlaybackNextResult.Ended
 
         override suspend fun findNeighbours(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackNeighbours> {
+            read.await()
             val at = folder.indexOfFirst { it.fileId == target.fileId }
             return PlaybackRepositoryResult.Success(
                 PlaybackNeighbours(folder.getOrNull(at - 1), folder.getOrNull(at + 1), "Mixtapes"),

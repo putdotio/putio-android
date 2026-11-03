@@ -104,7 +104,7 @@ internal fun TvPlayerScreen(
     upNext: TvUpNextLookup = TvUpNextLookup.Off,
     onOpenInVlc: (() -> Unit)? = null,
     onPlayInVlc: (() -> Unit)? = null,
-    neighbours: PlaybackNeighbours = PlaybackNeighbours(),
+    neighbours: PlaybackNeighbours? = null,
 ) {
     BackHandler(enabled = state.content !is PlaybackContent.Ready, onBack = onBack)
     val nowPlayingFocus = remember { mutableStateOf(TvPlayerControl.SeekBar) }
@@ -195,7 +195,7 @@ private fun TvReadyPlayer(
     onUpNext: (PlaybackTarget) -> Boolean,
     analytics: PlaybackAnalyticsReporter,
     upNext: TvUpNextLookup,
-    neighbours: PlaybackNeighbours,
+    neighbours: PlaybackNeighbours?,
     nowPlayingFocus: MutableState<TvPlayerControl>,
 ) {
     val context = LocalContext.current
@@ -223,6 +223,7 @@ private fun TvReadyPlayer(
     val currentAnalytics by rememberUpdatedState(analytics)
     val currentUpNext by rememberUpdatedState(upNext)
     val currentNeighbours by rememberUpdatedState(neighbours)
+    var queueEnded by remember(player) { mutableStateOf(false) }
     val startsPlaying = stoppedAtMillis == null
     var overlay by remember(player) { mutableStateOf(tvPlayerOverlay(nowPlaying, nowPlayingFocus.value)) }
     val apply: (TvPlayerTransition) -> Unit = remember(player) {
@@ -238,6 +239,7 @@ private fun TvReadyPlayer(
                         chooseNext = { currentOnNextEpisode() },
                         playChosen = { currentOnUpNext(it) },
                         neighbours = { currentNeighbours },
+                        awaitNeighbours = { queueEnded = true },
                     ),
                 )
             }
@@ -439,6 +441,7 @@ private fun TvReadyPlayer(
         }
     }
     TvUpNextOverlay(overlay, upNext) { step -> apply(step(overlay)) }
+    TvQueueEndEffect(queueEnded, neighbours, playChosen = { currentOnUpNext(it) }, exit = { currentOnExit() })
 
     val closeSheet = { apply(overlay.closeSheet()) }
     TvPlayerSheets(
@@ -566,7 +569,8 @@ private class TvPlayerHandlers(
     val playNext: () -> Boolean,
     val chooseNext: () -> Unit,
     val playChosen: (PlaybackTarget) -> Boolean,
-    val neighbours: () -> PlaybackNeighbours,
+    val neighbours: () -> PlaybackNeighbours?,
+    val awaitNeighbours: () -> Unit,
 )
 
 private fun Player.perform(command: TvPlayerCommand, handlers: TvPlayerHandlers) {
@@ -589,13 +593,32 @@ private fun Player.skipInFolder(command: TvPlayerCommand, handlers: TvPlayerHand
     val neighbours = handlers.neighbours()
     when (command) {
         TvPlayerCommand.PlayPrevious -> {
-            val previous = neighbours.previousAt(currentPosition.coerceAtLeast(0L))
+            val previous = neighbours?.previousAt(currentPosition.coerceAtLeast(0L))
             if (previous == null || !handlers.playChosen(previous)) seekTo(0L)
         }
-        TvPlayerCommand.PlayFollowing -> neighbours.next?.let(handlers.playChosen)
-        else -> {
-            val next = neighbours.next
-            if (next == null || !handlers.playChosen(next)) handlers.exit()
+        TvPlayerCommand.PlayFollowing -> neighbours?.next?.let(handlers.playChosen)
+        else -> if (neighbours == null) {
+            handlers.awaitNeighbours()
+        } else {
+            playNextOrExit(neighbours.next, handlers.playChosen, handlers.exit)
+        }
+    }
+}
+
+private fun playNextOrExit(next: PlaybackTarget?, playChosen: (PlaybackTarget) -> Boolean, exit: () -> Unit) {
+    if (next == null || !playChosen(next)) exit()
+}
+
+@Composable
+private fun TvQueueEndEffect(
+    ended: Boolean,
+    neighbours: PlaybackNeighbours?,
+    playChosen: (PlaybackTarget) -> Boolean,
+    exit: () -> Unit,
+) {
+    LaunchedEffect(ended, neighbours) {
+        if (ended && neighbours != null) {
+            playNextOrExit(neighbours.next, playChosen, exit)
         }
     }
 }

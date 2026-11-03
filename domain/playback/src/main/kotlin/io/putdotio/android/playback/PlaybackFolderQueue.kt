@@ -13,14 +13,14 @@ public fun rememberFolderNeighbours(
     state: PlaybackState,
     findNeighbours: (suspend (PlaybackTarget) -> PlaybackRepositoryResult<PlaybackNeighbours>)?,
     onAuthenticationRequired: suspend () -> Unit,
-): PlaybackNeighbours {
+): PlaybackNeighbours? {
     val audioReady by rememberUpdatedState(
         state.target.mediaType == PlaybackMediaType.AUDIO &&
             (state.content is PlaybackContent.Ready || state.content == PlaybackContent.Session),
     )
     val target by rememberUpdatedState(state.target)
-    val neighbours by produceState(PlaybackNeighbours(), state.target.fileId, findNeighbours != null) {
-        value = PlaybackNeighbours()
+    val neighbours by produceState<PlaybackNeighbours?>(null, state.target.fileId, findNeighbours != null) {
+        value = null
         val find = findNeighbours ?: return@produceState
         snapshotFlow { audioReady }.first { it }
         value = when (val result = find(target)) {

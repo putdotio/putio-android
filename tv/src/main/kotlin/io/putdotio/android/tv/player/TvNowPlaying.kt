@@ -52,7 +52,7 @@ internal fun TvPlayerOverlay.skipTrack(forward: Boolean): TvPlayerTransition {
 
 internal class TvNowPlayingState(
     val title: String,
-    val neighbours: PlaybackNeighbours,
+    val neighbours: PlaybackNeighbours?,
     val paused: Boolean,
     val scrubTargetMillis: Long?,
     val startPositionMillis: Long,
@@ -94,7 +94,7 @@ internal fun TvNowPlaying(
                     softWrap = false,
                     overflow = TextOverflow.MiddleEllipsis,
                 )
-                state.neighbours.folderName?.let { folder ->
+                state.neighbours?.folderName?.let { folder ->
                     Text(
                         text = folder,
                         style = PutioTypeScale.tvBody,
@@ -150,7 +150,7 @@ private fun TvNowPlayingTransport(state: TvNowPlayingState, focused: TvPlayerCon
             focused = focused == TvPlayerControl.Next,
             size = SKIP_CIRCLE,
             restAlpha = REST_ALPHA,
-            enabled = state.neighbours.next != null,
+            enabled = state.neighbours?.next != null,
         )
     }
 }
