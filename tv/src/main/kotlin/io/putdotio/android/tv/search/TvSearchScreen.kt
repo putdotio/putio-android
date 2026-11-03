@@ -375,7 +375,6 @@ private fun TvSearchReady(
         },
         detailId = detailItem.id.value,
         detailRow = detailRow,
-        resumePlayback = detail.resumePlayback,
     )
     TvListDetail(
         modifier = modifier,

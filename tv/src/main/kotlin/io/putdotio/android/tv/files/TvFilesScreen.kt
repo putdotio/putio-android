@@ -294,7 +294,6 @@ internal fun TvFilesScreen(
                             downToUndo = downToUndo,
                             onEntryTarget = { listEntry.value = it },
                             rowsShowFocus = !centredDialogOpen,
-                            resumePlayback = resumePlayback,
                             modifier = Modifier.weight(1f),
                             onEvent = onEvent,
                             onOpen = open,
@@ -465,7 +464,6 @@ private fun TvFilesRows(
     onActions: (FilesItem) -> Unit,
     onRowFocused: (FilesItem) -> Unit,
     rowsShowFocus: Boolean,
-    resumePlayback: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val folderId = current.folder.id.value
@@ -486,7 +484,6 @@ private fun TvFilesRows(
             onActions = onActions,
             onRowFocused = onRowFocused,
             rowsShowFocus = rowsShowFocus,
-            resumePlayback = resumePlayback,
         )
         is FilesContent.Loading -> {
             LaunchedEffect(folderId) { if (paneHasFocus.value) skeletonFocus.requestFocus() }

@@ -209,7 +209,7 @@ internal fun ColumnScope.TvFilesDetail(
     val secondary = actions.secondary
     TvDetailBody(
         title = item.name,
-        meta = detailMeta(item, count, resumePlayback),
+        meta = detailMeta(item, count),
         facts = detailFacts(item, subtitles, place),
         secondaryActions = if (secondary.isEmpty()) {
             null
@@ -252,7 +252,7 @@ internal fun ColumnScope.TvFilesDetail(
 }
 
 @Composable
-private fun detailMeta(item: FilesItem, count: Int?, resumePlayback: Boolean): AnnotatedString {
+private fun detailMeta(item: FilesItem, count: Int?): AnnotatedString {
     val date = rememberMetaDate(item)
     val watched = stringResource(R.string.tv_files_watched)
     val itemCount = count?.let { pluralStringResource(R.plurals.tv_files_item_count, it, it.toString()) }
@@ -260,7 +260,7 @@ private fun detailMeta(item: FilesItem, count: Int?, resumePlayback: Boolean): A
         itemCount?.let { add(AnnotatedString(it)) }
         item.metaSize?.let { add(it.asMonoRun()) }
         date?.let { add(AnnotatedString(it)) }
-        if (item.showsWatched(resumePlayback)) add(AnnotatedString(watched))
+        if (item.showsWatched) add(AnnotatedString(watched))
     }
     return buildAnnotatedString {
         parts.forEachIndexed { index, part ->
@@ -351,8 +351,8 @@ private fun TvFilesPrimaryActions(
 
 private class PrimaryAction(val label: AnnotatedString, @param:DrawableRes val icon: Int, val onClick: () -> Unit)
 
-internal fun FilesItem.showsWatched(resumePlayback: Boolean): Boolean =
-    !isFolder && playback?.isWatched == true && resumePosition(resumePlayback) == null
+internal val FilesItem.showsWatched: Boolean
+    get() = !isFolder && playback?.isWatched == true && resumePosition(resumePlayback = true) == null
 
 internal fun FilesItem.resumePosition(resumePlayback: Boolean): Double? {
     val playback = playback?.takeIf { type == PutioFileType.VIDEO } ?: return null

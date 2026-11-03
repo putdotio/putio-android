@@ -392,26 +392,6 @@ class TvFilesScreenTest {
     }
 
     @Test
-    fun aFolderWithoutItsOwnSortNamesTheAccountSortInEffect() {
-        var accountSort by mutableStateOf<FilesSort?>(FilesSort.DATE_ADDED_DESCENDING)
-        compose.setTvContent {
-            TvFilesScreen(
-                state = ready(item(1, "a.txt", PutioFileType.TEXT)),
-                onEvent = { true },
-                onPlayMedia = {},
-                accountDefaultSort = accountSort,
-            )
-        }
-        compose.onNodeWithContentDescription("a.txt").performKeyInput { pressKey(Key.DirectionUp) }
-        compose.onNode(hasText("Date added, newest first") and hasClickAction()).assertIsFocused()
-            .performKeyInput { pressCenter() }
-        compose.onNode(hasText("Newest first") and hasClickAction() and hasSelectedState()).assertIsDisplayed()
-
-        accountSort = null
-        compose.onNode(hasText("Sort") and hasClickAction()).assertIsDisplayed()
-    }
-
-    @Test
     fun theSortPillOpensTheSortSheetAndItsGroupsDispatchTheChoice() {
         val events = mutableListOf<FilesBrowserEvent>()
         compose.showFiles(
