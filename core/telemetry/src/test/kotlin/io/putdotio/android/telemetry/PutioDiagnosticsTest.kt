@@ -10,6 +10,7 @@ import io.sentry.android.core.SentryAndroidOptions
 import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -61,6 +62,8 @@ class PutioDiagnosticsTest {
     fun signingOutBeforeTheAccountAnswersDeletesWhatTheLaunchKept() {
         val application = ApplicationProvider.getApplicationContext<Application>()
         PutioDiagnostics.start(application, CONFIGURATION)
+        PutioDiagnostics.update(DiagnosticsAnswer.Account(true))
+        PutioDiagnostics.start(application, CONFIGURATION)
         val kept = File(DiagnosticsFiles(application).cache, "kept.envelope").apply { parentFile?.mkdirs() }
         kept.writeText("synthetic")
 
@@ -69,6 +72,22 @@ class PutioDiagnosticsTest {
         assertEquals("signed out kept diagnostics off", true, SentryBoundary.current?.confirmed)
         assertNotEquals("signed out reused the launch period", 0L, SentryBoundary.current?.since)
         awaitDeleted(kept, "a signed-out answer released an envelope the previous account kept")
+    }
+
+    @Test
+    fun aCrashFromASignedOutSessionStillLeavesOnceSignedOutAgain() {
+        val application = ApplicationProvider.getApplicationContext<Application>()
+        PutioDiagnostics.start(application, CONFIGURATION)
+        PutioDiagnostics.update(DiagnosticsAnswer.SignedOut)
+        PutioDiagnostics.start(application, CONFIGURATION)
+        val kept = File(DiagnosticsFiles(application).cache, "kept.envelope").apply { parentFile?.mkdirs() }
+        kept.writeText("synthetic")
+
+        PutioDiagnostics.update(DiagnosticsAnswer.SignedOut)
+
+        assertEquals("a signed-out launch did not confirm", true, SentryBoundary.current?.confirmed)
+        assertEquals("a signed-out launch restarted its period", 0L, SentryBoundary.current?.since)
+        assertTrue("a signed-out crash was deleted", kept.exists())
     }
 
     @Test

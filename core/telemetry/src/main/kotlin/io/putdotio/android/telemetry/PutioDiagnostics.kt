@@ -14,6 +14,7 @@ public sealed interface DiagnosticsAnswer {
 public object PutioDiagnostics {
     private const val ALLOWED = "allowed"
     private const val CACHE_FORMAT = "cache_format"
+    private const val SIGNED_IN = "signed_in"
     private const val SESSIONLESS_CACHE = 1
     private lateinit var application: Application
     private lateinit var preferences: SharedPreferences
@@ -47,8 +48,13 @@ public object PutioDiagnostics {
             is DiagnosticsAnswer.Account -> answer.allowed
         }
         val held = SentryBoundary.current?.confirmed == false
+        val signedIn = answer is DiagnosticsAnswer.Account
+        val leftAnAccount = answer == DiagnosticsAnswer.SignedOut && preferences.getBoolean(SIGNED_IN, false)
+        if (signedIn != preferences.getBoolean(SIGNED_IN, false)) {
+            preferences.edit().putBoolean(SIGNED_IN, signedIn).commit()
+        }
         when {
-            held && answer == DiagnosticsAnswer.SignedOut -> {
+            held && leftAnAccount -> {
                 apply(false, launch = false)
                 apply(true, launch = false)
             }
