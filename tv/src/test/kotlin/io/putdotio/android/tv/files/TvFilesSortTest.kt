@@ -52,4 +52,24 @@ class TvFilesSortTest {
         accountSort = null
         compose.onNode(hasText("Sort") and hasClickAction()).assertIsDisplayed()
     }
+
+    @Test
+    fun aFolderWithItsOwnSortKeepsItWhateverTheAccountDefault() {
+        var accountSort by mutableStateOf<FilesSort?>(FilesSort.DATE_ADDED_DESCENDING)
+        compose.setTvContent {
+            TvFilesScreen(
+                state = ready(item(1, "a.txt", PutioFileType.TEXT), sort = FilesSort.SIZE_ASCENDING),
+                onEvent = { true },
+                onPlayMedia = {},
+                accountDefaultSort = accountSort,
+            )
+        }
+        compose.onNode(hasText("Size, smallest first") and hasClickAction()).assertIsDisplayed()
+        accountSort = FilesSort.NAME_DESCENDING
+        compose.onNode(hasText("Size, smallest first") and hasClickAction()).assertIsDisplayed()
+        compose.onNodeWithContentDescription("a.txt").performKeyInput { pressKey(Key.DirectionUp) }
+        compose.onNode(hasText("Size, smallest first") and hasClickAction()).performKeyInput { pressCenter() }
+        compose.onNode(hasText("Size") and hasClickAction() and isSelected()).assertIsDisplayed()
+        compose.onNode(hasText("Smallest first") and hasClickAction() and isSelected()).assertIsDisplayed()
+    }
 }

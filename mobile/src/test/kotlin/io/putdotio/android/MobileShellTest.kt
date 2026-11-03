@@ -983,7 +983,7 @@ class MobileShellFilesTest {
             .assert(
                 SemanticsMatcher.expectValue(
                     SemanticsProperties.StateDescription,
-                    "Name, A–Z",
+                    "Name, A to Z",
                 ),
             )
             .performClick()

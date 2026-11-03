@@ -400,7 +400,7 @@ class TvFilesScreenTest {
         )
 
         compose.onNodeWithContentDescription("a.txt").performKeyInput { pressKey(Key.DirectionUp) }
-        compose.onNode(hasText("Name, A–Z") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
+        compose.onNode(hasText("Name, A to Z") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
         compose.onNodeWithText("Sort").assertIsDisplayed()
         compose.onNodeWithText("Sort by").assertIsDisplayed()
         compose.onNode(hasText("A to Z") and hasClickAction() and hasSelectedState()).assertIsDisplayed()
@@ -409,7 +409,7 @@ class TvFilesScreenTest {
         compose.onNode(hasText("Z to A") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.SelectSort(FilesSort.NAME_DESCENDING)), events)
         compose.onAllNodesWithText("Sort by").assertCountEquals(0)
-        compose.onNode(hasText("Name, A–Z") and hasClickAction()).assertIsFocused()
+        compose.onNode(hasText("Name, A to Z") and hasClickAction()).assertIsFocused()
     }
 
     @Test

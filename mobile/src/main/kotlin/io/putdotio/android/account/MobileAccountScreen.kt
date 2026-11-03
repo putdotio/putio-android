@@ -64,7 +64,7 @@ import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.design.putioMono
-import io.putdotio.android.files.FilesSort
+import io.putdotio.android.files.MobileSortMenu
 import io.putdotio.android.files.labelResource
 import io.putdotio.android.isSupportedAvatarUrl
 import io.putdotio.android.settings.AccountSettingsChange
@@ -182,7 +182,7 @@ internal fun MobileAccountScreen(
     )
 }
 
-private enum class AccountDialog { None, TrashOff, SignOut, DefaultSort, Proxy, VideoPlayback }
+private enum class AccountDialog { None, TrashOff, SignOut, Proxy, VideoPlayback }
 
 private fun LazyListScope.libraryGroup(
     rows: AccountRows,
@@ -399,9 +399,6 @@ private fun MobileAccountDialogs(
                 onSignOut(removeDownloads)
             },
         )
-        AccountDialog.DefaultSort -> if (settings != null) {
-            MobileDefaultSortDialog(settings.defaultSort, { change(AccountSettingsChange.Sort(it)) }, onDismiss)
-        }
         AccountDialog.Proxy -> if (settings != null) {
             MobileTunnelRouteDialog(
                 selected = settings.tunnelRoute,
@@ -531,14 +528,29 @@ private class AccountRows(
 
     @Composable
     fun DefaultSort(segment: SettingsSegment, preferences: AccountSettingsPreferences) {
-        AccountChoice(
-            segment = segment,
-            title = R.string.mobile_settings_default_sort,
-            icon = R.drawable.ic_ph_sort_ascending,
-            value = preferences.defaultSort.displayName(),
-            onChoose = { onOpen(AccountDialog.DefaultSort) },
-            tag = MOBILE_DEFAULT_SORT_ROW_TAG,
-        ) { it is AccountSettingsChange.Sort }
+        var choosing by remember { mutableStateOf(false) }
+        LaunchedEffect(settingsEnabled) { if (!settingsEnabled) choosing = false }
+        Box {
+            AccountChoice(
+                segment = segment,
+                title = R.string.mobile_settings_default_sort,
+                icon = R.drawable.ic_ph_sort_ascending,
+                value = preferences.defaultSort.displayName(),
+                onChoose = { choosing = true },
+                tag = MOBILE_DEFAULT_SORT_ROW_TAG,
+            ) { it is AccountSettingsChange.Sort }
+            Box(Modifier.align(Alignment.BottomEnd)) {
+                MobileSortMenu(
+                    expanded = choosing && settingsEnabled,
+                    current = preferences.defaultSort,
+                    onSelect = { sort ->
+                        choosing = false
+                        onSettingsChange(AccountSettingsChange.Sort(sort))
+                    },
+                    onDismiss = { choosing = false },
+                )
+            }
+        }
     }
 
     @Composable

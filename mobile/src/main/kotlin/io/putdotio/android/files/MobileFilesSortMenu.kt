@@ -46,48 +46,24 @@ import io.putdotio.android.design.PutioTypeScale
 
 internal const val MOBILE_FILES_SORT_TAG = "mobile-files-sort"
 
-/** What the Sort by group chooses; Videos replaces the field and order. */
-internal enum class FilesSortField(@param:StringRes val label: Int) {
-    NAME(R.string.mobile_files_sort_field_name),
-    SIZE(R.string.mobile_files_sort_field_size),
-    DATE_ADDED(R.string.mobile_files_sort_field_date_added),
-    DATE_MODIFIED(R.string.mobile_files_sort_field_date_modified),
-    TYPE(R.string.mobile_files_sort_field_type),
-}
-
-internal val FilesSort.field: FilesSortField?
-    get() = when (this) {
-        FilesSort.NAME_ASCENDING, FilesSort.NAME_DESCENDING -> FilesSortField.NAME
-        FilesSort.SIZE_ASCENDING, FilesSort.SIZE_DESCENDING -> FilesSortField.SIZE
-        FilesSort.DATE_ADDED_ASCENDING, FilesSort.DATE_ADDED_DESCENDING -> FilesSortField.DATE_ADDED
-        FilesSort.DATE_MODIFIED_ASCENDING, FilesSort.DATE_MODIFIED_DESCENDING -> FilesSortField.DATE_MODIFIED
-        FilesSort.TYPE_ASCENDING, FilesSort.TYPE_DESCENDING -> FilesSortField.TYPE
-        FilesSort.WATCH_STATUS_ASCENDING, FilesSort.WATCH_STATUS_DESCENDING -> null
-    }
-
-internal val FilesSort.ascending: Boolean
-    get() = name.endsWith("_ASCENDING")
-
-/** [field] in the given direction; a field chosen while Videos is on starts ascending. */
-internal fun sortOf(field: FilesSortField, ascending: Boolean): FilesSort =
-    when (field) {
-        FilesSortField.NAME -> if (ascending) FilesSort.NAME_ASCENDING else FilesSort.NAME_DESCENDING
-        FilesSortField.SIZE -> if (ascending) FilesSort.SIZE_ASCENDING else FilesSort.SIZE_DESCENDING
-        FilesSortField.DATE_ADDED -> if (ascending) FilesSort.DATE_ADDED_ASCENDING else FilesSort.DATE_ADDED_DESCENDING
-        FilesSortField.DATE_MODIFIED ->
-            if (ascending) FilesSort.DATE_MODIFIED_ASCENDING else FilesSort.DATE_MODIFIED_DESCENDING
-        FilesSortField.TYPE -> if (ascending) FilesSort.TYPE_ASCENDING else FilesSort.TYPE_DESCENDING
-    }
-
-/** The Order group's words follow the field: A to Z for names, Smallest first for sizes. */
 @StringRes
-internal fun FilesSortField.orderLabel(ascending: Boolean): Int =
+internal fun FilesSortKey.label(): Int =
     when (this) {
-        FilesSortField.NAME, FilesSortField.TYPE ->
+        FilesSortKey.NAME -> R.string.mobile_files_sort_field_name
+        FilesSortKey.SIZE -> R.string.mobile_files_sort_field_size
+        FilesSortKey.DATE_ADDED -> R.string.mobile_files_sort_field_date_added
+        FilesSortKey.DATE_MODIFIED -> R.string.mobile_files_sort_field_date_modified
+        FilesSortKey.TYPE -> R.string.mobile_files_sort_field_type
+    }
+
+@StringRes
+internal fun FilesSortKey.orderLabel(ascending: Boolean): Int =
+    when (this) {
+        FilesSortKey.NAME, FilesSortKey.TYPE ->
             if (ascending) R.string.mobile_files_sort_a_to_z else R.string.mobile_files_sort_z_to_a
-        FilesSortField.SIZE ->
+        FilesSortKey.SIZE ->
             if (ascending) R.string.mobile_files_sort_smallest_first else R.string.mobile_files_sort_largest_first
-        FilesSortField.DATE_ADDED, FilesSortField.DATE_MODIFIED ->
+        FilesSortKey.DATE_ADDED, FilesSortKey.DATE_MODIFIED ->
             if (ascending) R.string.mobile_files_sort_oldest_first else R.string.mobile_files_sort_newest_first
     }
 
@@ -132,44 +108,58 @@ internal fun MobileFilesSortMenu(
         ) {
             Icon(painter = painterResource(R.drawable.ic_ph_sort_ascending), contentDescription = sortLabel)
         }
-        DropdownMenu(
+        MobileSortMenu(
             expanded = expanded && enabled,
-            onDismissRequest = { expanded = false },
+            current = current,
+            onSelect = choose,
+            onDismiss = { expanded = false },
             offset = DpOffset(x = if (besideNewFolder) SORT_MENU_END_SHIFT else 0.dp, y = 0.dp),
-            shape = RoundedCornerShape(PutioRadius.large),
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-            modifier = Modifier.width(SORT_MENU_WIDTH),
-        ) {
-            val field = current?.field
-            val ascending = current?.ascending ?: true
-            SortGroupLabel(R.string.mobile_files_sort_by)
-            SortGroup {
-                FilesSortField.entries.forEach { option ->
-                    SortOption(stringResource(option.label), selected = option == field, enabled = enabled) {
-                        choose(sortOf(option, ascending = if (field == null) true else ascending))
-                    }
+        )
+    }
+}
+
+@Composable
+internal fun MobileSortMenu(
+    expanded: Boolean,
+    current: FilesSort?,
+    onSelect: (FilesSort) -> Unit,
+    onDismiss: () -> Unit,
+    offset: DpOffset = DpOffset.Zero,
+) {
+    DropdownMenu(
+        expanded = expanded,
+        onDismissRequest = onDismiss,
+        offset = offset,
+        shape = RoundedCornerShape(PutioRadius.large),
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = Modifier.width(SORT_MENU_WIDTH),
+    ) {
+        val field = current?.field
+        val ascending = current?.ascending ?: true
+        SortGroupLabel(R.string.mobile_files_sort_by)
+        SortGroup {
+            FilesSortKey.entries.forEach { option ->
+                SortOption(stringResource(option.label()), selected = option == field) {
+                    onSelect(current.withField(option))
                 }
             }
-            SortDivider()
-            SortGroupLabel(R.string.mobile_files_sort_order)
-            SortGroup {
-                val orderField = field ?: FilesSortField.NAME
-                listOf(true, false).forEach { direction ->
-                    SortOption(
-                        stringResource(orderField.orderLabel(direction)),
-                        selected = field != null && direction == ascending,
-                        enabled = enabled,
-                    ) { choose(sortOf(orderField, direction)) }
-                }
+        }
+        SortDivider()
+        SortGroupLabel(R.string.mobile_files_sort_order)
+        SortGroup {
+            val orderField = current.orderField
+            listOf(true, false).forEach { direction ->
+                SortOption(
+                    stringResource(orderField.orderLabel(direction)),
+                    selected = field != null && direction == ascending,
+                ) { onSelect(orderField.sort(direction)) }
             }
-            SortDivider()
-            SortGroupLabel(R.string.mobile_files_sort_videos)
-            SortGroup {
-                listOf(FilesSort.WATCH_STATUS_ASCENDING, FilesSort.WATCH_STATUS_DESCENDING).forEach { sort ->
-                    SortOption(stringResource(sort.labelResource()), selected = sort == current, enabled = enabled) {
-                        choose(sort)
-                    }
-                }
+        }
+        SortDivider()
+        SortGroupLabel(R.string.mobile_files_sort_videos)
+        SortGroup {
+            FILES_WATCH_SORTS.forEach { sort ->
+                SortOption(stringResource(sort.labelResource()), selected = sort == current) { onSelect(sort) }
             }
         }
     }
@@ -204,11 +194,10 @@ private fun SortDivider() {
 }
 
 @Composable
-private fun SortOption(label: String, selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
+private fun SortOption(label: String, selected: Boolean, onClick: () -> Unit) {
     DropdownMenuItem(
         text = { Text(label, style = PutioTypeScale.bodyMd) },
         onClick = onClick,
-        enabled = enabled,
         leadingIcon = {
             if (selected) {
                 Icon(
