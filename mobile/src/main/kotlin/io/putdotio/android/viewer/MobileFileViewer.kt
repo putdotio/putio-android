@@ -29,6 +29,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -52,6 +55,7 @@ import io.putdotio.android.R
 import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesPdfDocument
 import io.putdotio.android.files.FilesViewerKind
 import io.putdotio.android.files.viewerKind
@@ -71,7 +75,7 @@ internal class MobileFileViewerActions(
 )
 
 internal class MobileFileViewerPaging(
-    val nextPage: Any? = null,
+    val nextPage: FilesPaging.Available? = null,
     val more: Boolean = false,
     val onLoadNextPage: () -> Unit = {},
     val failed: Boolean = false,
@@ -79,7 +83,7 @@ internal class MobileFileViewerPaging(
 )
 
 private sealed interface ViewerPageAsk {
-    data class Next(val page: Any) : ViewerPageAsk
+    data class Next(val page: FilesPaging.Available, val atLast: Boolean) : ViewerPageAsk
 
     data class Retry(val fromPage: Int) : ViewerPageAsk
 }
@@ -88,7 +92,9 @@ private sealed interface ViewerPageAsk {
  * Images, PDFs and text on a black frame, over the whole window. The name and the file's actions
  * sit on a top scrim; a swipe moves between the folder's files of the same kind, and the position
  * shows in mono below. [files] are those files in listing order; [onShown] follows the swipe.
- * Near the last of them the folder's next page loads, so a swipe reaches every file it holds.
+ * Near the last of them the folder's next page loads, so a swipe reaches every file it holds; after
+ * [VIEWER_FRUITLESS_PAGES] pages in a row bring none of this kind, it reads on only when the last
+ * file is reached again.
  */
 @Composable
 internal fun MobileFileViewer(
@@ -131,7 +137,9 @@ internal fun MobileFileViewerContent(
             currentFiles.getOrNull(page)?.let { currentOnShown(it.id) }
         }
     }
-    LoadNextPageNearLast(pager, files.size, paging)
+    val reads = remember { ViewerPageReads() }
+    LoadNextPageNearLast(pager, files.size, paging, reads)
+    val more = paging.more && !reads.stopped
     val frame = MaterialTheme.colorScheme.scrim
     Box(
         modifier = Modifier
@@ -161,8 +169,8 @@ internal fun MobileFileViewerContent(
             MobileFileViewerPosition(
                 position = pager.currentPage + 1,
                 count = files.size,
-                more = paging.more,
-                shown = files.size > 1,
+                more = more,
+                shown = files.size > 1 || more,
             )
             Spacer(Modifier.windowInsetsBottomHeight(WindowInsets.safeDrawing))
         }
@@ -224,7 +232,12 @@ private fun MobileFileViewerBar(
 }
 
 @Composable
-private fun LoadNextPageNearLast(pager: PagerState, count: Int, paging: MobileFileViewerPaging) {
+private fun LoadNextPageNearLast(
+    pager: PagerState,
+    count: Int,
+    paging: MobileFileViewerPaging,
+    reads: ViewerPageReads,
+) {
     val currentPaging by rememberUpdatedState(paging)
     val currentCount by rememberUpdatedState(count)
     LaunchedEffect(pager) {
@@ -233,7 +246,7 @@ private fun LoadNextPageNearLast(pager: PagerState, count: Int, paging: MobileFi
             val next = currentPaging.nextPage
             when {
                 !near -> null
-                next != null -> ViewerPageAsk.Next(next)
+                next != null -> ViewerPageAsk.Next(next, atLast = pager.settledPage >= currentCount - 1)
                 currentPaging.failed -> ViewerPageAsk.Retry(pager.settledPage)
                 else -> null
             }
@@ -242,10 +255,41 @@ private fun LoadNextPageNearLast(pager: PagerState, count: Int, paging: MobileFi
             .distinctUntilChanged()
             .collect { ask ->
                 when (ask) {
-                    is ViewerPageAsk.Next -> currentPaging.onLoadNextPage()
+                    is ViewerPageAsk.Next ->
+                        if (reads.shouldRead(ask, currentCount)) currentPaging.onLoadNextPage()
                     is ViewerPageAsk.Retry -> currentPaging.onRetry()
                 }
             }
+    }
+}
+
+private class ViewerPageReads {
+    private var seen: FilesPaging.Available? = null
+    private var read: FilesPaging.Available? = null
+    private var countBeforeRead = 0
+    private var fruitless by mutableIntStateOf(0)
+
+    val stopped: Boolean
+        get() = fruitless >= VIEWER_FRUITLESS_PAGES
+
+    fun shouldRead(ask: ViewerPageAsk.Next, count: Int): Boolean {
+        val reads = when {
+            ask.page != seen -> {
+                if (read != null) fruitless = if (count > countBeforeRead) 0 else fruitless + 1
+                seen = ask.page
+                fruitless < VIEWER_FRUITLESS_PAGES
+            }
+            ask.atLast && ask.page != read -> {
+                fruitless = 0
+                true
+            }
+            else -> false
+        }
+        if (reads) {
+            read = ask.page
+            countBeforeRead = count
+        }
+        return reads
     }
 }
 
@@ -303,4 +347,5 @@ internal val VIEWER_CONTENT_BOTTOM = 16.dp
 
 private const val VIEWER_SCRIM_ALPHA = 0.6f
 private const val VIEWER_PAGING_THRESHOLD = 5
+internal const val VIEWER_FRUITLESS_PAGES = 3
 private val VIEWER_POSITION_BOTTOM = 16.dp

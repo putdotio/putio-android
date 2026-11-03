@@ -109,7 +109,7 @@ internal fun MobileTransfersScreen(
     val showFab = state.content !is TransfersContent.Empty
     Box(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
-            MobileTransfersRefreshFailure(state.refresh, enabled.controls, onEvent)
+            MobileTransfersRefreshFailure(state.refresh, enabled.refresh, onEvent)
             PullToRefreshBox(
                 isRefreshing = state.refresh is TransfersRefresh.Refreshing,
                 onRefresh = { if (enabled.refresh) onEvent(TransfersEvent.Refresh) },
