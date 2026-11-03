@@ -35,8 +35,6 @@ internal sealed interface TvPlayerCommand {
     data object PlayPrevious : TvPlayerCommand
 
     data object PlayFollowing : TvPlayerCommand
-
-    data object PlayQueueNext : TvPlayerCommand
 }
 
 internal data class TvPlayerTransition(

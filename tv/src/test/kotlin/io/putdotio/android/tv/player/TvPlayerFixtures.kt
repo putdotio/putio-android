@@ -187,7 +187,8 @@ internal class FakePlayer : SimpleBasePlayer(Looper.getMainLooper()) {
     }
 
     override fun handleSeek(mediaItemIndex: Int, positionMs: Long, seekCommand: Int): ListenableFuture<*> {
-        state = state.buildUpon().setContentPositionMs(positionMs).build()
+        val playbackState = if (state.playbackState == STATE_ENDED) STATE_READY else state.playbackState
+        state = state.buildUpon().setContentPositionMs(positionMs).setPlaybackState(playbackState).build()
         return Futures.immediateVoidFuture()
     }
 
