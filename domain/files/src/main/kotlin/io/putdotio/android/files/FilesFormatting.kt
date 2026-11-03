@@ -9,7 +9,7 @@ import java.util.Locale
  * Decimal units as put.io's web app counts them: one decimal below 100 ("3.2 GB", "19.4 GB"), none
  * from 100 or when it is a zero ("31 MB"). Android's short formatter drops the decimal from 10.
  */
-public fun formatFileSize(bytes: Long, locale: Locale = Locale.getDefault(), spaced: Boolean = false): String {
+public fun formatFileSize(bytes: Long, locale: Locale = Locale.getDefault()): String {
     var value = bytes.coerceAtLeast(0L).toDouble()
     var unit = 0
     while (value >= UNIT_STEP && unit < SIZE_UNITS.lastIndex) {
@@ -19,7 +19,7 @@ public fun formatFileSize(bytes: Long, locale: Locale = Locale.getDefault(), spa
     val tenths = Math.round(value * TENTHS)
     val whole = unit == 0 || value >= ONE_DECIMAL_BELOW || tenths % TENTHS.toLong() == 0L
     val rounded = String.format(locale, if (whole) "%.0f" else "%.1f", if (whole) value else tenths / TENTHS)
-    return if (spaced) "$rounded ${SIZE_UNITS[unit]}" else "$rounded${SIZE_UNITS[unit]}"
+    return "$rounded ${SIZE_UNITS[unit]}"
 }
 
 /** "Oct 13" this year, "Oct 13, 2024" before it. */

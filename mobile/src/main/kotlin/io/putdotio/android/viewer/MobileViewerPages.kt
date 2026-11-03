@@ -296,7 +296,6 @@ internal fun MobileViewerLoading() {
     }
 }
 
-/** Under the bar on top and clear of the side system bars; the frame already ends above the bottom ones. */
 @Composable
 private fun viewerContentPadding(horizontal: Dp = 0.dp): PaddingValues {
     val safe = WindowInsets.safeDrawing.asPaddingValues()

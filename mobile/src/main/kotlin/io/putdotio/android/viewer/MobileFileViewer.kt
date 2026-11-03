@@ -85,7 +85,7 @@ private sealed interface ViewerPageAsk {
 /**
  * Images, PDFs and text on a black frame, over the whole window. The name and the file's actions
  * sit on a top scrim; a swipe moves between the folder's files of the same kind, and the position
- * shows in mono on its own line below them. [files] are those files in listing order; [onShown] follows the swipe.
+ * shows in mono below. [files] are those files in listing order; [onShown] follows the swipe.
  * Near the last of them the folder's next page loads, so a swipe reaches every file it holds.
  */
 @Composable
@@ -244,7 +244,6 @@ private fun LoadNextPageNearLast(pager: PagerState, count: Int, paging: MobileFi
     }
 }
 
-/** The position in mono on the frame under the pages, so no page runs beneath it. */
 @Composable
 private fun MobileFileViewerPosition(position: Int, count: Int, more: Boolean) {
     val description = stringResource(
@@ -288,7 +287,6 @@ internal fun MobileViewerFailure(onOpenWithAnotherApp: () -> Unit, modifier: Mod
     }
 }
 
-/** Top clear of the bar, which pages scroll under, and a margin above the frame's bottom edge. */
 internal val VIEWER_CONTENT_TOP = 64.dp
 internal val VIEWER_CONTENT_BOTTOM = 16.dp
 
