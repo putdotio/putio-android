@@ -44,6 +44,7 @@ internal fun TransfersRefresh.hasRequest(requestId: TransfersRequestId): Boolean
 public sealed interface TransferAction {
     public data class Add(val request: TransferAddRequest) : TransferAction
     public data class Cancel(val id: TransferId) : TransferAction
+    public data class ClearFailed(val ids: Set<TransferId>) : TransferAction
     public data class Retry(val id: TransferId) : TransferAction
     public data object Clean : TransferAction
     /** Takes one finished transfer off the list; the file stays in put.io. */
@@ -130,6 +131,7 @@ public sealed interface TransfersEvent {
     public data class Cancel(val id: TransferId) : TransfersEvent
     public data class RetryTransfer(val id: TransferId) : TransfersEvent
     public data object CleanCompleted : TransfersEvent
+    public data class ClearFailed(val ids: Set<TransferId>) : TransfersEvent
     public data class Remove(val id: TransferId) : TransfersEvent
     public data object DismissMutationFailure : TransfersEvent
     public data class DismissRetryOutcome(val requestId: TransfersRequestId) : TransfersEvent
@@ -199,8 +201,8 @@ public object TransfersReducer {
             is TransfersEvent.Add, is TransfersEvent.AddTorrent -> state.add(event)
             is TransfersEvent.Cancel -> state.cancel(event.id)
             is TransfersEvent.RetryTransfer -> state.retryTransfer(event.id)
-            TransfersEvent.CleanCompleted, is TransfersEvent.Remove ->
-                state.clean((event as? TransfersEvent.Remove)?.id)
+            TransfersEvent.CleanCompleted, is TransfersEvent.Remove, is TransfersEvent.ClearFailed ->
+                reduceRemoval(state, event)
             TransfersEvent.DismissMutationFailure -> state.dismissMutationFailure()
             is TransfersEvent.DismissRetryOutcome -> state.dismissRetryOutcome(event.requestId)
             is TransfersEvent.Open,
@@ -211,6 +213,14 @@ public object TransfersReducer {
             is TransfersEvent.DismissNotice,
             -> reduceNavigation(state, event)
             else -> reduceResult(state, event)
+        }
+
+    private fun reduceRemoval(state: TransfersState, event: TransfersEvent): TransfersTransition =
+        when (event) {
+            TransfersEvent.CleanCompleted -> state.clean()
+            is TransfersEvent.Remove -> state.clean(event.id)
+            is TransfersEvent.ClearFailed -> state.clearFailed(event.ids)
+            else -> error("Only removal events reach reduceRemoval")
         }
 
     private fun reduceNavigation(state: TransfersState, event: TransfersEvent): TransfersTransition =

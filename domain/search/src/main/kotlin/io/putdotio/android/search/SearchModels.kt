@@ -39,14 +39,17 @@ internal fun SearchTerm.within(scope: SearchScope?): SearchTerm =
     if (scope == null) this else SearchTerm("$value in:${scope.folderId.value}")
 
 /**
- * The type chips under the search field. put.io filters Folders, Videos and Audio by its `type`; it
- * has no subtitle type, so Subtitles searches every type and keeps subtitle extensions on the device.
+ * The type chips under the search field. put.io filters by its `type`, Documents being its PDF and
+ * text types, the ones the viewers open; it has no subtitle type, so Subtitles searches every type
+ * and keeps subtitle extensions on the device.
  */
 public enum class SearchFilter {
     All,
     Folders,
     Videos,
     Audio,
+    Images,
+    Documents,
     Subtitles,
     ;
 
@@ -57,6 +60,8 @@ public enum class SearchFilter {
                 Folders -> listOf(PutioFileType.FOLDER)
                 Videos -> listOf(PutioFileType.VIDEO)
                 Audio -> listOf(PutioFileType.AUDIO)
+                Images -> listOf(PutioFileType.IMAGE)
+                Documents -> DOCUMENT_TYPES
                 All, Subtitles -> emptyList()
             }
 
@@ -66,9 +71,13 @@ public enum class SearchFilter {
             Folders -> item.isFolder
             Videos -> item.type == PutioFileType.VIDEO
             Audio -> item.type == PutioFileType.AUDIO
+            Images -> item.type == PutioFileType.IMAGE
+            Documents -> item.type in DOCUMENT_TYPES
             Subtitles -> !item.isFolder && item.extension() in SUBTITLE_EXTENSIONS
         }
 }
+
+private val DOCUMENT_TYPES = listOf(PutioFileType.PDF, PutioFileType.TEXT)
 
 private fun FilesItem.extension(): String = name.substringAfterLast('.', "").lowercase(Locale.ROOT)
 

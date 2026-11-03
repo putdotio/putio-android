@@ -312,6 +312,8 @@
     <string name="mobile_search_filter_folders">Folders</string>
     <string name="mobile_search_filter_videos">Videos</string>
     <string name="mobile_search_filter_audio">Audio</string>
+    <string name="mobile_search_filter_images">Images</string>
+    <string name="mobile_search_filter_documents">Documents</string>
     <string name="mobile_search_filter_subtitles">Subtitles</string>
     <string name="mobile_search_group_folders">Folders</string>
     <string name="mobile_search_group_files">Files</string>
@@ -411,6 +413,16 @@
     <string name="mobile_transfers_clean_title">Clear completed transfers?</string>
     <string name="mobile_transfers_clean_message">Remove all completed transfers from this list? Your files stay in put.io.</string>
     <string name="mobile_transfers_clean_confirm">Clear</string>
+    <string name="mobile_transfers_clear_failed">Clear failed</string>
+    <string name="mobile_transfers_clear_failed_title">Clear failed transfers?</string>
+    <plurals name="mobile_transfers_clear_failed_message">
+        <item quantity="one">Delete the failed transfer listed here? It can’t be retried afterwards.</item>
+        <item quantity="other">Delete the %1$d failed transfers listed here? They can’t be retried afterwards.</item>
+    </plurals>
+    <string name="mobile_transfer_delete">Delete transfer</string>
+    <string name="mobile_transfers_delete_title">Delete transfer?</string>
+    <string name="mobile_transfers_delete_message">Delete “%1$s”? It can’t be retried afterwards.</string>
+    <string name="mobile_transfers_delete_confirm">Delete</string>
     <string name="mobile_transfers_action_error_title">Couldn’t update transfer</string>
     <string name="mobile_transfer_status_waiting">Waiting</string>
     <string name="mobile_transfer_status_preparing">Preparing download</string>

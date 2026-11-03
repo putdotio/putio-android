@@ -161,6 +161,8 @@ private fun SearchFilter.tvLabel(): Int =
         SearchFilter.Folders -> R.string.tv_search_filter_folders
         SearchFilter.Videos -> R.string.tv_search_filter_videos
         SearchFilter.Audio -> R.string.tv_search_filter_audio
+        SearchFilter.Images -> R.string.tv_search_filter_images
+        SearchFilter.Documents -> R.string.tv_search_filter_documents
         SearchFilter.Subtitles -> R.string.tv_search_filter_subtitles
     }
 

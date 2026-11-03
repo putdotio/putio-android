@@ -199,6 +199,8 @@ private val SearchFilter.label: Int
         SearchFilter.Folders -> R.string.mobile_search_filter_folders
         SearchFilter.Videos -> R.string.mobile_search_filter_videos
         SearchFilter.Audio -> R.string.mobile_search_filter_audio
+        SearchFilter.Images -> R.string.mobile_search_filter_images
+        SearchFilter.Documents -> R.string.mobile_search_filter_documents
         SearchFilter.Subtitles -> R.string.mobile_search_filter_subtitles
     }
 

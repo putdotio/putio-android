@@ -33,13 +33,13 @@ internal fun TransfersState.retryTransfer(id: TransferId): TransfersTransition {
     }
 }
 
-/** Clears every completed transfer, or with [id] only that one, which must be completed itself. */
 internal fun TransfersState.clean(id: TransferId? = null): TransfersTransition {
-    val allowed = content is TransfersContent.Ready &&
-        (id == null || content.items().firstOrNull { it.id == id }?.canRemove == true)
+    val item = id?.let { content.items().firstOrNull { it.id == id } }
+    val allowed = content is TransfersContent.Ready && (id == null || item?.canRemove == true)
     return when {
         !allowed -> TransfersTransition(this, consumed = false)
         id == null -> mutate(TransferAction.Clean)
+        item?.status == AppTransferStatus.Failed -> mutate(TransferAction.Cancel(id))
         else -> mutate(TransferAction.Remove(id))
     }
 }
@@ -124,6 +124,7 @@ private fun applyMutationSuccess(
             added + items.filterNot { it.id in addedIds }
         }
         is TransferAction.Cancel -> items.filterNot { it.id == action.id }
+        is TransferAction.ClearFailed -> items.filterNot { it.id in action.ids }
         is TransferAction.Retry -> items.map { if (it.id == action.id) event.item ?: it else it }
         TransferAction.Clean ->
             items.filterNot {

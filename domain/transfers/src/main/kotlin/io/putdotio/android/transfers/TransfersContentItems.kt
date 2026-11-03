@@ -31,6 +31,7 @@ internal fun TransfersState.updatedFirstPageIds(
     when (action) {
         is TransferAction.Add -> firstPageIds + event.added?.added.orEmpty().map(TransferItem::id)
         is TransferAction.Cancel -> firstPageIds - action.id
+        is TransferAction.ClearFailed -> firstPageIds - action.ids
         is TransferAction.Retry ->
             if (action.id in firstPageIds) {
                 (firstPageIds - action.id) + listOfNotNull(event.item?.id)
@@ -41,3 +42,14 @@ internal fun TransfersState.updatedFirstPageIds(
         is TransferAction.Remove,
         -> firstPageIds.intersect(items.mapTo(mutableSetOf(), TransferItem::id))
     }
+
+internal fun TransfersState.clearFailed(ids: Set<TransferId>): TransfersTransition {
+    val failed = content.items()
+        .filter { it.id in ids && it.status == AppTransferStatus.Failed }
+        .mapTo(linkedSetOf(), TransferItem::id)
+    return if (failed.isEmpty()) {
+        TransfersTransition(this, consumed = false)
+    } else {
+        mutate(TransferAction.ClearFailed(failed))
+    }
+}

@@ -2,6 +2,7 @@ package io.putdotio.android.transfers
 
 import io.putdotio.android.PutioResult
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -398,6 +399,55 @@ class TransfersControllerTest {
     }
 
     @Test
+    fun removingAFailedTransferCancelsItWhichTakesItOffTheList(): Unit = runBlocking {
+        val failed = item(1L, AppTransferStatus.Failed)
+        val running = item(2L)
+        val (cancelled, left) = cancelThrough(listOf(failed, running), TransfersEvent.Remove(failed.id))
+
+        assertEquals(listOf(failed.id), cancelled)
+        assertEquals(listOf(running.id), left)
+    }
+
+    @Test
+    fun clearFailedCancelsTheFailedTransfersItWasGivenInOneCall(): Unit = runBlocking {
+        val failed = item(1L, AppTransferStatus.Failed)
+        val completed = item(2L, AppTransferStatus.Completed)
+        val running = item(3L)
+        val alsoFailed = item(4L, AppTransferStatus.Failed)
+        val (cancelled, left) =
+            cancelThrough(
+                listOf(failed, completed, running, alsoFailed),
+                TransfersEvent.ClearFailed(setOf(failed.id, completed.id, running.id)),
+            )
+
+        assertEquals(listOf(failed.id), cancelled)
+        assertEquals(listOf(completed.id, running.id, alsoFailed.id), left)
+    }
+
+    private suspend fun CoroutineScope.cancelThrough(
+        rows: List<TransferItem>,
+        event: TransfersEvent,
+    ): Pair<List<TransferId>?, List<TransferId>> {
+        var cancelled: List<TransferId>? = null
+        val base = repository { PutioResult.Success(TransfersPage(rows, null)) }
+        val repository = object : TransfersRepository by base {
+            override suspend fun cancel(ids: List<TransferId>): PutioResult<Unit> {
+                cancelled = ids
+                return PutioResult.Success(Unit)
+            }
+        }
+        val controller = TransfersController(repository, this)
+        try {
+            controller.awaitState { it.content is TransfersContent.Ready }
+            assertTrue(controller.dispatch(event))
+            val done = controller.awaitState { it.mutation == TransferMutation.Idle && cancelled != null }
+            return cancelled to (done.content as TransfersContent.Ready).items.map(TransferItem::id)
+        } finally {
+            controller.close()
+        }
+    }
+
+    @Test
     fun secondMutationCanStartImmediatelyAfterFirstPublishesIdle(): Unit = runBlocking {
         var adds = 0
         val base = repository { PutioResult.Success(TransfersPage(emptyList(), null)) }
@@ -428,7 +478,7 @@ class TransfersControllerTest {
         override suspend fun load(cursor: TransferCursor?) = load(cursor)
         override suspend fun refresh(ids: List<TransferId>) = refresh(ids)
         override suspend fun add(request: TransferAddRequest) = error("Unexpected add")
-        override suspend fun cancel(id: TransferId) = error("Unexpected cancel")
+        override suspend fun cancel(ids: List<TransferId>) = error("Unexpected cancel")
         override suspend fun retry(id: TransferId) = error("Unexpected retry")
         override suspend fun clean(ids: List<TransferId>) = error("Unexpected clean")
     }
