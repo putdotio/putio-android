@@ -27,6 +27,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isSelected
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.core.app.ApplicationProvider
 import io.putdotio.android.auth.MobileAccount
@@ -78,7 +79,6 @@ import io.putdotio.android.account.MOBILE_ACCOUNT_LIST_TAG
 import io.putdotio.android.account.MOBILE_ACCOUNT_SIGN_OUT_TAG
 import io.putdotio.android.account.MOBILE_CHOICE_SAVE_TAG
 import io.putdotio.android.account.MOBILE_ACCOUNT_STORAGE_PROGRESS_TAG
-import io.putdotio.android.account.MOBILE_DEFAULT_SORT_DIALOG_TAG
 import io.putdotio.android.account.MOBILE_DEFAULT_SORT_ROW_TAG
 import io.putdotio.android.account.MOBILE_MANAGE_PUBLIC_LINKS_TAG
 import io.putdotio.android.account.MOBILE_PRIVACY_CONTROLS_ROW_TAG
@@ -399,7 +399,7 @@ class MobileAccountScreenTest {
     }
 
     @Test
-    fun defaultSortPickerShowsTheCurrentOrderAndDispatchesTheChosenOne() {
+    fun defaultSortUsesTheFilesSortMenuAndAppliesTheOrderAtOnce() {
         val events = mutableListOf<AccountSettingsEvent>()
         compose.setAccountContent(
             state = {
@@ -410,20 +410,20 @@ class MobileAccountScreenTest {
             events = events,
         )
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_DEFAULT_SORT_ROW_TAG))
-        compose.onNodeWithTag(MOBILE_DEFAULT_SORT_ROW_TAG).assertTextContains("Name, A–Z").performClick()
-        compose.onNodeWithTag(MOBILE_DEFAULT_SORT_DIALOG_TAG).assertIsDisplayed()
-        compose.onNodeWithText("Date added, newest first").performClick()
-        compose.runOnIdle { assertTrue("Picking a row only marks it", events.isEmpty()) }
-        compose.onNodeWithTag(MOBILE_CHOICE_SAVE_TAG).performClick()
+        compose.onNodeWithTag(MOBILE_DEFAULT_SORT_ROW_TAG).assertTextContains("Name, A to Z").performClick()
+        listOf("Sort by", "Order", "Videos").forEach { compose.onNodeWithText(it).assertIsDisplayed() }
+        compose.onNode(hasText("Name") and isSelected()).assertIsDisplayed()
+        compose.onNode(hasText("A to Z") and isSelected()).assertIsDisplayed()
+        compose.onNodeWithText("Z to A").performClick()
         compose.runOnIdle {
             assertEquals(
                 listOf<AccountSettingsEvent>(
-                    AccountSettingsEvent.ChangeRequested(AccountSettingsChange.Sort(FilesSort.DATE_ADDED_DESCENDING)),
+                    AccountSettingsEvent.ChangeRequested(AccountSettingsChange.Sort(FilesSort.NAME_DESCENDING)),
                 ),
                 events,
             )
         }
-        compose.onNodeWithTag(MOBILE_DEFAULT_SORT_DIALOG_TAG).assertDoesNotExist()
+        compose.onNodeWithText("Sort by").assertDoesNotExist()
     }
 
     @Test

@@ -44,8 +44,6 @@ import io.putdotio.android.mobileFileSize
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioDestructiveButton
 import io.putdotio.android.design.putioMono
-import io.putdotio.android.files.FilesSort
-import io.putdotio.android.files.labelResource
 import io.putdotio.android.settings.AccountSettingsRepositoryResult
 import io.putdotio.android.settings.TunnelRouteName
 import io.putdotio.android.settings.TunnelRouteOption
@@ -54,7 +52,6 @@ import io.putdotio.android.settings.putioFailure
 import io.putdotio.android.neutralTextButtonColors
 
 internal const val MOBILE_DEFAULT_SORT_ROW_TAG = "mobile-default-sort-row"
-internal const val MOBILE_DEFAULT_SORT_DIALOG_TAG = "mobile-default-sort-dialog"
 internal const val MOBILE_TUNNEL_ROUTE_RETRY_TAG = "mobile-tunnel-route-retry"
 internal const val MOBILE_SIGN_OUT_DIALOG_TAG = "mobile-sign-out-dialog"
 internal const val MOBILE_SIGN_OUT_REMOVE_DOWNLOADS_TAG = "mobile-sign-out-remove-downloads"
@@ -67,26 +64,6 @@ private fun Modifier.accountDialogWidth(): Modifier =
 
 // Material's widest dialog, plus the 24dp margins either side.
 private val ACCOUNT_DIALOG_MAX_WIDTH = 608.dp
-
-/** Account-wide `sort_by`: the order every folder uses unless it has its own. */
-@Composable
-internal fun MobileDefaultSortDialog(
-    selected: FilesSort?,
-    onSave: (FilesSort) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    MobileChoiceDialog<FilesSort?>(
-        title = stringResource(R.string.mobile_settings_default_sort),
-        message = stringResource(R.string.mobile_settings_default_sort_description),
-        choices = FilesSort.entries,
-        label = { stringResource(requireNotNull(it).labelResource()) },
-        description = { null },
-        selected = selected,
-        onSave = { sort -> sort?.let(onSave) },
-        onDismiss = onDismiss,
-        modifier = Modifier.testTag(MOBILE_DEFAULT_SORT_DIALOG_TAG),
-    )
-}
 
 @Composable
 internal fun MobilePlaybackTypeDialog(

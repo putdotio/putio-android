@@ -134,6 +134,17 @@ class MobileFilesBarsTest {
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Size, largest first"))
     }
 
+    @Test
+    fun aFolderWithItsOwnOrderKeepsItOverTheAccountsDefaultSort() {
+        val settings = readyAccountSettingsState(
+            DefaultAccountSettingsPreferences.copy(defaultSort = FilesSort.SIZE_DESCENDING),
+        )
+        compose.setShell({ folderState(sort = FilesSort.TYPE_ASCENDING) }, settings = settings)
+
+        compose.onNodeWithTag(MOBILE_FILES_SORT_TAG)
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Type, A to Z"))
+    }
+
     private fun ComposeContentTestRule.setShell(
         files: () -> FilesBrowserState,
         creator: FilesFolderCreator? = null,
@@ -184,7 +195,7 @@ class MobileFilesBarsTest {
         val sharedWithYou = file(-2L, "Items shared with you", PutioFileType.FOLDER)
             .copy(isShared = true, folderType = PutioFolderType.SHARED_ROOT)
 
-        fun folderState(folder: FilesItem = Companion.folder): FilesBrowserState {
+        fun folderState(folder: FilesItem = Companion.folder, sort: FilesSort? = null): FilesBrowserState {
             val opened = FilesBrowserReducer.reduce(rootState(folder), FilesBrowserEvent.OpenFolder(folder.id))
             val request = (opened.effect as FilesBrowserEffect.LoadFolder).requestId
             val page = FilesPage(
@@ -192,6 +203,7 @@ class MobileFilesBarsTest {
                 null,
                 parent = folder,
                 total = 1,
+                sort = sort,
             )
             return FilesBrowserReducer.reduce(opened.state, FilesBrowserEvent.LoadSucceeded(request, page)).state
         }
