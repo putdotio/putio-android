@@ -3,6 +3,8 @@ package io.putdotio.android.tv
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -191,8 +193,7 @@ internal fun ColumnScope.TvDetailBody(
     )
     Column(
         modifier = Modifier
-            .weight(1f, fill = false)
-            .clipToBounds()
+            .then(if (secondaryActions == null) Modifier.weight(1f, fill = false).clipToBounds() else Modifier)
             .padding(top = DETAIL_FACTS_GAP),
         verticalArrangement = Arrangement.spacedBy(DETAIL_FACT_SPACING),
     ) {
@@ -220,9 +221,11 @@ internal fun ColumnScope.TvDetailBody(
     if (secondaryActions != null) {
         Column(
             modifier = Modifier
+                .weight(1f, fill = false)
                 .padding(top = DETAIL_FACTS_GAP)
                 .offset(x = -DETAIL_SECONDARY_INSET)
-                .widthIn(max = DETAIL_SECONDARY_MAX_WIDTH),
+                .widthIn(max = DETAIL_SECONDARY_MAX_WIDTH)
+                .verticalScroll(rememberScrollState()),
             content = secondaryActions,
         )
     }

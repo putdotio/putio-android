@@ -7,10 +7,12 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isHeading
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.PutioResult
 import io.putdotio.android.files.FilesFolderCounts
+import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.tv.setTvContent
 import io.putdotio.sdk.files.PutioFileType
 import org.junit.Assert.assertEquals
@@ -59,6 +61,24 @@ class TvFilesDetailTest {
         compose.waitForIdle()
 
         assertEquals(0, reads)
+    }
+
+    @Test
+    fun theFactsStayWholeWhenALongNameMeetsTheActions() {
+        val name = List(EPISODES) { "Deep.Sea.Creatures.S01E0$it.The.Midnight.Zone" }.joinToString(".") + ".mkv"
+        compose.setTvContent {
+            TvFilesScreen(
+                state = ready(item(1, name, PutioFileType.VIDEO, playback = FilesPlaybackProgress(60.0, 600.0))),
+                onEvent = { true },
+                onPlayMedia = {},
+                confirmedTrashEnabled = true,
+                watchedToggleEnabled = true,
+                pinnedIds = emptyList(),
+            )
+        }
+
+        compose.onNodeWithText("Added").assertIsDisplayed()
+        compose.onNodeWithText("Apr 20, 2026").assertIsDisplayed()
     }
 
     private companion object {
