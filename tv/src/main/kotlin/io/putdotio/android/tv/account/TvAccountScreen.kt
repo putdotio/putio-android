@@ -526,6 +526,7 @@ private fun TvAccountSheets(
             },
             onDismiss = onClose,
             destructive = true,
+            focusCancel = true,
             titleStyle = TvAccountType.dialogTitle,
         )
         null -> Unit

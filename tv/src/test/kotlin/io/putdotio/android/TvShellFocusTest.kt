@@ -300,7 +300,7 @@ class TvShellFocusTest {
     }
 
     @Test
-    fun historyRowsThatGoWhileTheUserIsOnTheTabBarLeaveTheEmptyStateAsTheEntryPoint() {
+    fun anEmptyHistoryHandsFocusToItsTabAndDownStaysThere() {
         var history by mutableStateOf(
             historyState(
                 HistoryContent.Ready(
@@ -330,14 +330,13 @@ class TvShellFocusTest {
         }
         compose.openTab(TvDestination.History)
         compose.onNodeWithContentDescription("Open Sintel.mp4").assertIsFocused()
-        compose.pressBack()
-        compose.onTab("History").assertIsFocused()
 
         compose.runOnIdle { history = historyState(HistoryContent.Empty) }
         compose.onNodeWithText("No activity yet.").assertIsDisplayed()
+        compose.onNodeWithText("Completed transfers and shared files will appear here.").assertIsDisplayed()
         compose.onTab("History").assertIsFocused().performKeyInput {
             pressKey(Key.DirectionDown)
         }
-        compose.onNodeWithText("No activity yet.").assertIsFocused()
+        compose.onTab("History").assertIsFocused()
     }
 }

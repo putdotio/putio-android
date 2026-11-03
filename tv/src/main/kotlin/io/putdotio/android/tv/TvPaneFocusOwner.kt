@@ -214,10 +214,14 @@ internal suspend fun refocusAfterDialog(
     dialogWasOpen.value = dialogOpen
     if (!closing || !paneHasFocus.value) return
     withFrameNanos {}
-    if (paneHasFocus.value) entryTarget.value.requestFocus()
+    val target = entryTarget.value
+    val placeable = target != FocusRequester.Cancel && target != FocusRequester.Default
+    if (paneHasFocus.value && placeable) target.requestFocus()
 }
 
 internal val LocalTvPaneReleased = staticCompositionLocalOf<State<Boolean>> { mutableStateOf(false) }
+
+internal val LocalTvTabFocus = staticCompositionLocalOf<FocusRequester?> { null }
 
 @Composable
 internal fun rememberTvPaneHasFocus(): MutableState<Boolean> {

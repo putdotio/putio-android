@@ -191,6 +191,36 @@ class TvHomeScreenTest {
     }
 
     @Test
+    fun aLongPressedPinOffersUnpinAndFocusMovesToTheNextCard() {
+        val unpinned = mutableListOf<FilesItemId>()
+        val cards = (1L..3L).map { id ->
+            TvPinnedCard(bunny.copy(id = FilesItemId(id), name = "folder-$id"), itemCount = 1)
+        }
+        var pinned by mutableStateOf<TvPinnedRow>(TvPinnedRow.Ready(cards))
+        compose.setTvContent {
+            TvHomeScreen(
+                emptyList(),
+                pinned,
+                TvHomeActions(
+                    onResume = {},
+                    onOpen = {},
+                    onBrowseFiles = {},
+                    onRetryPinned = {},
+                    onUnpin = { unpinned += it.id },
+                ),
+                remember { FocusRequester() },
+                onShown = {},
+            )
+        }
+
+        compose.onNodeWithContentDescription("folder-2").performSemanticsAction(SemanticsActions.OnLongClick)
+        compose.onNodeWithText("Unpin").assertIsFocused().performKeyInput { pressCenter() }
+        assertEquals(listOf(FilesItemId(2L)), unpinned)
+        compose.runOnIdle { pinned = TvPinnedRow.Ready(cards.filterNot { it.item.id == FilesItemId(2L) }) }
+        compose.onNodeWithContentDescription("folder-3").assertIsFocused()
+    }
+
+    @Test
     fun returningFromThePlayerFocusesTheCardThatPlayed() {
         val cards = (1L..8L).map { id ->
             TvPinnedCard(

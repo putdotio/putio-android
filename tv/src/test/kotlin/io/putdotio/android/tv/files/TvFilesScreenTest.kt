@@ -109,7 +109,7 @@ class TvFilesScreenTest {
 
         compose.onNodeWithContentDescription("Play clip.mp4").performKeyInput { pressKey(Key.DirectionDown) }
         compose.onNodeWithContentDescription("notes.txt").assertIsFocused().performKeyInput { pressCenter() }
-        compose.onNodeWithText("Unsupported file type").assertIsDisplayed()
+        compose.onNodeWithText("Can’t open this file on TV.").assertIsDisplayed()
         compose.onNodeWithText("Go back").assertIsFocused().performKeyInput { pressCenter() }
         compose.onNodeWithContentDescription("notes.txt").assertIsDisplayed()
     }
@@ -123,7 +123,7 @@ class TvFilesScreenTest {
         )
         compose.onNodeWithContentDescription("Play clip.mp4").performKeyInput { pressKey(Key.DirectionDown) }
         compose.onNodeWithContentDescription("notes.txt").performKeyInput { pressCenter() }
-        compose.onNodeWithText("Unsupported file type").assertIsDisplayed()
+        compose.onNodeWithText("Can’t open this file on TV.").assertIsDisplayed()
 
         compose.runOnUiThread { pressSystemBack() }
         compose.waitForIdle()
@@ -260,7 +260,7 @@ class TvFilesScreenTest {
     fun anOfflineFolderOffersTryNowAndNoSort() {
         val events = mutableListOf<FilesBrowserEvent>()
         compose.showFiles(state = { state(FilesContent.Failed(networkFailure())) }, onEvent = { events += it; true })
-        compose.onNodeWithText("Can’t reach put.io.").assertIsDisplayed()
+        compose.onNodeWithText("Can’t connect to put.io right now.").assertIsDisplayed()
         compose.onNodeWithText("Check the network and try again.").assertIsDisplayed()
         compose.onNodeWithText("Try now").assertIsFocused().performKeyInput { pressCenter() }
         compose.onAllNodesWithText("Sort").assertCountEquals(0)
@@ -340,12 +340,12 @@ class TvFilesScreenTest {
         var state by mutableStateOf(listed)
         compose.showFiles(state = { state })
         compose.onNodeWithContentDescription("notes.txt").performKeyInput { pressCenter() }
-        compose.onNodeWithText("Unsupported file type").assertIsDisplayed()
+        compose.onNodeWithText("Can’t open this file on TV.").assertIsDisplayed()
 
         state = state(FilesContent.Loading(FilesRequestId(2)))
-        compose.onAllNodesWithText("Unsupported file type").assertCountEquals(0)
+        compose.onAllNodesWithText("Can’t open this file on TV.").assertCountEquals(0)
         state = listed
-        compose.onAllNodesWithText("Unsupported file type").assertCountEquals(0)
+        compose.onAllNodesWithText("Can’t open this file on TV.").assertCountEquals(0)
         compose.onNodeWithContentDescription("notes.txt").assertIsFocused()
     }
 

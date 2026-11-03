@@ -334,6 +334,7 @@ internal class TvSession internal constructor(
             !files.dispatch(FilesBrowserEvent.OpenExternalItem(item, origin)) -> TvExternalOpen.REFUSED
             else -> {
                 if (!item.isFolder) item.parentId?.let { filesFocusMemory[it.value] = item.id.value }
+                homeReturn.opened(item.id.takeIf { origin == FilesOpenOrigin.HOME })
                 TvExternalOpen.IN_FILES
             }
         }

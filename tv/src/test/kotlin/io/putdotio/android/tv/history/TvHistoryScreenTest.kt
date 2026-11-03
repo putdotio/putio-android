@@ -149,7 +149,7 @@ class TvHistoryScreenTest {
         compose.onNodeWithContentDescription("Loading").assertIsFocused()
 
         compose.runOnIdle { state = historyState(HistoryContent.Empty) }
-        compose.onNodeWithText("No activity yet.").assertIsDisplayed().assertIsFocused()
+        compose.onNodeWithText("No activity yet.").assertIsDisplayed()
     }
 
     @Test
@@ -176,7 +176,7 @@ class TvHistoryScreenTest {
         )
         show { state }
 
-        compose.onNodeWithText("Can’t reach put.io.").assertIsDisplayed()
+        compose.onNodeWithText("Can’t connect to put.io right now.").assertIsDisplayed()
         compose.onNodeWithText("Try now").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf<HistoryEvent>(HistoryEvent.Retry), log)
 

@@ -60,6 +60,9 @@ import io.putdotio.android.settings.confirmedResumePlayback
 import io.putdotio.android.settings.confirmedTrashEnabled
 import io.putdotio.android.tv.files.openInVlc
 import io.putdotio.android.tv.files.tvMessageText
+import io.putdotio.android.tv.TvNoticeDialog
+import androidx.compose.runtime.withFrameNanos
+import io.putdotio.android.tv.returnFocusFromSheet
 import androidx.compose.ui.platform.LocalContext
 import io.putdotio.android.trash.TrashContent
 import io.putdotio.android.trash.TrashState
@@ -358,6 +361,7 @@ internal fun TvSessionShell(
                             },
                             onBrowseFiles = { requestedDestination = TvDestination.Files },
                             onRetryPinned = session.homePins::retry,
+                            onUnpin = { item -> session.pins.unpin(item.id) },
                         )
                     },
                     paneFocus = paneFocus,
@@ -365,6 +369,7 @@ internal fun TvSessionShell(
                     returnTo = homeReturn,
                     onReturned = session.homeReturn::handled,
                 )
+                TvHomePinNotice(session, paneFocus)
             },
             requestedDestination = requestedDestination,
             onDestinationRequestHandled = { requestedDestination = null },
@@ -373,6 +378,7 @@ internal fun TvSessionShell(
                 {
                     val returnTo = filesState.current.openedFrom.returnDestination()
                     if (session.files.dispatch(FilesBrowserEvent.NavigateBack) && returnTo != null) {
+                        if (returnTo == TvDestination.Home) session.homeReturn.leftFiles()
                         requestedDestination = returnTo
                     }
                 }
@@ -436,6 +442,26 @@ internal fun TvSessionShell(
                     paneFocus = paneFocus,
                 )
             },
+        )
+    }
+}
+
+@Composable
+private fun TvHomePinNotice(session: TvSession, paneFocus: FocusRequester) {
+    val failure by session.pins.editFailure.collectAsStateWithLifecycle()
+    val showing = failure.shown()
+    val wasShowing = remember { mutableStateOf(false) }
+    LaunchedEffect(showing) {
+        val closed = wasShowing.value && !showing
+        wasShowing.value = showing
+        if (!closed) return@LaunchedEffect
+        withFrameNanos {}
+        paneFocus.returnFocusFromSheet()
+    }
+    failure?.takeIf { it.shown() }?.let {
+        TvNoticeDialog(
+            title = stringResource(R.string.tv_files_pin_error, it.tvMessageText()),
+            onDismiss = session.pins::dismissEditFailure,
         )
     }
 }

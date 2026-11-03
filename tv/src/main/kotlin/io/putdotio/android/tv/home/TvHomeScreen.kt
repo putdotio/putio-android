@@ -24,9 +24,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -38,6 +40,11 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -79,7 +86,10 @@ import io.putdotio.android.tv.TvFocus
 import io.putdotio.android.tv.asMonoRun
 import io.putdotio.android.tv.bringIntoComposition
 import io.putdotio.android.tv.focusRequesterIf
+import io.putdotio.android.tv.files.TvFilesAction
+import io.putdotio.android.tv.files.TvFilesActionsSheet
 import io.putdotio.android.tv.files.tvClock
+import io.putdotio.android.tv.returnFocusFromSheet
 import io.putdotio.android.tv.files.tvMessageText
 import io.putdotio.android.tv.rememberTvPaneHasFocus
 import io.putdotio.android.tv.tvAccent
@@ -94,6 +104,7 @@ internal class TvHomeActions(
     val onOpen: (FilesItem) -> Unit,
     val onBrowseFiles: () -> Unit,
     val onRetryPinned: () -> Unit,
+    val onUnpin: (FilesItem) -> Unit = {},
 )
 
 @Composable
@@ -129,6 +140,8 @@ internal fun TvHomeScreen(
         onReturned()
     }
     val retry = rememberTvPinnedRetry(pinned, paneFocus)
+    val pinSheet = remember { TvPinSheet() }
+    TvPinSheetHost(pinSheet, pinnedCards.orEmpty(), actions.onUnpin, paneFocus)
     if (continueWatching.isEmpty() && pinnedCards?.isEmpty() == true) {
         TvEmptyState(
             glyph = PutioEmptyGlyph.NothingYet,
@@ -194,15 +207,83 @@ internal fun TvHomeScreen(
                             TvPinnedFileCard(
                                 card,
                                 onClick = { actions.onOpen(card.item) },
+                                onLongClick = { pinSheet.open(card.item) },
                                 modifier = Modifier
                                     .focusRequesterIf(index == pinnedReturn, returnFocus)
-                                    .focusRequesterIf(index == 0, retry.pinnedFocus),
+                                    .focusRequesterIf(index == 0, retry.pinnedFocus)
+                                    .focusRequesterIf(card.item.id == pinSheet.cardId, pinSheet.card),
                             )
                         }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun TvPinSheetHost(
+    pinSheet: TvPinSheet,
+    cards: List<TvPinnedCard>,
+    onUnpin: (FilesItem) -> Unit,
+    paneFocus: FocusRequester,
+) {
+    val removed = pinSheet.removed
+    val gone = removed != null && cards.none { it.item.id == removed }
+    LaunchedEffect(gone) {
+        if (!gone) return@LaunchedEffect
+        val next = pinSheet.retarget(cards)
+        withFrameNanos {}
+        (if (next) pinSheet.card else paneFocus).returnFocusFromSheet()
+        pinSheet.handedOff()
+    }
+    val item = pinSheet.item ?: return
+    TvFilesActionsSheet(
+        item = item,
+        actions = listOf(TvFilesAction.SetPinned(pinned = false)),
+        onAction = { pinSheet.unpinned(cards, onUnpin) },
+        onDismiss = pinSheet::close,
+        returnFocus = pinSheet.card,
+    )
+}
+
+@Stable
+private class TvPinSheet {
+    val card = FocusRequester()
+    var item by mutableStateOf<FilesItem?>(null)
+        private set
+    var cardId by mutableStateOf<FilesItemId?>(null)
+        private set
+    var removed by mutableStateOf<FilesItemId?>(null)
+        private set
+
+    private var removedAt = -1
+
+    fun open(pinned: FilesItem) {
+        item = pinned
+        cardId = pinned.id
+        removed = null
+    }
+
+    fun close() {
+        item = null
+    }
+
+    fun unpinned(cards: List<TvPinnedCard>, onUnpin: (FilesItem) -> Unit) {
+        val pinned = item ?: return
+        removedAt = cards.indexOfFirst { it.item.id == pinned.id }
+        item = null
+        removed = pinned.id
+        onUnpin(pinned)
+    }
+
+    fun retarget(cards: List<TvPinnedCard>): Boolean {
+        cardId = (cards.getOrNull(removedAt) ?: cards.getOrNull(removedAt - 1))?.item?.id
+        return cardId != null
+    }
+
+    fun handedOff() {
+        removed = null
     }
 }
 
@@ -334,7 +415,7 @@ private fun TvContinueWatchingCard(entry: ContinueWatchingEntry, onClick: () -> 
 }
 
 @Composable
-private fun TvPinnedFileCard(card: TvPinnedCard, onClick: () -> Unit, modifier: Modifier) {
+private fun TvPinnedFileCard(card: TvPinnedCard, onClick: () -> Unit, onLongClick: () -> Unit, modifier: Modifier) {
     val meta = pinnedMeta(card)
     TvHomeCard(
         icon = if (card.item.isSharedRoot) R.drawable.ic_ph_users_three_fill else fileTypeIconRes(card.item.type),
@@ -343,6 +424,7 @@ private fun TvPinnedFileCard(card: TvPinnedCard, onClick: () -> Unit, modifier: 
         progress = null,
         meta = meta,
         onClick = onClick,
+        onLongClick = onLongClick,
         modifier = modifier,
     )
 }
@@ -387,13 +469,20 @@ private fun TvHomeCard(
     onClick: () -> Unit,
     modifier: Modifier,
     metaStyle: TextStyle = CARD_META,
+    onLongClick: (() -> Unit)? = null,
 ) {
     val interactions = remember { MutableInteractionSource() }
     val focused by interactions.collectIsFocusedAsState()
     val colors = MaterialTheme.colorScheme
     Surface(
         onClick = onClick,
+        onLongClick = onLongClick,
         modifier = modifier
+            .onKeyEvent { event ->
+                val menu = onLongClick != null && event.type == KeyEventType.KeyUp && event.key == Key.Menu
+                if (menu) onLongClick?.invoke()
+                menu
+            }
             .width(CARD_WIDTH)
             .height(CARD_HEIGHT)
             .semantics { contentDescription = description }

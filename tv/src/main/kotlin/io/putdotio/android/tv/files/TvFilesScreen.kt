@@ -86,6 +86,7 @@ import io.putdotio.android.tv.TvSectionPill
 import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.rememberTvPaneHasFocus
 import io.putdotio.android.tv.TvEmptyState
+import io.putdotio.android.tv.TvEmptyStateAction
 import io.putdotio.android.tv.TvListSkeleton
 import io.putdotio.android.tv.TvDetailSkeleton
 import io.putdotio.android.tv.TvLoadFailedState
@@ -909,40 +910,14 @@ private fun TvUnsupportedFileScreen(
             softWrap = false,
             overflow = TextOverflow.MiddleEllipsis,
         )
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ic_ph_x_circle),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.error,
-                modifier = Modifier.size(56.dp),
-            )
-            Text(
-                text = stringResource(R.string.tv_files_unsupported_title),
-                style = MaterialTheme.typography.displaySmall,
-                color = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.padding(top = 24.dp),
-            )
-            Text(
-                text = stringResource(R.string.tv_files_unsupported_message),
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 16.dp),
-            )
-            val backFocus = remember { FocusRequester() }
-            LaunchedEffect(Unit) { if (claimFocus) backFocus.requestFocus() }
-            TvButton(
-                onClick = onBack,
-                modifier = Modifier
-                    .padding(top = 40.dp)
-                    .focusRequester(backFocus),
-            ) {
-                Text(stringResource(R.string.tv_files_go_back))
-            }
-        }
+        TvEmptyState(
+            glyph = PutioEmptyGlyph.NoResults,
+            headline = stringResource(R.string.tv_files_unsupported_title),
+            message = stringResource(R.string.tv_files_unsupported_message),
+            action = TvEmptyStateAction(stringResource(R.string.tv_files_go_back), onBack),
+            claimFocus = claimFocus,
+            modifier = Modifier.weight(1f),
+        )
     }
 }
 
