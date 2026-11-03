@@ -12,6 +12,7 @@ internal data class TvPlayerOverlay(
     val backFromSizeAndTiming: Boolean = false,
     val upNext: Boolean = false,
     val awaitingUpNext: Boolean = false,
+    val nowPlaying: Boolean = false,
 )
 
 internal enum class TvPlayerSheet { Audio, Subtitles, Speed, SizeAndTiming }
@@ -30,6 +31,12 @@ internal sealed interface TvPlayerCommand {
     data object ChooseNext : TvPlayerCommand
 
     data class PlayChosen(val target: PlaybackTarget) : TvPlayerCommand
+
+    data object PlayPrevious : TvPlayerCommand
+
+    data object PlayFollowing : TvPlayerCommand
+
+    data object PlayQueueNext : TvPlayerCommand
 }
 
 internal data class TvPlayerTransition(
@@ -41,10 +48,13 @@ internal fun TvPlayerOverlay.reveal(): TvPlayerTransition =
     TvPlayerTransition(copy(controlsVisible = true, activity = activity + 1))
 
 internal fun TvPlayerOverlay.hideTimedOut(): TvPlayerTransition =
-    TvPlayerTransition(if (scrub == null && sheet == null && !upNextPending) hidden() else this)
+    TvPlayerTransition(if (holdsControls) this else hidden())
 
 internal val TvPlayerOverlay.autoHides: Boolean
-    get() = controlsVisible && scrub == null && sheet == null && !upNextPending
+    get() = controlsVisible && !holdsControls
+
+private val TvPlayerOverlay.holdsControls: Boolean
+    get() = scrub != null || sheet != null || upNextPending || nowPlaying
 
 internal fun TvPlayerOverlay.select(playing: Boolean): TvPlayerTransition {
     if (exited) return TvPlayerTransition(this)
@@ -98,7 +108,7 @@ internal fun TvPlayerOverlay.back(): TvPlayerTransition {
             copy(scrub = null, activity = activity + 1),
             if (pending.wasPlaying) listOf(TvPlayerCommand.Play) else emptyList(),
         )
-        controlsVisible -> TvPlayerTransition(hidden())
+        controlsVisible && !nowPlaying -> TvPlayerTransition(hidden())
         else -> exit()
     }
 }

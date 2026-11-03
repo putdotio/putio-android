@@ -1,16 +1,32 @@
 package io.putdotio.android.tv.player
 
-internal enum class TvPlayerControl { Back, PlayPause, Forward, SeekBar, Audio, Subtitles, Speed, NextEpisode }
+internal enum class TvPlayerControl {
+    Back,
+    PlayPause,
+    Forward,
+    Previous,
+    Next,
+    SeekBar,
+    Audio,
+    Subtitles,
+    Speed,
+    NextEpisode,
+}
 
 internal enum class TvFocusMove { Up, Down, Left, Right }
 
 private val TV_PLAYER_CIRCLES = listOf(TvPlayerControl.Back, TvPlayerControl.PlayPause, TvPlayerControl.Forward)
+private val TV_NOW_PLAYING_TRANSPORT = listOf(TvPlayerControl.Previous, TvPlayerControl.PlayPause, TvPlayerControl.Next)
+
+private val TvPlayerOverlay.circles: List<TvPlayerControl>
+    get() = if (nowPlaying) TV_NOW_PLAYING_TRANSPORT else TV_PLAYER_CIRCLES
 
 internal fun TvPlayerOverlay.moveFocus(move: TvFocusMove, chips: List<TvPlayerControl>): TvPlayerTransition {
     val revealed = reveal().overlay
     if (!controlsVisible || exited || scrub != null) return TvPlayerTransition(revealed)
     val current = focusIn(chips)
-    val rows = listOf(TV_PLAYER_CIRCLES, listOf(TvPlayerControl.SeekBar), chips)
+    val seekBar = listOf(TvPlayerControl.SeekBar)
+    val rows = if (nowPlaying) listOf(seekBar, circles, chips) else listOf(circles, seekBar, chips)
     val rowIndex = rows.indexOfFirst { current in it }
     val row = rows[rowIndex]
     val index = row.indexOf(current)
@@ -24,10 +40,10 @@ internal fun TvPlayerOverlay.moveFocus(move: TvFocusMove, chips: List<TvPlayerCo
 }
 
 private fun List<TvPlayerControl>.entry(): TvPlayerControl? =
-    if (this == TV_PLAYER_CIRCLES) TvPlayerControl.PlayPause else firstOrNull()
+    if (TvPlayerControl.PlayPause in this) TvPlayerControl.PlayPause else firstOrNull()
 
 internal fun TvPlayerOverlay.focusIn(chips: List<TvPlayerControl>): TvPlayerControl =
-    focus.takeIf { it in TV_PLAYER_CIRCLES || it == TvPlayerControl.SeekBar || it in chips }
+    focus.takeIf { it in circles || it == TvPlayerControl.SeekBar || it in chips }
         ?: TvPlayerControl.SeekBar
 
 internal fun TvPlayerOverlay.openSheet(chip: TvPlayerControl): TvPlayerTransition {

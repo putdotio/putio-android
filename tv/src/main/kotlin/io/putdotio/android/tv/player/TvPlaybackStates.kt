@@ -1,14 +1,6 @@
 package io.putdotio.android.tv.player
 
 import androidx.annotation.StringRes
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.size
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.tv.material3.Icon
-import io.putdotio.android.design.fileTypeIconRes
-import io.putdotio.sdk.files.PutioFileType
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -270,32 +262,6 @@ private fun PlaybackFailure.messageResource(): Int =
         }
     }
 
-@Composable
-internal fun TvAudioStage(title: String) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .tvPlayerEdges(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(AUDIO_STAGE_GAP, Alignment.CenterVertically),
-    ) {
-        Icon(
-            painter = painterResource(fileTypeIconRes(PutioFileType.AUDIO)),
-            contentDescription = null,
-            tint = PutioDesignTokens.yellowSolid,
-            modifier = Modifier.size(AUDIO_GLYPH),
-        )
-        Text(
-            text = title,
-            style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.onSurface,
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-            overflow = TextOverflow.MiddleEllipsis,
-        )
-    }
-}
-
 private const val FRAME_DIM = 0.7f
 private const val PERCENT = 100.0
 private const val PROGRESS_TRACK_ALPHA = 0.22f
@@ -307,5 +273,3 @@ private val ACTION_EXTRA_GAP = 3.dp
 private val PERCENT_SIZE = 13.sp
 private val PERCENT_LINE = 17.sp
 private val SHRUG_LIFT = 2.dp
-private val AUDIO_GLYPH = 56.dp
-private val AUDIO_STAGE_GAP = 16.dp

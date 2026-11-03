@@ -112,8 +112,9 @@ internal fun readyState(
     name: String = "Sintel.mp4",
     resumePositionMillis: Long? = null,
     useStartFrom: Boolean = false,
+    mediaType: PlaybackMediaType = PlaybackMediaType.VIDEO,
 ) = playbackState(
-    target = PlaybackTarget(FilesItemId(9), name, PlaybackMediaType.VIDEO),
+    target = PlaybackTarget(FilesItemId(9), name, mediaType),
     content = PlaybackContent.Ready(source(), useStartFrom),
     nextRequestValue = 2L,
     resumePositionMillis = resumePositionMillis,

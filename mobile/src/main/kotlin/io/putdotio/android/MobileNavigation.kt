@@ -9,10 +9,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -75,9 +73,9 @@ import io.putdotio.android.playback.PlaybackNeighbours
 import io.putdotio.android.playback.PlaybackNextResult
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
-import io.putdotio.android.playback.PlaybackState
 import io.putdotio.android.playback.rememberNextEpisode
 import io.putdotio.android.playback.PlaybackTarget
+import io.putdotio.android.playback.rememberFolderNeighbours
 import io.putdotio.android.playback.SubtitleStartupPolicy
 import io.putdotio.android.playback.confirmedAutoplayNextVideo
 import io.putdotio.android.playback.dispatch
@@ -117,7 +115,6 @@ import io.putdotio.android.trash.TrashContent
 import io.putdotio.android.trash.TrashController
 import io.putdotio.android.trash.TrashEvent
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import io.putdotio.android.files.MobileFilesNoticeHost
 import androidx.compose.ui.Alignment
@@ -535,36 +532,6 @@ private fun castMediaFor(
     target: PlaybackTarget,
 ): MobileCastMediaLoader? =
     if (load == null) null else { source, subtitleKey -> load(target, source, subtitleKey) }
-
-/**
- * Playing audio asks for its folder once: the files around it for the skip buttons and Up next, and
- * the folder's name. A failed read leaves them off; playback does not depend on it, but a rejected
- * session still ends.
- */
-@Composable
-private fun rememberFolderNeighbours(
-    state: PlaybackState,
-    findNeighbours: (suspend (PlaybackTarget) -> PlaybackRepositoryResult<PlaybackNeighbours>)?,
-    onAuthenticationRequired: suspend () -> Unit,
-): PlaybackNeighbours {
-    val audioReady by rememberUpdatedState(
-        state.target.mediaType == PlaybackMediaType.AUDIO &&
-            (state.content is PlaybackContent.Ready || state.content == PlaybackContent.Session),
-    )
-    val target by rememberUpdatedState(state.target)
-    // Startup passes through Loading between Session and Ready; the walk still runs once per file.
-    val neighbours by produceState(PlaybackNeighbours(), state.target.fileId, findNeighbours != null) {
-        val find = findNeighbours ?: return@produceState
-        snapshotFlow { audioReady }.first { it }
-        value = when (val result = find(target)) {
-            is PlaybackRepositoryResult.Success -> result.value
-            is PlaybackRepositoryResult.Failure -> PlaybackNeighbours().also {
-                if (result.failure.rejectsSession) onAuthenticationRequired()
-            }
-        }
-    }
-    return neighbours
-}
 
 @Composable
 internal fun TransfersVisibilityEffect(
