@@ -157,7 +157,11 @@ internal fun TvFileViewer(
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
-    LaunchedEffect(Unit) { withContext(Dispatchers.IO) { FilesPdfDocument.clearCache(context) } }
+    // A crashed viewer's copies go before this one copies its first document.
+    val cacheCleared by produceState(false) {
+        withContext(Dispatchers.IO) { FilesPdfDocument.clearCache(context) }
+        value = true
+    }
     val opener by rememberUpdatedState(returnFocus)
     DisposableEffect(Unit) {
         onDispose { opener.returnFocusFromSheet() }
@@ -166,7 +170,11 @@ internal fun TvFileViewer(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
     ) {
-        TvFileViewerContent(files, shownId, viewerUrl, onDismiss)
+        if (cacheCleared) {
+            TvFileViewerContent(files, shownId, viewerUrl, onDismiss)
+        } else {
+            Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.scrim.copy(alpha = 1f)))
+        }
     }
 }
 
