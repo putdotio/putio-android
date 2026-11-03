@@ -194,7 +194,9 @@ internal fun ColumnScope.TvDetailBody(
     Column(
         modifier = Modifier
             .weight(1f, fill = false)
-            .then(if (secondaryActions == null) Modifier.clipToBounds() else Modifier.verticalScroll(rememberScrollState())),
+            .then(
+                if (secondaryActions == null) Modifier.clipToBounds() else Modifier.verticalScroll(rememberScrollState()),
+            ),
     ) {
         Column(
             modifier = Modifier.padding(top = DETAIL_FACTS_GAP),

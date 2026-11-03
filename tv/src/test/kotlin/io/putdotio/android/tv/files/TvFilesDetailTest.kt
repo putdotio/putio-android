@@ -6,7 +6,6 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.requestFocus
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.performKeyInput
-import androidx.compose.ui.test.and
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.ExperimentalTestApi
@@ -103,7 +102,9 @@ class TvFilesDetailTest {
             )
         }
 
-        compose.onNodeWithTag(TV_FILES_DETAIL_PRIMARY_TAG).requestFocus().performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithTag(TV_FILES_DETAIL_PRIMARY_TAG).requestFocus().performKeyInput {
+            pressKey(Key.DirectionDown)
+        }
         compose.onNode(hasText("Open in VLC") and hasClickAction()).assertIsFocused().assertIsDisplayed()
     }
 
