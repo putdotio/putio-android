@@ -65,12 +65,14 @@ internal fun Player.keepChoices(
     options: TvPlaybackOptions,
     startupPolicy: SubtitleStartupPolicy?,
     textDefaults: TrackSelectionParameters,
+    captionLanguages: List<String>,
 ) {
     val withSubtitles = trackSelectionParameters.withSubtitleTracks(
         retained = options.subtitles,
         startupPolicy = startupPolicy,
         tracks = current.playbackSubtitleTracks(),
         textDefaults = textDefaults,
+        captionLanguages = captionLanguages,
     )
     val withAudio = withSubtitles.withRetainedAudioSelection(options.audio, current.playbackAudioTracks())
     if (withAudio != trackSelectionParameters) trackSelectionParameters = withAudio
@@ -80,6 +82,7 @@ internal fun Player.followSubtitlePolicy(
     policy: SubtitleStartupPolicy?,
     picked: SubtitleSelection?,
     textDefaults: TrackSelectionParameters,
+    captionLanguages: List<String>,
 ) {
     if (policy == null) return
     if (picked != null && policy.showSubtitles) return
@@ -89,6 +92,7 @@ internal fun Player.followSubtitlePolicy(
             SubtitleSelection.Automatic,
             currentTracks.playbackSubtitleTracks(),
             textDefaults,
+            captionLanguages,
         )
     } else {
         restoreSubtitleSelection(current, null, policy)

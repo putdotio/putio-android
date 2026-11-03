@@ -5,7 +5,7 @@ import io.putdotio.android.PutioFailure
 /**
  * The most pages a folder reads to find its [FilesFolderState.revealItemId]: 10 pages of 50 rows.
  * Past it, as when the folder ends first, the folder shows the rows read so far from the top,
- * with Load more if it has more, and the item is not revealed.
+ * with Load more if it has more, and drops the item: a later page that brings it reveals nothing.
  */
 internal const val MAX_REVEAL_PAGES = 10
 
@@ -44,10 +44,14 @@ internal fun FilesBrowserState.listingLoaded(
     return settleReveal(index, summarized.copy(consumedCursors = consumedCursors), items, paging)
 }
 
-/** A reveal search page failed: the rows read so far show, with a retry for the rest. */
+/** A reveal search page failed: the rows read so far show, with a retry for the rest, and the item is dropped. */
 internal fun FilesFolderState.revealPageFailed(requestId: FilesRequestId, failure: PutioFailure): FilesFolderState? {
     val search = revealSearch?.takeIf { it.requestId == requestId } ?: return null
-    return copy(content = contentFor(search.items, FilesPaging.Failed(search.cursor, failure)), revealSearch = null)
+    return copy(
+        content = contentFor(search.items, FilesPaging.Failed(search.cursor, failure)),
+        revealItemId = null,
+        revealSearch = null,
+    )
 }
 
 /** Stops revealing a row: a running search shows the rows read so far, with the rest left to load. */
@@ -96,7 +100,11 @@ private fun FilesBrowserState.settleReveal(
         )
     } else {
         val viewport = FilesViewportPosition(revealIndex.coerceAtLeast(0))
-        val settled = folder.copy(content = contentFor(items, paging, viewport), revealSearch = null)
+        val settled = folder.copy(
+            content = contentFor(items, paging, viewport),
+            revealItemId = target?.takeIf { revealIndex >= 0 },
+            revealSearch = null,
+        )
         FilesBrowserTransition(copy(stack = stack.replaceAt(index, settled)))
     }
 }

@@ -93,12 +93,18 @@ public fun TrackSelectionParameters.withSubtitleSelection(
     selection: SubtitleSelection,
     tracks: List<PlaybackSubtitleTrack>,
     textDefaults: TrackSelectionParameters? = null,
+    captionLanguages: List<String> = emptyList(),
 ): TrackSelectionParameters {
     val builder =
         buildUpon()
             .clearOverridesOfType(C.TRACK_TYPE_TEXT)
             .setIgnoredTextSelectionFlags(0)
-    return when (val chosen = selection.preferringNamedTrack(tracks, textDefaults?.preferredTextLanguages.orEmpty())) {
+    val preferredLanguages = when {
+        textDefaults == null -> emptyList()
+        textDefaults.usePreferredTextLanguagesAndRoleFlagsFromCaptioningManager -> captionLanguages
+        else -> textDefaults.preferredTextLanguages
+    }
+    return when (val chosen = selection.preferringNamedTrack(tracks, preferredLanguages)) {
         SubtitleSelection.Off ->
             builder
                 .setSelectTextByDefault(false)
@@ -170,13 +176,14 @@ public fun TrackSelectionParameters.withSubtitleTracks(
     startupPolicy: SubtitleStartupPolicy?,
     tracks: List<PlaybackSubtitleTrack>,
     textDefaults: TrackSelectionParameters,
+    captionLanguages: List<String> = emptyList(),
 ): TrackSelectionParameters {
     if (startupPolicy?.showSubtitles == false) return withSubtitleSelection(SubtitleSelection.Off, tracks)
     val autoSelects = startupPolicy?.showSubtitles == true && startupPolicy.autoSelectSubtitles
     val selection = retained ?: SubtitleSelection.Automatic.takeIf { autoSelects }
     return when (selection) {
         is SubtitleSelection.Track, SubtitleSelection.Automatic ->
-            withSubtitleSelection(selection, tracks, textDefaults)
+            withSubtitleSelection(selection, tracks, textDefaults, captionLanguages)
         SubtitleSelection.Off, null -> this
     }
 }

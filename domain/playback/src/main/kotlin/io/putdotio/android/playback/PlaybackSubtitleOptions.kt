@@ -135,7 +135,7 @@ internal fun SubtitleSelection.preferringNamedTrack(
     val preferred = preferredLanguages.firstNotNullOfOrNull { tag ->
         named.firstOrNull { it.identity.language?.sameLanguageAs(tag) == true }
     }
-    val pick = (preferred ?: named.firstOrNull()).takeIf { default != null && default.knownName() == null }
+    val pick = preferred?.takeIf { default != null && default.knownName() == null }
     return pick?.let { SubtitleSelection.Track(it.identity) } ?: this
 }
 
