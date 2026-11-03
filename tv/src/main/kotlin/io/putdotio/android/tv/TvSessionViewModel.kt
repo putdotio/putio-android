@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import io.putdotio.android.files.ContinueWatching
+import io.putdotio.android.isNotFound
 import io.putdotio.android.files.ContinueWatchingEntry
 import io.putdotio.android.files.ContinueWatchingStore
 import io.putdotio.android.files.FilesBrowserController
@@ -388,29 +389,28 @@ internal class TvSession internal constructor(
         stopped.close()
     }
 
-    /**
-     * Marks a media file watched (its position becomes its duration) or unwatched (no
-     * position). Runs here so a choice made just before the pane is disposed still lands;
-     * the listing row follows through the browser's own position invalidation.
-     */
-    fun setWatched(item: FilesItem, watched: Boolean, failures: TvActionFailure = fileActionFailures) {
+    fun setWatched(item: FilesItem, watched: Boolean) {
         val seconds = if (watched) item.playback?.durationSeconds ?: return else 0.0
-        // One write per file at a time: a newer choice for the same file supersedes an
-        // unfinished one, so a slow first request cannot report after a faster second one
-        // has settled the row; writes for other files run on their own.
+        fileActionFailures.dismiss()
+        writePosition(item, seconds, fileActionFailures::report)
+    }
+
+    fun removeFromContinueWatching(entry: ContinueWatchingEntry) {
+        writePosition(entry.toFilesItem(), 0.0) { failure ->
+            if (failure.isNotFound) continueWatching.removed(entry.fileId) else continueWatchingFailure.report(failure)
+        }
+    }
+
+    private fun writePosition(item: FilesItem, seconds: Double, onFailure: (PutioFailure) -> Unit) {
         watchedJobs.remove(item.id)?.cancel()
-        // Started lazily so the write is registered before its body can run and compare itself.
         val job = scope.launch(start = CoroutineStart.LAZY) {
-            failures.dismiss()
             val result = playbackReporting.supersede(item.id.value) {
-                if (watched) {
+                if (seconds > 0.0) {
                     watchedRepository.setPosition(item.id, seconds)
                 } else {
                     watchedRepository.clearPosition(item.id)
                 }
             }
-            // Cancellation is cooperative: a superseded write that still returns must not
-            // settle the row or report, so only the write still registered for the file does.
             if (!isActive || watchedJobs[item.id] !== coroutineContext[Job]) return@launch
             when (result) {
                 is PutioResult.Success -> {
@@ -419,7 +419,7 @@ internal class TvSession internal constructor(
                     watchNext.positionSaved(item.toWatchNextMedia(), seconds)
                     continueWatching.positionSaved(item.id, seconds)
                 }
-                is PutioResult.Failure -> failures.report(result.failure)
+                is PutioResult.Failure -> onFailure(result.failure)
             }
         }
         watchedJobs[item.id] = job
@@ -529,9 +529,6 @@ private suspend fun FilesRepository.withListedDuration(item: FilesItem): FilesIt
 
 internal fun tvSessionViewModelFactory(authState: StateFlow<TvAuthState>): ViewModelProvider.Factory =
     viewModelFactory { initializer { TvSessionViewModel(authState) } }
-
-internal fun TvSession.removeFromContinueWatching(entry: ContinueWatchingEntry) =
-    setWatched(entry.toFilesItem(), watched = false, failures = continueWatchingFailure)
 
 internal class TvActionFailure {
     private val mutableFailure = MutableStateFlow<PutioFailure?>(null)

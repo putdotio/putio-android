@@ -16,6 +16,7 @@ import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.isFocused
@@ -221,7 +222,7 @@ class TvAccountScreenTest {
     }
 
     @Test
-    fun defaultSortUsesTheFilesSortSheetAndAppliesTheOrderAtOnce() {
+    fun defaultSortUsesTheFilesSortSheetAndSavesOnlyAChange() {
         show(settingsState = { ready(preferences) })
 
         group("Library").performKeyInput { pressKey(Key.DirectionRight) }
@@ -229,7 +230,11 @@ class TvAccountScreenTest {
         compose.onNodeWithText("Name, A to Z").assertIsDisplayed()
         compose.onNodeWithText("Default sort order").assertIsFocused().performKeyInput { pressCenter() }
         compose.onNode(hasText("Sort by") and hasAnyAncestor(isDialog())).assertIsDisplayed()
-        compose.onNode(inSheet("Name")).assertIsSelected().performKeyInput {
+        compose.onNode(inSheet("Name")).assertIsSelected().performKeyInput { pressCenter() }
+        assertEquals(emptyList<AccountSettingsEvent>(), settingsEvents)
+        compose.onNode(hasText("Sort by") and hasAnyAncestor(isDialog())).assertDoesNotExist()
+        compose.onNodeWithText("Default sort order").assertIsFocused().performKeyInput { pressCenter() }
+        compose.onNode(inSheet("Name")).performKeyInput {
             repeat(6) { pressKey(Key.DirectionDown) }
         }
         compose.onNode(inSheet("Z to A")).performKeyInput { pressCenter() }
@@ -301,7 +306,10 @@ class TvAccountScreenTest {
         }
         compose.onNodeWithText("Version").assertIsFocused()
         compose.onNodeWithText("Media3 ExoPlayer").assertIsDisplayed()
-        compose.onNodeWithContentDescription("QR code with these details for support").assertIsDisplayed()
+        compose.onNode(
+            hasContentDescription("QR code with these details for support") and
+                hasText("Scan to send these details", substring = true),
+        ).assertIsDisplayed()
     }
 
     @Test

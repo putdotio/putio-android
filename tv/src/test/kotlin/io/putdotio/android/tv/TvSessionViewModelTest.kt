@@ -644,6 +644,35 @@ class TvSessionViewModelTest {
         assertEquals(rejected, session.continueWatchingFailure.failure.value)
     }
 
+    @Test
+    fun `removing a card for a file put io no longer has drops it without an error`() = runTest {
+        val session = sessionWithContinueWatching(FakeWatchNextRecorder())
+        watched.failure = notFound()
+
+        session.removeFromContinueWatching(session.continueWatching.entries.value.single())
+
+        assertTrue(session.continueWatching.entries.value.isEmpty())
+        assertNull(session.continueWatchingFailure.failure.value)
+    }
+
+    @Test
+    fun `a later removal keeps an earlier removal's error`() = runTest {
+        val session = sessionWithContinueWatching(FakeWatchNextRecorder())
+        session.play(media(10, "other.mp4", PutioFileType.VIDEO).copy(playback = FilesPlaybackProgress(0.0, 600.0)))
+        session.stopPlayback()
+        session.positionSaved(10L, 120.0)
+        val (first, second) = session.continueWatching.entries.value.sortedBy { it.fileId.value }
+        val offline = PutioFailure.NetworkUnavailable(PutioConfigurationException("offline"))
+        watched.failure = offline
+        session.removeFromContinueWatching(first)
+
+        watched.failure = null
+        session.removeFromContinueWatching(second)
+
+        assertEquals(offline, session.continueWatchingFailure.failure.value)
+        assertEquals(listOf(first.fileId), session.continueWatching.entries.value.map { it.fileId })
+    }
+
     private fun sessionWithContinueWatching(recorder: FakeWatchNextRecorder): TvSession {
         val session = checkNotNull(
             TvSessionViewModel(auth).sessionFor(

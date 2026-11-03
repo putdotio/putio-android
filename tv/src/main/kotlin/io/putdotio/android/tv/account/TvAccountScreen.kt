@@ -492,7 +492,7 @@ private fun TvAccountSheets(
             TvSortSheet(
                 title = stringResource(R.string.tv_account_default_sort),
                 selected = settings.defaultSort,
-                onSelect = { change(AccountSettingsChange.Sort(it)) },
+                onSelect = { if (it == settings.defaultSort) onClose() else change(AccountSettingsChange.Sort(it)) },
                 onDismiss = onClose,
                 returnFocus = returnFocus(RowKey.DEFAULT_SORT),
             )
@@ -1029,31 +1029,30 @@ private fun TvStorageCard(account: TvAccount) {
 @Composable
 private fun TvSupportQr(supportText: String, segment: TvSegment) {
     val light = MaterialTheme.colorScheme.inverseSurface
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceVariant, segment.shape())
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        TvQrCode(
-            text = supportText,
-            description = stringResource(R.string.tv_account_about_support_description),
-            dark = MaterialTheme.colorScheme.background,
-            light = light,
-            quietZone = SUPPORT_QR_QUIET_ZONE,
-            modifier = Modifier
-                .size(SUPPORT_QR_SIZE)
-                .clip(RoundedCornerShape(SUPPORT_QR_RADIUS))
-                .background(light)
-                .padding(SUPPORT_QR_PADDING),
-        )
-        Text(
-            stringResource(R.string.tv_account_about_support),
-            style = TvAccountType.footnote,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+    TvStaticSegment(segment) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TvQrCode(
+                text = supportText,
+                description = stringResource(R.string.tv_account_about_support_description),
+                dark = MaterialTheme.colorScheme.background,
+                light = light,
+                quietZone = SUPPORT_QR_QUIET_ZONE,
+                modifier = Modifier
+                    .size(SUPPORT_QR_SIZE)
+                    .clip(RoundedCornerShape(SUPPORT_QR_RADIUS))
+                    .background(light)
+                    .padding(SUPPORT_QR_PADDING),
+            )
+            Text(
+                stringResource(R.string.tv_account_about_support),
+                style = TvAccountType.footnote,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 

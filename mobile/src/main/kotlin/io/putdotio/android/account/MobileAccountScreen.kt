@@ -545,7 +545,7 @@ private class AccountRows(
                     current = preferences.defaultSort,
                     onSelect = { sort ->
                         choosing = false
-                        onSettingsChange(AccountSettingsChange.Sort(sort))
+                        if (sort != preferences.defaultSort) onSettingsChange(AccountSettingsChange.Sort(sort))
                     },
                     onDismiss = { choosing = false },
                 )

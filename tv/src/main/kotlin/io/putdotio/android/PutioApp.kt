@@ -92,8 +92,6 @@ import io.putdotio.android.tv.history.TvHistoryScreen
 import io.putdotio.android.tv.account.TvShowHome
 import io.putdotio.android.tv.home.TvDeviceShowHomeStore
 import io.putdotio.android.tv.home.TvHomeActions
-import io.putdotio.android.tv.home.TvHomeNotice
-import io.putdotio.android.tv.removeFromContinueWatching
 import io.putdotio.android.tv.home.TvHomeScreen
 import io.putdotio.android.tv.trash.TvTrashScreen
 import io.putdotio.android.trash.SdkTrashRepository
@@ -347,6 +345,7 @@ internal fun TvSessionShell(
             showHome = showHome,
             focusHomePane = homeReturn != null,
             homePane = { paneFocus ->
+                val pinFailure by session.pins.editFailure.collectAsStateWithLifecycle()
                 TvHomeScreen(
                     continueWatching = continueWatching,
                     pinned = pinnedRow,
@@ -372,9 +371,9 @@ internal fun TvSessionShell(
                     onReturned = session.homeReturn::handled,
                     continueWatchingFailure = continueWatchingFailure,
                     onDismissContinueWatchingFailure = session.continueWatchingFailure::dismiss,
+                    pinFailure = pinFailure,
+                    onDismissPinFailure = session.pins::dismissEditFailure,
                 )
-                val pinFailure by session.pins.editFailure.collectAsStateWithLifecycle()
-                TvHomeNotice(pinFailure, R.string.tv_files_pin_error, session.pins::dismissEditFailure, paneFocus)
             },
             requestedDestination = requestedDestination,
             onDestinationRequestHandled = { requestedDestination = null },
@@ -655,7 +654,7 @@ private fun filesNoticeMessage(linkNoticeShown: Boolean, filesNotice: Int?): Str
 
 private fun TvUndoFailure?.shown(): Boolean = this != null && failure !is PutioFailure.AuthenticationRequired
 
-private fun PutioFailure?.shown(): Boolean = this != null && this !is PutioFailure.AuthenticationRequired
+internal fun PutioFailure?.shown(): Boolean = this != null && this !is PutioFailure.AuthenticationRequired
 
 @Composable
 private fun filesNoticeText(

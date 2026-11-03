@@ -48,7 +48,7 @@ internal fun ColumnScope.TvHistoryDetail(
             null -> Unit
         }
     }
-    TvDetailBody(title = item.title(), meta = detailMeta(item, today, zone), facts = detailFacts(file)) {
+    TvDetailBody(key = item.id, title = item.title(), meta = detailMeta(item, today, zone), facts = detailFacts(file)) {
         if (fileId != null) {
             TvDetailButton(
                 label = AnnotatedString(stringResource(R.string.tv_history_open_folder)),

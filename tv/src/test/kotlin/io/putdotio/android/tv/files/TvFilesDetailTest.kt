@@ -90,6 +90,10 @@ class TvFilesDetailTest {
             pressKey(Key.DirectionDown)
         }
         compose.onNode(hasText("Open in VLC") and hasClickAction()).assertIsFocused().assertIsDisplayed()
+
+        compose.onNode(hasText("Open in VLC") and hasClickAction()).performKeyInput { pressKey(Key.DirectionUp) }
+        compose.waitForIdle()
+        compose.onNodeWithText("Added").assertIsDisplayed()
     }
 
     private companion object {
