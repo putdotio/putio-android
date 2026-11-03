@@ -193,41 +193,43 @@ internal fun ColumnScope.TvDetailBody(
     )
     Column(
         modifier = Modifier
-            .then(if (secondaryActions == null) Modifier.weight(1f, fill = false).clipToBounds() else Modifier)
-            .padding(top = DETAIL_FACTS_GAP),
-        verticalArrangement = Arrangement.spacedBy(DETAIL_FACT_SPACING),
+            .weight(1f, fill = false)
+            .then(if (secondaryActions == null) Modifier.clipToBounds() else Modifier.verticalScroll(rememberScrollState())),
     ) {
-        facts.take(MAX_DETAIL_FACTS).forEach { fact ->
-            Row(modifier = Modifier.semantics(mergeDescendants = true) {}) {
-                Text(
-                    text = fact.label,
-                    style = DETAIL_FACT,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier
-                        .width(DETAIL_FACT_LABEL_WIDTH)
-                        .alignByBaseline(),
-                )
-                Text(
-                    text = fact.styled ?: AnnotatedString(fact.value),
-                    style = if (fact.mono) DETAIL_FACT_MONO else DETAIL_FACT,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier
-                        .weight(1f)
-                        .alignByBaseline(),
-                )
+        Column(
+            modifier = Modifier.padding(top = DETAIL_FACTS_GAP),
+            verticalArrangement = Arrangement.spacedBy(DETAIL_FACT_SPACING),
+        ) {
+            facts.take(MAX_DETAIL_FACTS).forEach { fact ->
+                Row(modifier = Modifier.semantics(mergeDescendants = true) {}) {
+                    Text(
+                        text = fact.label,
+                        style = DETAIL_FACT,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .width(DETAIL_FACT_LABEL_WIDTH)
+                            .alignByBaseline(),
+                    )
+                    Text(
+                        text = fact.styled ?: AnnotatedString(fact.value),
+                        style = if (fact.mono) DETAIL_FACT_MONO else DETAIL_FACT,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier
+                            .weight(1f)
+                            .alignByBaseline(),
+                    )
+                }
             }
         }
-    }
-    if (secondaryActions != null) {
-        Column(
-            modifier = Modifier
-                .weight(1f, fill = false)
-                .padding(top = DETAIL_FACTS_GAP)
-                .offset(x = -DETAIL_SECONDARY_INSET)
-                .widthIn(max = DETAIL_SECONDARY_MAX_WIDTH)
-                .verticalScroll(rememberScrollState()),
-            content = secondaryActions,
-        )
+        if (secondaryActions != null) {
+            Column(
+                modifier = Modifier
+                    .padding(top = DETAIL_FACTS_GAP)
+                    .offset(x = -DETAIL_SECONDARY_INSET)
+                    .widthIn(max = DETAIL_SECONDARY_MAX_WIDTH),
+                content = secondaryActions,
+            )
+        }
     }
 }
 
