@@ -418,6 +418,7 @@ private fun MobileRefreshableFilesContent(
                                 content = content,
                                 headers = headers,
                                 onPlayEntry = { onPlayMedia(it.toFilesItem()) },
+                                onRemoveEntry = itemActions.onRemoveFromContinueWatching,
                                 revealItemId = state.current.revealItemId,
                                 pagingEnabled = operation == FilesFolderOperation.Idle,
                                 onEvent = onEvent,
@@ -822,6 +823,7 @@ private fun MobileFilesList(
     content: FilesContent.Ready,
     headers: MobileFilesHeaders,
     onPlayEntry: (ContinueWatchingEntry) -> Unit,
+    onRemoveEntry: ((ContinueWatchingEntry) -> Unit)?,
     revealItemId: FilesItemId?,
     pagingEnabled: Boolean,
     onEvent: (FilesBrowserEvent) -> Unit,
@@ -888,7 +890,7 @@ private fun MobileFilesList(
         // toolbar, however tall large fonts make it.
         contentPadding = selection?.let { PaddingValues(top = 8.dp, bottom = it.bottomClearance) } ?: PaddingValues(),
     ) {
-        mobileFilesHeaderItems(headers, onPlayEntry, hidden = selection != null)
+        mobileFilesHeaderItems(headers, onPlayEntry, onRemoveEntry, hidden = selection != null)
         itemsIndexed(
             items = content.items,
             key = { _, item -> item.id.value },

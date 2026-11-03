@@ -194,6 +194,46 @@ class FilesBrowserControllerTest {
         }
 
     @Test
+    fun popToRootLoadsOnlyTheRootWhenEveryFolderOnTheWayIsStale() =
+        runBlocking {
+            val shows = item(7L, "Shows", PutioFileType.FOLDER)
+            val season = item(8L, "Season 1", PutioFileType.FOLDER)
+            val loads = mutableListOf<FilesItemId>()
+            val repository =
+                object : StubFilesRepository() {
+                    override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> {
+                        loads += folderId
+                        val items = when (folderId) {
+                            FilesFolder.Root.id -> listOf(shows)
+                            shows.id -> listOf(season)
+                            else -> emptyList()
+                        }
+                        return PutioResult.Success(FilesPage(items, null))
+                    }
+                }
+            val controller = FilesBrowserController(repository, this)
+
+            try {
+                controller.awaitState { it.current.content is FilesContent.Ready }
+                assertTrue(controller.dispatch(FilesBrowserEvent.OpenFolder(shows.id)))
+                controller.awaitState { it.stack.size == 2 && it.current.content is FilesContent.Ready }
+                assertTrue(controller.dispatch(FilesBrowserEvent.OpenFolder(season.id)))
+                controller.awaitState { it.stack.size == 3 && it.current.content !is FilesContent.Loading }
+                assertTrue(controller.dispatch(FilesBrowserEvent.InvalidateAllFolders))
+                loads.clear()
+
+                assertTrue(controller.dispatch(FilesBrowserEvent.PopToRoot))
+
+                val root = controller.awaitState { it.stack.size == 1 && !it.current.needsReload && loads.isNotEmpty() }
+                assertEquals(listOf(FilesFolder.Root), root.path)
+                controller.awaitState { it.current.content is FilesContent.Ready }
+                assertEquals(listOf(FilesFolder.Root.id), loads)
+            } finally {
+                controller.close()
+            }
+        }
+
+    @Test
     fun reportsUnhandledRootBackAndDoesNotCancelItsParentScope() =
         runBlocking {
             val repository =

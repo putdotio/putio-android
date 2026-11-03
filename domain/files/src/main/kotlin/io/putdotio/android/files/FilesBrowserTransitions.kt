@@ -76,6 +76,17 @@ internal fun FilesBrowserState.navigateBack(): FilesBrowserTransition =
         FilesBrowserTransition(this, consumed = false)
     }
 
+internal fun FilesBrowserState.popToRoot(): FilesBrowserTransition {
+    val closing = stack.drop(1)
+    val settling = closing.any { it.operation.pendingDelete != null || it.operation.pendingMove != null }
+    return if (closing.isNotEmpty() && !settling) {
+        val root = copy(stack = stack.take(1))
+        if (root.current.needsReload) root.reloadStaleFolder() else FilesBrowserTransition(root)
+    } else {
+        FilesBrowserTransition(this, consumed = false)
+    }
+}
+
 internal fun FilesBrowserState.reloadStaleFolder(): FilesBrowserTransition {
     if (current.operation != FilesFolderOperation.Idle || current.content is FilesContent.Loading) {
         return FilesBrowserTransition(this)

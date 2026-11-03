@@ -89,6 +89,26 @@ class MobileFilesActionsControllerTest {
     }
 
     @Test
+    fun removingFromContinueWatchingClearsThePositionOrSaysWhyItStays() = runTest {
+        val controller = controller()
+        val notices = mutableListOf<MobileFilesNotice>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { controller.notices.toList(notices) }
+        watched.result = PutioResult.Failure(PutioFailure.NetworkUnavailable(IllegalStateException("offline")))
+        controller.removeFromContinueWatching(entry())
+        advanceUntilIdle()
+        assertEquals(listOf(R.string.mobile_files_continue_watching_remove_failed), notices.map { it.message })
+        assertEquals(listOf(entry()), row.entries.value)
+
+        watched.result = PutioResult.Success(Unit)
+        controller.removeFromContinueWatching(entry())
+        advanceUntilIdle()
+        assertEquals(listOf(video.id, video.id), watched.cleared)
+        assertTrue(watched.positions.isEmpty())
+        assertTrue(row.entries.value.isEmpty())
+        assertEquals(1, notices.size)
+    }
+
+    @Test
     fun aSelectionMarksEachFileAFewAtATimeAndNamesItsFailuresOnce() = runTest {
         val controller = controller()
         val notices = mutableListOf<MobileFilesNotice>()

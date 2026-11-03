@@ -187,6 +187,9 @@ public sealed interface FilesBrowserEvent {
 
     public data object NavigateBack : FilesBrowserEvent
 
+    /** Every folder above the root closes at once; only the root reloads, and only when stale. */
+    public data object PopToRoot : FilesBrowserEvent
+
     public data object LoadNextPage : FilesBrowserEvent
 
     /** Shows [itemId] when [folderId] is the current folder, reading later pages for it when needed. */
@@ -444,6 +447,7 @@ public object FilesBrowserReducer {
             is FilesBrowserEvent.OpenFolder -> state.openFolder(event.itemId)
             is FilesBrowserEvent.OpenExternalItem -> state.openExternalItem(event.item, event.origin)
             FilesBrowserEvent.NavigateBack -> state.navigateBack()
+            FilesBrowserEvent.PopToRoot -> state.popToRoot()
             FilesBrowserEvent.LoadNextPage -> state.loadNextPage()
             is FilesBrowserEvent.RevealItem -> state.revealItem(event.folderId, event.itemId)
             FilesBrowserEvent.Refresh -> state.refresh()
