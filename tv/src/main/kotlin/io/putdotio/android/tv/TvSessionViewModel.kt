@@ -75,6 +75,7 @@ import io.putdotio.android.tv.watchnext.toWatchNextMedia
 import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackEvent
 import io.putdotio.sdk.files.PlaybackPreference
+import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
@@ -303,9 +304,16 @@ internal class TvSession internal constructor(
     val findNeighbours: suspend (PlaybackTarget) -> PlaybackRepositoryResult<PlaybackNeighbours> =
         playbackRepository::findNeighbours
 
-    fun play(item: FilesItem, start: TvPlayStart = TvPlayStart.Resume) {
+    fun play(item: FilesItem, start: TvPlayStart = TvPlayStart.Resume, fromHome: Boolean = false) {
         durationLookup?.cancel()
-        startPlayback(item, start, fromHome = false)
+        val knowsEnd = item.type != PutioFileType.VIDEO || item.playback?.durationSeconds != null
+        if (start == TvPlayStart.StartOver || knowsEnd) {
+            startPlayback(item, start, fromHome)
+        } else {
+            durationLookup = scope.launch {
+                startPlayback(filesRepository.withListedDuration(item), start, fromHome)
+            }
+        }
     }
 
     /**
@@ -321,15 +329,7 @@ internal class TvSession internal constructor(
         durationLookup?.cancel()
         return when {
             item.isPlayable && playMedia -> {
-                val start = TvPlayStart.Resume
-                val fromHome = origin == FilesOpenOrigin.HOME
-                if (item.playback?.durationSeconds != null) {
-                    startPlayback(item, start, fromHome)
-                } else {
-                    durationLookup = scope.launch {
-                        startPlayback(filesRepository.withListedDuration(item), start, fromHome)
-                    }
-                }
+                play(item, TvPlayStart.Resume, fromHome = origin == FilesOpenOrigin.HOME)
                 TvExternalOpen.PLAYING
             }
             !files.dispatch(FilesBrowserEvent.OpenExternalItem(item, origin)) -> TvExternalOpen.REFUSED
@@ -504,9 +504,6 @@ private suspend fun PlaybackController.answerResumePrompt(answer: PlaybackEvent)
     if (settled is PlaybackContent.AwaitingResume) dispatch(answer)
 }
 
-// A position within 10 s of the end starts over, which needs the duration that search results
-// and single-file reads omit; listing the file itself returns it as the parent. Without one,
-// playback continues from the saved position.
 private suspend fun FilesRepository.withListedDuration(item: FilesItem): FilesItem {
     val listed = (loadFolder(item.id) as? PutioResult.Success)?.value?.parent
     val duration = listed?.takeIf { it.id == item.id }?.playback?.durationSeconds

@@ -530,6 +530,21 @@ class TvSessionViewModelTest {
     }
 
     @Test
+    fun `a video played without its duration looks it up and starts over when it was finished`() = runTest {
+        playbackRepository.savedSeconds = 595.0
+        val video = media(56, "Sintel.mkv", PutioFileType.VIDEO).copy(playback = FilesPlaybackProgress(595.0, null))
+        listedItems[video.id] = video.copy(playback = FilesPlaybackProgress(595.0, 600.0))
+        val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
+
+        session.play(video)
+
+        val started = checkNotNull(session.playback.value).state.value
+        assertEquals(600.0, started.target.durationSeconds)
+        assertTrue(started.content is PlaybackContent.Ready)
+        assertEquals(0L, started.resumePositionMillis)
+    }
+
+    @Test
     fun `a Watch Next card whose file is gone leaves the row and Files explains why`() = runTest {
         val gone = PutioFailure.ApiRejected(404, "NotFound", PutioConfigurationException("404"))
         val recorder = FakeWatchNextRecorder()
