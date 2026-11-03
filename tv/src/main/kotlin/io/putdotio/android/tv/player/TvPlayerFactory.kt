@@ -120,6 +120,12 @@ private class TvSessionPlayer(
     override fun isCommandAvailable(command: Int): Boolean =
         (skipsTracks && TV_SKIP_COMMANDS.contains(command)) || super.isCommandAvailable(command)
 
+    override fun addListener(listener: Player.Listener) =
+        super.addListener(if (skipsTracks) SkipCommandsListener(listener) else listener)
+
+    override fun removeListener(listener: Player.Listener) =
+        super.removeListener(if (skipsTracks) SkipCommandsListener(listener) else listener)
+
     override fun seekToNext() = onSkipRequested?.invoke(true) ?: super.seekToNext()
 
     override fun seekToNextMediaItem() = onSkipRequested?.invoke(true) ?: super.seekToNextMediaItem()
@@ -127,6 +133,15 @@ private class TvSessionPlayer(
     override fun seekToPrevious() = onSkipRequested?.invoke(false) ?: super.seekToPrevious()
 
     override fun seekToPreviousMediaItem() = onSkipRequested?.invoke(false) ?: super.seekToPreviousMediaItem()
+}
+
+private class SkipCommandsListener(private val listener: Player.Listener) : Player.Listener by listener {
+    override fun onAvailableCommandsChanged(availableCommands: Player.Commands) =
+        listener.onAvailableCommandsChanged(withSkipCommands(availableCommands))
+
+    override fun equals(other: Any?): Boolean = other is SkipCommandsListener && other.listener == listener
+
+    override fun hashCode(): Int = listener.hashCode()
 }
 
 internal val TV_SESSION_PLAYER_COMMANDS: Player.Commands = tvSessionPlayerCommands()

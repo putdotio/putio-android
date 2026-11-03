@@ -19,14 +19,22 @@ public fun rememberFolderNeighbours(
             (state.content is PlaybackContent.Ready || state.content == PlaybackContent.Session),
     )
     val target by rememberUpdatedState(state.target)
+    val currentFind by rememberUpdatedState(findNeighbours)
+    val currentOnAuthenticationRequired by rememberUpdatedState(onAuthenticationRequired)
     val neighbours by produceState<PlaybackNeighbours?>(null, state.target.fileId, findNeighbours != null) {
         value = null
-        val find = findNeighbours ?: return@produceState
+        if (currentFind == null) {
+            value = PlaybackNeighbours()
+            return@produceState
+        }
         snapshotFlow { audioReady }.first { it }
+        val find = currentFind ?: return@produceState
         value = when (val result = find(target)) {
             is PlaybackRepositoryResult.Success -> result.value
             is PlaybackRepositoryResult.Failure -> PlaybackNeighbours().also {
-                if (result.failure.putioFailure is PutioFailure.AuthenticationRequired) onAuthenticationRequired()
+                if (result.failure.putioFailure is PutioFailure.AuthenticationRequired) {
+                    currentOnAuthenticationRequired()
+                }
             }
         }
     }

@@ -38,6 +38,7 @@ import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.design.R as DesignR
 import io.putdotio.android.design.fileTypeIconRes
 import io.putdotio.android.playback.PlaybackNeighbours
+import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.sdk.files.PutioFileType
 
 internal const val TV_NOW_PLAYING_TAG = "tv-now-playing"
@@ -49,6 +50,18 @@ internal fun TvPlayerOverlay.skipTrack(forward: Boolean): TvPlayerTransition {
     val skip = if (forward) TvPlayerCommand.PlayFollowing else TvPlayerCommand.PlayPrevious
     return TvPlayerTransition(copy(scrub = null, activity = activity + 1), resume + skip)
 }
+
+internal fun TvPlayerOverlay.queueEnded(next: PlaybackTarget?): TvPlayerTransition =
+    when {
+        exited -> TvPlayerTransition(this)
+        next == null -> exit()
+        else -> TvPlayerTransition(
+            copy(exited = true, scrub = null, sheet = null),
+            listOf(TvPlayerCommand.PlayChosen(next)),
+        )
+    }
+
+internal val PlaybackNeighbours?.hasNextTrack: Boolean get() = this?.next != null
 
 internal class TvNowPlayingState(
     val title: String,
@@ -67,10 +80,6 @@ internal fun TvNowPlaying(
     chipLabels: TvPlayerChipLabels,
     focused: TvPlayerControl,
 ) {
-    val progress = rememberPlayerProgress(player, state.paused, state.startPositionMillis)
-    val shownMillis = state.scrubTargetMillis ?: progress.positionMillis
-    val duration = knownDurationMillis(progress.durationMillis, state.listingDurationMillis)
-    val elapsed = playerTime(shownMillis)
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -104,22 +113,31 @@ internal fun TvNowPlaying(
                         modifier = Modifier.padding(top = 4.dp),
                     )
                 }
-                TvSeekBar(
-                    fraction = duration?.let { (shownMillis.toFloat() / it).coerceIn(0f, 1f) } ?: 0f,
-                    description = duration?.let {
-                        stringResource(R.string.tv_player_seek_bar, elapsed, playerTime(it))
-                    } ?: elapsed,
-                    scrubbing = state.scrubTargetMillis != null,
-                    focused = focused == TvPlayerControl.SeekBar,
-                    modifier = Modifier.padding(top = SEEK_TOP),
-                )
-                Box(Modifier.padding(top = 10.dp)) {
-                    TvPlayerTimes(elapsed = elapsed, remaining = duration?.let(::playerTime))
-                }
+                TvNowPlayingProgress(player, state, seekBarFocused = focused == TvPlayerControl.SeekBar)
                 TvNowPlayingTransport(state, focused)
                 TvPlayerChips(chips = chips, labels = chipLabels, focused = focused)
             }
         }
+    }
+}
+
+@Composable
+private fun TvNowPlayingProgress(player: Player, state: TvNowPlayingState, seekBarFocused: Boolean) {
+    val progress = rememberPlayerProgress(player, state.paused, state.startPositionMillis)
+    val shownMillis = state.scrubTargetMillis ?: progress.positionMillis
+    val duration = knownDurationMillis(progress.durationMillis, state.listingDurationMillis)
+    val elapsed = playerTime(shownMillis)
+    TvSeekBar(
+        fraction = duration?.let { (shownMillis.toFloat() / it).coerceIn(0f, 1f) } ?: 0f,
+        description = duration?.let {
+            stringResource(R.string.tv_player_seek_bar, elapsed, playerTime(it))
+        } ?: elapsed,
+        scrubbing = state.scrubTargetMillis != null,
+        focused = seekBarFocused,
+        modifier = Modifier.padding(top = SEEK_TOP),
+    )
+    Box(Modifier.padding(top = 10.dp)) {
+        TvPlayerTimes(elapsed = elapsed, remaining = duration?.let(::playerTime))
     }
 }
 
@@ -150,7 +168,7 @@ private fun TvNowPlayingTransport(state: TvNowPlayingState, focused: TvPlayerCon
             focused = focused == TvPlayerControl.Next,
             size = SKIP_CIRCLE,
             restAlpha = REST_ALPHA,
-            enabled = state.neighbours?.next != null,
+            enabled = state.neighbours.hasNextTrack,
         )
     }
 }

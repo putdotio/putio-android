@@ -29,13 +29,14 @@ internal fun TvPlayerOverlay.onPlayerKey(
     event: KeyEvent,
     player: Player,
     chips: List<TvPlayerControl>,
+    nextTrack: Boolean,
     apply: (TvPlayerTransition) -> Unit,
 ): Boolean {
     val handled = event.key in TV_PLAYER_KEYS || (nowPlaying && event.key in TV_QUEUE_KEYS)
     if (event.key == Key.Back || !handled) return false
-    val focused = if (controlsVisible) focusIn(chips) else TvPlayerControl.SeekBar
+    val focused = if (controlsVisible) focusIn(chips, nextTrack) else TvPlayerControl.SeekBar
     if (event.type == KeyEventType.KeyDown) {
-        apply(keyDown(event, player, focused, chips))
+        apply(keyDown(event, player, focused, chips, nextTrack))
     } else if (event.type == KeyEventType.KeyUp) {
         keyUp(event.key, player, focused)?.let(apply)
     }
@@ -47,6 +48,7 @@ private fun TvPlayerOverlay.keyDown(
     player: Player,
     focused: TvPlayerControl,
     chips: List<TvPlayerControl>,
+    nextTrack: Boolean,
 ): TvPlayerTransition {
     val direction = event.key.scrubDirection(onSeekBar = focused == TvPlayerControl.SeekBar)
     val move = event.key.focusMove()
@@ -62,7 +64,7 @@ private fun TvPlayerOverlay.keyDown(
                 durationMillis = player.duration,
                 playing = player.playWhenReady,
             )
-        move != null -> moveFocus(move, chips)
+        move != null -> moveFocus(move, chips, nextTrack)
         else -> reveal()
     }
 }
