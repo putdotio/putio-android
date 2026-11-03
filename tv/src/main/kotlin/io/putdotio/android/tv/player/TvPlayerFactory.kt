@@ -76,7 +76,13 @@ internal fun tvMediaSession(context: Context, player: Player): MediaSession.Buil
                     controller: MediaSession.ControllerInfo,
                 ): MediaSession.ConnectionResult =
                     MediaSession.ConnectionResult.AcceptedResultBuilder(session)
-                        .setAvailablePlayerCommands(TV_SESSION_PLAYER_COMMANDS)
+                        .setAvailablePlayerCommands(
+                            if ((session.player as? TvSessionPlayer)?.skipsTracks == true) {
+                                TV_QUEUE_SESSION_PLAYER_COMMANDS
+                            } else {
+                                TV_SESSION_PLAYER_COMMANDS
+                            },
+                        )
                         .build()
             },
         )
@@ -86,16 +92,59 @@ internal fun tvMediaSession(context: Context, player: Player): MediaSession.Buil
  * which decides with the overlay and then plays or pauses [player] itself.
  */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-internal fun tvSessionPlayer(player: Player, onPlayingRequested: (Boolean) -> Unit): Player =
-    object : ForwardingPlayer(player) {
-        override fun play() = onPlayingRequested(true)
+internal fun tvSessionPlayer(
+    player: Player,
+    onSkipRequested: ((forward: Boolean) -> Unit)? = null,
+    onPlayingRequested: (Boolean) -> Unit,
+): Player = TvSessionPlayer(player, onPlayingRequested, onSkipRequested)
 
-        override fun pause() = onPlayingRequested(false)
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+private class TvSessionPlayer(
+    player: Player,
+    private val onPlayingRequested: (Boolean) -> Unit,
+    private val onSkipRequested: ((Boolean) -> Unit)?,
+) : ForwardingPlayer(player) {
+    val skipsTracks: Boolean get() = onSkipRequested != null
 
-        override fun setPlayWhenReady(playWhenReady: Boolean) = onPlayingRequested(playWhenReady)
+    override fun play() = onPlayingRequested(true)
+
+    override fun pause() = onPlayingRequested(false)
+
+    override fun setPlayWhenReady(playWhenReady: Boolean) = onPlayingRequested(playWhenReady)
+
+    override fun getAvailableCommands(): Player.Commands {
+        val commands = super.getAvailableCommands()
+        return if (skipsTracks) withSkipCommands(commands) else commands
     }
 
+    override fun isCommandAvailable(command: Int): Boolean =
+        (skipsTracks && TV_SKIP_COMMANDS.contains(command)) || super.isCommandAvailable(command)
+
+    override fun seekToNext() = onSkipRequested?.invoke(true) ?: super.seekToNext()
+
+    override fun seekToNextMediaItem() = onSkipRequested?.invoke(true) ?: super.seekToNextMediaItem()
+
+    override fun seekToPrevious() = onSkipRequested?.invoke(false) ?: super.seekToPrevious()
+
+    override fun seekToPreviousMediaItem() = onSkipRequested?.invoke(false) ?: super.seekToPreviousMediaItem()
+}
+
 internal val TV_SESSION_PLAYER_COMMANDS: Player.Commands = tvSessionPlayerCommands()
+
+private val TV_SKIP_COMMANDS: Player.Commands = withSkipCommands(Player.Commands.EMPTY)
+
+private val TV_QUEUE_SESSION_PLAYER_COMMANDS: Player.Commands = withSkipCommands(TV_SESSION_PLAYER_COMMANDS)
+
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+private fun withSkipCommands(commands: Player.Commands): Player.Commands = Player.Commands.Builder()
+    .addAll(commands)
+    .addAll(
+        Player.COMMAND_SEEK_TO_NEXT,
+        Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM,
+        Player.COMMAND_SEEK_TO_PREVIOUS,
+        Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM,
+    )
+    .build()
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 private fun tvSessionPlayerCommands(): Player.Commands = Player.Commands.Builder()

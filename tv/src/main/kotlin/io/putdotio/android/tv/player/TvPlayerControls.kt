@@ -40,6 +40,7 @@ import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
@@ -87,34 +88,9 @@ internal fun TvPlayerControls(
     modifier: Modifier = Modifier,
     circles: Boolean = true,
 ) {
-    var positionMillis by remember(player) {
-        mutableLongStateOf(
-            if (player.currentMediaItem == null) startPositionMillis else player.currentPosition.coerceAtLeast(0L),
-        )
-    }
-    var durationMillis by remember(player) { mutableLongStateOf(player.duration) }
-    DisposableEffect(player) {
-        val listener = object : Player.Listener {
-            override fun onEvents(player: Player, events: Player.Events) {
-                if (events.containsAny(Player.EVENT_TIMELINE_CHANGED, Player.EVENT_POSITION_DISCONTINUITY)) {
-                    positionMillis = player.currentPosition.coerceAtLeast(0L)
-                    durationMillis = player.duration
-                }
-            }
-        }
-        player.addListener(listener)
-        onDispose { player.removeListener(listener) }
-    }
-    LaunchedEffect(player, paused) {
-        while (true) {
-            if (player.currentMediaItem != null) positionMillis = player.currentPosition.coerceAtLeast(0L)
-            durationMillis = player.duration
-            if (paused) break
-            delay(TV_PLAYER_POSITION_POLL_MILLIS)
-        }
-    }
-    val shownMillis = scrubTargetMillis ?: positionMillis
-    val knownDuration = knownDurationMillis(durationMillis, listingDurationMillis)
+    val progress = rememberPlayerProgress(player, paused, startPositionMillis)
+    val shownMillis = scrubTargetMillis ?: progress.positionMillis
+    val knownDuration = knownDurationMillis(progress.durationMillis, listingDurationMillis)
     val elapsed = playerTime(shownMillis)
     val seekBarDescription = knownDuration?.let {
         stringResource(R.string.tv_player_seek_bar, elapsed, playerTime(it))
@@ -146,6 +122,39 @@ internal fun TvPlayerControls(
             }
         }
     }
+}
+
+internal data class TvPlayerProgress(val positionMillis: Long, val durationMillis: Long)
+
+@Composable
+internal fun rememberPlayerProgress(player: Player, paused: Boolean, startPositionMillis: Long): TvPlayerProgress {
+    var positionMillis by remember(player) {
+        mutableLongStateOf(
+            if (player.currentMediaItem == null) startPositionMillis else player.currentPosition.coerceAtLeast(0L),
+        )
+    }
+    var durationMillis by remember(player) { mutableLongStateOf(player.duration) }
+    DisposableEffect(player) {
+        val listener = object : Player.Listener {
+            override fun onEvents(player: Player, events: Player.Events) {
+                if (events.containsAny(Player.EVENT_TIMELINE_CHANGED, Player.EVENT_POSITION_DISCONTINUITY)) {
+                    positionMillis = player.currentPosition.coerceAtLeast(0L)
+                    durationMillis = player.duration
+                }
+            }
+        }
+        player.addListener(listener)
+        onDispose { player.removeListener(listener) }
+    }
+    LaunchedEffect(player, paused) {
+        while (true) {
+            if (player.currentMediaItem != null) positionMillis = player.currentPosition.coerceAtLeast(0L)
+            durationMillis = player.duration
+            if (paused) break
+            delay(TV_PLAYER_POSITION_POLL_MILLIS)
+        }
+    }
+    return TvPlayerProgress(positionMillis, durationMillis)
 }
 
 internal fun Modifier.tvPlayerEdges(): Modifier = tvSafeAreaPadding().padding(vertical = PLAYER_EDGE_EXTRA)
@@ -208,15 +217,17 @@ private fun TvPlayerCircles(paused: Boolean, focused: TvPlayerControl, modifier:
 }
 
 @Composable
-private fun TvPlayerCircle(
+internal fun TvPlayerCircle(
     @DrawableRes icon: Int,
     description: String,
     focused: Boolean,
     size: Dp,
     restAlpha: Float,
     seconds: Boolean = false,
+    enabled: Boolean = true,
 ) {
-    val content = if (focused) TvFocus.content else MaterialTheme.colorScheme.onSurface
+    val rest = MaterialTheme.colorScheme.onSurface.let { if (enabled) it else it.copy(alpha = DISABLED_ALPHA) }
+    val content = if (focused) TvFocus.content else rest
     Box(
         modifier = Modifier
             .size(size)
@@ -226,6 +237,7 @@ private fun TvPlayerCircle(
                 contentDescription = description
                 role = Role.Button
                 selected = focused
+                if (!enabled) disabled()
             },
         contentAlignment = Alignment.Center,
     ) {
@@ -247,7 +259,7 @@ private fun TvPlayerCircle(
 }
 
 @Composable
-private fun TvPlayerTimes(elapsed: String, remaining: String?) {
+internal fun TvPlayerTimes(elapsed: String, remaining: String?) {
     Row(
         modifier = Modifier.fillMaxWidth().height(TIMES_HEIGHT),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -266,7 +278,7 @@ private fun TvPlayerTimes(elapsed: String, remaining: String?) {
 }
 
 @Composable
-private fun TvSeekBar(
+internal fun TvSeekBar(
     fraction: Float,
     description: String,
     scrubbing: Boolean,
@@ -309,7 +321,7 @@ private fun TvSeekBar(
 }
 
 @Composable
-private fun TvPlayerChips(chips: List<TvPlayerControl>, labels: TvPlayerChipLabels, focused: TvPlayerControl) {
+internal fun TvPlayerChips(chips: List<TvPlayerControl>, labels: TvPlayerChipLabels, focused: TvPlayerControl) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -389,7 +401,7 @@ private fun TvPlayerChip(
     }
 }
 
-private fun knownDurationMillis(playerMillis: Long, listingMillis: Long?): Long? =
+internal fun knownDurationMillis(playerMillis: Long, listingMillis: Long?): Long? =
     playerMillis.takeIf { it != C.TIME_UNSET && it > 0L } ?: listingMillis?.takeIf { it > 0L }
 
 internal fun playerTime(millis: Long): String =
@@ -415,6 +427,7 @@ private const val ICON_FRACTION = 0.55f
 private const val CIRCLE_ALPHA = 0.55f
 private const val BIG_CIRCLE_ALPHA = 0.6f
 private const val TRACK_ALPHA = 0.3f
+private const val DISABLED_ALPHA = 0.38f
 private val CIRCLE = 56.dp
 private val BIG_CIRCLE = 72.dp
 private val CIRCLE_GAP = 56.dp

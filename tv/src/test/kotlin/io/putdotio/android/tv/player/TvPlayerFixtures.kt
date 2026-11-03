@@ -112,8 +112,9 @@ internal fun readyState(
     name: String = "Sintel.mp4",
     resumePositionMillis: Long? = null,
     useStartFrom: Boolean = false,
+    mediaType: PlaybackMediaType = PlaybackMediaType.VIDEO,
 ) = playbackState(
-    target = PlaybackTarget(FilesItemId(9), name, PlaybackMediaType.VIDEO),
+    target = PlaybackTarget(FilesItemId(9), name, mediaType),
     content = PlaybackContent.Ready(source(), useStartFrom),
     nextRequestValue = 2L,
     resumePositionMillis = resumePositionMillis,
@@ -186,7 +187,8 @@ internal class FakePlayer : SimpleBasePlayer(Looper.getMainLooper()) {
     }
 
     override fun handleSeek(mediaItemIndex: Int, positionMs: Long, seekCommand: Int): ListenableFuture<*> {
-        state = state.buildUpon().setContentPositionMs(positionMs).build()
+        val playbackState = if (state.playbackState == STATE_ENDED) STATE_READY else state.playbackState
+        state = state.buildUpon().setContentPositionMs(positionMs).setPlaybackState(playbackState).build()
         return Futures.immediateVoidFuture()
     }
 

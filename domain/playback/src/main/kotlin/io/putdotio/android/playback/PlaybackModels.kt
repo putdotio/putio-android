@@ -120,7 +120,7 @@ public sealed interface PlaybackEvent {
 
     public data object PlayerEnded : PlaybackEvent
 
-    /** The viewer asked for [target], the next video the folder found, before this one ended. */
+    /** The viewer asked for [target], another file of the playing one's media type, such as its next video. */
     public data class NextChosen(
         val target: PlaybackTarget,
     ) : PlaybackEvent

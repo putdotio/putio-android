@@ -231,6 +231,22 @@ class PlaybackReducerTest {
     }
 
     @Test
+    fun playingAudioMovesToAnotherAudioFileOfItsFolder() {
+        val song = PlaybackTarget(FilesItemId(50L), "01 song.mp3", PlaybackMediaType.AUDIO)
+        val next = PlaybackTarget(FilesItemId(51L), "02 song.mp3", PlaybackMediaType.AUDIO)
+        val playing = PlaybackReducer.reduce(
+            PlaybackReducer.start(song).state,
+            PlaybackEvent.ResolveSucceeded(PlaybackRequestId(1L), PlaybackResolution.Ready(playbackSource())),
+        ).state
+
+        val resolving = PlaybackReducer.reduce(playing, PlaybackEvent.NextChosen(next))
+
+        assertEquals(next, resolving.state.target)
+        assertEquals(PlaybackEffect.Resolve(next, PlaybackRequestId(2L)), resolving.effect)
+        assertFalse(PlaybackReducer.reduce(playing, PlaybackEvent.NextChosen(Target)).consumed)
+    }
+
+    @Test
     fun failedResolutionAfterAutoplayRetriesTheAdvancedTarget() {
         val finding = PlaybackReducer.reduce(readyState(), PlaybackEvent.PlayerEnded)
         val next = PlaybackTarget(FilesItemId(43L), "next.mkv")

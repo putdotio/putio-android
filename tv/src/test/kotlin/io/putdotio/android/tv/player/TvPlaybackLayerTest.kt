@@ -33,6 +33,7 @@ import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.openTab
+import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.tv.TvDestination
 import io.putdotio.android.tv.TvShell
 import io.putdotio.android.tv.auth.TvAccount
@@ -93,6 +94,37 @@ class TvPlaybackLayerTest {
         assertNull(playing)
         assertTrue(player.released)
         compose.onNodeWithContentDescription("Play Sintel.mp4").assertIsFocused()
+    }
+
+    @Test
+    fun backFromNowPlayingReturnsToItsFilesRowAtOnce() {
+        val player = FakePlayer()
+        val files = filesBrowserState(
+            stack = listOf(
+                FilesFolderState(
+                    FilesFolder.Root,
+                    FilesContent.Ready(
+                        listOf(row(1, "notes.txt", PutioFileType.TEXT), row(9, "song.mp3", PutioFileType.AUDIO)),
+                        FilesPaging.Complete,
+                    ),
+                ),
+            ),
+            nextRequestValue = 10L,
+        )
+        var playing by mutableStateOf<FilesItem?>(null)
+        setFilesWithPlayback(files, mutableMapOf(), player, playing = { playing }, onPlaying = { playing = it })
+        compose.openTab(TvDestination.Files)
+        compose.onNodeWithContentDescription("notes.txt").assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionDown)
+        }
+        compose.onNodeWithContentDescription("Play song.mp3").assertIsFocused().performKeyInput { pressCenter() }
+        compose.onNodeWithTag(TV_NOW_PLAYING_TAG).assertIsDisplayed()
+
+        compose.back()
+
+        assertNull(playing)
+        assertTrue(player.released)
+        compose.onNodeWithContentDescription("Play song.mp3").assertIsFocused()
     }
 
     @Test
@@ -162,7 +194,10 @@ class TvPlaybackLayerTest {
                 player = {
                     val item = checkNotNull(playing())
                     TvPlayerScreen(
-                        state = readyState(name = item.name),
+                        state = readyState(
+                            name = item.name,
+                            mediaType = checkNotNull(PlaybackMediaType.fromFileType(item.type)),
+                        ),
                         onBack = { onPlaying(null) },
                         onRetry = {},
                         onResume = {},

@@ -21,6 +21,7 @@ import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.playback.SubtitleStartupPolicy
 import io.putdotio.android.playback.playerFailureTelemetry
 import io.putdotio.android.playback.putioFailure
+import io.putdotio.android.playback.rememberFolderNeighbours
 import io.putdotio.android.playback.rememberNextEpisode
 import io.putdotio.android.telemetry.AnalyticsEvent
 import io.putdotio.android.telemetry.ProductAnalytics
@@ -72,6 +73,7 @@ internal fun TvPlaybackRoute(
     val state by controller.state.collectAsStateWithLifecycle()
     val nextEpisode = rememberNextEpisode(state, findNextEpisode, onSessionRejected)
     val upNext = rememberUpNext(state, findUpNext.takeIf { autoplayNextVideo }, onSessionRejected)
+    val neighbours = rememberFolderNeighbours(state, findUpNext, onSessionRejected)
     val vlcScope = rememberCoroutineScope()
     var vlcNotice by remember { mutableStateOf<Int?>(null) }
     var vlcHandoff by remember { mutableStateOf<Job?>(null) }
@@ -118,6 +120,7 @@ internal fun TvPlaybackRoute(
         upNext = upNext,
         onOpenInVlc = handOffToVlc,
         onPlayInVlc = handOffToVlc?.takeIf { vlcInstalled },
+        neighbours = neighbours,
     )
     vlcNotice?.let { notice -> TvNoticeDialog(title = stringResource(notice), onDismiss = { vlcNotice = null }) }
 }

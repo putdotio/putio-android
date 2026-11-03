@@ -866,6 +866,20 @@
     },
     {
       "resDir": "tv/src/main/res",
+      "resource": "ic_ph_skip_back_fill",
+      "asset": "assets/fill/skip-back-fill.svg",
+      "sourceSha256": "65a2d664196ad28fff7288ed7a1870f508fdb922334ad1a49c54586dae7592d7",
+      "outputSha256": "3a1ae1fa899296220388859c3a03a6c1f866b10a8acf24da9731effe930554d8"
+    },
+    {
+      "resDir": "tv/src/main/res",
+      "resource": "ic_ph_skip_forward_fill",
+      "asset": "assets/fill/skip-forward-fill.svg",
+      "sourceSha256": "2f13f5cbeab47627d30782e7942001e7f80f7da993df053d3be2b8c6cb737ae2",
+      "outputSha256": "d3ce9d910ca5c2338f65f50aa0ae9fc325a0b6176a6cbfa03b643207d8fb1f30"
+    },
+    {
+      "resDir": "tv/src/main/res",
       "resource": "ic_ph_text_aa",
       "asset": "assets/regular/text-aa.svg",
       "sourceSha256": "e964560ce335191f6bfc660ee8be894d6459561516152f9fceaddb0b8d00b0d2",

@@ -23,13 +23,16 @@ private val TV_PLAYER_KEYS = setOf(
     Key.MediaRewind,
 )
 
+private val TV_QUEUE_KEYS = setOf(Key.MediaNext, Key.MediaPrevious)
+
 internal fun TvPlayerOverlay.onPlayerKey(
     event: KeyEvent,
     player: Player,
     chips: List<TvPlayerControl>,
     apply: (TvPlayerTransition) -> Unit,
 ): Boolean {
-    if (event.key == Key.Back || event.key !in TV_PLAYER_KEYS) return false
+    val handled = event.key in TV_PLAYER_KEYS || (nowPlaying && event.key in TV_QUEUE_KEYS)
+    if (event.key == Key.Back || !handled) return false
     val focused = if (controlsVisible) focusIn(chips) else TvPlayerControl.SeekBar
     if (event.type == KeyEventType.KeyDown) {
         apply(keyDown(event, player, focused, chips))
@@ -79,11 +82,13 @@ private fun TvPlayerOverlay.keyUp(key: Key, player: Player, focused: TvPlayerCon
                     reveal()
                 }
             TvPlayerControl.NextEpisode -> chooseNext()
+            TvPlayerControl.Previous, TvPlayerControl.Next -> skipTrack(forward = focused == TvPlayerControl.Next)
             else -> openSheet(focused)
         }
         Key.MediaPlayPause -> select(player.playWhenReady)
         Key.MediaPlay -> setPlaying(play = true)
         Key.MediaPause -> setPlaying(play = false)
+        Key.MediaPrevious, Key.MediaNext -> skipTrack(forward = key == Key.MediaNext)
         else -> null
     }
 

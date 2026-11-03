@@ -17,11 +17,13 @@ internal fun PlaybackState.playerEnded(): PlaybackTransition {
     )
 }
 
-/** Next episode plays a playing video's next one at once, even one this opening already played. */
 internal fun PlaybackState.nextChosen(event: PlaybackEvent.NextChosen): PlaybackTransition {
-    val playingVideo = content is PlaybackContent.Ready && target.mediaType == PlaybackMediaType.VIDEO
-    val anotherVideo = event.target.mediaType == PlaybackMediaType.VIDEO && event.target.fileId != target.fileId
-    return if (playingVideo && anotherVideo) resolveNext(event.target) else PlaybackTransition(this, consumed = false)
+    val another = event.target.mediaType == target.mediaType && event.target.fileId != target.fileId
+    return if (content is PlaybackContent.Ready && another) {
+        resolveNext(event.target)
+    } else {
+        PlaybackTransition(this, consumed = false)
+    }
 }
 
 /** What the folder's next video means for this state: found, chosen, none, or a failed lookup. */
