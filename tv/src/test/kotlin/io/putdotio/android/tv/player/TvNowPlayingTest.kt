@@ -188,6 +188,30 @@ class TvNowPlayingTest {
     }
 
     @Test
+    fun theSystemCannotSkipTracksWhileTheAppIsStopped() {
+        val owner = object : LifecycleOwner {
+            val registry = LifecycleRegistry(this).apply { currentState = Lifecycle.State.RESUMED }
+            override val lifecycle: Lifecycle get() = registry
+        }
+        val controller = showFolder(start = SECOND, lifecycleOwner = owner)
+        val session = connect(sessions.last())
+
+        compose.runOnIdle { owner.registry.currentState = Lifecycle.State.CREATED }
+        compose.waitForIdle()
+        session.seekToNext()
+        idleSession()
+        compose.runOnIdle { owner.registry.currentState = Lifecycle.State.RESUMED }
+        compose.waitForIdle()
+
+        compose.runOnIdle {
+            assertEquals(SECOND.fileId, controller.state.value.target.fileId)
+            assertEquals(1, players.size)
+            assertFalse(players.last().playWhenReady)
+        }
+        session.release()
+    }
+
+    @Test
     fun theSystemsSkipControlsMoveThroughTheFolder() {
         val controller = showFolder(start = SECOND)
         val session = connect(sessions.last())

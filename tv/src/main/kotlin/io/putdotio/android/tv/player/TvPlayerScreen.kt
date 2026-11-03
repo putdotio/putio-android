@@ -331,7 +331,8 @@ private fun TvReadyPlayer(
             context,
             tvSessionPlayer(
                 player,
-                onSkipRequested = { forward: Boolean -> apply(overlay.skipTrack(forward)) }.takeIf { nowPlaying },
+                onSkipRequested = lifecycle.whileStarted { forward -> apply(overlay.skipTrack(forward)) }
+                    .takeIf { nowPlaying },
             ) { play ->
                 if (!play || lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
                     apply(overlay.sessionPlaying(play))
@@ -614,6 +615,9 @@ private fun TvQueueEndEffect(
         if (ended && (next == null || !playChosen(next))) exit()
     }
 }
+
+private fun Lifecycle.whileStarted(block: (Boolean) -> Unit): (Boolean) -> Unit =
+    { value -> if (currentState.isAtLeast(Lifecycle.State.STARTED)) block(value) }
 
 private fun tvPlayerOverlay(nowPlaying: Boolean, nowPlayingFocus: TvPlayerControl) = TvPlayerOverlay(
     nowPlaying = nowPlaying,
