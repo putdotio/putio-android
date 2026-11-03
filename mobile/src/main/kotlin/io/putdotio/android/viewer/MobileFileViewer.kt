@@ -52,6 +52,7 @@ import io.putdotio.android.R
 import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesPdfDocument
 import io.putdotio.android.files.FilesViewerKind
 import io.putdotio.android.files.viewerKind
@@ -71,7 +72,7 @@ internal class MobileFileViewerActions(
 )
 
 internal class MobileFileViewerPaging(
-    val nextPage: Any? = null,
+    val nextPage: FilesPaging.Available? = null,
     val more: Boolean = false,
     val onLoadNextPage: () -> Unit = {},
     val failed: Boolean = false,
@@ -79,7 +80,7 @@ internal class MobileFileViewerPaging(
 )
 
 private sealed interface ViewerPageAsk {
-    data class Next(val page: Any) : ViewerPageAsk
+    data class Next(val page: FilesPaging.Available) : ViewerPageAsk
 
     data class Retry(val fromPage: Int) : ViewerPageAsk
 }
@@ -88,7 +89,8 @@ private sealed interface ViewerPageAsk {
  * Images, PDFs and text on a black frame, over the whole window. The name and the file's actions
  * sit on a top scrim; a swipe moves between the folder's files of the same kind, and the position
  * shows in mono below. [files] are those files in listing order; [onShown] follows the swipe.
- * Near the last of them the folder's next page loads, so a swipe reaches every file it holds.
+ * Near the last of them the folder's next page loads, so a swipe reaches every file it holds; after
+ * [VIEWER_FRUITLESS_PAGES] pages in a row bring none of this kind, it stops reading.
  */
 @Composable
 internal fun MobileFileViewer(
@@ -162,7 +164,7 @@ internal fun MobileFileViewerContent(
                 position = pager.currentPage + 1,
                 count = files.size,
                 more = paging.more,
-                shown = files.size > 1,
+                shown = files.size > 1 || paging.more,
             )
             Spacer(Modifier.windowInsetsBottomHeight(WindowInsets.safeDrawing))
         }
@@ -228,6 +230,8 @@ private fun LoadNextPageNearLast(pager: PagerState, count: Int, paging: MobileFi
     val currentPaging by rememberUpdatedState(paging)
     val currentCount by rememberUpdatedState(count)
     LaunchedEffect(pager) {
+        var askedAtCount = -1
+        var fruitless = 0
         snapshotFlow {
             val near = pager.settledPage >= currentCount - 1 - VIEWER_PAGING_THRESHOLD
             val next = currentPaging.nextPage
@@ -242,7 +246,15 @@ private fun LoadNextPageNearLast(pager: PagerState, count: Int, paging: MobileFi
             .distinctUntilChanged()
             .collect { ask ->
                 when (ask) {
-                    is ViewerPageAsk.Next -> currentPaging.onLoadNextPage()
+                    is ViewerPageAsk.Next -> {
+                        if (currentCount > askedAtCount) {
+                            askedAtCount = currentCount
+                            fruitless = 0
+                        } else {
+                            fruitless++
+                        }
+                        if (fruitless < VIEWER_FRUITLESS_PAGES) currentPaging.onLoadNextPage()
+                    }
                     is ViewerPageAsk.Retry -> currentPaging.onRetry()
                 }
             }
@@ -303,4 +315,5 @@ internal val VIEWER_CONTENT_BOTTOM = 16.dp
 
 private const val VIEWER_SCRIM_ALPHA = 0.6f
 private const val VIEWER_PAGING_THRESHOLD = 5
+internal const val VIEWER_FRUITLESS_PAGES = 3
 private val VIEWER_POSITION_BOTTOM = 16.dp
