@@ -76,6 +76,8 @@ internal sealed interface TvFilesAction {
 
     data class SetPinned(val pinned: Boolean) : TvFilesAction
 
+    data object RemoveFromContinueWatching : TvFilesAction
+
     data class Delete(val trash: Boolean) : TvFilesAction
 }
 
@@ -133,7 +135,7 @@ internal fun TvFilesActionHandlers.run(action: TvFilesAction, item: FilesItem) {
         TvFilesAction.OpenInVlc -> onOpenInVlc(item)
         is TvFilesAction.SetWatched -> onSetWatched(item, action.watched)
         is TvFilesAction.SetPinned -> onSetPinned(item, action.pinned)
-        is TvFilesAction.Delete -> Unit
+        is TvFilesAction.Delete, TvFilesAction.RemoveFromContinueWatching -> Unit
     }
 }
 
@@ -195,9 +197,10 @@ internal fun TvFilesActionsSheet(
     onAction: (TvFilesAction) -> Unit,
     onDismiss: () -> Unit,
     returnFocus: FocusRequester? = null,
+    meta: AnnotatedString? = null,
 ) {
     TvSideSheet(onDismiss = onDismiss, returnFocus = returnFocus, scrim = FILES_SHEET_SCRIM) { focus ->
-        TvFilesActionsHeader(item)
+        TvFilesActionsHeader(item, meta ?: headerMeta(item))
         val tiles = actions.filterIsInstance<TvFilesAction.Tile>()
         val rows = actions.filterNot { it is TvFilesAction.Tile || it is TvFilesAction.Delete }
         val delete = actions.filterIsInstance<TvFilesAction.Delete>().firstOrNull()
@@ -256,7 +259,7 @@ internal fun TvFilesActionsSheet(
 }
 
 @Composable
-private fun TvFilesActionsHeader(item: FilesItem) {
+private fun TvFilesActionsHeader(item: FilesItem, meta: AnnotatedString) {
     Row(
         modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = HEADER_BOTTOM),
         horizontalArrangement = Arrangement.spacedBy(HEADER_GAP),
@@ -278,7 +281,7 @@ private fun TvFilesActionsHeader(item: FilesItem) {
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = headerMeta(item),
+                text = meta,
                 style = PutioTypeScale.tvMeta,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = HEADER_META_GAP),
@@ -347,6 +350,7 @@ internal fun TvFilesAction.label(): String =
                 if (watched) R.string.tv_files_action_mark_watched else R.string.tv_files_action_mark_unwatched
             is TvFilesAction.SetPinned -> if (pinned) R.string.tv_files_action_pin else R.string.tv_files_action_unpin
             is TvFilesAction.Delete -> if (trash) R.string.tv_files_action_trash else R.string.tv_files_action_delete
+            TvFilesAction.RemoveFromContinueWatching -> R.string.tv_home_remove_continue_watching
         },
     )
 
@@ -359,6 +363,7 @@ internal fun TvFilesAction.icon(): Int =
         is TvFilesAction.SetWatched -> if (watched) R.drawable.ic_ph_eye else R.drawable.ic_ph_eye_slash
         is TvFilesAction.SetPinned -> if (pinned) R.drawable.ic_ph_push_pin else R.drawable.ic_ph_push_pin_slash
         is TvFilesAction.Delete -> R.drawable.ic_ph_trash
+        TvFilesAction.RemoveFromContinueWatching -> R.drawable.ic_ph_x
     }
 
 @Composable

@@ -60,9 +60,6 @@ import io.putdotio.android.settings.confirmedResumePlayback
 import io.putdotio.android.settings.confirmedTrashEnabled
 import io.putdotio.android.tv.files.openInVlc
 import io.putdotio.android.tv.files.tvMessageText
-import io.putdotio.android.tv.TvNoticeDialog
-import androidx.compose.runtime.withFrameNanos
-import io.putdotio.android.tv.returnFocusFromSheet
 import androidx.compose.ui.platform.LocalContext
 import io.putdotio.android.trash.TrashContent
 import io.putdotio.android.trash.TrashState
@@ -95,6 +92,8 @@ import io.putdotio.android.tv.history.TvHistoryScreen
 import io.putdotio.android.tv.account.TvShowHome
 import io.putdotio.android.tv.home.TvDeviceShowHomeStore
 import io.putdotio.android.tv.home.TvHomeActions
+import io.putdotio.android.tv.home.TvHomeNotice
+import io.putdotio.android.tv.removeFromContinueWatching
 import io.putdotio.android.tv.home.TvHomeScreen
 import io.putdotio.android.tv.trash.TvTrashScreen
 import io.putdotio.android.trash.SdkTrashRepository
@@ -240,6 +239,7 @@ internal fun TvSessionShell(
     val undoFailure by session.trashUndo.failure.collectAsStateWithLifecycle()
     val showHome by session.showHome.shown.collectAsStateWithLifecycle()
     val homeReturn by session.homeReturn.file.collectAsStateWithLifecycle()
+    val continueWatchingFailure by session.continueWatchingFailure.failure.collectAsStateWithLifecycle()
     // A 401 from the proxy list is as authoritative as one from any controller.
     var tunnelRoutesRejected by remember(session) { mutableStateOf(false) }
     val controllerRejected = listOf(
@@ -258,6 +258,7 @@ internal fun TvSessionShell(
             linkOpenFailure,
             pinsFailure,
             pinRejected,
+            continueWatchingFailure,
             undoFailure?.failure,
             searchFolderNamesRejected,
         ).any { it is PutioFailure.AuthenticationRequired }
@@ -362,14 +363,18 @@ internal fun TvSessionShell(
                             onBrowseFiles = { requestedDestination = TvDestination.Files },
                             onRetryPinned = session.homePins::retry,
                             onUnpin = { item -> session.pins.unpin(item.id) },
+                            onRemoveFromContinueWatching = session::removeFromContinueWatching,
                         )
                     },
                     paneFocus = paneFocus,
                     onShown = session.homePins::refresh,
                     returnTo = homeReturn,
                     onReturned = session.homeReturn::handled,
+                    continueWatchingFailure = continueWatchingFailure,
+                    onDismissContinueWatchingFailure = session.continueWatchingFailure::dismiss,
                 )
-                TvHomePinNotice(session, paneFocus)
+                val pinFailure by session.pins.editFailure.collectAsStateWithLifecycle()
+                TvHomeNotice(pinFailure, R.string.tv_files_pin_error, session.pins::dismissEditFailure, paneFocus)
             },
             requestedDestination = requestedDestination,
             onDestinationRequestHandled = { requestedDestination = null },
@@ -442,26 +447,6 @@ internal fun TvSessionShell(
                     paneFocus = paneFocus,
                 )
             },
-        )
-    }
-}
-
-@Composable
-private fun TvHomePinNotice(session: TvSession, paneFocus: FocusRequester) {
-    val failure by session.pins.editFailure.collectAsStateWithLifecycle()
-    val showing = failure.shown()
-    val wasShowing = remember { mutableStateOf(false) }
-    LaunchedEffect(showing) {
-        val closed = wasShowing.value && !showing
-        wasShowing.value = showing
-        if (!closed) return@LaunchedEffect
-        withFrameNanos {}
-        paneFocus.returnFocusFromSheet()
-    }
-    failure?.takeIf { it.shown() }?.let {
-        TvNoticeDialog(
-            title = stringResource(R.string.tv_files_pin_error, it.tvMessageText()),
-            onDismiss = session.pins::dismissEditFailure,
         )
     }
 }
