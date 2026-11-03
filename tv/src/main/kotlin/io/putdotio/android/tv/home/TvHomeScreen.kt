@@ -156,6 +156,7 @@ internal fun TvHomeScreen(
         continueWatching = continueWatching,
         actions = actions,
         paneFocus = paneFocus,
+        paneFocused = retry::paneFocused,
     )
     TvHomePinNotice(pinFailure, onDismissPinFailure, paneFocus)
     if (continueWatching.isEmpty() && pinnedCards?.isEmpty() == true) {
@@ -193,6 +194,7 @@ internal fun TvHomeScreen(
                             onClick = { actions.onResume(entry) },
                             onLongClick = { left -> continueSheet.open(entry.toFilesItem(), meta = left) },
                             modifier = Modifier
+                                .tracksCardFocus(entry.fileId, continueSheet, pinSheet)
                                 .focusRequesterIf(index == continueReturn, returnFocus)
                                 .focusRequesterIf(entry.fileId == continueSheet.cardId, continueSheet.card),
                         )
@@ -228,6 +230,7 @@ internal fun TvHomeScreen(
                                 onClick = { actions.onOpen(card.item) },
                                 onLongClick = { pinSheet.open(card.item) },
                                 modifier = Modifier
+                                    .tracksCardFocus(card.item.id, pinSheet, continueSheet)
                                     .focusRequesterIf(index == pinnedReturn, returnFocus)
                                     .focusRequesterIf(index == 0, retry.pinnedFocus)
                                     .focusRequesterIf(card.item.id == pinSheet.cardId, pinSheet.card),
@@ -248,6 +251,7 @@ private fun TvHomeSheets(
     continueWatching: List<ContinueWatchingEntry>,
     actions: TvHomeActions,
     paneFocus: FocusRequester,
+    paneFocused: () -> Boolean,
 ) {
     TvHomeCardSheetHost(
         sheet = pinSheet,
@@ -255,6 +259,7 @@ private fun TvHomeSheets(
         action = TvFilesAction.SetPinned(pinned = false),
         onRemove = { id -> pinnedCards.firstOrNull { it.item.id == id }?.let { actions.onUnpin(it.item) } },
         paneFocus = paneFocus,
+        paneFocused = paneFocused,
     )
     TvHomeCardSheetHost(
         sheet = continueSheet,
@@ -264,6 +269,7 @@ private fun TvHomeSheets(
             continueWatching.firstOrNull { it.fileId == id }?.let(actions.onRemoveFromContinueWatching)
         },
         paneFocus = paneFocus,
+        paneFocused = paneFocused,
     )
 }
 
@@ -292,15 +298,19 @@ private fun TvHomeCardSheetHost(
     action: TvFilesAction,
     onRemove: (FilesItemId) -> Unit,
     paneFocus: FocusRequester,
+    paneFocused: () -> Boolean,
 ) {
     SideEffect { sheet.track(cards) }
     val removed = sheet.removed
     val gone = removed != null && removed !in cards
+    val held = remember(gone) { gone && sheet.removedHeldFocus && paneFocused() }
     LaunchedEffect(gone) {
         if (!gone) return@LaunchedEffect
-        val next = sheet.retarget(cards)
-        withFrameNanos {}
-        (if (next) sheet.card else paneFocus).returnFocusFromSheet()
+        if (held) {
+            val next = sheet.retarget(cards)
+            withFrameNanos {}
+            (if (next) sheet.card else paneFocus).returnFocusFromSheet()
+        }
         sheet.handedOff()
     }
     val item = sheet.item ?: return
@@ -313,6 +323,14 @@ private fun TvHomeCardSheetHost(
         meta = sheet.meta,
     )
 }
+
+private fun Modifier.tracksCardFocus(id: FilesItemId, row: TvHomeCardSheet, other: TvHomeCardSheet): Modifier =
+    onFocusChanged {
+        if (it.hasFocus) {
+            row.focusMoved(id)
+            other.focusMoved(null)
+        }
+    }
 
 @Stable
 private class TvHomeCardSheet {
@@ -327,6 +345,10 @@ private class TvHomeCardSheet {
         private set
 
     private var removedAt = -1
+    private var focusedCard: FilesItemId? = null
+
+    val removedHeldFocus: Boolean
+        get() = removed != null && focusedCard == removed
 
     fun open(card: FilesItem, meta: AnnotatedString? = null) {
         item = card
@@ -360,15 +382,25 @@ private class TvHomeCardSheet {
     fun handedOff() {
         removed = null
     }
+
+    fun focusMoved(to: FilesItemId?) {
+        focusedCard = to
+    }
 }
 
 /**
  * After a pressed Try again, the pinned row's next state takes focus: its first card, the Browse
  * button or Continue watching when nothing is pinned, or the Try again of a fresh failure.
  */
-private class TvPinnedRetry(val tracksPaneFocus: Modifier, private val pressed: MutableState<Boolean>) {
+private class TvPinnedRetry(
+    val tracksPaneFocus: Modifier,
+    private val pressed: MutableState<Boolean>,
+    private val paneHasFocus: MutableState<Boolean>,
+) {
     val retryFocus = FocusRequester()
     val pinnedFocus = FocusRequester()
+
+    fun paneFocused(): Boolean = paneHasFocus.value
 
     fun press(retry: () -> Unit) {
         pressed.value = true
@@ -392,6 +424,7 @@ private fun rememberTvPinnedRetry(pinned: TvPinnedRow, paneFocus: FocusRequester
                     }
                 },
             pressed = pressed,
+            paneHasFocus = paneHasFocus,
         )
     }
     LaunchedEffect(pinned) {

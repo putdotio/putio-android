@@ -530,6 +530,21 @@ class TvSessionViewModelTest {
     }
 
     @Test
+    fun `a finished video played without its duration starts over`() = runTest {
+        playbackRepository.savedSeconds = 595.0
+        val video = media(56, "Sintel.mkv", PutioFileType.VIDEO).copy(playback = FilesPlaybackProgress(595.0, null))
+        playbackRepository.listedDurations[video.id] = 600.0
+        val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
+
+        session.play(video)
+
+        val started = checkNotNull(session.playback.value).state.value
+        assertEquals(600.0, started.target.durationSeconds)
+        assertTrue(started.content is PlaybackContent.Ready)
+        assertEquals(0L, started.resumePositionMillis)
+    }
+
+    @Test
     fun `a Watch Next card whose file is gone leaves the row and Files explains why`() = runTest {
         val gone = PutioFailure.ApiRejected(404, "NotFound", PutioConfigurationException("404"))
         val recorder = FakeWatchNextRecorder()
@@ -920,11 +935,20 @@ class TvSessionViewModelTest {
         /** The account's saved position for every file, with resume playback on when positive. */
         var savedSeconds = 0.0
 
+        /** Durations the file's own listing carries, filled in for a video target without one. */
+        val listedDurations = mutableMapOf<FilesItemId, Double>()
+
         override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> {
             resolved += target
             preferencesSeen += preference()
+            val duration = listedDurations[target.fileId]
+                ?.takeIf { target.durationSeconds == null && target.mediaType == PlaybackMediaType.VIDEO }
             return PlaybackRepositoryResult.Success(
-                PlaybackResolution.Ready(source(target.fileId.value), useStartFrom = savedSeconds > 0.0),
+                PlaybackResolution.Ready(
+                    source(target.fileId.value),
+                    useStartFrom = savedSeconds > 0.0,
+                    durationSeconds = duration,
+                ),
             )
         }
 
