@@ -89,6 +89,7 @@ import io.putdotio.android.telemetry.ProductAnalytics
 import io.putdotio.android.tv.TvConfirmDialog
 import io.putdotio.android.tv.TvQrCode
 import io.putdotio.android.tv.auth.TvAccount
+import io.putdotio.android.tv.files.TvSortSheet
 import io.putdotio.android.tv.files.tvLabel
 import io.putdotio.android.tv.rememberTvPaneHasFocus
 import io.putdotio.sdk.files.PlaybackPreference
@@ -488,9 +489,10 @@ private fun TvAccountSheets(
             )
         }
         TvAccountSheet.DefaultSort -> if (settings != null) {
-            TvDefaultSortSheet(
+            TvSortSheet(
+                title = stringResource(R.string.tv_account_default_sort),
                 selected = settings.defaultSort,
-                onSave = { change(AccountSettingsChange.Sort(it)) },
+                onSelect = { change(AccountSettingsChange.Sort(it)) },
                 onDismiss = onClose,
                 returnFocus = returnFocus(RowKey.DEFAULT_SORT),
             )
