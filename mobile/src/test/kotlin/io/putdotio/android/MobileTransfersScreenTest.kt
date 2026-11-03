@@ -146,6 +146,42 @@ class MobileTransfersScreenTest {
         compose.onAllNodesWithText("Stop transfer").assertCountEquals(0)
         compose.onNodeWithText("Retry").performClick()
         assertEquals(TransfersEvent.RetryTransfer(TransferId(1L)), events.last())
+
+        compose.onNodeWithTag(mobileTransferCardTag(TransferId(2L))).performClick()
+        compose.onNodeWithText("Remove from list").performClick()
+        assertEquals(TransfersEvent.Cancel(TransferId(2L)), events.last())
+        compose.onNodeWithTag(MOBILE_TRANSFER_ACTIONS_TAG).assertDoesNotExist()
+    }
+
+    @Test
+    fun theOverflowClearsFailedAfterAConfirmOnlyWhileAFailedTransferIsListed() {
+        val events = mutableListOf<TransfersEvent>()
+        val completed = transferRow(1L, AppTransferStatus.Completed)
+        var current by mutableStateOf(
+            transfersTestState(TransfersContent.Ready(listOf(completed), TransfersPaging.Complete)),
+        )
+        compose.setContent {
+            PutioTheme { MobileTransfersOverflow(current, events::add, MobileAuthSessionId(1L)) }
+        }
+        compose.onNodeWithContentDescription("More options").performClick()
+        compose.onAllNodesWithText("Clear failed").assertCountEquals(0)
+        compose.onNodeWithText("Refresh").performClick()
+        compose.runOnIdle { events.clear() }
+
+        compose.runOnIdle {
+            current = transfersTestState(
+                TransfersContent.Ready(
+                    listOf(completed, transferRow(2L, AppTransferStatus.Failed)),
+                    TransfersPaging.Complete,
+                ),
+            )
+        }
+        compose.onNodeWithContentDescription("More options").performClick()
+        compose.onNodeWithText("Clear failed").performClick()
+        compose.onNodeWithText("Clear failed transfers?").assertIsDisplayed()
+        compose.runOnIdle { assertTrue(events.isEmpty()) }
+        compose.onNodeWithText("Clear").performClick()
+        assertEquals(listOf<TransfersEvent>(TransfersEvent.ClearFailed), events)
     }
 
     @Test

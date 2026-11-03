@@ -165,7 +165,10 @@ internal fun MobileTransfersScreen(
                 onCopySource = { actionsItem.source?.let(copy) },
                 onStop = { stopping = actionsItem },
                 onRetry = { onEvent(TransfersEvent.RetryTransfer(actionsItem.id)) },
-                onRemove = { onEvent(TransfersEvent.Remove(actionsItem.id)) },
+                onRemove = {
+                    val failed = actionsItem.status == AppTransferStatus.Failed
+                    onEvent(if (failed) TransfersEvent.Cancel(actionsItem.id) else TransfersEvent.Remove(actionsItem.id))
+                },
             ),
             onDismiss = { actionsFor = null },
             onAuthenticationRequired = onFilesAuthenticationRequired,
@@ -266,8 +269,8 @@ private fun MobileAddTransferFab(expanded: Boolean, onClick: () -> Unit, modifie
 
 /**
  * The Transfers tab's overflow in the tab-title row: Refresh once the list has loaded, empty included,
- * so keyboard and TalkBack users need no pull; and Clear completed, which confirms, while transfers are
- * listed.
+ * so keyboard and TalkBack users need no pull; Clear completed, which confirms, while transfers are
+ * listed; and Clear failed, which confirms too, while a failed one is listed.
  */
 @Composable
 internal fun MobileTransfersOverflow(
@@ -279,7 +282,9 @@ internal fun MobileTransfersOverflow(
     if (!listed && state.content !is TransfersContent.Empty) return
     val enabled = state.enabledInteractions()
     var expanded by remember(sessionId) { mutableStateOf(false) }
-    var confirming by remember(sessionId) { mutableStateOf(false) }
+    var confirming by remember(sessionId) { mutableStateOf<TransfersEvent?>(null) }
+    val failedListed = (state.content as? TransfersContent.Ready)?.items.orEmpty()
+        .any { it.status == AppTransferStatus.Failed }
     Box {
         IconButton(onClick = { expanded = true }, modifier = Modifier.testTag(MOBILE_TRANSFERS_OVERFLOW_TAG)) {
             Icon(
@@ -302,21 +307,34 @@ internal fun MobileTransfersOverflow(
                     enabled = enabled.controls,
                     onClick = {
                         expanded = false
-                        confirming = true
+                        confirming = TransfersEvent.CleanCompleted
+                    },
+                )
+            }
+            if (failedListed) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.mobile_transfers_clear_failed)) },
+                    enabled = enabled.controls,
+                    onClick = {
+                        expanded = false
+                        confirming = TransfersEvent.ClearFailed
                     },
                 )
             }
         }
     }
-    if (confirming) {
+    confirming?.let { event ->
+        val failed = event == TransfersEvent.ClearFailed
         MobileTransferConfirmation(
-            title = R.string.mobile_transfers_clean_title,
-            message = stringResource(R.string.mobile_transfers_clean_message),
+            title = if (failed) R.string.mobile_transfers_clear_failed_title else R.string.mobile_transfers_clean_title,
+            message = stringResource(
+                if (failed) R.string.mobile_transfers_clear_failed_message else R.string.mobile_transfers_clean_message,
+            ),
             confirm = R.string.mobile_transfers_clean_confirm,
-            onDismiss = { confirming = false },
+            onDismiss = { confirming = null },
             onConfirm = {
-                confirming = false
-                onEvent(TransfersEvent.CleanCompleted)
+                confirming = null
+                onEvent(event)
             },
         )
     }
@@ -618,6 +636,7 @@ internal fun TransfersState.enabledInteractions(): TransfersInteractions {
 private fun TransferAction.targets(id: TransferId): Boolean =
     when (this) {
         is TransferAction.Cancel -> this.id == id
+        is TransferAction.ClearFailed -> id in ids
         is TransferAction.Retry -> this.id == id
         is TransferAction.Remove -> this.id == id
         TransferAction.Clean -> false

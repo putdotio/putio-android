@@ -25,7 +25,7 @@ public interface TransfersRepository {
     public suspend fun load(cursor: TransferCursor? = null): PutioResult<TransfersPage>
     public suspend fun refresh(ids: List<TransferId>): PutioResult<TransfersRowRefresh>
     public suspend fun add(request: TransferAddRequest): PutioResult<TransferAddOutcome>
-    public suspend fun cancel(id: TransferId): PutioResult<Unit>
+    public suspend fun cancel(ids: List<TransferId>): PutioResult<Unit>
     public suspend fun retry(id: TransferId): PutioResult<TransferItem>
     public suspend fun clean(ids: List<TransferId>): PutioResult<Set<TransferId>>
 }
@@ -173,8 +173,8 @@ public class SdkTransfersRepository internal constructor(
     override suspend fun add(request: TransferAddRequest): PutioResult<TransferAddOutcome> =
         putioRequest { adds.run(request) }
 
-    override suspend fun cancel(id: TransferId): PutioResult<Unit> =
-        putioRequest { cancelTransfers(listOf(id.value)) }
+    override suspend fun cancel(ids: List<TransferId>): PutioResult<Unit> =
+        putioRequest { cancelTransfers(ids.map(TransferId::value)) }
 
     override suspend fun retry(id: TransferId): PutioResult<TransferItem> =
         putioRequest { retryTransfer(id.value).toTransferItem() }

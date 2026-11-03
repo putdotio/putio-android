@@ -279,7 +279,8 @@ private sealed interface MutationResult {
 private suspend fun TransfersRepository.execute(action: TransferAction): PutioResult<MutationResult> =
     when (action) {
         is TransferAction.Add -> add(action.request).mapSuccess(MutationResult::Added)
-        is TransferAction.Cancel -> cancel(action.id).mapSuccess { MutationResult.Affected(setOf(action.id)) }
+        is TransferAction.Cancel -> cancel(listOf(action.id)).mapSuccess { MutationResult.Affected(setOf(action.id)) }
+        is TransferAction.ClearFailed -> cancel(action.ids.toList()).mapSuccess { MutationResult.Affected(action.ids) }
         is TransferAction.Retry -> retry(action.id).mapSuccess(MutationResult::Item)
         TransferAction.Clean -> clean(emptyList()).mapSuccess(MutationResult::Affected)
         is TransferAction.Remove -> clean(listOf(action.id)).mapSuccess(MutationResult::Affected)

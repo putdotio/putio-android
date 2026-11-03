@@ -44,6 +44,8 @@ internal fun TransfersRefresh.hasRequest(requestId: TransfersRequestId): Boolean
 public sealed interface TransferAction {
     public data class Add(val request: TransferAddRequest) : TransferAction
     public data class Cancel(val id: TransferId) : TransferAction
+    /** Cancels every listed failed transfer, which deletes it from put.io. */
+    public data class ClearFailed(val ids: Set<TransferId>) : TransferAction
     public data class Retry(val id: TransferId) : TransferAction
     public data object Clean : TransferAction
     /** Takes one finished transfer off the list; the file stays in put.io. */
@@ -130,6 +132,7 @@ public sealed interface TransfersEvent {
     public data class Cancel(val id: TransferId) : TransfersEvent
     public data class RetryTransfer(val id: TransferId) : TransfersEvent
     public data object CleanCompleted : TransfersEvent
+    public data object ClearFailed : TransfersEvent
     public data class Remove(val id: TransferId) : TransfersEvent
     public data object DismissMutationFailure : TransfersEvent
     public data class DismissRetryOutcome(val requestId: TransfersRequestId) : TransfersEvent
@@ -199,6 +202,7 @@ public object TransfersReducer {
             is TransfersEvent.Add, is TransfersEvent.AddTorrent -> state.add(event)
             is TransfersEvent.Cancel -> state.cancel(event.id)
             is TransfersEvent.RetryTransfer -> state.retryTransfer(event.id)
+            TransfersEvent.ClearFailed -> state.clearFailed()
             TransfersEvent.CleanCompleted, is TransfersEvent.Remove ->
                 state.clean((event as? TransfersEvent.Remove)?.id)
             TransfersEvent.DismissMutationFailure -> state.dismissMutationFailure()

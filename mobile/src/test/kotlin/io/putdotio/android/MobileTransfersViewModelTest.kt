@@ -82,7 +82,7 @@ class MobileTransfersViewModelTest {
         override suspend fun add(request: TransferAddRequest): PutioResult<TransferAddOutcome> =
             error("No add expected")
 
-        override suspend fun cancel(id: TransferId): PutioResult<Unit> =
+        override suspend fun cancel(ids: List<TransferId>): PutioResult<Unit> =
             error("No cancel expected")
 
         override suspend fun retry(id: TransferId): PutioResult<TransferItem> =

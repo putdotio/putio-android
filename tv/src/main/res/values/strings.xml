@@ -198,6 +198,8 @@
     <string name="tv_search_filter_folders">Folders</string>
     <string name="tv_search_filter_videos">Videos</string>
     <string name="tv_search_filter_audio">Audio</string>
+    <string name="tv_search_filter_images">Images</string>
+    <string name="tv_search_filter_documents">Documents</string>
     <string name="tv_search_filter_subtitles">Subtitles</string>
     <string name="tv_search_group_folders">Folders</string>
     <string name="tv_search_group_files">Files</string>

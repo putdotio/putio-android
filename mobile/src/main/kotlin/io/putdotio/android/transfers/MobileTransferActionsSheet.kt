@@ -64,7 +64,7 @@ internal class MobileTransferActions(
  * Transfer actions: the full name, the state, put.io's whole reason when it gave one, and a progress
  * bar, the facts in mono, then Open folder
  * and Copy source link when put.io returned a link. A running transfer ends with Stop transfer in red;
- * a failed one offers Retry; a finished one Open file and Remove from list.
+ * a failed one offers Retry and Remove from list; a finished one Open file and Remove from list.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -138,6 +138,9 @@ private fun MobileTransferActionRows(
         )
     }
     when {
+        item.status == AppTransferStatus.Failed || item.canRemove -> {
+            MobileTransferActionRow(R.drawable.ic_ph_x, R.string.mobile_transfer_remove, enabled, run(actions.onRemove))
+        }
         item.status.canCancel -> {
             HorizontalDivider(Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
             MobileTransferActionRow(
@@ -147,9 +150,6 @@ private fun MobileTransferActionRows(
                 run(actions.onStop),
                 destructive = true,
             )
-        }
-        item.canRemove -> {
-            MobileTransferActionRow(R.drawable.ic_ph_x, R.string.mobile_transfer_remove, enabled, run(actions.onRemove))
         }
     }
 }

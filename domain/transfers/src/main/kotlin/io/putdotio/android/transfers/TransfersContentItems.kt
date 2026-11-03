@@ -31,6 +31,7 @@ internal fun TransfersState.updatedFirstPageIds(
     when (action) {
         is TransferAction.Add -> firstPageIds + event.added?.added.orEmpty().map(TransferItem::id)
         is TransferAction.Cancel -> firstPageIds - action.id
+        is TransferAction.ClearFailed -> firstPageIds - action.ids
         is TransferAction.Retry ->
             if (action.id in firstPageIds) {
                 (firstPageIds - action.id) + listOfNotNull(event.item?.id)

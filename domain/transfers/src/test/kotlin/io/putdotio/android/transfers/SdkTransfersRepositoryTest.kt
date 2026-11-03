@@ -233,7 +233,7 @@ class SdkTransfersRepositoryTest {
         val repository = repository(mutations = mutations)
 
         repository.add(TransferAddRequest.Links(requireNotNull(TransferSubmission.parseAll("magnet:?xt=urn:test"))))
-        repository.cancel(TransferId(8L))
+        repository.cancel(listOf(TransferId(8L)))
         repository.retry(TransferId(8L))
         val result = repository.clean(emptyList()) as PutioResult.Success
 

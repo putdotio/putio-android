@@ -91,6 +91,8 @@ class SdkSearchRepositoryTest {
                     listOf(PutioFileType.FOLDER),
                     listOf(PutioFileType.VIDEO),
                     listOf(PutioFileType.AUDIO),
+                    listOf(PutioFileType.IMAGE),
+                    listOf(PutioFileType.PDF, PutioFileType.TEXT),
                     emptyList(),
                 ),
                 requested,
