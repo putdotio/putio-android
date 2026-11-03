@@ -39,7 +39,7 @@ Preconditions:
   unreachable.
 - **Trash.** With `trash_enabled` true: intend `trash <folder id>`. Open the sheet of `Inner folder` from
   its overflow. Run `$S/ui.sh tap $SERIAL --desc "Actions for Inner folder"`, then tap
-  `Move to trash`. The snackbar reads `Moved to Trash` and the row leaves.
+  `Move to trash`. The snackbar reads `Moved to trash` and the row leaves.
   Remove that one id from Trash:
   `PUTIO_CLI_PROFILE=devs-auto putio sdk call --operation trash.delete --args '[{"file_ids":[<id>]}]' --execute`,
   check `trash.list` no longer holds it, then

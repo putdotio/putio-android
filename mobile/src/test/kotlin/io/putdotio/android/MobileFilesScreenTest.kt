@@ -334,7 +334,7 @@ class MobileFilesScreenTest {
         compose.runOnIdle {
             state = browserState(FilesContent.Empty(FilesPaging.Complete))
         }
-        compose.onNodeWithText("Empty folder.").assertIsDisplayed()
+        compose.onNodeWithText("Empty folder").assertIsDisplayed()
         val emptyRefreshAction = compose.onNodeWithTag(MOBILE_FILES_REFRESH_TAG)
             .fetchSemanticsNode().config[SemanticsActions.CustomActions]
             .single { it.label == "Refresh files" }
@@ -669,7 +669,7 @@ class MobileFilesListTest {
             state = browserState(FilesContent.Empty(FilesPaging.Complete))
         }
         val refreshBounds = compose.onNodeWithTag(MOBILE_FILES_REFRESH_TAG).fetchSemanticsNode().boundsInRoot
-        val emptyMessageBounds = compose.onNodeWithText("Empty folder.").fetchSemanticsNode().boundsInRoot
+        val emptyMessageBounds = compose.onNodeWithText("Empty folder").fetchSemanticsNode().boundsInRoot
         assertTrue(
             kotlin.math.abs(emptyMessageBounds.center.y - refreshBounds.center.y) < refreshBounds.height / 4f,
         )

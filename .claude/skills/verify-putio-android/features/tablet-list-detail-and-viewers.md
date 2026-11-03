@@ -18,7 +18,7 @@ Preconditions:
 - **Text viewer.** Tap the text file. Its content shows in mono.
 - **Widen.** Run the two `wm` commands, then
   `$S/ui.sh link $SERIAL putio://files` and open the run's folder. The
-  detail reads `No file selected.` and `Tap a file to see it here.`
+  detail reads `No file selected` and `Tap a file to see it here.`
   Capture `tablet-detail-empty`.
 - **Select.** Tap `verify-1.png`. The detail shows its preview, name, `Open`,
   `Size`, `Added` and `Folder`. Capture `tablet-select`.

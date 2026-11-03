@@ -13,7 +13,7 @@ Preconditions:
 
 - **List.** Run `$S/ui.sh link $SERIAL putio://transfers` and
   `$S/ui.sh wait $SERIAL --text "Transfers"`. The title and summary show,
-  or `Nothing in the queue.` on an empty account. Capture `transfers-list`.
+  or `Nothing in the queue` on an empty account. Capture `transfers-list`.
 - **Open Add.** Tap `Add transfer`. Run
   `$S/ui.sh tap $SERIAL --desc "Add transfer"`. A sheet with
   `URLs or magnet links` and `Save to` opens.

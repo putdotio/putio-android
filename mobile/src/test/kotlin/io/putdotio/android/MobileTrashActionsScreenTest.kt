@@ -68,7 +68,7 @@ class MobileTrashActionsScreenTest {
             state = state.copy(actionConfirmation = TrashAction.DeleteItem(item), actionConfirmationId = 3)
         }
         compose.onNodeWithText("Delete permanently?").assertIsDisplayed()
-        compose.onNodeWithText("“${item.name}” will be removed from Trash right away. This cannot be undone.")
+        compose.onNodeWithText("“${item.name}” will be removed from trash right away. This cannot be undone.")
             .assertIsDisplayed()
         compose.onNodeWithText("Cancel").performClick()
         compose.onNodeWithTag(MOBILE_TRASH_ACTION_CONFIRM_TAG).performClick()
@@ -89,7 +89,7 @@ class MobileTrashActionsScreenTest {
         compose.trashMenuItem(MOBILE_TRASH_EMPTY_TAG).performClick()
         compose.runOnIdle { assertEquals(listOf(TrashEvent.SelectRestoreAll, TrashEvent.SelectEmpty), events) }
         compose.runOnIdle { state = state.copy(actionConfirmation = TrashAction.Empty, actionConfirmationId = 5) }
-        compose.onNodeWithText("Empty Trash?").assertIsDisplayed()
+        compose.onNodeWithText("Empty trash?").assertIsDisplayed()
         compose.onNodeWithTag(MOBILE_TRASH_ACTION_CONFIRM_TAG).performClick()
         compose.runOnIdle {
             assertEquals(TrashEvent.ConfirmAction(5), events.last())
@@ -106,7 +106,7 @@ class MobileTrashActionsScreenTest {
             TrashAction.DeleteItem(item), TrashActionSubmission.UNCERTAIN, TrashActionCheck.FAILED))
         compose.setContent { PutioTheme { TrashWithOverflow(state) { events += it; true } } }
         compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_TRASH_ACTION_OUTCOME_TAG))
-        compose.onNodeWithText("“${item.name}” is still in Trash.").assertIsDisplayed()
+        compose.onNodeWithText("“${item.name}” is still in trash.").assertIsDisplayed()
         compose.onNodeWithTag(MOBILE_TRASH_ACTION_CHECK_TAG).assertDoesNotExist()
         compose.trashMenuItem(MOBILE_TRASH_RESTORE_ALL_TAG).assertIsEnabled()
         compose.trashMenuItem(MOBILE_TRASH_EMPTY_TAG).assertIsEnabled()
@@ -124,13 +124,13 @@ class MobileTrashActionsScreenTest {
             TrashAction.DeleteItem(item), TrashActionSubmission.UNCERTAIN, TrashActionCheck.INCONCLUSIVE)))
         compose.setContent { PutioTheme { TrashWithOverflow(state) { events += it; true } } }
         compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_TRASH_ACTION_OUTCOME_TAG))
-        compose.onNodeWithText("“${item.name}” was not in the first page. Check Trash again in a moment.")
+        compose.onNodeWithText("“${item.name}” was not in the first page. Check trash again in a moment.")
             .assertIsDisplayed()
         compose.onNodeWithTag(MOBILE_TRASH_ACTION_CHECK_TAG).performClick()
         compose.runOnIdle {
             state = state.copy(actionOutcome = state.actionOutcome?.copy(check = TrashActionCheck.NOT_CHECKED))
         }
-        compose.onNodeWithText("We could not confirm the request. Check Trash before taking another action.")
+        compose.onNodeWithText("We could not confirm the request. Check trash before taking another action.")
             .assertIsDisplayed()
         compose.trashMenuItem(MOBILE_TRASH_RESTORE_ALL_TAG).assertIsNotEnabled()
         compose.trashMenuItem(MOBILE_TRASH_EMPTY_TAG).assertIsNotEnabled()
@@ -141,7 +141,7 @@ class MobileTrashActionsScreenTest {
             state = state.copy(actionOutcome = state.actionOutcome?.copy(check = TrashActionCheck.VERIFIED),
                 content = TrashContent.Loaded(emptyList(), null, 0, 0))
         }
-        compose.onNodeWithText("“${item.name}” is no longer in Trash.").assertIsDisplayed()
+        compose.onNodeWithText("“${item.name}” is no longer in trash.").assertIsDisplayed()
         compose.onNodeWithTag(MOBILE_TRASH_ACTION_CHECK_TAG).assertDoesNotExist()
         compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_TRASH_ACTION_OUTCOME_TAG))
         compose.onNodeWithText("OK").performClick()

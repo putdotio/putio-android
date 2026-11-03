@@ -161,7 +161,7 @@ class MobileFilesDeleteTest {
             PutioTheme { MobileFilesScreen(loadedRoot(), {}, {}, confirmedTrashEnabled = null) }
         }
         compose.onNodeWithContentDescription("Actions for été 東京.mkv").performClick()
-        compose.onNodeWithText("Waiting for confirmed Trash settings.").assertIsDisplayed()
+        compose.onNodeWithText("Waiting for confirmed trash settings.").assertIsDisplayed()
         compose.onNodeWithText("Move to trash").assertIsNotEnabled()
         compose.onNodeWithText("Rename").performClick()
         compose.onNodeWithTag(MOBILE_FILES_RENAME_CONFIRM_TAG).assertIsDisplayed()
@@ -272,14 +272,14 @@ class MobileFilesDeleteTest {
             }
         }
 
-        compose.onNodeWithText("Moved to Trash").assertIsDisplayed()
+        compose.onNodeWithText("Moved to trash").assertIsDisplayed()
         compose.onAllNodesWithText("“Harbor film.mp4” is no longer available in Files.").assertCountEquals(0)
         compose.onNodeWithText("Undo").performClick()
         compose.runOnIdle {
             assertEquals(listOf(outcome), undone)
             assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.DeleteOutcomeAnnounced(outcome)), events)
         }
-        compose.onAllNodesWithText("Moved to Trash").assertCountEquals(0)
+        compose.onAllNodesWithText("Moved to trash").assertCountEquals(0)
 
         // Once announced, the kept outcome is neither announced again nor shown as a line.
         compose.runOnIdle {
@@ -287,7 +287,7 @@ class MobileFilesDeleteTest {
                 stack = listOf(state.current.copy(deleteOutcome = outcome.copy(announced = true))),
             )
         }
-        compose.onAllNodesWithText("Moved to Trash").assertCountEquals(0)
+        compose.onAllNodesWithText("Moved to trash").assertCountEquals(0)
         compose.onAllNodesWithText("“Harbor film.mp4” is no longer available in Files.").assertCountEquals(0)
 
         // Permanent deletion keeps its line in the folder and is not announced as a Trash move.
@@ -297,7 +297,7 @@ class MobileFilesDeleteTest {
             ))))
         }
         compose.onNodeWithText("“Harbor film.mp4” is no longer available in Files.").assertIsDisplayed()
-        compose.onAllNodesWithText("Moved to Trash").assertCountEquals(0)
+        compose.onAllNodesWithText("Moved to trash").assertCountEquals(0)
 
         // A failed Trash request whose item is gone anyway proves no Trash move either.
         compose.runOnIdle {
@@ -306,7 +306,7 @@ class MobileFilesDeleteTest {
             ))))
         }
         compose.onNodeWithText("“Harbor film.mp4” is no longer available in Files.").assertIsDisplayed()
-        compose.onAllNodesWithText("Moved to Trash").assertCountEquals(0)
+        compose.onAllNodesWithText("Moved to trash").assertCountEquals(0)
         compose.runOnIdle { assertEquals(1, events.size) }
     }
 

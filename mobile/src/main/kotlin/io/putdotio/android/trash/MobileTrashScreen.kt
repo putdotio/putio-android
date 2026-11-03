@@ -57,6 +57,7 @@ import io.putdotio.android.design.putioMono
 import io.putdotio.android.files.formatFileSize
 import io.putdotio.android.files.mobileMessage
 import java.time.LocalDate
+import io.putdotio.android.design.PutioEmptyGlyph
 
 internal const val MOBILE_TRASH_ROUTE = "account/trash"
 internal const val MOBILE_MANAGE_TRASH_TAG = "mobile-manage-trash"
@@ -121,19 +122,24 @@ private fun LazyListScope.loadedTrashItems(
     onEvent: (TrashEvent) -> Boolean,
     onActions: (TrashItem) -> Unit,
 ) {
+    val empty = content.items.isEmpty() && content.nextCursor == null
     item(key = "summary") {
         Column(Modifier.fillMaxWidth()) {
-            MobileTrashSummary(content)
+            if (!empty) MobileTrashSummary(content)
             if (content.isRefreshing) LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 16.dp))
         }
     }
     content.refreshFailure?.let { failure ->
         item(key = "refresh-error") { TrashReadFailure(failure) { onEvent(TrashEvent.Refresh) } }
     }
-    if (content.items.isEmpty() && content.nextCursor == null) {
+    if (empty) {
         item(key = "empty") {
-            MobileEmptyState(stringResource(R.string.mobile_trash_empty_title),
-                stringResource(R.string.mobile_trash_empty_message))
+            MobileEmptyState(
+                title = stringResource(R.string.mobile_trash_empty_title),
+                message = stringResource(R.string.mobile_trash_empty_message),
+                modifier = Modifier.fillParentMaxSize(),
+                glyph = PutioEmptyGlyph.NothingYet,
+            )
         }
     }
     items(content.items, key = { it.id.value }) { item ->

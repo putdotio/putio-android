@@ -71,7 +71,9 @@ import io.putdotio.android.MobileMiddleCutText
 import io.putdotio.android.MobileRow
 import io.putdotio.android.MobileSectionLabel
 import io.putdotio.android.PutioFailure
+import io.putdotio.android.MobileEmptyState
 import io.putdotio.android.R
+import io.putdotio.android.design.PutioEmptyGlyph
 import io.putdotio.android.apiReason
 import io.putdotio.android.design.FileTypeIcon
 import io.putdotio.android.design.PutioDesignTokens
@@ -356,11 +358,11 @@ internal fun MobilePublicLinksScreen(
                 is PublicLinksContent.Ready -> {
                     if (content.links.isEmpty()) {
                         item(key = "empty") {
-                            Text(
-                                text = stringResource(R.string.mobile_public_links_empty),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(16.dp),
+                            MobileEmptyState(
+                                title = stringResource(R.string.mobile_public_links_empty_title),
+                                message = stringResource(R.string.mobile_public_links_empty),
+                                modifier = Modifier.fillParentMaxSize(),
+                                glyph = PutioEmptyGlyph.NothingYet,
                             )
                         }
                     }

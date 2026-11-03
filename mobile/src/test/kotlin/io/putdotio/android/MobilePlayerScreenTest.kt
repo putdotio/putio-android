@@ -436,7 +436,7 @@ class MobilePlayerScreenTest {
             ),
             FailureRow(
                 PlaybackContent.Failed(PlaybackFailure.MediaUnsupported(IllegalStateException("codec"))),
-                "Can’t play this here.",
+                "Can’t play this here",
                 retry = false,
                 checkBack = true,
             ),

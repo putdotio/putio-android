@@ -389,13 +389,13 @@ class MobileAccountScreenTest {
         var sessionId by mutableStateOf(SessionOne)
         compose.setAccountContent(options = AccountScreenOptions(sessionId = { sessionId }))
 
-        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Move deleted files to Trash"))
-        compose.onNodeWithText("Move deleted files to Trash").performClick()
-        compose.onNodeWithText("Turn off Trash?").assertIsDisplayed()
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Move deleted files to trash"))
+        compose.onNodeWithText("Move deleted files to trash").performClick()
+        compose.onNodeWithText("Turn off trash?").assertIsDisplayed()
 
         compose.runOnIdle { sessionId = SessionTwo }
 
-        compose.onAllNodesWithText("Turn off Trash?").assertCountEquals(0)
+        compose.onAllNodesWithText("Turn off trash?").assertCountEquals(0)
     }
 
     @Test
@@ -847,7 +847,7 @@ class MobileAccountSignOutAndLibraryTest {
         val full = AccountStorage(availableBytes = 0, sizeBytes = 4 * GIBIBYTE, usedBytes = 4 * GIBIBYTE)
         var account by mutableStateOf(Account)
         compose.setAccountContent(account = { account })
-        val fullLine = "Full. New transfers wait until you free up space. Empty Trash or delete files to make room."
+        val fullLine = "Full. New transfers wait until you free up space. Empty trash or delete files to make room."
         compose.onAllNodesWithText(fullLine, substring = true).assertCountEquals(0)
 
         compose.runOnIdle { account = Account.copy(storage = full) }
