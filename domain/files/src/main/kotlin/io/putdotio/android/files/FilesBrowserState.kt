@@ -446,8 +446,8 @@ public object FilesBrowserReducer {
         when (event) {
             is FilesBrowserEvent.OpenFolder -> state.openFolder(event.itemId)
             is FilesBrowserEvent.OpenExternalItem -> state.openExternalItem(event.item, event.origin)
-            FilesBrowserEvent.NavigateBack -> state.navigateBack()
-            FilesBrowserEvent.PopToRoot -> state.popToRoot()
+            FilesBrowserEvent.NavigateBack, FilesBrowserEvent.PopToRoot ->
+                state.navigateBack(toRoot = event == FilesBrowserEvent.PopToRoot)
             FilesBrowserEvent.LoadNextPage -> state.loadNextPage()
             is FilesBrowserEvent.RevealItem -> state.revealItem(event.folderId, event.itemId)
             FilesBrowserEvent.Refresh -> state.refresh()

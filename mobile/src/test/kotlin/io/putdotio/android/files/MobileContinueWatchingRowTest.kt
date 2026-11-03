@@ -53,7 +53,8 @@ class MobileContinueWatchingRowTest {
         compose.setContent {
             PutioTheme {
                 LazyColumn {
-                    mobileFilesHeaderItems(MobileFilesHeaders(continueWatching = listOf(entry)), played::add, removed::add)
+                    val headers = MobileFilesHeaders(continueWatching = listOf(entry))
+                    mobileFilesHeaderItems(headers, played::add, removed::add)
                 }
             }
         }
