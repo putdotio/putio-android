@@ -25,14 +25,15 @@ class SdkFilesSubtitleLanguagesTest {
               ${subtitle("b", "English", "Blue.Lights.S04E01.en.sdh.srt")},
               ${subtitle("c", "", "Blue.Lights.S04E01.srt", source = "mkv")},
               ${subtitle("d", "Turkish", "Blue.Lights.S04E01.tr.srt", source = "opensubtitles")},
-              ${subtitle("e", "Undetermined", "Blue.Lights.S04E01.forced.srt", code = "und")}
+              ${subtitle("e", "Undetermined", "Blue.Lights.S04E01.forced.srt", code = "und")},
+              ${subtitle("f", "Unknown", "Blue.Lights.S04E01.hi.srt")}
             ]}
         """.trimIndent()
 
         val result = SdkFilesSubtitleLanguages(client(requests, 200, body)).subtitleLanguages(FilesItemId(42L))
 
         assertEquals(
-            FilesSubtitles(listOf("English", null, "Turkish"), sidecarFiles = 3),
+            FilesSubtitles(listOf("English", null, "Turkish"), sidecarFiles = 4),
             (result as PutioResult.Success).value,
         )
         assertTrue(requests.single().endsWith("/files/42/subtitles"))

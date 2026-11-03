@@ -191,6 +191,35 @@ class PlaybackSubtitleSelectionTest {
     }
 
     @Test
+    fun anUnlabelledDefaultGivesWayToTheDevicesCaptionLanguageAndALabelledOneStays() {
+        fun group(defaultLabel: String) = TrackGroup(
+            *listOf(Triple("dflt", "und", defaultLabel), Triple("en", "en", "English"), Triple("tr", "tr", "Turkish"))
+                .map { (id, language, label) ->
+                    Format.Builder()
+                        .setId(id)
+                        .setSampleMimeType(MimeTypes.TEXT_VTT)
+                        .setLanguage(language)
+                        .setLabel(label)
+                        .setSelectionFlags(if (id == "dflt") C.SELECTION_FLAG_DEFAULT else 0)
+                        .build()
+                }.toTypedArray(),
+        )
+        val turkishDevice = TrackSelectionParameters.Builder().setPreferredTextLanguages("tr").build()
+
+        val unlabelled = group("Unknown")
+        val automatic = turkishDevice.withSubtitleSelection(
+            SubtitleSelection.Automatic,
+            unlabelled.subtitleTracks(),
+            turkishDevice,
+        )
+        assertEquals("tr", selectedTextId(automatic, unlabelled))
+
+        val labelled = group("Blue.Lights.S04E01.srt")
+        val kept = turkishDevice.withSubtitleSelection(SubtitleSelection.Automatic, labelled.subtitleTracks(), turkishDevice)
+        assertEquals("dflt", selectedTextId(kept, labelled))
+    }
+
+    @Test
     fun automaticSubtitlesFollowTheDeviceWhenTheServerNamesNoDefault() {
         val deviceDefaults = TrackSelectionParameters.Builder().setPreferredTextLanguages("tr").build()
         val unflagged = serverTracks(defaultId = null)

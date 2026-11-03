@@ -1,12 +1,15 @@
 package io.putdotio.android.files
 
 import io.putdotio.android.PutioResult
+import io.putdotio.android.isUnknownLanguageName
 import io.putdotio.android.putioRequest
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.files.FileSubtitlesResponse
 
-/** The languages of the subtitles put.io lists for a video, and how many of them are sidecar files beside it. */
-/** [languages] holds null once for subtitles whose language put.io could not tell. */
+/**
+ * The languages of the subtitles put.io lists for a video, and how many of them are sidecar files beside it.
+ * [languages] holds null once for subtitles whose language put.io could not tell.
+ */
 public data class FilesSubtitles(public val languages: List<String?>, public val sidecarFiles: Int = 0)
 
 /** The subtitles put.io lists for a video: sidecar files, embedded tracks and found ones. */
@@ -26,7 +29,8 @@ public class SdkFilesSubtitleLanguages internal constructor(
         FilesSubtitles(
             languages = subtitles
                 .map { subtitle ->
-                    subtitle.language.trim().takeUnless { it.isEmpty() || subtitle.languageCode == UNDETERMINED_CODE }
+                    subtitle.language.trim()
+                        .takeUnless { it.isUnknownLanguageName() || subtitle.languageCode == UNDETERMINED_CODE }
                 }
                 .distinct(),
             sidecarFiles = subtitles.count { it.source == SIDECAR_SOURCE },

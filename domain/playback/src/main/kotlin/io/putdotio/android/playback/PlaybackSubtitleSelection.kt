@@ -98,7 +98,7 @@ public fun TrackSelectionParameters.withSubtitleSelection(
         buildUpon()
             .clearOverridesOfType(C.TRACK_TYPE_TEXT)
             .setIgnoredTextSelectionFlags(0)
-    return when (val chosen = selection.preferringNamedTrack(tracks)) {
+    return when (val chosen = selection.preferringNamedTrack(tracks, textDefaults?.preferredTextLanguages.orEmpty())) {
         SubtitleSelection.Off ->
             builder
                 .setSelectTextByDefault(false)

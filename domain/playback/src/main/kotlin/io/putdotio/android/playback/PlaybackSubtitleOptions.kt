@@ -1,5 +1,6 @@
 package io.putdotio.android.playback
 
+import io.putdotio.android.isUnknownLanguageName
 import android.content.Context
 import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
@@ -118,10 +119,25 @@ public fun rememberSubtitleAppearanceStore(): SubtitleAppearanceStore {
     return remember(context) { SubtitleAppearanceStore(context) }
 }
 
-internal fun SubtitleSelection.preferringNamedTrack(tracks: List<PlaybackSubtitleTrack>): SubtitleSelection =
-    tracks.takeIf { this == SubtitleSelection.Automatic }
-        ?.firstOrNull(PlaybackSubtitleTrack::isServerDefault)
-        ?.takeIf { languageName(it.identity.language) == null }
-        ?.let { tracks.firstOrNull { track -> languageName(track.identity.language) != null } }
-        ?.let { SubtitleSelection.Track(it.identity) }
-        ?: this
+/** A language name, else a label that names something; null for a track nobody labelled. */
+public fun PlaybackSubtitleTrack.knownName(): String? =
+    languageName(identity.language) ?: label?.trim()?.takeUnless { it.isUnknownLanguageName() }
+
+internal fun SubtitleSelection.preferringNamedTrack(
+    tracks: List<PlaybackSubtitleTrack>,
+    preferredLanguages: List<String>,
+): SubtitleSelection {
+    if (this != SubtitleSelection.Automatic) return this
+    val default = tracks.firstOrNull(PlaybackSubtitleTrack::isServerDefault)
+    val named = tracks.filter { languageName(it.identity.language) != null }
+    val preferred = preferredLanguages.firstNotNullOfOrNull { tag ->
+        named.firstOrNull { it.identity.language?.sameLanguageAs(tag) == true }
+    }
+    val pick = (preferred ?: named.firstOrNull()).takeIf { default != null && default.knownName() == null }
+    return pick?.let { SubtitleSelection.Track(it.identity) } ?: this
+}
+
+private fun String.sameLanguageAs(tag: String): Boolean =
+    Locale.forLanguageTag(this).iso3OrLanguage() == Locale.forLanguageTag(tag).iso3OrLanguage()
+
+private fun Locale.iso3OrLanguage(): String = runCatching { isO3Language }.getOrDefault(language)
