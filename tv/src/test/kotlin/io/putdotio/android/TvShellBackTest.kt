@@ -253,7 +253,7 @@ class TvShellBackTest {
         }
         compose.onNodeWithText("Manage your trash").assertIsFocused().performKeyInput { pressCenter() }
         compose.onNodeWithText("Your trash is empty").assertIsDisplayed()
-        compose.onNode(hasText("Restore all") and hasClickAction()).assertIsFocused().performKeyInput {
+        compose.onNodeWithText("Your trash is empty").assertIsFocused().performKeyInput {
             pressKey(Key.DirectionUp)
         }
 
@@ -266,7 +266,7 @@ class TvShellBackTest {
         }
         compose.onNodeWithText("Your trash is empty").assertIsDisplayed()
         compose.onTab("Account").performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNode(hasText("Restore all") and hasClickAction()).assertIsFocused()
+        compose.onNodeWithText("Your trash is empty").assertIsFocused()
 
         compose.pressBack()
         compose.onNodeWithText("Manage your trash").assertIsFocused()
