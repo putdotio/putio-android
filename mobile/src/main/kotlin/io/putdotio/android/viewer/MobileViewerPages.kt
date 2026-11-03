@@ -54,7 +54,7 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.SubcomposeAsyncImage
 import coil3.compose.SubcomposeAsyncImageContent
 import io.putdotio.android.R
-import io.putdotio.android.mobileFileSize
+import io.putdotio.android.files.formatFileSize
 import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesPdfDocument
@@ -311,4 +311,4 @@ private fun viewerContentPadding(horizontal: Dp = 0.dp): PaddingValues {
 private const val A4_RATIO = 1.414f
 private const val TEXT_LINES_PER_ITEM = 200
 private val TRANSPARENCY_CELL = 12.dp
-private val TEXT_LIMIT_LABEL = mobileFileSize(TEXT_PREVIEW_LIMIT_BYTES.toLong())
+private val TEXT_LIMIT_LABEL = formatFileSize(TEXT_PREVIEW_LIMIT_BYTES.toLong())

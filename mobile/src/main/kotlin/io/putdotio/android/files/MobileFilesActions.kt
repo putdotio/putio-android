@@ -64,7 +64,6 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.MobileDialogDismissButton
-import io.putdotio.android.mobileFileSize
 import io.putdotio.android.monoFigures
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
@@ -429,7 +428,7 @@ private fun MobileFilesSheetMeta(item: FilesItem, sharedBy: String?) {
     val context = LocalContext.current
     val style = MaterialTheme.typography.bodySmall
     val color = MaterialTheme.colorScheme.onSurfaceVariant
-    val size = if (item.isFolder) null else mobileFileSize(item.sizeBytes)
+    val size = if (item.isFolder) null else formatFileSize(item.sizeBytes)
     val second = sharedBy?.let { stringResource(R.string.mobile_files_shared_by, it) }
         ?: item.createdAt.toDisplayDate(context)
     Row(horizontalArrangement = Arrangement.spacedBy(META_GAP), verticalAlignment = Alignment.CenterVertically) {

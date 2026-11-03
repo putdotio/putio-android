@@ -61,7 +61,6 @@ import io.putdotio.android.MobileMiddleCutText
 import io.putdotio.android.MobileRetryButton
 import io.putdotio.android.RetryWhenOnline
 import io.putdotio.android.R
-import io.putdotio.android.mobileFileSize
 import io.putdotio.android.monoFigures
 import io.putdotio.android.design.FileTypeIcon
 import io.putdotio.android.design.PutioEmptyGlyph
@@ -154,7 +153,7 @@ private fun MobileFolderSummaryLine(summary: FilesFolderSummary) {
         withStyle(mono.toSpanStyle()) { append(count.toString()) }
         parts.drop(1).forEach(::append)
     }
-    val size = summary.sizeBytes?.let(::mobileFileSize)
+    val size = summary.sizeBytes?.let { formatFileSize(it) }
     Row(
         modifier = Modifier
             .fillMaxWidth()

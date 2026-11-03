@@ -33,12 +33,14 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -156,9 +158,12 @@ internal fun MobileFileViewerContent(
                     null -> MobileViewerFailure(openElsewhere)
                 }
             }
-            if (files.size > 1) {
-                MobileFileViewerPosition(position = pager.currentPage + 1, count = files.size, more = paging.more)
-            }
+            MobileFileViewerPosition(
+                position = pager.currentPage + 1,
+                count = files.size,
+                more = paging.more,
+                shown = files.size > 1,
+            )
             Spacer(Modifier.windowInsetsBottomHeight(WindowInsets.safeDrawing))
         }
         files.getOrNull(pager.currentPage)?.let { shown ->
@@ -245,7 +250,7 @@ private fun LoadNextPageNearLast(pager: PagerState, count: Int, paging: MobileFi
 }
 
 @Composable
-private fun MobileFileViewerPosition(position: Int, count: Int, more: Boolean) {
+private fun MobileFileViewerPosition(position: Int, count: Int, more: Boolean, shown: Boolean) {
     val description = stringResource(
         if (more) R.string.mobile_viewer_position_more else R.string.mobile_viewer_position,
         position,
@@ -261,9 +266,15 @@ private fun MobileFileViewerPosition(position: Int, count: Int, more: Boolean) {
             text = if (more) "$position / $count+" else "$position / $count",
             style = PutioTypeScale.mono,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier
-                .semantics { contentDescription = description }
-                .testTag(MOBILE_FILE_VIEWER_POSITION_TAG),
+            modifier = if (shown) {
+                Modifier
+                    .semantics { contentDescription = description }
+                    .testTag(MOBILE_FILE_VIEWER_POSITION_TAG)
+            } else {
+                Modifier
+                    .alpha(0f)
+                    .clearAndSetSemantics {}
+            },
         )
     }
 }

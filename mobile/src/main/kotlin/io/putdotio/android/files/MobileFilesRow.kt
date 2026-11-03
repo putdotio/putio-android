@@ -44,7 +44,6 @@ import io.putdotio.android.MobileMiddleCutText
 import io.putdotio.android.MobileRow
 import io.putdotio.android.MobileSelectedRowTint
 import io.putdotio.android.MobileSelectionCheckbox
-import io.putdotio.android.mobileFileSize
 import io.putdotio.android.monoFigures
 import io.putdotio.android.R
 import io.putdotio.android.design.FileTypeIcon
@@ -202,7 +201,7 @@ internal sealed interface MobileFilesRowPlace {
 @Composable
 private fun MobileFilesMeta(item: FilesItem, onDevice: Boolean, place: MobileFilesRowPlace) {
     val context = LocalContext.current
-    val size = mobileFileSize(item.sizeBytes).takeIf { item.folderType == PutioFolderType.REGULAR }
+    val size = formatFileSize(item.sizeBytes).takeIf { item.folderType == PutioFolderType.REGULAR }
     val date = when (place) {
         MobileFilesRowPlace.Listing ->
             item.updatedAgo(System.currentTimeMillis()) ?: item.createdAt.toDisplayDate(context)

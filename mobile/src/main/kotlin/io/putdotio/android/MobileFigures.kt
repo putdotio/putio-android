@@ -4,9 +4,6 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
-import io.putdotio.android.files.formatFileSize
-
-internal fun mobileFileSize(bytes: Long): String = formatFileSize(bytes)
 
 internal fun monoFigures(text: String, mono: SpanStyle): AnnotatedString =
     buildAnnotatedString { appendMonoFigures(text, mono) }

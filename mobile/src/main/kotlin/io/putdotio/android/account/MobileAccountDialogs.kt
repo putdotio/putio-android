@@ -40,7 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
-import io.putdotio.android.mobileFileSize
+import io.putdotio.android.files.formatFileSize
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioDestructiveButton
 import io.putdotio.android.design.putioMono
@@ -243,7 +243,7 @@ private fun removeDownloadsLabel(bytes: Long): AnnotatedString {
     if (bytes <= 0L) return AnnotatedString(label)
     val size = stringResource(
         R.string.mobile_account_sign_out_downloads_size,
-        mobileFileSize(bytes),
+        formatFileSize(bytes),
     )
     val style: SpanStyle = MaterialTheme.typography.bodyMedium.putioMono().toSpanStyle()
         .copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
