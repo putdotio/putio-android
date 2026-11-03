@@ -41,6 +41,12 @@ internal class TvWatchNextPlayback(
     fun saved(fileId: Long, seconds: Double) {
         played[fileId]?.let { recorder.positionSaved(it, seconds) }
     }
+
+    /** The user hid [fileId]'s card; a save answered later can't bring it back until it plays again. */
+    fun hidden(fileId: Long) {
+        played.remove(fileId)
+        recorder.fileGone(fileId)
+    }
 }
 
 private const val PLAYED_LIMIT = 8

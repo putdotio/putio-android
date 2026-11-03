@@ -122,9 +122,11 @@ public class ContinueWatching(
         return rejected
     }
 
-    /** put.io confirmed the file gone, deleted or moved to Trash from this device. */
+    /**
+     * The entry leaves: put.io confirmed the file gone, or the user hid it on this device. A save
+     * answered later can't bring it back; only playing the file again does.
+     */
     public fun removed(fileId: FilesItemId) {
-        // Forget the media too, so a save answered after the delete can't bring the card back.
         media.remove(fileId)
         update(mutableEntries.value.filterNot { it.fileId == fileId })
     }

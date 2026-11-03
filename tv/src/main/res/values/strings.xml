@@ -50,7 +50,6 @@
     <string name="tv_home_left">%1$s left</string>
     <string name="tv_home_resume_description">Resume %1$s, %2$s left</string>
     <string name="tv_home_remove_continue_watching">Remove from Continue watching</string>
-    <string name="tv_home_remove_continue_watching_error">Couldn’t remove it from Continue watching. %1$s</string>
     <string name="tv_home_pinned">Pinned</string>
     <string name="tv_home_pinned_empty_title">Nothing pinned yet.</string>
     <string name="tv_home_pinned_empty_message">Pin a folder or file from its actions to keep it here.</string>
