@@ -5,7 +5,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.files.FilesCursor
@@ -30,6 +34,7 @@ class MobileFileViewerPagingTest {
         val reads = showViewer(pageBringsImage = { false })
 
         compose.runOnIdle { assertEquals(3, reads()) }
+        compose.onAllNodesWithTag(MOBILE_FILE_VIEWER_POSITION_TAG).assertCountEquals(0)
     }
 
     @Test
@@ -46,6 +51,7 @@ class MobileFileViewerPagingTest {
         var shown by mutableStateOf(last.id)
         val reads = showViewer(listOf(first, last), { shown }, pageBringsImage = { false })
         compose.runOnIdle { assertEquals(3, reads()) }
+        compose.onNodeWithTag(MOBILE_FILE_VIEWER_POSITION_TAG).assertTextEquals("2 / 2")
 
         compose.runOnIdle { shown = first.id }
         compose.runOnIdle { assertEquals(3, reads()) }

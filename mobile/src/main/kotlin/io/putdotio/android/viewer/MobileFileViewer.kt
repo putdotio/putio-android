@@ -29,6 +29,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -134,7 +137,9 @@ internal fun MobileFileViewerContent(
             currentFiles.getOrNull(page)?.let { currentOnShown(it.id) }
         }
     }
-    LoadNextPageNearLast(pager, files.size, paging)
+    val reads = remember { ViewerPageReads() }
+    LoadNextPageNearLast(pager, files.size, paging, reads)
+    val more = paging.more && !reads.stopped
     val frame = MaterialTheme.colorScheme.scrim
     Box(
         modifier = Modifier
@@ -164,8 +169,8 @@ internal fun MobileFileViewerContent(
             MobileFileViewerPosition(
                 position = pager.currentPage + 1,
                 count = files.size,
-                more = paging.more,
-                shown = files.size > 1 || paging.more,
+                more = more,
+                shown = files.size > 1 || more,
             )
             Spacer(Modifier.windowInsetsBottomHeight(WindowInsets.safeDrawing))
         }
@@ -227,11 +232,15 @@ private fun MobileFileViewerBar(
 }
 
 @Composable
-private fun LoadNextPageNearLast(pager: PagerState, count: Int, paging: MobileFileViewerPaging) {
+private fun LoadNextPageNearLast(
+    pager: PagerState,
+    count: Int,
+    paging: MobileFileViewerPaging,
+    reads: ViewerPageReads,
+) {
     val currentPaging by rememberUpdatedState(paging)
     val currentCount by rememberUpdatedState(count)
     LaunchedEffect(pager) {
-        val reads = ViewerPageReads()
         snapshotFlow {
             val near = pager.settledPage >= currentCount - 1 - VIEWER_PAGING_THRESHOLD
             val next = currentPaging.nextPage
@@ -258,7 +267,10 @@ private class ViewerPageReads {
     private var seen: FilesPaging.Available? = null
     private var read: FilesPaging.Available? = null
     private var countBeforeRead = 0
-    private var fruitless = 0
+    private var fruitless by mutableIntStateOf(0)
+
+    val stopped: Boolean
+        get() = fruitless >= VIEWER_FRUITLESS_PAGES
 
     fun shouldRead(ask: ViewerPageAsk.Next, count: Int): Boolean {
         val reads = when {
