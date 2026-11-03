@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.sun.net.httpserver.HttpServer
+import io.sentry.IConnectionStatusProvider
 import io.sentry.Sentry
 import io.sentry.android.core.SentryAndroid
 import java.io.File
@@ -56,6 +57,7 @@ class SentryEnvelopesTest {
         Sentry.flush(FLUSH_MILLIS)
         Sentry.close()
         launch()
+        Thread.sleep(SETTLE_MILLIS)
         Sentry.flush(FLUSH_MILLIS)
         assertEquals("an envelope left before the account answered", emptyList<String>(), received)
 
@@ -73,12 +75,27 @@ class SentryEnvelopesTest {
         SentryAndroid.init(ApplicationProvider.getApplicationContext<Application>()) { options ->
             SentryBoundary.configure(options, checkNotNull(CONFIGURATION), period, files)
             options.dsn = "http://synthetickey@127.0.0.1:${server.address.port}/1"
+            options.connectionStatusProvider = Connected
         }
+    }
+
+    private object Connected : IConnectionStatusProvider {
+        override fun getConnectionStatus() = IConnectionStatusProvider.ConnectionStatus.CONNECTED
+
+        override fun getConnectionType(): String? = null
+
+        override fun addConnectionStatusObserver(observer: IConnectionStatusProvider.IConnectionStatusObserver) = true
+
+        override fun removeConnectionStatusObserver(observer: IConnectionStatusProvider.IConnectionStatusObserver) =
+            Unit
+
+        override fun close() = Unit
     }
 
     private companion object {
         val CONFIGURATION = SentryConfiguration.of("https://synthetickey@o0.example.invalid/1", "n", "tv")
         const val FLUSH_MILLIS = 5_000L
         const val POLL_MILLIS = 50L
+        const val SETTLE_MILLIS = 1_000L
     }
 }
