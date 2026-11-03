@@ -93,6 +93,7 @@ import io.putdotio.android.tv.account.TvShowHome
 import io.putdotio.android.tv.home.TvDeviceShowHomeStore
 import io.putdotio.android.tv.home.TvHomeActions
 import io.putdotio.android.tv.home.TvHomeScreen
+import io.putdotio.android.tv.removeFromContinueWatching
 import io.putdotio.android.tv.trash.TvTrashScreen
 import io.putdotio.android.trash.SdkTrashRepository
 import io.putdotio.android.trash.TrashEvent

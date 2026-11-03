@@ -160,13 +160,14 @@ internal fun TvHomeScreen(
         actions = actions,
         paneFocus = paneFocus,
     )
-    LaunchedEffect(continueWatchingFailure) { if (continueWatchingFailure != null) continueSheet.handedOff() }
-    TvHomeNotice(
-        notice = pinFailure?.takeIf { it.shown() }
-            ?.let { TvHomeFailure(it, R.string.tv_files_pin_error, onDismissPinFailure) }
-            ?: continueWatchingFailure?.takeIf { it.shown() }?.let {
-                TvHomeFailure(it, R.string.tv_home_remove_continue_watching_error, onDismissContinueWatchingFailure)
-            },
+    TvHomeNotices(
+        pin = TvHomeFailure(pinFailure, R.string.tv_files_pin_error, onDismissPinFailure),
+        removal = TvHomeFailure(
+            continueWatchingFailure,
+            R.string.tv_home_remove_continue_watching_error,
+            onDismissContinueWatchingFailure,
+        ),
+        continueSheet = continueSheet,
         paneFocus = paneFocus,
     )
     if (continueWatching.isEmpty() && pinnedCards?.isEmpty() == true) {
@@ -278,7 +279,18 @@ private fun TvHomeSheets(
     )
 }
 
-private class TvHomeFailure(val failure: PutioFailure, @StringRes val title: Int, val onDismiss: () -> Unit)
+private class TvHomeFailure(val failure: PutioFailure?, @StringRes val title: Int, val onDismiss: () -> Unit)
+
+@Composable
+private fun TvHomeNotices(
+    pin: TvHomeFailure,
+    removal: TvHomeFailure,
+    continueSheet: TvHomeCardSheet,
+    paneFocus: FocusRequester,
+) {
+    LaunchedEffect(removal.failure) { if (removal.failure != null) continueSheet.handedOff() }
+    TvHomeNotice(listOf(pin, removal).firstOrNull { it.failure.shown() }, paneFocus)
+}
 
 @Composable
 private fun TvHomeNotice(notice: TvHomeFailure?, paneFocus: FocusRequester) {
@@ -291,12 +303,11 @@ private fun TvHomeNotice(notice: TvHomeFailure?, paneFocus: FocusRequester) {
         withFrameNanos {}
         paneFocus.returnFocusFromSheet()
     }
-    notice?.let {
-        TvNoticeDialog(
-            title = stringResource(it.title, it.failure.tvMessageText()),
-            onDismiss = it.onDismiss,
-        )
-    }
+    val failure = notice?.failure ?: return
+    TvNoticeDialog(
+        title = stringResource(notice.title, failure.tvMessageText()),
+        onDismiss = notice.onDismiss,
+    )
 }
 
 @Composable

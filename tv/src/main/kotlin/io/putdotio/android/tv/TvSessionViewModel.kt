@@ -389,23 +389,14 @@ internal class TvSession internal constructor(
         stopped.close()
     }
 
-    fun setWatched(item: FilesItem, watched: Boolean) {
+    fun setWatched(item: FilesItem, watched: Boolean, onFailure: ((PutioFailure) -> Unit)? = null) {
         val seconds = if (watched) item.playback?.durationSeconds ?: return else 0.0
-        fileActionFailures.dismiss()
-        writePosition(item, seconds, fileActionFailures::report)
-    }
-
-    fun removeFromContinueWatching(entry: ContinueWatchingEntry) {
-        writePosition(entry.toFilesItem(), 0.0) { failure ->
-            if (failure.isNotFound) continueWatching.removed(entry.fileId) else continueWatchingFailure.report(failure)
-        }
-    }
-
-    private fun writePosition(item: FilesItem, seconds: Double, onFailure: (PutioFailure) -> Unit) {
+        if (onFailure == null) fileActionFailures.dismiss()
+        val report: (PutioFailure) -> Unit = onFailure ?: fileActionFailures::report
         watchedJobs.remove(item.id)?.cancel()
         val job = scope.launch(start = CoroutineStart.LAZY) {
             val result = playbackReporting.supersede(item.id.value) {
-                if (seconds > 0.0) {
+                if (watched) {
                     watchedRepository.setPosition(item.id, seconds)
                 } else {
                     watchedRepository.clearPosition(item.id)
@@ -419,7 +410,7 @@ internal class TvSession internal constructor(
                     watchNext.positionSaved(item.toWatchNextMedia(), seconds)
                     continueWatching.positionSaved(item.id, seconds)
                 }
-                is PutioResult.Failure -> onFailure(result.failure)
+                is PutioResult.Failure -> report(result.failure)
             }
         }
         watchedJobs[item.id] = job
@@ -526,6 +517,11 @@ private suspend fun FilesRepository.withListedDuration(item: FilesItem): FilesIt
     val progress = duration?.let { FilesPlaybackProgress(item.playback?.startFromSeconds ?: 0.0, it) }
     return if (progress == null) item else item.copy(playback = progress)
 }
+
+internal fun TvSession.removeFromContinueWatching(entry: ContinueWatchingEntry) =
+    setWatched(entry.toFilesItem(), watched = false) { failure ->
+        if (failure.isNotFound) continueWatching.removed(entry.fileId) else continueWatchingFailure.report(failure)
+    }
 
 internal fun tvSessionViewModelFactory(authState: StateFlow<TvAuthState>): ViewModelProvider.Factory =
     viewModelFactory { initializer { TvSessionViewModel(authState) } }
