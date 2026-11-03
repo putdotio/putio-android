@@ -1,4 +1,4 @@
-package io.putdotio.android.viewer
+package io.putdotio.android.files
 
 import java.io.InputStream
 import java.nio.ByteBuffer
@@ -6,8 +6,8 @@ import java.nio.CharBuffer
 import java.nio.charset.CodingErrorAction
 import kotlinx.coroutines.CancellationException
 
-/** The start of a text file as the viewer shows it; [truncated] when the file goes on past it. */
-internal data class MobileTextPreview(
+/** The start of a text file as a viewer shows it; [truncated] when the file goes on past it. */
+public data class FilesTextPreview(
     val lines: List<String>,
     val truncated: Boolean,
 )
@@ -17,11 +17,11 @@ internal data class MobileTextPreview(
  * bytes read as the replacement character; a character the limit cuts in half is dropped rather
  * than shown as one. A byte-order mark is skipped and line endings of every platform split lines.
  */
-internal fun InputStream.readTextPreview(
+public fun InputStream.readTextPreview(
     limitBytes: Int = TEXT_PREVIEW_LIMIT_BYTES,
     /** Checked between reads, so a closed viewer stops a slow stream at the next chunk. */
     keepReading: () -> Boolean = { true },
-): MobileTextPreview {
+): FilesTextPreview {
     val bytes = ByteArray(limitBytes)
     var count = 0
     while (count < limitBytes) {
@@ -41,11 +41,11 @@ internal fun InputStream.readTextPreview(
     if (!truncated) decoder.flush(output)
     output.flip()
     val text = output.toString().removePrefix(Char(BYTE_ORDER_MARK).toString())
-    return MobileTextPreview(text.split(LINE_BREAK), truncated)
+    return FilesTextPreview(text.split(LINE_BREAK), truncated)
 }
 
 /** A long subtitle file or log many times over, and still quick to lay out. */
-internal const val TEXT_PREVIEW_LIMIT_BYTES = 250_000
+public const val TEXT_PREVIEW_LIMIT_BYTES: Int = 250_000
 
 private const val BYTE_ORDER_MARK = 0xFEFF
 private val LINE_BREAK = Regex("\r\n|\r|\n")

@@ -47,7 +47,11 @@ import coil3.compose.SubcomposeAsyncImageContent
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.files.FilesItem
+import io.putdotio.android.files.FilesPdfDocument
+import io.putdotio.android.files.FilesTextPreview
+import io.putdotio.android.files.TEXT_PREVIEW_LIMIT_BYTES
 import io.putdotio.android.files.formatFileSize
+import io.putdotio.android.files.readTextPreview
 import java.io.IOException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.isActive
@@ -73,7 +77,7 @@ internal fun MobileImagePage(file: FilesItem, uri: Uri, onOpenWithAnotherApp: ()
 private sealed interface PdfState {
     data object Loading : PdfState
 
-    data class Ready(val document: MobilePdfDocument) : PdfState
+    data class Ready(val document: FilesPdfDocument) : PdfState
 
     data object Failed : PdfState
 }
@@ -83,9 +87,11 @@ private sealed interface PdfState {
 internal fun MobilePdfPage(file: FilesItem, uri: Uri, onOpenWithAnotherApp: () -> Unit) {
     val context = LocalContext.current
     val state by produceState<PdfState>(PdfState.Loading, uri) {
-        var opened: MobilePdfDocument? = null
+        var opened: FilesPdfDocument? = null
         value = try {
-            MobilePdfDocument.open(context, uri, file.sizeBytes).also { opened = it }.let(PdfState::Ready)
+            FilesPdfDocument.open(context, file.sizeBytes) { context.contentResolver.openInputStream(uri) }
+                .also { opened = it }
+                .let(PdfState::Ready)
         } catch (_: IOException) {
             PdfState.Failed
         } catch (_: SecurityException) {
@@ -101,7 +107,7 @@ internal fun MobilePdfPage(file: FilesItem, uri: Uri, onOpenWithAnotherApp: () -
 }
 
 @Composable
-private fun MobilePdfPages(document: MobilePdfDocument, onOpenWithAnotherApp: () -> Unit) {
+private fun MobilePdfPages(document: FilesPdfDocument, onOpenWithAnotherApp: () -> Unit) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val widthPx = with(LocalDensity.current) { maxWidth.roundToPx() }
         // The pages are pictures, so readers get the way to an app that reads the document's text.
@@ -138,7 +144,7 @@ private sealed interface PageState {
 /** One page, A4-shaped until it renders; a page that won't render says so and offers another app. */
 @Composable
 private fun MobilePdfPageImage(
-    document: MobilePdfDocument,
+    document: FilesPdfDocument,
     index: Int,
     widthPx: Int,
     onOpenWithAnotherApp: () -> Unit,
@@ -176,7 +182,7 @@ private fun MobilePdfPageImage(
 private sealed interface TextState {
     data object Loading : TextState
 
-    data class Ready(val preview: MobileTextPreview) : TextState
+    data class Ready(val preview: FilesTextPreview) : TextState
 
     data object Failed : TextState
 }
@@ -207,7 +213,7 @@ internal fun MobileTextPage(uri: Uri, onOpenWithAnotherApp: () -> Unit) {
 }
 
 @Composable
-private fun MobileTextLines(preview: MobileTextPreview, onOpenWithAnotherApp: () -> Unit) {
+private fun MobileTextLines(preview: FilesTextPreview, onOpenWithAnotherApp: () -> Unit) {
     // A few hundred lines per item keep each layout small without a node per line.
     val chunks = preview.lines.chunked(TEXT_LINES_PER_ITEM).map { it.joinToString("\n") }
     val style = PutioTypeScale.mono.copy(color = MaterialTheme.colorScheme.onSurface)

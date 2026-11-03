@@ -11,19 +11,6 @@ import io.putdotio.android.MainActivity
 import io.putdotio.android.documents.MobileDocumentsProvider
 import io.putdotio.android.documents.PutioDocumentId
 import io.putdotio.android.documents.mimeTypeOf
-import io.putdotio.sdk.files.PutioFileType
-
-/** The in-app viewers; every other type that the players don't take opens with another app. */
-internal enum class MobileFileViewerKind { Image, Pdf, Text }
-
-internal val FilesItem.viewerKind: MobileFileViewerKind?
-    get() = when {
-        isFolder || id.value <= 0L -> null
-        type == PutioFileType.IMAGE -> MobileFileViewerKind.Image
-        type == PutioFileType.PDF -> MobileFileViewerKind.Pdf
-        type == PutioFileType.TEXT -> MobileFileViewerKind.Text
-        else -> null
-    }
 
 /**
  * Reaches a file's bytes through the app's own documents provider, the one the system file picker

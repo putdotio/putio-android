@@ -104,7 +104,7 @@ internal fun TvSideSheet(
     }
 }
 
-private fun FocusRequester.returnFocusFromSheet() {
+internal fun FocusRequester.returnFocusFromSheet() {
     try {
         requestFocus()
     } catch (_: IllegalStateException) {
