@@ -224,6 +224,31 @@ class PlaybackSubtitleSelectionTest {
     }
 
     @Test
+    fun anUnlabelledDefaultNeverGivesWayToAForcedTrack() {
+        val group = TrackGroup(
+            *listOf(Triple("dflt", C.SELECTION_FLAG_DEFAULT, "und"), Triple("en", C.SELECTION_FLAG_FORCED, "en"))
+                .plus(Triple("tr", 0, "tr"))
+                .map { (id, flags, language) ->
+                    Format.Builder()
+                        .setId(id)
+                        .setSampleMimeType(MimeTypes.TEXT_VTT)
+                        .setLanguage(language)
+                        .setSelectionFlags(flags)
+                        .build()
+                }.toTypedArray(),
+        )
+        val noPreference = TrackSelectionParameters.Builder().build()
+
+        val automatic = noPreference.withSubtitleSelection(
+            SubtitleSelection.Automatic,
+            group.subtitleTracks(),
+            noPreference,
+        )
+
+        assertEquals("tr", selectedTextId(automatic, group))
+    }
+
+    @Test
     fun automaticSubtitlesFollowTheDeviceWhenTheServerNamesNoDefault() {
         val deviceDefaults = TrackSelectionParameters.Builder().setPreferredTextLanguages("tr").build()
         val unflagged = serverTracks(defaultId = null)

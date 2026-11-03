@@ -1,5 +1,6 @@
 package io.putdotio.android.playback
 
+import androidx.media3.common.C
 import io.putdotio.android.isUnknownLanguageName
 import android.content.Context
 import androidx.annotation.StringRes
@@ -129,7 +130,9 @@ internal fun SubtitleSelection.preferringNamedTrack(
 ): SubtitleSelection {
     if (this != SubtitleSelection.Automatic) return this
     val default = tracks.firstOrNull(PlaybackSubtitleTrack::isServerDefault)
-    val named = tracks.filter { languageName(it.identity.language) != null }
+    val named = tracks
+        .filter { languageName(it.identity.language) != null && (it.identity.selectionFlags and FORCED) == 0 }
+        .sortedBy { (it.identity.roleFlags and ACCESSORY_ROLES) != 0 }
     val preferred = preferredLanguages.firstNotNullOfOrNull { tag ->
         named.firstOrNull { it.identity.language?.sameLanguageAs(tag) == true }
     }
@@ -141,3 +144,6 @@ private fun String.sameLanguageAs(tag: String): Boolean =
     Locale.forLanguageTag(this).iso3OrLanguage() == Locale.forLanguageTag(tag).iso3OrLanguage()
 
 private fun Locale.iso3OrLanguage(): String = runCatching { isO3Language }.getOrDefault(language)
+
+private const val FORCED = C.SELECTION_FLAG_FORCED
+private const val ACCESSORY_ROLES = C.ROLE_FLAG_DESCRIBES_MUSIC_AND_SOUND or C.ROLE_FLAG_COMMENTARY

@@ -290,7 +290,7 @@ internal fun TvAudioStage(title: String) {
             style = MaterialTheme.typography.headlineSmall,
             color = MaterialTheme.colorScheme.onSurface,
             textAlign = TextAlign.Center,
-            maxLines = 2,
+            maxLines = 1,
             overflow = TextOverflow.MiddleEllipsis,
         )
     }
