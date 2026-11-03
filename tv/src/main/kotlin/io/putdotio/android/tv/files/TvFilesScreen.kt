@@ -67,7 +67,13 @@ import io.putdotio.android.files.canStartOperation
 import io.putdotio.android.files.items
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import io.putdotio.android.design.PutioTypeScale
+import io.putdotio.android.files.FilesOpenOrigin
+import io.putdotio.android.files.FilesSort
+import io.putdotio.android.tv.TV_MONO_RUN
 import io.putdotio.android.files.formatFileSize
 import io.putdotio.android.tv.ROW_BLEED
 import io.putdotio.android.tv.TvListDetail
@@ -134,6 +140,7 @@ internal fun TvFilesScreen(
     detailSources: TvFilesDetailSources = remember(sessionKey) { TvFilesDetailSources.None },
     /** Opens images, PDFs and text in the viewer; without it they land on the unsupported screen. */
     viewerUrl: TvViewerUrl? = null,
+    accountDefaultSort: FilesSort? = null,
 ) {
     val current = state.current
     // Whether D-pad focus belongs to this pane. A content change while the user is on the
@@ -269,6 +276,7 @@ internal fun TvFilesScreen(
                             sortFocus = sortFocus,
                             sessionKey = sessionKey,
                             showSort = content !is FilesContent.Loading,
+                            accountDefaultSort = accountDefaultSort,
                             onFocusChanged = {
                                 headerHasFocus.value = it
                                 detailFocus.onListFocusChanged(it)
@@ -392,9 +400,11 @@ internal fun TvFolderHeading(name: String, crumb: String) {
 
 @Composable
 private fun FilesBrowserState.crumbLabel(): String =
-    current.openedFrom.returnDestination()?.let { stringResource(it.label) }
-        ?: stack.dropLast(1).lastOrNull()?.folder?.name
-        ?: stringResource(R.string.tv_files_title)
+    when (val origin = current.openedFrom) {
+        FilesOpenOrigin.HOME -> null
+        else -> origin.returnDestination()?.let { stringResource(it.label) }
+            ?: stack.dropLast(1).lastOrNull()?.folder?.name
+    } ?: stringResource(R.string.tv_files_title)
 
 private fun FilesContent.detailItem(focusedId: Long?, rememberedId: Long?): FilesItem? =
     (this as? FilesContent.Ready)?.items?.let { items ->
@@ -746,9 +756,11 @@ private fun TvFilesSectionLine(
     sortFocus: FocusRequester,
     sessionKey: Any?,
     showSort: Boolean,
+    accountDefaultSort: FilesSort?,
     onFocusChanged: (Boolean) -> Unit,
 ) {
     val current = state.current
+    val sortInEffect = current.folder.sort ?: accountDefaultSort
     val idle = current.operation.canStartOperation &&
         current.content !is FilesContent.Loading &&
         current.content !is FilesContent.Failed
@@ -760,7 +772,7 @@ private fun TvFilesSectionLine(
             {
                 TvSectionPill(
                     icon = R.drawable.ic_ph_sort_ascending,
-                    label = stringResource(current.folder.sort?.tvLabel() ?: R.string.tv_files_sort_account_default),
+                    label = stringResource(sortInEffect?.tvLabel() ?: R.string.tv_files_sort_title),
                     onClick = { if (idle) sorting = true },
                     modifier = Modifier.focusRequester(sortFocus),
                     showFocus = !sorting,
@@ -773,20 +785,29 @@ private fun TvFilesSectionLine(
         val summary = current.summary
         if (current.folder.name == null) {
             Text(
-                stringResource(R.string.tv_files_all_files),
+                stringResource(R.string.tv_files_title),
                 style = SECTION_LABEL,
                 modifier = if (showSort) Modifier else Modifier.align(Alignment.Top),
             )
         } else if (summary != null) {
             val count = summary.itemCount.toString()
             val label = pluralStringResource(R.plurals.tv_files_item_count, summary.itemCount, count)
-            Text(monoNumber(label, count), style = SECTION_LABEL)
-            summary.sizeBytes?.let { Text(formatFileSize(it, spaced = true), style = SECTION_LABEL_MONO) }
+            val size = summary.sizeBytes?.let { formatFileSize(it, spaced = true) }
+            Text(
+                buildAnnotatedString {
+                    append(monoNumber(label, count))
+                    if (size != null) {
+                        append(COUNT_SEPARATOR)
+                        withStyle(SECTION_SIZE_RUN) { append(size) }
+                    }
+                },
+                style = SECTION_LABEL,
+            )
         }
     }
     if (sorting) {
         TvSortSheet(
-            selected = current.folder.sort,
+            selected = sortInEffect,
             onSelect = { sort ->
                 sorting = false
                 onEvent(FilesBrowserEvent.SelectSort(sort))
@@ -1075,4 +1096,5 @@ private val ROOT_TOP_GAP = 4.dp
 private val FOLDER_STATE_TOP = 46.dp
 private val STATE_BOTTOM_GAP = 3.dp
 private val SECTION_LABEL = PutioTypeScale.tvLabel
-private val SECTION_LABEL_MONO = PutioTypeScale.tvMono.copy(fontWeight = FontWeight.Medium)
+private val SECTION_SIZE_RUN = TV_MONO_RUN.merge(SpanStyle(fontWeight = FontWeight.Medium))
+private const val COUNT_SEPARATOR = " · "

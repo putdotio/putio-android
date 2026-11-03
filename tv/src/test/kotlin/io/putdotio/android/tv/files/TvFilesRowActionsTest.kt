@@ -371,6 +371,19 @@ class TvFilesRowActionsTest {
     }
 
     @Test
+    fun theWatchedToggleFollowsTheResumePointAndCanAlwaysClearAPosition() {
+        val context = TvFilesActionContext(watchedToggleEnabled = true, trashEnabled = null, canDelete = false)
+        fun toggle(progress: FilesPlaybackProgress) =
+            item(2, "clip.mp4", PutioFileType.VIDEO, playback = progress).tvActions(context)
+                .filterIsInstance<TvFilesAction.SetWatched>()
+
+        assertEquals(listOf(TvFilesAction.SetWatched(true)), toggle(FilesPlaybackProgress(30.0, 120.0)))
+        assertEquals(listOf(TvFilesAction.SetWatched(false)), toggle(FilesPlaybackProgress(120.0, 120.0)))
+        assertEquals(listOf(TvFilesAction.SetWatched(false)), toggle(FilesPlaybackProgress(30.0, null)))
+        assertEquals(emptyList<TvFilesAction>(), toggle(FilesPlaybackProgress(0.0, null)))
+    }
+
+    @Test
     fun sharedItemsOfferNeitherTheWatchedToggleNorDeletion() {
         compose.showFiles(
             state = {

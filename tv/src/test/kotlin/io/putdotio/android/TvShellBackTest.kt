@@ -11,7 +11,9 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -112,13 +114,13 @@ class TvShellBackTest {
             onExit = { exits += 1 },
         )
         compose.openTab(TvDestination.Files)
-        compose.onNodeWithText("Your Files").assertIsDisplayed()
+        compose.onNodeWithText("Your files").assertIsDisplayed()
         compose.onNodeWithText("Sample folder").assertIsDisplayed()
         compose.onNodeWithContentDescription("inner.txt").assertIsFocused()
 
         compose.pressBack()
         assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.NavigateBack), events)
-        compose.onNodeWithText("Your Files").assertDoesNotExist()
+        compose.onAllNodesWithText("Your files").assertCountEquals(1)
         compose.onNodeWithContentDescription("Sample folder").assertIsFocused()
 
         compose.pressBack()

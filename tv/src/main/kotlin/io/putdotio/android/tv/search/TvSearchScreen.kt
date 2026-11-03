@@ -365,7 +365,7 @@ private fun TvSearchReady(
         viewer.openOr(item, detail.viewerUrl, { returnFocus }, actions.onResult)
     }
     val rows = TvSearchRows(
-        folderName = folderNameOf(detail.folderNames, stringResource(R.string.tv_destination_files)),
+        folderName = folderNameOf(detail.folderNames, stringResource(R.string.tv_files_title)),
         onResult = { openResult(it, detailRow) },
         onActions = openActions,
         onFocused = {

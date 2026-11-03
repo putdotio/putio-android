@@ -275,7 +275,7 @@ public fun AccountSettingsState.productAnalyticsAllowed(): Boolean? =
 
 // Wraps the nullable sort so "confirmed as unknown to this app" stays distinct from "not confirmed".
 @JvmInline
-public value class ConfirmedDefaultSort(internal val sort: FilesSort?)
+public value class ConfirmedDefaultSort(public val sort: FilesSort?)
 
 // A pending or failed mutation only makes its own key unconfirmed; the other
 // preferences still reflect the last authoritative read.

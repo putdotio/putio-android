@@ -85,7 +85,7 @@ private fun TvFilesRowMeta(item: FilesItem, place: TvFilesRowPlace, color: Color
         TvFilesRowPlace.Listing -> date
         is TvFilesRowPlace.SearchResult -> place.folderName
     }
-    val watched = item.playback?.isWatched == true
+    val watched = item.showsWatched
     val parts = buildList<@Composable () -> Unit> {
         size?.let { add { Text(it, style = TV_LIST_ROW_META_MONO, color = color, maxLines = 1) } }
         where?.let {

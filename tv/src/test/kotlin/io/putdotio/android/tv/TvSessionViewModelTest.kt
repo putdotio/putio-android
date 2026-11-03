@@ -490,7 +490,7 @@ class TvSessionViewModelTest {
     }
 
     @Test
-    fun `a Watch Next card plays its saved position without asking, as a search result does not`() = runTest {
+    fun `a Watch Next card and a system search result both play their saved position without asking`() = runTest {
         playbackRepository.savedSeconds = 45.0
         val listed = media(55, "resolved-55", PutioFileType.VIDEO).copy(playback = FilesPlaybackProgress(45.0, 600.0))
         listedItems[listed.id] = listed
@@ -506,20 +506,19 @@ class TvSessionViewModelTest {
         session.links.open(FilesItemId(55), continueWatching = false)
 
         assertEquals(TvExternalOpen.PLAYING, session.links.opens.first())
-        assertTrue(checkNotNull(session.playback.value).state.value.content is PlaybackContent.AwaitingResume)
+        val searched = checkNotNull(session.playback.value).state.value
+        assertTrue(searched.content is PlaybackContent.Ready)
+        assertEquals(45_000L, searched.resumePositionMillis)
     }
 
     @Test
-    fun `the detail's Resume and Start over answer the resume prompt the row asks`() = runTest {
+    fun `a row resumes without asking, and the detail's Start over restarts`() = runTest {
         playbackRepository.savedSeconds = 45.0
         val video = media(55, "Blue.Lights.mkv", PutioFileType.VIDEO)
             .copy(playback = FilesPlaybackProgress(45.0, 600.0))
         val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
 
         session.play(video)
-        assertTrue(checkNotNull(session.playback.value).state.value.content is PlaybackContent.AwaitingResume)
-
-        session.play(video, TvPlayStart.Resume)
         val resumed = checkNotNull(session.playback.value).state.value
         assertTrue(resumed.content is PlaybackContent.Ready)
         assertEquals(45_000L, resumed.resumePositionMillis)

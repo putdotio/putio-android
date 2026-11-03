@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.asStateFlow
 
 /** What the system asked the TV app to show: a file from search or Watch Next, or a search. */
 internal sealed interface TvLaunchRequest {
-    /** A file to open; [continueWatching] plays a video from its saved position without asking. */
+    /** A file to open; [continueWatching] marks a Watch Next card, which leaves the row once its file is gone. */
     data class OpenFile(
         val id: FilesItemId,
         val continueWatching: Boolean = false,

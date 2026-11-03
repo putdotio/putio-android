@@ -260,7 +260,7 @@ private fun detailMeta(item: FilesItem, count: Int?): AnnotatedString {
         itemCount?.let { add(AnnotatedString(it)) }
         item.metaSize?.let { add(it.asMonoRun()) }
         date?.let { add(AnnotatedString(it)) }
-        if (!item.isFolder && item.playback?.isWatched == true) add(AnnotatedString(watched))
+        if (item.showsWatched) add(AnnotatedString(watched))
     }
     return buildAnnotatedString {
         parts.forEachIndexed { index, part ->
@@ -326,7 +326,7 @@ private fun TvFilesPrimaryActions(
         item.isPlayable -> PrimaryAction(
             AnnotatedString(stringResource(R.string.tv_files_detail_play)),
             DesignR.drawable.ic_ph_play_fill,
-            { actions.onPlay(current(), TvPlayStart.Ask) },
+            { actions.onPlay(current(), TvPlayStart.Resume) },
         )
         else -> PrimaryAction(
             AnnotatedString(stringResource(R.string.tv_files_detail_open)),
@@ -350,6 +350,9 @@ private fun TvFilesPrimaryActions(
 }
 
 private class PrimaryAction(val label: AnnotatedString, @param:DrawableRes val icon: Int, val onClick: () -> Unit)
+
+internal val FilesItem.showsWatched: Boolean
+    get() = !isFolder && playback?.isWatched == true && resumePosition(resumePlayback = true) == null
 
 internal fun FilesItem.resumePosition(resumePlayback: Boolean): Double? {
     val playback = playback?.takeIf { type == PutioFileType.VIDEO } ?: return null

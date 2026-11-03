@@ -75,7 +75,7 @@ class TvHistoryProofTest {
     fun historyListsEventsBesideTheFocusedEventsFile() {
         mount(FakeHistory(events()))
         compose.openTvTab("History")
-        waitFor(hasText("Your Files"))
+        waitFor(hasText("Your files"))
         waitFor(hasContentDescription("Open $SERVER_ISO") and isFocused())
         screenshot("androidtv-rde2-11-history")
     }
@@ -115,7 +115,7 @@ class TvHistoryProofTest {
     fun openFolderShowsTheFileInFiles() {
         mount(FakeHistory(events()))
         compose.openTvTab("History")
-        waitFor(hasText("Your Files"))
+        waitFor(hasText("Your files"))
         press(KeyEvent.KEYCODE_DPAD_RIGHT)
         waitFor(hasText("Open folder") and isFocused())
         screenshot("tv-history-open-folder-focused")
