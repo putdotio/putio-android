@@ -358,7 +358,11 @@ private fun MobileRefreshableFilesContent(
     Box(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
             MobileFilesCopyLine(state, onEvent)
-            MobileFilesOperationFailure(operation, onRetry = { onEvent(FilesBrowserEvent.Retry) })
+            MobileFilesOperationFailure(
+                operation,
+                autoRetry = selectedItemId == null,
+                onRetry = { onEvent(FilesBrowserEvent.Retry) },
+            )
             val refreshState = rememberPullToRefreshState()
             PullToRefreshBox(
                 isRefreshing = isRefreshing,
@@ -678,16 +682,12 @@ private fun MobileFilesOperationStatus(operation: FilesFolderOperation) {
     }
 }
 
-/**
- * The folder's failed operation as the inline error. A read that failed for want of a network,
- * a refresh or a reload, tries again by itself once the network is back.
- */
 @Composable
-private fun MobileFilesOperationFailure(operation: FilesFolderOperation, onRetry: () -> Unit) {
+private fun MobileFilesOperationFailure(operation: FilesFolderOperation, autoRetry: Boolean, onRetry: () -> Unit) {
     val failed = operation as? FilesFolderOperation.Failed ?: return
-    val rereads = failed.intent == FilesFolderOperationIntent.Refresh ||
-        failed.phase == FilesFolderOperationPhase.RELOADING
-    if (rereads && failed.failure is PutioFailure.NetworkUnavailable) RetryWhenOnline(failed, onRetry)
+    val offlineReread = failed.phase == FilesFolderOperationPhase.RELOADING &&
+        failed.failure is PutioFailure.NetworkUnavailable
+    if (autoRetry && offlineReread) RetryWhenOnline(failed, onRetry)
     MobileInlineError(
         message = stringResource(failed.failureMessage()),
         onRetry = onRetry,

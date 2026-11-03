@@ -84,10 +84,6 @@ internal fun MobileEmptyState(
     )
 }
 
-/**
- * A screen with nothing to show but its failure: the empty-state voice, then Try again as DESIGN.md's
- * neutral button-tonal, the same on every screen. [glyph] marks a dropped connection.
- */
 @Composable
 internal fun MobileErrorState(
     title: String,
@@ -103,7 +99,6 @@ internal fun MobileErrorState(
     }
 }
 
-/** Try again, neutral so an error never takes the screen's one yellow action. */
 @Composable
 internal fun MobileRetryButton(
     onClick: () -> Unit,
@@ -122,10 +117,6 @@ internal fun MobileRetryButton(
     ) { Text(label) }
 }
 
-/**
- * The one inline error, under the bar and above content that stays usable: what failed, then Try
- * again. Files, Search and Transfers all use it, so a failure reads and sits the same everywhere.
- */
 @Composable
 internal fun MobileInlineError(
     message: String,

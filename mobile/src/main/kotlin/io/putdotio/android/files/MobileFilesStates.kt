@@ -327,7 +327,7 @@ private fun SkeletonBlock(color: Color, modifier: Modifier, radius: Dp = 6.dp) {
 @Composable
 internal fun MobileFilesOffline(
     onDevice: List<FilesItem>,
-    /** Null while a retry runs: Try now waits and no other retry starts. */
+    /** Null while a retry runs: Try again waits and no other retry starts. */
     onRetry: (() -> Unit)?,
     onPlayMedia: (FilesItem) -> Unit,
     modifier: Modifier = Modifier,
