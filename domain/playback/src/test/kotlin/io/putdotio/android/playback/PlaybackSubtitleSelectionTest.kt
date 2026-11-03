@@ -215,7 +215,11 @@ class PlaybackSubtitleSelectionTest {
         assertEquals("tr", selectedTextId(automatic, unlabelled))
 
         val labelled = group("Blue.Lights.S04E01.srt")
-        val kept = turkishDevice.withSubtitleSelection(SubtitleSelection.Automatic, labelled.subtitleTracks(), turkishDevice)
+        val kept = turkishDevice.withSubtitleSelection(
+            SubtitleSelection.Automatic,
+            labelled.subtitleTracks(),
+            turkishDevice,
+        )
         assertEquals("dflt", selectedTextId(kept, labelled))
     }
 

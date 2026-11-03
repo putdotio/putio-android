@@ -386,12 +386,7 @@ private fun TvReadyPlayer(
             .onKeyEvent { event -> overlay.onPlayerKey(event, player, chips, apply) }
             .focusable(),
     ) {
-        TvPlayerStage(
-            player = player,
-            target = target,
-            waiting = !firstFrameShown && playbackState != Player.STATE_READY && playbackState != Player.STATE_ENDED,
-            controlsVisible = overlay.controlsVisible,
-        )
+        TvPlayerStage(player, target, TvStageState(firstFrameShown, playbackState, overlay.controlsVisible))
         cueLayer.takeUnless { overlay.sheet == TvPlayerSheet.SizeAndTiming }?.invoke(this)
         if (overlay.controlsVisible) {
             TvPlayerControls(
@@ -448,17 +443,21 @@ private fun TvReadyPlayer(
     )
 }
 
+private class TvStageState(firstFrameShown: Boolean, playbackState: Int, val controlsVisible: Boolean) {
+    val waiting = !firstFrameShown && playbackState != Player.STATE_READY && playbackState != Player.STATE_ENDED
+}
+
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @Composable
-private fun TvPlayerStage(player: Player, target: PlaybackTarget, waiting: Boolean, controlsVisible: Boolean) {
+private fun TvPlayerStage(player: Player, target: PlaybackTarget, stage: TvStageState) {
     if (target.mediaType == PlaybackMediaType.VIDEO) {
         ContentFrame(
             player = player,
             modifier = Modifier.fillMaxSize(),
             surfaceType = playbackSurfaceType(Build.VERSION.SDK_INT, Build.HARDWARE),
         )
-        if (waiting && !controlsVisible) TvPlayerLoading(target)
-    } else if (!controlsVisible) {
+        if (stage.waiting && !stage.controlsVisible) TvPlayerLoading(target)
+    } else if (!stage.controlsVisible) {
         TvAudioStage(target.name)
     }
 }
