@@ -105,7 +105,7 @@ internal fun TvPlayerScreen(
     upNext: TvUpNextLookup = TvUpNextLookup.Off,
     onOpenInVlc: (() -> Unit)? = null,
     onPlayInVlc: (() -> Unit)? = null,
-    neighbours: PlaybackNeighbours? = null,
+    neighbours: PlaybackNeighbours? = PlaybackNeighbours(),
 ) {
     BackHandler(enabled = state.content !is PlaybackContent.Ready, onBack = onBack)
     val nowPlayingFocus = remember { mutableStateOf(TvPlayerControl.SeekBar) }
@@ -395,6 +395,7 @@ private fun TvReadyPlayer(
             textScale = appearance.textSize.scale,
         )
     }
+    val nextTrack = overlay.focusesNextTrack(neighbours)
     val focus = remember { FocusRequester() }
     val playerHoldsFocus = overlay.holdsPlayerFocus
     LaunchedEffect(focus, playerHoldsFocus) { if (playerHoldsFocus) focus.requestFocus() }
@@ -403,7 +404,7 @@ private fun TvReadyPlayer(
             .fillMaxSize()
             .testTag(TV_PLAYER_TAG)
             .focusRequester(focus)
-            .onKeyEvent { event -> overlay.onPlayerKey(event, player, chips, apply) }
+            .onKeyEvent { event -> overlay.onPlayerKey(event, player, chips, nextTrack, apply) }
             .focusable(),
     ) {
         if (nowPlaying) {
@@ -419,7 +420,7 @@ private fun TvReadyPlayer(
                 ),
                 chips = chips,
                 chipLabels = tvPlayerChipLabels(choices, speed),
-                focused = overlay.shownFocus(chips),
+                focused = overlay.shownFocus(chips, nextTrack),
             )
         } else {
             TvPlayerStage(player, target, TvStageState(firstFrameShown, playbackState, overlay.controlsVisible))
@@ -441,7 +442,7 @@ private fun TvReadyPlayer(
         }
     }
     TvUpNextOverlay(overlay, upNext) { step -> apply(step(overlay)) }
-    TvQueueEndEffect(overlay, playbackState, playWhenReady, neighbours, { currentOnUpNext(it) }, { currentOnExit() })
+    TvQueueEndEffect(overlay, playbackState, playWhenReady, neighbours) { next -> apply(overlay.queueEnded(next)) }
 
     val closeSheet = { apply(overlay.closeSheet()) }
     TvPlayerSheets(
@@ -603,16 +604,15 @@ private fun TvQueueEndEffect(
     playbackState: Int,
     playWhenReady: Boolean,
     neighbours: PlaybackNeighbours?,
-    playChosen: (PlaybackTarget) -> Boolean,
-    exit: () -> Unit,
+    onQueueEnd: (PlaybackTarget?) -> Unit,
 ) {
     val started by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
     val finished = playbackState == Player.STATE_ENDED && playWhenReady && started.isAtLeast(Lifecycle.State.STARTED)
     val ended = overlay.nowPlaying && !overlay.exited && finished
+    val currentOnQueueEnd by rememberUpdatedState(onQueueEnd)
     LaunchedEffect(ended, neighbours) {
         val queue = neighbours ?: return@LaunchedEffect
-        val next = queue.next
-        if (ended && (next == null || !playChosen(next))) exit()
+        if (ended) currentOnQueueEnd(queue.next)
     }
 }
 

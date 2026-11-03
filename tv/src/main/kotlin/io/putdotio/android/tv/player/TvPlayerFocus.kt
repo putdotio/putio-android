@@ -18,14 +18,23 @@ internal enum class TvFocusMove { Up, Down, Left, Right }
 private val TV_PLAYER_CIRCLES = listOf(TvPlayerControl.Back, TvPlayerControl.PlayPause, TvPlayerControl.Forward)
 private val TV_NOW_PLAYING_TRANSPORT = listOf(TvPlayerControl.Previous, TvPlayerControl.PlayPause, TvPlayerControl.Next)
 
-private val TvPlayerOverlay.circles: List<TvPlayerControl>
-    get() = if (nowPlaying) TV_NOW_PLAYING_TRANSPORT else TV_PLAYER_CIRCLES
+private fun TvPlayerOverlay.circles(nextTrack: Boolean): List<TvPlayerControl> =
+    when {
+        !nowPlaying -> TV_PLAYER_CIRCLES
+        nextTrack -> TV_NOW_PLAYING_TRANSPORT
+        else -> TV_NOW_PLAYING_TRANSPORT - TvPlayerControl.Next
+    }
 
-internal fun TvPlayerOverlay.moveFocus(move: TvFocusMove, chips: List<TvPlayerControl>): TvPlayerTransition {
+internal fun TvPlayerOverlay.moveFocus(
+    move: TvFocusMove,
+    chips: List<TvPlayerControl>,
+    nextTrack: Boolean = true,
+): TvPlayerTransition {
     val revealed = reveal().overlay
     if (!controlsVisible || exited || scrub != null) return TvPlayerTransition(revealed)
-    val current = focusIn(chips)
+    val current = focusIn(chips, nextTrack)
     val seekBar = listOf(TvPlayerControl.SeekBar)
+    val circles = circles(nextTrack)
     val rows = if (nowPlaying) listOf(seekBar, circles, chips) else listOf(circles, seekBar, chips)
     val rowIndex = rows.indexOfFirst { current in it }
     val row = rows[rowIndex]
@@ -42,8 +51,9 @@ internal fun TvPlayerOverlay.moveFocus(move: TvFocusMove, chips: List<TvPlayerCo
 private fun List<TvPlayerControl>.entry(): TvPlayerControl? =
     if (TvPlayerControl.PlayPause in this) TvPlayerControl.PlayPause else firstOrNull()
 
-internal fun TvPlayerOverlay.focusIn(chips: List<TvPlayerControl>): TvPlayerControl =
-    focus.takeIf { it in circles || it == TvPlayerControl.SeekBar || it in chips }
+internal fun TvPlayerOverlay.focusIn(chips: List<TvPlayerControl>, nextTrack: Boolean = true): TvPlayerControl =
+    focus.takeIf { it in circles(nextTrack) || it == TvPlayerControl.SeekBar || it in chips }
+        ?: TvPlayerControl.PlayPause.takeIf { focus == TvPlayerControl.Next }
         ?: TvPlayerControl.SeekBar
 
 internal fun TvPlayerOverlay.openSheet(chip: TvPlayerControl): TvPlayerTransition {

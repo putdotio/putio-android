@@ -202,6 +202,13 @@ internal class FakePlayer : SimpleBasePlayer(Looper.getMainLooper()) {
         invalidateState()
     }
 
+    fun allow(command: Int) {
+        state = state.buildUpon()
+            .setAvailableCommands(state.availableCommands.buildUpon().add(command).build())
+            .build()
+        invalidateState()
+    }
+
     fun end() {
         state = state.buildUpon()
             .setContentPositionMs(PositionSupplier.getConstant(DURATION_US / 1_000L))

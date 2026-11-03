@@ -20,7 +20,7 @@ internal fun PlaybackState.playerEnded(): PlaybackTransition {
 internal fun PlaybackState.nextChosen(event: PlaybackEvent.NextChosen): PlaybackTransition {
     val another = event.target.mediaType == target.mediaType && event.target.fileId != target.fileId
     return if (content is PlaybackContent.Ready && another) {
-        resolveNext(event.target)
+        resolveNext(event.target, startMillis = 0L.takeIf { event.target.mediaType == PlaybackMediaType.AUDIO })
     } else {
         PlaybackTransition(this, consumed = false)
     }
@@ -57,7 +57,7 @@ internal fun PlaybackState.nextFailed(event: PlaybackEvent.NextFailed): Playback
     return PlaybackTransition(copy(content = PlaybackContent.NextFailed(event.failure)))
 }
 
-private fun PlaybackState.resolveNext(nextTarget: PlaybackTarget): PlaybackTransition {
+private fun PlaybackState.resolveNext(nextTarget: PlaybackTarget, startMillis: Long? = null): PlaybackTransition {
     val resolveRequestId = PlaybackRequestId(nextRequestValue)
     return PlaybackTransition(
         state =
@@ -65,7 +65,7 @@ private fun PlaybackState.resolveNext(nextTarget: PlaybackTarget): PlaybackTrans
                 target = nextTarget,
                 content = PlaybackContent.Loading(resolveRequestId),
                 nextRequestValue = nextRequestValue + 1,
-                resumePositionMillis = null,
+                resumePositionMillis = startMillis,
                 visitedFileIds = visitedFileIds + nextTarget.fileId,
                 conversionStatusRead = false,
             ),
