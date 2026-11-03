@@ -200,10 +200,12 @@ internal fun MobileNavHost(
                             if (controller.dispatch(start)) askForDownloadNotifications()
                         }
                     }
-                    val filesItemActions = filesActions?.itemActions(
-                        watchedToggle = accountSettingsState.confirmedResumePlayback() == true,
-                        vlcInstalled = rememberVlcInstalled(),
-                    ) ?: MobileFilesItemActions()
+                    val filesItemActions = (
+                        filesActions?.itemActions(
+                            watchedToggle = accountSettingsState.confirmedResumePlayback() == true,
+                            vlcInstalled = rememberVlcInstalled(),
+                        ) ?: MobileFilesItemActions()
+                        ).withContinueWatching(continueWatching)
                     val fileOpener = remember(account.userId) { MobileFileOpener(account.userId) }
                     val filesContext = LocalContext.current
                     MobileFilesTab(

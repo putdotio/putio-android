@@ -36,6 +36,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -85,6 +86,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.launch
 import io.putdotio.android.MobileSnackbarHost
 
 internal const val MOBILE_FILES_LIST_TAG = "mobile-files-list"
@@ -362,6 +364,7 @@ private fun MobileRefreshableFilesContent(
     val snackbarHostState = remember { SnackbarHostState() }
     MobileFilesTrashedAnnouncement(state.current, snackbarHostState, onEvent, itemActions.onUndoTrash)
     MobileFilesNotices(itemActions.notices, snackbarHostState)
+    val hideStarted = rememberHideWithUndo(itemActions, snackbarHostState)
 
     Box(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -418,6 +421,7 @@ private fun MobileRefreshableFilesContent(
                                 content = content,
                                 headers = headers,
                                 onPlayEntry = { onPlayMedia(it.toFilesItem()) },
+                                onRemoveEntry = hideStarted,
                                 revealItemId = state.current.revealItemId,
                                 pagingEnabled = operation == FilesFolderOperation.Idle,
                                 onEvent = onEvent,
@@ -568,6 +572,30 @@ private fun MobileFilesTrashedAnnouncement(
             currentOnEvent(FilesBrowserEvent.DeleteOutcomeAnnounced(outcome))
         }
     }
+}
+
+@Composable
+private fun rememberHideWithUndo(
+    itemActions: MobileFilesItemActions,
+    snackbarHostState: SnackbarHostState,
+): ((ContinueWatchingEntry) -> Unit)? {
+    val remove by rememberUpdatedState(itemActions.onRemoveFromContinueWatching)
+    val scope = rememberCoroutineScope()
+    val removed = stringResource(R.string.mobile_files_continue_watching_removed)
+    val undo = stringResource(R.string.mobile_files_undo)
+    val hide = remember(scope, snackbarHostState, removed, undo) {
+        { entry: ContinueWatchingEntry ->
+            val restore = remove?.invoke(entry)
+            if (restore != null) {
+                scope.launch {
+                    snackbarHostState.currentSnackbarData?.dismiss()
+                    val result = snackbarHostState.showSnackbar(removed, undo, duration = SnackbarDuration.Long)
+                    if (result == SnackbarResult.ActionPerformed) restore()
+                }
+            }
+        }
+    }
+    return hide.takeIf { itemActions.onRemoveFromContinueWatching != null }
 }
 
 private fun shareOutsideViewer(share: ((FilesItem) -> Unit)?, inViewer: Boolean): ((FilesItem) -> Unit)? =
@@ -822,6 +850,7 @@ private fun MobileFilesList(
     content: FilesContent.Ready,
     headers: MobileFilesHeaders,
     onPlayEntry: (ContinueWatchingEntry) -> Unit,
+    onRemoveEntry: ((ContinueWatchingEntry) -> Unit)?,
     revealItemId: FilesItemId?,
     pagingEnabled: Boolean,
     onEvent: (FilesBrowserEvent) -> Unit,
@@ -888,7 +917,7 @@ private fun MobileFilesList(
         // toolbar, however tall large fonts make it.
         contentPadding = selection?.let { PaddingValues(top = 8.dp, bottom = it.bottomClearance) } ?: PaddingValues(),
     ) {
-        mobileFilesHeaderItems(headers, onPlayEntry, hidden = selection != null)
+        mobileFilesHeaderItems(headers, onPlayEntry, onRemoveEntry, hidden = selection != null)
         itemsIndexed(
             items = content.items,
             key = { _, item -> item.id.value },

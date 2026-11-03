@@ -68,13 +68,17 @@ internal fun FilesBrowserState.openExternalItem(
 private fun FilesBrowserState.outsideOpenIndex(): Int? =
     stack.indexOfFirst { it.openedFrom != null }.takeIf { it >= 0 }
 
-internal fun FilesBrowserState.navigateBack(): FilesBrowserTransition =
-    if (canNavigateBack && current.operation.pendingDelete == null && stack.none { it.operation.pendingMove != null }) {
-        val back = copy(stack = stack.dropLast(1))
+internal fun FilesBrowserState.navigateBack(toRoot: Boolean = false): FilesBrowserTransition {
+    val floor = stack.indexOfLast { it.operation.pendingDelete != null } + 1
+    val kept = if (toRoot) maxOf(1, floor) else stack.size - 1
+    val allowed = kept in maxOf(1, floor) until stack.size && stack.none { it.operation.pendingMove != null }
+    return if (allowed) {
+        val back = copy(stack = stack.take(kept))
         if (back.current.needsReload) back.reloadStaleFolder() else FilesBrowserTransition(back)
     } else {
         FilesBrowserTransition(this, consumed = false)
     }
+}
 
 internal fun FilesBrowserState.reloadStaleFolder(): FilesBrowserTransition {
     if (current.operation != FilesFolderOperation.Idle || current.content is FilesContent.Loading) {

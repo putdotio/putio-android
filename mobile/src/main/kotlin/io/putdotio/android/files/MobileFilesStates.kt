@@ -9,7 +9,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,12 +29,18 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -45,10 +51,12 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -100,6 +108,7 @@ internal data class MobileFilesHeaders(
 internal fun LazyListScope.mobileFilesHeaderItems(
     headers: MobileFilesHeaders,
     onPlay: (ContinueWatchingEntry) -> Unit,
+    onRemove: ((ContinueWatchingEntry) -> Unit)? = null,
     hidden: Boolean = false,
 ) {
     fun header(key: String, content: @Composable () -> Unit) = item(key = key) { if (!hidden) content() }
@@ -107,7 +116,7 @@ internal fun LazyListScope.mobileFilesHeaderItems(
         header("continue-watching-label") {
             MobileFilesSectionLabel(stringResource(R.string.mobile_files_continue_watching))
         }
-        header("continue-watching") { MobileContinueWatchingRow(headers.continueWatching, onPlay) }
+        header("continue-watching") { MobileContinueWatchingRow(headers.continueWatching, onPlay, onRemove) }
         header("all-files-label") {
             MobileFilesSectionLabel(stringResource(R.string.mobile_files_all_files), top = 12.dp)
         }
@@ -174,6 +183,7 @@ private fun MobileFolderSummaryLine(summary: FilesFolderSummary) {
 private fun MobileContinueWatchingRow(
     entries: List<ContinueWatchingEntry>,
     onPlay: (ContinueWatchingEntry) -> Unit,
+    onRemove: ((ContinueWatchingEntry) -> Unit)?,
 ) {
     LazyRow(
         modifier = Modifier
@@ -183,7 +193,7 @@ private fun MobileContinueWatchingRow(
         contentPadding = PaddingValues(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        items(entries, key = { it.fileId.value }) { entry -> MobileContinueWatchingCard(entry, onPlay) }
+        items(entries, key = { it.fileId.value }) { entry -> MobileContinueWatchingCard(entry, onPlay, onRemove) }
     }
 }
 
@@ -192,17 +202,57 @@ private fun MobileContinueWatchingRow(
 private fun MobileContinueWatchingCard(
     entry: ContinueWatchingEntry,
     onPlay: (ContinueWatchingEntry) -> Unit,
+    onRemove: ((ContinueWatchingEntry) -> Unit)?,
 ) {
     val left = formatRemaining(entry.remainingSeconds)
     val description = stringResource(R.string.mobile_files_continue_watching_resume, entry.name, left)
+    val removeLabel = stringResource(R.string.mobile_files_continue_watching_remove)
+    var menu by remember(entry.fileId) { mutableStateOf(false) }
+    Box {
+        MobileContinueWatchingCardBody(
+            entry = entry,
+            left = left,
+            modifier = Modifier
+                .width(CONTINUE_WATCHING_CARD_WIDTH)
+                .clip(RoundedCornerShape(PutioRadius.large))
+                .combinedClickable(
+                    role = Role.Button,
+                    onClick = { onPlay(entry) },
+                    onLongClick = if (onRemove != null) ({ menu = true }) else null,
+                )
+                .clearAndSetSemantics {
+                    contentDescription = description
+                    if (onRemove != null) {
+                        customActions = listOf(
+                            CustomAccessibilityAction(removeLabel) {
+                                onRemove(entry)
+                                true
+                            },
+                        )
+                    }
+                },
+        )
+        if (onRemove != null) {
+            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                DropdownMenuItem(
+                    text = { Text(removeLabel) },
+                    leadingIcon = { Icon(painterResource(R.drawable.ic_ph_x), contentDescription = null) },
+                    onClick = {
+                        menu = false
+                        onRemove(entry)
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MobileContinueWatchingCardBody(entry: ContinueWatchingEntry, left: String, modifier: Modifier) {
     Surface(
         shape = RoundedCornerShape(PutioRadius.large),
         color = MaterialTheme.colorScheme.surfaceContainer,
-        modifier = Modifier
-            .width(CONTINUE_WATCHING_CARD_WIDTH)
-            .clip(RoundedCornerShape(PutioRadius.large))
-            .clickable(role = Role.Button, onClick = { onPlay(entry) })
-            .clearAndSetSemantics { contentDescription = description },
+        modifier = modifier,
     ) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -187,6 +187,8 @@ public sealed interface FilesBrowserEvent {
 
     public data object NavigateBack : FilesBrowserEvent
 
+    public data object PopToRoot : FilesBrowserEvent
+
     public data object LoadNextPage : FilesBrowserEvent
 
     /** Shows [itemId] when [folderId] is the current folder, reading later pages for it when needed. */
@@ -443,7 +445,8 @@ public object FilesBrowserReducer {
         when (event) {
             is FilesBrowserEvent.OpenFolder -> state.openFolder(event.itemId)
             is FilesBrowserEvent.OpenExternalItem -> state.openExternalItem(event.item, event.origin)
-            FilesBrowserEvent.NavigateBack -> state.navigateBack()
+            FilesBrowserEvent.NavigateBack, FilesBrowserEvent.PopToRoot ->
+                state.navigateBack(toRoot = event == FilesBrowserEvent.PopToRoot)
             FilesBrowserEvent.LoadNextPage -> state.loadNextPage()
             is FilesBrowserEvent.RevealItem -> state.revealItem(event.folderId, event.itemId)
             FilesBrowserEvent.Refresh -> state.refresh()

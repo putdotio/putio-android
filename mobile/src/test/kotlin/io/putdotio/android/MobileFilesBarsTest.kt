@@ -120,7 +120,7 @@ class MobileFilesBarsTest {
 
         compose.onNode(hasText("Files") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))).performClick()
 
-        compose.runOnIdle { assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.NavigateBack), events) }
+        compose.runOnIdle { assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.PopToRoot), events) }
     }
 
     @Test

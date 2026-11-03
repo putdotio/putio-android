@@ -85,6 +85,7 @@ public class FilesBrowserController(
             is FilesBrowserEvent.SelectSort,
             is FilesBrowserEvent.ViewportChanged,
             FilesBrowserEvent.NavigateBack,
+            FilesBrowserEvent.PopToRoot,
             FilesBrowserEvent.Refresh,
             FilesBrowserEvent.ReloadIfStale,
             FilesBrowserEvent.Retry,

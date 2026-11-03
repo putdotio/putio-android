@@ -259,9 +259,9 @@ internal fun MobileShell(
     }
     // A tap on the Files tab while it shows, or a link to Files, lands on the root: Search closes
     // and the folders above it pop.
-    val showFilesRoot = {
+    val showFilesRoot: () -> Unit = {
         leaveSearch(false)
-        popFilesToRoot(filesState, onFilesEvent)
+        onFilesEvent(FilesBrowserEvent.PopToRoot)
     }
     val selectDestination = { destination: MobileDestination ->
         navController.select(destination, selectedDestination, showFilesRoot)

@@ -109,6 +109,7 @@ internal data class MobileFilesItemActions(
     val onSelect: ((FilesItem) -> Unit)? = null,
     /** Marks one file from the sheet, or the selection's files, watched or unwatched. */
     val onSetWatched: ((List<FilesItem>, Boolean) -> Unit)? = null,
+    val onRemoveFromContinueWatching: ((ContinueWatchingEntry) -> () -> Unit)? = null,
     /** Restores a confirmed Trash move from the snackbar's Undo. */
     val onUndoTrash: ((FilesDeleteOutcome) -> Unit)? = null,
     /** Actions that did not go through, and a copied link, for the Files snackbar. */
@@ -120,6 +121,9 @@ internal data class MobileFilesItemActions(
     val resumes: Boolean get() = onSetWatched != null
 
     fun withSelect(onSelect: ((FilesItem) -> Unit)?): MobileFilesItemActions = copy(onSelect = onSelect)
+
+    fun withContinueWatching(row: ContinueWatching?): MobileFilesItemActions =
+        copy(onRemoveFromContinueWatching = row?.let { { entry -> it.removed(entry.fileId) } })
 
     fun inViewer(inViewer: Boolean): MobileFilesItemActions =
         if (inViewer) copy(onOpen = null, onSelect = null) else this
