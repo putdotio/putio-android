@@ -4,6 +4,7 @@ import android.content.Context
 import io.sentry.Hint
 import io.sentry.IConnectionStatusProvider.ConnectionStatus
 import io.sentry.IConnectionStatusProvider.IConnectionStatusObserver
+import io.sentry.Integration
 import io.sentry.Sentry
 import io.sentry.SentryEvent
 import io.sentry.SentryLevel
@@ -49,6 +50,9 @@ internal object SentryBoundary {
         val isCurrent: Boolean get() = current === this
         val sends: Boolean get() = isCurrent && confirmed
 
+        @Volatile
+        var heldSenders: List<Integration> = emptyList()
+
         fun confirm() {
             confirmed = true
         }
@@ -67,15 +71,16 @@ internal object SentryBoundary {
         if (launch) runCatching(init) else executor.submit(init)
     }
 
-    /** Opens the launch period's transport and sends what it kept, as Sentry does when a network returns. */
+    /** Opens the launch period's transport and starts the senders it held, which send what it kept. */
     fun confirm() {
         val period = current?.takeUnless { it.confirmed } ?: return
         period.confirm()
         executor.submit {
-            val options = Sentry.getCurrentScopes().options
-            val status = options.connectionStatusProvider.connectionStatus
-            options.integrations.filterIsInstance<IConnectionStatusObserver>().forEach {
-                it.onConnectionStatusChanged(status)
+            if (!period.isCurrent) return@submit
+            val scopes = Sentry.getCurrentScopes()
+            period.heldSenders.forEach { sender ->
+                scopes.options.integrations.add(sender)
+                sender.register(scopes, scopes.options)
             }
         }
     }
@@ -102,6 +107,11 @@ internal object SentryBoundary {
         // Cached envelopes upload without passing beforeSend.
         options.setTransportGate {
             period.sends && options.connectionStatusProvider.connectionStatus != ConnectionStatus.DISCONNECTED
+        }
+        if (!period.confirmed) {
+            // A cached-envelope sender never retries, for the life of the process, a file it queued.
+            period.heldSenders = options.integrations.filter { it is IConnectionStatusObserver }
+            options.integrations.removeAll(period.heldSenders)
         }
         val installation = lazy(files::installationId)
         options.setBeforeSend { event, hint ->

@@ -51,13 +51,11 @@ class SentryEnvelopesTest {
 
     @Test
     fun aLaunchSendsOnlyTheAllowlistedEventAfterTheAccountAnswers() {
-        val period = SentryBoundary.open(launch = true)
-        SentryAndroid.init(ApplicationProvider.getApplicationContext<Application>()) { options ->
-            SentryBoundary.configure(options, checkNotNull(CONFIGURATION), period, files)
-            options.dsn = "http://synthetickey@127.0.0.1:${server.address.port}/1"
-        }
-
+        launch()
         Sentry.captureException(IOException("synthetic"))
+        Sentry.flush(FLUSH_MILLIS)
+        Sentry.close()
+        launch()
         Sentry.flush(FLUSH_MILLIS)
         assertEquals("an envelope left before the account answered", emptyList<String>(), received)
 
@@ -68,6 +66,14 @@ class SentryEnvelopesTest {
         assertTrue("the kept crash never left after the answer", received.any { "IOException" in it })
         assertFalse("a release-health session left the device", received.any { "\"type\":\"session\"" in it })
         assertTrue(received.single { "IOException" in it }.contains(files.installation.readText()))
+    }
+
+    private fun launch() {
+        val period = SentryBoundary.open(launch = true)
+        SentryAndroid.init(ApplicationProvider.getApplicationContext<Application>()) { options ->
+            SentryBoundary.configure(options, checkNotNull(CONFIGURATION), period, files)
+            options.dsn = "http://synthetickey@127.0.0.1:${server.address.port}/1"
+        }
     }
 
     private companion object {
