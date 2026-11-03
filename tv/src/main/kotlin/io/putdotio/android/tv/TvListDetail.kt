@@ -4,7 +4,7 @@ import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -191,7 +191,7 @@ internal fun ColumnScope.TvDetailBody(
         verticalAlignment = Alignment.CenterVertically,
         content = actions,
     )
-    val scroll = rememberScrollState()
+    val scroll = remember(title) { ScrollState(0) }
     Column(
         modifier = Modifier
             .weight(1f, fill = false)
