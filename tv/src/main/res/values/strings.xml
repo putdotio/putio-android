@@ -22,7 +22,7 @@
     <string name="tv_link_requesting">Getting a code</string>
     <string name="tv_link_validating">Signing you in</string>
     <string name="tv_link_expired">This code expired.</string>
-    <string name="tv_link_failed_network">Can’t reach put.io. Check the network, then get a new code.</string>
+    <string name="tv_link_failed_network">Can’t connect to put.io right now. Check the network, then get a new code.</string>
     <string name="tv_link_failed_server">put.io couldn’t issue a code right now. Try again in a moment.</string>
     <string name="tv_link_failed_misconfigured">This build has no TV sign-in registration.</string>
     <string name="tv_link_failed_storage">Secure storage is unavailable on this device, so the sign-in can’t be kept.</string>
@@ -32,7 +32,7 @@
     <string name="tv_link_open_error">Couldn’t open that file. %1$s</string>
 
     <string name="tv_session_checking">Checking your session</string>
-    <string name="tv_session_unavailable_title">Can\'t reach put.io.</string>
+    <string name="tv_session_unavailable_title">Can’t connect to put.io right now.</string>
     <string name="tv_session_unavailable_message">Your sign-in is saved. The app tries again on its own when the network is back.</string>
     <string name="tv_session_retry">Try now</string>
     <string name="tv_session_signing_out">Signing out</string>
@@ -129,8 +129,8 @@
         <item quantity="one">%1$s file</item>
         <item quantity="other">%1$s files</item>
     </plurals>
-    <string name="tv_files_unsupported_title">Unsupported file type</string>
-    <string name="tv_files_unsupported_message">This app plays video and audio. Other files stay in your account.</string>
+    <string name="tv_files_unsupported_title">Can’t open this file on TV.</string>
+    <string name="tv_files_unsupported_message">This app opens video, audio, images, PDFs and text. Other files stay in your account.</string>
     <string name="tv_files_go_back">Go back</string>
     <string name="tv_viewer_failed_title">Can’t show this file here.</string>
     <string name="tv_viewer_failed_message">put.io didn’t send it, or the TV can’t read it.</string>
@@ -178,7 +178,7 @@
         <item quantity="one">Your files are deleted in %d day unless you renew.</item>
         <item quantity="other">Your files are deleted in %d days unless you renew.</item>
     </plurals>
-    <string name="tv_state_offline_title">Can’t reach put.io.</string>
+    <string name="tv_state_offline_title">Can’t connect to put.io right now.</string>
     <string name="tv_state_try_now">Try now</string>
     <string name="tv_state_try_again">Try again</string>
     <string name="tv_error_navigation_blocked">This item can’t be opened right now. Check Files, then try again.</string>
@@ -188,7 +188,7 @@
     <string name="tv_error_rate_limited">put.io is receiving too many requests. Try again shortly.</string>
     <string name="tv_error_unavailable">put.io is temporarily unavailable. Try again.</string>
     <string name="tv_global_search_description">Files in your put.io account</string>
-    <string name="tv_search_placeholder">Tap to start typing</string>
+    <string name="tv_search_placeholder">Search your files</string>
     <string name="tv_search_field">Search files</string>
     <string name="tv_search_clear">Clear search</string>
     <string name="tv_search_recent_title">Recent searches</string>
@@ -230,6 +230,7 @@
     <string name="tv_history_detail_size">Size</string>
     <string name="tv_history_detail_saved_to">Saved to</string>
     <string name="tv_history_empty">No activity yet.</string>
+    <string name="tv_history_empty_message">Completed transfers and shared files will appear here.</string>
     <string name="tv_history_off_title">History is off.</string>
     <string name="tv_history_off_message">Turn on %1$s in %2$s to see what happens to your files.</string>
     <string name="tv_history_open_account">Open Account</string>

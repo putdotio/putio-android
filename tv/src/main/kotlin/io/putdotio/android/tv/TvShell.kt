@@ -145,7 +145,10 @@ internal fun TvShell(
                 .padding(top = if (notice != null) NOTICE_PANE_GAP else TAB_BAR_GAP)
                 .onFocusChanged { if (it.hasFocus) paneReleased.value = false },
         ) {
-            CompositionLocalProvider(LocalTvPaneReleased provides paneReleased) {
+            CompositionLocalProvider(
+                LocalTvPaneReleased provides paneReleased,
+                LocalTvTabFocus provides tabFocus.getValue(destination),
+            ) {
                 paneStates.SaveableStateProvider(destination.name) { panes.Pane(destination, paneFocus) }
             }
         }

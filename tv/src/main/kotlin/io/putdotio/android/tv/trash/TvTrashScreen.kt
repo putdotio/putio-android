@@ -1,6 +1,7 @@
 package io.putdotio.android.tv.trash
 
 import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +27,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -35,6 +37,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Icon
@@ -77,16 +80,22 @@ internal fun TvTrashScreen(
     val content = state.content
     val loaded = content as? TrashContent.Loaded
     val hasRows = loaded?.isKnownEmpty == false
+    val knownEmpty = loaded?.isKnownEmpty == true
     val focus = remember { TvTrashFocus() }
     val paneHasFocus = rememberTvPaneHasFocus()
     val entryTarget = remember { mutableStateOf(focus.restoreAll) }
     val rowsPresent = rememberUpdatedState(hasRows)
+    val emptyNow = rememberUpdatedState(knownEmpty)
     val pickedRow = rememberSaveable(saver = TvPickedRow.Saver) { TvPickedRow() }
     val restoreRowId = remember { pickedRow.id }
     val lastSection = rememberSaveable { mutableStateOf<Long?>(null) }
     val owner = remember {
         TvPaneFocusOwner(entryTarget, paneHasFocus, lastSection, onEnter = pickedRow.keptOnlyBy(focus.list)) {
-            if (rowsPresent.value) focus.list else focus.restoreAll
+            when {
+                rowsPresent.value -> focus.list
+                emptyNow.value -> focus.emptyState
+                else -> focus.restoreAll
+            }
         }
     }
     val headerOwnsFocus = content.isLoadingOrKnownEmpty
@@ -99,8 +108,11 @@ internal fun TvTrashScreen(
             if (content is TrashContent.Loaded && !dialogOpen) onEvent(TrashEvent.Refresh)
         }
     }
-    LaunchedEffect(headerOwnsFocus) {
-        if (headerOwnsFocus && mayPlaceFocus(paneHasFocus, dialogShowing)) focus.restoreAll.requestFocus()
+    LaunchedEffect(headerOwnsFocus, knownEmpty) {
+        if (headerOwnsFocus && mayPlaceFocus(paneHasFocus, dialogShowing)) {
+            withFrameNanos {}
+            (if (knownEmpty) focus.emptyState else focus.restoreAll).requestFocus()
+        }
     }
     val dialogWasOpen = remember { mutableStateOf(false) }
     LaunchedEffect(dialogOpen) { refocusAfterDialog(dialogOpen, dialogWasOpen, paneHasFocus, entryTarget) }
@@ -122,6 +134,7 @@ internal fun TvTrashScreen(
             onRestoreAll = { onEvent(TrashEvent.SelectRestoreAll) },
             onEmpty = { onEvent(TrashEvent.SelectEmpty) },
             showsFocus = !dialogOpen,
+            showsActions = !knownEmpty,
             restoreAllModifier = Modifier.keyedPaneSection("restoreAll", owner, focus.restoreAll),
             emptyModifier = Modifier.keyedPaneSection("empty", owner, focus.empty),
         )
@@ -143,7 +156,7 @@ internal fun TvTrashScreen(
                 )
             }
             loaded != null && !hasRows -> {
-                EntryTarget(entryTarget, focus.restoreAll)
+                EntryTarget(entryTarget, focus.emptyState)
                 TvTrashStateNotices(state, onEvent, owner)
                 TvEmptyState(
                     glyph = PutioEmptyGlyph.EmptyFolder,
@@ -151,7 +164,11 @@ internal fun TvTrashScreen(
                     message = stringResource(R.string.tv_trash_empty_message),
                     modifier = Modifier
                         .weight(1f)
-                        .padding(bottom = STATE_BOTTOM_GAP),
+                        .padding(bottom = STATE_BOTTOM_GAP)
+                        .paneSection(owner, focus.emptyState)
+                        .focusRequester(focus.emptyState)
+                        .semantics(mergeDescendants = true) {}
+                        .focusable(),
                 )
             }
             else -> {
@@ -260,6 +277,7 @@ internal data class TvTrashDetailActions(
 )
 
 private class TvTrashFocus {
+    val emptyState = FocusRequester()
     val restoreAll = FocusRequester()
     val empty = FocusRequester()
     val list = FocusRequester()
@@ -288,6 +306,7 @@ private fun TvTrashHeader(
     onRestoreAll: () -> Unit,
     onEmpty: () -> Unit,
     showsFocus: Boolean,
+    showsActions: Boolean,
     modifier: Modifier = Modifier,
     restoreAllModifier: Modifier = Modifier,
     emptyModifier: Modifier = Modifier,
@@ -299,28 +318,30 @@ private fun TvTrashHeader(
                 crumb = stringResource(R.string.tv_destination_account),
             )
             Spacer(Modifier.weight(1f))
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(HEADER_BUTTON_GAP),
-                modifier = Modifier
-                    .padding(bottom = HEADER_BUTTON_LIFT)
-                    .focusGroup(),
-            ) {
-                TvTrashHeaderButton(
-                    icon = R.drawable.ic_ph_arrow_u_up_left,
-                    label = stringResource(R.string.tv_trash_restore_all),
-                    onClick = onRestoreAll,
-                    style = TvButtonStyle.Tonal,
-                    showsFocus = showsFocus,
-                    modifier = restoreAllModifier,
-                )
-                TvTrashHeaderButton(
-                    icon = R.drawable.ic_ph_trash,
-                    label = stringResource(R.string.tv_trash_empty_action),
-                    onClick = onEmpty,
-                    style = TvButtonStyle.TonalDanger,
-                    showsFocus = showsFocus,
-                    modifier = emptyModifier,
-                )
+            if (showsActions) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(HEADER_BUTTON_GAP),
+                    modifier = Modifier
+                        .padding(bottom = HEADER_BUTTON_LIFT)
+                        .focusGroup(),
+                ) {
+                    TvTrashHeaderButton(
+                        icon = R.drawable.ic_ph_arrow_u_up_left,
+                        label = stringResource(R.string.tv_trash_restore_all),
+                        onClick = onRestoreAll,
+                        style = TvButtonStyle.Tonal,
+                        showsFocus = showsFocus,
+                        modifier = restoreAllModifier,
+                    )
+                    TvTrashHeaderButton(
+                        icon = R.drawable.ic_ph_trash,
+                        label = stringResource(R.string.tv_trash_empty_action),
+                        onClick = onEmpty,
+                        style = TvButtonStyle.TonalDanger,
+                        showsFocus = showsFocus,
+                        modifier = emptyModifier,
+                    )
+                }
             }
         }
     }

@@ -355,6 +355,7 @@ internal fun TvSessionShell(
                             },
                             onBrowseFiles = { requestedDestination = TvDestination.Files },
                             onRetryPinned = session.homePins::retry,
+                            onUnpin = { item -> session.pins.unpin(item.id) },
                         )
                     },
                     paneFocus = paneFocus,
@@ -370,6 +371,7 @@ internal fun TvSessionShell(
                 {
                     val returnTo = filesState.current.openedFrom.returnDestination()
                     if (session.files.dispatch(FilesBrowserEvent.NavigateBack) && returnTo != null) {
+                        if (returnTo == TvDestination.Home) session.returnHome()
                         requestedDestination = returnTo
                     }
                 }

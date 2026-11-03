@@ -188,6 +188,12 @@ internal class TvSession internal constructor(
     private var continueWatchingFollow: Job? = null
     private var playingFromHome = false
     val homeReturn = TvHomeReturn()
+    private var homePick: FilesItemId? = null
+
+    fun returnHome() {
+        homePick?.let(homeReturn::played)
+        homePick = null
+    }
 
     /** Pairs saved positions with the videos they belong to, for Watch Next. */
     internal val watchNextPlayback = TvWatchNextPlayback(watchNext, scope)
@@ -335,6 +341,7 @@ internal class TvSession internal constructor(
             !files.dispatch(FilesBrowserEvent.OpenExternalItem(item, origin)) -> TvExternalOpen.REFUSED
             else -> {
                 if (!item.isFolder) item.parentId?.let { filesFocusMemory[it.value] = item.id.value }
+                homePick = item.id.takeIf { origin == FilesOpenOrigin.HOME }
                 TvExternalOpen.IN_FILES
             }
         }

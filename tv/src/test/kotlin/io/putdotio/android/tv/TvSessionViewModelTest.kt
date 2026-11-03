@@ -719,6 +719,21 @@ class TvSessionViewModelTest {
     }
 
     @Test
+    fun `Back from a pin Home opened in Files hands Home that pin, and other opens hand it nothing`() {
+        val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
+        val folder = media(44, "Documents", PutioFileType.FOLDER)
+
+        assertEquals(TvExternalOpen.IN_FILES, session.openExternal(folder, FilesOpenOrigin.HOME))
+        session.returnHome()
+        assertEquals(FilesItemId(44), session.homeReturn.file.value)
+
+        session.homeReturn.handled()
+        session.openExternal(folder, FilesOpenOrigin.SEARCH)
+        session.returnHome()
+        assertEquals(null, session.homeReturn.file.value)
+    }
+
+    @Test
     fun `Show Home is kept per account on this TV`() {
         val store = TvShowHomeStore.Memory()
         val session = checkNotNull(

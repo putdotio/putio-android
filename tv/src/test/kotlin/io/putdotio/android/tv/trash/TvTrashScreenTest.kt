@@ -223,8 +223,10 @@ class TvTrashScreenTest {
         compose.onNodeWithText("Trash is empty.").assertIsDisplayed()
         compose.onNodeWithText("Your trash is empty").assertIsDisplayed()
         compose.onNodeWithText("When you send files to trash, we keep them here for 14 days.").assertIsDisplayed()
-        compose.onNode(hasText("Restore all") and hasClickAction()).assertIsFocused().performKeyInput {
-            pressKey(Key.DirectionDown)
+        compose.onAllNodes(hasText("Restore all") and hasClickAction()).assertCountEquals(0)
+        compose.onAllNodes(hasText("Empty trash") and hasClickAction()).assertCountEquals(0)
+        compose.onNodeWithText("Your trash is empty").assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionUp)
         }
         compose.onNodeWithText("OK").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(TrashEvent.DismissActionOutcome, events.last())
@@ -278,7 +280,7 @@ class TvTrashScreenTest {
         )
         show { state }
 
-        compose.onNodeWithText("Can’t reach put.io.").assertIsDisplayed()
+        compose.onNodeWithText("Can’t connect to put.io right now.").assertIsDisplayed()
         compose.onNodeWithText("Try now").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf<TrashEvent>(TrashEvent.Retry), events)
 

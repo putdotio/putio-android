@@ -84,7 +84,7 @@ class TvSearchScreenTest {
     fun idleShowsThePlaceholderAndTypingReportsTheQuery() {
         show(state = { searchState(SearchContent.Idle) })
 
-        compose.onNodeWithText("Tap to start typing").assertIsDisplayed()
+        compose.onNodeWithText("Search your files").assertIsDisplayed()
         compose.onNodeWithText("Search your files by name or keyword.").assertIsDisplayed()
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assertIsFocused().performTextInput("tears")
@@ -363,7 +363,7 @@ class TvSearchScreenTest {
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performTextInput("private")
         session = 2
-        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assert(hasText("Tap to start typing"))
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assert(hasText("Search your files"))
         assertEquals(listOf("query:private"), log)
     }
 

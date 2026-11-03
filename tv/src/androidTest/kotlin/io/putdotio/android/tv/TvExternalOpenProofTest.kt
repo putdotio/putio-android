@@ -138,25 +138,37 @@ class TvExternalOpenProofTest {
         screenshot("10-files-row-focused")
 
         listOf(
-            "Search" to { compose.onNodeWithContentDescription(SEARCH_FIELD).assertIsFocused() },
-            HISTORY to {
-                compose.waitUntil(5_000) { compose.onAllNodesWithText(NO_HISTORY).fetchSemanticsNodes().isNotEmpty() }
-                compose.onNode(hasText(NO_HISTORY) and hasFocus()).assertExists()
-            },
-            "Account" to {
-                compose.waitUntil(5_000) {
-                    compose.onAllNodes(hasText(ACCOUNT_ENTRY) and hasFocus()).fetchSemanticsNodes().isNotEmpty()
-                }
-            },
-        ).forEachIndexed { index, (tab, assertEntry) ->
+            Triple("Search", { compose.onNodeWithContentDescription(SEARCH_FIELD).assertIsFocused() }, true),
+            Triple(
+                HISTORY,
+                {
+                    compose.waitUntil(5_000) {
+                        compose.onAllNodesWithText(NO_HISTORY).fetchSemanticsNodes().isNotEmpty()
+                    }
+                    compose.onTvTab(HISTORY).assertIsFocused()
+                },
+                false,
+            ),
+            Triple(
+                "Account",
+                {
+                    compose.waitUntil(5_000) {
+                        compose.onAllNodes(hasText(ACCOUNT_ENTRY) and hasFocus()).fetchSemanticsNodes().isNotEmpty()
+                    }
+                },
+                true,
+            ),
+        ).forEachIndexed { index, (tab, assertEntry, entersPane) ->
             press(KeyEvent.KEYCODE_BACK)
             compose.onTvTab("Files").assertIsFocused()
             compose.openTvTab(tab)
             assertEntry()
             screenshot("${11 + index * 3}-${tab.lowercase()}-entered")
-            press(KeyEvent.KEYCODE_BACK)
-            compose.onTvTab(tab).assertIsFocused()
-            screenshot("${12 + index * 3}-${tab.lowercase()}-back-focuses-its-tab")
+            if (entersPane) {
+                press(KeyEvent.KEYCODE_BACK)
+                compose.onTvTab(tab).assertIsFocused()
+                screenshot("${12 + index * 3}-${tab.lowercase()}-back-focuses-its-tab")
+            }
             press(KeyEvent.KEYCODE_BACK)
             compose.onTvTab("Home").assertIsFocused()
             screenshot("${13 + index * 3}-${tab.lowercase()}-tab-bar-back-goes-home")

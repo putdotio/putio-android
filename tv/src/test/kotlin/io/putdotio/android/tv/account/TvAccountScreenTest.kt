@@ -303,7 +303,7 @@ class TvAccountScreenTest {
     }
 
     @Test
-    fun signOutIsTheLastRowAndConfirmsInRed() {
+    fun signOutIsTheLastRowAndConfirmsInRedWithCancelFocused() {
         var signOuts = 0
         show(settingsState = { ready(preferences) }, onSignOut = { signOuts += 1 })
 
@@ -311,12 +311,10 @@ class TvAccountScreenTest {
         compose.onNode(hasText("Sign out") and isFocused()).performKeyInput { pressCenter() }
         compose.onNodeWithText("Sign out of put.io?").assertIsDisplayed()
         compose.onNodeWithText("You can sign in again any time with a new code.").assertIsDisplayed()
-        compose.onNode(hasText("Sign out") and isFocused() and hasAnyAncestor(isDialog())).performKeyInput {
-            pressKey(Key.DirectionLeft)
-        }
         compose.onNode(hasText("Cancel") and isFocused()).performKeyInput { pressCenter() }
         assertEquals(0, signOuts)
         compose.onNode(hasText("Sign out") and isFocused()).performKeyInput { pressCenter() }
+        compose.onNode(hasText("Cancel") and isFocused()).performKeyInput { pressKey(Key.DirectionRight) }
         compose.onNode(hasText("Sign out") and isFocused() and hasAnyAncestor(isDialog())).performKeyInput {
             pressCenter()
         }

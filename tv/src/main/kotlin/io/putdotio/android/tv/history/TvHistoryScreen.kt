@@ -54,6 +54,7 @@ import io.putdotio.android.tv.TvListSkeleton
 import io.putdotio.android.tv.TvLoadFailedState
 import io.putdotio.android.tv.TvNoticeDialog
 import io.putdotio.android.tv.TvPickedRow
+import io.putdotio.android.tv.LocalTvTabFocus
 import io.putdotio.android.tv.TvSectionLine
 import io.putdotio.android.tv.files.tvLoadFailedMessage
 import io.putdotio.android.tv.files.tvMessageText
@@ -86,8 +87,10 @@ internal fun TvHistoryScreen(
     val stateFocus = remember { FocusRequester() }
     val clearFocus = remember { FocusRequester() }
     val clearHadFocus = remember { mutableStateOf(pickedRow.id == TV_HISTORY_CLEAR_PICK) }
+    val tabFocus = LocalTvTabFocus.current
     val entryTarget = rememberUpdatedState(
         when {
+            content == HistoryContent.Empty -> FocusRequester.Cancel
             content !is HistoryContent.Ready -> stateFocus
             clearHadFocus.value -> clearFocus
             else -> listFocus
@@ -97,7 +100,13 @@ internal fun TvHistoryScreen(
     LaunchedEffect(content::class) {
         if (!holdsOwnFocus || !paneHasFocus.value) return@LaunchedEffect
         withFrameNanos {}
-        if (paneHasFocus.value) stateFocus.requestFocus()
+        if (!paneHasFocus.value) return@LaunchedEffect
+        if (content == HistoryContent.Empty) {
+            paneHasFocus.value = false
+            tabFocus?.requestFocus()
+        } else {
+            stateFocus.requestFocus()
+        }
     }
     val dialogOpen = state.clearing != HistoryClearing.Idle
     val dialogWasOpen = remember { mutableStateOf(false) }
@@ -151,11 +160,8 @@ internal fun TvHistoryScreen(
                 TvEmptyState(
                     glyph = PutioEmptyGlyph.NothingYet,
                     headline = stringResource(R.string.tv_history_empty),
-                    message = null,
-                    modifier = statePane
-                        .focusRequester(stateFocus)
-                        .semantics(mergeDescendants = true) {}
-                        .focusable(),
+                    message = stringResource(R.string.tv_history_empty_message),
+                    modifier = statePane,
                 )
             is HistoryContent.Loading -> TvHistoryLoading(stateFocus)
             is HistoryContent.Ready ->

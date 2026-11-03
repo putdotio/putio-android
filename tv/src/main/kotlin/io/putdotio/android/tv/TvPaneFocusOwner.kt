@@ -219,6 +219,8 @@ internal suspend fun refocusAfterDialog(
 
 internal val LocalTvPaneReleased = staticCompositionLocalOf<State<Boolean>> { mutableStateOf(false) }
 
+internal val LocalTvTabFocus = staticCompositionLocalOf<FocusRequester?> { null }
+
 @Composable
 internal fun rememberTvPaneHasFocus(): MutableState<Boolean> {
     val released = LocalTvPaneReleased.current
