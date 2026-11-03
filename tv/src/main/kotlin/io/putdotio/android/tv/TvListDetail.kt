@@ -3,6 +3,8 @@ package io.putdotio.android.tv
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -189,42 +191,46 @@ internal fun ColumnScope.TvDetailBody(
         verticalAlignment = Alignment.CenterVertically,
         content = actions,
     )
+    val scroll = remember(title) { ScrollState(0) }
     Column(
         modifier = Modifier
             .weight(1f, fill = false)
-            .clipToBounds()
-            .padding(top = DETAIL_FACTS_GAP),
-        verticalArrangement = Arrangement.spacedBy(DETAIL_FACT_SPACING),
+            .then(if (secondaryActions == null) Modifier.clipToBounds() else Modifier.verticalScroll(scroll)),
     ) {
-        facts.take(MAX_DETAIL_FACTS).forEach { fact ->
-            Row(modifier = Modifier.semantics(mergeDescendants = true) {}) {
-                Text(
-                    text = fact.label,
-                    style = DETAIL_FACT,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier
-                        .width(DETAIL_FACT_LABEL_WIDTH)
-                        .alignByBaseline(),
-                )
-                Text(
-                    text = fact.styled ?: AnnotatedString(fact.value),
-                    style = if (fact.mono) DETAIL_FACT_MONO else DETAIL_FACT,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier
-                        .weight(1f)
-                        .alignByBaseline(),
-                )
+        Column(
+            modifier = Modifier.padding(top = DETAIL_FACTS_GAP),
+            verticalArrangement = Arrangement.spacedBy(DETAIL_FACT_SPACING),
+        ) {
+            facts.take(MAX_DETAIL_FACTS).forEach { fact ->
+                Row(modifier = Modifier.semantics(mergeDescendants = true) {}) {
+                    Text(
+                        text = fact.label,
+                        style = DETAIL_FACT,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .width(DETAIL_FACT_LABEL_WIDTH)
+                            .alignByBaseline(),
+                    )
+                    Text(
+                        text = fact.styled ?: AnnotatedString(fact.value),
+                        style = if (fact.mono) DETAIL_FACT_MONO else DETAIL_FACT,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier
+                            .weight(1f)
+                            .alignByBaseline(),
+                    )
+                }
             }
         }
-    }
-    if (secondaryActions != null) {
-        Column(
-            modifier = Modifier
-                .padding(top = DETAIL_FACTS_GAP)
-                .offset(x = -DETAIL_SECONDARY_INSET)
-                .widthIn(max = DETAIL_SECONDARY_MAX_WIDTH),
-            content = secondaryActions,
-        )
+        if (secondaryActions != null) {
+            Column(
+                modifier = Modifier
+                    .padding(top = DETAIL_FACTS_GAP)
+                    .offset(x = -DETAIL_SECONDARY_INSET)
+                    .widthIn(max = DETAIL_SECONDARY_MAX_WIDTH),
+                content = secondaryActions,
+            )
+        }
     }
 }
 
