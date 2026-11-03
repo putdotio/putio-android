@@ -167,6 +167,30 @@ class PlaybackSubtitleSelectionTest {
     }
 
     @Test
+    fun automaticSubtitlesPreferANamedTrackOverAnUnlabelledServerDefault() {
+        val deviceDefaults = TrackSelectionParameters.Builder().build()
+        val flagged = TrackGroup(
+            *listOf("unknown" to true, "en" to false).map { (language, default) ->
+                Format.Builder()
+                    .setId(language)
+                    .setSampleMimeType(MimeTypes.TEXT_VTT)
+                    .setLanguage(language)
+                    .setLabel(if (default) "Unknown" else "English")
+                    .setSelectionFlags(if (default) C.SELECTION_FLAG_DEFAULT else 0)
+                    .build()
+            }.toTypedArray(),
+        )
+
+        val automatic = deviceDefaults.withSubtitleSelection(
+            SubtitleSelection.Automatic,
+            flagged.subtitleTracks(),
+            deviceDefaults,
+        )
+
+        assertEquals("en", selectedTextId(automatic, flagged))
+    }
+
+    @Test
     fun automaticSubtitlesFollowTheDeviceWhenTheServerNamesNoDefault() {
         val deviceDefaults = TrackSelectionParameters.Builder().setPreferredTextLanguages("tr").build()
         val unflagged = serverTracks(defaultId = null)

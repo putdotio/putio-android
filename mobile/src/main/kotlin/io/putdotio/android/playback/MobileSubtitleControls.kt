@@ -65,7 +65,7 @@ internal fun MobileSubtitlesChip(
     modifier: Modifier = Modifier,
 ) {
     val current = snapshot.currentSubtitle()
-    val label = current?.let { subtitleTrackName(it, snapshot.subtitleTracks.indexOf(it)) }
+    val label = current?.let { subtitleTrackName(it) }
         ?: stringResource(R.string.mobile_playback_subtitles_disabled)
     MobilePlayerChip(
         label = label,
@@ -138,7 +138,7 @@ internal fun MobileSubtitlesSheetContent(
                         label = names[index],
                         selected = track == current,
                         enabled = enabled,
-                        supporting = subtitleTrackDetails(track, subtitle)?.let { { Text(it) } },
+                        supporting = subtitleTrackDetails(track, subtitle, inFile = true)?.let { { Text(it) } },
                         onClick = { select(SubtitleSelection.Track(track.identity)) },
                     )
                 }
@@ -155,7 +155,7 @@ internal fun MobileSubtitleTrackOption(
     enabled: Boolean = true,
 ) {
     MobileSideSheetOption(
-        label = subtitleTrackName(track, track.trackIndex),
+        label = subtitleTrackName(track),
         selected = track.selected,
         enabled = enabled,
         onClick = onClick,

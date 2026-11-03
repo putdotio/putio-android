@@ -25,6 +25,8 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.tv.material3.Icon
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -81,7 +83,8 @@ import io.putdotio.android.tv.TvSheetLabel
 import io.putdotio.android.tv.TvSheetOption
 import io.putdotio.android.tv.TvSheetRows
 import io.putdotio.android.tv.TvSideSheet
-import io.putdotio.sdk.files.PlaybackSubtitle
+import io.putdotio.android.playback.sidecarTracks
+import io.putdotio.sdk.files.PlaybackSubtitles
 
 internal class TvTrackChoices(
     tracks: Tracks,
@@ -104,7 +107,8 @@ internal class TvTrackChoices(
                 ?: subtitles.firstOrNull { it.selected }
         }
 
-    fun chips(nextEpisode: Boolean): List<TvPlayerControl> = tvPlayerChips(audio.size, subtitlesHidden, nextEpisode)
+    fun chips(nextEpisode: Boolean, audioOnly: Boolean): List<TvPlayerControl> =
+        tvPlayerChips(audio.size, subtitlesHidden, nextEpisode, audioOnly)
 }
 
 private fun TrackSelectionParameters.picked(group: androidx.media3.common.TrackGroup, index: Int): Boolean =
@@ -115,7 +119,7 @@ internal fun tvPlayerChipLabels(choices: TvTrackChoices, speed: Float): TvPlayer
     val audioNames = audioTrackLabels(choices.audio)
     val audio = choices.currentAudio?.let { audioNames[choices.audio.indexOf(it)] }
         ?: stringResource(R.string.tv_player_audio)
-    val subtitles = choices.currentSubtitle?.let { subtitleTrackName(it, choices.subtitles.indexOf(it)) }
+    val subtitles = choices.currentSubtitle?.let { subtitleTrackName(it) }
         ?: stringResource(R.string.tv_player_subtitles_off)
     val speedLabel = stringResource(R.string.tv_player_speed_value, formatPlaybackSpeed(speed))
     return TvPlayerChipLabels(audio, subtitles, speedLabel)
@@ -136,7 +140,7 @@ internal fun TvPlayerSheets(
     backFromSizeAndTiming: Boolean,
     returnFocus: FocusRequester,
     choices: TvTrackChoices,
-    sidecar: List<PlaybackSubtitle>,
+    subtitles: PlaybackSubtitles,
     speed: Float,
     textSize: SubtitleTextSize,
     offsetMillis: Long,
@@ -164,7 +168,7 @@ internal fun TvPlayerSheets(
                 TvPlayerSheet.Subtitles ->
                     TvSubtitlesSheet(
                         choices = choices,
-                        sidecar = sidecar,
+                        subtitles = subtitles,
                         textSize = textSize,
                         offsetMillis = offsetMillis,
                         focus = focus,
@@ -204,7 +208,7 @@ private fun ColumnScope.TvAudioSheet(
 @Composable
 private fun ColumnScope.TvSubtitlesSheet(
     choices: TvTrackChoices,
-    sidecar: List<PlaybackSubtitle>,
+    subtitles: PlaybackSubtitles,
     textSize: SubtitleTextSize,
     offsetMillis: Long,
     focus: FocusRequester,
@@ -213,10 +217,17 @@ private fun ColumnScope.TvSubtitlesSheet(
 ) {
     val current = choices.currentSubtitle
     val focusRow = Modifier.focusRequester(focus)
-    val labels = subtitleTrackLabels(choices.subtitles, sidecar)
+    val sidecar = subtitles.sidecarTracks()
+    val originsKnown = subtitles !is PlaybackSubtitles.Embedded
+    val labels = subtitleTrackLabels(choices.subtitles, sidecar, inFile = originsKnown)
     val rows = choices.subtitles.mapIndexed { index, track -> Triple(index, track, track.putioSubtitle(sidecar)) }
     val inFile = rows.filter { it.third.origin() == SubtitleOrigin.File }
     val found = rows.filter { it.third.origin() != SubtitleOrigin.File }.sortedBy { it.third.origin() }
+    val groups = if (originsKnown) {
+        listOf(PlaybackR.string.playback_subtitles_in_file to inFile, PlaybackR.string.playback_subtitles_found to found)
+    } else {
+        listOf(null to rows)
+    }
     TvSheetRows {
         TvSheetOption(
             label = stringResource(R.string.tv_player_subtitles_off),
@@ -225,17 +236,14 @@ private fun ColumnScope.TvSubtitlesSheet(
             onClick = { actions.onSubtitles(SubtitleSelection.Off) },
             modifier = if (current == null && !focusSizeAndTiming) focusRow else Modifier,
         )
-        listOf(
-            PlaybackR.string.playback_subtitles_in_file to inFile,
-            PlaybackR.string.playback_subtitles_found to found,
-        )
+        groups
             .filter { it.second.isNotEmpty() }
             .forEach { (heading, group) ->
-                TvSheetLabel(stringResource(heading))
+                heading?.let { TvSheetLabel(stringResource(it)) }
                 group.forEach { (index, track, subtitle) ->
                     TvSheetOption(
                         label = labels[index],
-                        detail = subtitleTrackDetails(track, subtitle)?.let(::AnnotatedString),
+                        detail = subtitleTrackDetails(track, subtitle, originsKnown)?.let(::AnnotatedString),
                         selected = track == current,
                         onClick = { actions.onSubtitles(SubtitleSelection.Track(track.identity)) },
                         modifier = if (track == current && !focusSizeAndTiming) focusRow else Modifier,
@@ -488,13 +496,21 @@ private fun TvSheetChip(
         ),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1f, pressedScale = 1f),
     ) {
-        Box(
+        Row(
             modifier = Modifier
                 .fillMaxHeight()
                 .then(if (fill) Modifier.fillMaxWidth() else Modifier)
                 .padding(horizontal = 12.dp),
-            contentAlignment = Alignment.Center,
+            horizontalArrangement = Arrangement.spacedBy(CHIP_CHECK_GAP, Alignment.CenterHorizontally),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
+            if (selected) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_ph_check),
+                    contentDescription = null,
+                    modifier = Modifier.size(CHIP_CHECK),
+                )
+            }
             Text(label, style = if (mono) PutioTypeScale.tvMono else PutioTypeScale.tvBody)
         }
     }
@@ -506,6 +522,8 @@ private val SPEED_STEP_BUTTON_WIDTH = 44.dp
 private val SPEED_STEP_LABEL = PutioTypeScale.tvBody.copy(fontSize = 18.sp, fontWeight = FontWeight.Medium)
 private val OFFSET_STEP_LABEL = PutioTypeScale.tvMono.copy(fontSize = 13.sp, fontWeight = FontWeight.Medium)
 private val QUICK_CHIP_HEIGHT = 28.dp
+private val CHIP_CHECK = 12.dp
+private val CHIP_CHECK_GAP = 4.dp
 private val SIZE_CHIP_HEIGHT = 32.dp
 private val STEP_BUTTON_WIDTH = 56.dp
 private val SPEED_VALUE_SIZE = 32.sp

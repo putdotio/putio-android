@@ -17,21 +17,22 @@ import org.junit.Test
 
 class SdkFilesSubtitleLanguagesTest {
     @Test
-    fun languagesShowOnceInPutiosOrderWithNameFallbackAndSidecarFilesAreCounted() = runBlocking {
+    fun languagesShowOnceInPutiosOrderAndUnknownOnesShareOneEntry() = runBlocking {
         val requests = mutableListOf<String>()
         val body = """
             {"status":"OK","default":"a","subtitles":[
               ${subtitle("a", "English", "Blue.Lights.S04E01.en.srt")},
               ${subtitle("b", "English", "Blue.Lights.S04E01.en.sdh.srt")},
               ${subtitle("c", "", "Blue.Lights.S04E01.srt", source = "mkv")},
-              ${subtitle("d", "Turkish", "Blue.Lights.S04E01.tr.srt", source = "opensubtitles")}
+              ${subtitle("d", "Turkish", "Blue.Lights.S04E01.tr.srt", source = "opensubtitles")},
+              ${subtitle("e", "Undetermined", "Blue.Lights.S04E01.forced.srt", code = "und")}
             ]}
         """.trimIndent()
 
         val result = SdkFilesSubtitleLanguages(client(requests, 200, body)).subtitleLanguages(FilesItemId(42L))
 
         assertEquals(
-            FilesSubtitles(listOf("English", "Blue.Lights.S04E01.srt", "Turkish"), sidecarFiles = 2),
+            FilesSubtitles(listOf("English", null, "Turkish"), sidecarFiles = 3),
             (result as PutioResult.Success).value,
         )
         assertTrue(requests.single().endsWith("/files/42/subtitles"))
@@ -45,8 +46,14 @@ class SdkFilesSubtitleLanguagesTest {
         assertTrue((result as PutioResult.Failure).failure is PutioFailure.AuthenticationRequired)
     }
 
-    private fun subtitle(key: String, language: String, name: String, source: String = "folder"): String =
-        """{"key":"$key","language":"$language","language_code":"","name":"$name","source":"$source","url":""}"""
+    private fun subtitle(
+        key: String,
+        language: String,
+        name: String,
+        source: String = "folder",
+        code: String = "",
+    ): String =
+        """{"key":"$key","language":"$language","language_code":"$code","name":"$name","source":"$source","url":""}"""
 
     private fun client(requests: MutableList<String>, status: Int, body: String): PutioClient {
         val http = OkHttpClient.Builder()

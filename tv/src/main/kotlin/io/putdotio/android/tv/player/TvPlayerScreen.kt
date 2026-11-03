@@ -64,7 +64,6 @@ import io.putdotio.android.playback.rememberSubtitleAppearanceStore
 import io.putdotio.android.playback.restoreSubtitleSelection
 import io.putdotio.android.playback.sameSubtitleChoice
 import io.putdotio.android.playback.setSubtitleLead
-import io.putdotio.android.playback.sidecarTracks
 import io.putdotio.android.playback.toPlaybackFailure
 import io.putdotio.android.playback.toPlaybackMillis
 import io.putdotio.android.playback.withAudioSelection
@@ -237,6 +236,7 @@ private fun TvReadyPlayer(
     var cues by remember(player) { mutableStateOf(emptyList<Cue>()) }
     val cueHistory = remember(player) { DelayedSubtitleCues() }
     var videoSize by remember(player) { mutableStateOf(player.videoSize) }
+    var firstFrameShown by remember(player) { mutableStateOf(false) }
     val currentSubtitlePolicy by rememberUpdatedState(subtitleStartupPolicy)
     DisposableEffect(player) {
         val listener = object : Player.Listener {
@@ -291,6 +291,10 @@ private fun TvReadyPlayer(
             override fun onVideoSizeChanged(value: VideoSize) {
                 videoSize = value
             }
+
+            override fun onRenderedFirstFrame() {
+                firstFrameShown = true
+            }
         }
         player.addListener(listener)
         player.trackSelectionParameters =
@@ -341,7 +345,7 @@ private fun TvReadyPlayer(
 
     val choices = TvTrackChoices(tracks, parameters, subtitleStartupPolicy)
     val subtitlesHidden = choices.subtitlesHidden
-    val chips = choices.chips(nextEpisode = nextEpisode)
+    val chips = choices.chips(nextEpisode = nextEpisode, audioOnly = target.mediaType == PlaybackMediaType.AUDIO)
     LaunchedEffect(subtitlesHidden, overlay.sheet) {
         val subtitleSheet = overlay.sheet == TvPlayerSheet.Subtitles || overlay.sheet == TvPlayerSheet.SizeAndTiming
         if (subtitlesHidden && subtitleSheet) apply(overlay.closeSheet())
@@ -388,6 +392,9 @@ private fun TvReadyPlayer(
                 modifier = Modifier.fillMaxSize(),
                 surfaceType = playbackSurfaceType(Build.VERSION.SDK_INT, Build.HARDWARE),
             )
+            if (!firstFrameShown && !overlay.controlsVisible) TvPlayerLoading(target)
+        } else if (!overlay.controlsVisible) {
+            TvAudioStage(target.name)
         }
         cueLayer.takeUnless { overlay.sheet == TvPlayerSheet.SizeAndTiming }?.invoke(this)
         if (overlay.controlsVisible) {
@@ -413,7 +420,7 @@ private fun TvReadyPlayer(
         backFromSizeAndTiming = overlay.backFromSizeAndTiming,
         returnFocus = focus,
         choices = choices,
-        sidecar = source.subtitles.sidecarTracks(),
+        subtitles = source.subtitles,
         speed = speed,
         textSize = appearance.textSize,
         offsetMillis = options.subtitleOffsetMillis,
