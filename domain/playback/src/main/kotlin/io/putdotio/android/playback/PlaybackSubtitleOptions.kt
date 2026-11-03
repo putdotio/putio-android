@@ -120,8 +120,7 @@ public fun rememberSubtitleAppearanceStore(): SubtitleAppearanceStore {
     return remember(context) { SubtitleAppearanceStore(context) }
 }
 
-/** A language name, else a label that names something; null for a track nobody labelled. */
-public fun PlaybackSubtitleTrack.knownName(): String? =
+internal fun PlaybackSubtitleTrack.knownName(): String? =
     languageName(identity.language) ?: label?.trim()?.takeUnless { it.isUnknownLanguageName() }
 
 internal fun SubtitleSelection.preferringNamedTrack(
