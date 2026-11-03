@@ -191,12 +191,11 @@ internal fun ColumnScope.TvDetailBody(
         verticalAlignment = Alignment.CenterVertically,
         content = actions,
     )
+    val scroll = rememberScrollState()
     Column(
         modifier = Modifier
             .weight(1f, fill = false)
-            .then(
-                if (secondaryActions == null) Modifier.clipToBounds() else Modifier.verticalScroll(rememberScrollState()),
-            ),
+            .then(if (secondaryActions == null) Modifier.clipToBounds() else Modifier.verticalScroll(scroll)),
     ) {
         Column(
             modifier = Modifier.padding(top = DETAIL_FACTS_GAP),

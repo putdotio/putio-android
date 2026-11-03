@@ -72,7 +72,7 @@ class TvFilesDetailTest {
     }
 
     @Test
-    fun theFactsStayWholeWhenALongNameMeetsTheActions() {
+    fun aLongNameKeepsTheFactsWholeAndTheActionsReachable() {
         val name = List(EPISODES) { "Deep.Sea.Creatures.S01E0$it.The.Midnight.Zone" }.joinToString(".") + ".mkv"
         compose.setTvContent {
             TvFilesScreen(
@@ -86,22 +86,6 @@ class TvFilesDetailTest {
         }
 
         compose.onNodeWithText("Added").assertIsDisplayed()
-    }
-
-    @Test
-    fun theActionsStayReachableUnderAVeryLongName() {
-        val name = List(EPISODES * 2) { "Deep.Sea.Creatures.S01E0$it.The.Midnight.Zone" }.joinToString(".") + ".mkv"
-        compose.setTvContent {
-            TvFilesScreen(
-                state = ready(item(1, name, PutioFileType.VIDEO, playback = FilesPlaybackProgress(60.0, 600.0))),
-                onEvent = { true },
-                onPlayMedia = {},
-                confirmedTrashEnabled = true,
-                watchedToggleEnabled = true,
-                pinnedIds = emptyList(),
-            )
-        }
-
         compose.onNodeWithTag(TV_FILES_DETAIL_PRIMARY_TAG).requestFocus().performKeyInput {
             pressKey(Key.DirectionDown)
         }
