@@ -160,6 +160,7 @@ internal fun TvHomeScreen(
         actions = actions,
         paneFocus = paneFocus,
     )
+    LaunchedEffect(continueWatchingFailure) { if (continueWatchingFailure != null) continueSheet.handedOff() }
     TvHomeNotice(
         notice = pinFailure?.takeIf { it.shown() }
             ?.let { TvHomeFailure(it, R.string.tv_files_pin_error, onDismissPinFailure) }

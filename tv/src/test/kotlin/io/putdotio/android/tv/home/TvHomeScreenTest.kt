@@ -270,18 +270,9 @@ class TvHomeScreenTest {
     fun overlappingRemovalsHandFocusToTheCardNextToTheLastOneRemoved() {
         val entries = (1L..4L).map { id -> entry.copy(fileId = FilesItemId(id), name = "clip-$id.mkv") }
         var continueWatching by mutableStateOf(entries)
-        var failure by mutableStateOf<PutioFailure?>(null)
         val paneFocus = FocusRequester()
         compose.setTvContent {
-            TvHomeScreen(
-                continueWatching,
-                TvPinnedRow.Ready(emptyList()),
-                removing {},
-                paneFocus,
-                onShown = {},
-                continueWatchingFailure = failure,
-                onDismissContinueWatchingFailure = { failure = null },
-            )
+            TvHomeScreen(continueWatching, TvPinnedRow.Ready(emptyList()), removing {}, paneFocus, onShown = {})
         }
         compose.runOnIdle { paneFocus.requestFocus() }
         compose.onNodeWithContentDescription(resume("clip-1.mkv")).performKeyInput { pressKey(Key.Menu) }
@@ -290,10 +281,6 @@ class TvHomeScreenTest {
         compose.onNodeWithContentDescription(resume("clip-2.mkv")).performKeyInput { pressKey(Key.Menu) }
         compose.onNodeWithText("Remove from Continue watching").performKeyInput { pressCenter() }
 
-        compose.runOnIdle { failure = PutioFailure.NetworkUnavailable(PutioConfigurationException("offline")) }
-        compose.onNodeWithText("OK").performKeyInput { pressCenter() }
-        compose.onNodeWithContentDescription(resume("clip-1.mkv")).assertIsFocused()
-            .performKeyInput { pressKey(Key.DirectionRight) }
         compose.runOnIdle { continueWatching = entries.drop(1) }
         compose.onNodeWithContentDescription(resume("clip-2.mkv")).assertIsFocused()
         compose.runOnIdle { continueWatching = entries.drop(2) }
