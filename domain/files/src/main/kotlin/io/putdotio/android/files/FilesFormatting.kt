@@ -6,10 +6,8 @@ import io.putdotio.android.parsePutioTimestamp
 import java.util.Locale
 
 /**
- * Decimal units as put.io's web app counts them: one decimal below 100 ("3.2GB", "19.4GB"), none
- * from 100 or when it is a zero ("31MB"). Android's short formatter drops the decimal from 10.
- * Mobile sets no space before the unit: in mono a space is a full cell, which sets the unit too far
- * off. TV's boards keep it ("31 MB"), so TV passes [spaced].
+ * Decimal units as put.io's web app counts them: one decimal below 100 ("3.2 GB", "19.4 GB"), none
+ * from 100 or when it is a zero ("31 MB"). Android's short formatter drops the decimal from 10.
  */
 public fun formatFileSize(bytes: Long, locale: Locale = Locale.getDefault(), spaced: Boolean = false): String {
     var value = bytes.coerceAtLeast(0L).toDouble()

@@ -6,14 +6,15 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
@@ -56,6 +57,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 
 internal const val MOBILE_FILE_VIEWER_TAG = "mobile-file-viewer"
+internal const val MOBILE_FILE_VIEWER_PAGES_TAG = "mobile-file-viewer-pages"
 internal const val MOBILE_FILE_VIEWER_POSITION_TAG = "mobile-file-viewer-position"
 
 /** What a viewer reaches outside itself: the file's bytes and the same actions the Files sheet runs. */
@@ -83,7 +85,7 @@ private sealed interface ViewerPageAsk {
 /**
  * Images, PDFs and text on a black frame, over the whole window. The name and the file's actions
  * sit on a top scrim; a swipe moves between the folder's files of the same kind, and the position
- * shows in mono below. [files] are those files in listing order; [onShown] follows the swipe.
+ * shows in mono on its own line below them. [files] are those files in listing order; [onShown] follows the swipe.
  * Near the last of them the folder's next page loads, so a swipe reaches every file it holds.
  */
 @Composable
@@ -135,20 +137,29 @@ internal fun MobileFileViewerContent(
             .background(frame)
             .testTag(MOBILE_FILE_VIEWER_TAG),
     ) {
-        HorizontalPager(
-            state = pager,
-            key = { files.getOrNull(it)?.id?.value ?: it },
-            modifier = Modifier.fillMaxSize(),
-        ) { page ->
-            val file = files.getOrNull(page) ?: return@HorizontalPager
-            val uri = actions.documentUri(file)
-            val openElsewhere = { actions.onOpenWithAnotherApp(file) }
-            when (file.viewerKind) {
-                FilesViewerKind.Image -> MobileImagePage(file, uri, openElsewhere)
-                FilesViewerKind.Pdf -> MobilePdfPage(file, uri, openElsewhere)
-                FilesViewerKind.Text -> MobileTextPage(uri, openElsewhere)
-                null -> MobileViewerFailure(openElsewhere)
+        Column(Modifier.fillMaxSize()) {
+            HorizontalPager(
+                state = pager,
+                key = { files.getOrNull(it)?.id?.value ?: it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .testTag(MOBILE_FILE_VIEWER_PAGES_TAG),
+            ) { page ->
+                val file = files.getOrNull(page) ?: return@HorizontalPager
+                val uri = actions.documentUri(file)
+                val openElsewhere = { actions.onOpenWithAnotherApp(file) }
+                when (file.viewerKind) {
+                    FilesViewerKind.Image -> MobileImagePage(file, uri, openElsewhere)
+                    FilesViewerKind.Pdf -> MobilePdfPage(file, uri, openElsewhere)
+                    FilesViewerKind.Text -> MobileTextPage(uri, openElsewhere)
+                    null -> MobileViewerFailure(openElsewhere)
+                }
             }
+            if (files.size > 1) {
+                MobileFileViewerPosition(position = pager.currentPage + 1, count = files.size, more = paging.more)
+            }
+            Spacer(Modifier.windowInsetsBottomHeight(WindowInsets.safeDrawing))
         }
         files.getOrNull(pager.currentPage)?.let { shown ->
             MobileFileViewerBar(
@@ -156,14 +167,6 @@ internal fun MobileFileViewerContent(
                 actions = actions,
                 onBack = onDismiss,
                 modifier = Modifier.align(Alignment.TopCenter),
-            )
-        }
-        if (files.size > 1) {
-            MobileFileViewerPosition(
-                position = pager.currentPage + 1,
-                count = files.size,
-                more = paging.more,
-                modifier = Modifier.align(Alignment.BottomCenter),
             )
         }
     }
@@ -241,21 +244,18 @@ private fun LoadNextPageNearLast(pager: PagerState, count: Int, paging: MobileFi
     }
 }
 
-/** The position in mono over a scrim that fades up, so it stays readable over a light picture. */
+/** The position in mono on the frame under the pages, so no page runs beneath it. */
 @Composable
-private fun MobileFileViewerPosition(position: Int, count: Int, more: Boolean, modifier: Modifier = Modifier) {
+private fun MobileFileViewerPosition(position: Int, count: Int, more: Boolean) {
     val description = stringResource(
         if (more) R.string.mobile_viewer_position_more else R.string.mobile_viewer_position,
         position,
         count,
     )
-    val scrim = MaterialTheme.colorScheme.scrim
     Box(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxWidth()
-            .background(Brush.verticalGradient(listOf(Color.Transparent, scrim.copy(alpha = VIEWER_SCRIM_ALPHA))))
-            .windowInsetsPadding(WindowInsets.navigationBars)
-            .padding(top = 16.dp, bottom = VIEWER_POSITION_BOTTOM),
+            .padding(top = 8.dp, bottom = VIEWER_POSITION_BOTTOM),
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -288,9 +288,9 @@ internal fun MobileViewerFailure(onOpenWithAnotherApp: () -> Unit, modifier: Mod
     }
 }
 
-/** Top clear of the bar, bottom clear of the position line, for pages that scroll under both. */
+/** Top clear of the bar, which pages scroll under, and a margin above the frame's bottom edge. */
 internal val VIEWER_CONTENT_TOP = 64.dp
-internal val VIEWER_CONTENT_BOTTOM = 56.dp
+internal val VIEWER_CONTENT_BOTTOM = 16.dp
 
 private const val VIEWER_SCRIM_ALPHA = 0.6f
 private const val VIEWER_PAGING_THRESHOLD = 5
