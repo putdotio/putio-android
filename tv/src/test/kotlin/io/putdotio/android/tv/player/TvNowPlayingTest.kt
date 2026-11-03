@@ -119,6 +119,24 @@ class TvNowPlayingTest {
     }
 
     @Test
+    fun backLeavesATrackThatEndedBeforeItsFolderWasRead() {
+        val pending = CompletableDeferred<Unit>()
+        val controller = showFolder(start = SECOND, folder = FolderRepository(pending))
+        compose.runOnIdle { players.last().end() }
+        compose.waitForIdle()
+
+        compose.back()
+        assertEquals(1, exits)
+
+        pending.complete(Unit)
+        compose.waitForIdle()
+        compose.runOnIdle {
+            assertEquals(SECOND.fileId, controller.state.value.target.fileId)
+            assertEquals(1, exits)
+        }
+    }
+
+    @Test
     fun theSystemsSkipControlsMoveThroughTheFolder() {
         val controller = showFolder(start = SECOND)
         val session = connect(sessions.last())

@@ -441,7 +441,7 @@ private fun TvReadyPlayer(
         }
     }
     TvUpNextOverlay(overlay, upNext) { step -> apply(step(overlay)) }
-    TvQueueEndEffect(queueEnded, neighbours, playChosen = { currentOnUpNext(it) }, exit = { currentOnExit() })
+    TvQueueEndEffect(queueEnded, overlay.exited, neighbours, { currentOnUpNext(it) }, { currentOnExit() })
 
     val closeSheet = { apply(overlay.closeSheet()) }
     TvPlayerSheets(
@@ -612,12 +612,13 @@ private fun playNextOrExit(next: PlaybackTarget?, playChosen: (PlaybackTarget) -
 @Composable
 private fun TvQueueEndEffect(
     ended: Boolean,
+    exited: Boolean,
     neighbours: PlaybackNeighbours?,
     playChosen: (PlaybackTarget) -> Boolean,
     exit: () -> Unit,
 ) {
-    LaunchedEffect(ended, neighbours) {
-        if (ended && neighbours != null) {
+    LaunchedEffect(ended, exited, neighbours) {
+        if (ended && !exited && neighbours != null) {
             playNextOrExit(neighbours.next, playChosen, exit)
         }
     }

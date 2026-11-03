@@ -106,10 +106,7 @@ internal fun rememberUpNext(
 internal fun TvPlayerOverlay.ended(autoplayNext: Boolean = false, lookup: TvUpNextLookup = TvUpNextLookup.Off) =
     when {
         exited -> TvPlayerTransition(this)
-        nowPlaying -> TvPlayerTransition(
-            copy(exited = true, scrub = null, sheet = null),
-            listOf(TvPlayerCommand.PlayQueueNext),
-        )
+        nowPlaying -> TvPlayerTransition(copy(scrub = null, sheet = null), listOf(TvPlayerCommand.PlayQueueNext))
         !autoplayNext -> exit()
         else -> copy(awaitingUpNext = true, controlsVisible = true, scrub = null, sheet = null, activity = activity + 1)
             .upNextResolved(lookup)
