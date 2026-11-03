@@ -107,7 +107,10 @@ private fun Modifier.transparencyGrid(): Modifier {
         for (row in 0 until rows) {
             for (column in 0 until columns) {
                 if ((row + column) % 2 == 0) {
-                    drawRect(light, topLeft = Offset(column * cell, row * cell), size = Size(cell, cell))
+                    val x = column * cell
+                    val y = row * cell
+                    val square = Size(minOf(cell, size.width - x), minOf(cell, size.height - y))
+                    drawRect(light, topLeft = Offset(x, y), size = square)
                 }
             }
         }
