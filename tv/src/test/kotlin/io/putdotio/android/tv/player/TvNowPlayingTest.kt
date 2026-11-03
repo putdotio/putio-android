@@ -2,6 +2,7 @@ package io.putdotio.android.tv.player
 
 import android.os.Looper
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
@@ -12,6 +13,10 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
@@ -34,6 +39,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -156,6 +162,32 @@ class TvNowPlayingTest {
     }
 
     @Test
+    fun aTrackThatEndedBeforeItsFolderWasReadStaysPausedOnceTheAppStops() {
+        val pending = CompletableDeferred<Unit>()
+        val owner = object : LifecycleOwner {
+            val registry = LifecycleRegistry(this).apply { currentState = Lifecycle.State.RESUMED }
+            override val lifecycle: Lifecycle get() = registry
+        }
+        val controller = showFolder(start = SECOND, folder = FolderRepository(pending), lifecycleOwner = owner)
+        compose.runOnIdle { players.last().end() }
+        compose.waitForIdle()
+
+        compose.runOnIdle { owner.registry.currentState = Lifecycle.State.CREATED }
+        compose.waitForIdle()
+        pending.complete(Unit)
+        compose.waitForIdle()
+        compose.runOnIdle { owner.registry.currentState = Lifecycle.State.RESUMED }
+        compose.waitForIdle()
+
+        compose.runOnIdle {
+            assertEquals(SECOND.fileId, controller.state.value.target.fileId)
+            assertEquals(1, players.size)
+            assertEquals(0, exits)
+            assertFalse(players.last().playWhenReady)
+        }
+    }
+
+    @Test
     fun theSystemsSkipControlsMoveThroughTheFolder() {
         val controller = showFolder(start = SECOND)
         val session = connect(sessions.last())
@@ -173,33 +205,41 @@ class TvNowPlayingTest {
         next.release()
     }
 
-    private fun showFolder(start: PlaybackTarget, folder: FolderRepository = repository): PlaybackController {
+    private fun showFolder(
+        start: PlaybackTarget,
+        folder: FolderRepository = repository,
+        lifecycleOwner: LifecycleOwner? = null,
+    ): PlaybackController {
         val controller = PlaybackController(
             start,
             folder,
             CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
         )
         compose.setTvContent {
-            TvPlaybackRoute(
-                controller = controller,
-                onExit = { exits += 1 },
-                onSessionRejected = {},
-                playerFactory = object : TvPlayerFactory {
-                    override fun create(context: android.content.Context, mediaType: PlaybackMediaType): Player =
-                        FakePlayer().also { players += it }
-
-                    override fun publish(context: android.content.Context, player: Player): Closeable {
-                        val session = tvMediaSession(context, player).build()
-                        sessions += session
-                        return Closeable { session.release() }
-                    }
-                },
-                findUpNext = folder::findNeighbours,
-            )
+            CompositionLocalProvider(LocalLifecycleOwner provides (lifecycleOwner ?: LocalLifecycleOwner.current)) {
+                TvPlaybackRoute(
+                    controller = controller,
+                    onExit = { exits += 1 },
+                    onSessionRejected = {},
+                    playerFactory = playerFactory,
+                    findUpNext = folder::findNeighbours,
+                )
+            }
         }
         compose.waitForIdle()
         compose.onNodeWithTag(TV_NOW_PLAYING_TAG).assertIsDisplayed()
         return controller
+    }
+
+    private val playerFactory = object : TvPlayerFactory {
+        override fun create(context: android.content.Context, mediaType: PlaybackMediaType): Player =
+            FakePlayer().also { players += it }
+
+        override fun publish(context: android.content.Context, player: Player): Closeable {
+            val session = tvMediaSession(context, player).build()
+            sessions += session
+            return Closeable { session.release() }
+        }
     }
 
     private fun player() = compose.onNodeWithTag(TV_PLAYER_TAG)

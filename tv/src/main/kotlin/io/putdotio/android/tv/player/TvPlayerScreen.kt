@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.currentStateAsState
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.PlaybackParameters
@@ -439,7 +440,7 @@ private fun TvReadyPlayer(
         }
     }
     TvUpNextOverlay(overlay, upNext) { step -> apply(step(overlay)) }
-    TvQueueEndEffect(overlay, playbackState, neighbours, { currentOnUpNext(it) }, { currentOnExit() })
+    TvQueueEndEffect(overlay, playbackState, playWhenReady, neighbours, { currentOnUpNext(it) }, { currentOnExit() })
 
     val closeSheet = { apply(overlay.closeSheet()) }
     TvPlayerSheets(
@@ -599,11 +600,14 @@ private fun Player.skipInFolder(command: TvPlayerCommand, handlers: TvPlayerHand
 private fun TvQueueEndEffect(
     overlay: TvPlayerOverlay,
     playbackState: Int,
+    playWhenReady: Boolean,
     neighbours: PlaybackNeighbours?,
     playChosen: (PlaybackTarget) -> Boolean,
     exit: () -> Unit,
 ) {
-    val ended = overlay.nowPlaying && !overlay.exited && playbackState == Player.STATE_ENDED
+    val started by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
+    val finished = playbackState == Player.STATE_ENDED && playWhenReady && started.isAtLeast(Lifecycle.State.STARTED)
+    val ended = overlay.nowPlaying && !overlay.exited && finished
     LaunchedEffect(ended, neighbours) {
         val queue = neighbours ?: return@LaunchedEffect
         val next = queue.next
