@@ -271,8 +271,8 @@ class TvPlayerOptionsTest {
         show(player)
         openSheet(SUBTITLES, rightPresses = 1)
         compose.onNodeWithText("SRT").assertIsDisplayed()
-        compose.onNodeWithText("Track 2").assertIsDisplayed()
-        compose.onNodeWithText("Embedded · language not set").assertIsDisplayed()
+        compose.onNodeWithText("Unknown").assertIsDisplayed()
+        compose.onNodeWithText("Embedded").assertIsDisplayed()
     }
 
     @Test

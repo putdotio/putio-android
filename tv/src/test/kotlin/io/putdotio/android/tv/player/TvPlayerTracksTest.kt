@@ -20,4 +20,16 @@ class TvPlayerTracksTest {
             tvPlayerChips(audioTracks = 0, subtitlesHidden = true, nextEpisode = false),
         )
     }
+
+    @Test
+    fun audioOffersSpeedAndTheAudioChipOnlyWithTracksToChoose() {
+        assertEquals(
+            listOf(TvPlayerControl.Speed),
+            tvPlayerChips(audioTracks = 1, subtitlesHidden = false, nextEpisode = false, audioOnly = true),
+        )
+        assertEquals(
+            listOf(TvPlayerControl.Audio, TvPlayerControl.Speed),
+            tvPlayerChips(audioTracks = 2, subtitlesHidden = false, nextEpisode = false, audioOnly = true),
+        )
+    }
 }

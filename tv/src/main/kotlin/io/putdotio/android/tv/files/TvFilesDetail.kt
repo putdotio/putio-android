@@ -1,5 +1,6 @@
 package io.putdotio.android.tv.files
 
+import io.putdotio.android.playback.R as PlaybackR
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.runtime.Composable
@@ -278,8 +279,9 @@ private fun detailFacts(item: FilesItem, subtitles: FilesSubtitles?, place: TvFi
     val added = stringResource(R.string.tv_files_detail_added)
     val folder = stringResource(R.string.tv_files_detail_folder)
     val subtitlesLabel = stringResource(R.string.tv_files_detail_subtitles)
+    val unknownLanguage = stringResource(PlaybackR.string.playback_subtitle_unknown)
     val subtitlesValue = subtitles?.takeIf { it.languages.isNotEmpty() }?.let { found ->
-        val languages = found.languages.joinToString(", ")
+        val languages = found.languages.joinToString(", ") { it ?: unknownLanguage }
         if (found.sidecarFiles > 0) {
             val files = pluralStringResource(
                 R.plurals.tv_files_detail_subtitle_files,

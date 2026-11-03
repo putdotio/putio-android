@@ -48,16 +48,19 @@ public fun audioTrackDetails(track: PlaybackAudioTrack): String? {
 private fun PlaybackAudioTrack.isCommentary(): Boolean = identity.roleFlags and C.ROLE_FLAG_COMMENTARY != 0
 
 @Composable
-public fun subtitleTrackLabels(tracks: List<PlaybackSubtitleTrack>, sidecar: List<PlaybackSubtitle>): List<String> =
+public fun subtitleTrackLabels(
+    tracks: List<PlaybackSubtitleTrack>,
+    sidecar: List<PlaybackSubtitle>,
+    inFile: Boolean = true,
+): List<String> =
     numberRepeatedRows(
-        names = tracks.mapIndexed { index, track -> subtitleTrackName(track, index) },
-        details = tracks.map { subtitleTrackDetails(it, it.putioSubtitle(sidecar)) },
+        names = tracks.map { subtitleTrackName(it) },
+        details = tracks.map { subtitleTrackDetails(it, it.putioSubtitle(sidecar), inFile) },
     )
 
 @Composable
-public fun subtitleTrackName(track: PlaybackSubtitleTrack, index: Int): String {
-    val name = languageName(track.identity.language) ?: track.label?.takeIf(String::isNotBlank)
-        ?: stringResource(R.string.playback_subtitle_track, index + 1)
+public fun subtitleTrackName(track: PlaybackSubtitleTrack): String {
+    val name = track.knownName() ?: stringResource(R.string.playback_subtitle_unknown)
     return if (track.identity.roleFlags and C.ROLE_FLAG_DESCRIBES_MUSIC_AND_SOUND != 0) {
         name + TRACK_DETAIL_SEPARATOR + stringResource(R.string.playback_subtitle_sdh)
     } else {
@@ -65,15 +68,18 @@ public fun subtitleTrackName(track: PlaybackSubtitleTrack, index: Int): String {
     }
 }
 
+/**
+ * Where a subtitle comes from, else its format. [inFile] is false when the source cannot tell a
+ * track embedded in the file from one put.io added, as in an HLS manifest.
+ */
 @Composable
-public fun subtitleTrackDetails(track: PlaybackSubtitleTrack, subtitle: PlaybackSubtitle?): String? =
+public fun subtitleTrackDetails(track: PlaybackSubtitleTrack, subtitle: PlaybackSubtitle?, inFile: Boolean): String? =
     when (subtitle.origin()) {
         SubtitleOrigin.Folder -> stringResource(R.string.playback_subtitles_from_folder)
         SubtitleOrigin.OpenSubtitles -> stringResource(R.string.playback_subtitles_from_opensubtitles)
         SubtitleOrigin.File ->
-            if (subtitle == null && languageName(track.identity.language) == null) {
-                stringResource(R.string.playback_subtitles_embedded) + TRACK_DETAIL_SEPARATOR +
-                    stringResource(R.string.playback_subtitles_language_unset)
+            if (inFile && subtitle == null && languageName(track.identity.language) == null) {
+                stringResource(R.string.playback_subtitles_embedded)
             } else {
                 subtitle?.format?.takeIf { it.isNotBlank() }?.uppercase(Locale.ROOT) ?: track.formatName()
             }

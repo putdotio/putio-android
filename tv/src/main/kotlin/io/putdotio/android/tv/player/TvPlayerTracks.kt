@@ -20,10 +20,15 @@ import io.putdotio.android.playback.withRetainedAudioSelection
 import io.putdotio.android.playback.withSubtitleSelection
 import io.putdotio.android.playback.withSubtitleTracks
 
-internal fun tvPlayerChips(audioTracks: Int, subtitlesHidden: Boolean, nextEpisode: Boolean): List<TvPlayerControl> =
+internal fun tvPlayerChips(
+    audioTracks: Int,
+    subtitlesHidden: Boolean,
+    nextEpisode: Boolean,
+    audioOnly: Boolean = false,
+): List<TvPlayerControl> =
     buildList {
-        if (audioTracks > 0) add(TvPlayerControl.Audio)
-        if (!subtitlesHidden) add(TvPlayerControl.Subtitles)
+        if (audioTracks > if (audioOnly) 1 else 0) add(TvPlayerControl.Audio)
+        if (!subtitlesHidden && !audioOnly) add(TvPlayerControl.Subtitles)
         add(TvPlayerControl.Speed)
         if (nextEpisode) add(TvPlayerControl.NextEpisode)
     }

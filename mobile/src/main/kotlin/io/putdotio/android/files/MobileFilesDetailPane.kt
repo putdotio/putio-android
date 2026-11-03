@@ -1,5 +1,6 @@
 package io.putdotio.android.files
 
+import io.putdotio.android.playback.R as PlaybackR
 import android.content.Context
 import android.net.Uri
 import android.text.format.DateUtils
@@ -327,7 +328,8 @@ private fun MobileFilesDetailFacts(
     val context = LocalContext.current
     val style = PutioTypeScale.bodySm
     val currentOnAuthenticationRequired by rememberUpdatedState(onAuthenticationRequired)
-    val subtitles by produceState<List<String>?>(null, item.id, subtitleLanguages) {
+    val unknownLanguage = stringResource(PlaybackR.string.playback_subtitle_unknown)
+    val subtitles by produceState<List<String?>?>(null, item.id, subtitleLanguages) {
         value = null
         val reader = subtitleLanguages?.takeIf { item.type == PutioFileType.VIDEO && item.id.value > 0L }
         when (val result = reader?.subtitleLanguages(item.id)) {
@@ -345,7 +347,8 @@ private fun MobileFilesDetailFacts(
             add(DetailFact(R.string.mobile_files_detail_length, length, mono = true))
         }
         subtitles?.takeIf { it.isNotEmpty() }?.let {
-            add(DetailFact(R.string.mobile_files_detail_subtitles, it.joinToString(", ")))
+            val names = it.joinToString(", ") { name -> name ?: unknownLanguage }
+            add(DetailFact(R.string.mobile_files_detail_subtitles, names))
         }
         folderPath?.let { add(DetailFact(R.string.mobile_files_detail_folder, it)) }
     }

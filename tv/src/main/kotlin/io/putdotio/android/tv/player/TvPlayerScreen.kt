@@ -64,7 +64,6 @@ import io.putdotio.android.playback.rememberSubtitleAppearanceStore
 import io.putdotio.android.playback.restoreSubtitleSelection
 import io.putdotio.android.playback.sameSubtitleChoice
 import io.putdotio.android.playback.setSubtitleLead
-import io.putdotio.android.playback.sidecarTracks
 import io.putdotio.android.playback.toPlaybackFailure
 import io.putdotio.android.playback.toPlaybackMillis
 import io.putdotio.android.playback.withAudioSelection
@@ -237,6 +236,7 @@ private fun TvReadyPlayer(
     var cues by remember(player) { mutableStateOf(emptyList<Cue>()) }
     val cueHistory = remember(player) { DelayedSubtitleCues() }
     var videoSize by remember(player) { mutableStateOf(player.videoSize) }
+    var firstFrameShown by remember(player) { mutableStateOf(false) }
     val currentSubtitlePolicy by rememberUpdatedState(subtitleStartupPolicy)
     DisposableEffect(player) {
         val listener = object : Player.Listener {
@@ -291,6 +291,10 @@ private fun TvReadyPlayer(
             override fun onVideoSizeChanged(value: VideoSize) {
                 videoSize = value
             }
+
+            override fun onRenderedFirstFrame() {
+                firstFrameShown = true
+            }
         }
         player.addListener(listener)
         player.trackSelectionParameters =
@@ -341,7 +345,7 @@ private fun TvReadyPlayer(
 
     val choices = TvTrackChoices(tracks, parameters, subtitleStartupPolicy)
     val subtitlesHidden = choices.subtitlesHidden
-    val chips = choices.chips(nextEpisode = nextEpisode)
+    val chips = choices.chips(nextEpisode = nextEpisode, audioOnly = target.mediaType == PlaybackMediaType.AUDIO)
     LaunchedEffect(subtitlesHidden, overlay.sheet) {
         val subtitleSheet = overlay.sheet == TvPlayerSheet.Subtitles || overlay.sheet == TvPlayerSheet.SizeAndTiming
         if (subtitlesHidden && subtitleSheet) apply(overlay.closeSheet())
@@ -382,13 +386,7 @@ private fun TvReadyPlayer(
             .onKeyEvent { event -> overlay.onPlayerKey(event, player, chips, apply) }
             .focusable(),
     ) {
-        if (target.mediaType == PlaybackMediaType.VIDEO) {
-            ContentFrame(
-                player = player,
-                modifier = Modifier.fillMaxSize(),
-                surfaceType = playbackSurfaceType(Build.VERSION.SDK_INT, Build.HARDWARE),
-            )
-        }
+        TvPlayerStage(player, target, TvStageState(firstFrameShown, playbackState, overlay.controlsVisible))
         cueLayer.takeUnless { overlay.sheet == TvPlayerSheet.SizeAndTiming }?.invoke(this)
         if (overlay.controlsVisible) {
             TvPlayerControls(
@@ -413,7 +411,7 @@ private fun TvReadyPlayer(
         backFromSizeAndTiming = overlay.backFromSizeAndTiming,
         returnFocus = focus,
         choices = choices,
-        sidecar = source.subtitles.sidecarTracks(),
+        subtitles = source.subtitles,
         speed = speed,
         textSize = appearance.textSize,
         offsetMillis = options.subtitleOffsetMillis,
@@ -443,6 +441,25 @@ private fun TvReadyPlayer(
         onDismiss = { apply(overlay.back()) },
         timingPreview = cueLayer,
     )
+}
+
+private class TvStageState(firstFrameShown: Boolean, playbackState: Int, val controlsVisible: Boolean) {
+    val waiting = !firstFrameShown && playbackState != Player.STATE_READY && playbackState != Player.STATE_ENDED
+}
+
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+@Composable
+private fun TvPlayerStage(player: Player, target: PlaybackTarget, stage: TvStageState) {
+    if (target.mediaType == PlaybackMediaType.VIDEO) {
+        ContentFrame(
+            player = player,
+            modifier = Modifier.fillMaxSize(),
+            surfaceType = playbackSurfaceType(Build.VERSION.SDK_INT, Build.HARDWARE),
+        )
+        if (stage.waiting && !stage.controlsVisible) TvPlayerLoading(target)
+    } else if (!stage.controlsVisible) {
+        TvAudioStage(target.name)
+    }
 }
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])

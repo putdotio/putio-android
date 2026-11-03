@@ -167,6 +167,88 @@ class PlaybackSubtitleSelectionTest {
     }
 
     @Test
+    fun automaticSubtitlesPreferANamedTrackOverAnUnlabelledServerDefault() {
+        val deviceDefaults = TrackSelectionParameters.Builder().build()
+        val flagged = TrackGroup(
+            *listOf("unknown" to true, "en" to false).map { (language, default) ->
+                Format.Builder()
+                    .setId(language)
+                    .setSampleMimeType(MimeTypes.TEXT_VTT)
+                    .setLanguage(language)
+                    .setLabel(if (default) "Unknown" else "English")
+                    .setSelectionFlags(if (default) C.SELECTION_FLAG_DEFAULT else 0)
+                    .build()
+            }.toTypedArray(),
+        )
+
+        val automatic = deviceDefaults.withSubtitleSelection(
+            SubtitleSelection.Automatic,
+            flagged.subtitleTracks(),
+            deviceDefaults,
+        )
+
+        assertEquals("en", selectedTextId(automatic, flagged))
+    }
+
+    @Test
+    fun anUnlabelledDefaultGivesWayToTheDevicesCaptionLanguageAndALabelledOneStays() {
+        fun group(defaultLabel: String) = TrackGroup(
+            *listOf(Triple("dflt", "und", defaultLabel), Triple("en", "en", "English"), Triple("tr", "tr", "Turkish"))
+                .map { (id, language, label) ->
+                    Format.Builder()
+                        .setId(id)
+                        .setSampleMimeType(MimeTypes.TEXT_VTT)
+                        .setLanguage(language)
+                        .setLabel(label)
+                        .setSelectionFlags(if (id == "dflt") C.SELECTION_FLAG_DEFAULT else 0)
+                        .build()
+                }.toTypedArray(),
+        )
+        val turkishDevice = TrackSelectionParameters.Builder().setPreferredTextLanguages("tr").build()
+
+        val unlabelled = group("Unknown")
+        val automatic = turkishDevice.withSubtitleSelection(
+            SubtitleSelection.Automatic,
+            unlabelled.subtitleTracks(),
+            turkishDevice,
+        )
+        assertEquals("tr", selectedTextId(automatic, unlabelled))
+
+        val labelled = group("Blue.Lights.S04E01.srt")
+        val kept = turkishDevice.withSubtitleSelection(
+            SubtitleSelection.Automatic,
+            labelled.subtitleTracks(),
+            turkishDevice,
+        )
+        assertEquals("dflt", selectedTextId(kept, labelled))
+    }
+
+    @Test
+    fun anUnlabelledDefaultNeverGivesWayToAForcedTrack() {
+        val group = TrackGroup(
+            *listOf(Triple("dflt", C.SELECTION_FLAG_DEFAULT, "und"), Triple("en", C.SELECTION_FLAG_FORCED, "en"))
+                .plus(Triple("tr", 0, "tr"))
+                .map { (id, flags, language) ->
+                    Format.Builder()
+                        .setId(id)
+                        .setSampleMimeType(MimeTypes.TEXT_VTT)
+                        .setLanguage(language)
+                        .setSelectionFlags(flags)
+                        .build()
+                }.toTypedArray(),
+        )
+        val noPreference = TrackSelectionParameters.Builder().build()
+
+        val automatic = noPreference.withSubtitleSelection(
+            SubtitleSelection.Automatic,
+            group.subtitleTracks(),
+            noPreference,
+        )
+
+        assertEquals("tr", selectedTextId(automatic, group))
+    }
+
+    @Test
     fun automaticSubtitlesFollowTheDeviceWhenTheServerNamesNoDefault() {
         val deviceDefaults = TrackSelectionParameters.Builder().setPreferredTextLanguages("tr").build()
         val unflagged = serverTracks(defaultId = null)
