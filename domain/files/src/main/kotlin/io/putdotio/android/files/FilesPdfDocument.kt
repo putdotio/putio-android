@@ -10,6 +10,7 @@ import java.io.File
 import java.io.IOException
 import java.io.InputStream
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -77,9 +78,14 @@ public class FilesPdfDocument private constructor(
             try {
                 return withContext(dispatcher) {
                     val file = File(viewerCache(context).apply { mkdirs() }, "${UUID.randomUUID()}.pdf")
+                    copying += file
                     try {
-                        copyInto(openStream, file)
-                        val descriptor = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
+                        val descriptor = try {
+                            copyInto(openStream, file)
+                            ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
+                        } finally {
+                            copying -= file
+                        }
                         FilesPdfDocument(file, descriptor, openRenderer(descriptor), dispatcher)
                             .also { opened.set(it) }
                     } finally {
@@ -110,10 +116,15 @@ public class FilesPdfDocument private constructor(
                 throw IOException("Protected document", error)
             }
 
-        /** Copies left by a viewer that never closed, a crash say; a new viewer clears them. */
+        /**
+         * Deletes copies left by a viewer that never closed, a crash say, and those of open documents,
+         * which keep reading through their descriptors. A copy still being written stays.
+         */
         public fun clearCache(context: Context) {
-            viewerCache(context).deleteRecursively()
+            viewerCache(context).listFiles()?.filterNot { it in copying }?.forEach { it.deleteRecursively() }
         }
+
+        private val copying: MutableSet<File> = ConcurrentHashMap.newKeySet()
 
         private fun viewerCache(context: Context): File = File(context.cacheDir, "viewer")
     }

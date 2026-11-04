@@ -178,7 +178,7 @@ class MobileDownloadsQueueProofTest {
                 override fun start(entry: DownloadEntry) =
                     manager.addDownload(request(entry.fileId.value, sources.getValue(entry.fileId.value)))
 
-                override fun remove(fileId: FilesItemId) =
+                override suspend fun remove(fileId: FilesItemId) =
                     manager.removeDownload(downloadContentId(USER_ID, fileId))
             }
             local.setConcurrency(2)

@@ -40,7 +40,6 @@ public object PutioDiagnostics {
     }
 
     @Synchronized
-    @SuppressLint("ApplySharedPref")
     public fun update(answer: DiagnosticsAnswer) {
         if (!::preferences.isInitialized) return
         val allowed = when (answer) {
@@ -51,7 +50,7 @@ public object PutioDiagnostics {
         val signedIn = answer is DiagnosticsAnswer.Account
         val leftAnAccount = answer == DiagnosticsAnswer.SignedOut && preferences.getBoolean(SIGNED_IN, false)
         if (signedIn != preferences.getBoolean(SIGNED_IN, false)) {
-            preferences.edit().putBoolean(SIGNED_IN, signedIn).commit()
+            preferences.edit().putBoolean(SIGNED_IN, signedIn).apply()
         }
         when {
             held && leftAnAccount -> {
@@ -62,7 +61,7 @@ public object PutioDiagnostics {
             held || allowed != this.allowed -> apply(allowed, launch = false)
         }
         if (allowed == this.allowed) return
-        preferences.edit().putBoolean(ALLOWED, allowed).commit()
+        preferences.edit().putBoolean(ALLOWED, allowed).apply()
     }
 
     public fun capture(failure: TelemetryFailure) {

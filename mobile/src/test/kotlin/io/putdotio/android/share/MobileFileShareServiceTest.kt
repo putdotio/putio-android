@@ -1,8 +1,11 @@
 package io.putdotio.android.share
 
+import android.Manifest
 import android.app.Activity
+import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.os.Looper
 import androidx.core.net.toUri
 import androidx.test.core.app.ApplicationProvider
@@ -233,6 +236,31 @@ class MobileFileShareServiceTest {
         assertEquals(2, shadowOf(fixture.service).stopSelfId)
         assertTrue(shadowOf(fixture.service).isForegroundStopped)
         assertFalse(fixture.export("1").exists())
+        fixture.destroy()
+    }
+
+    @Test
+    fun theDataSyncTimeoutDropsTheExportAndStopsTheServiceWithAFailureNotice() {
+        shadowOf(activity.application).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        val fixture = ShareFixture()
+        fixture.start(fileId = 9L, name = "poster.jpg", startId = 1)
+        fixture.scheduler.runCurrent()
+        assertTrue(fixture.export("9/poster.jpg").exists())
+        assertFalse(shadowOf(fixture.service).isForegroundStopped)
+
+        fixture.service.onTimeout(1, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+        fixture.scheduler.advanceUntilIdle()
+
+        assertTrue(shadowOf(fixture.service).isForegroundStopped)
+        assertTrue(shadowOf(fixture.service).notificationShouldRemoved)
+        assertTrue(shadowOf(fixture.service).isStoppedBySelf)
+        assertFalse(MobileFileShareService.shareRoot(fixture.service).exists())
+        val manager = fixture.service.getSystemService(NotificationManager::class.java)
+        val notice = requireNotNull(shadowOf(manager).allNotifications.singleOrNull())
+        assertEquals(FAILED_TEXT, shadowOf(notice).contentText.toString())
+        MobileResumedActivity.resumed(activity)
+        fixture.scheduler.advanceUntilIdle()
+        assertNull(shadowOf(activity).nextStartedActivity)
         fixture.destroy()
     }
 

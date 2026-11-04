@@ -6,6 +6,7 @@ import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.material3.Text
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -60,6 +61,8 @@ import io.putdotio.sdk.files.PlaybackConversionState
 import io.putdotio.android.viewer.MOBILE_FILE_VIEWER_PAGES_TAG
 import io.putdotio.android.viewer.MOBILE_FILE_VIEWER_POSITION_TAG
 import io.putdotio.android.viewer.MOBILE_FILE_VIEWER_TAG
+import io.putdotio.android.viewer.LocalMobileFileViewerIo
+import kotlinx.coroutines.Dispatchers
 import io.putdotio.sdk.files.PutioFileType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -322,20 +325,22 @@ class MobileFilesListDetailTest {
     ) {
         compose.setContent {
             PutioTheme {
-                Box(Modifier.requiredSize(width = width, height = 700.dp)) {
-                    MobileFilesRoute(
-                        state = state,
-                        repository = null,
-                        onEvent = { events += it; true },
-                        onPlayMedia = { played += it },
-                        confirmedTrashEnabled = true,
-                        onAuthenticationRequired = {},
-                        onShareItem = { shared += it },
-                        listPaneTopBar = if (wide) { { Text("Blue Lights") } } else null,
-                        fileOpener = MobileFileOpener(userId = 42L),
-                        linkedFile = linkedFile,
-                        onLinkedFileLanded = { landedLinks++ },
-                    )
+                CompositionLocalProvider(LocalMobileFileViewerIo provides Dispatchers.Unconfined) {
+                    Box(Modifier.requiredSize(width = width, height = 700.dp)) {
+                        MobileFilesRoute(
+                            state = state,
+                            repository = null,
+                            onEvent = { events += it; true },
+                            onPlayMedia = { played += it },
+                            confirmedTrashEnabled = true,
+                            onAuthenticationRequired = {},
+                            onShareItem = { shared += it },
+                            listPaneTopBar = if (wide) { { Text("Blue Lights") } } else null,
+                            fileOpener = MobileFileOpener(userId = 42L),
+                            linkedFile = linkedFile,
+                            onLinkedFileLanded = { landedLinks++ },
+                        )
+                    }
                 }
             }
         }
