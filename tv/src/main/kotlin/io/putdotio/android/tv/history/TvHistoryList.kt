@@ -177,7 +177,7 @@ internal fun TvHistoryList(
         itemsIndexed(
             entries,
             key = { _, entry -> entry.key },
-            contentType = { _, entry -> entry::class },
+            contentType = { _, entry -> entry.javaClass },
         ) { index, entry ->
             val requesters = Modifier
                 .focusRequesterIf(index == anchorIndex, anchorRow)

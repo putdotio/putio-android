@@ -1,6 +1,5 @@
 package io.putdotio.android
 
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
@@ -14,6 +13,8 @@ import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.layout.FirstBaseline
+import androidx.compose.ui.layout.IntrinsicMeasurable
+import androidx.compose.ui.layout.IntrinsicMeasureScope
 import androidx.compose.ui.layout.LastBaseline
 import androidx.compose.ui.layout.Measurable
 import androidx.compose.ui.layout.MeasureResult
@@ -57,9 +58,7 @@ internal fun MobileMiddleCutText(
 ) {
     val measurer = rememberTextMeasurer()
     val textColor = color.takeOrElse { style.color.takeOrElse { LocalContentColor.current } }
-    Box(modifier) {
-        Spacer(MiddleCutTextElement(text, style, textColor, maxLines, measurer))
-    }
+    Spacer(modifier.then(MiddleCutTextElement(text, style, textColor, maxLines, measurer)))
 }
 
 private data class MiddleCutTextElement(
@@ -98,40 +97,36 @@ private class MiddleCutTextNode(
     private var laidOut: TextLayoutResult? = null
 
     fun update(name: String, style: TextStyle, color: Color, maxLines: Int, measurer: TextMeasurer) {
+        val relayout = name != this.name || style != this.style || maxLines != this.maxLines ||
+            measurer != this.measurer
         this.name = name
         this.style = style
         this.color = color
         this.maxLines = maxLines
         this.measurer = measurer
-        line = name.oneLine()
-        cutWidth = NO_CUT_WIDTH
-        invalidateMeasurement()
+        if (relayout) {
+            line = name.oneLine()
+            cutWidth = NO_CUT_WIDTH
+            invalidateMeasurement()
+        }
         invalidateDraw()
     }
 
     override fun MeasureScope.measure(measurable: Measurable, constraints: Constraints): MeasureResult {
-        val maxWidth = constraints.maxWidth
-        if (maxWidth != cutWidth) {
-            shown = if (maxLines == 1) {
-                middleCut(line, maxWidth) { measurer.width(it, style) }
-            } else {
-                middleCutWhere(line, maxWidth) { measurer.fits(it, style, maxWidth, maxLines) }
-            }
-            cutWidth = maxWidth
+        if (constraints.maxWidth != cutWidth) {
+            shown = measurer.cutToFit(line, style, constraints.maxWidth, maxLines)
+            cutWidth = constraints.maxWidth
         }
-        val layout = measurer.measure(
-            text = shown,
-            style = style.merge(color = color),
-            overflow = TextOverflow.Ellipsis,
-            softWrap = maxLines > 1,
-            maxLines = maxLines,
-            constraints = constraints,
-            layoutDirection = layoutDirection,
-            density = this,
-        )
+        val layout = layoutText(shown, constraints)
+        if (layout.layoutInput != laidOut?.layoutInput) invalidateDraw()
         laidOut = layout
         drawn = layout.shownText()
-        if (name != semanticsName || cut() != semanticsCut) invalidateSemantics()
+        val cut = cut()
+        if (name != semanticsName || cut != semanticsCut) {
+            semanticsName = name
+            semanticsCut = cut
+            invalidateSemantics()
+        }
         val size = layout.size
         val placeable = measurable.measure(
             Constraints.fitPrioritizingWidth(
@@ -150,6 +145,30 @@ private class MiddleCutTextNode(
             ),
         ) { placeable.place(0, 0) }
     }
+
+    override fun IntrinsicMeasureScope.minIntrinsicWidth(measurable: IntrinsicMeasurable, height: Int): Int =
+        maxIntrinsicWidth(measurable, height)
+
+    override fun IntrinsicMeasureScope.maxIntrinsicWidth(measurable: IntrinsicMeasurable, height: Int): Int =
+        layoutText(line, Constraints()).size.width
+
+    override fun IntrinsicMeasureScope.minIntrinsicHeight(measurable: IntrinsicMeasurable, width: Int): Int =
+        maxIntrinsicHeight(measurable, width)
+
+    override fun IntrinsicMeasureScope.maxIntrinsicHeight(measurable: IntrinsicMeasurable, width: Int): Int =
+        layoutText(measurer.cutToFit(line, style, width, maxLines), Constraints(maxWidth = width)).size.height
+
+    private fun IntrinsicMeasureScope.layoutText(text: String, constraints: Constraints): TextLayoutResult =
+        measurer.measure(
+            text = text,
+            style = style,
+            overflow = TextOverflow.Ellipsis,
+            softWrap = maxLines > 1,
+            maxLines = maxLines,
+            constraints = constraints,
+            layoutDirection = layoutDirection,
+            density = this,
+        )
 
     override fun ContentDrawScope.draw() {
         val layout = laidOut ?: return
@@ -192,8 +211,6 @@ private class MiddleCutTextNode(
     // A merged row reads its text in order, so the full name stands in for the cut one there;
     // a content description would hide the row's meta from TalkBack.
     override fun SemanticsPropertyReceiver.applySemantics() {
-        semanticsName = name
-        semanticsCut = cut()
         if (shown == name) {
             text = AnnotatedString(shown)
             getTextLayoutResult { results -> laidOut?.let(results::add) != null }
@@ -204,15 +221,20 @@ private class MiddleCutTextNode(
     }
 }
 
-/** What shows: a clipped end reads as cut there, so a lost extension cannot pass for a cut. */
 private fun TextLayoutResult.shownText(): String {
     val shown = layoutInput.text.text
     val last = lineCount - 1
     return if (isLineEllipsized(last)) shown.substring(0, getLineEnd(last, visibleEnd = true)) + ELLIPSIS else shown
 }
 
-/** A hard line break would end the single line early, so the name shows on one line of spaces. */
 private fun String.oneLine(): String = replace(LINE_BREAKS, " ")
+
+private fun TextMeasurer.cutToFit(line: String, style: TextStyle, maxWidth: Int, maxLines: Int): String =
+    if (maxLines == 1) {
+        middleCut(line, maxWidth) { width(it, style) }
+    } else {
+        middleCutWhere(line, maxWidth) { fits(it, style, maxWidth, maxLines) }
+    }
 
 private fun TextMeasurer.width(text: String, style: TextStyle): Int =
     measure(text, style, maxLines = 1, softWrap = false).size.width

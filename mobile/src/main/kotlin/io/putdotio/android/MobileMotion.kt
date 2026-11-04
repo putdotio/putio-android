@@ -272,10 +272,7 @@ internal fun Modifier.mobileBackPreview(preview: MobileBackPreview): Modifier = 
     }
 }
 
-/**
- * The NavHost's layout, so the player can grow out of the row that opened it; null under reduced
- * motion, which keeps the route's fade and drops the moving bounds.
- */
+/** The NavHost's layout, so the player can grow out of the row that opened it. */
 internal val LocalMobileSharedTransition = staticCompositionLocalOf<SharedTransitionScope?> { null }
 
 /** The enter and exit of the route a composable sits in; rows on that route share bounds with the player. */

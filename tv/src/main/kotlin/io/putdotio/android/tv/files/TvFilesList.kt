@@ -79,11 +79,6 @@ internal fun TvFilesList(
     // attached to a row that is still listed.
     val listedIds = remember(content.items) { content.items.mapTo(HashSet()) { it.id.value } }
     val rowStillFocused = { rowKeepsFocus(headerHasFocus, detailOwnsFocus, pagingHeldFocus) }
-    val rowOwnsFocus = remember(listState, headerHasFocus, detailOwnsFocus) {
-        derivedStateOf {
-            focusedRowId.value != null && rowKeepsFocus(headerHasFocus, detailOwnsFocus, pagingHeldFocus)
-        }
-    }.value
     val paging = content.paging
     val entryFocus = remember(listState, paging, listedIds) {
         derivedStateOf {
@@ -118,7 +113,7 @@ internal fun TvFilesList(
     // After the rows change under a mounted list, keep focus on the row that had it, or on
     // the fallback target when that row is gone.
     LaunchedEffect(content.items) {
-        if (!rowOwnsFocus) return@LaunchedEffect
+        if (focusedRowId.value == null || !rowStillFocused()) return@LaunchedEffect
         listState.revealFocusedRow(content.items, focusedRowId, focusTarget, liveRowFocus, rowFocus)
             ?.requestFocusNextFrame(paneHasFocus, rowStillFocused)
     }
@@ -166,7 +161,7 @@ internal fun TvFilesList(
                 .focusGroup()
                 .testTag(TV_FILES_LIST_TAG),
         ) {
-            items(items = content.items, key = { it.id.value }) { item ->
+            items(items = content.items, key = { it.id.value }, contentType = { "row" }) { item ->
                 val holdsLiveFocus by remember(focusedRowId, item.id.value) {
                     derivedStateOf { focusedRowId.value == item.id.value }
                 }
@@ -190,7 +185,7 @@ internal fun TvFilesList(
                 )
             }
             if (content.paging != FilesPaging.Complete) {
-                item(key = TV_FILES_PAGING_KEY) {
+                item(key = TV_FILES_PAGING_KEY, contentType = "paging") {
                     TvFilesPaging(
                         paging = content.paging,
                         enabled = pagingEnabled,
