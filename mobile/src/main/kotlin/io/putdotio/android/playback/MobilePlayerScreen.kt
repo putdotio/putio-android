@@ -1205,8 +1205,8 @@ private fun MobileReadyPlayerContent(
     SubtitleOffsetEffect(player, preferences.subtitleOffsetMillis)
     val optionModifier = Modifier.observeControlNavigation(onPointerNavigation, onKeyboardNavigation)
     var contentInWindow by remember { mutableStateOf(Rect.Zero) }
-    var chromeFitsFold by remember { mutableStateOf(true) }
     val fold = tabletopFoldIn(contentInWindow, enabled = !pictureInPicture)
+    var chromeFitsFold by remember(fold, contentInWindow.size) { mutableStateOf(true) }
     val videoFold = fold?.takeIf { chromeFitsFold }
 
     Box(
