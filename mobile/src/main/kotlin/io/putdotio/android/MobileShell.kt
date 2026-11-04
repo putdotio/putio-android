@@ -721,7 +721,7 @@ private fun NowPlayingNavigationEffect(
     LaunchedEffect(nowPlayingRequests, playbackPlayerFactory, appContext, transferDraft) {
         nowPlayingRequests.pending.collect { pending ->
             if (!pending) return@collect
-            // The Cast notification asks too: the receiver's file, while local audio has stopped.
+            // While casting, the session's notification asks for the receiver's file instead.
             val target = playbackPlayerFactory.activeAudio(appContext)
                 ?.let { PlaybackTarget(it.fileId, it.title, PlaybackMediaType.AUDIO) }
                 ?: MobileCast.castingTarget(appContext)

@@ -2,8 +2,7 @@ package io.putdotio.android
 
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
+import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.compose.ui.test.assertCountEquals
@@ -13,9 +12,11 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.playback.CastAccount
 import io.putdotio.android.playback.CastAvailability
 import io.putdotio.android.playback.CastDevice
 import io.putdotio.android.playback.CastGateway
+import io.putdotio.android.playback.CastPrepared
 import io.putdotio.android.playback.CastRemoteState
 import io.putdotio.android.playback.CastRemoteStatus
 import io.putdotio.android.playback.MOBILE_CAST_RETRY_TAG
@@ -73,8 +74,9 @@ class MobileCastPlaybackTest {
     }
 
     @Test
-    fun aVideoThatFinishesOnTheReceiverCastsTheNextEpisodeOnlyWithAutoplayOn() {
-        var autoplay by mutableStateOf(true)
+    fun aScreenOnAVideoThatFinishesOnTheReceiverFollowsItToTheNextEpisode() {
+        val account = EpisodesAccount()
+        cast.autoplay.follow(SESSION, account)
         compose.setContent {
             val state by playback.state.collectAsState()
             PutioTheme {
@@ -83,15 +85,14 @@ class MobileCastPlaybackTest {
                     onRetry = {},
                     onPlayerFailure = { _, _ -> },
                     onBack = {},
-                    autoplayNextVideo = autoplay,
                     onPlaybackEnded = { playback.dispatch(PlaybackEvent.PlayerEnded) },
                     playerFactory = MobilePlayerFactory { _, _ -> error("Casting plays nothing on the phone") },
                     cast = cast,
                     castMedia = { source, _ ->
                         val file = requireNotNull(source)
-                        val target = listOf(Episode1, Episode2).single { it.fileId.value == file.fileId }
-                        PlaybackRepositoryResult.Success(requireNotNull(file.toCastMedia(target, "download-token")))
+                        PlaybackRepositoryResult.Success(requireNotNull(file.toCastMedia(episode(file.fileId), TOKEN)))
                     },
+                    onPlay = { playback.dispatch(PlaybackEvent.NextChosen(it)) },
                 )
             }
         }
@@ -100,13 +101,12 @@ class MobileCastPlaybackTest {
         gateway.report(1L, CastRemoteState.Playing)
         gateway.report(1L, CastRemoteState.Ended)
 
-        // The same session takes the next episode; nothing asks for the device again.
         compose.runOnIdle {
             assertEquals(Episode2, playback.state.value.target)
             assertEquals(listOf(1L, 2L), gateway.loads)
         }
 
-        compose.runOnIdle { autoplay = false }
+        account.autoplay = false
         gateway.report(2L, CastRemoteState.Playing)
         gateway.report(2L, CastRemoteState.Ended)
 
@@ -330,9 +330,25 @@ class MobileCastPlaybackTest {
         override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult = PlaybackNextResult.Ended
     }
 
+    private class EpisodesAccount : CastAccount {
+        override var autoplay = true
+
+        override suspend fun next(target: PlaybackTarget): PlaybackTarget? =
+            (Episodes.findNextVideo(target) as? PlaybackNextResult.Found)?.target
+
+        override suspend fun prepare(target: PlaybackTarget): CastPrepared {
+            val media = requireNotNull(source(target.fileId.value).toCastMedia(target, TOKEN))
+            return CastPrepared(media, MediaItem.Builder().setMediaId(target.fileId.value.toString()).build(), 0L)
+        }
+    }
+
     private companion object {
+        const val SESSION = "session"
+        const val TOKEN = "download-token"
         val Episode1 = PlaybackTarget(FilesItemId(1L), "Show S01E01.mp4")
         val Episode2 = PlaybackTarget(FilesItemId(2L), "Show S01E02.mp4")
+
+        fun episode(fileId: Long) = listOf(Episode1, Episode2).single { it.fileId.value == fileId }
 
         fun source(fileId: Long) =
             PlaybackSource(

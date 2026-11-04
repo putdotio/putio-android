@@ -315,12 +315,8 @@ private fun PlaybackState.ready(resolution: PlaybackResolution.Ready): PlaybackT
         val awaiting = copy(
             content = PlaybackContent.AwaitingResume(resolution.source, resolution.subtitlesHidden, resolution.offline),
         )
-        val durationSeconds = target.durationSeconds
-        // A position saved within 10 s of the end is a finished video (iOS main's rule, applied
-        // at open so the server keeps the watched position): it starts over without asking.
-        if (durationSeconds != null &&
-            resolution.source.startFromSeconds >= durationSeconds - FINISHED_WITHIN_SECONDS
-        ) {
+        // A finished video starts over without asking.
+        if (finishedAt(resolution.source.startFromSeconds, target.durationSeconds)) {
             awaiting.chooseResume(restart = true)
         } else if (target.mediaType == PlaybackMediaType.AUDIO) {
             // Audio continues from its saved position without asking, as iOS does.
@@ -399,7 +395,6 @@ internal fun PlaybackState.isLoading(requestId: PlaybackRequestId): Boolean =
         (content as? PlaybackContent.Conversion)?.refreshRequestId == requestId
 
 private const val INITIAL_REQUEST_VALUE = 1L
-private const val FINISHED_WITHIN_SECONDS = 10.0
 
 /** How often a queued or running conversion is read again (tv-native `useConversionStatus`: 3 s). */
 public const val PLAYBACK_CONVERSION_POLL_MILLIS: Long = 3_000L

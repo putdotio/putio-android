@@ -48,8 +48,10 @@ import io.putdotio.android.history.SdkHistoryRepository
 import io.putdotio.android.history.authoritativeSessionFailure
 import io.putdotio.android.playback.ConvertingPlaybackRepository
 import io.putdotio.android.playback.DefaultMobilePlayerFactory
+import io.putdotio.android.playback.MobileCast
 import io.putdotio.android.playback.MobilePlayerFactory
 import io.putdotio.android.playback.PlaybackRepository
+import io.putdotio.android.playback.SignedInCastAccount
 import io.putdotio.android.playback.dispatch
 import io.putdotio.android.playback.playbackPreference
 import io.putdotio.android.search.ActiveSearchHistorySession
@@ -325,6 +327,17 @@ private fun SignedInMobileSession(
     ProductAnalyticsAnswerEffect(sessionId, accountSettingsController, appConfigController)
     val reportingPlayerFactory = remember(runtime, sessionId, accountSettingsController, playbackPlayerFactory) {
         runtime.playbackReporting.factoryFor(sessionId, accountSettingsController.state, playbackPlayerFactory)
+    }
+    LaunchedEffect(appContext, sessionId, playbackRepository, reportingPlayerFactory) {
+        MobileCast.controller(appContext)?.autoplay?.follow(
+            sessionId,
+            SignedInCastAccount(
+                playbackRepository,
+                reportingPlayerFactory,
+                appConfigController.state,
+                accountSettingsController.state,
+            ),
+        )
     }
     SavedPositionEffects(
         runtime, filesController, filesRepository, continueWatching, searchHistorySession.search, authController,

@@ -76,6 +76,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.media3.common.DeviceInfo
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player as Media3Player
 import androidx.media3.common.TrackSelectionParameters
@@ -308,7 +309,6 @@ private fun MobileReadyContent(
             onSourceRequired = onSourceRequired,
             neighbours = neighbours,
             onPlay = onPlay,
-            autoplayNextVideo = autoplayNextVideo,
             onPlaybackEnded = onPlaybackEnded,
             analytics = analytics,
         )
@@ -1608,9 +1608,10 @@ private fun MobileSessionPlayerHost(
     }
 }
 
-// The file the session is currently prepared for, if any; idle sessions carry nothing.
+// The file the session is currently prepared for, if any; idle sessions carry nothing, and while
+// casting the session shows the receiver's media, which the Cast screens own.
 internal fun Media3Player.activeSessionFileId(): Long? =
-    if (playbackState == Media3Player.STATE_IDLE) {
+    if (playbackState == Media3Player.STATE_IDLE || deviceInfo.playbackType == DeviceInfo.PLAYBACK_TYPE_REMOTE) {
         null
     } else {
         currentMediaItem?.mediaId?.toLongOrNull()

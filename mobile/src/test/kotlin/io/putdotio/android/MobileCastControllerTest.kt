@@ -2,14 +2,18 @@ package io.putdotio.android
 
 import android.os.Looper
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player as Media3Player
 import androidx.media3.common.util.UnstableApi
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.playback.CastAccount
+import io.putdotio.android.playback.CastAdvance
 import io.putdotio.android.playback.CastAvailability
 import io.putdotio.android.playback.CastDevice
 import io.putdotio.android.playback.CastGateway
 import io.putdotio.android.playback.CastHandover
+import io.putdotio.android.playback.CastPrepared
 import io.putdotio.android.playback.CastRemoteState
 import io.putdotio.android.playback.CastRemoteStatus
 import io.putdotio.android.playback.CastTextTrack
@@ -96,6 +100,99 @@ class MobileCastControllerTest {
     fun withoutASessionNothingGoesToAReceiver() {
         assertFalse(cast.cast(Media, Item, CastHandover(positionMillis = 1_000L, playing = true)))
         assertTrue(gateway.loads.isEmpty())
+    }
+
+    @Test
+    fun aFileSentAndNotYetReportedOnIsNotSentAgain() {
+        gateway.connect()
+
+        assertTrue(cast.cast(Media, Item, CastHandover(positionMillis = 0L, playing = true)))
+        assertFalse(cast.cast(Media, Item, CastHandover(positionMillis = 4_000L, playing = true)))
+
+        assertEquals(listOf(Load(42L, 0L, autoplay = true, speed = 1f)), gateway.loads)
+        assertTrue(cast.holds(42L))
+    }
+
+    @Test
+    fun aVideoThatFinishesOnTheReceiverGoesOnToTheNextWithNoScreenOpen() {
+        val advanced = collectAdvanced()
+        cast.autoplay.follow(SESSION, Account(next = NextTarget))
+        gateway.connect()
+        cast.cast(Media, Item, CastHandover(positionMillis = 0L, playing = true))
+
+        gateway.report(CastRemoteState.Playing, positionMillis = 1_000L)
+        gateway.report(CastRemoteState.Ended, positionMillis = 2_000L)
+
+        assertEquals(
+            listOf(Load(42L, 0L, autoplay = true, speed = 1f), Load(43L, 30_000L, autoplay = true, speed = 1f)),
+            gateway.loads,
+        )
+        assertEquals(listOf(CastAdvance.Next(42L, NextTarget)), advanced)
+    }
+
+    @Test
+    fun withAutoplayOffTheReceiverStaysOnTheFinishedVideo() {
+        val advanced = collectAdvanced()
+        cast.autoplay.follow(SESSION, Account(next = NextTarget, autoplay = false))
+        gateway.connect()
+        cast.cast(Media, Item, CastHandover(positionMillis = 0L, playing = true))
+
+        gateway.report(CastRemoteState.Playing, positionMillis = 1_000L)
+        gateway.report(CastRemoteState.Ended, positionMillis = 2_000L)
+
+        assertEquals(1, gateway.loads.size)
+        assertTrue(advanced.isEmpty())
+    }
+
+    @Test
+    fun aLastVideoEndsForTheScreenOpenOnIt() {
+        val advanced = collectAdvanced()
+        cast.autoplay.follow(SESSION, Account(next = null))
+        gateway.connect()
+        cast.cast(Media, Item, CastHandover(positionMillis = 0L, playing = true))
+
+        gateway.report(CastRemoteState.Playing, positionMillis = 1_000L)
+        gateway.report(CastRemoteState.Ended, positionMillis = 2_000L)
+
+        assertEquals(1, gateway.loads.size)
+        assertEquals(listOf(CastAdvance.End(42L)), advanced)
+    }
+
+    @Test
+    fun aSignedOutSessionLendsItsAccountNoMore() {
+        cast.autoplay.follow(SESSION, Account(next = NextTarget))
+        cast.autoplay.forget("another session")
+        cast.autoplay.forget(SESSION)
+        gateway.connect()
+        cast.cast(Media, Item, CastHandover(positionMillis = 0L, playing = true))
+
+        gateway.report(CastRemoteState.Playing, positionMillis = 1_000L)
+        gateway.report(CastRemoteState.Ended, positionMillis = 2_000L)
+
+        assertEquals(1, gateway.loads.size)
+    }
+
+    @Test
+    fun sessionAudioACastSessionTookOverGoesToTheReceiverFromWhereItStood() {
+        cast.autoplay.follow(SESSION, Account(next = null))
+        gateway.connect()
+
+        cast.castFromSession(AudioItem, CastHandover(positionMillis = 95_000L, playing = true, speed = 1.25f))
+        idle()
+
+        assertEquals(listOf(Load(42L, 95_000L, autoplay = true, speed = 1.25f)), gateway.loads)
+    }
+
+    @Test
+    fun sessionAudioThatCannotReachTheReceiverResumesLocallyWhereItStood() {
+        gateway.connect()
+
+        cast.castFromSession(AudioItem, CastHandover(positionMillis = 95_000L, playing = true))
+        idle()
+        gateway.disconnect()
+
+        assertTrue(gateway.loads.isEmpty())
+        assertEquals(CastHandover(positionMillis = 95_000L, playing = true), cast.takeHandover(42L))
     }
 
     @Test
@@ -500,7 +597,25 @@ class MobileCastControllerTest {
         }
     }
 
+    private class Account(private val next: PlaybackTarget?, override val autoplay: Boolean = true) : CastAccount {
+        override suspend fun next(target: PlaybackTarget): PlaybackTarget? = next
+
+        override suspend fun prepare(target: PlaybackTarget): CastPrepared =
+            CastPrepared(
+                media = Media.copy(fileId = target.fileId.value, title = target.name, mediaType = target.mediaType),
+                item = MediaItem.Builder().setMediaId(target.fileId.value.toString()).build(),
+                startMillis = 30_000L,
+            )
+    }
+
     private fun idle() = shadowOf(Looper.getMainLooper()).idle()
+
+    private fun collectAdvanced(): List<CastAdvance> {
+        val advanced = mutableListOf<CastAdvance>()
+        scope.launch { cast.autoplay.advanced.collect { advanced += it } }
+        idle()
+        return advanced
+    }
 
     private fun collectFinished(): List<Long> {
         val finished = mutableListOf<Long>()
@@ -521,5 +636,11 @@ class MobileCastControllerTest {
             ).toCastMedia(PlaybackTarget(FilesItemId(42L), "episode.mkv"), "download-token"),
         )
         val Item: MediaItem = MediaItem.Builder().setMediaId("42").build()
+        val AudioItem: MediaItem = MediaItem.Builder()
+            .setMediaId("42")
+            .setMediaMetadata(MediaMetadata.Builder().setTitle("track.mp3").build())
+            .build()
+        val NextTarget = PlaybackTarget(FilesItemId(43L), "episode 2.mkv")
+        const val SESSION = "session"
     }
 }
