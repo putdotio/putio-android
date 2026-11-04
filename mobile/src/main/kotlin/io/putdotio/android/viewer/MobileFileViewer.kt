@@ -28,10 +28,12 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -56,13 +58,18 @@ import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesPdfDocument
 import io.putdotio.android.files.FilesViewerKind
 import io.putdotio.android.files.viewerKind
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.withContext
 import io.putdotio.android.MobileIconButton
 
 internal const val MOBILE_FILE_VIEWER_TAG = "mobile-file-viewer"
 internal const val MOBILE_FILE_VIEWER_PAGES_TAG = "mobile-file-viewer-pages"
 internal const val MOBILE_FILE_VIEWER_POSITION_TAG = "mobile-file-viewer-position"
+
+internal val LocalMobileFileViewerIo = staticCompositionLocalOf<CoroutineDispatcher> { Dispatchers.IO }
 
 /** What a viewer reaches outside itself: the file's bytes and the same actions the Files sheet runs. */
 internal class MobileFileViewerActions(
@@ -104,12 +111,20 @@ internal fun MobileFileViewer(
     paging: MobileFileViewerPaging = MobileFileViewerPaging(),
 ) {
     val context = LocalContext.current
-    LaunchedEffect(Unit) { FilesPdfDocument.clearCache(context) }
+    val io = LocalMobileFileViewerIo.current
+    val cacheCleared by produceState(false) {
+        withContext(io) { FilesPdfDocument.clearCache(context) }
+        value = true
+    }
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
     ) {
-        MobileFileViewerContent(files, shownId, actions, onShown, onDismiss, paging)
+        if (cacheCleared) {
+            MobileFileViewerContent(files, shownId, actions, onShown, onDismiss, paging)
+        } else {
+            Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.scrim))
+        }
     }
 }
 

@@ -1,13 +1,18 @@
 package io.putdotio.android.downloads
 
 import android.content.Context
+import android.content.SharedPreferences
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.sdk.files.PutioFileType
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import kotlin.concurrent.thread
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -130,6 +135,57 @@ class MobileDownloadStoreTest {
         val raw = preferences.getString("user-9", "").orEmpty()
         assertTrue(raw.isNotEmpty())
         assertTrue(!raw.contains("http") && !raw.contains("token"))
+    }
+
+    @Test
+    fun aViewersPauseIsOnDiskWhenUpdateStatusReturns() {
+        val store = MobileDownloadStore(UnflushedApplies(preferences), "user-11", Dispatchers.Unconfined)
+        store.addBlocking(entry(1L, DownloadStatus.Queued))
+
+        runBlocking { store.updateStatus(FilesItemId(1L)) { it.copy(pauseRequested = true) } }
+
+        val restored = MobileDownloadStore(preferences, "user-11", Dispatchers.Unconfined).entries.value
+        assertEquals(listOf(true), restored.map { it.pauseRequested })
+    }
+
+    @Test
+    fun mainThreadTransitionsNeverWaitOnAViewersDiskWrite() {
+        val gated = GatedPreferences(preferences)
+        val store = MobileDownloadStore(gated, "user-10", Dispatchers.Unconfined)
+        store.addBlocking(entry(1L, DownloadStatus.Queued))
+        store.addBlocking(entry(2L, DownloadStatus.Queued))
+        val pause = thread { runBlocking { store.updateStatus(FilesItemId(1L)) { it.copy(pauseRequested = true) } } }
+        try {
+            assertTrue(gated.committing.await(5, TimeUnit.SECONDS))
+            val transition = thread {
+                store.updateStatusBlocking(FilesItemId(2L)) { it.copy(status = DownloadStatus.Completed(1L)) }
+            }
+            transition.join(TimeUnit.SECONDS.toMillis(5))
+            assertFalse(transition.isAlive)
+        } finally {
+            gated.release.countDown()
+            pause.join()
+        }
+        val rows = MobileDownloadStore(preferences, "user-10", Dispatchers.Unconfined).entries.value
+            .sortedBy { it.fileId.value }
+        assertEquals(listOf(true, false), rows.map { it.pauseRequested })
+        assertEquals(DownloadStatus.Completed(1L), rows[1].status)
+    }
+
+    private class GatedPreferences(private val delegate: SharedPreferences) : SharedPreferences by delegate {
+        val committing = CountDownLatch(1)
+        val release = CountDownLatch(1)
+
+        override fun edit(): SharedPreferences.Editor = GatedEditor(delegate.edit())
+
+        private inner class GatedEditor(private val editor: SharedPreferences.Editor) :
+            SharedPreferences.Editor by editor {
+            override fun commit(): Boolean {
+                committing.countDown()
+                release.await()
+                return editor.commit()
+            }
+        }
     }
 
     private fun entry(

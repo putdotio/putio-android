@@ -291,7 +291,7 @@ class MobileDownloadEngineTest {
             aliceStore.status(10L) == DownloadStatus.Downloading(250L, 25f, TOTAL)
         }
 
-        alice.setPaused(FilesItemId(10L), paused = true)
+        runBlocking { alice.setPaused(FilesItemId(10L), paused = true) }
         awaitMain { aliceStore.status(10L) == DownloadStatus.Paused(DownloadPauseReason.USER, 250L, 25f, TOTAL) }
         assertTrue(aliceStore.find(FilesItemId(10L))?.pauseRequested == true)
 
@@ -299,7 +299,7 @@ class MobileDownloadEngineTest {
         // session can no longer release it.
         checkNotNull(downloads.onTokenClearing).invoke()
         alice.close()
-        alice.setPaused(FilesItemId(10L), paused = false)
+        runBlocking { alice.setPaused(FilesItemId(10L), paused = false) }
         awaitMain { manager.isIdle }
         assertEquals(MobileDownloadEngine.STOP_REASON_PAUSED, manager.stopReasonOf("$ALICE:10"))
         engine(BOB, store(BOB), manager).close()
@@ -320,7 +320,7 @@ class MobileDownloadEngineTest {
         assertTrue(restored.find(FilesItemId(10L))?.pauseRequested == true)
         // Media3's index keeps the number, so it may never change across releases.
         assertEquals(2, restarted.stopReasonOf("$ALICE:10"))
-        again.setPaused(FilesItemId(10L), paused = false)
+        runBlocking { again.setPaused(FilesItemId(10L), paused = false) }
         awaitMain { restarted.stateOf("$ALICE:10") == Download.STATE_DOWNLOADING }
         // A resume brings up the foreground service, which may not be running in this process.
         val started = generateSequence { shadowOf(context).nextStartedService }.toList()
@@ -370,13 +370,13 @@ class MobileDownloadEngineTest {
 
         // The engine holds Media3 to the index on every report, so a pause written only to Media3
         // would be undone; the notification's pause goes through the same index first.
-        pauseFromNotification(store, manager, ALICE, FilesItemId(10L))
+        runBlocking { pauseFromNotification(store, manager, ALICE, FilesItemId(10L)) }
         awaitMain { (store.status(10L) as? DownloadStatus.Paused)?.reason == DownloadPauseReason.USER }
         assertEquals(MobileDownloadEngine.STOP_REASON_PAUSED, manager.stopReasonOf("$ALICE:10"))
         assertEquals(listOf(11L), manager.liveDownloadsOf(ALICE).map { it.value })
 
         // Production sends the remove through the download service; here it reaches the manager directly.
-        cancelFromNotification(store, ALICE, FilesItemId(11L), manager::removeDownload)
+        runBlocking { cancelFromNotification(store, ALICE, FilesItemId(11L), manager::removeDownload) }
         awaitMain { store.find(FilesItemId(11L)) == null && manager.stateOf("$ALICE:11") == null }
         assertEquals(MobileDownloadEngine.STOP_REASON_PAUSED, manager.stopReasonOf("$ALICE:10"))
         assertTrue(manager.liveDownloadsOf(ALICE).isEmpty())
@@ -394,7 +394,7 @@ class MobileDownloadEngineTest {
         manager.resumeDownloads()
         awaitMain { manager.running() == listOf("$ALICE:10") }
 
-        pauseFromNotification(store, manager, ALICE, FilesItemId(10L))
+        runBlocking { pauseFromNotification(store, manager, ALICE, FilesItemId(10L)) }
         awaitMain { manager.stopReasonOf("$ALICE:10") == MobileDownloadEngine.STOP_REASON_PAUSED }
         assertTrue(store.find(FilesItemId(10L))?.pauseRequested == true)
 
@@ -427,13 +427,13 @@ class MobileDownloadEngineTest {
         awaitMain { manager.isInitialized }
 
         // Media3 has no record yet, so the stop reason lands nowhere; the index keeps the pause.
-        engine.setPaused(FilesItemId(10L), paused = true)
+        runBlocking { engine.setPaused(FilesItemId(10L), paused = true) }
         val url = Uri.parse(DownloadArtifact.ORIGINAL.apiUrl(FilesItemId(10L)))
         manager.addDownload(DownloadRequest.Builder("$ALICE:10", url).build())
 
         awaitMain { manager.stopReasonOf("$ALICE:10") == MobileDownloadEngine.STOP_REASON_PAUSED }
         awaitMain { (store.status(10L) as? DownloadStatus.Paused)?.reason == DownloadPauseReason.USER }
-        engine.setPaused(FilesItemId(10L), paused = false)
+        runBlocking { engine.setPaused(FilesItemId(10L), paused = false) }
         awaitMain { manager.stateOf("$ALICE:10") == Download.STATE_DOWNLOADING }
     }
 
@@ -486,6 +486,27 @@ class MobileDownloadEngineTest {
         engine.refreshProgress()
         assertTrue(store.status(10L) is DownloadStatus.Completed)
         assertFalse(preferences.getString(storeKey(ALICE), null) == persisted)
+    }
+
+    @Test
+    fun theViewersPauseAndCancelAreOnDiskBeforeMedia3HearsOfThem() {
+        listOf(10L, 11L, 12L).forEach { index.putDownload(download("$ALICE:$it", Download.STATE_QUEUED)) }
+        val store = MobileDownloadStore(UnflushedApplies(preferences), storeKey(ALICE), Dispatchers.Unconfined)
+        runBlocking { listOf(10L, 11L, 12L).forEach { store.upsert(entry(it, accepted = true)) } }
+        val manager = manager(concurrency = 3)
+        val engine = engine(ALICE, store, manager)
+        awaitMain { manager.isInitialized }
+
+        runBlocking {
+            engine.setPaused(FilesItemId(10L), paused = true)
+            pauseFromNotification(store, manager, ALICE, FilesItemId(11L))
+            cancelFromNotification(store, ALICE, FilesItemId(12L)) {}
+        }
+
+        val restored = store(ALICE)
+        assertTrue(restored.find(FilesItemId(10L))?.pauseRequested == true)
+        assertTrue(restored.find(FilesItemId(11L))?.pauseRequested == true)
+        assertTrue(restored.find(FilesItemId(12L))?.removing == true)
     }
 
     @Test

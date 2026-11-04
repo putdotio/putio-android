@@ -6,6 +6,7 @@ import io.putdotio.android.telemetry.ProductAnalyticsConfiguration
 import io.putdotio.android.telemetry.PutioDiagnostics
 import io.putdotio.android.telemetry.SentryConfiguration
 import io.putdotio.android.files.FilesPdfDocument
+import kotlin.concurrent.thread
 
 class PutioApplication : Application() {
     override fun onCreate() {
@@ -23,6 +24,6 @@ class PutioApplication : Application() {
             ),
         )
         // A PDF copy a viewer left when the process died; restoring from Recents may never reopen it.
-        FilesPdfDocument.clearCache(this)
+        thread(name = "viewer-cache-clear") { FilesPdfDocument.clearCache(this) }
     }
 }

@@ -9,6 +9,7 @@ import io.putdotio.android.playback.SdkPlaybackPositionRepository
 import io.putdotio.android.documents.MobileDocumentsProvider
 import io.putdotio.android.downloads.MobileDownloadCache
 import io.putdotio.android.downloads.MobileDownloadNotifications
+import io.putdotio.android.downloads.MobileDownloadStore
 import io.putdotio.android.downloads.OfflinePlaybackPositions
 import io.putdotio.android.downloads.PositionRemote
 import io.putdotio.android.downloads.downloadPreferences
@@ -211,10 +212,13 @@ internal class MobileOAuthRuntime(
                 putioClient = putioClient,
                 authController = authController,
                 applicationScope = applicationScope,
-                onSessionLeft = { session -> sessionLeft(context, session, authController) },
+                onSessionLeft = { session -> sessionLeft(context, session, authController, applicationScope) },
                 onSessionStarted = {
                     MobileDocumentsProvider.sessionStarted(context)
                     MobileWidgets.sessionStarted(context)
+                    (authController.state.value as? MobileAuthState.SignedIn)?.account?.userId?.let { userId ->
+                        applicationScope.launch(Dispatchers.IO) { MobileDownloadStore.shared(context, userId) }
+                    }
                 },
             ).also { runtime ->
                 val revalidation = SessionRevalidation(authController, applicationScope)
@@ -246,9 +250,16 @@ internal class MobileOAuthRuntime(
             }
         }
 
-        private fun sessionLeft(context: Context, session: MobileAuthSessionId?, authController: MobileAuthController) {
-            MobileFileShareService.endSession(context, session)
-            FilesPdfDocument.clearCache(context)
+        private fun sessionLeft(
+            context: Context,
+            session: MobileAuthSessionId?,
+            authController: MobileAuthController,
+            applicationScope: CoroutineScope,
+        ) {
+            applicationScope.launch(Dispatchers.IO) {
+                MobileFileShareService.endSession(context, session)
+                FilesPdfDocument.clearCache(context)
+            }
             MobileFileDrags.endSession(session)
             MobileDocumentsProvider.sessionLeft(context)
             // The collector can lag the next sign-in; that account's outcomes stay.
