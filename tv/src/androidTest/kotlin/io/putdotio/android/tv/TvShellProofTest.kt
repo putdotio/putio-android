@@ -3,7 +3,6 @@ package io.putdotio.android.tv
 import android.content.Context
 import android.graphics.Bitmap
 import android.view.KeyEvent
-import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -40,7 +39,7 @@ import org.junit.runners.model.Statement
 class TvShellProofTest {
     private val arguments = InstrumentationRegistry.getArguments()
     private val context: Context = InstrumentationRegistry.getInstrumentation().targetContext
-    private val compose = createAndroidComposeRule<ComponentActivity>()
+    private val compose = createAndroidComposeRule<TvProofActivity>()
     private val optIn = TestRule { base, _ ->
         object : Statement() {
             override fun evaluate() {

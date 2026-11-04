@@ -2,7 +2,6 @@ package io.putdotio.android.tv
 
 import android.content.Context
 import android.graphics.Bitmap
-import androidx.activity.ComponentActivity
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -26,7 +25,7 @@ import org.junit.runners.model.Statement
 class TvSignInProofTest {
     private val arguments = InstrumentationRegistry.getArguments()
     private val context: Context = InstrumentationRegistry.getInstrumentation().targetContext
-    private val compose = createAndroidComposeRule<ComponentActivity>()
+    private val compose = createAndroidComposeRule<TvProofActivity>()
     private val optIn = TestRule { base, _ ->
         object : Statement() {
             override fun evaluate() {

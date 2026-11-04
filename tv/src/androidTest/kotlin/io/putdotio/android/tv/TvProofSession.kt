@@ -1,6 +1,5 @@
 package io.putdotio.android.tv
 
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -147,7 +146,7 @@ internal fun tvProofDependencies(
     writePlaybackPosition = { _, _ -> PlaybackRepositoryResult.Success(Unit) },
 )
 
-internal fun AndroidComposeTestRule<ActivityScenarioRule<ComponentActivity>, ComponentActivity>.mountTvProofSession(
+internal fun AndroidComposeTestRule<ActivityScenarioRule<TvProofActivity>, TvProofActivity>.mountTvProofSession(
     dependencies: TvSessionDependencies,
     onExit: (() -> Unit)? = null,
     account: TvAccount = TvAccount(
