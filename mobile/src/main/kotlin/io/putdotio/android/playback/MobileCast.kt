@@ -108,6 +108,12 @@ internal data class CastHandover(
 internal interface CastGateway : CastRoutes, CastRemote {
     val availability: StateFlow<CastAvailability>
 
+    /**
+     * Whether the system's output switcher moves the current or last session's playback to this
+     * device; false again once another session starts.
+     */
+    val movesHere: StateFlow<Boolean>
+
     /** Ends the session and stops the receiver's playback. */
     fun stopCasting()
 
@@ -408,6 +414,32 @@ internal class MobileCastController(
         const val SESSION_CONNECT_WAIT_MILLIS = 10_000L
     }
 }
+
+/**
+ * Plays the receiver's audio on [local] from where the receiver stopped, once the output switcher has
+ * moved the session to this device. A screen that took that place first, other media on [local], and
+ * video, which resumes on its own screen, are left be.
+ */
+internal fun MobileCastController.resumeHere(local: Player, scope: CoroutineScope) {
+    scope.launch {
+        val moved = withTimeoutOrNull(MOVE_HERE_WAIT_MILLIS) {
+            gateway.availability.first { it !is CastAvailability.Connected }
+            gateway.movesHere.first { it }
+        }
+        val ended = gateway.endedStatus?.takeIf { moved == true && it.audio }
+        val fileId = ended?.fileId?.takeIf(::hasHandover) ?: return@launch
+        val target = PlaybackTarget(FilesItemId(fileId), ended.title.orEmpty(), PlaybackMediaType.AUDIO)
+        val prepared = autoplay.account?.prepare(target) ?: return@launch
+        if (local.mediaItemCount > 0) return@launch
+        val handover = takeHandover(fileId) ?: return@launch
+        local.setMediaItem(prepared.item, handover.positionMillis)
+        local.setPlaybackSpeed(handover.speed)
+        local.playWhenReady = handover.playing
+        local.prepare()
+    }
+}
+
+private const val MOVE_HERE_WAIT_MILLIS = 10_000L
 
 /** Receiver states with the file still playable there. */
 private val LIVE_STATES = setOf(CastRemoteState.Buffering, CastRemoteState.Playing, CastRemoteState.Paused)

@@ -271,6 +271,7 @@ class MobileCastPlaybackTest {
         override val availability = MutableStateFlow<CastAvailability>(CastAvailability.Connected("Living room TV"))
         override val status = MutableStateFlow<CastRemoteStatus?>(null)
         override val endedStatus: CastRemoteStatus? = null
+        override val movesHere = MutableStateFlow(false)
         override val devices = MutableStateFlow<List<CastDevice>>(emptyList())
         val loads = mutableListOf<Long>()
         val sent = mutableListOf<PlaybackCastMedia>()

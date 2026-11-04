@@ -3,9 +3,13 @@ package io.putdotio.android
 import android.os.Looper
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.PlaybackParameters
+import androidx.media3.common.SimpleBasePlayer
 import androidx.media3.common.Player as Media3Player
 import androidx.media3.common.util.UnstableApi
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.google.common.util.concurrent.Futures
+import com.google.common.util.concurrent.ListenableFuture
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.playback.CastAccount
 import io.putdotio.android.playback.CastAdvance
@@ -27,6 +31,7 @@ import io.putdotio.android.playback.SubtitleTrackIdentity
 import io.putdotio.android.playback.castPlaylistSubtitle
 import io.putdotio.android.playback.castSubtitleKey
 import io.putdotio.android.playback.playlistSubtitleTrack
+import io.putdotio.android.playback.resumeHere
 import io.putdotio.android.playback.toCastMedia
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSourceKind
@@ -209,6 +214,45 @@ class MobileCastControllerTest {
         assertEquals(CastHandover(positionMillis = 62_500L, playing = true), cast.takeHandover(42L))
         // Taken once: a later opening resumes from put.io's position instead.
         assertNull(cast.takeHandover(42L))
+    }
+
+    @Test
+    fun audioTheOutputSwitcherMovesHerePlaysOnFromWhereTheReceiverGotTo() {
+        val local = LocalPlayer()
+        cast.autoplay.follow(SESSION, Account(next = null))
+        gateway.connect()
+        cast.cast(Media, Item, CastHandover(positionMillis = 0L, playing = true, speed = 1.25f))
+        gateway.status.value = gateway.remote(CastRemoteState.Playing, positionMillis = 60_000L, speed = 1.25f)
+            .copy(audio = true)
+        idle()
+
+        cast.resumeHere(local, scope)
+        gateway.movesHere.value = true
+        now += 2_000L
+        gateway.disconnect()
+
+        assertEquals("42", local.currentMediaItem?.mediaId)
+        assertEquals(62_500L, local.currentPosition)
+        assertEquals(1.25f, local.playbackParameters.speed)
+        assertTrue(local.playWhenReady)
+        assertEquals(Media3Player.STATE_READY, local.playbackState)
+        assertNull(cast.takeHandover(42L))
+    }
+
+    @Test
+    fun aSessionEndedAnyOtherWayLeavesItsAudioToTheScreen() {
+        val local = LocalPlayer()
+        cast.autoplay.follow(SESSION, Account(next = null))
+        gateway.connect()
+        cast.cast(Media, Item, CastHandover(positionMillis = 0L, playing = true))
+        gateway.status.value = gateway.remote(CastRemoteState.Playing, positionMillis = 60_000L).copy(audio = true)
+        idle()
+
+        cast.resumeHere(local, scope)
+        gateway.disconnect()
+
+        assertEquals(0, local.mediaItemCount)
+        assertEquals(CastHandover(positionMillis = 60_000L, playing = true), cast.takeHandover(42L))
     }
 
     @Test
@@ -508,6 +552,7 @@ class MobileCastControllerTest {
         override val availability = MutableStateFlow<CastAvailability>(CastAvailability.Available)
         override val status = MutableStateFlow<CastRemoteStatus?>(null)
         override var endedStatus: CastRemoteStatus? = null
+        override val movesHere = MutableStateFlow(false)
         override val devices = MutableStateFlow<List<CastDevice>>(emptyList())
         val loads = mutableListOf<Load>()
         val commands = mutableListOf<String>()
@@ -606,6 +651,38 @@ class MobileCastControllerTest {
                 item = MediaItem.Builder().setMediaId(target.fileId.value.toString()).build(),
                 startMillis = 30_000L,
             )
+    }
+
+    /** The session's local player: it takes media, a start position, speed and play. */
+    private class LocalPlayer : SimpleBasePlayer(Looper.getMainLooper()) {
+        private var current: State = State.Builder()
+            .setAvailableCommands(Media3Player.Commands.Builder().addAllCommands().build())
+            .build()
+
+        override fun getState(): State = current
+
+        override fun handleSetMediaItems(
+            mediaItems: List<MediaItem>,
+            startIndex: Int,
+            startPositionMs: Long,
+        ): ListenableFuture<*> = update {
+            setPlaylist(mediaItems.map { MediaItemData.Builder(it.mediaId).setMediaItem(it).build() })
+                .setCurrentMediaItemIndex(0)
+                .setContentPositionMs(startPositionMs)
+        }
+
+        override fun handleSetPlaybackParameters(playbackParameters: PlaybackParameters): ListenableFuture<*> =
+            update { setPlaybackParameters(playbackParameters) }
+
+        override fun handleSetPlayWhenReady(playWhenReady: Boolean): ListenableFuture<*> =
+            update { setPlayWhenReady(playWhenReady, PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST) }
+
+        override fun handlePrepare(): ListenableFuture<*> = update { setPlaybackState(STATE_READY) }
+
+        private fun update(change: State.Builder.() -> State.Builder): ListenableFuture<*> {
+            current = current.buildUpon().change().build()
+            return Futures.immediateVoidFuture()
+        }
     }
 
     private fun idle() = shadowOf(Looper.getMainLooper()).idle()

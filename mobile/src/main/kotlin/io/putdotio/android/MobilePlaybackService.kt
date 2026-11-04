@@ -4,6 +4,7 @@ import android.app.PendingIntent
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.os.Bundle
 import androidx.core.content.ContextCompat
 import androidx.media3.common.C
 import androidx.media3.common.DeviceInfo
@@ -15,10 +16,15 @@ import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaController
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
+import androidx.media3.session.SessionCommand
+import androidx.media3.session.SessionResult
 import androidx.media3.session.SessionToken
+import com.google.common.util.concurrent.Futures
+import com.google.common.util.concurrent.ListenableFuture
 import io.putdotio.android.auth.MobileOAuthRuntime
 import io.putdotio.android.design.R as DesignR
 import io.putdotio.android.playback.AudioSessionAnalytics
+import io.putdotio.android.playback.CastStopControl
 import io.putdotio.android.playback.DefaultMobilePlayerFactory
 import io.putdotio.android.playback.MobileCast
 import io.putdotio.android.playback.MobileSleepTimer
@@ -44,6 +50,7 @@ class MobilePlaybackService : MediaSessionService() {
     private var positionObserver: PlaybackPositionObserver? = null
     private var analyticsObserver: Closeable? = null
     private val scope = MainScope()
+    private val castStop by lazy { CastStopControl(this) { MobileCast.stopCasting(this) } }
 
     @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
     override fun onCreate() {
@@ -65,8 +72,18 @@ class MobilePlaybackService : MediaSessionService() {
                 }
             },
         )
+        val sessionPlayer = MobileCast.sessionPlayer(this, player) { positionObserver?.flush() }
+        sessionPlayer.addListener(
+            object : Media3Player.Listener {
+                override fun onDeviceInfoChanged(deviceInfo: DeviceInfo) {
+                    session?.setMediaButtonPreferences(castStop.buttons(deviceInfo))
+                }
+            },
+        )
         session =
-            MediaSession.Builder(this, MobileCast.sessionPlayer(this, player) { positionObserver?.flush() })
+            MediaSession.Builder(this, sessionPlayer)
+                .setCallback(CastStopCallback())
+                .setMediaButtonPreferences(castStop.buttons(sessionPlayer.deviceInfo))
                 .setSessionActivity(
                     PendingIntent.getActivity(
                         this,
@@ -82,6 +99,33 @@ class MobilePlaybackService : MediaSessionService() {
         )
         // The sleep timer outlives Now Playing, so the service that owns the player carries it out.
         scope.launch { MobileSleepTimer.Shared.pauseWhenDue { session?.player?.pause() } }
+    }
+
+    @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+    private inner class CastStopCallback : MediaSession.Callback {
+        override fun onConnect(
+            session: MediaSession,
+            controller: MediaSession.ControllerInfo,
+        ): MediaSession.ConnectionResult {
+            val accepted = super.onConnect(session, controller)
+            val commands = accepted.availableSessionCommands.buildUpon().add(castStop.command).build()
+            return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
+                .setAvailableSessionCommands(commands)
+                .setAvailablePlayerCommands(accepted.availablePlayerCommands)
+                .build()
+        }
+
+        override fun onCustomCommand(
+            session: MediaSession,
+            controller: MediaSession.ControllerInfo,
+            customCommand: SessionCommand,
+            args: Bundle,
+        ): ListenableFuture<SessionResult> =
+            if (castStop.handle(customCommand)) {
+                Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+            } else {
+                super.onCustomCommand(session, controller, customCommand, args)
+            }
     }
 
     // The app reconnecting means a task exists again; pausing inside it must not stop us.

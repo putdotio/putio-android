@@ -2,6 +2,7 @@ package io.putdotio.android
 
 import android.app.Application
 import android.content.ComponentName
+import android.os.Bundle
 import android.os.Looper
 import androidx.media3.common.DeviceInfo
 import androidx.media3.common.MediaItem
@@ -9,6 +10,8 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.common.SimpleBasePlayer
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.session.CommandButton
+import androidx.media3.session.SessionCommand
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.android.gms.cast.framework.CastContext
@@ -19,11 +22,11 @@ import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.playback.CastAvailability
 import io.putdotio.android.playback.CastHandover
 import io.putdotio.android.playback.CastSignOutEnd
+import io.putdotio.android.playback.CastStopControl
 import io.putdotio.android.playback.CastTransfer
 import io.putdotio.android.playback.GmsCastGateway
 import io.putdotio.android.playback.GmsCastRemote
 import io.putdotio.android.playback.GmsCastRoutes
-import io.putdotio.android.playback.MobileCastOptionsProvider
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.playback.PutioCastMediaItemConverter
@@ -33,7 +36,9 @@ import io.putdotio.sdk.files.PlaybackSourceKind
 import io.putdotio.sdk.files.PlaybackSubtitles
 import io.putdotio.sdk.files.PutioCredentialUrl
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
@@ -94,7 +99,7 @@ class MobileCastSessionTest {
         val local = FakePlayer(DeviceInfo.PLAYBACK_TYPE_LOCAL, AudioItem)
         val taken = mutableListOf<Pair<MediaItem, CastHandover>>()
 
-        CastTransfer { item, handover -> taken += item to handover }
+        CastTransfer(toReceiver = { item, handover -> taken += item to handover }, toLocal = {})
             .transferState(local, FakePlayer(DeviceInfo.PLAYBACK_TYPE_REMOTE, item = null))
 
         assertEquals(listOf(AudioItem to CastHandover(positionMillis = 95_000L, playing = true)), taken)
@@ -103,14 +108,16 @@ class MobileCastSessionTest {
     }
 
     @Test
-    fun aSessionThatEndsHandsTheLocalPlayerNothing() {
+    fun aSessionThatEndsLeavesTheLocalPlayerToTheHandback() {
         val local = FakePlayer(DeviceInfo.PLAYBACK_TYPE_LOCAL, item = null)
         val taken = mutableListOf<MediaItem>()
+        var handedBack = 0
 
-        CastTransfer { item, _ -> taken += item }
+        CastTransfer(toReceiver = { item, _ -> taken += item }, toLocal = { handedBack++ })
             .transferState(FakePlayer(DeviceInfo.PLAYBACK_TYPE_REMOTE, AudioItem), local)
 
         assertEquals(emptyList<MediaItem>(), taken)
+        assertEquals(1, handedBack)
         assertEquals(0, local.mediaItemCount)
     }
 
@@ -144,10 +151,19 @@ class MobileCastSessionTest {
     }
 
     @Test
-    fun theCastSdkLeavesTheNotificationToTheAudioSession() {
-        val options = MobileCastOptionsProvider().getCastOptions(app)
+    fun theNotificationStopsCastingOnlyWhileAReceiverPlays() {
+        var stops = 0
+        val control = CastStopControl(app) { stops++ }
 
-        assertNull(options.castMediaOptions?.notificationOptions)
+        val shown = control.buttons(DeviceInfo.Builder(DeviceInfo.PLAYBACK_TYPE_REMOTE).build())
+        val tapped = control.handle(requireNotNull(shown.single().sessionCommand))
+
+        assertTrue(tapped)
+        assertEquals(1, stops)
+        assertEquals("Stop casting", shown.single().displayName)
+        assertEquals(emptyList<CommandButton>(), control.buttons(DeviceInfo.UNKNOWN))
+        assertFalse(control.handle(SessionCommand("another", Bundle.EMPTY)))
+        assertEquals(1, stops)
     }
 
     @Test
