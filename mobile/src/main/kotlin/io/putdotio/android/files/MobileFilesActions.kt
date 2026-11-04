@@ -379,7 +379,6 @@ internal fun String.withNameSelected(isFolder: Boolean): TextFieldValue {
     return TextFieldValue(this, TextRange(0, end))
 }
 
-/** The sheet: the file's header, its tiles, then its rows. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun MobileFilesActionsSheet(
@@ -440,7 +439,7 @@ internal fun MobileFilesSheetHeader(type: PutioFileType, name: String, meta: @Co
 }
 
 @Composable
-internal fun MobileFilesSheetMeta(size: String?, detail: String?) {
+internal fun MobileFilesSheetMeta(size: String?, detail: String?, detailMaxLines: Int = 1) {
     val style = MaterialTheme.typography.bodySmall
     val color = MaterialTheme.colorScheme.onSurfaceVariant
     Row(horizontalArrangement = Arrangement.spacedBy(META_GAP), verticalAlignment = Alignment.CenterVertically) {
@@ -448,7 +447,9 @@ internal fun MobileFilesSheetMeta(size: String?, detail: String?) {
         if (size != null && detail != null) {
             Text("·", style = style, color = color, modifier = Modifier.clearAndSetSemantics {})
         }
-        detail?.let { Text(it, style = style, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+        detail?.let {
+            Text(it, style = style, color = color, maxLines = detailMaxLines, overflow = TextOverflow.Ellipsis)
+        }
     }
 }
 
