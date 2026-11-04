@@ -91,6 +91,8 @@ import kotlinx.coroutines.launch
 import io.putdotio.android.MobileSheetHandle
 import androidx.compose.ui.window.DialogProperties
 import io.putdotio.android.MobileSnackbarHost
+import io.putdotio.android.MobileIconButton
+import androidx.compose.material3.IconButtonDefaults
 
 internal const val MOBILE_PUBLIC_LINKS_ROUTE = "account/public-links"
 internal const val MOBILE_PUBLIC_LINK_SHEET_TAG = "mobile-public-link-sheet"
@@ -236,35 +238,24 @@ private fun PublicLinkSheetRow(link: PublicLink, state: PublicLinksState, action
             PublicLinkExpiry(link)
         }
         PublicLinkCopyButton(link, actions)
-        val shareLabel = stringResource(R.string.mobile_public_links_share_link)
-        MobileTooltip(shareLabel) {
-            IconButton(
-                onClick = { actions.share(link) },
-                modifier = Modifier.testTag(mobilePublicLinkShareTag(link.id)),
-            ) {
-                Icon(
-                    painterResource(R.drawable.ic_ph_share_network),
-                    shareLabel,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-        val revokeLabel = stringResource(
-            if (revoking) R.string.mobile_public_links_revoking else R.string.mobile_public_links_revoke_link,
+        val muted = IconButtonDefaults.iconButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
+        MobileIconButton(
+            stringResource(R.string.mobile_public_links_share_link),
+            R.drawable.ic_ph_share_network,
+            onClick = { actions.share(link) },
+            modifier = Modifier.testTag(mobilePublicLinkShareTag(link.id)),
+            colors = muted,
         )
-        MobileTooltip(revokeLabel) {
-            IconButton(
-                onClick = { actions.confirmRevoke(link) },
-                enabled = state.canRevoke && !revoking,
-                modifier = Modifier.testTag(mobilePublicLinkRevokeTag(link.id)),
-            ) {
-                Icon(
-                    painterResource(R.drawable.ic_ph_x_circle),
-                    revokeLabel,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
+        MobileIconButton(
+            stringResource(
+                if (revoking) R.string.mobile_public_links_revoking else R.string.mobile_public_links_revoke_link,
+            ),
+            R.drawable.ic_ph_x_circle,
+            onClick = { actions.confirmRevoke(link) },
+            modifier = Modifier.testTag(mobilePublicLinkRevokeTag(link.id)),
+            enabled = state.canRevoke && !revoking,
+            colors = muted,
+        )
     }
 }
 
@@ -419,16 +410,13 @@ private fun PublicLinkListRow(link: PublicLink, state: PublicLinksState, actions
 private fun PublicLinkMenu(link: PublicLink, canRevoke: Boolean, actions: PublicLinkActions) {
     var expanded by remember { mutableStateOf(false) }
     Box {
-        val label = stringResource(R.string.mobile_public_links_more, link.fileName)
-        MobileTooltip(label) {
-            IconButton(onClick = { expanded = true }, modifier = Modifier.testTag(mobilePublicLinkMoreTag(link.id))) {
-                Icon(
-                    painterResource(R.drawable.ic_ph_dots_three_vertical),
-                    label,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
+        MobileIconButton(
+            stringResource(R.string.mobile_public_links_more, link.fileName),
+            R.drawable.ic_ph_dots_three_vertical,
+            onClick = { expanded = true },
+            modifier = Modifier.testTag(mobilePublicLinkMoreTag(link.id)),
+            colors = IconButtonDefaults.iconButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
+        )
         DropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },

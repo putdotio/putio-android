@@ -20,7 +20,6 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -121,20 +120,14 @@ internal fun MobileSelectionBar(
         TopAppBar(
             title = { Text(mobileSelectedCount(count)) },
             navigationIcon = {
-                val label = stringResource(R.string.mobile_selection_clear)
-                MobileTooltip(label) {
-                    IconButton(onClick = onClear) {
-                        Icon(painterResource(R.drawable.ic_ph_x), contentDescription = label)
-                    }
-                }
+                MobileIconButton(stringResource(R.string.mobile_selection_clear), R.drawable.ic_ph_x, onClear)
             },
             actions = {
-                val label = stringResource(R.string.mobile_selection_select_all)
-                MobileTooltip(label) {
-                    IconButton(onClick = onSelectAll) {
-                        Icon(painterResource(R.drawable.ic_ph_checks), contentDescription = label)
-                    }
-                }
+                MobileIconButton(
+                    stringResource(R.string.mobile_selection_select_all),
+                    R.drawable.ic_ph_checks,
+                    onSelectAll,
+                )
             },
             windowInsets = WindowInsets(0),
             colors = TopAppBarDefaults.topAppBarColors(

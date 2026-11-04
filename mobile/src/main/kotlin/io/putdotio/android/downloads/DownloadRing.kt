@@ -25,6 +25,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
+import io.putdotio.android.MobileTooltip
 
 internal const val MOBILE_DOWNLOADS_RING_TAG = "mobile-downloads-ring"
 
@@ -52,22 +53,24 @@ internal fun DownloadRing(status: DownloadStatus, action: DownloadRingAction, on
     )
     val track = MaterialTheme.colorScheme.surfaceContainerHighest
     val glyph = MaterialTheme.colorScheme.onSurface
-    IconButton(
-        onClick = onClick,
-        modifier = Modifier.semantics { contentDescription = label }.testTag(MOBILE_DOWNLOADS_RING_TAG),
-    ) {
-        Box(Modifier.size(RING_BOX), contentAlignment = Alignment.Center) {
-            when (status) {
-                is DownloadStatus.Downloading -> RingProgress(status.percent, PutioDesignTokens.yellowSolid, track)
-                is DownloadStatus.Paused ->
-                    RingProgress(status.percent ?: 0f, MaterialTheme.colorScheme.onSurfaceVariant, track)
-                else -> Canvas(Modifier.size(RING_BOX)) { drawDashedTrack(track) }
-            }
-            Canvas(Modifier.size(RING_BOX)) {
-                when (action) {
-                    DownloadRingAction.Pause -> drawPauseBars(glyph)
-                    DownloadRingAction.Resume -> drawPlayTriangle(glyph)
-                    DownloadRingAction.Cancel -> drawStopSquare(glyph)
+    MobileTooltip(label) {
+        IconButton(
+            onClick = onClick,
+            modifier = Modifier.semantics { contentDescription = label }.testTag(MOBILE_DOWNLOADS_RING_TAG),
+        ) {
+            Box(Modifier.size(RING_BOX), contentAlignment = Alignment.Center) {
+                when (status) {
+                    is DownloadStatus.Downloading -> RingProgress(status.percent, PutioDesignTokens.yellowSolid, track)
+                    is DownloadStatus.Paused ->
+                        RingProgress(status.percent ?: 0f, MaterialTheme.colorScheme.onSurfaceVariant, track)
+                    else -> Canvas(Modifier.size(RING_BOX)) { drawDashedTrack(track) }
+                }
+                Canvas(Modifier.size(RING_BOX)) {
+                    when (action) {
+                        DownloadRingAction.Pause -> drawPauseBars(glyph)
+                        DownloadRingAction.Resume -> drawPlayTriangle(glyph)
+                        DownloadRingAction.Cancel -> drawStopSquare(glyph)
+                    }
                 }
             }
         }

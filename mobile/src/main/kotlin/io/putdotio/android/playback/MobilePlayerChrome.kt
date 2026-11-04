@@ -29,7 +29,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
@@ -79,6 +78,7 @@ import io.putdotio.android.MobileTooltip
 import io.putdotio.android.R
 import io.putdotio.android.design.putioMono
 import io.putdotio.android.design.R as DesignR
+import io.putdotio.android.MobileIconButton
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @Composable
@@ -96,11 +96,12 @@ internal fun MobilePlayerChrome(
     trailingChip: @Composable () -> Unit = {},
     onFooterHeight: (Dp) -> Unit = {},
     fold: TabletopFold? = null,
+    onFoldFits: (Boolean) -> Unit = {},
 ) {
     if (visible) {
         MobileVideoLayout(
             player, title, seekEnabled, onSeek, onScrub, settings, modifier, onBack, topActions, trailingChip,
-            onFooterHeight, fold,
+            onFooterHeight, fold, onFoldFits,
         )
     }
 }
@@ -120,6 +121,7 @@ private fun MobileVideoLayout(
     trailingChip: @Composable () -> Unit,
     onFooterHeight: (Dp) -> Unit,
     fold: TabletopFold?,
+    onFoldFits: (Boolean) -> Unit,
 ) {
     val scrim = MaterialTheme.colorScheme.scrim
     val density = LocalDensity.current
@@ -132,6 +134,7 @@ private fun MobileVideoLayout(
         modifier.fillMaxSize().shareVideoPointerInputWithSiblings().background(videoShade(scrim)),
     ) {
         var contentHeight by remember { mutableIntStateOf(0) }
+        val viewportHeight = constraints.maxHeight
         val scrollState = rememberScrollState()
         val overflow = if (contentHeight > constraints.maxHeight) {
             Modifier.verticalScroll(scrollState)
@@ -149,12 +152,7 @@ private fun MobileVideoLayout(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    val backLabel = stringResource(R.string.mobile_action_back)
-                    MobileTooltip(backLabel) {
-                        IconButton(onClick = onBack) {
-                            Icon(painterResource(R.drawable.ic_ph_arrow_left), contentDescription = backLabel)
-                        }
-                    }
+                    MobileIconButton(stringResource(R.string.mobile_action_back), R.drawable.ic_ph_arrow_left, onBack)
                     MobilePlayerTitle(title, Modifier.weight(1f))
                     topActions()
                 }
@@ -198,8 +196,9 @@ private fun MobileVideoLayout(
             val controlsTop = fold
                 ?.takeIf { header.height <= it.top.roundToPx() }
                 ?.bottom?.roundToPx()
-                ?.takeIf { it + transport.height + footer.height <= height }
+                ?.takeIf { height <= viewportHeight && it + transport.height + footer.height <= height }
             layout(limits.maxWidth, height) {
+                if (fold != null) onFoldFits(controlsTop != null)
                 header.placeRelative(0, 0)
                 transport.placeRelative(
                     0,

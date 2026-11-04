@@ -1,5 +1,8 @@
 package io.putdotio.android
 
+import android.content.res.Configuration
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.test.junit4.ComposeContentTestRule
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
@@ -59,6 +62,8 @@ class MobileFilesBarsTest {
     @get:Rule
     val compose = createComposeRule()
 
+    private var hardwareKeyboard = false
+
     @Test
     fun aFolderSearchesInsideItself() {
         val scopes = mutableListOf<SearchScope?>()
@@ -71,11 +76,22 @@ class MobileFilesBarsTest {
 
     @Test
     fun aLongPressOnFolderSearchNamesItAndItsShortcut() {
+        hardwareKeyboard = true
         compose.setShell({ folderState() }, onScope = {})
 
         compose.onNodeWithTag(MOBILE_FILES_SEARCH_TAG).performTouchInput { longClick() }
 
         compose.onNodeWithText("Search in Blue Lights (Ctrl+F)").assertExists()
+    }
+
+    @Test
+    fun withoutAHardwareKeyboardFolderSearchNamesNoShortcut() {
+        compose.setShell({ folderState() }, onScope = {})
+
+        compose.onNodeWithTag(MOBILE_FILES_SEARCH_TAG).performTouchInput { longClick() }
+
+        compose.onNodeWithText("Search in Blue Lights").assertExists()
+        compose.onNodeWithText("Search in Blue Lights (Ctrl+F)").assertDoesNotExist()
     }
 
     @Test
@@ -164,25 +180,33 @@ class MobileFilesBarsTest {
         settings: AccountSettingsState = readyAccountSettingsState(),
     ) {
         setContent {
-            PutioTheme {
-                MobileShell(
-                    playbackPlayerFactory = NoAudioSessionFactory,
-                    filesState = files(),
-                    accountSettingsState = settings,
-                    appConfigState = readyAndroidAppConfigState(),
-                    account = MobileAccount(userId = 42L, username = "user", email = "user@example.com"),
-                    playbackRepository = NoPlayback,
-                    sessionId = MobileAuthSessionId(1L),
-                    onFilesEvent = {
-                        onFilesEvent(it)
-                        true
-                    },
-                    onAccountSettingsEvent = {},
-                    onPlaybackAuthenticationRequired = {},
-                    onSignOut = {},
-                    searchHistoryActions = MobileSearchHistoryActions(onScopeChanged = onScope),
-                    folderCreator = creator,
-                )
+            val configuration = Configuration(LocalConfiguration.current).apply {
+                if (hardwareKeyboard) {
+                    keyboard = Configuration.KEYBOARD_QWERTY
+                    hardKeyboardHidden = Configuration.HARDKEYBOARDHIDDEN_NO
+                }
+            }
+            CompositionLocalProvider(LocalConfiguration provides configuration) {
+                PutioTheme {
+                    MobileShell(
+                        playbackPlayerFactory = NoAudioSessionFactory,
+                        filesState = files(),
+                        accountSettingsState = settings,
+                        appConfigState = readyAndroidAppConfigState(),
+                        account = MobileAccount(userId = 42L, username = "user", email = "user@example.com"),
+                        playbackRepository = NoPlayback,
+                        sessionId = MobileAuthSessionId(1L),
+                        onFilesEvent = {
+                            onFilesEvent(it)
+                            true
+                        },
+                        onAccountSettingsEvent = {},
+                        onPlaybackAuthenticationRequired = {},
+                        onSignOut = {},
+                        searchHistoryActions = MobileSearchHistoryActions(onScopeChanged = onScope),
+                        folderCreator = creator,
+                    )
+                }
             }
         }
     }

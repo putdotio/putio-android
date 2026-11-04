@@ -19,7 +19,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -48,7 +47,6 @@ import io.putdotio.android.MobileLoadingState
 import io.putdotio.android.MobileMiddleCutText
 import io.putdotio.android.MobileRow
 import io.putdotio.android.MobileSectionLabel
-import io.putdotio.android.MobileTooltip
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDestructiveButton
 import io.putdotio.android.design.putioMono
@@ -67,6 +65,7 @@ import io.putdotio.android.neutralTextButtonColors
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.delay
+import io.putdotio.android.MobileIconButton
 
 internal const val MOBILE_HISTORY_LIST_TAG = "mobile-history-list"
 internal const val MOBILE_HISTORY_OVERFLOW_TAG = "mobile-history-overflow"
@@ -223,12 +222,12 @@ private fun MobileHistoryRow(item: HistoryItem, onEvent: (HistoryEvent) -> Unit)
 internal fun MobileHistoryOverflow(clearing: HistoryClearing, onEvent: (HistoryEvent) -> Unit) {
     var open by rememberSaveable { mutableStateOf(false) }
     Box {
-        val label = stringResource(R.string.mobile_action_more_options)
-        MobileTooltip(label) {
-            IconButton(onClick = { open = true }, modifier = Modifier.testTag(MOBILE_HISTORY_OVERFLOW_TAG)) {
-                Icon(painterResource(R.drawable.ic_ph_dots_three_vertical), contentDescription = label)
-            }
-        }
+        MobileIconButton(
+            stringResource(R.string.mobile_action_more_options),
+            R.drawable.ic_ph_dots_three_vertical,
+            onClick = { open = true },
+            modifier = Modifier.testTag(MOBILE_HISTORY_OVERFLOW_TAG),
+        )
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.mobile_history_clear)) },

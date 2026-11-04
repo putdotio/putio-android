@@ -26,7 +26,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -61,7 +60,6 @@ import androidx.compose.ui.unit.dp
 import io.putdotio.android.MobileEmptyState
 import io.putdotio.android.MobileErrorState
 import io.putdotio.android.MobileInlineError
-import io.putdotio.android.MobileTooltip
 import io.putdotio.android.RetryWhenOnline
 import io.putdotio.android.MobileLoadingState
 import io.putdotio.android.PutioFailure
@@ -75,6 +73,7 @@ import io.putdotio.android.files.mobileMessage
 import io.putdotio.android.neutralTextButtonColors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import io.putdotio.android.MobileIconButton
 
 internal const val MOBILE_TRANSFERS_LIST_TAG = "mobile-transfers-list"
 internal const val MOBILE_TRANSFERS_SNACKBAR_TAG = "mobile-transfers-snackbar"
@@ -308,12 +307,12 @@ internal fun MobileTransfersOverflow(
     val clearedElsewhere = (confirming as? TransfersEvent.ClearFailed)?.ids?.none { it in failedIds } == true
     LaunchedEffect(clearedElsewhere) { if (clearedElsewhere) confirming = null }
     Box {
-        val label = stringResource(R.string.mobile_transfers_more)
-        MobileTooltip(label) {
-            IconButton(onClick = { expanded = true }, modifier = Modifier.testTag(MOBILE_TRANSFERS_OVERFLOW_TAG)) {
-                Icon(painter = painterResource(R.drawable.ic_ph_dots_three_vertical), contentDescription = label)
-            }
-        }
+        MobileIconButton(
+            stringResource(R.string.mobile_transfers_more),
+            R.drawable.ic_ph_dots_three_vertical,
+            onClick = { expanded = true },
+            modifier = Modifier.testTag(MOBILE_TRANSFERS_OVERFLOW_TAG),
+        )
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.mobile_transfers_refresh)) },

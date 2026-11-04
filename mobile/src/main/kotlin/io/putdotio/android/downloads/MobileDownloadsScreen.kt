@@ -21,8 +21,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
@@ -46,7 +44,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -80,6 +77,8 @@ import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.playbackContainer
 import io.putdotio.android.neutralTextButtonColors
 import kotlin.math.roundToInt
+import io.putdotio.android.MobileIconButton
+import androidx.compose.material3.IconButtonDefaults
 
 internal const val MOBILE_DOWNLOADS_ROUTE = "downloads"
 internal const val MOBILE_DOWNLOADS_LIST_TAG = "mobile-downloads-list"
@@ -315,23 +314,23 @@ private fun DownloadRowTrailing(
                 },
             )
         }
-        entry.canRetry -> IconButton(onClick = { onEvent(DownloadsEvent.Retry(entry.fileId)) }) {
+        entry.canRetry -> {
             val missing = entry.status == DownloadStatus.Missing
-            Icon(
-                painterResource(if (missing) R.drawable.ic_ph_download_simple else R.drawable.ic_ph_arrow_clockwise),
-                contentDescription = stringResource(
+            MobileIconButton(
+                stringResource(
                     if (missing) R.string.mobile_downloads_download_again else R.string.mobile_downloads_retry,
                 ),
-                tint = MaterialTheme.colorScheme.onSurface,
+                if (missing) R.drawable.ic_ph_download_simple else R.drawable.ic_ph_arrow_clockwise,
+                onClick = { onEvent(DownloadsEvent.Retry(entry.fileId)) },
+                colors = IconButtonDefaults.iconButtonColors(contentColor = MaterialTheme.colorScheme.onSurface),
             )
         }
-        else -> IconButton(onClick = onActions) {
-            Icon(
-                painterResource(R.drawable.ic_ph_dots_three_vertical),
-                contentDescription = stringResource(R.string.mobile_downloads_actions_named, entry.name),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+        else -> MobileIconButton(
+            stringResource(R.string.mobile_downloads_actions_named, entry.name),
+            R.drawable.ic_ph_dots_three_vertical,
+            onActions,
+            colors = IconButtonDefaults.iconButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
+        )
     }
 }
 

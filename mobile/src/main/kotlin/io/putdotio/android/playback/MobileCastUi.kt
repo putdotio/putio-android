@@ -23,7 +23,6 @@ import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.paneTitle
 import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import io.putdotio.android.MobileTooltip
 import io.putdotio.android.design.PutioRadius
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -45,7 +44,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -70,6 +68,8 @@ import io.putdotio.android.MobileSheetHandle
 import io.putdotio.android.R
 import io.putdotio.android.neutralTextButtonColors
 import io.putdotio.android.design.PutioDesignTokens
+import io.putdotio.android.MobileIconButton
+import androidx.compose.material3.IconButtonDefaults
 
 internal const val MOBILE_CAST_BUTTON_TAG = "mobile-cast-button"
 internal const val MOBILE_CAST_PICKER_TAG = "mobile-cast-picker"
@@ -94,26 +94,21 @@ internal fun MobileCastButton(
         onLocalNetworkAnswer(granted)
         if (granted) onClick()
     }
-    val label = device?.let { stringResource(R.string.mobile_cast_casting_to, it) }
-        ?: stringResource(R.string.mobile_cast)
-    MobileTooltip(label) {
-        IconButton(
-            onClick = {
-                if (availability == CastAvailability.NeedsLocalNetwork) {
-                    askLocalNetwork.launch(LOCAL_NETWORK_PERMISSION)
-                } else {
-                    onClick()
-                }
-            },
-            modifier = modifier.testTag(MOBILE_CAST_BUTTON_TAG),
-        ) {
-            Icon(
-                painterResource(R.drawable.ic_ph_screencast),
-                contentDescription = label,
-                tint = if (device != null) PutioDesignTokens.yellowSolid else LocalContentColor.current,
-            )
-        }
-    }
+    MobileIconButton(
+        device?.let { stringResource(R.string.mobile_cast_casting_to, it) } ?: stringResource(R.string.mobile_cast),
+        R.drawable.ic_ph_screencast,
+        onClick = {
+            if (availability == CastAvailability.NeedsLocalNetwork) {
+                askLocalNetwork.launch(LOCAL_NETWORK_PERMISSION)
+            } else {
+                onClick()
+            }
+        },
+        modifier = modifier.testTag(MOBILE_CAST_BUTTON_TAG),
+        colors = IconButtonDefaults.iconButtonColors(
+            contentColor = if (device != null) PutioDesignTokens.yellowSolid else LocalContentColor.current,
+        ),
+    )
 }
 
 /**

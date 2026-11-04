@@ -39,6 +39,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.MobileTooltip
 import io.putdotio.android.R
+import io.putdotio.android.MobileIconButton
 
 internal const val MOBILE_SEARCH_FIELD_TAG = "mobile-search-field"
 internal const val MOBILE_SEARCH_CLEAR_TAG = "mobile-search-clear"
@@ -137,18 +138,15 @@ private fun MobileSearchBarTrailing(
     Row(verticalAlignment = Alignment.CenterVertically) {
         navigation?.invoke()
         if (text.text.isNotEmpty()) {
-            val label = stringResource(R.string.mobile_search_clear_query)
-            MobileTooltip(label) {
-                IconButton(
-                    onClick = {
-                        text.clearText()
-                        field.requestFocus()
-                    },
-                    modifier = Modifier.testTag(MOBILE_SEARCH_CLEAR_TAG),
-                ) {
-                    Icon(painter = painterResource(R.drawable.ic_ph_x), contentDescription = label)
-                }
-            }
+            MobileIconButton(
+                stringResource(R.string.mobile_search_clear_query),
+                R.drawable.ic_ph_x,
+                onClick = {
+                    text.clearText()
+                    field.requestFocus()
+                },
+                modifier = Modifier.testTag(MOBILE_SEARCH_CLEAR_TAG),
+            )
         }
     }
 }

@@ -15,7 +15,6 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonColors
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
@@ -40,10 +39,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
-import io.putdotio.android.MobileTooltip
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioRadius
 import io.putdotio.android.design.PutioTypeScale
+import io.putdotio.android.MobileIconButton
 
 internal const val MOBILE_FILES_SORT_TAG = "mobile-files-sort"
 
@@ -99,18 +98,14 @@ internal fun MobileFilesSortMenu(
     }
 
     Box {
-        MobileTooltip(sortLabel) {
-            IconButton(
-                onClick = { expanded = true },
-                enabled = enabled,
-                colors = colors,
-                modifier = Modifier
-                    .testTag(MOBILE_FILES_SORT_TAG)
-                    .sortState(currentLabel),
-            ) {
-                Icon(painter = painterResource(R.drawable.ic_ph_sort_ascending), contentDescription = sortLabel)
-            }
-        }
+        MobileIconButton(
+            sortLabel,
+            R.drawable.ic_ph_sort_ascending,
+            onClick = { expanded = true },
+            modifier = Modifier.testTag(MOBILE_FILES_SORT_TAG).sortState(currentLabel),
+            enabled = enabled,
+            colors = colors,
+        )
         MobileSortMenu(
             expanded = expanded && enabled,
             current = current,

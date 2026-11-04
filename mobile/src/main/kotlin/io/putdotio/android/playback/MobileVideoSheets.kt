@@ -1,18 +1,14 @@
 package io.putdotio.android.playback
 
 import android.view.KeyEvent
-import io.putdotio.android.MobileTooltip
 import io.putdotio.android.playback.R as PlaybackR
 import androidx.annotation.StringRes
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.media3.common.Player as Media3Player
 import androidx.media3.common.TrackSelectionParameters
@@ -22,6 +18,7 @@ import io.putdotio.android.MobileShortcutScope
 import io.putdotio.android.R
 import io.putdotio.android.mobileKeyCommand
 import io.putdotio.sdk.files.PlaybackSubtitle
+import io.putdotio.android.MobileIconButton
 
 internal val MobileVideoSheet.isSubtitles: Boolean
     get() = this == MobileVideoSheet.Subtitles || this == MobileVideoSheet.SubtitleAppearance
@@ -58,12 +55,12 @@ internal fun MobileNextEpisodeChip(nextEpisode: PlaybackTarget?, onNextEpisode: 
 @Composable
 internal fun MobilePictureInPictureButton(enter: (() -> Unit)?, modifier: Modifier) {
     if (enter == null) return
-    val label = stringResource(R.string.mobile_playback_picture_in_picture)
-    MobileTooltip(label) {
-        IconButton(onClick = enter, modifier = modifier) {
-            Icon(painterResource(R.drawable.ic_ph_picture_in_picture), contentDescription = label)
-        }
-    }
+    MobileIconButton(
+        stringResource(R.string.mobile_playback_picture_in_picture),
+        R.drawable.ic_ph_picture_in_picture,
+        enter,
+        modifier = modifier,
+    )
 }
 
 /**

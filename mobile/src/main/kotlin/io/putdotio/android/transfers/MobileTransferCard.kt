@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.progressSemantics
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -47,6 +46,7 @@ import io.putdotio.android.appendMonoFigures
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.design.putioMono
+import io.putdotio.android.MobileIconButton
 
 internal fun mobileTransferCardTag(id: TransferId): String = "mobile-transfer-card-${id.value}"
 
@@ -127,10 +127,12 @@ private fun MobileTransferCardTrailing(item: TransferItem, busy: Boolean, enable
     when {
         busy -> CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
         item.section == MobileTransferSection.NeedsAttention -> {
-            val label = stringResource(R.string.mobile_transfers_retry_named, item.name)
-            IconButton(onClick = onRetry, enabled = enabled) {
-                Icon(painterResource(R.drawable.ic_ph_arrow_clockwise), contentDescription = label)
-            }
+            MobileIconButton(
+                stringResource(R.string.mobile_transfers_retry_named, item.name),
+                R.drawable.ic_ph_arrow_clockwise,
+                onRetry,
+                enabled = enabled,
+            )
         }
         item.section == MobileTransferSection.Completed -> Icon(
             painter = painterResource(R.drawable.ic_ph_caret_right),

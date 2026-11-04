@@ -322,8 +322,9 @@ roles are the TV's scale. `mono` takes the size of the text it sits in.
 ## Layout
 
 - **Phone:** Files, History, Transfers, Downloads and Account, as a bar or a
-  rail following the window. Wide windows make Files list-detail. Content
-  keeps a 16dp gutter.
+  rail following the window. Wide windows make Files list-detail, Transfers
+  columns of cards at least 360dp wide, and Account rows no wider than 640dp.
+  Content keeps a 16dp gutter.
 - **TV:** Home, Files, Search, History and Account as pill tabs after the
   wordmark, inside the shared `tv.overscan` inset. Lists are list-detail: the
   focused item's detail sits beside the list.

@@ -19,8 +19,6 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -41,7 +39,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -51,7 +48,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import io.putdotio.android.MobileMiddleCutText
-import io.putdotio.android.MobileTooltip
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.files.FilesItem
@@ -62,6 +58,7 @@ import io.putdotio.android.files.FilesViewerKind
 import io.putdotio.android.files.viewerKind
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
+import io.putdotio.android.MobileIconButton
 
 internal const val MOBILE_FILE_VIEWER_TAG = "mobile-file-viewer"
 internal const val MOBILE_FILE_VIEWER_PAGES_TAG = "mobile-file-viewer-pages"
@@ -207,32 +204,25 @@ private fun MobileFileViewerBar(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            val backLabel = stringResource(R.string.mobile_action_back)
-            MobileTooltip(backLabel) {
-                IconButton(onClick = onBack) {
-                    Icon(painterResource(R.drawable.ic_ph_arrow_left), backLabel)
-                }
-            }
+            MobileIconButton(stringResource(R.string.mobile_action_back), R.drawable.ic_ph_arrow_left, onBack)
             MobileMiddleCutText(
                 text = file.name,
                 style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
                 modifier = Modifier.weight(1f),
             )
             actions.onShare?.let { share ->
-                val label = stringResource(R.string.mobile_files_share)
-                MobileTooltip(label) {
-                    IconButton(onClick = { share(file) }) {
-                        Icon(painterResource(R.drawable.ic_ph_share_network), label)
-                    }
-                }
+                MobileIconButton(
+                    stringResource(R.string.mobile_files_share),
+                    R.drawable.ic_ph_share_network,
+                    onClick = { share(file) },
+                )
             }
             actions.onMore?.let { more ->
-                val label = stringResource(R.string.mobile_files_actions, file.name)
-                MobileTooltip(label) {
-                    IconButton(onClick = { more(file) }) {
-                        Icon(painterResource(R.drawable.ic_ph_dots_three_vertical), label)
-                    }
-                }
+                MobileIconButton(
+                    stringResource(R.string.mobile_files_actions, file.name),
+                    R.drawable.ic_ph_dots_three_vertical,
+                    { more(file) },
+                )
             }
         }
     }

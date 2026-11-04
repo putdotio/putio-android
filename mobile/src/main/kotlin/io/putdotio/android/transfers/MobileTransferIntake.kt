@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -27,7 +26,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.putdotio.android.AuthoritativeSessionFailureEffect
-import io.putdotio.android.MobileTooltip
 import io.putdotio.android.R
 import io.putdotio.android.design.FileTypeIcon
 import io.putdotio.android.files.FilesFolder
@@ -37,6 +35,7 @@ import io.putdotio.android.files.MobileFilesMoveDestination
 import io.putdotio.android.files.authoritativeSessionFailure
 import io.putdotio.android.neutralTextButtonColors
 import io.putdotio.sdk.files.PutioFileType
+import io.putdotio.android.MobileIconButton
 
 internal const val MOBILE_TRANSFER_DESTINATION_TAG = "mobile-transfer-destination"
 internal const val MOBILE_TRANSFER_CHANGE_DESTINATION_TAG = "mobile-transfer-change-destination"
@@ -120,12 +119,12 @@ internal fun MobileTransferTorrentRow(torrent: TorrentUpload, enabled: Boolean, 
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
-        val label = stringResource(R.string.mobile_transfers_remove_torrent)
-        MobileTooltip(label) {
-            IconButton(onClick = onRemove, enabled = enabled) {
-                Icon(painterResource(R.drawable.ic_ph_x), label)
-            }
-        }
+        MobileIconButton(
+            stringResource(R.string.mobile_transfers_remove_torrent),
+            R.drawable.ic_ph_x,
+            onRemove,
+            enabled = enabled,
+        )
     }
 }
 

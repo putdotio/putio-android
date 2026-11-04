@@ -28,7 +28,6 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -62,7 +61,6 @@ import io.putdotio.android.LoadNextPageNearEnd
 import io.putdotio.android.MobileLoadingState
 import io.putdotio.android.MobileMiddleCutText
 import io.putdotio.android.MobileRow
-import io.putdotio.android.MobileTooltip
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.design.FileTypeIcon
@@ -70,6 +68,8 @@ import io.putdotio.android.design.PutioRadius
 import io.putdotio.android.neutralTextButtonColors
 import io.putdotio.sdk.files.PutioFileType
 import androidx.compose.foundation.layout.sizeIn
+import io.putdotio.android.MobileIconButton
+import androidx.compose.material3.IconButtonDefaults
 
 internal const val MOBILE_FILES_MOVE_PICKER_TAG = "mobile-files-move-picker"
 internal const val MOBILE_FILES_MOVE_LIST_TAG = "mobile-files-move-list"
@@ -186,12 +186,12 @@ private fun MobileMovePickerBar(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        val closeLabel = stringResource(R.string.mobile_action_close)
-        MobileTooltip(closeLabel) {
-            IconButton(onClick = onCancel, modifier = Modifier.testTag(MOBILE_FILES_MOVE_CANCEL_TAG)) {
-                Icon(painterResource(R.drawable.ic_ph_x), closeLabel)
-            }
-        }
+        MobileIconButton(
+            stringResource(R.string.mobile_action_close),
+            R.drawable.ic_ph_x,
+            onCancel,
+            modifier = Modifier.testTag(MOBILE_FILES_MOVE_CANCEL_TAG),
+        )
         Text(
             text = title,
             style = MaterialTheme.typography.titleLarge,
@@ -207,16 +207,13 @@ private fun MobileMovePickerBar(
 private fun MobileMovePickerOptions(rememberTarget: Boolean, onChange: (Boolean) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     Box {
-        val label = stringResource(R.string.mobile_files_move_options)
-        MobileTooltip(label) {
-            IconButton(onClick = { expanded = true }, modifier = Modifier.testTag(MOBILE_FILES_MOVE_OPTIONS_TAG)) {
-                Icon(
-                    painterResource(R.drawable.ic_ph_dots_three_vertical),
-                    label,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
+        MobileIconButton(
+            stringResource(R.string.mobile_files_move_options),
+            R.drawable.ic_ph_dots_three_vertical,
+            onClick = { expanded = true },
+            modifier = Modifier.testTag(MOBILE_FILES_MOVE_OPTIONS_TAG),
+            colors = IconButtonDefaults.iconButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
+        )
         DropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },

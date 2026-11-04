@@ -15,8 +15,6 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
@@ -34,7 +32,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -44,13 +41,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.MobileDialogDismissButton
 import io.putdotio.android.MobileSheetHandle
-import io.putdotio.android.MobileTooltip
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioDestructiveButton
 import io.putdotio.android.design.PutioRadius
 import io.putdotio.android.files.mobileMessage
+import io.putdotio.android.MobileIconButton
 
 internal const val MOBILE_TRASH_ITEM_SHEET_TAG = "mobile-trash-item-sheet"
 internal const val MOBILE_TRASH_ITEM_RESTORE_TAG = "mobile-trash-item-restore"
@@ -133,16 +130,13 @@ internal fun MobileTrashOverflow(state: TrashState, onEvent: (TrashEvent) -> Boo
         Unit
     }
     Box {
-        val label = stringResource(R.string.mobile_trash_more)
-        MobileTooltip(label) {
-            IconButton(
-                onClick = { expanded = true },
-                modifier = Modifier.testTag(MOBILE_TRASH_MORE_TAG),
-                colors = IconButtonDefaults.iconButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
-            ) {
-                Icon(painterResource(R.drawable.ic_ph_dots_three_vertical), label)
-            }
-        }
+        MobileIconButton(
+            stringResource(R.string.mobile_trash_more),
+            R.drawable.ic_ph_dots_three_vertical,
+            onClick = { expanded = true },
+            modifier = Modifier.testTag(MOBILE_TRASH_MORE_TAG),
+            colors = IconButtonDefaults.iconButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
+        )
         DropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },

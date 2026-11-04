@@ -16,8 +16,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LocalContentColor
@@ -36,7 +34,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -50,7 +47,6 @@ import io.putdotio.android.MobileEmptyState
 import io.putdotio.android.MobileLoadingState
 import io.putdotio.android.MobileMiddleCutText
 import io.putdotio.android.MobileRow
-import io.putdotio.android.MobileTooltip
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.files.formatFileSize
@@ -60,6 +56,7 @@ import io.putdotio.android.design.putioMono
 import io.putdotio.android.files.mobileMessage
 import java.time.LocalDate
 import io.putdotio.android.design.PutioEmptyGlyph
+import io.putdotio.android.MobileIconButton
 
 internal const val MOBILE_TRASH_ROUTE = "account/trash"
 internal const val MOBILE_MANAGE_TRASH_TAG = "mobile-manage-trash"
@@ -225,21 +222,20 @@ private fun MobileTrashRow(
         },
         trailing = {
             Row {
-                val restoreLabel = stringResource(R.string.mobile_trash_restore_named, item.name)
-                MobileTooltip(restoreLabel) {
-                    IconButton(onClick = onRestore, enabled = canRestore, colors = muted) {
-                        Icon(
-                            painterResource(R.drawable.ic_ph_arrow_counter_clockwise),
-                            contentDescription = restoreLabel,
-                        )
-                    }
-                }
-                val actionsLabel = stringResource(R.string.mobile_trash_actions_named, item.name)
-                MobileTooltip(actionsLabel) {
-                    IconButton(onClick = onActions, enabled = enabled, colors = muted) {
-                        Icon(painterResource(R.drawable.ic_ph_dots_three_vertical), contentDescription = actionsLabel)
-                    }
-                }
+                MobileIconButton(
+                    stringResource(R.string.mobile_trash_restore_named, item.name),
+                    R.drawable.ic_ph_arrow_counter_clockwise,
+                    onRestore,
+                    enabled = canRestore,
+                    colors = muted,
+                )
+                MobileIconButton(
+                    stringResource(R.string.mobile_trash_actions_named, item.name),
+                    R.drawable.ic_ph_dots_three_vertical,
+                    onActions,
+                    enabled = enabled,
+                    colors = muted,
+                )
             }
         },
     )

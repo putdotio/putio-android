@@ -81,6 +81,7 @@ import io.putdotio.android.R
 import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.design.R as DesignR
 import kotlinx.coroutines.delay
+import io.putdotio.android.MobileIconButton
 
 internal const val MOBILE_AUDIO_PREVIOUS_TAG = "mobile-audio-previous"
 internal const val MOBILE_AUDIO_NEXT_TAG = "mobile-audio-next"
@@ -211,12 +212,11 @@ private fun NowPlayingTopBar(
         if (!canChooseAudio) return@Row
         var expanded by remember { mutableStateOf(false) }
         Box {
-            val label = stringResource(R.string.mobile_action_more_options)
-            MobileTooltip(label) {
-                IconButton(onClick = { expanded = true }) {
-                    Icon(painterResource(R.drawable.ic_ph_dots_three_vertical), contentDescription = label)
-                }
-            }
+            MobileIconButton(
+                stringResource(R.string.mobile_action_more_options),
+                R.drawable.ic_ph_dots_three_vertical,
+                onClick = { expanded = true },
+            )
             DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.mobile_playback_audio_track)) },

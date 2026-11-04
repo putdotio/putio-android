@@ -15,8 +15,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
@@ -31,7 +29,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
@@ -41,12 +38,12 @@ import io.putdotio.android.MobileSelectionBar
 import io.putdotio.android.MobileSelectionToolbar
 import io.putdotio.android.MobileTabTitle
 import io.putdotio.android.MobileToolbarTile
-import io.putdotio.android.MobileTooltip
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.putioMono
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.neutralTextButtonColors
+import io.putdotio.android.MobileIconButton
 
 internal const val MOBILE_DOWNLOADS_OVERFLOW_TAG = "mobile-downloads-overflow"
 internal const val MOBILE_DOWNLOADS_SELECT_TAG = "mobile-downloads-select"
@@ -149,12 +146,12 @@ private fun DownloadsOverflow(
 ) {
     var open by rememberSaveable { mutableStateOf(false) }
     Box {
-        val label = stringResource(R.string.mobile_action_more_options)
-        MobileTooltip(label) {
-            IconButton(onClick = { open = true }, modifier = Modifier.testTag(MOBILE_DOWNLOADS_OVERFLOW_TAG)) {
-                Icon(painterResource(R.drawable.ic_ph_dots_three_vertical), contentDescription = label)
-            }
-        }
+        MobileIconButton(
+            stringResource(R.string.mobile_action_more_options),
+            R.drawable.ic_ph_dots_three_vertical,
+            onClick = { open = true },
+            modifier = Modifier.testTag(MOBILE_DOWNLOADS_OVERFLOW_TAG),
+        )
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.mobile_downloads_select)) },

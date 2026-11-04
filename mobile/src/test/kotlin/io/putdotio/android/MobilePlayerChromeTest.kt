@@ -148,6 +148,7 @@ class MobilePlayerChromeTest {
     fun tabletopPostureKeepsBackAboveTheFoldAndTheControlsBelowIt() {
         val player = readyPlayer()
         val fold = 230.dp
+        val fits = mutableListOf<Boolean>()
         compose.setContent {
             PutioTheme {
                 Box(Modifier.size(width = 320.dp, height = 460.dp)) {
@@ -160,6 +161,7 @@ class MobilePlayerChromeTest {
                         onScrub = {},
                         settings = {},
                         fold = TabletopFold(top = fold, bottom = fold),
+                        onFoldFits = { fits += it },
                     )
                 }
             }
@@ -175,6 +177,33 @@ class MobilePlayerChromeTest {
             val bounds = control.getUnclippedBoundsInRoot()
             assertTrue("Controls sit on the flat half: $bounds", bounds.top >= fold && bounds.bottom <= 460.dp)
         }
+        assertEquals(true, fits.last())
+    }
+
+    @Test
+    fun aFoldTooLowForTheControlsSaysTheyDoNotFitIt() {
+        val player = readyPlayer()
+        val fits = mutableListOf<Boolean>()
+        compose.setContent {
+            PutioTheme {
+                Box(Modifier.size(width = 320.dp, height = 460.dp)) {
+                    MobilePlayerChrome(
+                        player = player,
+                        title = "Tabletop.mp4",
+                        visible = true,
+                        seekEnabled = true,
+                        onSeek = {},
+                        onScrub = {},
+                        settings = {},
+                        fold = TabletopFold(top = 420.dp, bottom = 420.dp),
+                        onFoldFits = { fits += it },
+                    )
+                }
+            }
+        }
+        compose.waitForIdle()
+
+        assertEquals(false, fits.last())
     }
 
     @Test
