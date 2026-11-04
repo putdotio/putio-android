@@ -27,6 +27,7 @@ public class PlaybackPositionWriter(
     private var active: Snapshot? = null
     private var activeJob: Job? = null
     private var closed = false
+    private var attempts = 0L
     private val requests = Mutex()
     private val mutableFailure = MutableStateFlow<PlaybackFailure?>(null)
     internal val failure = mutableFailure.asStateFlow()
@@ -57,7 +58,7 @@ public class PlaybackPositionWriter(
     public suspend fun <T> supersede(fileId: Long, block: suspend () -> T): T {
         leases.values.filter { it.fileId == fileId }.forEach {
             it.generation++
-            it.lastOffered = null
+            it.delivery = Delivery.Unsent
         }
         if (pending?.allowed() == false) pending = null
         requests.withLock {}
@@ -66,17 +67,19 @@ public class PlaybackPositionWriter(
 
     public fun offer(token: String, positionMillis: Long) {
         val lease = leases[token]?.takeIf { !closed && positionMillis > 0L && it.authorized() } ?: return
-        if (lease.lastOffered?.div(POSITION_DEDUP_MILLIS) == positionMillis / POSITION_DEDUP_MILLIS) return
-        lease.lastOffered = positionMillis
+        if (lease.delivery.covers(positionMillis)) return
         // One in-flight request and one latest snapshot bound memory during slow requests
         // and rapid file switches. Intermediate queued exit positions may be superseded.
-        pending = Snapshot(token, lease.fileId, positionMillis, lease.generation)
+        pending?.let { settle(it, Delivery.Unsent) }
+        val snapshot = Snapshot(token, lease.fileId, positionMillis, lease.generation, ++attempts)
+        lease.delivery = Delivery.Sending(positionMillis, snapshot.attempt)
+        pending = snapshot
         drain()
     }
 
     /** Discards revoked work; this is deliberately different from a player's trailing flush. */
     public fun reconcile() {
-        leases.values.filterNot { it.authorized() }.forEach { it.lastOffered = null }
+        leases.values.filterNot { it.authorized() }.forEach { it.delivery = Delivery.Unsent }
         if (pending?.allowed() == false) pending = null
         if (active?.let { leases[it.token]?.authorized?.invoke() } != true) activeJob?.cancel()
         mutableFailure.value = null
@@ -88,6 +91,17 @@ public class PlaybackPositionWriter(
         pending = null
         activeJob?.cancel()
         mutableFailure.value = null
+    }
+
+    private fun settle(snapshot: Snapshot, delivery: Delivery) {
+        val lease = leases[snapshot.token]?.takeIf { it.generation == snapshot.generation } ?: return
+        if ((lease.delivery as? Delivery.Sending)?.attempt == snapshot.attempt) lease.delivery = delivery
+    }
+
+    private fun finish(snapshot: Snapshot, failure: PlaybackFailure?) {
+        if (!snapshot.allowed()) return
+        settle(snapshot, if (failure == null) Delivery.Saved(snapshot.positionMillis) else Delivery.Unsent)
+        mutableFailure.value = failure
     }
 
     private fun Snapshot.allowed(): Boolean =
@@ -110,19 +124,15 @@ public class PlaybackPositionWriter(
                             if (snapshot.allowed()) write(snapshot.fileId, snapshot.positionMillis / MILLIS_PER_SECOND)
                             else null
                         }
-                        if (snapshot.allowed()) {
-                            mutableFailure.value = (result as? PlaybackRepositoryResult.Failure)?.failure
-                        }
+                        if (result != null) finish(snapshot, (result as? PlaybackRepositoryResult.Failure)?.failure)
                     }
                 }
             } catch (error: TimeoutCancellationException) {
-                if (snapshot.allowed()) {
-                    mutableFailure.value = PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(error))
-                }
+                finish(snapshot, PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(error)))
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
-                if (snapshot.allowed()) mutableFailure.value = PlaybackFailure.Putio(PutioFailure.Unexpected(error))
+                finish(snapshot, PlaybackFailure.Putio(PutioFailure.Unexpected(error)))
             }
         }
         activeJob = job
@@ -139,14 +149,36 @@ public class PlaybackPositionWriter(
     private class Lease(
         val fileId: Long,
         val authorized: () -> Boolean,
-        var lastOffered: Long? = null,
+        var delivery: Delivery = Delivery.Unsent,
         var generation: Int = 0,
     )
 
-    private data class Snapshot(val token: String, val fileId: Long, val positionMillis: Long, val generation: Int)
+    private sealed interface Delivery {
+        fun covers(positionMillis: Long): Boolean = false
+
+        data object Unsent : Delivery
+
+        data class Sending(val positionMillis: Long, val attempt: Long) : Delivery {
+            override fun covers(positionMillis: Long): Boolean = sameSecond(this.positionMillis, positionMillis)
+        }
+
+        data class Saved(val positionMillis: Long) : Delivery {
+            override fun covers(positionMillis: Long): Boolean = sameSecond(this.positionMillis, positionMillis)
+        }
+    }
+
+    private data class Snapshot(
+        val token: String,
+        val fileId: Long,
+        val positionMillis: Long,
+        val generation: Int,
+        val attempt: Long,
+    )
 }
 
 private const val MAX_LEASES = 8
 private const val WRITE_TIMEOUT_MILLIS = 15_000L
 private const val MILLIS_PER_SECOND = 1_000.0
 private const val POSITION_DEDUP_MILLIS = 1_000L
+
+private fun sameSecond(a: Long, b: Long): Boolean = a / POSITION_DEDUP_MILLIS == b / POSITION_DEDUP_MILLIS

@@ -57,6 +57,7 @@ internal fun TransfersState.startInitialLoad(): TransfersTransition {
     return TransfersTransition(
         copy(
             content = TransfersContent.InitialLoading(requestId),
+            refresh = TransfersRefresh.Idle,
             firstPageIds = emptySet(),
             consumedCursors = emptySet(),
             nextRequestValue = nextRequestValue + 1,

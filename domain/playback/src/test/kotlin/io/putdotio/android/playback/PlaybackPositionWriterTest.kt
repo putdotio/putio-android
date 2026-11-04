@@ -149,26 +149,57 @@ class PlaybackPositionWriterTest {
     }
 
     @Test
-    fun failuresKeepTheirCauseWithoutImmediateOrDuplicateFlushRetries() = runTest {
+    fun aFailedPositionIsSentAgainWhenTheSameFlushRepeatsAfterTheFailure() = runTest {
         val cause = IllegalStateException("offline")
         val failure = PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(cause))
-        var calls = 0
-        val writer = PlaybackPositionWriter(backgroundScope) { _, _ ->
-            calls++
-            if (calls == 1) PlaybackRepositoryResult.Failure(failure) else PlaybackRepositoryResult.Success(Unit)
+        val calls = mutableListOf<Double>()
+        val writer = PlaybackPositionWriter(backgroundScope) { _, seconds ->
+            calls += seconds
+            if (calls.size == 1) PlaybackRepositoryResult.Failure(failure) else PlaybackRepositoryResult.Success(Unit)
+        }
+        val lease = writer.register(1L) { true }
+        repeat(3) { writer.offer(lease, 15_000L) }
+        runCurrent()
+        assertEquals(listOf(15.0), calls)
+        assertEquals(failure, writer.failure.value)
+
+        advanceTimeBy(60_000L)
+        runCurrent()
+        assertEquals(listOf(15.0), calls)
+        writer.offer(lease, 15_000L)
+        runCurrent()
+        assertEquals(listOf(15.0, 15.0), calls)
+        assertNull(writer.failure.value)
+
+        writer.offer(lease, 15_500L)
+        runCurrent()
+        assertEquals(2, calls.size)
+        writer.close()
+    }
+
+    @Test
+    fun anOlderFailedRequestDoesNotReopenTheSamePositionQueuedAfterIt() = runTest {
+        val failure = PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IllegalStateException("offline")))
+        val gates = List(2) { CompletableDeferred<Unit>() }
+        val calls = mutableListOf<Double>()
+        val writer = PlaybackPositionWriter(backgroundScope) { _, seconds ->
+            calls += seconds
+            gates[calls.size - 1].await()
+            if (calls.size == 1) PlaybackRepositoryResult.Failure(failure) else PlaybackRepositoryResult.Success(Unit)
         }
         val lease = writer.register(1L) { true }
         writer.offer(lease, 15_000L)
         runCurrent()
-        assertEquals(failure, writer.failure.value)
-        repeat(10) { writer.offer(lease, 15_000L) }
-        advanceTimeBy(60_000L)
-        runCurrent()
-        assertEquals(1, calls)
         writer.offer(lease, 30_000L)
+        writer.offer(lease, 15_000L)
+        gates[0].complete(Unit)
         runCurrent()
-        assertEquals(2, calls)
-        assertNull(writer.failure.value)
+        assertEquals(listOf(15.0, 15.0), calls)
+
+        writer.offer(lease, 15_000L)
+        gates[1].complete(Unit)
+        runCurrent()
+        assertEquals(listOf(15.0, 15.0), calls)
         writer.close()
     }
 

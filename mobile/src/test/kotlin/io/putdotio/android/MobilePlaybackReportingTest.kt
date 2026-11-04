@@ -245,14 +245,14 @@ class MobilePlaybackReportingTest {
         fixture.player.show(fixture.item("43"), 20_000L)
         fixture.observer.flush()
         runCurrent()
-        assertEquals(listOf(42L to 10.0), fixture.writes)
+        assertEquals(listOf(42L to 10.0, 42L to 10.0), fixture.writes)
 
         // A setting this device last saw off keeps downloaded files quiet too.
         offline.store(Account.userId).rememberResumeSetting(false)
         fixture.player.show(fixture.item(), 30_000L)
         fixture.observer.flush()
         runCurrent()
-        assertEquals(listOf(42L to 10.0), fixture.writes)
+        assertEquals(listOf(42L to 10.0, 42L to 10.0), fixture.writes)
         fixture.close()
         preferences.edit().clear().commit()
     }

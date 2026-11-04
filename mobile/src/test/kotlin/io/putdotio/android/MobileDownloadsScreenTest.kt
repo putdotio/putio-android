@@ -33,6 +33,7 @@ import io.putdotio.android.downloads.DownloadsEvent
 import io.putdotio.android.downloads.DownloadsState
 import io.putdotio.android.downloads.MOBILE_DOWNLOADS_CONCURRENCY_TAG
 import io.putdotio.android.downloads.MOBILE_DOWNLOADS_NOTIFICATIONS_TAG
+import io.putdotio.android.downloads.MOBILE_DOWNLOADS_ITEM_SHEET_TAG
 import io.putdotio.android.downloads.MOBILE_DOWNLOADS_OVERFLOW_TAG
 import io.putdotio.android.downloads.MOBILE_DOWNLOADS_SELECTION_DELETE_TAG
 import io.putdotio.android.downloads.MOBILE_DOWNLOADS_SELECTION_PAUSE_TAG
@@ -243,6 +244,64 @@ class MobileDownloadsScreenTest {
         compose.onNodeWithText("2 selected").assertIsDisplayed()
         compose.onNodeWithContentDescription("Cancel selection").performClick()
         compose.onNodeWithTag(MOBILE_DOWNLOADS_OVERFLOW_TAG).assertIsDisplayed()
+    }
+
+    @Test
+    fun aSelectionWhoseRowsAllLeaveEndsAndDoesNotReturnWithThem() {
+        val sintel = row(10L, "Sintel.mkv", DownloadStatus.Completed(1L))
+        var state by mutableStateOf(DownloadsState().withEntries(listOf(sintel)))
+        compose.setContent { PutioTheme { DownloadsTab(state, { true }) } }
+
+        compose.onNodeWithText("Sintel.mkv").performTouchInput { longClick() }
+        compose.onNodeWithText("1 selected").assertIsDisplayed()
+        state = DownloadsState()
+        compose.waitForIdle()
+        state = DownloadsState().withEntries(listOf(sintel))
+
+        compose.onNodeWithText("1 selected").assertDoesNotExist()
+        compose.onNodeWithTag(MOBILE_DOWNLOADS_OVERFLOW_TAG).assertIsDisplayed()
+    }
+
+    @Test
+    fun aSheetWhoseRowLeavesDoesNotReopenWhenTheFileReturns() {
+        val sintel = row(10L, "Sintel.mkv", DownloadStatus.Queued)
+        var state by mutableStateOf(DownloadsState(focus = FilesItemId(10L)).withEntries(listOf(sintel)))
+        compose.setContent {
+            PutioTheme {
+                DownloadsTab(state) { event ->
+                    if (event == DownloadsEvent.FocusHandled) state = state.copy(focus = null)
+                    true
+                }
+            }
+        }
+
+        compose.onNodeWithTag(MOBILE_DOWNLOADS_ITEM_SHEET_TAG).assertIsDisplayed()
+        state = DownloadsState()
+        compose.waitForIdle()
+        state = DownloadsState().withEntries(listOf(sintel))
+
+        compose.onNodeWithTag(MOBILE_DOWNLOADS_ITEM_SHEET_TAG).assertDoesNotExist()
+    }
+
+    @Test
+    fun aFocusDuringSelectionEndsTheSelectionAndOpensTheSheet() {
+        val sintel = row(10L, "Sintel.mkv", DownloadStatus.Completed(1L))
+        var state by mutableStateOf(DownloadsState().withEntries(listOf(sintel)))
+        compose.setContent {
+            PutioTheme {
+                DownloadsTab(state) { event ->
+                    if (event == DownloadsEvent.FocusHandled) state = state.copy(focus = null)
+                    true
+                }
+            }
+        }
+
+        compose.onNodeWithText("Sintel.mkv").performTouchInput { longClick() }
+        compose.onNodeWithText("1 selected").assertIsDisplayed()
+        state = state.copy(focus = FilesItemId(10L))
+
+        compose.onNodeWithTag(MOBILE_DOWNLOADS_ITEM_SHEET_TAG).assertIsDisplayed()
+        compose.onNodeWithText("1 selected").assertDoesNotExist()
     }
 
     @Test

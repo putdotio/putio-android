@@ -74,6 +74,11 @@ internal class DownloadsSelection(private val selection: MobileSelection = Mobil
 
     fun end() = selection.end()
 
+    fun reconcile(state: DownloadsState) {
+        val selectable = selectable(state)
+        if (selectable.isEmpty()) selection.end() else selection.retain(selectable)
+    }
+
     private fun selectable(state: DownloadsState): Set<Long> =
         state.entries.filter { it.fileId !in state.removing }.mapTo(linkedSetOf()) { it.fileId.value }
 
