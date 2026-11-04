@@ -1,7 +1,9 @@
 package io.putdotio.android
 
+import android.content.Context
 import android.content.Intent
 import androidx.core.net.toUri
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.files.FilesItemId
 import org.junit.Assert.assertEquals
@@ -102,6 +104,16 @@ class MobileDeepLinksTest {
         // An opaque URI has no query to read; it opens Files instead of throwing.
         val opaque = Intent(Intent.ACTION_VIEW, "putio:downloads?user=7".toUri())
         assertEquals(MobileDeepLink.Files, opaque.consumeMobileDeepLink())
+    }
+
+    @Test
+    fun aPlayLinkFromOutsideThisAppOnlyOpensItsRow() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val explicit = Intent(Intent.ACTION_VIEW, "putio://downloads/42/play?user=7".toUri())
+            .setClass(context, MainActivity::class.java)
+        assertEquals(MobileDeepLink.Downloads(FilesItemId(42L), userId = 7L), explicit.consumeMobileDeepLink())
+        val implicit = Intent(Intent.ACTION_VIEW, "putio://downloads/42/play".toUri())
+        assertEquals(MobileDeepLink.Downloads(FilesItemId(42L)), implicit.consumeMobileDeepLink())
     }
 
     @Test

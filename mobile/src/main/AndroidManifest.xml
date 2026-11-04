@@ -104,6 +104,10 @@
                 android:name="android.app.shortcuts"
                 android:resource="@xml/shortcuts" />
         </activity>
+        <activity-alias
+            android:name=".InternalLinkActivity"
+            android:exported="false"
+            android:targetActivity=".MainActivity" />
         <!-- A failed download notification's Retry; only this app's own pending intent reaches it. -->
         <receiver
             android:name=".downloads.MobileDownloadActionReceiver"
@@ -112,6 +116,7 @@
         <receiver
             android:name=".widgets.MobileTransfersWidgetProvider"
             android:exported="true"
+            android:permission="android.permission.BIND_APPWIDGET"
             android:label="@string/mobile_widget_transfers_label">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />

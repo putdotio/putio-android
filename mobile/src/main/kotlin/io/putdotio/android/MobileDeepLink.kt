@@ -27,7 +27,8 @@ internal sealed interface MobileDeepLink {
 
     /**
      * The Downloads screen, with one row opened when a notification names it; [play] plays that
-     * row's copy on this device instead. A link naming [userId] does nothing under any other account.
+     * row's copy on this device instead, and only this app's own pending intents carry it. A link
+     * naming [userId] does nothing under any other account.
      */
     data class Downloads(
         val fileId: FilesItemId? = null,
@@ -112,15 +113,16 @@ internal fun MobileDeepLink.toRouteUri(): Uri = when (this) {
 }.toUri()
 
 /**
- * An explicit, immutable pending intent that opens this link in MainActivity, for notifications and
- * widgets. The link is its data, so each account, row and action keeps its own pending intent.
+ * An explicit, immutable pending intent that opens this link in MainActivity through its unexported
+ * alias, for notifications and widgets. The link is its data, so each account, row and action keeps
+ * its own pending intent.
  */
 internal fun MobileDeepLink.pendingIntent(context: Context): PendingIntent =
     PendingIntent.getActivity(
         context,
         0,
         Intent(Intent.ACTION_VIEW, toRouteUri())
-            .setClass(context, MainActivity::class.java)
+            .setClassName(context, INTERNAL_LINK_ACTIVITY)
             .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
@@ -128,15 +130,20 @@ internal fun MobileDeepLink.pendingIntent(context: Context): PendingIntent =
 /**
  * Removes any product URI, recognised or not, so a replayed launch intent cannot route
  * again and a web link's query never reaches saved state. The OAuth callback and
- * foreign URIs are left alone.
+ * foreign URIs are left alone. A Downloads play link from outside this app only opens its row.
  */
 internal fun Intent.consumeMobileDeepLink(): MobileDeepLink? {
     val uri = data?.takeIf { action == Intent.ACTION_VIEW }
     val segments = uri?.productSegments() ?: return null
     val user = uri.userQuery()
+    val internal = component?.className == INTERNAL_LINK_ACTIVITY
     setDataAndType(null, null)
-    return deepLinkFor(segments, user)
+    return deepLinkFor(segments, user)?.let { link ->
+        if (!internal && link is MobileDeepLink.Downloads) link.copy(play = false) else link
+    }
 }
+
+internal const val INTERNAL_LINK_ACTIVITY = "io.putdotio.android.InternalLinkActivity"
 
 private val WEB_HOSTS = setOf("app.put.io", "put.io", "www.put.io")
 
