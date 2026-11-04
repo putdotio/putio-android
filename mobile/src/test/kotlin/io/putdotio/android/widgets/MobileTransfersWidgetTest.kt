@@ -104,7 +104,8 @@ class MobileTransfersWidgetTest {
 
         widget.findViewById<View>(android.R.id.background).performClick()
         val opened = shadowOf(context).nextStartedActivity
-        assertEquals(ComponentName(context, MainActivity::class.java), opened.component)
+        val entry = context.packageManager.getActivityInfo(checkNotNull(opened.component), 0)
+        assertEquals(MainActivity::class.java.name, entry.targetActivity)
         assertEquals(Intent.ACTION_VIEW, opened.action)
         assertEquals("putio://transfers".toUri(), opened.data)
     }

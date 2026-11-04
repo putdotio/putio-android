@@ -120,7 +120,7 @@ internal fun MobileDeepLink.pendingIntent(context: Context): PendingIntent =
         context,
         0,
         Intent(Intent.ACTION_VIEW, toRouteUri())
-            .setClass(context, MainActivity::class.java)
+            .setClassName(context, INTERNAL_LINK_ACTIVITY)
             .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
@@ -134,9 +134,14 @@ internal fun Intent.consumeMobileDeepLink(): MobileDeepLink? {
     val uri = data?.takeIf { action == Intent.ACTION_VIEW }
     val segments = uri?.productSegments() ?: return null
     val user = uri.userQuery()
+    val internal = component?.className == INTERNAL_LINK_ACTIVITY
     setDataAndType(null, null)
-    return deepLinkFor(segments, user)
+    return deepLinkFor(segments, user)?.let { link ->
+        if (!internal && link is MobileDeepLink.Downloads) link.copy(play = false) else link
+    }
 }
+
+internal const val INTERNAL_LINK_ACTIVITY = "io.putdotio.android.InternalLinkActivity"
 
 private val WEB_HOSTS = setOf("app.put.io", "put.io", "www.put.io")
 

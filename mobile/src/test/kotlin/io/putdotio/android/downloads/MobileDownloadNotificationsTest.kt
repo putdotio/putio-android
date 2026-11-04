@@ -19,7 +19,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.MainActivity
 import io.putdotio.android.MobileDeepLink
-import io.putdotio.android.parseMobileDeepLink
+import io.putdotio.android.consumeMobileDeepLink
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.sdk.files.PutioFileType
 import java.io.IOException
@@ -27,6 +27,7 @@ import java.net.UnknownHostException
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -80,7 +81,7 @@ class MobileDownloadNotificationsTest {
         val opened = shadowOf(finished.contentIntent).savedIntent
         assertEquals(Intent.ACTION_VIEW, opened.action)
         assertEquals(Uri.parse("putio://downloads/10?user=$USER"), opened.data)
-        assertEquals(MainActivity::class.java.name, opened.component?.className)
+        assertOpensMainActivityFromThisAppOnly(opened)
 
         val failed = posted.single { it.extras.getString(Notification.EXTRA_TITLE) == "Download failed" }
         assertTrue(failed.extras.getCharSequence(Notification.EXTRA_BIG_TEXT).toString().contains("Tears.mkv"))
@@ -101,11 +102,11 @@ class MobileDownloadNotificationsTest {
         assertEquals(listOf("Play"), finished.actions.map { it.title.toString() })
         val play = shadowOf(finished.actions[0].actionIntent)
         assertTrue(play.isActivity && play.isImmutable)
-        assertEquals(ComponentName(context, MainActivity::class.java), play.savedIntent.component)
+        assertOpensMainActivityFromThisAppOnly(play.savedIntent)
         assertEquals(Uri.parse("putio://downloads/10/play?user=$USER"), play.savedIntent.data)
         assertEquals(
             MobileDeepLink.Downloads(FilesItemId(10L), play = true, userId = USER),
-            parseMobileDeepLink(play.savedIntent.data),
+            Intent(play.savedIntent).consumeMobileDeepLink(),
         )
 
         val failed = posted.single { it.extras.getString(Notification.EXTRA_TITLE) == "Download failed" }
@@ -267,6 +268,12 @@ class MobileDownloadNotificationsTest {
         assertEquals("Removing from this device…", removing.extras.getString(Notification.EXTRA_TITLE))
         assertEquals(null, removing.extras.getCharSequence(Notification.EXTRA_TEXT))
         assertTrue(removing.actions.isNullOrEmpty())
+    }
+
+    private fun assertOpensMainActivityFromThisAppOnly(intent: Intent) {
+        val entry = context.packageManager.getActivityInfo(checkNotNull(intent.component), 0)
+        assertEquals(MainActivity::class.java.name, entry.targetActivity)
+        assertFalse(entry.exported)
     }
 
     private fun MobileDownloadNotifications.changed(download: Download, error: Exception? = null) =
