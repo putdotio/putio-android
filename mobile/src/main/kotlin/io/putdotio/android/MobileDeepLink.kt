@@ -27,8 +27,7 @@ internal sealed interface MobileDeepLink {
 
     /**
      * The Downloads screen, with one row opened when a notification names it; [play] plays that
-     * row's copy on this device instead, and only this app's own pending intents carry it. A link
-     * naming [userId] does nothing under any other account.
+     * row's copy on this device instead. A link naming [userId] does nothing under any other account.
      */
     data class Downloads(
         val fileId: FilesItemId? = null,
@@ -113,9 +112,8 @@ internal fun MobileDeepLink.toRouteUri(): Uri = when (this) {
 }.toUri()
 
 /**
- * An explicit, immutable pending intent that opens this link in MainActivity through its unexported
- * alias, for notifications and widgets. The link is its data, so each account, row and action keeps
- * its own pending intent.
+ * An explicit, immutable pending intent that opens this link in MainActivity, for notifications and
+ * widgets. The link is its data, so each account, row and action keeps its own pending intent.
  */
 internal fun MobileDeepLink.pendingIntent(context: Context): PendingIntent =
     PendingIntent.getActivity(
@@ -130,7 +128,7 @@ internal fun MobileDeepLink.pendingIntent(context: Context): PendingIntent =
 /**
  * Removes any product URI, recognised or not, so a replayed launch intent cannot route
  * again and a web link's query never reaches saved state. The OAuth callback and
- * foreign URIs are left alone. A Downloads play link from outside this app only opens its row.
+ * foreign URIs are left alone.
  */
 internal fun Intent.consumeMobileDeepLink(): MobileDeepLink? {
     val uri = data?.takeIf { action == Intent.ACTION_VIEW }
