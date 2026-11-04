@@ -234,6 +234,7 @@ dependencies {
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.compose.ui.test.junit4)
     testImplementation(libs.androidx.test.ext.junit)
+    testImplementation(libs.androidx.window.testing)
 
     androidTestImplementation(testFixtures(project(":domain:account")))
     androidTestImplementation(testFixtures(project(":domain:auth")))
