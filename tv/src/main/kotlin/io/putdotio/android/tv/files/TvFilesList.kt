@@ -22,6 +22,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -79,6 +80,7 @@ internal fun TvFilesList(
     // attached to a row that is still listed.
     val listedIds = remember(content.items) { content.items.mapTo(HashSet()) { it.id.value } }
     val rowStillFocused = { rowKeepsFocus(headerHasFocus, detailOwnsFocus, pagingHeldFocus) }
+    val rowOwnedFocus = Snapshot.withoutReadObservation { focusedRowId.value != null && rowStillFocused() }
     val paging = content.paging
     val entryFocus = remember(listState, paging, listedIds) {
         derivedStateOf {
@@ -113,7 +115,7 @@ internal fun TvFilesList(
     // After the rows change under a mounted list, keep focus on the row that had it, or on
     // the fallback target when that row is gone.
     LaunchedEffect(content.items) {
-        if (focusedRowId.value == null || !rowStillFocused()) return@LaunchedEffect
+        if (!rowOwnedFocus) return@LaunchedEffect
         listState.revealFocusedRow(content.items, focusedRowId, focusTarget, liveRowFocus, rowFocus)
             ?.requestFocusNextFrame(paneHasFocus, rowStillFocused)
     }
