@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -53,6 +52,7 @@ import io.putdotio.android.downloads.DownloadStatus
 import io.putdotio.android.playbackContainer
 import io.putdotio.sdk.files.PutioFolderType
 import kotlin.math.roundToInt
+import io.putdotio.android.MobileIconButton
 
 internal const val MOBILE_FILES_WATCHED_TAG = "mobile-files-watched"
 internal const val MOBILE_FILES_IN_PROGRESS_TAG = "mobile-files-in-progress"
@@ -106,18 +106,15 @@ internal fun MobileFilesRow(
     val trailing: (@Composable () -> Unit)? = when {
         onActions != null -> {
             {
-                IconButton(
-                    onClick = onActions,
+                MobileIconButton(
+                    actionsLabel,
+                    R.drawable.ic_ph_dots_three_vertical,
+                    onActions,
                     enabled = actionsEnabled,
                     colors = IconButtonDefaults.iconButtonColors(
                         contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     ),
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_ph_dots_three_vertical),
-                        contentDescription = actionsLabel,
-                    )
-                }
+                )
             }
         }
         item.isFolder -> {

@@ -58,6 +58,7 @@ import io.putdotio.android.playback.MobilePlayerChrome
 import io.putdotio.android.playback.MobileProgressSlider
 import io.putdotio.android.playback.MobileSpeedChip
 import io.putdotio.android.playback.MobileSubtitlesChip
+import io.putdotio.android.playback.TabletopFold
 import io.putdotio.android.playback.rememberPlayerOptionsSnapshot
 
 @RunWith(AndroidJUnit4::class)
@@ -141,6 +142,68 @@ class MobilePlayerChromeTest {
             }
         }
         controls.first().performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun tabletopPostureKeepsBackAboveTheFoldAndTheControlsBelowIt() {
+        val player = readyPlayer()
+        val fold = 230.dp
+        val fits = mutableListOf<Boolean>()
+        compose.setContent {
+            PutioTheme {
+                Box(Modifier.size(width = 320.dp, height = 460.dp)) {
+                    MobilePlayerChrome(
+                        player = player,
+                        title = "Tabletop.mp4",
+                        visible = true,
+                        seekEnabled = true,
+                        onSeek = {},
+                        onScrub = {},
+                        settings = {},
+                        fold = TabletopFold(top = fold, bottom = fold),
+                        onFoldFits = { fits += it },
+                    )
+                }
+            }
+        }
+        assertTrue(compose.onNodeWithContentDescription("Back").getUnclippedBoundsInRoot().bottom <= fold)
+        val belowFold = listOf(
+            compose.onNodeWithContentDescription("Back 10 seconds"),
+            compose.onNodeWithContentDescription("Play"),
+            compose.onNodeWithContentDescription("Forward 10 seconds"),
+            compose.onNodeWithTag(TIMELINE_TAG),
+        )
+        belowFold.forEach { control ->
+            val bounds = control.getUnclippedBoundsInRoot()
+            assertTrue("Controls sit on the flat half: $bounds", bounds.top >= fold && bounds.bottom <= 460.dp)
+        }
+        assertEquals(true, fits.last())
+    }
+
+    @Test
+    fun aFoldTooLowForTheControlsSaysTheyDoNotFitIt() {
+        val player = readyPlayer()
+        val fits = mutableListOf<Boolean>()
+        compose.setContent {
+            PutioTheme {
+                Box(Modifier.size(width = 320.dp, height = 460.dp)) {
+                    MobilePlayerChrome(
+                        player = player,
+                        title = "Tabletop.mp4",
+                        visible = true,
+                        seekEnabled = true,
+                        onSeek = {},
+                        onScrub = {},
+                        settings = {},
+                        fold = TabletopFold(top = 420.dp, bottom = 420.dp),
+                        onFoldFits = { fits += it },
+                    )
+                }
+            }
+        }
+        compose.waitForIdle()
+
+        assertEquals(false, fits.last())
     }
 
     @Test

@@ -30,8 +30,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.safeGestures
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -67,7 +65,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
@@ -97,6 +94,7 @@ import io.putdotio.android.files.hasVlc
 import io.putdotio.sdk.files.PlaybackSource
 import java.io.Closeable
 import kotlinx.coroutines.delay
+import io.putdotio.android.MobileIconButton
 
 internal const val MOBILE_PLAYER_TAG = "mobile-player"
 internal const val MOBILE_PLAYER_GESTURE_TAG = "mobile-player-gesture"
@@ -372,16 +370,8 @@ private fun MobilePlayerSeparateBack(state: PlaybackState, onBack: () -> Unit, m
     if (state.target.mediaType == PlaybackMediaType.VIDEO) {
         MobilePlayerFrameBar(title = state.target.name, onBack = onBack, modifier = modifier)
     } else {
-        IconButton(
-            onClick = onBack,
-            modifier = modifier
-                .windowInsetsPadding(WindowInsets.safeDrawing)
-                .padding(start = 4.dp, top = 8.dp),
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ic_ph_caret_down),
-                contentDescription = stringResource(R.string.mobile_action_back),
-            )
+        Box(modifier.windowInsetsPadding(WindowInsets.safeDrawing).padding(start = 4.dp, top = 8.dp)) {
+            MobileIconButton(stringResource(R.string.mobile_action_back), R.drawable.ic_ph_caret_down, onBack)
         }
     }
 }
@@ -404,12 +394,7 @@ private fun MobilePlayerFrameBar(title: String, onBack: () -> Unit, modifier: Mo
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        IconButton(onClick = onBack) {
-            Icon(
-                painter = painterResource(R.drawable.ic_ph_arrow_left),
-                contentDescription = stringResource(R.string.mobile_action_back),
-            )
-        }
+        MobileIconButton(stringResource(R.string.mobile_action_back), R.drawable.ic_ph_arrow_left, onBack)
         MobilePlayerTitle(title, Modifier.weight(1f))
     }
 }
@@ -1219,10 +1204,15 @@ private fun MobileReadyPlayerContent(
     SheetFocusEffect(sheet != null, controlsMenuOpen, keyFocus)
     SubtitleOffsetEffect(player, preferences.subtitleOffsetMillis)
     val optionModifier = Modifier.observeControlNavigation(onPointerNavigation, onKeyboardNavigation)
+    var contentInWindow by remember { mutableStateOf(Rect.Zero) }
+    val fold = tabletopFoldIn(contentInWindow, enabled = !pictureInPicture)
+    var chromeFitsFold by remember(fold, contentInWindow.size) { mutableStateOf(true) }
+    val videoFold = fold?.takeIf { chromeFitsFold }
 
     Box(
         Modifier
             .fillMaxSize()
+            .onGloballyPositioned { contentInWindow = it.boundsInWindow() }
             .onKeyEvent { event ->
                 videoKeyCommand(event.nativeKeyEvent, sheet, { sheet = sheet.parentSheet() }) { command ->
                     player.runKeyCommand(command, ::seek, onBack)
@@ -1256,8 +1246,11 @@ private fun MobileReadyPlayerContent(
                 pictureInPicture = pictureInPicture,
                 subtitleTextScale = appearance.textSize.scale,
                 subtitlesBesideSheet = sheet != null,
-                subtitleClearance = footerHeight.takeIf { controlsVisible.value && sheet == null } ?: 0.dp,
+                subtitleClearance = videoFold.videoClearance(
+                    footerHeight.takeIf { controlsVisible.value && sheet == null } ?: 0.dp,
+                ),
                 subtitleDelayMillis = preferences.subtitleOffsetMillis,
+                fold = videoFold,
             )
         }
         if (isAudio) {
@@ -1292,8 +1285,10 @@ private fun MobileReadyPlayerContent(
                 settings = { MobileVideoChips(options, subtitleStartupPolicy, { sheet = it }, optionModifier) },
                 trailingChip = { MobileNextEpisodeChip(nextEpisode, onNextEpisode, optionModifier) },
                 onFooterHeight = { footerHeight = it },
+                fold = fold,
+                onFoldFits = { chromeFitsFold = it },
             )
-            MobileSeekFeedbackLayer(pendingSeek.value)
+            MobileSeekFeedbackLayer(pendingSeek.value, videoFold)
         }
         if (!isAudio && !pictureInPicture) {
             MobileVideoSheets(
@@ -1375,25 +1370,26 @@ private fun SheetFocusEffect(open: Boolean, controlsMenuOpen: MutableState<Boole
 
 /** The pending seek's feedback on the side it seeks toward. */
 @Composable
-private fun BoxScope.MobileSeekFeedbackLayer(request: PendingSeek?) {
+private fun MobileSeekFeedbackLayer(request: PendingSeek?, fold: TabletopFold? = null) {
     if (request == null) return
-    // Identical text still needs a fresh accessibility event for each seek.
-    key(request.requestId) {
-        MobileSeekFeedback(
-            request = request,
-            modifier =
-                Modifier
-                    .align(
-                        if (request.direction == SeekDirection.Backward) {
-                            AbsoluteAlignment.CenterLeft
-                        } else {
-                            AbsoluteAlignment.CenterRight
-                        },
-                    )
-                    .zIndex(3f)
-                    .windowInsetsPadding(WindowInsets.safeDrawing)
-                    .padding(horizontal = 32.dp, vertical = 88.dp),
-        )
+    Box(Modifier.videoArea(fold).zIndex(3f)) {
+        // Identical text still needs a fresh accessibility event for each seek.
+        key(request.requestId) {
+            MobileSeekFeedback(
+                request = request,
+                modifier =
+                    Modifier
+                        .align(
+                            if (request.direction == SeekDirection.Backward) {
+                                AbsoluteAlignment.CenterLeft
+                            } else {
+                                AbsoluteAlignment.CenterRight
+                            },
+                        )
+                        .windowInsetsPadding(WindowInsets.safeDrawing)
+                        .padding(horizontal = 32.dp, vertical = 88.dp),
+            )
+        }
     }
 }
 
@@ -1439,22 +1435,42 @@ private fun BoxScope.MobileVideoLayers(
     subtitlesBesideSheet: Boolean,
     subtitleClearance: Dp,
     subtitleDelayMillis: Long,
+    fold: TabletopFold?,
 ) {
     val player = playerState.player
     val currentPictureInPicture by rememberUpdatedState(pictureInPicture)
     ContentFrame(
         player = player,
         modifier = Modifier
-            .fillMaxSize()
+            .videoArea(fold)
             .onGloballyPositioned {
                 // Inside the window these are its own bounds; the next window still starts from full screen.
                 if (!currentPictureInPicture) playerState.videoFrame = it.boundsInWindow()
             },
         surfaceType = playbackSurfaceType(Build.VERSION.SDK_INT, Build.HARDWARE),
     )
+    val toggleControls = {
+        onPointerNavigation()
+        controlsVisible.value = controlsVisibleAfterTap(
+            controlsVisible = controlsVisible.value,
+            playbackState = playerState.playbackState,
+            touchExplorationEnabled = touchExplorationEnabled,
+        )
+    }
+    if (fold != null) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .padding(top = fold.top)
+                .zIndex(0.5f)
+                .pointerInput(player, touchExplorationEnabled) {
+                    detectVideoTapGestures(onDoubleTap = { toggleControls() }, onTap = { toggleControls() })
+                },
+        )
+    }
     Box(
         Modifier
-            .fillMaxSize()
+            .videoArea(fold)
             .zIndex(0.5f)
             .testTag(MOBILE_PLAYER_GESTURE_TAG),
     ) {
@@ -1488,14 +1504,7 @@ private fun BoxScope.MobileVideoLayers(
                                 onSeek(direction)
                                 if (!playerState.seekWindow.available) controlsVisible.value = true
                             },
-                            onTap = {
-                                onPointerNavigation()
-                                controlsVisible.value = controlsVisibleAfterTap(
-                                    controlsVisible = controlsVisible.value,
-                                    playbackState = playerState.playbackState,
-                                    touchExplorationEnabled = touchExplorationEnabled,
-                                )
-                            },
+                            onTap = { toggleControls() },
                         )
                     },
             )
@@ -1507,6 +1516,7 @@ private fun BoxScope.MobileVideoLayers(
         besideSheet = subtitlesBesideSheet,
         clearance = subtitleClearance.takeUnless { pictureInPicture } ?: 0.dp,
         delayMillis = subtitleDelayMillis,
+        fold = fold,
     )
     if (pictureInPicture) MobilePictureInPictureProgress(player, Modifier.align(Alignment.BottomStart).zIndex(3f))
 }
@@ -1524,8 +1534,9 @@ private fun MobileSubtitleLayer(
     besideSheet: Boolean,
     clearance: Dp,
     delayMillis: Long,
+    fold: TabletopFold?,
 ) {
-    BoxWithConstraints(Modifier.fillMaxSize().zIndex(3f)) {
+    BoxWithConstraints(Modifier.videoArea(fold).zIndex(3f)) {
         val frame = DpSize(maxWidth, maxHeight)
         val aspectRatio = playerState.videoSize.displayAspectRatioOrNull()
         val bottomPadding by animateFloatAsState(

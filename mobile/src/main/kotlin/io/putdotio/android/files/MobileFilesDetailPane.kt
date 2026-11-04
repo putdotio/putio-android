@@ -31,7 +31,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -68,6 +67,7 @@ import io.putdotio.android.design.putioMono
 import io.putdotio.android.downloads.DownloadStatus
 import io.putdotio.sdk.files.PutioFileType
 import io.putdotio.android.design.R as DesignR
+import io.putdotio.android.MobileIconButton
 
 internal const val MOBILE_FILES_DETAIL_TAG = "mobile-files-detail"
 internal const val MOBILE_FILES_DETAIL_PRIMARY_TAG = "mobile-files-detail-primary"
@@ -243,12 +243,12 @@ private fun MobileFilesDetailButtons(
             )
         }
         actions.onMore?.let { more ->
-            IconButton(onClick = { more(item) }, modifier = Modifier.testTag(MOBILE_FILES_DETAIL_MORE_TAG)) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_ph_dots_three_vertical),
-                    contentDescription = stringResource(R.string.mobile_files_actions, item.name),
-                )
-            }
+            MobileIconButton(
+                stringResource(R.string.mobile_files_actions, item.name),
+                R.drawable.ic_ph_dots_three_vertical,
+                onClick = { more(item) },
+                modifier = Modifier.testTag(MOBILE_FILES_DETAIL_MORE_TAG),
+            )
         }
     }
 }

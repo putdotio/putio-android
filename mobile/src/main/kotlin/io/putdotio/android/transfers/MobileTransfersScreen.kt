@@ -12,10 +12,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -24,7 +26,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -72,6 +73,7 @@ import io.putdotio.android.files.mobileMessage
 import io.putdotio.android.neutralTextButtonColors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import io.putdotio.android.MobileIconButton
 
 internal const val MOBILE_TRANSFERS_LIST_TAG = "mobile-transfers-list"
 internal const val MOBILE_TRANSFERS_SNACKBAR_TAG = "mobile-transfers-snackbar"
@@ -105,7 +107,7 @@ internal fun MobileTransfersScreen(
     MobileTransfersNews(state, snackbarHostState, sessionId, onEvent)
 
     val enabled = state.enabledInteractions()
-    val listState = rememberLazyListState()
+    val listState = rememberLazyGridState()
     val showFab = state.content !is TransfersContent.Empty
     Box(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -305,12 +307,12 @@ internal fun MobileTransfersOverflow(
     val clearedElsewhere = (confirming as? TransfersEvent.ClearFailed)?.ids?.none { it in failedIds } == true
     LaunchedEffect(clearedElsewhere) { if (clearedElsewhere) confirming = null }
     Box {
-        IconButton(onClick = { expanded = true }, modifier = Modifier.testTag(MOBILE_TRANSFERS_OVERFLOW_TAG)) {
-            Icon(
-                painter = painterResource(R.drawable.ic_ph_dots_three_vertical),
-                contentDescription = stringResource(R.string.mobile_transfers_more),
-            )
-        }
+        MobileIconButton(
+            stringResource(R.string.mobile_transfers_more),
+            R.drawable.ic_ph_dots_three_vertical,
+            onClick = { expanded = true },
+            modifier = Modifier.testTag(MOBILE_TRANSFERS_OVERFLOW_TAG),
+        )
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.mobile_transfers_refresh)) },
@@ -365,7 +367,7 @@ internal fun MobileTransfersOverflow(
 @Composable
 private fun MobileTransfersContent(
     state: TransfersState,
-    listState: LazyListState,
+    listState: LazyGridState,
     enabled: TransfersInteractions,
     onEvent: (TransfersEvent) -> Unit,
     onActions: (TransferId) -> Unit,
@@ -412,23 +414,25 @@ private fun MobileTransfersContent(
 private fun MobileTransfersList(
     content: TransfersContent.Ready,
     mutation: TransferMutation,
-    listState: LazyListState,
+    listState: LazyGridState,
     enabled: TransfersInteractions,
     onEvent: (TransfersEvent) -> Unit,
     onActions: (TransferId) -> Unit,
 ) {
     val nowMillis by produceMinuteClock()
     val sections = remember(content.items) { content.items.groupBy(TransferItem::section) }
-    LazyColumn(
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(TRANSFER_CARD_MIN_WIDTH),
         state = listState,
         modifier = Modifier
             .fillMaxSize()
             .testTag(MOBILE_TRANSFERS_LIST_TAG),
-        contentPadding = PaddingValues(top = 8.dp, bottom = FAB_CLEARANCE),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = FAB_CLEARANCE),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         for (section in MobileTransferSection.entries) {
             val rows = sections[section] ?: continue
-            item(key = "section-${section.name}", contentType = "section") {
+            item(key = "section-${section.name}", span = { GridItemSpan(maxLineSpan) }, contentType = "section") {
                 MobileTransferSectionLabel(section.label)
             }
             items(rows, key = { it.id.value }, contentType = { "card" }) { item ->
@@ -440,12 +444,12 @@ private fun MobileTransfersList(
                     onOpen = { onEvent(TransfersEvent.Open(item.id)) },
                     onActions = { onActions(item.id) },
                     onRetry = { onEvent(TransfersEvent.RetryTransfer(item.id)) },
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    modifier = Modifier.padding(vertical = 4.dp),
                 )
             }
         }
         if (content.paging != TransfersPaging.Complete) {
-            item(key = "transfers-paging") {
+            item(key = "transfers-paging", span = { GridItemSpan(maxLineSpan) }) {
                 MobileTransfersPaging(content.paging, enabled.paging, onEvent)
             }
         }
@@ -469,7 +473,7 @@ private fun MobileTransferSectionLabel(@StringRes label: Int) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 4.dp)
+            .padding(top = 16.dp, bottom = 4.dp)
             .semantics { heading() },
     )
 }
@@ -667,4 +671,5 @@ private fun TransferAction.targets(id: TransferId): Boolean =
 
 /** Room the FAB takes above the list's end and the snackbar: 56dp and its 16dp margins. */
 private val FAB_CLEARANCE = 88.dp
+private val TRANSFER_CARD_MIN_WIDTH = 360.dp
 private const val MINUTE_MILLIS = 60_000L

@@ -37,7 +37,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import io.putdotio.android.MobileTooltip
 import io.putdotio.android.R
+import io.putdotio.android.MobileIconButton
 
 internal const val MOBILE_SEARCH_FIELD_TAG = "mobile-search-field"
 internal const val MOBILE_SEARCH_CLEAR_TAG = "mobile-search-clear"
@@ -105,12 +107,15 @@ internal fun MobileSearchBar(
                     .testTag(MOBILE_SEARCH_FIELD_TAG),
                 placeholder = { Text(hint, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 leadingIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_ph_arrow_left),
-                            contentDescription = stringResource(R.string.mobile_action_back),
-                            modifier = Modifier.size(SEARCH_GLYPH_SIZE),
-                        )
+                    val label = stringResource(R.string.mobile_action_back)
+                    MobileTooltip(label) {
+                        IconButton(onClick = onBack) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_ph_arrow_left),
+                                contentDescription = label,
+                                modifier = Modifier.size(SEARCH_GLYPH_SIZE),
+                            )
+                        }
                     }
                 },
                 trailingIcon = if (text.state.text.isEmpty() && navigation == null) {
@@ -133,18 +138,15 @@ private fun MobileSearchBarTrailing(
     Row(verticalAlignment = Alignment.CenterVertically) {
         navigation?.invoke()
         if (text.text.isNotEmpty()) {
-            IconButton(
+            MobileIconButton(
+                stringResource(R.string.mobile_search_clear_query),
+                R.drawable.ic_ph_x,
                 onClick = {
                     text.clearText()
                     field.requestFocus()
                 },
                 modifier = Modifier.testTag(MOBILE_SEARCH_CLEAR_TAG),
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_ph_x),
-                    contentDescription = stringResource(R.string.mobile_search_clear_query),
-                )
-            }
+            )
         }
     }
 }

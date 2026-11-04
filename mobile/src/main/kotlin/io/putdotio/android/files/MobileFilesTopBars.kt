@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonColors
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
@@ -32,7 +31,11 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.MOBILE_FILES_SEARCH_TAG
+import io.putdotio.android.MobileKeyCommand
+import io.putdotio.android.MobileShortcutScope
 import io.putdotio.android.R
+import io.putdotio.android.mobileCtrlShortcut
+import io.putdotio.android.MobileIconButton
 
 internal const val MOBILE_FILES_NEW_FOLDER_ACTION_TAG = "mobile-files-new-folder-action"
 
@@ -121,18 +124,22 @@ internal fun MobileFolderTopBar(
     TopAppBar(
         title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         navigationIcon = {
-            IconButton(onClick = onBack, enabled = backEnabled) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_ph_arrow_left),
-                    contentDescription = stringResource(R.string.mobile_action_back),
-                )
-            }
+            MobileIconButton(
+                stringResource(R.string.mobile_action_back),
+                R.drawable.ic_ph_arrow_left,
+                onBack,
+                enabled = backEnabled,
+            )
         },
         actions = {
             actions.navigation?.invoke()
-            IconButton(onClick = actions.onOpenSearch, modifier = Modifier.testTag(MOBILE_FILES_SEARCH_TAG)) {
-                Icon(painter = painterResource(R.drawable.ic_ph_magnifying_glass), contentDescription = searchLabel)
-            }
+            MobileIconButton(
+                searchLabel,
+                R.drawable.ic_ph_magnifying_glass,
+                actions.onOpenSearch,
+                modifier = Modifier.testTag(MOBILE_FILES_SEARCH_TAG),
+                shortcut = mobileCtrlShortcut(MobileShortcutScope.Files, MobileKeyCommand.Search),
+            )
             if (actions.sortable) {
                 MobileFilesSortMenu(
                     actions.folder,
@@ -153,16 +160,13 @@ private fun MobileFilesNewFolderAction(
     colors: IconButtonColors = IconButtonDefaults.iconButtonColors(),
 ) {
     if (onNewFolder == null) return
-    IconButton(
-        onClick = onNewFolder,
-        colors = colors,
+    MobileIconButton(
+        stringResource(R.string.mobile_files_new_folder),
+        R.drawable.ic_ph_folder_plus,
+        onNewFolder,
         modifier = Modifier.testTag(MOBILE_FILES_NEW_FOLDER_ACTION_TAG),
-    ) {
-        Icon(
-            painter = painterResource(R.drawable.ic_ph_folder_plus),
-            contentDescription = stringResource(R.string.mobile_files_new_folder),
-        )
-    }
+        colors = colors,
+    )
 }
 
 private val SEARCH_BAR_HEIGHT = 56.dp

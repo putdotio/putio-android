@@ -1,6 +1,7 @@
 package io.putdotio.android
 
 import android.content.Context
+import android.content.res.Configuration
 import android.view.KeyEvent
 import android.view.KeyboardShortcutGroup
 import android.view.KeyboardShortcutInfo
@@ -10,7 +11,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.stringResource
 import androidx.core.view.ViewCompat
 
 /** What a hardware key asks for once no focused control used it. */
@@ -65,6 +68,18 @@ internal fun mobileKeyCommand(scope: MobileShortcutScope, keyCode: Int, metaStat
     return MobileKeyboardShortcuts.firstOrNull {
         it.scope == scope && it.keyCode == keyCode && it.ctrl == ctrl && it.command != MobileKeyCommand.Open
     }?.command
+}
+
+@Composable
+internal fun mobileCtrlShortcut(scope: MobileShortcutScope, command: MobileKeyCommand): String? {
+    val configuration = LocalConfiguration.current
+    val hardwareKeyboard = configuration.keyboard == Configuration.KEYBOARD_QWERTY &&
+        configuration.hardKeyboardHidden == Configuration.HARDKEYBOARDHIDDEN_NO
+    val letter = MobileKeyboardShortcuts
+        .firstOrNull { it.scope == scope && it.command == command && it.ctrl }
+        ?.keyCode
+        ?.takeIf { hardwareKeyboard && it in KeyEvent.KEYCODE_A..KeyEvent.KEYCODE_Z }
+    return letter?.let { stringResource(R.string.mobile_shortcut_ctrl, 'A' + (it - KeyEvent.KEYCODE_A)) }
 }
 
 internal fun mobileKeyboardShortcutGroups(context: Context): List<KeyboardShortcutGroup> =

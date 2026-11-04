@@ -54,6 +54,11 @@ import androidx.compose.ui.test.percentOffset
 import androidx.compose.ui.test.junit4.ComposeContentTestRule
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.activity.ComponentActivity
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.window.testing.layout.FoldingFeature
+import androidx.window.testing.layout.TestWindowLayoutInfo
+import androidx.window.testing.layout.WindowLayoutInfoPublisherRule
 import androidx.compose.ui.test.isSelectable
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -1387,6 +1392,55 @@ class MobilePlayerDoubleTapTest {
             compose.onNodeWithTag(MOBILE_SEEK_FEEDBACK_TAG)
                 .fetchSemanticsNode().boundsInRoot.center.x > centerX,
         )
+    }
+}
+
+@RunWith(AndroidJUnit4::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [35], qualifiers = "en-rUS")
+class MobilePlayerTabletopTest {
+    @get:Rule
+    val compose = createAndroidComposeRule<ComponentActivity>()
+
+    @get:Rule
+    val windowLayout = WindowLayoutInfoPublisherRule()
+
+    @Test
+    fun doubleTapsBelowTheFoldOnlyToggleTheControls() {
+        lateinit var player: RecordingPlayer
+        compose.setPlayerScreen(
+            state = readyState(startFromSeconds = 20.0),
+            playerFactory =
+                MobilePlayerFactory { _, _ ->
+                    RecordingPlayer(durationMillis = 60_000L).also { player = it }
+                },
+        )
+        compose.waitForIdle()
+        windowLayout.overrideWindowLayoutInfo(TestWindowLayoutInfo(listOf(FoldingFeature(compose.activity))))
+        compose.waitForIdle()
+        compose.mainClock.autoAdvance = false
+        compose.runOnIdle {
+            player.updatePlaybackState(Media3Player.STATE_BUFFERING)
+            player.updatePlaybackState(Media3Player.STATE_READY)
+        }
+
+        compose.onNodeWithTag(MOBILE_PLAYER_GESTURE_TAG).performTouchInput {
+            click(percentOffset(0.5f, 0.5f))
+        }
+        compose.mainClock.advanceTimeBy(1_000L)
+        compose.onAllNodesWithTag(MOBILE_SEEK_FORWARD_TAG).assertCountEquals(0)
+
+        compose.onNodeWithTag(MOBILE_PLAYER_TAG).performTouchInput {
+            doubleClick(percentOffset(0.75f, 0.85f))
+        }
+        compose.runOnIdle { assertEquals(emptyList<Long>(), player.seekPositions) }
+        compose.mainClock.advanceTimeBy(1_000L)
+        compose.onNodeWithTag(MOBILE_SEEK_FORWARD_TAG).assertIsDisplayed()
+
+        compose.onNodeWithTag(MOBILE_PLAYER_GESTURE_TAG).performTouchInput {
+            doubleClick(percentOffset(0.75f, 0.5f))
+        }
+        compose.runOnIdle { assertEquals(listOf(30_000L), player.seekPositions) }
     }
 }
 

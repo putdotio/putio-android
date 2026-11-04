@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBarDefaults
 import androidx.compose.material3.Scaffold
@@ -1185,12 +1184,12 @@ private fun MobileFilesTopBar(
 
 @Composable
 private fun MobileBackButton(onClick: () -> Unit, enabled: Boolean = true) {
-    IconButton(onClick = onClick, enabled = enabled) {
-        Icon(
-            painter = painterResource(R.drawable.ic_ph_arrow_left),
-            contentDescription = stringResource(R.string.mobile_action_back),
-        )
-    }
+    MobileIconButton(
+        stringResource(R.string.mobile_action_back),
+        R.drawable.ic_ph_arrow_left,
+        onClick,
+        enabled = enabled,
+    )
 }
 
 /** What the Downloads top bar reads: its rows, the selection it shares with the list, and its events. */

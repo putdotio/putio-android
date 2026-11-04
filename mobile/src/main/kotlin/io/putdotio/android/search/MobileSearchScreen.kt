@@ -23,7 +23,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -71,6 +70,7 @@ import io.putdotio.android.files.MobileFilesSkeleton
 import io.putdotio.android.files.mobileMessage
 import io.putdotio.android.neutralTextButtonColors
 import androidx.compose.foundation.layout.heightIn
+import io.putdotio.android.MobileIconButton
 
 internal const val MOBILE_SEARCH_RESULTS_TAG = "mobile-search-results"
 internal const val MOBILE_SEARCH_FILTERS_TAG = "mobile-search-filters"
@@ -277,12 +277,12 @@ private fun MobileRecentSearches(
                 },
                 headline = { Text(term.value, maxLines = 2, overflow = TextOverflow.Ellipsis) },
                 trailing = {
-                    IconButton(onClick = { onEdit(RecentSearchEdit.Remove(term)) }, colors = muted) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_ph_x),
-                            contentDescription = stringResource(R.string.mobile_search_remove_named, term.value),
-                        )
-                    }
+                    MobileIconButton(
+                        stringResource(R.string.mobile_search_remove_named, term.value),
+                        R.drawable.ic_ph_x,
+                        onClick = { onEdit(RecentSearchEdit.Remove(term)) },
+                        colors = muted,
+                    )
                 },
                 modifier = Modifier.clickable(role = Role.Button) { onSearch(term) },
             )

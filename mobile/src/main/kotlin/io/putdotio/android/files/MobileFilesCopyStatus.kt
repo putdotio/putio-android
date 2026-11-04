@@ -28,6 +28,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import io.putdotio.android.MobileTooltip
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
@@ -94,13 +95,16 @@ internal fun MobileFilesCopyStatus(outcome: FilesCopyOutcome, onDismiss: () -> U
             }
         }
         if (!outcome.isRunning) {
-            IconButton(onClick = onDismiss, modifier = Modifier.testTag(MOBILE_FILES_COPY_DISMISS_TAG)) {
-                Icon(
-                    painterResource(R.drawable.ic_ph_x),
-                    contentDescription = stringResource(R.string.mobile_action_dismiss),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp),
-                )
+            val label = stringResource(R.string.mobile_action_dismiss)
+            MobileTooltip(label) {
+                IconButton(onClick = onDismiss, modifier = Modifier.testTag(MOBILE_FILES_COPY_DISMISS_TAG)) {
+                    Icon(
+                        painterResource(R.drawable.ic_ph_x),
+                        contentDescription = label,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
             }
         }
     }

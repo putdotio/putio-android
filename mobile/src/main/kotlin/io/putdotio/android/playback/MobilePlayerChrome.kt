@@ -29,7 +29,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
@@ -75,9 +74,11 @@ import androidx.media3.common.util.Util
 import androidx.media3.ui.compose.state.rememberPlayPauseButtonState
 import androidx.media3.ui.compose.state.rememberProgressStateWithTickInterval
 import io.putdotio.android.MobileMiddleCutText
+import io.putdotio.android.MobileTooltip
 import io.putdotio.android.R
 import io.putdotio.android.design.putioMono
 import io.putdotio.android.design.R as DesignR
+import io.putdotio.android.MobileIconButton
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @Composable
@@ -94,11 +95,13 @@ internal fun MobilePlayerChrome(
     topActions: @Composable RowScope.() -> Unit = {},
     trailingChip: @Composable () -> Unit = {},
     onFooterHeight: (Dp) -> Unit = {},
+    fold: TabletopFold? = null,
+    onFoldFits: (Boolean) -> Unit = {},
 ) {
     if (visible) {
         MobileVideoLayout(
             player, title, seekEnabled, onSeek, onScrub, settings, modifier, onBack, topActions, trailingChip,
-            onFooterHeight,
+            onFooterHeight, fold, onFoldFits,
         )
     }
 }
@@ -117,6 +120,8 @@ private fun MobileVideoLayout(
     topActions: @Composable RowScope.() -> Unit,
     trailingChip: @Composable () -> Unit,
     onFooterHeight: (Dp) -> Unit,
+    fold: TabletopFold?,
+    onFoldFits: (Boolean) -> Unit,
 ) {
     val scrim = MaterialTheme.colorScheme.scrim
     val density = LocalDensity.current
@@ -129,6 +134,7 @@ private fun MobileVideoLayout(
         modifier.fillMaxSize().shareVideoPointerInputWithSiblings().background(videoShade(scrim)),
     ) {
         var contentHeight by remember { mutableIntStateOf(0) }
+        val viewportHeight = constraints.maxHeight
         val scrollState = rememberScrollState()
         val overflow = if (contentHeight > constraints.maxHeight) {
             Modifier.verticalScroll(scrollState)
@@ -146,12 +152,7 @@ private fun MobileVideoLayout(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            painterResource(R.drawable.ic_ph_arrow_left),
-                            contentDescription = stringResource(R.string.mobile_action_back),
-                        )
-                    }
+                    MobileIconButton(stringResource(R.string.mobile_action_back), R.drawable.ic_ph_arrow_left, onBack)
                     MobilePlayerTitle(title, Modifier.weight(1f))
                     topActions()
                 }
@@ -192,12 +193,21 @@ private fun MobileVideoLayout(
             }
             val (header, transport, footer) = children
             val height = limits.constrainHeight(children.sumOf { it.height })
+            val controlsTop = fold
+                ?.takeIf { header.height <= it.top.roundToPx() }
+                ?.bottom?.roundToPx()
+                ?.takeIf { height <= viewportHeight && it + transport.height + footer.height <= height }
             layout(limits.maxWidth, height) {
+                if (fold != null) onFoldFits(controlsTop != null)
                 header.placeRelative(0, 0)
                 transport.placeRelative(
                     0,
-                    ((height - transport.height) / 2)
-                        .coerceIn(header.height, height - footer.height - transport.height),
+                    if (controlsTop != null) {
+                        controlsTop + (height - footer.height - controlsTop - transport.height) / 2
+                    } else {
+                        ((height - transport.height) / 2)
+                            .coerceIn(header.height, height - footer.height - transport.height)
+                    },
                 )
                 footer.placeRelative(0, height - footer.height)
             }
@@ -295,25 +305,32 @@ private fun MobileVideoTransport(
                 )
             }
             val circle = MaterialTheme.colorScheme.scrim.copy(alpha = VIDEO_PLAY_CIRCLE_ALPHA)
-            FilledIconButton(
-                onClick = playPause::onClick,
-                enabled = playPause.isEnabled,
-                modifier = Modifier.size(72.dp),
-                colors = IconButtonDefaults.filledIconButtonColors(
-                    containerColor = circle,
-                    contentColor = MaterialTheme.colorScheme.onSurface,
-                    disabledContainerColor = circle,
-                ),
-            ) {
-                Icon(
-                    painterResource(
-                        if (playPause.showPlay) DesignR.drawable.ic_ph_play_fill else DesignR.drawable.ic_ph_pause_fill,
+            val label = stringResource(
+                if (playPause.showPlay) R.string.mobile_now_playing_play else R.string.mobile_now_playing_pause,
+            )
+            MobileTooltip(label) {
+                FilledIconButton(
+                    onClick = playPause::onClick,
+                    enabled = playPause.isEnabled,
+                    modifier = Modifier.size(72.dp),
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = circle,
+                        contentColor = MaterialTheme.colorScheme.onSurface,
+                        disabledContainerColor = circle,
                     ),
-                    contentDescription = stringResource(
-                        if (playPause.showPlay) R.string.mobile_now_playing_play else R.string.mobile_now_playing_pause,
-                    ),
-                    modifier = Modifier.size(36.dp),
-                )
+                ) {
+                    Icon(
+                        painterResource(
+                            if (playPause.showPlay) {
+                                DesignR.drawable.ic_ph_play_fill
+                            } else {
+                                DesignR.drawable.ic_ph_pause_fill
+                            },
+                        ),
+                        contentDescription = label,
+                        modifier = Modifier.size(36.dp),
+                    )
+                }
             }
         }
         MobileSeekButton(SeekDirection.Forward, seekEnabled, { onSeek(SeekDirection.Forward) }, onVideo = true)

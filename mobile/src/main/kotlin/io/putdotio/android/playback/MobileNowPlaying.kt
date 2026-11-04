@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ProvideTextStyle
@@ -48,6 +47,7 @@ import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.design.R as DesignR
 import io.putdotio.android.files.FilesItemId
 import kotlinx.coroutines.delay
+import io.putdotio.android.MobileIconButton
 
 internal const val MOBILE_NOW_PLAYING_TAG = "mobile-now-playing"
 internal const val MOBILE_NOW_PLAYING_TOGGLE_TAG = "mobile-now-playing-toggle"
@@ -221,39 +221,31 @@ internal fun MobileNowPlayingBar(
                     }
                 }
                 Row {
-                    IconButton(
-                        onClick = onToggle,
+                    MobileIconButton(
+                        stringResource(
+                            if (nowPlaying.isPlaying) {
+                                R.string.mobile_now_playing_pause
+                            } else {
+                                R.string.mobile_now_playing_play
+                            },
+                        ),
+                        if (nowPlaying.isPlaying) {
+                            DesignR.drawable.ic_ph_pause_fill
+                        } else {
+                            DesignR.drawable.ic_ph_play_fill
+                        },
+                        onToggle,
                         modifier = Modifier.testTag(MOBILE_NOW_PLAYING_TOGGLE_TAG),
-                    ) {
-                        Icon(
-                            painter = painterResource(
-                                if (nowPlaying.isPlaying) {
-                                    DesignR.drawable.ic_ph_pause_fill
-                                } else {
-                                    DesignR.drawable.ic_ph_play_fill
-                                },
-                            ),
-                            contentDescription = stringResource(
-                                if (nowPlaying.isPlaying) {
-                                    R.string.mobile_now_playing_pause
-                                } else {
-                                    R.string.mobile_now_playing_play
-                                },
-                            ),
-                        )
-                    }
-                    IconButton(
-                        onClick = onDismiss,
+                    )
+                    MobileIconButton(
+                        stringResource(R.string.mobile_now_playing_dismiss),
+                        R.drawable.ic_ph_x,
+                        onDismiss,
                         modifier = Modifier.testTag(MOBILE_NOW_PLAYING_DISMISS_TAG),
                         colors = IconButtonDefaults.iconButtonColors(
                             contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                         ),
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_ph_x),
-                            contentDescription = stringResource(R.string.mobile_now_playing_dismiss),
-                        )
-                    }
+                    )
                 }
             }
             nowPlaying.progress?.let { progress ->

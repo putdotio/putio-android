@@ -9,11 +9,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
+import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.material3.adaptive.layout.AnimatedPane
 import androidx.compose.material3.adaptive.layout.ListDetailPaneScaffold
 import androidx.compose.material3.adaptive.layout.PaneAdaptedValue
-import androidx.compose.material3.adaptive.layout.PaneScaffoldDirective
 import androidx.compose.material3.adaptive.layout.ThreePaneScaffoldValue
+import androidx.compose.material3.adaptive.layout.calculatePaneScaffoldDirective
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -57,14 +58,14 @@ internal fun MobileFilesListDetail(
 ) {
     BoxWithConstraints(modifier.fillMaxSize()) {
         val listWidth = minOf(FILES_LIST_PANE_WIDTH, maxWidth / 2)
-        val directive = remember(listWidth) {
-            PaneScaffoldDirective(
+        val windowDirective = calculatePaneScaffoldDirective(currentWindowAdaptiveInfo())
+        val directive = remember(listWidth, windowDirective) {
+            windowDirective.copy(
                 maxHorizontalPartitions = 2,
                 horizontalPartitionSpacerSize = 0.dp,
                 maxVerticalPartitions = 1,
                 verticalPartitionSpacerSize = 0.dp,
                 defaultPanePreferredWidth = listWidth,
-                excludedBounds = emptyList(),
             )
         }
         ListDetailPaneScaffold(

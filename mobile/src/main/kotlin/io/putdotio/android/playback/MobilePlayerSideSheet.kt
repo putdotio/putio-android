@@ -32,7 +32,6 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Text
@@ -58,6 +57,8 @@ import androidx.compose.ui.unit.dp
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioRadius
 import io.putdotio.android.design.PutioTypeScale
+import io.putdotio.android.MobileIconButton
+import androidx.compose.material3.IconButtonDefaults
 
 internal const val MOBILE_PLAYER_SIDE_SHEET_TAG = "mobile-player-side-sheet"
 
@@ -138,14 +139,14 @@ private fun MobileSideSheetHeader(title: String, onClose: () -> Unit, onBack: ((
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
+        val muted = IconButtonDefaults.iconButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
         if (onBack != null) {
-            IconButton(onClick = onBack) {
-                Icon(
-                    painterResource(R.drawable.ic_ph_arrow_left),
-                    contentDescription = stringResource(R.string.mobile_action_back),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            MobileIconButton(
+                stringResource(R.string.mobile_action_back),
+                R.drawable.ic_ph_arrow_left,
+                onBack,
+                colors = muted,
+            )
         }
         Text(
             title,
@@ -153,13 +154,7 @@ private fun MobileSideSheetHeader(title: String, onClose: () -> Unit, onBack: ((
             modifier = Modifier.weight(1f).semantics { heading() },
         )
         if (onBack == null) {
-            IconButton(onClick = onClose) {
-                Icon(
-                    painterResource(R.drawable.ic_ph_x),
-                    contentDescription = stringResource(R.string.mobile_action_close),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            MobileIconButton(stringResource(R.string.mobile_action_close), R.drawable.ic_ph_x, onClose, colors = muted)
         }
     }
 }

@@ -66,6 +66,31 @@ class MobileTransfersLayoutTest {
     }
 
     @Test
+    @Config(sdk = [35], qualifiers = "en-rUS-w1280dp-h800dp-land")
+    fun anExpandedWindowSetsCardsSideBySide() {
+        compose.setContent {
+            PutioTheme {
+                MobileTransfersScreen(
+                    transfersState(
+                        TransfersContent.Ready(
+                            listOf(
+                                transferRow(1L, AppTransferStatus.Completed),
+                                transferRow(2L, AppTransferStatus.Completed),
+                            ),
+                            TransfersPaging.Complete,
+                        ),
+                    ),
+                    onEvent = {},
+                )
+            }
+        }
+        val first = compose.onNodeWithTag(mobileTransferCardTag(TransferId(1))).fetchSemanticsNode().boundsInRoot
+        val second = compose.onNodeWithTag(mobileTransferCardTag(TransferId(2))).fetchSemanticsNode().boundsInRoot
+        assertEquals(first.top, second.top)
+        assertTrue("The second card sits beside the first: $first $second", second.left >= first.right)
+    }
+
+    @Test
     fun largeFontOverflowKeepsItsActionsWhole() {
         compose.setContent {
             PutioTheme {

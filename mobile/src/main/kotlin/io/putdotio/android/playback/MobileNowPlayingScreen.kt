@@ -76,10 +76,12 @@ import androidx.media3.ui.compose.state.rememberPlayPauseButtonState
 import io.putdotio.android.MobileMiddleCutText
 import io.putdotio.android.MobileRow
 import io.putdotio.android.MobileSheetHandle
+import io.putdotio.android.MobileTooltip
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.design.R as DesignR
 import kotlinx.coroutines.delay
+import io.putdotio.android.MobileIconButton
 
 internal const val MOBILE_AUDIO_PREVIOUS_TAG = "mobile-audio-previous"
 internal const val MOBILE_AUDIO_NEXT_TAG = "mobile-audio-next"
@@ -210,12 +212,11 @@ private fun NowPlayingTopBar(
         if (!canChooseAudio) return@Row
         var expanded by remember { mutableStateOf(false) }
         Box {
-            IconButton(onClick = { expanded = true }) {
-                Icon(
-                    painterResource(R.drawable.ic_ph_dots_three_vertical),
-                    contentDescription = stringResource(R.string.mobile_action_more_options),
-                )
-            }
+            MobileIconButton(
+                stringResource(R.string.mobile_action_more_options),
+                R.drawable.ic_ph_dots_three_vertical,
+                onClick = { expanded = true },
+            )
             DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.mobile_playback_audio_track)) },
@@ -382,24 +383,26 @@ private fun NowPlayingTransport(
 private fun AudioSeekButton(direction: SeekDirection, enabled: Boolean, onClick: () -> Unit) {
     val seconds = (AudioSeekIntervals.millis(direction) / 1_000L).toInt()
     val description = seekDescription(direction, seconds)
-    IconButton(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = Modifier
-            .testTag(if (direction == SeekDirection.Backward) MOBILE_SEEK_BACK_TAG else MOBILE_SEEK_FORWARD_TAG)
-            .semantics { contentDescription = description },
-    ) {
-        Icon(
-            painterResource(
-                if (direction == SeekDirection.Backward) {
-                    R.drawable.ic_ph_arrow_counter_clockwise
-                } else {
-                    R.drawable.ic_ph_arrow_clockwise
-                },
-            ),
-            contentDescription = null,
-            modifier = Modifier.size(TRANSPORT_GLYPH),
-        )
+    MobileTooltip(description) {
+        IconButton(
+            onClick = onClick,
+            enabled = enabled,
+            modifier = Modifier
+                .testTag(if (direction == SeekDirection.Backward) MOBILE_SEEK_BACK_TAG else MOBILE_SEEK_FORWARD_TAG)
+                .semantics { contentDescription = description },
+        ) {
+            Icon(
+                painterResource(
+                    if (direction == SeekDirection.Backward) {
+                        R.drawable.ic_ph_arrow_counter_clockwise
+                    } else {
+                        R.drawable.ic_ph_arrow_clockwise
+                    },
+                ),
+                contentDescription = null,
+                modifier = Modifier.size(TRANSPORT_GLYPH),
+            )
+        }
     }
 }
 
@@ -412,12 +415,15 @@ private fun SkipButton(
     tag: String,
     onPlay: (PlaybackTarget) -> Unit,
 ) {
-    IconButton(
-        onClick = { target?.let(onPlay) },
-        enabled = target != null,
-        modifier = Modifier.testTag(tag),
-    ) {
-        Icon(painterResource(icon), stringResource(label), Modifier.size(TRANSPORT_GLYPH))
+    val description = stringResource(label)
+    MobileTooltip(description) {
+        IconButton(
+            onClick = { target?.let(onPlay) },
+            enabled = target != null,
+            modifier = Modifier.testTag(tag),
+        ) {
+            Icon(painterResource(icon), description, Modifier.size(TRANSPORT_GLYPH))
+        }
     }
 }
 
@@ -435,26 +441,29 @@ private fun PlayPauseButton(player: Player, ring: Dp) {
             )
         }
         val fill = MaterialTheme.colorScheme.onSurface
-        FilledIconButton(
-            onClick = playPause::onClick,
-            enabled = playPause.isEnabled,
-            modifier = Modifier.size(ring - PLAY_RING_MARGIN * 2),
-            colors = IconButtonDefaults.filledIconButtonColors(
-                containerColor = fill,
-                contentColor = MaterialTheme.colorScheme.background,
-                disabledContainerColor = fill,
-                disabledContentColor = MaterialTheme.colorScheme.background,
-            ),
-        ) {
-            Icon(
-                painterResource(
-                    if (playPause.showPlay) DesignR.drawable.ic_ph_play_fill else DesignR.drawable.ic_ph_pause_fill,
+        val label = stringResource(
+            if (playPause.showPlay) R.string.mobile_now_playing_play else R.string.mobile_now_playing_pause,
+        )
+        MobileTooltip(label) {
+            FilledIconButton(
+                onClick = playPause::onClick,
+                enabled = playPause.isEnabled,
+                modifier = Modifier.size(ring - PLAY_RING_MARGIN * 2),
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = fill,
+                    contentColor = MaterialTheme.colorScheme.background,
+                    disabledContainerColor = fill,
+                    disabledContentColor = MaterialTheme.colorScheme.background,
                 ),
-                contentDescription = stringResource(
-                    if (playPause.showPlay) R.string.mobile_now_playing_play else R.string.mobile_now_playing_pause,
-                ),
-                modifier = Modifier.size(PLAY_GLYPH * ((ring - PLAY_RING_MARGIN * 2) / PLAY_BUTTON)),
-            )
+            ) {
+                Icon(
+                    painterResource(
+                        if (playPause.showPlay) DesignR.drawable.ic_ph_play_fill else DesignR.drawable.ic_ph_pause_fill,
+                    ),
+                    contentDescription = label,
+                    modifier = Modifier.size(PLAY_GLYPH * ((ring - PLAY_RING_MARGIN * 2) / PLAY_BUTTON)),
+                )
+            }
         }
     }
 }
