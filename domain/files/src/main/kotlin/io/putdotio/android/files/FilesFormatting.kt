@@ -24,11 +24,10 @@ public fun formatFileSize(bytes: Long, locale: Locale = Locale.getDefault()): St
 
 /** "Oct 13" this year, "Oct 13, 2024" before it. */
 public fun String.toDisplayDate(context: Context): String? =
-    parsePutioTimestamp(this)
-        ?.toEpochMilli()
-        ?.let { timestamp ->
-            DateUtils.formatDateTime(context, timestamp, DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_ABBREV_MONTH)
-        }
+    parsePutioTimestamp(this)?.toEpochMilli()?.toDisplayDate(context)
+
+public fun Long.toDisplayDate(context: Context): String =
+    DateUtils.formatDateTime(context, this, DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_ABBREV_MONTH)
 
 public fun String.toFullDate(context: Context): String? =
     parsePutioTimestamp(this)?.toEpochMilli()?.let { timestamp ->

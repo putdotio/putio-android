@@ -72,6 +72,7 @@ import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioRadius
 import io.putdotio.android.design.putioMono
 import io.putdotio.android.downloads.DownloadStatus
+import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import io.putdotio.android.MobileSheetHandle
@@ -231,9 +232,8 @@ internal fun MobileFilesActions(
         )
     } else {
         MobileFilesActionsSheet(
-            item = item,
-            sharedBy = sharedBy,
             onDismiss = dismiss,
+            header = { MobileFilesItemHeader(item, sharedBy) },
             tiles = {
                 MobileFilesActionTiles(
                     item = item,
@@ -283,9 +283,8 @@ internal fun MobileFilesOfflineActions(
     onDismiss: () -> Unit,
 ) {
     MobileFilesActionsSheet(
-        item = item,
-        sharedBy = null,
         onDismiss = onDismiss,
+        header = { MobileFilesItemHeader(item, sharedBy = null) },
         tiles = {
             MobileFilesActionTiles(
                 item = item,
@@ -380,27 +379,27 @@ internal fun String.withNameSelected(isFolder: Boolean): TextFieldValue {
     return TextFieldValue(this, TextRange(0, end))
 }
 
-/** The sheet: the file's glyph, full name and meta, its tiles, then its rows. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun MobileFilesActionsSheet(
-    item: FilesItem,
-    sharedBy: String?,
+internal fun MobileFilesActionsSheet(
     onDismiss: () -> Unit,
+    header: @Composable () -> Unit,
     tiles: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
     rows: @Composable () -> Unit,
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         dragHandle = { MobileSheetHandle() },
+        modifier = modifier,
     ) {
         Column(
             Modifier
                 .verticalScroll(rememberScrollState())
                 .padding(bottom = SHEET_BOTTOM_PADDING),
         ) {
-            MobileFilesSheetHeader(item, sharedBy)
+            header()
             tiles()
             rows()
         }
@@ -408,45 +407,55 @@ private fun MobileFilesActionsSheet(
 }
 
 @Composable
-private fun MobileFilesSheetHeader(item: FilesItem, sharedBy: String?) {
+private fun MobileFilesItemHeader(item: FilesItem, sharedBy: String?) {
+    val context = LocalContext.current
+    MobileFilesSheetHeader(item.type, item.name) {
+        MobileFilesSheetMeta(
+            size = if (item.isFolder) null else formatFileSize(item.sizeBytes),
+            detail = sharedBy?.let { stringResource(R.string.mobile_files_shared_by, it) }
+                ?: item.createdAt.toDisplayDate(context),
+        )
+    }
+}
+
+@Composable
+internal fun MobileFilesSheetHeader(type: PutioFileType, name: String, meta: @Composable () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.size(HEADER_LEADING_SIZE), contentAlignment = Alignment.Center) {
-            FileTypeIcon(item.type, Modifier.size(HEADER_ICON_SIZE))
+            FileTypeIcon(type, Modifier.size(HEADER_ICON_SIZE))
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             // The whole name, wrapped and selectable: the list cut it to one line.
             SelectionContainer {
-                Text(item.name, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
+                Text(name, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
             }
-            MobileFilesSheetMeta(item, sharedBy)
+            meta()
         }
     }
 }
 
 @Composable
-private fun MobileFilesSheetMeta(item: FilesItem, sharedBy: String?) {
-    val context = LocalContext.current
+internal fun MobileFilesSheetMeta(size: String?, detail: String?, detailMaxLines: Int = 1) {
     val style = MaterialTheme.typography.bodySmall
     val color = MaterialTheme.colorScheme.onSurfaceVariant
-    val size = if (item.isFolder) null else formatFileSize(item.sizeBytes)
-    val second = sharedBy?.let { stringResource(R.string.mobile_files_shared_by, it) }
-        ?: item.createdAt.toDisplayDate(context)
     Row(horizontalArrangement = Arrangement.spacedBy(META_GAP), verticalAlignment = Alignment.CenterVertically) {
         size?.let { Text(monoFigures(it, style.putioMono().toSpanStyle()), style = style, color = color, maxLines = 1) }
-        if (size != null && second != null) {
+        if (size != null && detail != null) {
             Text("·", style = style, color = color, modifier = Modifier.clearAndSetSemantics {})
         }
-        second?.let { Text(it, style = style, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+        detail?.let {
+            Text(it, style = style, color = color, maxLines = detailMaxLines, overflow = TextOverflow.Ellipsis)
+        }
     }
 }
 
 /** Play or Resume, or Open, then Download and Share as 72dp tiles; the ones the file allows share the row. */
 @Composable
-private fun MobileFilesActionTiles(
+internal fun MobileFilesActionTiles(
     item: FilesItem,
     resumes: Boolean,
     downloadStatus: DownloadStatus?,
@@ -671,7 +680,7 @@ private fun MobileFilesOwnerRows(
 }
 
 @Composable
-private fun MobileFilesActionRow(
+internal fun MobileFilesActionRow(
     @DrawableRes icon: Int,
     label: Int,
     tag: String,
@@ -716,8 +725,7 @@ private fun MobileFilesDeleteAction(
 ) {
     // Only the owner deletes, and only from the listing the item is in.
     if (!shown || !item.acceptsOwnerActions) return
-    HorizontalDivider(Modifier.padding(vertical = 8.dp))
-    MobileFilesActionRow(
+    MobileFilesDestructiveAction(
         icon = R.drawable.ic_ph_trash,
         label = if (confirmedTrashEnabled == false) {
             R.string.mobile_files_delete_permanently
@@ -726,7 +734,6 @@ private fun MobileFilesDeleteAction(
         },
         tag = MOBILE_FILES_DELETE_ACTION_TAG,
         enabled = confirmedTrashEnabled != null && item.id.value > 0L && operation.canStartOperation,
-        color = PutioDesignTokens.redTextSecondary,
         supporting = stringResource(R.string.mobile_files_delete_settings_unknown)
             .takeIf { confirmedTrashEnabled == null },
     ) {
@@ -736,6 +743,27 @@ private fun MobileFilesDeleteAction(
             null -> Unit
         }
     }
+}
+
+@Composable
+internal fun MobileFilesDestructiveAction(
+    @DrawableRes icon: Int,
+    label: Int,
+    tag: String,
+    enabled: Boolean,
+    supporting: String? = null,
+    onClick: () -> Unit,
+) {
+    HorizontalDivider(Modifier.padding(vertical = 8.dp))
+    MobileFilesActionRow(
+        icon = icon,
+        label = label,
+        tag = tag,
+        enabled = enabled,
+        color = PutioDesignTokens.redTextSecondary,
+        supporting = supporting,
+        onClick = onClick,
+    )
 }
 
 // The rename this sheet submitted finished in a request it has not seen before.

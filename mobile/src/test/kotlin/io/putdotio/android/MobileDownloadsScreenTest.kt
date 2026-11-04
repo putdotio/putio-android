@@ -35,6 +35,8 @@ import io.putdotio.android.downloads.MOBILE_DOWNLOADS_CONCURRENCY_TAG
 import io.putdotio.android.downloads.MOBILE_DOWNLOADS_NOTIFICATIONS_TAG
 import io.putdotio.android.downloads.MOBILE_DOWNLOADS_ITEM_SHEET_TAG
 import io.putdotio.android.downloads.MOBILE_DOWNLOADS_OVERFLOW_TAG
+import io.putdotio.android.downloads.MOBILE_DOWNLOADS_REMOVE_ACTION_TAG
+import io.putdotio.android.downloads.MOBILE_DOWNLOADS_RETRY_ACTION_TAG
 import io.putdotio.android.downloads.MOBILE_DOWNLOADS_SELECTION_DELETE_TAG
 import io.putdotio.android.downloads.MOBILE_DOWNLOADS_SELECTION_PAUSE_TAG
 import io.putdotio.android.downloads.MOBILE_DOWNLOADS_SELECTION_RESUME_TAG
@@ -44,6 +46,8 @@ import io.putdotio.android.downloads.MobileDownloadsTopBar
 import io.putdotio.android.downloads.rememberDownloadsSelection
 import io.putdotio.android.downloads.withEntries
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.files.MOBILE_FILES_PLAY_ACTION_TAG
+import io.putdotio.android.files.MOBILE_FILES_SHARE_ACTION_TAG
 import io.putdotio.sdk.files.PutioFileType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -302,6 +306,55 @@ class MobileDownloadsScreenTest {
 
         compose.onNodeWithTag(MOBILE_DOWNLOADS_ITEM_SHEET_TAG).assertIsDisplayed()
         compose.onNodeWithText("1 selected").assertDoesNotExist()
+    }
+
+    @Test
+    fun theItemSheetOffersOnlyWhatTheLocalCopyAllows() {
+        val broken = row(10L, "Broken.mkv", DownloadStatus.Failed(DownloadFailureReason.STORAGE, 1L))
+        val done = row(11L, "Done.mkv", DownloadStatus.Completed(1L))
+        val paused = row(12L, "Paused.mkv", DownloadStatus.Paused(DownloadPauseReason.USER, 1L))
+        val entries = listOf(broken, done, paused)
+        var state by mutableStateOf(DownloadsState(focus = FilesItemId(10L)).withEntries(entries))
+        val events = mutableListOf<DownloadsEvent>()
+        val played = mutableListOf<FilesItemId>()
+        compose.setContent {
+            PutioTheme {
+                MobileDownloadsScreen(
+                    state,
+                    onEvent = { event ->
+                        events += event
+                        if (event == DownloadsEvent.FocusHandled) state = state.copy(focus = null)
+                        true
+                    },
+                    onPlay = { played += it.id },
+                    onShare = {},
+                    notifications = NotificationsOn,
+                )
+            }
+        }
+
+        compose.onNodeWithText("Not enough storage on this device. Free up space, then retry.").assertIsDisplayed()
+        compose.onNodeWithTag(MOBILE_FILES_PLAY_ACTION_TAG).assertDoesNotExist()
+        compose.onNodeWithTag(MOBILE_DOWNLOADS_RETRY_ACTION_TAG).performClick()
+        assertEquals(listOf(DownloadsEvent.Retry(FilesItemId(10L))), events.filterIsInstance<DownloadsEvent.Retry>())
+
+        state = state.copy(focus = FilesItemId(12L))
+        compose.onNodeWithText("Paused · 1 B saved").assertIsDisplayed()
+        compose.onNodeWithTag(MOBILE_FILES_PLAY_ACTION_TAG).assertDoesNotExist()
+        compose.onNodeWithTag(MOBILE_FILES_SHARE_ACTION_TAG).assertIsDisplayed()
+
+        state = state.copy(focus = FilesItemId(11L))
+        compose.onNodeWithTag(MOBILE_FILES_SHARE_ACTION_TAG).assertIsDisplayed()
+        compose.onNodeWithTag(MOBILE_DOWNLOADS_RETRY_ACTION_TAG).assertDoesNotExist()
+
+        state = state.copy(removing = setOf(FilesItemId(11L)))
+        compose.onNodeWithTag(MOBILE_FILES_PLAY_ACTION_TAG).assertDoesNotExist()
+        compose.onNodeWithTag(MOBILE_FILES_SHARE_ACTION_TAG).assertDoesNotExist()
+        compose.onNodeWithTag(MOBILE_DOWNLOADS_REMOVE_ACTION_TAG).assertIsNotEnabled()
+
+        state = state.copy(removing = emptySet())
+        compose.onNodeWithTag(MOBILE_FILES_PLAY_ACTION_TAG).performClick()
+        assertEquals(listOf(FilesItemId(11L)), played)
     }
 
     @Test

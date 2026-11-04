@@ -1,10 +1,8 @@
 package io.putdotio.android.downloads
 
 import android.content.Context
-import android.text.format.DateUtils
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,17 +17,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -65,10 +59,16 @@ import io.putdotio.android.MobileSelectedRowTint
 import io.putdotio.android.MobileSelectionCheckbox
 import io.putdotio.android.MobileSelectionToolbarClearance
 import io.putdotio.android.MobileSelectionToolbarOffset
-import io.putdotio.android.MobileSheetHandle
 import io.putdotio.android.R
 import io.putdotio.android.appendMonoFigures
 import io.putdotio.android.files.formatFileSize
+import io.putdotio.android.files.MobileFilesActionRow
+import io.putdotio.android.files.MobileFilesActionTiles
+import io.putdotio.android.files.MobileFilesActionsSheet
+import io.putdotio.android.files.MobileFilesDestructiveAction
+import io.putdotio.android.files.MobileFilesSheetHeader
+import io.putdotio.android.files.MobileFilesSheetMeta
+import io.putdotio.android.files.toDisplayDate
 import io.putdotio.android.monoFigures
 import io.putdotio.android.design.FileTypeIcon
 import io.putdotio.android.design.PutioDesignTokens
@@ -84,6 +84,8 @@ import kotlin.math.roundToInt
 internal const val MOBILE_DOWNLOADS_ROUTE = "downloads"
 internal const val MOBILE_DOWNLOADS_LIST_TAG = "mobile-downloads-list"
 internal const val MOBILE_DOWNLOADS_ITEM_SHEET_TAG = "mobile-downloads-item-sheet"
+internal const val MOBILE_DOWNLOADS_RETRY_ACTION_TAG = "mobile-downloads-retry-action"
+internal const val MOBILE_DOWNLOADS_REMOVE_ACTION_TAG = "mobile-downloads-remove-action"
 internal const val MOBILE_DOWNLOADS_REMOVE_CONFIRM_TAG = "mobile-downloads-remove-confirm"
 internal const val MOBILE_DOWNLOADS_NOTIFICATIONS_TAG = "mobile-downloads-notifications"
 
@@ -175,9 +177,10 @@ internal fun MobileDownloadsScreen(
         MobileDownloadItemSheet(
             entry = entry,
             removing = state.removing.contains(entry.fileId),
+            queuePosition = state.queuePosition(entry.fileId),
             onEvent = onEvent,
-            onPlay = { onPlay(entry.toFilesItem()) },
-            onShare = onShare?.let { share -> { share(entry.toFilesItem()) } },
+            onPlay = onPlay,
+            onShare = onShare,
             onDismiss = { sheetFileId = null },
         )
     }
@@ -316,12 +319,9 @@ private fun DownloadRowTrailing(
             )
         }
         entry.canRetry -> IconButton(onClick = { onEvent(DownloadsEvent.Retry(entry.fileId)) }) {
-            val missing = entry.status == DownloadStatus.Missing
             Icon(
-                painterResource(if (missing) R.drawable.ic_ph_download_simple else R.drawable.ic_ph_arrow_clockwise),
-                contentDescription = stringResource(
-                    if (missing) R.string.mobile_downloads_download_again else R.string.mobile_downloads_retry,
-                ),
+                painterResource(entry.retryIcon()),
+                contentDescription = stringResource(entry.retryLabel(R.string.mobile_downloads_retry)),
                 tint = MaterialTheme.colorScheme.onSurface,
             )
         }
@@ -402,11 +402,7 @@ private fun downloadMeta(entry: DownloadEntry, state: DownloadsState, removing: 
             is DownloadStatus.Completed -> {
                 appendMonoFigures(formatFileSize(status.bytes), mono)
                 append(SEPARATOR)
-                append(DateUtils.formatDateTime(
-                    context,
-                    entry.createdAt,
-                    DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_ABBREV_MONTH,
-                ))
+                append(entry.createdAt.toDisplayDate(context))
             }
         }
     }
@@ -472,89 +468,75 @@ private fun DownloadFailureReason.shortMessage(): Int =
         DownloadFailureReason.UNEXPECTED -> R.string.mobile_downloads_meta_failed_unexpected
     }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MobileDownloadItemSheet(
     entry: DownloadEntry,
     removing: Boolean,
+    queuePosition: Int?,
     onEvent: (DownloadsEvent) -> Boolean,
-    onPlay: () -> Unit,
-    onShare: (() -> Unit)?,
+    onPlay: (FilesItem) -> Unit,
+    onShare: ((FilesItem) -> Unit)?,
     onDismiss: () -> Unit,
 ) {
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        dragHandle = { MobileSheetHandle() },
+    MobileFilesActionsSheet(
+        onDismiss = onDismiss,
+        header = {
+            MobileFilesSheetHeader(entry.type, entry.name) { DownloadSheetMeta(entry, removing, queuePosition) }
+        },
+        tiles = {
+            MobileFilesActionTiles(
+                item = entry.toFilesItem(),
+                resumes = false,
+                downloadStatus = null,
+                onPlayItem = onPlay.takeIf { entry.isCompleted && !removing },
+                onOpenItem = null,
+                onDownloadItem = null,
+                onShareItem = onShare?.takeIf { !removing },
+                onDismiss = onDismiss,
+            )
+        },
         modifier = Modifier.testTag(MOBILE_DOWNLOADS_ITEM_SHEET_TAG),
     ) {
-        Column(Modifier.verticalScroll(rememberScrollState())) {
-            Text(
-                text = entry.name,
-                style = MaterialTheme.typography.titleLarge,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
-            )
-            if (entry.canRetry && !removing) {
-                Text(
-                    entry.status.description(LocalContext.current),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 8.dp),
-                )
+        if (entry.canRetry && !removing) {
+            MobileFilesActionRow(
+                icon = entry.retryIcon(),
+                label = entry.retryLabel(R.string.mobile_action_retry),
+                tag = MOBILE_DOWNLOADS_RETRY_ACTION_TAG,
+            ) {
+                onDismiss()
+                onEvent(DownloadsEvent.Retry(entry.fileId))
             }
-            if (entry.isCompleted && !removing) {
-                ListItem(
-                    headlineContent = { Text(stringResource(R.string.mobile_downloads_play)) },
-                    modifier = Modifier.clickable(role = Role.Button) {
-                        onDismiss()
-                        onPlay()
-                    },
-                )
-            }
-            if (onShare != null && !removing) {
-                ListItem(
-                    headlineContent = { Text(stringResource(R.string.mobile_files_share)) },
-                    supportingContent = { Text(stringResource(R.string.mobile_files_share_description)) },
-                    modifier = Modifier.clickable(role = Role.Button) {
-                        onDismiss()
-                        onShare()
-                    },
-                )
-            }
-            if (entry.canRetry && !removing) {
-                ListItem(
-                    headlineContent = {
-                        Text(stringResource(
-                            if (entry.status == DownloadStatus.Missing) {
-                                R.string.mobile_downloads_download_again
-                            } else {
-                                R.string.mobile_action_retry
-                            },
-                        ))
-                    },
-                    modifier = Modifier.clickable(role = Role.Button) {
-                        onDismiss()
-                        onEvent(DownloadsEvent.Retry(entry.fileId))
-                    },
-                )
-            }
-            HorizontalDivider()
-            ListItem(
-                headlineContent = {
-                    Text(stringResource(R.string.mobile_downloads_remove), color = PutioDesignTokens.redTextSecondary)
-                },
-                modifier = Modifier
-                    .clickable(enabled = !removing, role = Role.Button) {
-                        onDismiss()
-                        onEvent(DownloadsEvent.RequestRemoval(setOf(entry.fileId)))
-                    }
-                    .padding(bottom = 24.dp),
-            )
+        }
+        MobileFilesDestructiveAction(
+            icon = R.drawable.ic_ph_device_mobile_slash,
+            label = R.string.mobile_downloads_remove,
+            tag = MOBILE_DOWNLOADS_REMOVE_ACTION_TAG,
+            enabled = !removing,
+        ) {
+            onDismiss()
+            onEvent(DownloadsEvent.RequestRemoval(setOf(entry.fileId)))
         }
     }
 }
+
+@Composable
+private fun DownloadSheetMeta(entry: DownloadEntry, removing: Boolean, queuePosition: Int?) {
+    val context = LocalContext.current
+    val status = entry.status
+    when {
+        removing -> MobileFilesSheetMeta(null, stringResource(R.string.mobile_downloads_status_removing))
+        status is DownloadStatus.Completed ->
+            MobileFilesSheetMeta(formatFileSize(status.bytes), entry.createdAt.toDisplayDate(context))
+        else ->
+            MobileFilesSheetMeta(null, status.description(context, queuePosition), detailMaxLines = Int.MAX_VALUE)
+    }
+}
+
+private fun DownloadEntry.retryIcon(): Int =
+    if (status == DownloadStatus.Missing) R.drawable.ic_ph_download_simple else R.drawable.ic_ph_arrow_clockwise
+
+private fun DownloadEntry.retryLabel(retry: Int): Int =
+    if (status == DownloadStatus.Missing) R.string.mobile_downloads_download_again else retry
 
 @Composable
 private fun RemovalDialog(removal: DownloadRemoval, onConfirm: () -> Unit, onCancel: () -> Unit) {
