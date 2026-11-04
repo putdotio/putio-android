@@ -53,6 +53,9 @@ internal val CastAvailability.showsButton: Boolean
 internal val CastAvailability.connectedDevice: String?
     get() = (this as? CastAvailability.Connected)?.deviceName
 
+internal val CastAvailability.casting: Boolean
+    get() = this is CastAvailability.Connected || this is CastAvailability.Connecting
+
 internal enum class CastRemoteState { Idle, Buffering, Playing, Paused, Ended, Failed }
 
 /** What the receiver last said about its media; [fileId] is null for media this app did not send. */
@@ -108,10 +111,6 @@ internal data class CastHandover(
 internal interface CastGateway : CastRoutes, CastRemote {
     val availability: StateFlow<CastAvailability>
 
-    /**
-     * Whether the system's output switcher moves the current or last session's playback to this
-     * device; false again once another session starts.
-     */
     val movesHere: StateFlow<Boolean>
 
     /** Ends the session and stops the receiver's playback. */
@@ -207,9 +206,12 @@ internal class CastAutoplay(private val cast: MobileCastController) {
     }
 
     suspend fun advance(fileId: Long) {
-        val lent = account?.takeIf { it.autoplay }
+        val lent = account?.takeIf { it.autoplay } ?: return
         val media = cast.sentMedia?.takeIf { it.fileId == fileId && it.mediaType == PlaybackMediaType.VIDEO }
-        if (lent == null || media == null) return
+        if (media == null) mutableAdvanced.tryEmit(CastAdvance.End(fileId)) else advance(fileId, media, lent)
+    }
+
+    private suspend fun advance(fileId: Long, media: PlaybackCastMedia, lent: CastAccount) {
         autoplayed += fileId
         val next = lent.next(PlaybackTarget(FilesItemId(fileId), media.title, PlaybackMediaType.VIDEO))
             ?.takeUnless { it.fileId.value in autoplayed }
@@ -415,11 +417,6 @@ internal class MobileCastController(
     }
 }
 
-/**
- * Plays the receiver's audio on [local] from where the receiver stopped, once the output switcher has
- * moved the session to this device. A screen that took that place first, other media on [local], and
- * video, which resumes on its own screen, are left be.
- */
 internal fun MobileCastController.resumeHere(local: Player, scope: CoroutineScope) {
     scope.launch {
         val moved = withTimeoutOrNull(MOVE_HERE_WAIT_MILLIS) {
@@ -439,7 +436,15 @@ internal fun MobileCastController.resumeHere(local: Player, scope: CoroutineScop
     }
 }
 
-private const val MOVE_HERE_WAIT_MILLIS = 10_000L
+internal fun Player.releaseOnceCastEnds(availability: StateFlow<CastAvailability>, scope: CoroutineScope) {
+    if (!availability.value.casting) return release()
+    scope.launch {
+        availability.first { !it.casting }
+        release()
+    }
+}
+
+internal const val MOVE_HERE_WAIT_MILLIS = 10_000L
 
 /** Receiver states with the file still playable there. */
 private val LIVE_STATES = setOf(CastRemoteState.Buffering, CastRemoteState.Playing, CastRemoteState.Paused)

@@ -72,7 +72,7 @@ class MobilePlaybackService : MediaSessionService() {
                 }
             },
         )
-        val sessionPlayer = MobileCast.sessionPlayer(this, player) { positionObserver?.flush() }
+        val sessionPlayer = MobileCast.sessionPlayer(this, player, scope) { positionObserver?.flush() }
         sessionPlayer.addListener(
             object : Media3Player.Listener {
                 override fun onDeviceInfoChanged(deviceInfo: DeviceInfo) {
@@ -164,7 +164,7 @@ class MobilePlaybackService : MediaSessionService() {
         analyticsObserver?.close()
         analyticsObserver = null
         session?.let {
-            if (MobileCast.releasesSessionPlayer(this)) it.player.release() else local?.release()
+            MobileCast.releaseSessionPlayer(this, it.player)
             it.release()
         }
         session = null

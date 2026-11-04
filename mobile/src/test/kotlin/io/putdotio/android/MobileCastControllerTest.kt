@@ -164,6 +164,20 @@ class MobileCastControllerTest {
     }
 
     @Test
+    fun aVideoAttachedWithoutItsMediaStillEndsForTheScreenOpenOnIt() {
+        val advanced = collectAdvanced()
+        cast.autoplay.follow(SESSION, Account(next = NextTarget))
+        gateway.connect()
+        gateway.report(CastRemoteState.Playing, positionMillis = 1_000L)
+        cast.attach(Item)
+
+        gateway.report(CastRemoteState.Ended, positionMillis = 2_000L)
+
+        assertTrue(gateway.loads.isEmpty())
+        assertEquals(listOf(CastAdvance.End(42L)), advanced)
+    }
+
+    @Test
     fun aSignedOutSessionLendsItsAccountNoMore() {
         cast.autoplay.follow(SESSION, Account(next = NextTarget))
         cast.autoplay.forget("another session")
@@ -653,7 +667,6 @@ class MobileCastControllerTest {
             )
     }
 
-    /** The session's local player: it takes media, a start position, speed and play. */
     private class LocalPlayer : SimpleBasePlayer(Looper.getMainLooper()) {
         private var current: State = State.Builder()
             .setAvailableCommands(Media3Player.Commands.Builder().addAllCommands().build())

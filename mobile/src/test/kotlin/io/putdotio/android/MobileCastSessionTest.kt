@@ -30,11 +30,15 @@ import io.putdotio.android.playback.GmsCastRoutes
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.playback.PutioCastMediaItemConverter
+import io.putdotio.android.playback.releaseOnceCastEnds
 import io.putdotio.android.playback.toCastMedia
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSourceKind
 import io.putdotio.sdk.files.PlaybackSubtitles
 import io.putdotio.sdk.files.PutioCredentialUrl
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -167,6 +171,27 @@ class MobileCastSessionTest {
     }
 
     @Test
+    fun theSessionPlayerOutlivesItsServiceOnlyUntilTheReceiverIsGone() {
+        val availability = MutableStateFlow<CastAvailability>(CastAvailability.Connected("Living room TV"))
+        val casting = FakePlayer(DeviceInfo.PLAYBACK_TYPE_REMOTE, item = null)
+        val idle = FakePlayer(DeviceInfo.PLAYBACK_TYPE_LOCAL, item = null)
+        val scope = MainScope()
+
+        casting.releaseOnceCastEnds(availability, scope)
+        idle.releaseOnceCastEnds(MutableStateFlow(CastAvailability.Available), scope)
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertEquals(0, casting.releases)
+        assertEquals(1, idle.releases)
+
+        availability.value = CastAvailability.Available
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertEquals(1, casting.releases)
+        scope.cancel()
+    }
+
+    @Test
     fun theSystemOutputSwitcherCanMoveTheAudioSession() {
         val receiver = ComponentName(app, "androidx.mediarouter.media.MediaTransferReceiver")
 
@@ -187,7 +212,14 @@ class MobileCastSessionTest {
             }
             .build()
 
+        var releases = 0
+
         override fun getState(): State = current
+
+        override fun handleRelease(): ListenableFuture<*> {
+            releases++
+            return Futures.immediateVoidFuture()
+        }
 
         override fun handleStop(): ListenableFuture<*> {
             current = current.buildUpon().setPlaybackState(STATE_IDLE).build()

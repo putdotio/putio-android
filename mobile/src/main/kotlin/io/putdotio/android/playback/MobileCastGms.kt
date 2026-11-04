@@ -55,9 +55,12 @@ import com.google.android.gms.tasks.Task
 import io.putdotio.android.MobilePlaybackService
 import io.putdotio.android.R
 import java.io.Closeable
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
@@ -133,7 +136,7 @@ internal object MobileCast {
     }
 
     @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-    fun sessionPlayer(context: Context, local: Player, beforeHandover: () -> Unit): Player {
+    fun sessionPlayer(context: Context, local: Player, scope: CoroutineScope, beforeHandover: () -> Unit): Player {
         val cast = controller(context) ?: return local
         return CastPlayer.Builder(context)
             .setLocalPlayer(local)
@@ -148,7 +151,7 @@ internal object MobileCast {
                         beforeHandover()
                         cast.castFromSession(item, handover)
                     },
-                    toLocal = { cast.resumeHere(local, MainScope()) },
+                    toLocal = { cast.resumeHere(local, scope) },
                 ),
             )
             .build()
@@ -158,20 +161,25 @@ internal object MobileCast {
         controller(context)?.gateway?.stopCasting()
     }
 
-    fun releasesSessionPlayer(context: Context): Boolean =
-        controller(context)?.availability?.value.let {
-            it !is CastAvailability.Connected && it !is CastAvailability.Connecting
-        }
+    fun releaseSessionPlayer(context: Context, player: Player) {
+        val cast = controller(context) ?: return player.release()
+        player.releaseOnceCastEnds(cast.availability, MainScope())
+    }
 
     private fun holdSessionWhileCasting(context: Context, cast: MobileCastController) {
         var held: Closeable? = null
         MainScope().launch {
             cast.availability
-                .map { it is CastAvailability.Connected || it is CastAvailability.Connecting }
+                .map { it.casting }
                 .distinctUntilChanged()
-                .collect { casting ->
-                    held?.closeQuietly()
-                    held = if (casting) DefaultMobilePlayerFactory.connectAudio(context) {} else null
+                .collectLatest { casting ->
+                    if (casting) {
+                        held = held ?: DefaultMobilePlayerFactory.connectAudio(context) {}
+                    } else {
+                        delay(MOVE_HERE_WAIT_MILLIS)
+                        held?.closeQuietly()
+                        held = null
+                    }
                 }
         }
     }
@@ -232,10 +240,6 @@ internal class CastTransfer(
     }
 }
 
-/**
- * The session's Stop casting button, for the notification and lock screen while a receiver plays:
- * before Android 11 they offer no output switcher to end the session.
- */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal class CastStopControl(context: Context, private val stop: () -> Unit) {
     val command = SessionCommand(ACTION_STOP_CASTING, Bundle.EMPTY)
@@ -249,7 +253,6 @@ internal class CastStopControl(context: Context, private val stop: () -> Unit) {
     fun buttons(device: DeviceInfo): List<CommandButton> =
         if (device.playbackType == DeviceInfo.PLAYBACK_TYPE_REMOTE) listOf(button) else emptyList()
 
-    /** Stops casting for [command] when it is this button's; false for any other command. */
     fun handle(command: SessionCommand): Boolean {
         if (command.customAction != ACTION_STOP_CASTING) return false
         stop()
