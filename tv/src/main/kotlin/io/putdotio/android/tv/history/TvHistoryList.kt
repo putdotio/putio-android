@@ -174,7 +174,11 @@ internal fun TvHistoryList(
             .focusGroup()
             .testTag(TV_HISTORY_LIST_TAG),
     ) {
-        itemsIndexed(entries, key = { _, entry -> entry.key }) { index, entry ->
+        itemsIndexed(
+            entries,
+            key = { _, entry -> entry.key },
+            contentType = { _, entry -> entry::class },
+        ) { index, entry ->
             val requesters = Modifier
                 .focusRequesterIf(index == anchorIndex, anchorRow)
                 .focusRequesterIf(index == lastIndex, lastRow)
@@ -182,7 +186,7 @@ internal fun TvHistoryList(
             TvHistoryEntryItem(entry, zone, focus, actions, modifier = requesters)
         }
         if (content.paging != HistoryPaging.Complete) {
-            item(key = PAGING_KEY) {
+            item(key = PAGING_KEY, contentType = "paging") {
                 TvHistoryPaging(
                     paging = content.paging,
                     onNextPage = actions.onNextPage,

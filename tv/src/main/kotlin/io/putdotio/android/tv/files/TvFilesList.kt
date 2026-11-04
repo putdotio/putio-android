@@ -15,6 +15,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.State
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -77,16 +78,24 @@ internal fun TvFilesList(
     // may have moved off screen or gone, so the live requester is only trusted while it is
     // attached to a row that is still listed.
     val listedIds = remember(content.items) { content.items.mapTo(HashSet()) { it.id.value } }
-    val liveRowListed = focusedRowId.value != null && focusedRowId.value in listedIds
     val rowStillFocused = { rowKeepsFocus(headerHasFocus, detailOwnsFocus, pagingHeldFocus) }
-    val rowOwnsFocus = focusedRowId.value != null && rowStillFocused()
-    val entryFocus = content.paging.listEntryFocus(
-        pagingHeld = pagingHeldFocus.value,
-        liveRowListed = liveRowListed,
-        pagingFocus = listPagingFocus,
-        liveRowFocus = liveRowFocus,
-        rowFocus = rowFocus,
-    )
+    val rowOwnsFocus = remember(listState, headerHasFocus, detailOwnsFocus) {
+        derivedStateOf {
+            focusedRowId.value != null && rowKeepsFocus(headerHasFocus, detailOwnsFocus, pagingHeldFocus)
+        }
+    }.value
+    val paging = content.paging
+    val entryFocus = remember(listState, paging, listedIds) {
+        derivedStateOf {
+            paging.listEntryFocus(
+                pagingHeld = pagingHeldFocus.value,
+                liveRowListed = focusedRowId.value.let { it != null && it in listedIds },
+                pagingFocus = listPagingFocus,
+                liveRowFocus = liveRowFocus,
+                rowFocus = rowFocus,
+            )
+        }
+    }.value
     SideEffect { onEntryTarget(entryFocus) }
     // The paging control leaves the list when the last page lands; if it held focus, the
     // last row becomes the remembered row so the restorer's fallback lands there.
@@ -158,6 +167,9 @@ internal fun TvFilesList(
                 .testTag(TV_FILES_LIST_TAG),
         ) {
             items(items = content.items, key = { it.id.value }) { item ->
+                val holdsLiveFocus by remember(focusedRowId, item.id.value) {
+                    derivedStateOf { focusedRowId.value == item.id.value }
+                }
                 TvFilesRow(
                     item = item,
                     onClick = { onOpen(item) },
@@ -166,7 +178,7 @@ internal fun TvFilesList(
                     modifier = Modifier
                         .downTo(downFromLast.takeIf { item.id == lastRowId })
                         .focusRequesterIf(item.id.value == focusTarget, rowFocus)
-                        .focusRequesterIf(item.id.value == focusedRowId.value, liveRowFocus)
+                        .focusRequesterIf(holdsLiveFocus, liveRowFocus)
                         .onFocusChanged {
                             if (it.isFocused) {
                                 focusMemory[folderId] = item.id.value

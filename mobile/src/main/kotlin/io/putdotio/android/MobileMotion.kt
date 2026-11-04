@@ -35,7 +35,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.composed
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -273,7 +272,10 @@ internal fun Modifier.mobileBackPreview(preview: MobileBackPreview): Modifier = 
     }
 }
 
-/** The NavHost's layout, so the player can grow out of the row that opened it. */
+/**
+ * The NavHost's layout, so the player can grow out of the row that opened it; null under reduced
+ * motion, which keeps the route's fade and drops the moving bounds.
+ */
 internal val LocalMobileSharedTransition = staticCompositionLocalOf<SharedTransitionScope?> { null }
 
 /** The enter and exit of the route a composable sits in; rows on that route share bounds with the player. */
@@ -284,27 +286,23 @@ internal fun MobileRouteAnimation(scope: AnimatedVisibilityScope, content: @Comp
     CompositionLocalProvider(LocalMobileRouteAnimation provides scope, content = content)
 }
 
+@Composable
 internal fun Modifier.playbackContainer(
     fileId: Long,
     playable: Boolean = true,
     route: AnimatedVisibilityScope? = null,
-): Modifier = if (!playable) this else this.composed {
+): Modifier {
     val shared = LocalMobileSharedTransition.current
     val scope = route ?: LocalMobileRouteAnimation.current
-    // Reduced motion keeps the route's fade and drops the moving bounds.
-    val reducedMotion = rememberMobileMotion().reducedMotion
-    if (shared == null || scope == null || reducedMotion) {
-        Modifier
-    } else {
-        with(shared) {
-            Modifier.sharedBounds(
-                sharedContentState = rememberSharedContentState(PlaybackContainerKey(fileId)),
-                animatedVisibilityScope = scope,
-                enter = fadeIn(MobileMotionSprings.defaultEffects()),
-                exit = fadeOut(MobileMotionSprings.fastEffects()),
-                boundsTransform = { _, _ -> MobileMotionSprings.defaultSpatial() },
-            )
-        }
+    if (!playable || shared == null || scope == null) return this
+    return with(shared) {
+        this@playbackContainer.sharedBounds(
+            sharedContentState = rememberSharedContentState(PlaybackContainerKey(fileId)),
+            animatedVisibilityScope = scope,
+            enter = fadeIn(MobileMotionSprings.defaultEffects()),
+            exit = fadeOut(MobileMotionSprings.fastEffects()),
+            boundsTransform = { _, _ -> MobileMotionSprings.defaultSpatial() },
+        )
     }
 }
 

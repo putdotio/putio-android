@@ -1,26 +1,46 @@
 package io.putdotio.android
 
-import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.drawscope.ContentDrawScope
+import androidx.compose.ui.graphics.drawscope.Fill
+import androidx.compose.ui.graphics.takeOrElse
+import androidx.compose.ui.layout.FirstBaseline
+import androidx.compose.ui.layout.LastBaseline
+import androidx.compose.ui.layout.Measurable
+import androidx.compose.ui.layout.MeasureResult
+import androidx.compose.ui.layout.MeasureScope
+import androidx.compose.ui.node.DrawModifierNode
+import androidx.compose.ui.node.LayoutModifierNode
+import androidx.compose.ui.node.ModifierNodeElement
+import androidx.compose.ui.node.SemanticsModifierNode
+import androidx.compose.ui.node.invalidateDraw
+import androidx.compose.ui.node.invalidateMeasurement
+import androidx.compose.ui.node.invalidateSemantics
+import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.semantics.SemanticsPropertyKey
 import androidx.compose.ui.semantics.SemanticsPropertyReceiver
-import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.getTextLayoutResult
 import androidx.compose.ui.semantics.text
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.toSize
 import java.text.BreakIterator
+import kotlin.math.roundToInt
 
 /**
  * A name on one line, or up to [maxLines], cut in the middle when it does not fit: it keeps its
@@ -36,49 +56,163 @@ internal fun MobileMiddleCutText(
     maxLines: Int = 1,
 ) {
     val measurer = rememberTextMeasurer()
-    // A hard line break would end the single line early, so the name shows on one line of spaces.
-    val line = remember(text) { text.replace(LINE_BREAKS, " ") }
-    // What the text actually laid out, read back for tests through [MiddleCutShown].
-    var drawn by remember { mutableStateOf("") }
-    BoxWithConstraints(modifier) {
+    val textColor = color.takeOrElse { style.color.takeOrElse { LocalContentColor.current } }
+    Box(modifier) {
+        Spacer(MiddleCutTextElement(text, style, textColor, maxLines, measurer))
+    }
+}
+
+private data class MiddleCutTextElement(
+    val text: String,
+    val style: TextStyle,
+    val color: Color,
+    val maxLines: Int,
+    val measurer: TextMeasurer,
+) : ModifierNodeElement<MiddleCutTextNode>() {
+    override fun create() = MiddleCutTextNode(text, style, color, maxLines, measurer)
+
+    override fun update(node: MiddleCutTextNode) = node.update(text, style, color, maxLines, measurer)
+
+    override fun InspectorInfo.inspectableProperties() {
+        name = "middleCutText"
+        properties["text"] = text
+        properties["style"] = style
+        properties["color"] = color
+        properties["maxLines"] = maxLines
+    }
+}
+
+private class MiddleCutTextNode(
+    private var name: String,
+    private var style: TextStyle,
+    private var color: Color,
+    private var maxLines: Int,
+    private var measurer: TextMeasurer,
+) : Modifier.Node(), LayoutModifierNode, DrawModifierNode, SemanticsModifierNode {
+    private var line = name.oneLine()
+    private var shown = line
+    private var cutWidth = NO_CUT_WIDTH
+    private var drawn = ""
+    private var semanticsName: String? = null
+    private var semanticsCut: String? = null
+    private var laidOut: TextLayoutResult? = null
+
+    fun update(name: String, style: TextStyle, color: Color, maxLines: Int, measurer: TextMeasurer) {
+        this.name = name
+        this.style = style
+        this.color = color
+        this.maxLines = maxLines
+        this.measurer = measurer
+        line = name.oneLine()
+        cutWidth = NO_CUT_WIDTH
+        invalidateMeasurement()
+        invalidateDraw()
+    }
+
+    override fun MeasureScope.measure(measurable: Measurable, constraints: Constraints): MeasureResult {
         val maxWidth = constraints.maxWidth
-        val shown = remember(line, style, maxWidth, maxLines) {
-            if (maxLines == 1) {
+        if (maxWidth != cutWidth) {
+            shown = if (maxLines == 1) {
                 middleCut(line, maxWidth) { measurer.width(it, style) }
             } else {
                 middleCutWhere(line, maxWidth) { measurer.fits(it, style, maxWidth, maxLines) }
             }
+            cutWidth = maxWidth
         }
-        Text(
+        val layout = measurer.measure(
             text = shown,
-            style = style,
-            color = color,
-            maxLines = maxLines,
-            softWrap = maxLines > 1,
+            style = style.merge(color = color),
             overflow = TextOverflow.Ellipsis,
-            onTextLayout = { layout ->
-                val laidOut = layout.layoutInput.text.text
-                val last = layout.lineCount - 1
-                // What shows: a clipped end reads as cut there, so a lost extension cannot pass for a cut.
-                drawn = if (layout.isLineEllipsized(last)) {
-                    laidOut.substring(0, layout.getLineEnd(last, visibleEnd = true)) + ELLIPSIS
-                } else {
-                    laidOut
-                }
-            },
-            // A merged row reads its text in order, so the full name stands in for the cut one there;
-            // a content description would hide the row's meta from TalkBack.
-            modifier = if (shown == text) {
-                Modifier
-            } else {
-                Modifier.clearAndSetSemantics {
-                    this.text = AnnotatedString(text)
-                    middleCutShown = drawn
-                }
-            },
+            softWrap = maxLines > 1,
+            maxLines = maxLines,
+            constraints = constraints,
+            layoutDirection = layoutDirection,
+            density = this,
         )
+        laidOut = layout
+        drawn = layout.shownText()
+        if (name != semanticsName || cut() != semanticsCut) invalidateSemantics()
+        val size = layout.size
+        val placeable = measurable.measure(
+            Constraints.fitPrioritizingWidth(
+                minWidth = size.width,
+                maxWidth = size.width,
+                minHeight = size.height,
+                maxHeight = size.height,
+            ),
+        )
+        return layout(
+            size.width,
+            size.height,
+            mapOf(
+                FirstBaseline to layout.firstBaseline.roundToInt(),
+                LastBaseline to layout.lastBaseline.roundToInt(),
+            ),
+        ) { placeable.place(0, 0) }
+    }
+
+    override fun ContentDrawScope.draw() {
+        val layout = laidOut ?: return
+        val canvas = drawContext.canvas
+        val clip = layout.hasVisualOverflow
+        if (clip) {
+            canvas.save()
+            canvas.clipRect(Rect(Offset.Zero, layout.size.toSize()))
+        }
+        try {
+            val shadow = style.shadow ?: Shadow.None
+            val decoration = style.textDecoration ?: TextDecoration.None
+            val drawStyle = style.drawStyle ?: Fill
+            val brush = style.brush
+            if (brush != null) {
+                layout.multiParagraph.paint(
+                    canvas = canvas,
+                    brush = brush,
+                    alpha = style.alpha,
+                    shadow = shadow,
+                    decoration = decoration,
+                    drawStyle = drawStyle,
+                )
+            } else {
+                layout.multiParagraph.paint(
+                    canvas = canvas,
+                    color = color.takeOrElse { Color.Black },
+                    shadow = shadow,
+                    decoration = decoration,
+                    drawStyle = drawStyle,
+                )
+            }
+        } finally {
+            if (clip) canvas.restore()
+        }
+    }
+
+    private fun cut(): String? = drawn.takeIf { shown != name }
+
+    // A merged row reads its text in order, so the full name stands in for the cut one there;
+    // a content description would hide the row's meta from TalkBack.
+    override fun SemanticsPropertyReceiver.applySemantics() {
+        semanticsName = name
+        semanticsCut = cut()
+        if (shown == name) {
+            text = AnnotatedString(shown)
+            getTextLayoutResult { results -> laidOut?.let(results::add) != null }
+        } else {
+            text = AnnotatedString(name)
+            middleCutShown = drawn
+        }
     }
 }
+
+/** What shows: a clipped end reads as cut there, so a lost extension cannot pass for a cut. */
+private fun TextLayoutResult.shownText(): String {
+    val shown = layoutInput.text.text
+    val last = lineCount - 1
+    return if (isLineEllipsized(last)) shown.substring(0, getLineEnd(last, visibleEnd = true)) + ELLIPSIS else shown
+}
+
+/** A hard line break would end the single line early, so the name shows on one line of spaces. */
+private fun String.oneLine(): String = replace(LINE_BREAKS, " ")
 
 private fun TextMeasurer.width(text: String, style: TextStyle): Int =
     measure(text, style, maxLines = 1, softWrap = false).size.width
@@ -134,4 +268,5 @@ private var SemanticsPropertyReceiver.middleCutShown by MiddleCutShown
 /** Characters kept after the cut: the extension and a few before it. */
 internal const val MIDDLE_CUT_TAIL = 11
 private const val ELLIPSIS = "…"
+private const val NO_CUT_WIDTH = -1
 private val LINE_BREAKS = Regex("\\R")

@@ -921,6 +921,7 @@ private fun MobileFilesList(
         itemsIndexed(
             items = content.items,
             key = { _, item -> item.id.value },
+            contentType = { _, _ -> "row" },
         ) { index, item ->
             MobileFilesListRow(
                 item = item,
@@ -953,7 +954,7 @@ private fun MobileFilesList(
             }
         }
         if (content.paging != FilesPaging.Complete) {
-            item(key = FILES_PAGING_ITEM_KEY) {
+            item(key = FILES_PAGING_ITEM_KEY, contentType = "paging") {
                 MobileFilesPaging(
                     paging = content.paging,
                     enabled = pagingEnabled,
