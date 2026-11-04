@@ -19,6 +19,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.putdotio.android.design.MiddleCutShown
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.history.HistoryContent
 import io.putdotio.android.history.HistoryEvent

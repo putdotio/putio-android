@@ -288,7 +288,7 @@ private fun TvTab(
                 painter = painterResource(if (selected) destination.selectedIcon else destination.icon),
                 contentDescription = null,
                 tint = glyphTint,
-                modifier = Modifier.size(label.lineHeight.asDp()),
+                modifier = Modifier.size(TAB_ICON.scaledLike(label)),
             )
             Text(
                 stringResource(destination.label),
@@ -355,6 +355,7 @@ private val NOTICE_TOP_GAP = 24.dp
 private val NOTICE_PANE_GAP = 6.dp
 private val TAB_HEIGHT = 28.dp
 private val TAB_PADDING = PaddingValues(horizontal = 12.dp)
+private val TAB_ICON = 14.dp
 
 private val TvDestination.analyticsScreen: AnalyticsEvent.Screen
     get() =

@@ -11,6 +11,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.putdotio.android.design.MiddleCutShown
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.playback.MobileNowPlayingBar

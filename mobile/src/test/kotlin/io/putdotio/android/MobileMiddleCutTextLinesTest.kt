@@ -8,6 +8,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.design.MIDDLE_CUT_TAIL
+import io.putdotio.android.design.MiddleCutShown
 import io.putdotio.android.design.PutioTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue

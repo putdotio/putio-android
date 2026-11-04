@@ -23,6 +23,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.height
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.putdotio.android.BasePutioActivity
 import io.putdotio.android.PutioResult
 import io.putdotio.android.files.FilesFolderCounts
 import io.putdotio.android.files.FilesPlaybackProgress
@@ -105,7 +106,7 @@ class TvFilesDetailLargeTextTest {
         private var previousFontScale = 1f
         override fun before() {
             previousFontScale = RuntimeEnvironment.getApplication().resources.configuration.fontScale
-            RuntimeEnvironment.setFontScale(APP_MAX_FONT_SCALE)
+            RuntimeEnvironment.setFontScale(BasePutioActivity.MAX_FONT_SCALE)
         }
 
         override fun after() = RuntimeEnvironment.setFontScale(previousFontScale)
@@ -179,7 +180,6 @@ class TvFilesDetailLargeTextTest {
         ).fetchSemanticsNode().config[SemanticsProperties.VerticalScrollAxisRange].value()
 
     private companion object {
-        const val APP_MAX_FONT_SCALE = 1.3f
         const val SECONDARY_ACTIONS = 4
         val PLAYED = FilesPlaybackProgress(60.0, 600.0)
         const val LONG_NAME = "Blue.Lights.S04E01.The.Longest.Night.In.Belfast.Extended.Directors.Cut." +

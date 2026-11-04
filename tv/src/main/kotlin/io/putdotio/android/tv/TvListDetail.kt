@@ -7,7 +7,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -35,19 +34,15 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.text
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
@@ -59,9 +54,8 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import io.putdotio.android.design.PutioDesignTokens
+import io.putdotio.android.design.PutioMiddleCutText
 import io.putdotio.android.design.PutioTypeScale
-import io.putdotio.android.design.fitsLines
-import io.putdotio.android.design.middleCutWhere
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalComposeUiApi::class)
@@ -157,7 +151,7 @@ internal fun TvSectionPill(
             Icon(
                 painterResource(icon),
                 contentDescription = null,
-                modifier = Modifier.size(SECTION_PILL_LABEL.fontSize.asDp()),
+                modifier = Modifier.size(SECTION_PILL_ICON.scaledLike(SECTION_PILL_LABEL)),
             )
             Text(label, style = SECTION_PILL_LABEL, maxLines = 1)
         }
@@ -180,26 +174,14 @@ internal fun ColumnScope.TvDetailBody(
     secondaryActions: (@Composable ColumnScope.() -> Unit)? = null,
     actions: @Composable RowScope.() -> Unit,
 ) {
-    BoxWithConstraints {
-        val measurer = rememberTextMeasurer()
-        val maxWidth = constraints.maxWidth
-        val shown = remember(title, maxWidth, measurer) {
-            middleCutWhere(title, maxWidth) {
-                measurer.fitsLines(it.breakableAtDots(), DETAIL_TITLE, maxWidth, DETAIL_TITLE_MAX_LINES)
-            }.breakableAtDots()
-        }
-        Text(
-            text = shown,
-            style = DETAIL_TITLE,
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = DETAIL_TITLE_MAX_LINES,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.clearAndSetSemantics {
-                heading()
-                text = AnnotatedString(title)
-            },
-        )
-    }
+    PutioMiddleCutText(
+        text = title,
+        style = DETAIL_TITLE,
+        color = MaterialTheme.colorScheme.onSurface,
+        modifier = Modifier.semantics { heading() },
+        maxLines = DETAIL_TITLE_MAX_LINES,
+        breakAtDots = true,
+    )
     if (meta != null) {
         Text(
             text = meta,
@@ -229,9 +211,8 @@ internal fun ColumnScope.TvDetailBody(
             modifier = Modifier.padding(top = DETAIL_FACTS_GAP),
             verticalArrangement = Arrangement.spacedBy(DETAIL_FACT_SPACING),
         ) {
-            val shownFacts = facts.take(MAX_DETAIL_FACTS)
-            val labelWidth = factLabelWidth(shownFacts.map { it.label })
-            shownFacts.forEach { fact ->
+            val labelWidth = DETAIL_FACT_LABEL_WIDTH.scaledLike(DETAIL_FACT)
+            facts.take(MAX_DETAIL_FACTS).forEach { fact ->
                 Row(modifier = Modifier.semantics(mergeDescendants = true) {}) {
                     Text(
                         text = fact.label,
@@ -328,20 +309,8 @@ internal fun TextStyle.asMonoRun(): TextStyle = copy(
 
 @Composable
 @ReadOnlyComposable
-internal fun TextUnit.asDp(): Dp = with(LocalDensity.current) { toDp() }
-
-@Composable
-private fun factLabelWidth(labels: List<String>): Dp {
-    val measurer = rememberTextMeasurer()
-    val density = LocalDensity.current
-    return remember(labels, measurer, density) {
-        val widest = labels.maxOfOrNull { measurer.measure(it, DETAIL_FACT, maxLines = 1, softWrap = false).size.width }
-        val fitted = with(density) { (widest ?: 0).toDp() } + SECTION_LABEL_GAP
-        maxOf(DETAIL_FACT_LABEL_WIDTH, fitted)
-    }
-}
-
-private fun String.breakableAtDots(): String = replace(".", ".​").removeSuffix("​")
+internal fun Dp.scaledLike(text: TextStyle): Dp =
+    this * with(LocalDensity.current) { text.fontSize.toDp() / text.fontSize.value.dp }
 
 internal val TV_LIST_WIDTH = 544.dp
 
@@ -357,6 +326,7 @@ private val DETAIL_TOP_NUDGE = 2.dp
 private val SECTION_LABEL_GAP = 8.dp
 private val SECTION_PILL_PADDING = 10.dp
 private val SECTION_PILL_ICON_GAP = 5.dp
+private val SECTION_PILL_ICON = 12.dp
 private val SECTION_PILL_LABEL = PutioTypeScale.tvButton.copy(fontSize = 12.sp, lineHeight = 16.sp)
 private val DETAIL_TITLE = PutioTypeScale.tvDetailTitle.copy(lineHeight = 22.sp)
 private const val DETAIL_TITLE_MAX_LINES = 3
