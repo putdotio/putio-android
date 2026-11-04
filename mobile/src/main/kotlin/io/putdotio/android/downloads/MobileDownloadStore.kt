@@ -19,10 +19,10 @@ import org.json.JSONObject
  * One JSON document per user in private SharedPreferences. Rows hold identity,
  * name, type, rendition, status, queue time, a pending-delete mark, the confirmed
  * subtitle setting and the listing's saved position; Media3 owns bytes and URIs.
- * Suspend writes, the viewer's Pause and Cancel among them, commit off the main thread
- * before the in-memory rows advance, so they survive an immediate process death. The
- * main thread's synchronous transitions apply asynchronously, and byte progress is never
- * written: Media3's own index remains the source of truth for both and is reconciled on start.
+ * Suspend writes, the viewer's Pause and Cancel among them, return once they are on disk,
+ * so they survive an immediate process death; that disk wait never holds the main thread's
+ * transitions. Those apply asynchronously, and byte progress is never written: Media3's own
+ * index remains the source of truth for both and is reconciled on start.
  */
 internal class MobileDownloadStore internal constructor(
     private val preferences: SharedPreferences,
@@ -119,9 +119,10 @@ internal class MobileDownloadStore internal constructor(
         withContext(ioDispatcher) {
             synchronized(lock) {
                 val next = transform(mutableEntries.value)
-                preferences.edit(commit = true) { putString(key, next.toJson(unreadable)) }
+                preferences.edit { putString(key, next.toJson(unreadable)) }
                 mutableEntries.value = next
             }
+            preferences.flush()
         }
 
     companion object {
@@ -156,6 +157,10 @@ internal fun downloadPreferences(context: Context): SharedPreferences =
 private const val DOWNLOAD_PREFERENCES_NAME = "io.putdotio.android.downloads"
 
 private fun storeKey(userId: Long): String = "user-$userId"
+
+private fun SharedPreferences.flush() {
+    edit(commit = true) {}
+}
 
 private class StoredRows(val entries: List<DownloadEntry>, val unreadable: List<Any>)
 

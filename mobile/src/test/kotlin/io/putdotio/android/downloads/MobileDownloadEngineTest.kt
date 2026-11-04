@@ -3,7 +3,6 @@ package io.putdotio.android.downloads
 import android.app.Application
 import android.content.Context
 import android.content.Intent
-import android.content.SharedPreferences
 import android.net.Uri
 import android.os.Looper
 import androidx.core.content.IntentCompat
@@ -679,12 +678,5 @@ private class ScriptedTransfer : Downloader {
         const val TOTAL_BYTES = 1_000L
         const val PERCENT = 100f
         const val POLL_MILLIS = 10L
-    }
-}
-
-/** A process that dies before the system flushes an apply: only commits reach the disk. */
-private class UnflushedApplies(private val disk: SharedPreferences) : SharedPreferences by disk {
-    override fun edit(): SharedPreferences.Editor = object : SharedPreferences.Editor by disk.edit() {
-        override fun apply() = Unit
     }
 }
