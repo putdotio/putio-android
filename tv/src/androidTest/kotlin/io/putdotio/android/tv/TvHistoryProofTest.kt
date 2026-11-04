@@ -3,7 +3,6 @@ package io.putdotio.android.tv
 import android.content.Context
 import android.graphics.Bitmap
 import android.view.KeyEvent
-import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
@@ -49,7 +48,7 @@ import org.junit.runners.model.Statement
  */
 @RunWith(AndroidJUnit4::class)
 class TvHistoryProofTest {
-    private val compose = createAndroidComposeRule<ComponentActivity>()
+    private val compose = createAndroidComposeRule<TvProofActivity>()
     private val optIn = TestRule { base, _ ->
         object : Statement() {
             override fun evaluate() {

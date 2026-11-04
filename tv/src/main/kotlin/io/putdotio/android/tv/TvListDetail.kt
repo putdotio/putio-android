@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -31,10 +32,9 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.text
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -54,6 +54,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import io.putdotio.android.design.PutioDesignTokens
+import io.putdotio.android.design.PutioMiddleCutText
 import io.putdotio.android.design.PutioTypeScale
 import kotlinx.coroutines.launch
 
@@ -147,7 +148,11 @@ internal fun TvSectionPill(
             horizontalArrangement = Arrangement.spacedBy(SECTION_PILL_ICON_GAP),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(SECTION_PILL_ICON))
+            Icon(
+                painterResource(icon),
+                contentDescription = null,
+                modifier = Modifier.size(SECTION_PILL_ICON.scaledLike(SECTION_PILL_LABEL)),
+            )
             Text(label, style = SECTION_PILL_LABEL, maxLines = 1)
         }
     }
@@ -169,14 +174,13 @@ internal fun ColumnScope.TvDetailBody(
     secondaryActions: (@Composable ColumnScope.() -> Unit)? = null,
     actions: @Composable RowScope.() -> Unit,
 ) {
-    Text(
-        text = remember(title) { title.breakableAtDots() },
+    PutioMiddleCutText(
+        text = title,
         style = DETAIL_TITLE,
         color = MaterialTheme.colorScheme.onSurface,
-        modifier = Modifier.clearAndSetSemantics {
-            heading()
-            text = AnnotatedString(title)
-        },
+        modifier = Modifier.semantics { heading() },
+        maxLines = DETAIL_TITLE_MAX_LINES,
+        breakAtDots = true,
     )
     if (meta != null) {
         Text(
@@ -207,6 +211,7 @@ internal fun ColumnScope.TvDetailBody(
             modifier = Modifier.padding(top = DETAIL_FACTS_GAP),
             verticalArrangement = Arrangement.spacedBy(DETAIL_FACT_SPACING),
         ) {
+            val labelWidth = DETAIL_FACT_LABEL_WIDTH.scaledLike(DETAIL_FACT)
             facts.take(MAX_DETAIL_FACTS).forEach { fact ->
                 Row(modifier = Modifier.semantics(mergeDescendants = true) {}) {
                     Text(
@@ -214,7 +219,7 @@ internal fun ColumnScope.TvDetailBody(
                         style = DETAIL_FACT,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier
-                            .width(DETAIL_FACT_LABEL_WIDTH)
+                            .width(labelWidth)
                             .alignByBaseline(),
                     )
                     Text(
@@ -302,7 +307,10 @@ internal fun TextStyle.asMonoRun(): TextStyle = copy(
     fontFeatureSettings = PutioTypeScale.tvMono.fontFeatureSettings,
 )
 
-private fun String.breakableAtDots(): String = replace(".", ".​").removeSuffix("​")
+@Composable
+@ReadOnlyComposable
+internal fun Dp.scaledLike(text: TextStyle): Dp =
+    this * with(LocalDensity.current) { text.fontSize.toDp() / text.fontSize.value.dp }
 
 internal val TV_LIST_WIDTH = 544.dp
 
@@ -321,6 +329,7 @@ private val SECTION_PILL_ICON_GAP = 5.dp
 private val SECTION_PILL_ICON = 12.dp
 private val SECTION_PILL_LABEL = PutioTypeScale.tvButton.copy(fontSize = 12.sp, lineHeight = 16.sp)
 private val DETAIL_TITLE = PutioTypeScale.tvDetailTitle.copy(lineHeight = 22.sp)
+private const val DETAIL_TITLE_MAX_LINES = 3
 private val DETAIL_META_GAP = 5.dp
 private val DETAIL_ACTIONS_GAP = 16.dp
 private val DETAIL_ACTION_SPACING = 4.dp

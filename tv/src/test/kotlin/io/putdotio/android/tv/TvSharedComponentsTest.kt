@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -13,17 +14,26 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.pressKey
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.tv.material3.Text
+import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -40,6 +50,49 @@ import org.robolectric.annotation.GraphicsMode
 class TvSharedComponentsTest {
     @get:Rule
     val compose = createAndroidComposeRule<ComponentActivity>()
+
+    @Test
+    fun aListRowCentresBothLinesAndGrowsToHoldThemAtDoubleFontScale() {
+        var fontScale by mutableStateOf(1f)
+        compose.setTvContent {
+            CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale)) {
+                TvListRow(
+                    glyph = R.drawable.ic_ph_caret_right,
+                    title = ROW_TITLE,
+                    onClick = {},
+                    modifier = Modifier.testTag(LIST_ROW),
+                ) { secondary -> Text(ROW_META, style = TV_LIST_ROW_META, color = secondary) }
+            }
+        }
+
+        compose.onNodeWithTag(LIST_ROW).assertHeightIsEqualTo(TV_LIST_ROW_HEIGHT)
+        assertRowHoldsBothLinesCentred(1f)
+
+        fontScale = 2f
+        compose.waitForIdle()
+
+        assertRowHoldsBothLinesCentred(2f)
+    }
+
+    @Test
+    fun aDetailFactLabelStaysOnOneLineAtDoubleFontScale() {
+        compose.setTvContent {
+            CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, 2f)) {
+                Column {
+                    TvDetailBody(
+                        title = ROW_TITLE,
+                        meta = null,
+                        facts = listOf(TvDetailFact(FACT_LABEL, FACT_VALUE)),
+                    ) {}
+                }
+            }
+        }
+
+        val layouts = mutableListOf<TextLayoutResult>()
+        compose.onNodeWithText(FACT_LABEL, useUnmergedTree = true)
+            .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+        assertEquals("fact label wraps", 1, layouts.single().lineCount)
+    }
 
     @Test
     fun aClosedSideSheetReturnsFocusToTheControlThatOpenedIt() {
@@ -149,9 +202,29 @@ class TvSharedComponentsTest {
         compose.onNodeWithText("Saved").assertDoesNotExist()
     }
 
+    private fun assertRowHoldsBothLinesCentred(fontScale: Float) {
+        val meta = compose.onNodeWithText(ROW_META, useUnmergedTree = true)
+        val layouts = mutableListOf<TextLayoutResult>()
+        meta.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+        val layout = layouts.single()
+        assertEquals(fontScale, layout.layoutInput.density.fontScale)
+        assertTrue("meta is cut to ${layout.size.height}px", layout.getLineBottom(0) <= layout.size.height)
+        val row = compose.onNodeWithTag(LIST_ROW).getUnclippedBoundsInRoot()
+        val top = compose.onNodeWithText(ROW_TITLE, useUnmergedTree = true).getUnclippedBoundsInRoot().top - row.top
+        val bottom = row.bottom - meta.getUnclippedBoundsInRoot().bottom
+        assertTrue("meta leaves the row", bottom >= 0.dp)
+        assertEquals("space above and below the lines", top.value, bottom.value, CENTRE_TOLERANCE_DP)
+    }
+
     private companion object {
         const val FRAME_MILLIS = 16L
         const val HALF_SECOND_MILLIS = 500L
+        const val LIST_ROW = "list-row"
+        const val ROW_TITLE = "Sintel.2010.1080p.mkv"
+        const val ROW_META = "1.1 GB"
+        const val FACT_LABEL = "Subtitles"
+        const val FACT_VALUE = "English, English · SDH"
+        const val CENTRE_TOLERANCE_DP = 1f
         const val SHEET_CONTENT = "sheet-content"
         const val VIEWPORT_WIDTH_DP = 1280f
         const val VIEWPORT_HEIGHT_DP = 720f

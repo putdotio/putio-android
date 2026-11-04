@@ -27,8 +27,8 @@ public abstract class BasePutioActivity : ComponentActivity() {
         )
     }
 
-    internal companion object {
+    public companion object {
         /** Android's "Largest" step before Android 14's nonlinear scales. */
-        const val MAX_FONT_SCALE: Float = 1.3f
+        public const val MAX_FONT_SCALE: Float = 1.3f
     }
 }

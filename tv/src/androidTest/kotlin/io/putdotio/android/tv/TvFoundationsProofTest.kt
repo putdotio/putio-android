@@ -3,7 +3,6 @@ package io.putdotio.android.tv
 import android.content.Context
 import android.graphics.Bitmap
 import android.view.KeyEvent
-import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.FocusInteraction
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -74,7 +73,7 @@ import org.junit.runners.model.Statement
 class TvFoundationsProofTest {
     private val arguments = InstrumentationRegistry.getArguments()
     private val context: Context = InstrumentationRegistry.getInstrumentation().targetContext
-    private val compose = createAndroidComposeRule<ComponentActivity>()
+    private val compose = createAndroidComposeRule<TvProofActivity>()
     private val optIn = TestRule { base, _ ->
         object : Statement() {
             override fun evaluate() {
