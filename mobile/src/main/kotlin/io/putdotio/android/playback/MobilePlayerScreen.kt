@@ -1449,9 +1449,28 @@ private fun BoxScope.MobileVideoLayers(
             },
         surfaceType = playbackSurfaceType(Build.VERSION.SDK_INT, Build.HARDWARE),
     )
+    val toggleControls = {
+        onPointerNavigation()
+        controlsVisible.value = controlsVisibleAfterTap(
+            controlsVisible = controlsVisible.value,
+            playbackState = playerState.playbackState,
+            touchExplorationEnabled = touchExplorationEnabled,
+        )
+    }
+    if (fold != null) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .padding(top = fold.top)
+                .zIndex(0.5f)
+                .pointerInput(player, touchExplorationEnabled) {
+                    detectVideoTapGestures(onDoubleTap = { toggleControls() }, onTap = { toggleControls() })
+                },
+        )
+    }
     Box(
         Modifier
-            .fillMaxSize()
+            .videoArea(fold)
             .zIndex(0.5f)
             .testTag(MOBILE_PLAYER_GESTURE_TAG),
     ) {
@@ -1485,14 +1504,7 @@ private fun BoxScope.MobileVideoLayers(
                                 onSeek(direction)
                                 if (!playerState.seekWindow.available) controlsVisible.value = true
                             },
-                            onTap = {
-                                onPointerNavigation()
-                                controlsVisible.value = controlsVisibleAfterTap(
-                                    controlsVisible = controlsVisible.value,
-                                    playbackState = playerState.playbackState,
-                                    touchExplorationEnabled = touchExplorationEnabled,
-                                )
-                            },
+                            onTap = { toggleControls() },
                         )
                     },
             )
