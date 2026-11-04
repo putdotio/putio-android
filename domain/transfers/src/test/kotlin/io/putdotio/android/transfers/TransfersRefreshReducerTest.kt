@@ -115,6 +115,38 @@ class TransfersRefreshReducerTest {
         assertEquals(emptySet<TransferCursor>(), refreshed.consumedCursors)
     }
 
+    @Test
+    fun reloadAfterRemovingEveryLoadedRowClearsAnEarlierRefreshFailure() {
+        val loaded =
+            TransfersReducer.start().complete(
+                TransfersPage(listOf(item(1L, AppTransferStatus.Completed)), TransferCursor("one")),
+            )
+        val refreshing = TransfersReducer.reduce(loaded, TransfersEvent.Refresh)
+        val refreshFailed =
+            TransfersReducer.reduce(
+                refreshing.state,
+                TransfersEvent.ListFailed(refreshing.requestId(), failure()),
+            ).state
+        val removing = TransfersReducer.reduce(refreshFailed, TransfersEvent.Remove(TransferId(1L)))
+        val reloading =
+            TransfersReducer.reduce(
+                removing.state,
+                TransfersEvent.MutationSucceeded(
+                    (removing.effect as TransfersEffect.Mutate).requestId,
+                    affectedIds = setOf(TransferId(1L)),
+                ),
+            )
+
+        val reloaded = reloading.complete(TransfersPage(listOf(item(2L)), null))
+
+        assertEquals(TransfersRefresh.Idle, reloaded.refresh)
+        assertEquals(
+            listOf(TransferId(2L)),
+            (reloaded.content as TransfersContent.Ready).items.map(TransferItem::id),
+        )
+        assertTrue(TransfersReducer.reduce(reloaded, TransfersEvent.Refresh).consumed)
+    }
+
     private fun TransfersTransition.complete(page: TransfersPage): TransfersState =
         TransfersReducer.reduce(state, TransfersEvent.ListSucceeded(requestId(), page)).state
 

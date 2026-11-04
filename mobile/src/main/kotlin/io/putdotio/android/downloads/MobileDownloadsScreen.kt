@@ -111,9 +111,16 @@ internal fun MobileDownloadsScreen(
         onEvent(DownloadsEvent.Shown)
         onStopOrDispose { onEvent(DownloadsEvent.Hidden) }
     }
+    LaunchedEffect(selection, state.entries, state.removing) { selection.reconcile(state) }
+    LaunchedEffect(sheetFileId, sheetEntry == null) {
+        if (sheetEntry == null) sheetFileId = null
+    }
     LaunchedEffect(state.focus) {
         val focus = state.focus ?: return@LaunchedEffect
-        if (state.entry(focus) != null) sheetFileId = focus.value
+        if (state.entry(focus) != null) {
+            selection.end()
+            sheetFileId = focus.value
+        }
         onEvent(DownloadsEvent.FocusHandled)
     }
     BackHandler(enabled = inSelection, onBack = selection::end)

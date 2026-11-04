@@ -410,12 +410,7 @@ internal class GmsCastRemote : CastRemote {
     private var client: RemoteMediaClient? = null
     private var lastFileId: Long? = null
 
-    /** The latest load request, so only its own result settles it; an older one for the same file does not. */
-    private var loadRequest = 0L
-    private var loadSettled = true
-
-    /** A refused load, which stands over the receiver's reports until the next load. */
-    private var failedLoad: CastRemoteStatus? = null
+    private val latestLoad = CastLoad()
 
     /** The latest load's playlist subtitle, until the receiver lists the stream's text tracks. */
     private var pendingSubtitle: Pair<Long, PlaybackCastPlaylistSubtitle>? = null
@@ -456,7 +451,7 @@ internal class GmsCastRemote : CastRemote {
      */
     private val showPendingSubtitle = {
         val remote = client
-        if (loadSettled && remote != null) pendingSubtitle = pendingSubtitle?.let(remote::showPlaylistSubtitle)
+        if (!latestLoad.inFlight && remote != null) pendingSubtitle = pendingSubtitle?.let(remote::showPlaylistSubtitle)
     }
 
     private val callback = object : RemoteMediaClient.Callback() {
@@ -474,6 +469,7 @@ internal class GmsCastRemote : CastRemote {
 
     fun attach(remote: RemoteMediaClient?) {
         release()
+        latestLoad.reset()
         client = remote?.also {
             it.registerCallback(callback)
             it.addProgressListener(progress, PROGRESS_INTERVAL_MILLIS)
@@ -495,9 +491,7 @@ internal class GmsCastRemote : CastRemote {
         publish()
         release()
         lastFileId = null
-        // A load still in flight belongs to the session that ended.
-        loadRequest++
-        failedLoad = null
+        latestLoad.reset()
         pendingSubtitle = null
         playIntent = null
         endedStatus = mutableStatus.value?.takeUnless { discardHandback }
@@ -526,7 +520,7 @@ internal class GmsCastRemote : CastRemote {
         val previous = mutableStatus.value?.takeIf { info == null && it.fileId == fileId }
         val state = media.castRemoteState()
         noteReport(fileId, state)
-        mutableStatus.value = failedLoad ?: CastRemoteStatus(
+        mutableStatus.value = latestLoad.failure ?: CastRemoteStatus(
             fileId = fileId,
             state = state,
             positionMillis = remote.approximateStreamPosition.coerceAtLeast(0L),
@@ -548,7 +542,7 @@ internal class GmsCastRemote : CastRemote {
     private fun noteReport(fileId: Long?, state: CastRemoteState) {
         lastFileId = fileId
         // A load's own intent stands until its result: reports on the media before it say nothing of it.
-        if (loadSettled && (state == CastRemoteState.Playing || state == CastRemoteState.Paused)) {
+        if (!latestLoad.inFlight && (state == CastRemoteState.Playing || state == CastRemoteState.Paused)) {
             playIntent = state == CastRemoteState.Playing
         }
     }
@@ -556,9 +550,7 @@ internal class GmsCastRemote : CastRemote {
     override fun load(media: PlaybackCastMedia, startMillis: Long, autoplay: Boolean, speed: Float) {
         val remote = client ?: return
         lastFileId = media.fileId
-        val request = ++loadRequest
-        loadSettled = false
-        failedLoad = null
+        val request = latestLoad.start()
         pendingSubtitle = media.playlistSubtitle?.let { media.fileId to it }
         playIntent = autoplay
         remote.load(
@@ -571,20 +563,22 @@ internal class GmsCastRemote : CastRemote {
                 .build(),
         ).setResultCallback { result ->
             // A refused or timed-out load says so for its file, unless another load followed it.
-            if (loadRequest == request) loadSettled = true
-            if (client === remote && loadRequest == request && result.status.isSuccess) showPendingSubtitle()
-            if (client === remote && loadRequest == request && !result.status.isSuccess) {
-                pendingSubtitle = null
-                failedLoad = CastRemoteStatus(
-                    fileId = media.fileId,
-                    state = CastRemoteState.Failed,
-                    positionMillis = startMillis,
-                    durationMillis = media.durationMillis,
-                    sampledAtMillis = SystemClock.elapsedRealtime(),
-                    title = media.title,
-                    audio = media.mediaType == PlaybackMediaType.AUDIO,
-                )
-                mutableStatus.value = failedLoad
+            val failure = CastRemoteStatus(
+                fileId = media.fileId,
+                state = CastRemoteState.Failed,
+                positionMillis = startMillis,
+                durationMillis = media.durationMillis,
+                sampledAtMillis = SystemClock.elapsedRealtime(),
+                title = media.title,
+                audio = media.mediaType == PlaybackMediaType.AUDIO,
+            ).takeUnless { result.status.isSuccess }
+            if (client === remote && latestLoad.settle(request, failure)) {
+                if (failure == null) {
+                    showPendingSubtitle()
+                } else {
+                    pendingSubtitle = null
+                    mutableStatus.value = failure
+                }
             }
         }
     }
@@ -605,6 +599,41 @@ internal class GmsCastRemote : CastRemote {
 
     override fun setSpeed(speed: Float) {
         client?.setPlaybackRate(speed.castRate())
+    }
+}
+
+internal sealed interface CastLoadPhase {
+    data object Idle : CastLoadPhase
+
+    data class InFlight(val request: Long) : CastLoadPhase
+
+    data class Failed(val status: CastRemoteStatus) : CastLoadPhase
+}
+
+internal class CastLoad {
+    private var lastRequest = 0L
+
+    var phase: CastLoadPhase = CastLoadPhase.Idle
+        private set
+
+    val inFlight: Boolean get() = phase is CastLoadPhase.InFlight
+
+    val failure: CastRemoteStatus? get() = (phase as? CastLoadPhase.Failed)?.status
+
+    fun start(): Long {
+        lastRequest++
+        phase = CastLoadPhase.InFlight(lastRequest)
+        return lastRequest
+    }
+
+    fun settle(request: Long, failure: CastRemoteStatus?): Boolean {
+        if (phase != CastLoadPhase.InFlight(request)) return false
+        phase = failure?.let(CastLoadPhase::Failed) ?: CastLoadPhase.Idle
+        return true
+    }
+
+    fun reset() {
+        phase = CastLoadPhase.Idle
     }
 }
 
