@@ -1,0 +1,9 @@
+{
+  "ignorePatterns": [
+    ".agents/skills/adaptive/**",
+    ".agents/skills/anr-audit-and-fix/**",
+    ".agents/skills/jetpack-compose-performance/**",
+    ".agents/skills/media3-cast-integration/**",
+    ".agents/skills/r8-analyzer/**"
+  ]
+}

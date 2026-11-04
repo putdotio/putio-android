@@ -82,6 +82,19 @@ To build against unreleased SDK changes, see `putioSdkKotlinPath` in
 [`settings.gradle.kts`](settings.gradle.kts). Release the SDK before an app PR
 depends on it.
 
+## Skills
+
+Skills live in `.agents/skills`, linked into `.claude/skills`.
+[`skills-lock.json`](skills-lock.json) pins the ones from
+[android/skills](https://github.com/android/skills); `npx skills update -p`
+refreshes them. Don't edit their files.
+
+- R8 or keep rules: `r8-analyzer`
+- Compose jank or recomposition: `jetpack-compose-performance`
+- ANR traces or main-thread risk: `anr-audit-and-fix`
+- Cast: `media3-cast-integration`
+- Phone, tablet, or foldable layouts: `adaptive`
+
 ## Build and verify
 
 ```bash
@@ -114,9 +127,9 @@ that matches. Report skipped or unavailable proof.
 | Docs only                           | `./gradlew markdownCheck`; check web links and commands                                                                                                             |
 | Domain or core logic                | `./gradlew :domain:<name>:testDebugUnitTest` or `:core:<name>:testDebugUnitTest`; tests live in the owning module                                                   |
 | App view models or services         | `./gradlew :mobile:testProductionDebugUnitTest` or `:tv:testProductionDebugUnitTest`                                                                                |
-| UI, navigation, playback, or launch | Mobile: the affected feature in [verify-putio-android](.claude/skills/verify-putio-android/SKILL.md); TV: `./scripts/prove.sh tv` or its opt-in `*ProofTest` lane   |
+| UI, navigation, playback, or launch | Mobile: the affected feature in [verify-putio-android](.agents/skills/verify-putio-android/SKILL.md); TV: `./scripts/prove.sh tv` or its opt-in `*ProofTest` lane   |
 | Google Play delivery                | `./gradlew -PputioVersionName=3.0.1 :mobile:bundleProductionRelease :tv:bundleProductionRelease`, then a `dry_run` of [Google Play delivery](#google-play-delivery) |
-| Live API behavior                   | Mobile: [verify-putio-android](.claude/skills/verify-putio-android/SKILL.md) with its fixture ledger; TV: the lane's `devs-auto` steps                              |
+| Live API behavior                   | Mobile: [verify-putio-android](.agents/skills/verify-putio-android/SKILL.md) with its fixture ledger; TV: the lane's `devs-auto` steps                              |
 | Design tokens or icons              | `./scripts/sync-design-assets.sh` or `./scripts/generate-icons.sh`, then `./gradlew verify`                                                                         |
 | Visible change                      | Reviewed captures from `.evidence/`, attached with `gh pr comment <n> --attach <file>`                                                                              |
 
