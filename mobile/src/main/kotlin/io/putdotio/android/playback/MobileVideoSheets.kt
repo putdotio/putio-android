@@ -1,6 +1,7 @@
 package io.putdotio.android.playback
 
 import android.view.KeyEvent
+import io.putdotio.android.MobileTooltip
 import io.putdotio.android.playback.R as PlaybackR
 import androidx.annotation.StringRes
 import androidx.compose.material3.Icon
@@ -57,11 +58,11 @@ internal fun MobileNextEpisodeChip(nextEpisode: PlaybackTarget?, onNextEpisode: 
 @Composable
 internal fun MobilePictureInPictureButton(enter: (() -> Unit)?, modifier: Modifier) {
     if (enter == null) return
-    IconButton(onClick = enter, modifier = modifier) {
-        Icon(
-            painterResource(R.drawable.ic_ph_picture_in_picture),
-            contentDescription = stringResource(R.string.mobile_playback_picture_in_picture),
-        )
+    val label = stringResource(R.string.mobile_playback_picture_in_picture)
+    MobileTooltip(label) {
+        IconButton(onClick = enter, modifier = modifier) {
+            Icon(painterResource(R.drawable.ic_ph_picture_in_picture), contentDescription = label)
+        }
     }
 }
 

@@ -64,6 +64,8 @@ import io.putdotio.android.settings.readyAndroidAppConfigState
 import io.putdotio.sdk.errors.PutioConfigurationException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.unit.dp
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -102,6 +104,18 @@ import androidx.compose.ui.test.assertIsOn
 class MobileAccountScreenTest {
     @get:Rule
     val compose = createComposeRule()
+
+    @Test
+    @Config(sdk = [35], qualifiers = "w1280dp-h800dp-land")
+    fun anExpandedWindowKeepsSettingsRowsToAReadableWidth() {
+        compose.setAccountContent()
+
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_DEFAULT_SORT_ROW_TAG))
+        val list = compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).getUnclippedBoundsInRoot()
+        val row = compose.onNodeWithTag(MOBILE_DEFAULT_SORT_ROW_TAG).getUnclippedBoundsInRoot()
+        assertTrue("The list still scrolls across the window: $list", list.right - list.left >= 1200.dp)
+        assertTrue("Rows stop at a readable width: $row", row.right <= 640.dp)
+    }
 
     @Test
     fun settingsSectionsSupportHeadingNavigation() {

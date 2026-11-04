@@ -62,6 +62,7 @@ import io.putdotio.android.LoadNextPageNearEnd
 import io.putdotio.android.MobileLoadingState
 import io.putdotio.android.MobileMiddleCutText
 import io.putdotio.android.MobileRow
+import io.putdotio.android.MobileTooltip
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.design.FileTypeIcon
@@ -185,8 +186,11 @@ private fun MobileMovePickerBar(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        IconButton(onClick = onCancel, modifier = Modifier.testTag(MOBILE_FILES_MOVE_CANCEL_TAG)) {
-            Icon(painterResource(R.drawable.ic_ph_x), stringResource(R.string.mobile_action_close))
+        val closeLabel = stringResource(R.string.mobile_action_close)
+        MobileTooltip(closeLabel) {
+            IconButton(onClick = onCancel, modifier = Modifier.testTag(MOBILE_FILES_MOVE_CANCEL_TAG)) {
+                Icon(painterResource(R.drawable.ic_ph_x), closeLabel)
+            }
         }
         Text(
             text = title,
@@ -203,12 +207,15 @@ private fun MobileMovePickerBar(
 private fun MobileMovePickerOptions(rememberTarget: Boolean, onChange: (Boolean) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     Box {
-        IconButton(onClick = { expanded = true }, modifier = Modifier.testTag(MOBILE_FILES_MOVE_OPTIONS_TAG)) {
-            Icon(
-                painterResource(R.drawable.ic_ph_dots_three_vertical),
-                stringResource(R.string.mobile_files_move_options),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+        val label = stringResource(R.string.mobile_files_move_options)
+        MobileTooltip(label) {
+            IconButton(onClick = { expanded = true }, modifier = Modifier.testTag(MOBILE_FILES_MOVE_OPTIONS_TAG)) {
+                Icon(
+                    painterResource(R.drawable.ic_ph_dots_three_vertical),
+                    label,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
         DropdownMenu(
             expanded = expanded,

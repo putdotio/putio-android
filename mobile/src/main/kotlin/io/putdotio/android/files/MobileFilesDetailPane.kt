@@ -1,5 +1,6 @@
 package io.putdotio.android.files
 
+import io.putdotio.android.MobileTooltip
 import io.putdotio.android.playback.R as PlaybackR
 import android.content.Context
 import android.net.Uri
@@ -243,11 +244,14 @@ private fun MobileFilesDetailButtons(
             )
         }
         actions.onMore?.let { more ->
-            IconButton(onClick = { more(item) }, modifier = Modifier.testTag(MOBILE_FILES_DETAIL_MORE_TAG)) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_ph_dots_three_vertical),
-                    contentDescription = stringResource(R.string.mobile_files_actions, item.name),
-                )
+            val label = stringResource(R.string.mobile_files_actions, item.name)
+            MobileTooltip(label) {
+                IconButton(onClick = { more(item) }, modifier = Modifier.testTag(MOBILE_FILES_DETAIL_MORE_TAG)) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_ph_dots_three_vertical),
+                        contentDescription = label,
+                    )
+                }
             }
         }
     }

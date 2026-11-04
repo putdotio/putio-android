@@ -40,6 +40,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
+import io.putdotio.android.MobileTooltip
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioRadius
 import io.putdotio.android.design.PutioTypeScale
@@ -98,15 +99,17 @@ internal fun MobileFilesSortMenu(
     }
 
     Box {
-        IconButton(
-            onClick = { expanded = true },
-            enabled = enabled,
-            colors = colors,
-            modifier = Modifier
-                .testTag(MOBILE_FILES_SORT_TAG)
-                .sortState(currentLabel),
-        ) {
-            Icon(painter = painterResource(R.drawable.ic_ph_sort_ascending), contentDescription = sortLabel)
+        MobileTooltip(sortLabel) {
+            IconButton(
+                onClick = { expanded = true },
+                enabled = enabled,
+                colors = colors,
+                modifier = Modifier
+                    .testTag(MOBILE_FILES_SORT_TAG)
+                    .sortState(currentLabel),
+            ) {
+                Icon(painter = painterResource(R.drawable.ic_ph_sort_ascending), contentDescription = sortLabel)
+            }
         }
         MobileSortMenu(
             expanded = expanded && enabled,

@@ -50,6 +50,7 @@ import io.putdotio.android.MobileEmptyState
 import io.putdotio.android.MobileLoadingState
 import io.putdotio.android.MobileMiddleCutText
 import io.putdotio.android.MobileRow
+import io.putdotio.android.MobileTooltip
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.files.formatFileSize
@@ -224,17 +225,20 @@ private fun MobileTrashRow(
         },
         trailing = {
             Row {
-                IconButton(onClick = onRestore, enabled = canRestore, colors = muted) {
-                    Icon(
-                        painterResource(R.drawable.ic_ph_arrow_counter_clockwise),
-                        contentDescription = stringResource(R.string.mobile_trash_restore_named, item.name),
-                    )
+                val restoreLabel = stringResource(R.string.mobile_trash_restore_named, item.name)
+                MobileTooltip(restoreLabel) {
+                    IconButton(onClick = onRestore, enabled = canRestore, colors = muted) {
+                        Icon(
+                            painterResource(R.drawable.ic_ph_arrow_counter_clockwise),
+                            contentDescription = restoreLabel,
+                        )
+                    }
                 }
-                IconButton(onClick = onActions, enabled = enabled, colors = muted) {
-                    Icon(
-                        painterResource(R.drawable.ic_ph_dots_three_vertical),
-                        contentDescription = stringResource(R.string.mobile_trash_actions_named, item.name),
-                    )
+                val actionsLabel = stringResource(R.string.mobile_trash_actions_named, item.name)
+                MobileTooltip(actionsLabel) {
+                    IconButton(onClick = onActions, enabled = enabled, colors = muted) {
+                        Icon(painterResource(R.drawable.ic_ph_dots_three_vertical), contentDescription = actionsLabel)
+                    }
                 }
             }
         },

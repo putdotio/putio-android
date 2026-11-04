@@ -1,6 +1,7 @@
 package io.putdotio.android.playback
 
 import androidx.annotation.DrawableRes
+import io.putdotio.android.MobileTooltip
 import io.putdotio.android.playback.R as PlaybackR
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
@@ -262,16 +263,18 @@ internal fun MobileSpeedSheetContent(player: Media3Player, snapshot: PlayerOptio
 
 @Composable
 private fun SpeedStepButton(@DrawableRes icon: Int, description: String, enabled: Boolean, onClick: () -> Unit) {
-    FilledIconButton(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = Modifier.size(56.dp),
-        colors = IconButtonDefaults.filledIconButtonColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-            contentColor = MaterialTheme.colorScheme.onSurface,
-        ),
-    ) {
-        Icon(painterResource(icon), contentDescription = description)
+    MobileTooltip(description) {
+        FilledIconButton(
+            onClick = onClick,
+            enabled = enabled,
+            modifier = Modifier.size(56.dp),
+            colors = IconButtonDefaults.filledIconButtonColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                contentColor = MaterialTheme.colorScheme.onSurface,
+            ),
+        ) {
+            Icon(painterResource(icon), contentDescription = description)
+        }
     }
 }
 

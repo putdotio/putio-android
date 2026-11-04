@@ -727,6 +727,8 @@
     <string name="mobile_shortcut_play_pause">Play or pause</string>
     <string name="mobile_shortcut_seek_back">Seek back</string>
     <string name="mobile_shortcut_seek_forward">Seek forward</string>
+    <string name="mobile_shortcut_ctrl">Ctrl+%1$s</string>
+    <string name="mobile_tooltip_with_shortcut">%1$s (%2$s)</string>
     <!-- Item actions and dialogs (#373) -->
     <string name="mobile_action_dismiss">Dismiss</string>
     <string name="mobile_files_play">Play</string>

@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.media3.ui.compose.state.rememberProgressStateWithTickInterval
+import io.putdotio.android.MobileTooltip
 import io.putdotio.sdk.files.PlaybackSubtitle
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Box
@@ -372,16 +373,13 @@ private fun MobilePlayerSeparateBack(state: PlaybackState, onBack: () -> Unit, m
     if (state.target.mediaType == PlaybackMediaType.VIDEO) {
         MobilePlayerFrameBar(title = state.target.name, onBack = onBack, modifier = modifier)
     } else {
-        IconButton(
-            onClick = onBack,
-            modifier = modifier
-                .windowInsetsPadding(WindowInsets.safeDrawing)
-                .padding(start = 4.dp, top = 8.dp),
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ic_ph_caret_down),
-                contentDescription = stringResource(R.string.mobile_action_back),
-            )
+        val label = stringResource(R.string.mobile_action_back)
+        Box(modifier.windowInsetsPadding(WindowInsets.safeDrawing).padding(start = 4.dp, top = 8.dp)) {
+            MobileTooltip(label) {
+                IconButton(onClick = onBack) {
+                    Icon(painter = painterResource(R.drawable.ic_ph_caret_down), contentDescription = label)
+                }
+            }
         }
     }
 }
@@ -404,11 +402,11 @@ private fun MobilePlayerFrameBar(title: String, onBack: () -> Unit, modifier: Mo
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        IconButton(onClick = onBack) {
-            Icon(
-                painter = painterResource(R.drawable.ic_ph_arrow_left),
-                contentDescription = stringResource(R.string.mobile_action_back),
-            )
+        val label = stringResource(R.string.mobile_action_back)
+        MobileTooltip(label) {
+            IconButton(onClick = onBack) {
+                Icon(painter = painterResource(R.drawable.ic_ph_arrow_left), contentDescription = label)
+            }
         }
         MobilePlayerTitle(title, Modifier.weight(1f))
     }
@@ -1219,10 +1217,13 @@ private fun MobileReadyPlayerContent(
     SheetFocusEffect(sheet != null, controlsMenuOpen, keyFocus)
     SubtitleOffsetEffect(player, preferences.subtitleOffsetMillis)
     val optionModifier = Modifier.observeControlNavigation(onPointerNavigation, onKeyboardNavigation)
+    var contentInWindow by remember { mutableStateOf(Rect.Zero) }
+    val fold = tabletopFoldIn(contentInWindow, enabled = !pictureInPicture)
 
     Box(
         Modifier
             .fillMaxSize()
+            .onGloballyPositioned { contentInWindow = it.boundsInWindow() }
             .onKeyEvent { event ->
                 videoKeyCommand(event.nativeKeyEvent, sheet, { sheet = sheet.parentSheet() }) { command ->
                     player.runKeyCommand(command, ::seek, onBack)
@@ -1256,8 +1257,11 @@ private fun MobileReadyPlayerContent(
                 pictureInPicture = pictureInPicture,
                 subtitleTextScale = appearance.textSize.scale,
                 subtitlesBesideSheet = sheet != null,
-                subtitleClearance = footerHeight.takeIf { controlsVisible.value && sheet == null } ?: 0.dp,
+                subtitleClearance = fold.videoClearance(
+                    footerHeight.takeIf { controlsVisible.value && sheet == null } ?: 0.dp,
+                ),
                 subtitleDelayMillis = preferences.subtitleOffsetMillis,
+                fold = fold,
             )
         }
         if (isAudio) {
@@ -1292,6 +1296,7 @@ private fun MobileReadyPlayerContent(
                 settings = { MobileVideoChips(options, subtitleStartupPolicy, { sheet = it }, optionModifier) },
                 trailingChip = { MobileNextEpisodeChip(nextEpisode, onNextEpisode, optionModifier) },
                 onFooterHeight = { footerHeight = it },
+                fold = fold,
             )
             MobileSeekFeedbackLayer(pendingSeek.value)
         }
@@ -1439,13 +1444,14 @@ private fun BoxScope.MobileVideoLayers(
     subtitlesBesideSheet: Boolean,
     subtitleClearance: Dp,
     subtitleDelayMillis: Long,
+    fold: TabletopFold?,
 ) {
     val player = playerState.player
     val currentPictureInPicture by rememberUpdatedState(pictureInPicture)
     ContentFrame(
         player = player,
         modifier = Modifier
-            .fillMaxSize()
+            .videoArea(fold)
             .onGloballyPositioned {
                 // Inside the window these are its own bounds; the next window still starts from full screen.
                 if (!currentPictureInPicture) playerState.videoFrame = it.boundsInWindow()
@@ -1507,6 +1513,7 @@ private fun BoxScope.MobileVideoLayers(
         besideSheet = subtitlesBesideSheet,
         clearance = subtitleClearance.takeUnless { pictureInPicture } ?: 0.dp,
         delayMillis = subtitleDelayMillis,
+        fold = fold,
     )
     if (pictureInPicture) MobilePictureInPictureProgress(player, Modifier.align(Alignment.BottomStart).zIndex(3f))
 }
@@ -1524,8 +1531,9 @@ private fun MobileSubtitleLayer(
     besideSheet: Boolean,
     clearance: Dp,
     delayMillis: Long,
+    fold: TabletopFold?,
 ) {
-    BoxWithConstraints(Modifier.fillMaxSize().zIndex(3f)) {
+    BoxWithConstraints(Modifier.videoArea(fold).zIndex(3f)) {
         val frame = DpSize(maxWidth, maxHeight)
         val aspectRatio = playerState.videoSize.displayAspectRatioOrNull()
         val bottomPadding by animateFloatAsState(

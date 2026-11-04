@@ -29,6 +29,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.media3.common.C
 import androidx.media3.common.Player as Media3Player
+import io.putdotio.android.MobileTooltip
 import io.putdotio.android.R
 import io.putdotio.android.design.putioMono
 import kotlinx.coroutines.delay
@@ -186,46 +187,48 @@ internal fun MobileSeekButton(
 ) {
     val intervalSeconds = (VideoSeekIntervals.millis(direction) / 1_000L).toInt()
     val description = seekDescription(direction, intervalSeconds)
-    IconButton(
-        onClick = onClick,
-        enabled = enabled,
-        colors = IconButtonDefaults.iconButtonColors(
-            // On video the button is a translucent dark circle, so it reads over any frame.
-            containerColor = if (onVideo) {
-                MaterialTheme.colorScheme.scrim.copy(alpha = VIDEO_SEEK_CIRCLE_ALPHA)
-            } else {
-                MaterialTheme.colorScheme.background.copy(alpha = 0f)
-            },
-            contentColor = MaterialTheme.colorScheme.onSurface,
-            disabledContainerColor = if (onVideo) {
-                MaterialTheme.colorScheme.scrim.copy(alpha = VIDEO_SEEK_CIRCLE_ALPHA)
-            } else {
-                MaterialTheme.colorScheme.background.copy(alpha = 0f)
-            },
-        ),
-        shape = CircleShape,
-        modifier = modifier.requiredSize(56.dp).testTag(
-            if (direction == SeekDirection.Backward) MOBILE_SEEK_BACK_TAG else MOBILE_SEEK_FORWARD_TAG,
-        ).semantics { contentDescription = description },
-    ) {
-        Box(contentAlignment = Alignment.Center, modifier = Modifier.clearAndSetSemantics {}) {
-            Icon(
-                painter = painterResource(
-                    if (direction == SeekDirection.Backward) {
-                        R.drawable.ic_ph_arrow_counter_clockwise
-                    } else {
-                        R.drawable.ic_ph_arrow_clockwise
-                    },
-                ),
-                contentDescription = null,
-                modifier = Modifier.size(if (onVideo) 34.dp else 32.dp),
-            )
-            // The number belongs to the fixed-size glyph; the accessible label carries the interval.
-            Text(
-                intervalSeconds.toString(),
-                style = MaterialTheme.typography.labelSmall.putioMono(),
-                fontSize = with(LocalDensity.current) { 12.dp.toSp() },
-            )
+    MobileTooltip(description) {
+        IconButton(
+            onClick = onClick,
+            enabled = enabled,
+            colors = IconButtonDefaults.iconButtonColors(
+                // On video the button is a translucent dark circle, so it reads over any frame.
+                containerColor = if (onVideo) {
+                    MaterialTheme.colorScheme.scrim.copy(alpha = VIDEO_SEEK_CIRCLE_ALPHA)
+                } else {
+                    MaterialTheme.colorScheme.background.copy(alpha = 0f)
+                },
+                contentColor = MaterialTheme.colorScheme.onSurface,
+                disabledContainerColor = if (onVideo) {
+                    MaterialTheme.colorScheme.scrim.copy(alpha = VIDEO_SEEK_CIRCLE_ALPHA)
+                } else {
+                    MaterialTheme.colorScheme.background.copy(alpha = 0f)
+                },
+            ),
+            shape = CircleShape,
+            modifier = modifier.requiredSize(56.dp).testTag(
+                if (direction == SeekDirection.Backward) MOBILE_SEEK_BACK_TAG else MOBILE_SEEK_FORWARD_TAG,
+            ).semantics { contentDescription = description },
+        ) {
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.clearAndSetSemantics {}) {
+                Icon(
+                    painter = painterResource(
+                        if (direction == SeekDirection.Backward) {
+                            R.drawable.ic_ph_arrow_counter_clockwise
+                        } else {
+                            R.drawable.ic_ph_arrow_clockwise
+                        },
+                    ),
+                    contentDescription = null,
+                    modifier = Modifier.size(if (onVideo) 34.dp else 32.dp),
+                )
+                // The number belongs to the fixed-size glyph; the accessible label carries the interval.
+                Text(
+                    intervalSeconds.toString(),
+                    style = MaterialTheme.typography.labelSmall.putioMono(),
+                    fontSize = with(LocalDensity.current) { 12.dp.toSp() },
+                )
+            }
         }
     }
 }

@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import io.putdotio.android.MobileMiddleCutText
+import io.putdotio.android.MobileTooltip
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.files.FilesItem
@@ -206,8 +207,11 @@ private fun MobileFileViewerBar(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconButton(onClick = onBack) {
-                Icon(painterResource(R.drawable.ic_ph_arrow_left), stringResource(R.string.mobile_action_back))
+            val backLabel = stringResource(R.string.mobile_action_back)
+            MobileTooltip(backLabel) {
+                IconButton(onClick = onBack) {
+                    Icon(painterResource(R.drawable.ic_ph_arrow_left), backLabel)
+                }
             }
             MobileMiddleCutText(
                 text = file.name,
@@ -215,16 +219,19 @@ private fun MobileFileViewerBar(
                 modifier = Modifier.weight(1f),
             )
             actions.onShare?.let { share ->
-                IconButton(onClick = { share(file) }) {
-                    Icon(painterResource(R.drawable.ic_ph_share_network), stringResource(R.string.mobile_files_share))
+                val label = stringResource(R.string.mobile_files_share)
+                MobileTooltip(label) {
+                    IconButton(onClick = { share(file) }) {
+                        Icon(painterResource(R.drawable.ic_ph_share_network), label)
+                    }
                 }
             }
             actions.onMore?.let { more ->
-                IconButton(onClick = { more(file) }) {
-                    Icon(
-                        painterResource(R.drawable.ic_ph_dots_three_vertical),
-                        stringResource(R.string.mobile_files_actions, file.name),
-                    )
+                val label = stringResource(R.string.mobile_files_actions, file.name)
+                MobileTooltip(label) {
+                    IconButton(onClick = { more(file) }) {
+                        Icon(painterResource(R.drawable.ic_ph_dots_three_vertical), label)
+                    }
                 }
             }
         }

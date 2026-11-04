@@ -55,6 +55,7 @@ import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import io.putdotio.android.MobileTooltip
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioRadius
 import io.putdotio.android.design.PutioTypeScale
@@ -139,12 +140,15 @@ private fun MobileSideSheetHeader(title: String, onClose: () -> Unit, onBack: ((
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         if (onBack != null) {
-            IconButton(onClick = onBack) {
-                Icon(
-                    painterResource(R.drawable.ic_ph_arrow_left),
-                    contentDescription = stringResource(R.string.mobile_action_back),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            val backLabel = stringResource(R.string.mobile_action_back)
+            MobileTooltip(backLabel) {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        painterResource(R.drawable.ic_ph_arrow_left),
+                        contentDescription = backLabel,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
         Text(
@@ -153,12 +157,15 @@ private fun MobileSideSheetHeader(title: String, onClose: () -> Unit, onBack: ((
             modifier = Modifier.weight(1f).semantics { heading() },
         )
         if (onBack == null) {
-            IconButton(onClick = onClose) {
-                Icon(
-                    painterResource(R.drawable.ic_ph_x),
-                    contentDescription = stringResource(R.string.mobile_action_close),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            val closeLabel = stringResource(R.string.mobile_action_close)
+            MobileTooltip(closeLabel) {
+                IconButton(onClick = onClose) {
+                    Icon(
+                        painterResource(R.drawable.ic_ph_x),
+                        contentDescription = closeLabel,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
     }

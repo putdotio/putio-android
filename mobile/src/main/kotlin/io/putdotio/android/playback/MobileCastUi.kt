@@ -23,6 +23,7 @@ import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.paneTitle
 import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.putdotio.android.MobileTooltip
 import io.putdotio.android.design.PutioRadius
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -93,22 +94,25 @@ internal fun MobileCastButton(
         onLocalNetworkAnswer(granted)
         if (granted) onClick()
     }
-    IconButton(
-        onClick = {
-            if (availability == CastAvailability.NeedsLocalNetwork) {
-                askLocalNetwork.launch(LOCAL_NETWORK_PERMISSION)
-            } else {
-                onClick()
-            }
-        },
-        modifier = modifier.testTag(MOBILE_CAST_BUTTON_TAG),
-    ) {
-        Icon(
-            painterResource(R.drawable.ic_ph_screencast),
-            contentDescription = device?.let { stringResource(R.string.mobile_cast_casting_to, it) }
-                ?: stringResource(R.string.mobile_cast),
-            tint = if (device != null) PutioDesignTokens.yellowSolid else LocalContentColor.current,
-        )
+    val label = device?.let { stringResource(R.string.mobile_cast_casting_to, it) }
+        ?: stringResource(R.string.mobile_cast)
+    MobileTooltip(label) {
+        IconButton(
+            onClick = {
+                if (availability == CastAvailability.NeedsLocalNetwork) {
+                    askLocalNetwork.launch(LOCAL_NETWORK_PERMISSION)
+                } else {
+                    onClick()
+                }
+            },
+            modifier = modifier.testTag(MOBILE_CAST_BUTTON_TAG),
+        ) {
+            Icon(
+                painterResource(R.drawable.ic_ph_screencast),
+                contentDescription = label,
+                tint = if (device != null) PutioDesignTokens.yellowSolid else LocalContentColor.current,
+            )
+        }
     }
 }
 

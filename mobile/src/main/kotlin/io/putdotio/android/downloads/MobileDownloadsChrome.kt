@@ -41,6 +41,7 @@ import io.putdotio.android.MobileSelectionBar
 import io.putdotio.android.MobileSelectionToolbar
 import io.putdotio.android.MobileTabTitle
 import io.putdotio.android.MobileToolbarTile
+import io.putdotio.android.MobileTooltip
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.putioMono
@@ -148,11 +149,11 @@ private fun DownloadsOverflow(
 ) {
     var open by rememberSaveable { mutableStateOf(false) }
     Box {
-        IconButton(onClick = { open = true }, modifier = Modifier.testTag(MOBILE_DOWNLOADS_OVERFLOW_TAG)) {
-            Icon(
-                painterResource(R.drawable.ic_ph_dots_three_vertical),
-                contentDescription = stringResource(R.string.mobile_action_more_options),
-            )
+        val label = stringResource(R.string.mobile_action_more_options)
+        MobileTooltip(label) {
+            IconButton(onClick = { open = true }, modifier = Modifier.testTag(MOBILE_DOWNLOADS_OVERFLOW_TAG)) {
+                Icon(painterResource(R.drawable.ic_ph_dots_three_vertical), contentDescription = label)
+            }
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             DropdownMenuItem(

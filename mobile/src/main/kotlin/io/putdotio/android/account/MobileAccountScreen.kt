@@ -5,7 +5,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -149,25 +151,28 @@ internal fun MobileAccountScreen(
         onAppConfigEvent = onAppConfigEvent,
         onOpen = { dialog = it },
     )
-    LazyColumn(
-        modifier = modifier
-            .fillMaxSize()
-            .testTag(MOBILE_ACCOUNT_LIST_TAG),
-    ) {
-        item(key = IDENTITY_KEY) { MobileAccountIdentity(account) }
-        item(key = STORAGE_KEY) { MobileAccountStorage(account.storage) }
-        libraryGroup(rows, library, onManagePublicLinks, onManageTrash)
-        filesItems(settingsState, rows, onRetryLoad = { onSettingsEvent(AccountSettingsEvent.RetryLoad) })
-        playbackItems(settingsState, appConfigState, rows, onRetryLoad = {
-            onAppConfigEvent(AndroidAppConfigEvent.RetryLoad)
-        })
-        privacyItems(settingsState, rows, onPrivacyControls)
-        aboutItems(
-            rows = rows,
-            onAppInfo = onAppInfo,
-            onPrivacyPolicy = { uriHandler.openSafely(PrivacyLinks.POLICY) },
-            onSignOut = { dialog = AccountDialog.SignOut },
-        )
+    BoxWithConstraints(modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .testTag(MOBILE_ACCOUNT_LIST_TAG),
+            contentPadding = PaddingValues(end = (maxWidth - ACCOUNT_MAX_WIDTH).coerceAtLeast(0.dp)),
+        ) {
+            item(key = IDENTITY_KEY) { MobileAccountIdentity(account) }
+            item(key = STORAGE_KEY) { MobileAccountStorage(account.storage) }
+            libraryGroup(rows, library, onManagePublicLinks, onManageTrash)
+            filesItems(settingsState, rows, onRetryLoad = { onSettingsEvent(AccountSettingsEvent.RetryLoad) })
+            playbackItems(settingsState, appConfigState, rows, onRetryLoad = {
+                onAppConfigEvent(AndroidAppConfigEvent.RetryLoad)
+            })
+            privacyItems(settingsState, rows, onPrivacyControls)
+            aboutItems(
+                rows = rows,
+                onAppInfo = onAppInfo,
+                onPrivacyPolicy = { uriHandler.openSafely(PrivacyLinks.POLICY) },
+                onSignOut = { dialog = AccountDialog.SignOut },
+            )
+        }
     }
     MobileAccountDialogs(
         dialog = dialog,
@@ -787,6 +792,7 @@ private fun MobileAccountStorage(storage: AccountStorage) {
     }
 }
 
+private val ACCOUNT_MAX_WIDTH = 640.dp
 private const val IDENTITY_KEY = "account-identity"
 private const val STORAGE_KEY = "account-storage"
 private const val LIBRARY_KEY = "account-library"

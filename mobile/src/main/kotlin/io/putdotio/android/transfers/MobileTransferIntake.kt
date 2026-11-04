@@ -27,6 +27,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.putdotio.android.AuthoritativeSessionFailureEffect
+import io.putdotio.android.MobileTooltip
 import io.putdotio.android.R
 import io.putdotio.android.design.FileTypeIcon
 import io.putdotio.android.files.FilesFolder
@@ -119,8 +120,11 @@ internal fun MobileTransferTorrentRow(torrent: TorrentUpload, enabled: Boolean, 
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
-        IconButton(onClick = onRemove, enabled = enabled) {
-            Icon(painterResource(R.drawable.ic_ph_x), stringResource(R.string.mobile_transfers_remove_torrent))
+        val label = stringResource(R.string.mobile_transfers_remove_torrent)
+        MobileTooltip(label) {
+            IconButton(onClick = onRemove, enabled = enabled) {
+                Icon(painterResource(R.drawable.ic_ph_x), label)
+            }
         }
     }
 }

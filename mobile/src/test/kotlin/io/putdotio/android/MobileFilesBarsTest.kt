@@ -2,10 +2,12 @@ package io.putdotio.android
 
 import androidx.compose.ui.test.junit4.ComposeContentTestRule
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTouchInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
@@ -65,6 +67,15 @@ class MobileFilesBarsTest {
         compose.onNodeWithTag(MOBILE_FILES_SEARCH_TAG).performClick()
 
         assertEquals(listOf<SearchScope?>(SearchScope(FilesItemId(7L), "Blue Lights")), scopes)
+    }
+
+    @Test
+    fun aLongPressOnFolderSearchNamesItAndItsShortcut() {
+        compose.setShell({ folderState() }, onScope = {})
+
+        compose.onNodeWithTag(MOBILE_FILES_SEARCH_TAG).performTouchInput { longClick() }
+
+        compose.onNodeWithText("Search in Blue Lights (Ctrl+F)").assertExists()
     }
 
     @Test

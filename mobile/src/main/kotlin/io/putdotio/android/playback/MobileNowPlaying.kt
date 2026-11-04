@@ -41,6 +41,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.media3.common.C
 import androidx.media3.common.Player as Media3Player
 import io.putdotio.android.MobileMiddleCutText
+import io.putdotio.android.MobileTooltip
 import io.putdotio.android.isShortWideWindow
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
@@ -221,38 +222,41 @@ internal fun MobileNowPlayingBar(
                     }
                 }
                 Row {
-                    IconButton(
-                        onClick = onToggle,
-                        modifier = Modifier.testTag(MOBILE_NOW_PLAYING_TOGGLE_TAG),
-                    ) {
-                        Icon(
-                            painter = painterResource(
-                                if (nowPlaying.isPlaying) {
-                                    DesignR.drawable.ic_ph_pause_fill
-                                } else {
-                                    DesignR.drawable.ic_ph_play_fill
-                                },
-                            ),
-                            contentDescription = stringResource(
-                                if (nowPlaying.isPlaying) {
-                                    R.string.mobile_now_playing_pause
-                                } else {
-                                    R.string.mobile_now_playing_play
-                                },
-                            ),
-                        )
+                    val toggleLabel = stringResource(
+                        if (nowPlaying.isPlaying) {
+                            R.string.mobile_now_playing_pause
+                        } else {
+                            R.string.mobile_now_playing_play
+                        },
+                    )
+                    MobileTooltip(toggleLabel) {
+                        IconButton(
+                            onClick = onToggle,
+                            modifier = Modifier.testTag(MOBILE_NOW_PLAYING_TOGGLE_TAG),
+                        ) {
+                            Icon(
+                                painter = painterResource(
+                                    if (nowPlaying.isPlaying) {
+                                        DesignR.drawable.ic_ph_pause_fill
+                                    } else {
+                                        DesignR.drawable.ic_ph_play_fill
+                                    },
+                                ),
+                                contentDescription = toggleLabel,
+                            )
+                        }
                     }
-                    IconButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.testTag(MOBILE_NOW_PLAYING_DISMISS_TAG),
-                        colors = IconButtonDefaults.iconButtonColors(
-                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        ),
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_ph_x),
-                            contentDescription = stringResource(R.string.mobile_now_playing_dismiss),
-                        )
+                    val dismissLabel = stringResource(R.string.mobile_now_playing_dismiss)
+                    MobileTooltip(dismissLabel) {
+                        IconButton(
+                            onClick = onDismiss,
+                            modifier = Modifier.testTag(MOBILE_NOW_PLAYING_DISMISS_TAG),
+                            colors = IconButtonDefaults.iconButtonColors(
+                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            ),
+                        ) {
+                            Icon(painter = painterResource(R.drawable.ic_ph_x), contentDescription = dismissLabel)
+                        }
                     }
                 }
             }

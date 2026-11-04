@@ -121,19 +121,19 @@ internal fun MobileSelectionBar(
         TopAppBar(
             title = { Text(mobileSelectedCount(count)) },
             navigationIcon = {
-                IconButton(onClick = onClear) {
-                    Icon(
-                        painterResource(R.drawable.ic_ph_x),
-                        contentDescription = stringResource(R.string.mobile_selection_clear),
-                    )
+                val label = stringResource(R.string.mobile_selection_clear)
+                MobileTooltip(label) {
+                    IconButton(onClick = onClear) {
+                        Icon(painterResource(R.drawable.ic_ph_x), contentDescription = label)
+                    }
                 }
             },
             actions = {
-                IconButton(onClick = onSelectAll) {
-                    Icon(
-                        painterResource(R.drawable.ic_ph_checks),
-                        contentDescription = stringResource(R.string.mobile_selection_select_all),
-                    )
+                val label = stringResource(R.string.mobile_selection_select_all)
+                MobileTooltip(label) {
+                    IconButton(onClick = onSelectAll) {
+                        Icon(painterResource(R.drawable.ic_ph_checks), contentDescription = label)
+                    }
                 }
             },
             windowInsets = WindowInsets(0),

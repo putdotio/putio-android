@@ -1185,11 +1185,11 @@ private fun MobileFilesTopBar(
 
 @Composable
 private fun MobileBackButton(onClick: () -> Unit, enabled: Boolean = true) {
-    IconButton(onClick = onClick, enabled = enabled) {
-        Icon(
-            painter = painterResource(R.drawable.ic_ph_arrow_left),
-            contentDescription = stringResource(R.string.mobile_action_back),
-        )
+    val label = stringResource(R.string.mobile_action_back)
+    MobileTooltip(label) {
+        IconButton(onClick = onClick, enabled = enabled) {
+            Icon(painter = painterResource(R.drawable.ic_ph_arrow_left), contentDescription = label)
+        }
     }
 }
 

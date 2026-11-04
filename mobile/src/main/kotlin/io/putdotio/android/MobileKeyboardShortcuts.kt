@@ -11,6 +11,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.stringResource
 import androidx.core.view.ViewCompat
 
 /** What a hardware key asks for once no focused control used it. */
@@ -65,6 +66,16 @@ internal fun mobileKeyCommand(scope: MobileShortcutScope, keyCode: Int, metaStat
     return MobileKeyboardShortcuts.firstOrNull {
         it.scope == scope && it.keyCode == keyCode && it.ctrl == ctrl && it.command != MobileKeyCommand.Open
     }?.command
+}
+
+@Composable
+internal fun mobileCtrlShortcut(scope: MobileShortcutScope, command: MobileKeyCommand): String? {
+    val letter = MobileKeyboardShortcuts
+        .firstOrNull { it.scope == scope && it.command == command && it.ctrl }
+        ?.keyCode
+        ?.takeIf { it in KeyEvent.KEYCODE_A..KeyEvent.KEYCODE_Z }
+        ?: return null
+    return stringResource(R.string.mobile_shortcut_ctrl, 'A' + (letter - KeyEvent.KEYCODE_A))
 }
 
 internal fun mobileKeyboardShortcutGroups(context: Context): List<KeyboardShortcutGroup> =

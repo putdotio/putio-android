@@ -53,6 +53,7 @@ import io.putdotio.android.LoadNextPageNearEnd
 import io.putdotio.android.LoadNextPageNow
 import io.putdotio.android.MobileEmptyState
 import io.putdotio.android.MobileErrorState
+import io.putdotio.android.MobileTooltip
 import io.putdotio.android.RetryWhenOnline
 import io.putdotio.android.MobileRow
 import io.putdotio.android.MobileSectionLabel
@@ -277,11 +278,11 @@ private fun MobileRecentSearches(
                 },
                 headline = { Text(term.value, maxLines = 2, overflow = TextOverflow.Ellipsis) },
                 trailing = {
-                    IconButton(onClick = { onEdit(RecentSearchEdit.Remove(term)) }, colors = muted) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_ph_x),
-                            contentDescription = stringResource(R.string.mobile_search_remove_named, term.value),
-                        )
+                    val label = stringResource(R.string.mobile_search_remove_named, term.value)
+                    MobileTooltip(label) {
+                        IconButton(onClick = { onEdit(RecentSearchEdit.Remove(term)) }, colors = muted) {
+                            Icon(painter = painterResource(R.drawable.ic_ph_x), contentDescription = label)
+                        }
                     }
                 },
                 modifier = Modifier.clickable(role = Role.Button) { onSearch(term) },

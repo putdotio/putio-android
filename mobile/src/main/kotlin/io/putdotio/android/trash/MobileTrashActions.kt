@@ -44,6 +44,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.MobileDialogDismissButton
 import io.putdotio.android.MobileSheetHandle
+import io.putdotio.android.MobileTooltip
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
@@ -132,12 +133,15 @@ internal fun MobileTrashOverflow(state: TrashState, onEvent: (TrashEvent) -> Boo
         Unit
     }
     Box {
-        IconButton(
-            onClick = { expanded = true },
-            modifier = Modifier.testTag(MOBILE_TRASH_MORE_TAG),
-            colors = IconButtonDefaults.iconButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
-        ) {
-            Icon(painterResource(R.drawable.ic_ph_dots_three_vertical), stringResource(R.string.mobile_trash_more))
+        val label = stringResource(R.string.mobile_trash_more)
+        MobileTooltip(label) {
+            IconButton(
+                onClick = { expanded = true },
+                modifier = Modifier.testTag(MOBILE_TRASH_MORE_TAG),
+                colors = IconButtonDefaults.iconButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
+            ) {
+                Icon(painterResource(R.drawable.ic_ph_dots_three_vertical), label)
+            }
         }
         DropdownMenu(
             expanded = expanded,
