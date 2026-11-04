@@ -401,7 +401,7 @@ private fun MobileSearchResults(
             MobileSearchResultRow(item, rows, rootName)
         }
         if (content.paging != SearchPaging.Complete) {
-            item(key = "search-paging") {
+            item(key = "search-paging", contentType = "paging") {
                 MobileSearchPaging(content.paging, onNextPage, onRetry, Modifier.fillMaxWidth())
             }
         }
@@ -416,13 +416,13 @@ private fun LazyListScope.resultGroup(
     row: @Composable (FilesItem) -> Unit,
 ) {
     if (items.isEmpty()) return
-    item(key = "group-$key") {
+    item(key = "group-$key", contentType = "header") {
         MobileSectionLabel(
             text = stringResource(title),
             trailing = { Text(items.size.toString(), style = MaterialTheme.typography.bodySmall.putioMono()) },
         )
     }
-    items(items, key = { it.id.value }) { row(it) }
+    items(items, key = { it.id.value }, contentType = { "row" }) { row(it) }
 }
 
 /** The shared file row, naming the folder the result sits in once that name is known. */

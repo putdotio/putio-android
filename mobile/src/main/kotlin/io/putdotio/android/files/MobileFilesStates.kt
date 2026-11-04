@@ -37,16 +37,17 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -111,17 +112,20 @@ internal fun LazyListScope.mobileFilesHeaderItems(
     onRemove: ((ContinueWatchingEntry) -> Unit)? = null,
     hidden: Boolean = false,
 ) {
-    fun header(key: String, content: @Composable () -> Unit) = item(key = key) { if (!hidden) content() }
+    fun header(key: String, type: String, content: @Composable () -> Unit) =
+        item(key = key, contentType = type) { if (!hidden) content() }
     if (headers.continueWatching.isNotEmpty()) {
-        header("continue-watching-label") {
+        header("continue-watching-label", "label") {
             MobileFilesSectionLabel(stringResource(R.string.mobile_files_continue_watching))
         }
-        header("continue-watching") { MobileContinueWatchingRow(headers.continueWatching, onPlay, onRemove) }
-        header("all-files-label") {
+        header("continue-watching", "continue-watching") {
+            MobileContinueWatchingRow(headers.continueWatching, onPlay, onRemove)
+        }
+        header("all-files-label", "label") {
             MobileFilesSectionLabel(stringResource(R.string.mobile_files_all_files), top = 12.dp)
         }
     } else {
-        headers.summary?.let { summary -> header("folder-summary") { MobileFolderSummaryLine(summary) } }
+        headers.summary?.let { summary -> header("folder-summary", "summary") { MobileFolderSummaryLine(summary) } }
     }
 }
 
@@ -321,8 +325,8 @@ internal fun MobileFilesSkeleton(
             },
     ) {
         SKELETON_ROWS.forEachIndexed { index, (headline, meta) ->
-            val alpha = if (still) {
-                1f
+            val level = if (still) {
+                null
             } else {
                 transition.animateFloat(
                     initialValue = 1f,
@@ -337,14 +341,14 @@ internal fun MobileFilesSkeleton(
                         initialStartOffset = StartOffset(skeletonLead(index), StartOffsetType.FastForward),
                     ),
                     label = "skeleton-$index",
-                ).value
+                )
             }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(SKELETON_ROW_HEIGHT)
                     .padding(horizontal = 16.dp)
-                    .alpha(alpha),
+                    .pulse(level),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -367,6 +371,16 @@ internal fun MobileFilesSkeleton(
         }
     }
 }
+
+private fun Modifier.pulse(level: State<Float>?): Modifier =
+    if (level == null) {
+        this
+    } else {
+        graphicsLayer {
+            alpha = level.value
+            clip = true
+        }
+    }
 
 @Composable
 private fun SkeletonBlock(color: Color, modifier: Modifier, radius: Dp = 6.dp) {

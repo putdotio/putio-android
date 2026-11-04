@@ -207,7 +207,7 @@ private class DownloadRows(
 )
 
 private fun LazyListScope.section(section: DownloadSection, rows: DownloadRows, first: Boolean) {
-    item(key = "header-${section.key}") {
+    item(key = "header-${section.key}", contentType = "header") {
         // In selection the tab title and its storage summary give way to the selection bar.
         val storage = rows.state.storageBytes.takeIf { section.key == "on-device" && rows.selection != null }
         MobileSectionLabel(
@@ -221,7 +221,7 @@ private fun LazyListScope.section(section: DownloadSection, rows: DownloadRows, 
             },
         )
     }
-    items(section.entries, key = { "${section.key}-${it.fileId.value}" }) { entry ->
+    items(section.entries, key = { "${section.key}-${it.fileId.value}" }, contentType = { "row" }) { entry ->
         val removing = entry.fileId in rows.state.removing
         MobileDownloadRow(
             entry = entry,

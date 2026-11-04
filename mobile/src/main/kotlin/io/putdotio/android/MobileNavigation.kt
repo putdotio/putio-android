@@ -178,7 +178,7 @@ internal fun MobileNavHost(
     val moveTargetStore = remember(appContext, account.userId) { MobileMoveTargetStore(appContext, account.userId) }
     val motion = rememberMobileMotion()
     SharedTransitionLayout(modifier = modifier) {
-        CompositionLocalProvider(LocalMobileSharedTransition provides this) {
+        CompositionLocalProvider(LocalMobileSharedTransition provides takeUnless { motion.reducedMotion }) {
             NavHost(
                 navController = navController,
                 startDestination = MobileDestination.start.route,

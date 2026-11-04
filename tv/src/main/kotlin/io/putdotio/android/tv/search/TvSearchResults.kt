@@ -158,7 +158,7 @@ internal fun TvSearchResultList(
             row = row,
         )
         if (paging != SearchPaging.Complete) {
-            item(key = TV_SEARCH_PAGING_KEY) {
+            item(key = TV_SEARCH_PAGING_KEY, contentType = "paging") {
                 TvSearchPaging(
                     paging = paging,
                     onNextPage = onNextPage,
@@ -205,10 +205,10 @@ private fun LazyListScope.resultGroup(
     row: @Composable (FilesItem) -> Unit,
 ) {
     if (items.isEmpty()) return
-    item(key = "group-$key") {
+    item(key = "group-$key", contentType = "header") {
         TvSearchGroupLabel(stringResource(title), items.size, first)
     }
-    items(items, key = { it.id.value }) { row(it) }
+    items(items, key = { it.id.value }, contentType = { "row" }) { row(it) }
 }
 
 @Composable

@@ -15,12 +15,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.State
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -77,16 +79,20 @@ internal fun TvFilesList(
     // may have moved off screen or gone, so the live requester is only trusted while it is
     // attached to a row that is still listed.
     val listedIds = remember(content.items) { content.items.mapTo(HashSet()) { it.id.value } }
-    val liveRowListed = focusedRowId.value != null && focusedRowId.value in listedIds
     val rowStillFocused = { rowKeepsFocus(headerHasFocus, detailOwnsFocus, pagingHeldFocus) }
-    val rowOwnsFocus = focusedRowId.value != null && rowStillFocused()
-    val entryFocus = content.paging.listEntryFocus(
-        pagingHeld = pagingHeldFocus.value,
-        liveRowListed = liveRowListed,
-        pagingFocus = listPagingFocus,
-        liveRowFocus = liveRowFocus,
-        rowFocus = rowFocus,
-    )
+    val rowOwnedFocus = Snapshot.withoutReadObservation { focusedRowId.value != null && rowStillFocused() }
+    val paging = content.paging
+    val entryFocus = remember(listState, paging, listedIds) {
+        derivedStateOf {
+            paging.listEntryFocus(
+                pagingHeld = pagingHeldFocus.value,
+                liveRowListed = focusedRowId.value.let { it != null && it in listedIds },
+                pagingFocus = listPagingFocus,
+                liveRowFocus = liveRowFocus,
+                rowFocus = rowFocus,
+            )
+        }
+    }.value
     SideEffect { onEntryTarget(entryFocus) }
     // The paging control leaves the list when the last page lands; if it held focus, the
     // last row becomes the remembered row so the restorer's fallback lands there.
@@ -109,7 +115,7 @@ internal fun TvFilesList(
     // After the rows change under a mounted list, keep focus on the row that had it, or on
     // the fallback target when that row is gone.
     LaunchedEffect(content.items) {
-        if (!rowOwnsFocus) return@LaunchedEffect
+        if (!rowOwnedFocus) return@LaunchedEffect
         listState.revealFocusedRow(content.items, focusedRowId, focusTarget, liveRowFocus, rowFocus)
             ?.requestFocusNextFrame(paneHasFocus, rowStillFocused)
     }
@@ -157,7 +163,10 @@ internal fun TvFilesList(
                 .focusGroup()
                 .testTag(TV_FILES_LIST_TAG),
         ) {
-            items(items = content.items, key = { it.id.value }) { item ->
+            items(items = content.items, key = { it.id.value }, contentType = { "row" }) { item ->
+                val holdsLiveFocus by remember(focusedRowId, item.id.value) {
+                    derivedStateOf { focusedRowId.value == item.id.value }
+                }
                 TvFilesRow(
                     item = item,
                     onClick = { onOpen(item) },
@@ -166,7 +175,7 @@ internal fun TvFilesList(
                     modifier = Modifier
                         .downTo(downFromLast.takeIf { item.id == lastRowId })
                         .focusRequesterIf(item.id.value == focusTarget, rowFocus)
-                        .focusRequesterIf(item.id.value == focusedRowId.value, liveRowFocus)
+                        .focusRequesterIf(holdsLiveFocus, liveRowFocus)
                         .onFocusChanged {
                             if (it.isFocused) {
                                 focusMemory[folderId] = item.id.value
@@ -178,7 +187,7 @@ internal fun TvFilesList(
                 )
             }
             if (content.paging != FilesPaging.Complete) {
-                item(key = TV_FILES_PAGING_KEY) {
+                item(key = TV_FILES_PAGING_KEY, contentType = "paging") {
                     TvFilesPaging(
                         paging = content.paging,
                         enabled = pagingEnabled,
