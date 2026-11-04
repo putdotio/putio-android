@@ -192,7 +192,7 @@ internal class MobileDownloadEngine(
     override fun setPaused(fileId: FilesItemId, paused: Boolean) {
         if (closed) return
         // The index keeps the viewer's intent first; reconcile and every report hold Media3 to it.
-        store.updateStatusBlocking(fileId, commit = true) { it.copy(pauseRequested = paused) }
+        store.updateStatusBlocking(fileId) { it.copy(pauseRequested = paused) }
         downloadManager.setStopReason(
             downloadContentId(userId, fileId),
             if (paused) STOP_REASON_PAUSED else Download.STOP_REASON_NONE,

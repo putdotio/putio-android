@@ -26,6 +26,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelAndJoin
@@ -35,6 +36,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.Call
 import okhttp3.OkHttpClient
@@ -53,12 +55,15 @@ import okhttp3.Request
  * whole root; the auth runtime's session-exit cleanup can run after the next session started, so it
  * clears only the departed session's directory and whatever earlier processes left.
  */
+// Each Service callback the platform calls, onTimeout included, plus the export flow and its two test seams.
+@Suppress("TooManyFunctions")
 class MobileFileShareService : Service() {
     private val dependencies by lazy { shareDependencies(this) }
     private val scope by lazy { CoroutineScope(SupervisorJob() + dependencies.main) }
     private val exporter by lazy { MobileShareExporter(this, dependencies) }
     private val notifications = MobileShareNotifications(this)
     private var job: Job? = null
+    private var exporting: String? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -69,6 +74,7 @@ class MobileFileShareService : Service() {
             // Every start arrives through startForegroundService; the promise must be kept before stopping.
             val label = name ?: getString(R.string.mobile_files_share)
             show(notifications.progress(label, indeterminate = true, progress = 0))
+            exporting = null
             val previous = job
             job = scope.launch {
                 // Join so no progress update from the cancelled export lands after this stop.
@@ -80,6 +86,7 @@ class MobileFileShareService : Service() {
             return START_NOT_STICKY
         }
         show(notifications.progress(name, indeterminate = true, progress = 0))
+        exporting = name
         val session = dependencies.authState.value.sessionId
         val previous = job
         job = scope.launch {
@@ -114,7 +121,7 @@ class MobileFileShareService : Service() {
         } catch (error: CancellationException) {
             throw error
         } catch (error: SessionEndedException) {
-            shareRoot(this).deleteRecursively()
+            clearShares(dependencies.io)
             ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         } catch (error: IOException) {
             // A cancelled call surfaces as IOException; cancellation is not a failure to report.
@@ -160,12 +167,12 @@ class MobileFileShareService : Service() {
             withTimeoutOrNull(dependencies.readyTimeout) { MobileResumedActivity.await() }
         } catch (error: CancellationException) {
             // A dismissed or superseded wait drops its export together with the notification.
-            shareRoot(this).deleteRecursively()
+            clearShares(dependencies.io)
             throw error
         }
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         if (resumed == null) {
-            shareRoot(this).deleteRecursively()
+            clearShares(dependencies.io)
             return
         }
         if (dependencies.authState.value.sessionId != session) throw SessionEndedException()
@@ -185,6 +192,14 @@ class MobileFileShareService : Service() {
 
     @androidx.annotation.VisibleForTesting
     internal fun chooserForTest(file: File): Intent = shareChooser(file)
+
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        job?.cancel()
+        MobileShareProgress.end()
+        ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+        exporting?.let { notifications.postFailed(NOTIFICATION_ID, it) }
+        stopSelf()
+    }
 
     override fun onDestroy() {
         scope.cancel()
@@ -289,6 +304,10 @@ private fun Context.shareChooser(file: File): Intent {
         .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     send.clipData = ClipData.newRawUri(null, uri)
     return Intent.createChooser(send, null).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+}
+
+private suspend fun Context.clearShares(io: CoroutineDispatcher) {
+    withContext(NonCancellable + io) { MobileFileShareService.shareRoot(this@clearShares).deleteRecursively() }
 }
 
 private val MobileAuthState.sessionId: MobileAuthSessionId?

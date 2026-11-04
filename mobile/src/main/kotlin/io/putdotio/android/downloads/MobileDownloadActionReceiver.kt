@@ -164,7 +164,7 @@ internal fun pauseFromNotification(
     fileId: FilesItemId,
 ) {
     if (store.find(fileId)?.removing == true) return
-    store.updateStatusBlocking(fileId, commit = true) { it.copy(pauseRequested = true) }
+    store.updateStatusBlocking(fileId) { it.copy(pauseRequested = true) }
     manager.setStopReason(downloadContentId(userId, fileId), MobileDownloadEngine.STOP_REASON_PAUSED)
 }
 
@@ -179,7 +179,7 @@ internal fun cancelFromNotification(
     fileId: FilesItemId,
     remove: (contentId: String) -> Unit,
 ) {
-    store.updateStatusBlocking(fileId, commit = true) { it.copy(removing = true) }
+    store.updateStatusBlocking(fileId) { it.copy(removing = true) }
     remove(downloadContentId(userId, fileId))
 }
 

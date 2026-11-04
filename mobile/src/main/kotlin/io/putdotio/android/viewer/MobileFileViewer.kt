@@ -30,6 +30,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberUpdatedState
@@ -59,8 +60,10 @@ import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesPdfDocument
 import io.putdotio.android.files.FilesViewerKind
 import io.putdotio.android.files.viewerKind
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.withContext
 
 internal const val MOBILE_FILE_VIEWER_TAG = "mobile-file-viewer"
 internal const val MOBILE_FILE_VIEWER_PAGES_TAG = "mobile-file-viewer-pages"
@@ -106,12 +109,19 @@ internal fun MobileFileViewer(
     paging: MobileFileViewerPaging = MobileFileViewerPaging(),
 ) {
     val context = LocalContext.current
-    LaunchedEffect(Unit) { FilesPdfDocument.clearCache(context) }
+    val cacheCleared by produceState(false) {
+        withContext(Dispatchers.IO) { FilesPdfDocument.clearCache(context) }
+        value = true
+    }
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
     ) {
-        MobileFileViewerContent(files, shownId, actions, onShown, onDismiss, paging)
+        if (cacheCleared) {
+            MobileFileViewerContent(files, shownId, actions, onShown, onDismiss, paging)
+        } else {
+            Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.scrim))
+        }
     }
 }
 

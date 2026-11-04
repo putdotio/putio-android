@@ -19,9 +19,10 @@ import org.json.JSONObject
  * One JSON document per user in private SharedPreferences. Rows hold identity,
  * name, type, rendition, status, queue time, a pending-delete mark, the confirmed
  * subtitle setting and the listing's saved position; Media3 owns bytes and URIs.
- * User and terminal writes commit before the in-memory rows advance; other
- * transitions apply asynchronously and byte progress is never written. Media3's
- * own index remains the source of truth for progress and is reconciled on start.
+ * Suspend writes commit off the main thread before the in-memory rows advance;
+ * the main thread's synchronous transitions apply asynchronously, and byte progress
+ * is never written. Media3's own index remains the source of truth for progress and
+ * is reconciled on start.
  */
 internal class MobileDownloadStore internal constructor(
     private val preferences: SharedPreferences,
@@ -55,25 +56,17 @@ internal class MobileDownloadStore internal constructor(
     }
 
     /**
-     * Engine transitions arrive on the main thread. Non-terminal ones persist
-     * asynchronously; terminal states commit so a completed download survives an
-     * immediate process death. Media3's own index is reconciled on start either way.
+     * Engine and viewer transitions arrive on the main thread, ordered with Media3's calls there.
+     * They persist asynchronously, so a bulk Pause or Cancel never waits on the disk once per row.
      */
-    fun updateStatusBlocking(
-        fileId: FilesItemId,
-        // A viewer's choice, like a terminal state, must survive an immediate process death.
-        commit: Boolean = false,
-        transform: (DownloadEntry) -> DownloadEntry,
-    ) {
+    fun updateStatusBlocking(fileId: FilesItemId, transform: (DownloadEntry) -> DownloadEntry) {
         synchronized(lock) {
             val current = mutableEntries.value
             val entry = current.firstOrNull { it.fileId == fileId } ?: return
             val updated = transform(entry)
             if (updated == entry) return
             val next = current.map { if (it.fileId == fileId) updated else it }
-            val terminal = updated.status is DownloadStatus.Completed || updated.status is DownloadStatus.Failed ||
-                updated.status is DownloadStatus.Missing
-            preferences.edit(commit = commit || terminal) { putString(key, next.toJson(unreadable)) }
+            preferences.edit { putString(key, next.toJson(unreadable)) }
             mutableEntries.value = next
         }
     }
@@ -83,7 +76,7 @@ internal class MobileDownloadStore internal constructor(
         synchronized(lock) {
             if (mutableEntries.value.any { it.fileId == entry.fileId }) return
             val next = mutableEntries.value + entry
-            preferences.edit(commit = true) { putString(key, next.toJson(unreadable)) }
+            preferences.edit { putString(key, next.toJson(unreadable)) }
             mutableEntries.value = next
         }
     }
@@ -104,7 +97,7 @@ internal class MobileDownloadStore internal constructor(
         synchronized(lock) {
             forgetUnreadable(fileId)
             val next = mutableEntries.value.filterNot { it.fileId == fileId }
-            preferences.edit(commit = true) { putString(key, next.toJson(unreadable)) }
+            preferences.edit { putString(key, next.toJson(unreadable)) }
             mutableEntries.value = next
         }
     }

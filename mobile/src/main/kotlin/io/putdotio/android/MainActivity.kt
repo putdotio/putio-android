@@ -10,6 +10,7 @@ import androidx.browser.auth.AuthTabIntent
 import androidx.core.net.toUri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
 import io.putdotio.android.account.EXTRA_HARNESS_ANALYTICS_PROMPT
 import io.putdotio.android.account.LocalMobileProductAnalyticsPromptMode
 import io.putdotio.android.account.MobileProductAnalyticsPromptMode
@@ -21,8 +22,10 @@ import io.putdotio.android.telemetry.ProductAnalytics
 import io.putdotio.android.transfers.MobileTransferDraft
 import io.putdotio.android.transfers.consumeMobileIncomingTransfer
 import io.putdotio.android.transfers.receive
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 
 class MainActivity : BasePutioActivity() {
     internal val authTabLauncher = AuthTabIntent.registerActivityResultLauncher(this) { result ->
@@ -56,7 +59,9 @@ class MainActivity : BasePutioActivity() {
         configureEdgeToEdge()
         // Before this activity resumes, so Cast looks for receivers while it shows.
         MobileCast.follow(this)
-        if (savedInstanceState == null) MobileFileShareService.pruneStale(applicationContext)
+        if (savedInstanceState == null) {
+            lifecycleScope.launch(Dispatchers.IO) { MobileFileShareService.pruneStale(applicationContext) }
+        }
         consumeShare(intent, savedInstanceState?.getBoolean(STATE_SHARE_CONSUMED) == true)
         consumeDeepLink(intent, savedInstanceState?.getBoolean(STATE_DEEP_LINK_CONSUMED) == true)
         restorePendingDeepLink(savedInstanceState)
