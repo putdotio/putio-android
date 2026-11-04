@@ -12,7 +12,7 @@ internal interface DownloadEngine {
     fun start(entry: DownloadEntry)
 
     /** Removes cached bytes and any in-flight transfer; the index row goes when the engine confirms. */
-    fun remove(fileId: FilesItemId)
+    suspend fun remove(fileId: FilesItemId)
 
     fun isRemoving(fileId: FilesItemId): Boolean = false
 
@@ -20,7 +20,7 @@ internal interface DownloadEngine {
      * Holds a running or waiting transfer, keeping its bytes, until it is released again; a released
      * one rejoins the queue in its old place.
      */
-    fun setPaused(fileId: FilesItemId, paused: Boolean)
+    suspend fun setPaused(fileId: FilesItemId, paused: Boolean)
 
     /** Mirrors live byte progress into the store; the controller calls it while the Downloads screen is visible. */
     fun refreshProgress() = Unit

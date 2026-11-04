@@ -143,9 +143,9 @@ internal class MobileDownloadEngine(
     }
 
     /** Every app row ends in a state the viewer can act on; only a confirmed delete drops one. */
-    private fun recover(known: Map<FilesItemId, Download>) {
-        if (closed) return
+    private suspend fun recover(known: Map<FilesItemId, Download>) {
         for (entry in store.entries.value) {
+            if (closed) return
             val download = known[entry.fileId]
             when {
                 // The delete was confirmed but the process died before Media3 heard of it.
@@ -164,19 +164,21 @@ internal class MobileDownloadEngine(
 
     override fun start(entry: DownloadEntry) = sendDownloadRequest(appContext, userId, entry)
 
-    override fun remove(fileId: FilesItemId) {
-        MobileDownloadNotifications.cancel(appContext, userId, fileId)
-        // The service queue runs a remove after any add already posted, so the intent
-        // always goes out; only the row's fate depends on whether Media3 has a record.
+    override suspend fun remove(fileId: FilesItemId) {
         val contentId = downloadContentId(userId, fileId)
-        DownloadService.sendRemoveDownload(appContext, MobileDownloadService::class.java, contentId, false)
-        val known = try {
-            downloadManager.downloadIndex.getDownload(contentId) != null
-        } catch (_: IOException) {
-            // An unreadable index proves nothing; the row stays removing until Media3 reports or
-            // the next reconcile finds no record.
-            true
+        // The record is read before the remove goes out, so Media3 cannot confirm it before the
+        // row is marked; the service queue runs it after any add already posted either way.
+        val known = withContext(ioDispatcher) {
+            try {
+                downloadManager.downloadIndex.getDownload(contentId) != null
+            } catch (_: IOException) {
+                // An unreadable index proves nothing; the row stays removing until Media3 reports or
+                // the next reconcile finds no record.
+                true
+            }
         }
+        MobileDownloadNotifications.cancel(appContext, userId, fileId)
+        DownloadService.sendRemoveDownload(appContext, MobileDownloadService::class.java, contentId, false)
         if (known) {
             synchronized(removing) { removing += fileId }
         } else {
@@ -185,22 +187,28 @@ internal class MobileDownloadEngine(
     }
 
     /**
-     * Set on the manager directly, on the main thread like [park], so a sign-out can never land
-     * between a resume and its effect; a closed engine sends nothing. The row follows Media3's
-     * report, and Media3 keeps the stop reason in its index, so a pause outlives the process.
+     * The viewer's intent is on disk before Media3 hears of it; reconcile and every report hold
+     * Media3 to it, so it outlives the process either way. The stop reason is set on the manager
+     * directly, on the main thread like [park]; a closed engine sends nothing, and a sign-out
+     * during the write leaves the next sign-in's reconcile to apply it.
      */
-    override fun setPaused(fileId: FilesItemId, paused: Boolean) {
+    override suspend fun setPaused(fileId: FilesItemId, paused: Boolean) {
         if (closed) return
-        // The index keeps the viewer's intent first; reconcile and every report hold Media3 to it.
-        store.updateStatusBlocking(fileId) { it.copy(pauseRequested = paused) }
+        store.updateStatus(fileId) { it.copy(pauseRequested = paused) }
+        if (closed) return
         downloadManager.setStopReason(
             downloadContentId(userId, fileId),
             if (paused) STOP_REASON_PAUSED else Download.STOP_REASON_NONE,
         )
-        // A resume after every transfer was paused may find no service in this process; the
-        // foreground service keeps the transfer alive in the background. The viewer taps from the
-        // app, so the start is allowed; were it refused, the transfer would still run while the app does.
-        if (paused) return
+        if (!paused) startServiceForResume()
+    }
+
+    /**
+     * A resume after every transfer was paused may find no service in this process; the foreground
+     * service keeps the transfer alive in the background. The viewer taps from the app, so the start
+     * is allowed; were it refused, the transfer would still run while the app does.
+     */
+    private fun startServiceForResume() {
         try {
             DownloadService.startForeground(appContext, MobileDownloadService::class.java)
         } catch (_: IllegalStateException) {

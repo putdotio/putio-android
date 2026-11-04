@@ -386,7 +386,7 @@ internal class FakeDownloadEngine : DownloadEngine {
         version.value += 1
     }
 
-    override fun remove(fileId: FilesItemId) {
+    override suspend fun remove(fileId: FilesItemId) {
         removed += fileId
         removing += fileId
         version.value += 1
@@ -394,7 +394,7 @@ internal class FakeDownloadEngine : DownloadEngine {
 
     override fun isRemoving(fileId: FilesItemId): Boolean = fileId in removing
 
-    override fun setPaused(fileId: FilesItemId, paused: Boolean) {
+    override suspend fun setPaused(fileId: FilesItemId, paused: Boolean) {
         if (paused) this.paused += fileId else resumed += fileId
         version.value += 1
     }

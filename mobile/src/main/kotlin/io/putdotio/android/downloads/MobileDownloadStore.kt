@@ -19,10 +19,10 @@ import org.json.JSONObject
  * One JSON document per user in private SharedPreferences. Rows hold identity,
  * name, type, rendition, status, queue time, a pending-delete mark, the confirmed
  * subtitle setting and the listing's saved position; Media3 owns bytes and URIs.
- * Suspend writes commit off the main thread before the in-memory rows advance;
- * the main thread's synchronous transitions apply asynchronously, and byte progress
- * is never written. Media3's own index remains the source of truth for progress and
- * is reconciled on start.
+ * Suspend writes, the viewer's Pause and Cancel among them, commit off the main thread
+ * before the in-memory rows advance, so they survive an immediate process death. The
+ * main thread's synchronous transitions apply asynchronously, and byte progress is never
+ * written: Media3's own index remains the source of truth for both and is reconciled on start.
  */
 internal class MobileDownloadStore internal constructor(
     private val preferences: SharedPreferences,
@@ -56,8 +56,16 @@ internal class MobileDownloadStore internal constructor(
     }
 
     /**
-     * Engine and viewer transitions arrive on the main thread, ordered with Media3's calls there.
-     * They persist asynchronously, so a bulk Pause or Cancel never waits on the disk once per row.
+     * A viewer's choice, such as a pause or a confirmed delete. It is on disk when this returns, so
+     * the caller tells Media3 only once a process death can no longer lose it.
+     */
+    suspend fun updateStatus(fileId: FilesItemId, transform: (DownloadEntry) -> DownloadEntry) = write { current ->
+        current.map { if (it.fileId == fileId) transform(it) else it }
+    }
+
+    /**
+     * Engine transitions arrive on the main thread, ordered with Media3's calls there. They persist
+     * asynchronously; reconcile rebuilds any a process death loses from Media3's index.
      */
     fun updateStatusBlocking(fileId: FilesItemId, transform: (DownloadEntry) -> DownloadEntry) {
         synchronized(lock) {

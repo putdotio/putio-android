@@ -69,7 +69,7 @@ internal class MobileDownloadActionReceiver : BroadcastReceiver() {
         @Volatile
         internal var controlsForTest: DownloadNotificationControls? = null
 
-        // Media3's manager and the store's blocking writes belong on the main thread, as in the engine.
+        // Media3's manager belongs on the main thread, as in the engine; the store writes on IO.
         private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
         /**
@@ -157,14 +157,14 @@ internal fun DownloadManager.liveDownloadsOf(userId: Long): List<FilesItemId> =
  * Without a row, Media3's stop reason alone stands until reconcile rebuilds the row from it.
  */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-internal fun pauseFromNotification(
+internal suspend fun pauseFromNotification(
     store: MobileDownloadStore,
     manager: DownloadManager,
     userId: Long,
     fileId: FilesItemId,
 ) {
     if (store.find(fileId)?.removing == true) return
-    store.updateStatusBlocking(fileId) { it.copy(pauseRequested = true) }
+    store.updateStatus(fileId) { it.copy(pauseRequested = true) }
     manager.setStopReason(downloadContentId(userId, fileId), MobileDownloadEngine.STOP_REASON_PAUSED)
 }
 
@@ -173,13 +173,13 @@ internal fun pauseFromNotification(
  * deletes the bytes still ends with the row gone on the next start. [remove] takes the request id;
  * production sends it through the download service, whose queue runs it after any add already sent.
  */
-internal fun cancelFromNotification(
+internal suspend fun cancelFromNotification(
     store: MobileDownloadStore,
     userId: Long,
     fileId: FilesItemId,
     remove: (contentId: String) -> Unit,
 ) {
-    store.updateStatusBlocking(fileId) { it.copy(removing = true) }
+    store.updateStatus(fileId) { it.copy(removing = true) }
     remove(downloadContentId(userId, fileId))
 }
 
@@ -245,14 +245,14 @@ internal class DownloadNotificationRetries(
 internal class DownloadNotificationControls(
     private val signedIn: suspend () -> SignedInAccount,
     private val live: (userId: Long) -> List<FilesItemId>,
-    private val pause: (userId: Long, fileId: FilesItemId) -> Unit,
-    private val cancel: (userId: Long, fileId: FilesItemId) -> Unit,
+    private val pause: suspend (userId: Long, fileId: FilesItemId) -> Unit,
+    private val cancel: suspend (userId: Long, fileId: FilesItemId) -> Unit,
 ) {
     suspend fun pauseAll(userId: Long): Int = forEachLive(userId, pause)
 
     suspend fun cancelAll(userId: Long): Int = forEachLive(userId, cancel)
 
-    private suspend fun forEachLive(userId: Long, action: (Long, FilesItemId) -> Unit): Int {
+    private suspend fun forEachLive(userId: Long, action: suspend (Long, FilesItemId) -> Unit): Int {
         if (signedIn() != SignedInAccount.User(userId)) return 0
         val fileIds = live(userId)
         for (fileId in fileIds) action(userId, fileId)
