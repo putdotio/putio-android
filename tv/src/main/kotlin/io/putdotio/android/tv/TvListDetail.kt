@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -31,6 +32,7 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
@@ -147,7 +149,11 @@ internal fun TvSectionPill(
             horizontalArrangement = Arrangement.spacedBy(SECTION_PILL_ICON_GAP),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(SECTION_PILL_ICON))
+            Icon(
+                painterResource(icon),
+                contentDescription = null,
+                modifier = Modifier.size(SECTION_PILL_ICON.scaledWithText()),
+            )
             Text(label, style = SECTION_PILL_LABEL, maxLines = 1)
         }
     }
@@ -214,7 +220,7 @@ internal fun ColumnScope.TvDetailBody(
                         style = DETAIL_FACT,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier
-                            .width(DETAIL_FACT_LABEL_WIDTH)
+                            .width(DETAIL_FACT_LABEL_WIDTH.scaledWithText())
                             .alignByBaseline(),
                     )
                     Text(
@@ -301,6 +307,10 @@ internal fun TextStyle.asMonoRun(): TextStyle = copy(
     letterSpacing = MONO_RUN_TRACKING.em,
     fontFeatureSettings = PutioTypeScale.tvMono.fontFeatureSettings,
 )
+
+@Composable
+@ReadOnlyComposable
+internal fun Dp.scaledWithText(): Dp = this * LocalDensity.current.fontScale
 
 private fun String.breakableAtDots(): String = replace(".", ".​").removeSuffix("​")
 

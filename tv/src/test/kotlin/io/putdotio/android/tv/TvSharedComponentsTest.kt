@@ -75,6 +75,26 @@ class TvSharedComponentsTest {
     }
 
     @Test
+    fun aDetailFactLabelStaysOnOneLineAtDoubleFontScale() {
+        compose.setTvContent {
+            CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, 2f)) {
+                Column {
+                    TvDetailBody(
+                        title = ROW_TITLE,
+                        meta = null,
+                        facts = listOf(TvDetailFact(FACT_LABEL, FACT_VALUE)),
+                    ) {}
+                }
+            }
+        }
+
+        val layouts = mutableListOf<TextLayoutResult>()
+        compose.onNodeWithText(FACT_LABEL, useUnmergedTree = true)
+            .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+        assertEquals("fact label wraps", 1, layouts.single().lineCount)
+    }
+
+    @Test
     fun aClosedSideSheetReturnsFocusToTheControlThatOpenedIt() {
         compose.setTvContent {
             var open by remember { mutableStateOf(false) }
@@ -202,6 +222,8 @@ class TvSharedComponentsTest {
         const val LIST_ROW = "list-row"
         const val ROW_TITLE = "Sintel.2010.1080p.mkv"
         const val ROW_META = "1.1 GB"
+        const val FACT_LABEL = "Subtitles"
+        const val FACT_VALUE = "English, English · SDH"
         const val CENTRE_TOLERANCE_DP = 1f
         const val SHEET_CONTENT = "sheet-content"
         const val VIEWPORT_WIDTH_DP = 1280f
