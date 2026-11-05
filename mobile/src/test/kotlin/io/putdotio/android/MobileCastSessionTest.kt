@@ -102,7 +102,7 @@ class MobileCastSessionTest {
     }
 
     @Test
-    fun aCastSessionTakesSessionAudioFromWhereItStoodAndStopsItHere() {
+    fun aCastSessionTakesSessionAudioFromWhereItStoodAndPausesItHere() {
         val local = FakePlayer(DeviceInfo.PLAYBACK_TYPE_LOCAL, AudioItem)
         val taken = mutableListOf<Pair<MediaItem, CastHandover>>()
 
@@ -110,8 +110,9 @@ class MobileCastSessionTest {
             .transferState(local, FakePlayer(DeviceInfo.PLAYBACK_TYPE_REMOTE, item = null))
 
         assertEquals(listOf(AudioItem to CastHandover(positionMillis = 95_000L, playing = true)), taken)
-        assertEquals(Player.STATE_IDLE, local.playbackState)
-        assertEquals(0, local.mediaItemCount)
+        assertFalse(local.playWhenReady)
+        assertEquals("42", local.currentMediaItem?.mediaId)
+        assertEquals(95_000L, local.currentPosition)
     }
 
     @Test
@@ -242,6 +243,13 @@ class MobileCastSessionTest {
 
         override fun handleRelease(): ListenableFuture<*> {
             releases++
+            return Futures.immediateVoidFuture()
+        }
+
+        override fun handleSetPlayWhenReady(playWhenReady: Boolean): ListenableFuture<*> {
+            current = current.buildUpon()
+                .setPlayWhenReady(playWhenReady, PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST)
+                .build()
             return Futures.immediateVoidFuture()
         }
 

@@ -246,27 +246,115 @@ class MobileCastControllerTest {
 
     @Test
     fun sessionAudioACastSessionTookOverGoesToTheReceiverFromWhereItStood() {
+        val handover = CastHandover(positionMillis = 95_000L, playing = true, speed = 1.25f)
+        val local = LocalPlayer(handover)
         cast.autoplay.follow(SESSION, Account(next = null))
         gateway.connect()
 
-        cast.castFromSession(
-            AudioItem,
-            CastHandover(positionMillis = 95_000L, playing = true, speed = 1.25f),
-            LocalPlayer(),
-            scope,
-        )
+        cast.castFromSession(AudioItem, handover, local, scope)
         idle()
 
         assertEquals(listOf(Load(42L, 95_000L, autoplay = true, speed = 1.25f)), gateway.loads)
+        assertEquals("42", local.currentMediaItem?.mediaId)
+        assertFalse(local.playWhenReady)
+
+        gateway.report(CastRemoteState.Playing, positionMillis = 95_000L)
+
+        assertEquals(0, local.mediaItemCount)
+        assertTrue(gateway.commands.isEmpty())
+    }
+
+    @Test
+    fun sessionAudioTheReceiverRejectsEndsTheSessionAndPlaysOnHereWhereItStood() {
+        val local = LocalPlayer(HANDED_OVER)
+        cast.autoplay.follow(SESSION, Account(next = null))
+        gateway.connect()
+
+        cast.castFromSession(AudioItem, HANDED_OVER, local, scope)
+        idle()
+        gateway.report(CastRemoteState.Failed, positionMillis = 0L)
+        waitFor(RECEIVER_SETTLED)
+
+        assertEquals(listOf(Load(42L, 95_000L, autoplay = true, speed = 1f)), gateway.loads)
+        assertEquals(listOf("stop"), gateway.commands)
+        assertPlaysHereWhereItStood(local)
+    }
+
+    @Test
+    fun sessionAudioWhoseReceiverIsStuckConnectingEndsTheSessionAndPlaysOnHereWhenTheSameFileOpens() {
+        val local = LocalPlayer(HANDED_OVER)
+        cast.autoplay.follow(SESSION, Account(next = null))
+        gateway.availability.value = CastAvailability.Connecting("Living room TV")
+
+        cast.castFromSession(AudioItem, HANDED_OVER, local, scope)
+        waitFor(WITHIN_THE_WAIT)
+        assertTrue(cast.holds(42L))
+        assertNull(cast.takeHandover(42L))
+        cast.attach(AudioItem)
+        waitFor(RECEIVER_SETTLED)
+
+        assertTrue(gateway.loads.isEmpty())
+        assertEquals(listOf("stop"), gateway.commands)
+        assertPlaysHereWhereItStood(local)
+    }
+
+    @Test
+    fun sessionAudioTheReceiverAlreadyPlaysHandsBackTheReceiversPositionWhenTheSessionEndsSoon() {
+        val local = LocalPlayer(HANDED_OVER)
+        cast.autoplay.follow(SESSION, Account(next = null, prepares = false))
+        gateway.connect()
+        gateway.report(CastRemoteState.Playing, positionMillis = 120_000L)
+
+        cast.castFromSession(AudioItem, HANDED_OVER, local, scope)
+        waitFor(WITHIN_THE_WAIT)
+        gateway.disconnect()
+        waitFor(RECEIVER_SETTLED)
+
+        assertTrue(gateway.commands.isEmpty())
+        assertEquals(0, local.mediaItemCount)
+        assertEquals(CastHandover(positionMillis = 120_000L, playing = true), cast.takeHandover(42L))
+    }
+
+    @Test
+    fun sessionAudioWhoseLookupFailsLeavesAReceiverPlayingAnotherFileAlone() {
+        val local = LocalPlayer(HANDED_OVER)
+        cast.autoplay.follow(SESSION, Account(next = null, prepares = false))
+        gateway.connect()
+        gateway.status.value = gateway.remote(CastRemoteState.Playing, positionMillis = 10_000L).copy(fileId = 7L)
+        idle()
+
+        cast.castFromSession(AudioItem, HANDED_OVER, local, scope)
+        waitFor(RECEIVER_SETTLED)
+
+        assertTrue(gateway.loads.isEmpty())
+        assertTrue(gateway.commands.isEmpty())
+        assertEquals(7L, gateway.status.value?.fileId)
+        assertEquals(0, local.mediaItemCount)
+    }
+
+    @Test
+    fun signingOutBeforeTheReceiverPlaysSessionAudioLeavesThisDeviceSilent() {
+        val local = LocalPlayer(HANDED_OVER)
+        cast.autoplay.follow(SESSION, Account(next = null))
+        gateway.connect()
+        cast.castFromSession(AudioItem, HANDED_OVER, local, scope)
+        idle()
+
+        cast.end()
+        waitFor(RECEIVER_SETTLED)
+
+        assertTrue(gateway.commands.isEmpty())
+        assertEquals(0, local.mediaItemCount)
+        assertFalse(local.playWhenReady)
     }
 
     @Test
     fun sessionAudioThatCannotReachTheReceiverEndsTheSessionAndPlaysOnHereWhereItStood() {
-        val local = LocalPlayer()
+        val handover = CastHandover(positionMillis = 95_000L, playing = true, speed = 1.25f)
+        val local = LocalPlayer(handover)
         cast.autoplay.follow(SESSION, Account(next = null, prepares = false))
         gateway.connect()
 
-        val handover = CastHandover(positionMillis = 95_000L, playing = true, speed = 1.25f)
         cast.castFromSession(AudioItem, handover, local, scope)
         waitFor(RECEIVER_SETTLED)
 
@@ -278,11 +366,11 @@ class MobileCastControllerTest {
 
     @Test
     fun aFileCastWhileSessionAudioIsStillPreparingKeepsTheReceiver() {
-        val local = LocalPlayer()
+        val local = LocalPlayer(HANDED_OVER)
         val account = SlowAccount(next = null)
         cast.autoplay.follow(SESSION, account)
         gateway.connect()
-        cast.castFromSession(AudioItem, CastHandover(positionMillis = 95_000L, playing = true), local, scope)
+        cast.castFromSession(AudioItem, HANDED_OVER, local, scope)
         idle()
 
         assertTrue(cast.cast(Media.copy(fileId = 7L), OtherItem, CastHandover(positionMillis = 0L, playing = true)))
@@ -312,15 +400,15 @@ class MobileCastControllerTest {
 
     @Test
     fun sessionAudioWhoseLookupFailsKeepsTheSessionWhenTheOpenScreensOwnLoadReachesTheReceiver() {
-        val local = LocalPlayer()
+        val local = LocalPlayer(HANDED_OVER)
         val account = SlowAccount(next = null, prepares = false)
         cast.autoplay.follow(SESSION, account)
         gateway.connect()
-        cast.castFromSession(AudioItem, CastHandover(positionMillis = 95_000L, playing = true), local, scope)
+        cast.castFromSession(AudioItem, HANDED_OVER, local, scope)
         account.answer.complete(Unit)
         idle()
 
-        waitFor(WITHIN_THE_GRACE)
+        waitFor(WITHIN_THE_WAIT)
         assertTrue(cast.cast(AudioMedia, AudioItem, CastHandover(positionMillis = 95_000L, playing = true)))
         gateway.report(CastRemoteState.Playing, positionMillis = 95_000L)
         waitFor(RECEIVER_SETTLED)
@@ -333,12 +421,12 @@ class MobileCastControllerTest {
 
     @Test
     fun sessionAudioTheReceiverAlreadyPlaysStaysThereWhenTheLookupFails() {
-        val local = LocalPlayer()
+        val local = LocalPlayer(HANDED_OVER)
         cast.autoplay.follow(SESSION, Account(next = null, prepares = false))
         gateway.connect()
         gateway.report(CastRemoteState.Playing, positionMillis = 120_000L)
 
-        cast.castFromSession(AudioItem, CastHandover(positionMillis = 95_000L, playing = true), local, scope)
+        cast.castFromSession(AudioItem, HANDED_OVER, local, scope)
         waitFor(RECEIVER_SETTLED)
 
         assertTrue(gateway.commands.isEmpty())
@@ -348,11 +436,11 @@ class MobileCastControllerTest {
 
     @Test
     fun sessionAudioWhoseLookupFailsEndsTheIdleSessionAScreenAttachedToAndLeftAndPlaysOnHere() {
-        val local = LocalPlayer()
+        val local = LocalPlayer(HANDED_OVER)
         val account = SlowAccount(next = null, prepares = false)
         cast.autoplay.follow(SESSION, account)
         gateway.connect()
-        cast.castFromSession(AudioItem, CastHandover(positionMillis = 95_000L, playing = true), local, scope)
+        cast.castFromSession(AudioItem, HANDED_OVER, local, scope)
         idle()
 
         cast.attach(AudioItem)
@@ -367,11 +455,11 @@ class MobileCastControllerTest {
 
     @Test
     fun sessionAudioWhoseReceiverNeverConnectsEndsTheSessionAndPlaysOnHere() {
-        val local = LocalPlayer()
+        val local = LocalPlayer(HANDED_OVER)
         cast.autoplay.follow(SESSION, Account(next = null))
         gateway.availability.value = CastAvailability.Connecting("Living room TV")
 
-        cast.castFromSession(AudioItem, CastHandover(positionMillis = 95_000L, playing = true), local, scope)
+        cast.castFromSession(AudioItem, HANDED_OVER, local, scope)
         waitFor(RECEIVER_SETTLED)
 
         assertTrue(gateway.loads.isEmpty())
@@ -382,11 +470,11 @@ class MobileCastControllerTest {
 
     @Test
     fun sessionAudioEndsTheIdleReceiverTheUserSwitchedToWhileItWasPreparingAndPlaysOnHere() {
-        val local = LocalPlayer()
+        val local = LocalPlayer(HANDED_OVER)
         val account = SlowAccount(next = null)
         cast.autoplay.follow(SESSION, account)
         gateway.connect()
-        cast.castFromSession(AudioItem, CastHandover(positionMillis = 95_000L, playing = true), local, scope)
+        cast.castFromSession(AudioItem, HANDED_OVER, local, scope)
         idle()
 
         gateway.availability.value = CastAvailability.Connecting("Kitchen speaker")
@@ -402,13 +490,13 @@ class MobileCastControllerTest {
 
     @Test
     fun signingOutWhileFailedSessionAudioEndsTheReceiverLeavesThisDeviceSilent() {
-        val local = LocalPlayer()
+        val local = LocalPlayer(HANDED_OVER)
         cast.autoplay.follow(SESSION, Account(next = null, prepares = false))
         gateway.connect()
         gateway.stopsAtOnce = false
 
-        cast.castFromSession(AudioItem, CastHandover(positionMillis = 95_000L, playing = true), local, scope)
-        waitFor(PAST_THE_GRACE)
+        cast.castFromSession(AudioItem, HANDED_OVER, local, scope)
+        waitFor(PAST_THE_WAIT)
         assertEquals(listOf("stop"), gateway.commands)
 
         cast.end()
@@ -927,9 +1015,16 @@ class MobileCastControllerTest {
             PlaybackRepositoryResult.Success(requireNotNull(source.toCastMedia(target, "download-token")))
     }
 
-    private class LocalPlayer : SimpleBasePlayer(Looper.getMainLooper()) {
+    private class LocalPlayer(holding: CastHandover? = null) : SimpleBasePlayer(Looper.getMainLooper()) {
         private var current: State = State.Builder()
             .setAvailableCommands(Media3Player.Commands.Builder().addAllCommands().build())
+            .apply {
+                if (holding != null) {
+                    setPlaylist(listOf(MediaItemData.Builder(AudioItem.mediaId).setMediaItem(AudioItem).build()))
+                    setContentPositionMs(holding.positionMillis)
+                    setPlaybackParameters(PlaybackParameters(holding.speed))
+                }
+            }
             .build()
 
         override fun getState(): State = current
@@ -951,6 +1046,11 @@ class MobileCastControllerTest {
             update { setPlayWhenReady(playWhenReady, PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST) }
 
         override fun handlePrepare(): ListenableFuture<*> = update { setPlaybackState(STATE_READY) }
+
+        override fun handleStop(): ListenableFuture<*> = update { setPlaybackState(STATE_IDLE) }
+
+        override fun handleRemoveMediaItems(fromIndex: Int, toIndex: Int): ListenableFuture<*> =
+            update { setPlaylist(emptyList()).setPlaybackState(STATE_IDLE) }
 
         private fun update(change: State.Builder.() -> State.Builder): ListenableFuture<*> {
             current = current.buildUpon().change().build()
@@ -996,8 +1096,9 @@ class MobileCastControllerTest {
             .build()
         val NextTarget = PlaybackTarget(FilesItemId(43L), "episode 2.mkv")
         const val SESSION = "session"
-        val WITHIN_THE_GRACE: Duration = Duration.ofSeconds(1)
-        val PAST_THE_GRACE: Duration = Duration.ofSeconds(6)
+        val HANDED_OVER = CastHandover(positionMillis = 95_000L, playing = true)
+        val WITHIN_THE_WAIT: Duration = Duration.ofSeconds(1)
+        val PAST_THE_WAIT: Duration = Duration.ofSeconds(11)
         val RECEIVER_SETTLED: Duration = Duration.ofSeconds(30)
     }
 }

@@ -240,8 +240,7 @@ internal class CastTransfer(
             speed = sourcePlayer.playbackParameters.speed,
         )
         toReceiver(item, handover)
-        sourcePlayer.stop()
-        sourcePlayer.clearMediaItems()
+        sourcePlayer.pause()
     }
 }
 
