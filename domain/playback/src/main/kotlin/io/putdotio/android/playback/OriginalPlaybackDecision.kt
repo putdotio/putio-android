@@ -26,20 +26,22 @@ public fun interface DecoderInventory {
     public fun plays(format: Format): Boolean
 }
 
-public class OriginalPlaybackDecision(
+internal class OriginalPlaybackDecision(
     private val decoders: DecoderInventory,
 ) {
     private val decisions = PlaybackPreference.entries.associateWith { preference ->
-        OriginalVideoDecision { mediaInfo, _, _ -> fallbackReason(mediaInfo, preference) == null }
+        OriginalVideoDecision { mediaInfo, _, _ ->
+            runCatching { fallbackReason(mediaInfo, preference) == null }.getOrDefault(false)
+        }
     }
 
-    public fun forPreference(preference: PlaybackPreference): OriginalVideoDecision = decisions.getValue(preference)
+    fun forPreference(preference: PlaybackPreference): OriginalVideoDecision = decisions.getValue(preference)
 
-    public fun fallbackReason(mediaInfo: PutioMediaInfo?, preference: PlaybackPreference): PlaybackFallbackReason? {
+    fun fallbackReason(mediaInfo: PutioMediaInfo?, preference: PlaybackPreference): PlaybackFallbackReason? {
         if (mediaInfo == null) return PlaybackFallbackReason.NoMediaInfo
         val streams = mediaInfo.streams.orEmpty()
         val container = when (preference) {
-            PlaybackPreference.HLS -> MediaInfoFormats.hlsOriginalContainer(mediaInfo.format)
+            PlaybackPreference.HLS -> MediaInfoFormats.hlsOriginalContainer(mediaInfo.mimeType)
             PlaybackPreference.MP4 -> MediaInfoFormats.playableContainer(mediaInfo.format)
         }
         return issueReason(mediaInfo.playbackIssues.orEmpty()) ?: when {

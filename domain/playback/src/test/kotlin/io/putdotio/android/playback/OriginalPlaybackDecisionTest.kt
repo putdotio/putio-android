@@ -59,8 +59,19 @@ class OriginalPlaybackDecisionTest {
         assertNull(decision.reason(captured("h264-aac.mp4"), HLS))
         assertEquals(ContainerUnsupported, decision.reason(captured("h264-high-aac.mkv"), HLS))
         assertEquals(ContainerUnsupported, decision.reason(captured("mpeg4-asp-mp3.avi"), HLS))
+        assertEquals(
+            ContainerUnsupported,
+            decision.reason(captured("h264-aac.mp4").copy(mimeType = "video/quicktime"), HLS),
+        )
         assertFalse(decision.forPreference(HLS).canPlayOriginal(captured("h264-high-aac.mkv"), true, false))
         assertTrue(decision.forPreference(MP4).canPlayOriginal(captured("h264-high-aac.mkv"), true, false))
+    }
+
+    @Test
+    fun aDecoderQueryThatThrowsPicksConverted() {
+        val decision = OriginalPlaybackDecision(FakeDecoderInventory(PHONE) { error("MediaCodecList failed") })
+
+        assertFalse(decision.forPreference(MP4).canPlayOriginal(captured("h264-high-aac.mkv"), true, false))
     }
 
     @Test
