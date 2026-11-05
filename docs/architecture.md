@@ -105,7 +105,12 @@ stateDiagram-v2
 ## Playback
 
 Media3 plays every stream, HLS or MP4 per the account's setting, with a
-media session for system controls. Where VLC is installed, a video the player
+media session for system controls. A video plays its original file only when
+put.io's `media_info` reports no playback issue that needs converting and the
+device's decoders, or audio passthrough, take its video and one audio stream;
+otherwise it plays converted. Under HLS, put.io serves only MP4 originals. An original that still fails before its first
+frame falls back to converted at the same position. Cast always gets the
+converted stream. Where VLC is installed, a video the player
 can't play, or one still converting, offers Open in VLC; TV offers it on every
 video. Play positions sync to put.io, throttled and flushed on exit, never per
 progress tick.

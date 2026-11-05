@@ -1,0 +1,26 @@
+{
+  "format": {
+    "bit_rate": 1132932,
+    "duration": 1267.0658,
+    "name": "avi"
+  },
+  "mime_type": "video/x-msvideo",
+  "playback_issues": [],
+  "streams": [
+    {
+      "codec_name": "mpeg4",
+      "codec_type": "video",
+      "height": 352,
+      "level": 5,
+      "profile": "Advanced Simple Profile",
+      "rfc6381_codec": null,
+      "width": 624
+    },
+    {
+      "channels": 2,
+      "codec_name": "mp3",
+      "codec_type": "audio",
+      "rfc6381_codec": null
+    }
+  ]
+}
