@@ -400,6 +400,24 @@ class MobileCastControllerTest {
         assertPlaysHereWhereItStood(local)
     }
 
+    @Test
+    fun signingOutWhileFailedSessionAudioEndsTheReceiverLeavesThisDeviceSilent() {
+        val local = LocalPlayer()
+        cast.autoplay.follow(SESSION, Account(next = null, prepares = false))
+        gateway.connect()
+        gateway.stopsAtOnce = false
+
+        cast.castFromSession(AudioItem, CastHandover(positionMillis = 95_000L, playing = true), local, scope)
+        waitFor(PAST_THE_GRACE)
+        assertEquals(listOf("stop"), gateway.commands)
+
+        cast.end()
+        waitFor(RECEIVER_SETTLED)
+
+        assertEquals(0, local.mediaItemCount)
+        assertFalse(local.playWhenReady)
+    }
+
     private fun assertPlaysHereWhereItStood(local: LocalPlayer, speed: Float = 1f) {
         assertEquals("42", local.currentMediaItem?.mediaId)
         assertEquals(95_000L, local.currentPosition)
@@ -764,6 +782,7 @@ class MobileCastControllerTest {
         override val devices = MutableStateFlow<List<CastDevice>>(emptyList())
         val loads = mutableListOf<Load>()
         val commands = mutableListOf<String>()
+        var stopsAtOnce = true
         fun connect(device: String = "Living room TV") {
             availability.value = CastAvailability.Connected(device)
             idle()
@@ -817,7 +836,7 @@ class MobileCastControllerTest {
 
         override fun stopCasting() {
             commands += "stop"
-            end()
+            if (stopsAtOnce) end()
         }
 
         override fun endForSignOut() {
@@ -978,6 +997,7 @@ class MobileCastControllerTest {
         val NextTarget = PlaybackTarget(FilesItemId(43L), "episode 2.mkv")
         const val SESSION = "session"
         val WITHIN_THE_GRACE: Duration = Duration.ofSeconds(1)
+        val PAST_THE_GRACE: Duration = Duration.ofSeconds(6)
         val RECEIVER_SETTLED: Duration = Duration.ofSeconds(30)
     }
 }

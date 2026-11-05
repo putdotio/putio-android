@@ -221,7 +221,7 @@ internal fun TvSettingRow(
                     Text(
                         description,
                         style = TvAccountType.description,
-                        color = colors.onSurfaceVariant,
+                        color = secondary,
                         modifier = Modifier.padding(top = 1.5.dp),
                     )
                 }
