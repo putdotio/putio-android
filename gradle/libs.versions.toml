@@ -15,7 +15,7 @@ okhttp = "5.5.1"
 playPublisher = "4.1.1"
 playServicesCastFramework = "22.3.1"
 putioSdkKotlin = "2.1.0"
-posthog = "3.75.1"
+posthog = "3.75.2"
 sentry = "8.62.0"
 sentryGradlePlugin = "6.25.0"
 tvMaterial = "1.1.0"
@@ -24,7 +24,7 @@ androidxTestCore = "1.7.0"
 androidxTestEspresso = "3.7.0"
 androidxTestExtJunit = "1.3.0"
 androidxTestRunner = "1.7.0"
-androidxWindow = "1.5.0"
+androidxWindow = "1.5.1"
 detekt = "1.23.8"
 junit = "4.13.2"
 robolectric = "4.17"
@@ -83,7 +83,7 @@ sentry-android-core = { module = "io.sentry:sentry-android-core", version.ref = 
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 # The SDK 35 runtime every Robolectric test pins with @Config(sdk = [35]); its version is the one
 # the robolectric release above expects, and a mismatch fails offline tests by name.
-robolectric-android-all = { module = "org.robolectric:android-all-instrumented", version = "15-robolectric-13954326-i7" }
+robolectric-android-all = { module = "org.robolectric:android-all-instrumented", version = "15-robolectric-14663667-i7" }
 # minSdk's runtime, for the few tests that pin behaviour below API 28 with @Config(sdk = [26]); same instrumentation.
 robolectric-android-all-api26 = { module = "org.robolectric:android-all-instrumented", version = "8.0.0_r4-robolectric-r1-i7" }
 android-gradle-plugin = { module = "com.android.tools.build:gradle", version.ref = "agp" }
