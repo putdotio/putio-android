@@ -25,6 +25,7 @@ import io.putdotio.android.playback.MobileCastController
 import io.putdotio.android.playback.MobilePlayerFactory
 import io.putdotio.android.playback.PlaybackCastMedia
 import io.putdotio.android.playback.PlaybackCastPlaylistSubtitle
+import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackNextResult
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
@@ -292,6 +293,60 @@ class MobileCastControllerTest {
 
         assertEquals(listOf(Load(7L, 0L, autoplay = true, speed = 1f)), gateway.loads)
         assertTrue(gateway.commands.isEmpty())
+        assertEquals(0, local.mediaItemCount)
+    }
+
+    @Test
+    fun sessionAudioTheOpenScreenIsHandingOverKeepsTheSessionWhenItsOwnLookupFails() {
+        val local = LocalPlayer()
+        val account = SlowAccount(next = null, prepares = false)
+        cast.autoplay.follow(SESSION, account)
+        gateway.connect()
+        cast.castFromSession(AudioItem, CastHandover(positionMillis = 95_000L, playing = true), local, scope)
+        idle()
+
+        cast.attach(AudioItem)
+        account.answer.complete(Unit)
+        idle()
+
+        assertTrue(gateway.commands.isEmpty())
+        assertEquals(0, local.mediaItemCount)
+        assertTrue(cast.cast(AudioMedia, AudioItem, CastHandover(positionMillis = 95_000L, playing = true)))
+        assertEquals(listOf(Load(42L, 95_000L, autoplay = true, speed = 1f)), gateway.loads)
+    }
+
+    @Test
+    fun sessionAudioTheReceiverAlreadyPlaysStaysThereWhenTheLookupFails() {
+        val local = LocalPlayer()
+        cast.autoplay.follow(SESSION, Account(next = null, prepares = false))
+        gateway.connect()
+        gateway.report(CastRemoteState.Playing, positionMillis = 120_000L)
+
+        cast.castFromSession(AudioItem, CastHandover(positionMillis = 95_000L, playing = true), local, scope)
+        idle()
+
+        assertTrue(gateway.commands.isEmpty())
+        assertEquals(0, local.mediaItemCount)
+        assertEquals(Media3Player.STATE_READY, cast.remotePlayer.playbackState)
+    }
+
+    @Test
+    fun sessionAudioLeavesTheReceiverTheUserSwitchedToWhileItWasPreparing() {
+        val local = LocalPlayer()
+        val account = SlowAccount(next = null)
+        cast.autoplay.follow(SESSION, account)
+        gateway.connect()
+        cast.castFromSession(AudioItem, CastHandover(positionMillis = 95_000L, playing = true), local, scope)
+        idle()
+
+        gateway.availability.value = CastAvailability.Connecting("Kitchen speaker")
+        account.answer.complete(Unit)
+        idle()
+        gateway.connect("Kitchen speaker")
+
+        assertTrue(gateway.loads.isEmpty())
+        assertTrue(gateway.commands.isEmpty())
+        assertEquals(CastAvailability.Connected("Kitchen speaker", "session-2"), gateway.availability.value)
         assertEquals(0, local.mediaItemCount)
     }
 
@@ -651,9 +706,10 @@ class MobileCastControllerTest {
         override val devices = MutableStateFlow<List<CastDevice>>(emptyList())
         val loads = mutableListOf<Load>()
         val commands = mutableListOf<String>()
+        private var sessions = 0
 
-        fun connect() {
-            availability.value = CastAvailability.Connected("Living room TV")
+        fun connect(device: String = "Living room TV") {
+            availability.value = CastAvailability.Connected(device, "session-${++sessions}")
             idle()
         }
 
@@ -755,8 +811,8 @@ class MobileCastControllerTest {
             ).takeIf { prepares }
     }
 
-    private class SlowAccount(next: PlaybackTarget?) : CastAccount {
-        private val account = Account(next)
+    private class SlowAccount(next: PlaybackTarget?, prepares: Boolean = true) : CastAccount {
+        private val account = Account(next, prepares = prepares)
         val answer = CompletableDeferred<Unit>()
         override val autoplay = true
 
@@ -854,6 +910,7 @@ class MobileCastControllerTest {
             subtitles = PlaybackSubtitles.Embedded,
             ).toCastMedia(PlaybackTarget(FilesItemId(42L), "episode.mkv"), "download-token"),
         )
+        val AudioMedia = Media.copy(title = "track.mp3", mediaType = PlaybackMediaType.AUDIO)
         val Item: MediaItem = MediaItem.Builder().setMediaId("42").build()
         val OtherItem: MediaItem = MediaItem.Builder().setMediaId("7").build()
         val AudioItem: MediaItem = MediaItem.Builder()

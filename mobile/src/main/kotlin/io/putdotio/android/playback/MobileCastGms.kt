@@ -412,9 +412,10 @@ internal class GmsCastGateway @VisibleForTesting internal constructor(
      */
     private fun updateAvailability() {
         val cast = castContext ?: return
-        val device = cast.sessionManager.currentCastSession?.castDevice?.friendlyName
+        val session = cast.sessionManager.currentCastSession
+        val device = session?.castDevice?.friendlyName
         mutableAvailability.value = when {
-            remote.attached -> CastAvailability.Connected(device.orEmpty())
+            remote.attached -> CastAvailability.Connected(device.orEmpty(), session?.sessionId)
             cast.castState == CastState.NO_DEVICES_AVAILABLE && routes.devices.value.isEmpty() ->
                 if (localNetworkBlocked()) CastAvailability.NeedsLocalNetwork else CastAvailability.NoDevices
             cast.castState == CastState.CONNECTING || cast.castState == CastState.CONNECTED ->
