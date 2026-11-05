@@ -31,6 +31,9 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.util.UnstableApi
 import io.putdotio.android.R
+import io.putdotio.android.design.R as DesignR
+import io.putdotio.android.settings.AccountSettingsState
+import io.putdotio.android.settings.AndroidAppConfigState
 import io.putdotio.sdk.files.PlaybackSource
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -59,6 +62,37 @@ internal suspend fun PlaybackRepository.castMediaFor(
 
 /** A file that resolved to a conversion or an unsupported type has nothing a receiver can play yet. */
 private class UncastableResolution : IllegalStateException("The file resolved to nothing a receiver plays")
+
+internal class SignedInCastAccount(
+    private val repository: PlaybackRepository,
+    private val playerFactory: MobilePlayerFactory,
+    private val appConfig: StateFlow<AndroidAppConfigState>,
+    private val settings: StateFlow<AccountSettingsState>,
+    private val appName: String,
+) : CastAccount {
+    override val autoplay: Boolean get() = appConfig.value.confirmedAutoplayNextVideo()
+
+    override suspend fun next(target: PlaybackTarget): PlaybackTarget? =
+        (repository.findNextVideo(target) as? PlaybackNextResult.Found)?.target
+
+    override suspend fun prepare(target: PlaybackTarget): CastPrepared? {
+        val resolved = repository.resolve(target) as? PlaybackRepositoryResult.Success
+        val ready = resolved?.value as? PlaybackResolution.Ready ?: return null
+        val source = ready.source
+        val policy = settings.value.subtitleStartupPolicy()
+        val loaded = repository.castMedia(target, source, castSubtitleKey(source, null, policy))
+        return (loaded as? PlaybackRepositoryResult.Success)?.value?.let { media ->
+            CastPrepared(
+                media = media.copy(playlistSubtitle = castPlaylistSubtitle(source, null, policy)),
+                item = playerFactory.reportableItem(
+                    source.toMediaItem(target.name, target.mediaType, artist = appName),
+                    ready.useStartFrom,
+                ),
+                startMillis = ready.unattendedStartMillis(target.durationSeconds),
+            )
+        }
+    }
+}
 
 /** The player screen's Cast: its top-bar button, and the session it casts to while one runs. */
 internal class PlayerCast(
@@ -160,11 +194,11 @@ internal fun MobileCastPlayback(
     onSourceRequired: (Long?) -> Unit,
     neighbours: PlaybackNeighbours,
     onPlay: (PlaybackTarget) -> Unit,
-    autoplayNextVideo: Boolean,
     onPlaybackEnded: () -> Unit,
     analytics: PlaybackAnalyticsReporter,
 ) {
     val context = LocalContext.current
+    val appName = stringResource(DesignR.string.app_name)
     val currentAnalytics by rememberUpdatedState(analytics)
     val target = state.target
     val fileId = target.fileId.value
@@ -191,20 +225,12 @@ internal fun MobileCastPlayback(
                 loaded
             }
         }
-        val outcome = cast.handOver(state, load, preferences, playerFactory, currentOnSourceRequired)
+        val item = state.castItem(playerFactory, appName)
+        val outcome = cast.handOver(state, load, preferences, item, currentOnSourceRequired)
         failed = outcome == CastHandoverOutcome.Failed
         currentAnalytics.report(outcome)
     }
-    // A file that finished on the receiver ends as one that finished here: the next one is cast in turn.
-    val currentAutoplayNextVideo by rememberUpdatedState(autoplayNextVideo)
-    val currentOnPlaybackEnded by rememberUpdatedState(onPlaybackEnded)
-    LaunchedEffect(cast, fileId) {
-        cast.finished.collect {
-            if (it != fileId) return@collect
-            currentAnalytics.reachedEnd()
-            if (currentAutoplayNextVideo) currentOnPlaybackEnded()
-        }
-    }
+    FollowCastFinish(cast, fileId, analytics, onPlay, onPlaybackEnded)
 
     val player = cast.remotePlayer
     val status by cast.status.collectAsStateWithLifecycle()
@@ -245,6 +271,31 @@ internal fun MobileCastPlayback(
         )
     } else {
         MobileCastVideo(player, target.name, label, onRetry, seekEnabled, seek, onBack, castButton, keys)
+    }
+}
+
+@Composable
+private fun FollowCastFinish(
+    cast: MobileCastController,
+    fileId: Long,
+    analytics: PlaybackAnalyticsReporter,
+    onPlay: (PlaybackTarget) -> Unit,
+    onPlaybackEnded: () -> Unit,
+) {
+    val currentAnalytics by rememberUpdatedState(analytics)
+    val currentOnPlay by rememberUpdatedState(onPlay)
+    val currentOnPlaybackEnded by rememberUpdatedState(onPlaybackEnded)
+    LaunchedEffect(cast, fileId) {
+        cast.finished.collect { if (it == fileId) currentAnalytics.reachedEnd() }
+    }
+    LaunchedEffect(cast, fileId) {
+        cast.autoplay.advanced.collect { advance ->
+            if (advance.from != fileId) return@collect
+            when (advance) {
+                is CastAdvance.Next -> currentOnPlay(advance.target)
+                is CastAdvance.End -> currentOnPlaybackEnded()
+            }
+        }
     }
 }
 
@@ -322,7 +373,7 @@ private suspend fun MobileCastController.handOver(
     state: PlaybackState,
     castMedia: suspend (PlaybackSource?) -> PlaybackRepositoryResult<PlaybackCastMedia>,
     preferences: RetainedPlayerPreferences,
-    playerFactory: MobilePlayerFactory,
+    item: MediaItem,
     onSourceRequired: (Long?) -> Unit,
 ): CastHandoverOutcome {
     val target = state.target
@@ -330,11 +381,6 @@ private suspend fun MobileCastController.handOver(
     val ready = state.content as? PlaybackContent.Ready
     // Unknown stays unknown, so resolving a source still finds put.io's saved position.
     val retained = preferences.positionMillis ?: state.resumePositionMillis
-    // Session audio reopens without a source; its lease rests on the account's resume setting alone.
-    val item = playerFactory.reportableItem(
-        ready?.source?.toMediaItem(target.name, target.mediaType) ?: bareItem(fileId, target.name),
-        ready?.useStartFrom ?: true,
-    )
     val holds = holds(fileId)
     if (!holds && ready == null) {
         onSourceRequired(retained)
@@ -359,6 +405,16 @@ private suspend fun MobileCastController.handOver(
     return if (holds || loaded != null) CastHandoverOutcome.Started else CastHandoverOutcome.Failed
 }
 
+/** Session audio reopens without a source; its lease rests on the account's resume setting alone. */
+private fun PlaybackState.castItem(playerFactory: MobilePlayerFactory, appName: String): MediaItem {
+    val ready = content as? PlaybackContent.Ready
+    return playerFactory.reportableItem(
+        ready?.source?.toMediaItem(target.name, target.mediaType, artist = appName)
+            ?: bareItem(target.fileId.value, target.name, appName),
+        ready?.useStartFrom ?: true,
+    )
+}
+
 private enum class CastHandoverOutcome { Started, SourceRequested, Failed }
 
 private fun PlaybackAnalyticsReporter.report(outcome: CastHandoverOutcome) {
@@ -377,8 +433,8 @@ private fun androidx.media3.common.Player.seekBy(intervals: SeekIntervals, direc
 }
 
 /** A receiver already playing [fileId], reached without a source: controls only, no reporting lease. */
-private fun bareItem(fileId: Long, title: String): MediaItem =
+private fun bareItem(fileId: Long, title: String, artist: String): MediaItem =
     MediaItem.Builder()
         .setMediaId(fileId.toString())
-        .setMediaMetadata(MediaMetadata.Builder().setTitle(title).build())
+        .setMediaMetadata(MediaMetadata.Builder().setTitle(title).setArtist(artist).build())
         .build()

@@ -207,7 +207,9 @@ dependencies {
     implementation(libs.androidx.media3.ui.compose)
     implementation(libs.androidx.media3.ui.compose.material3)
     // Google Cast: the device picker reads MediaRouter's routes; sessions and the receiver's media
-    // run through the Cast framework, which stays dormant without Google Play services.
+    // run through the Cast framework, which stays dormant without Google Play services. Media3's
+    // CastPlayer puts the receiver on the audio session, for the system's output switcher.
+    implementation(libs.androidx.media3.cast)
     implementation(libs.androidx.mediarouter)
     implementation(libs.play.services.cast.framework)
     implementation(libs.coil.compose)

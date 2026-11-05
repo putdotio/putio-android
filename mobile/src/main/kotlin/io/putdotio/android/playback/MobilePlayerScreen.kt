@@ -73,6 +73,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.media3.common.DeviceInfo
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player as Media3Player
 import androidx.media3.common.TrackSelectionParameters
@@ -90,6 +91,7 @@ import io.putdotio.android.MobileShortcutScope
 import io.putdotio.android.mobileKeyCommand
 import io.putdotio.android.MobileLoadingState
 import io.putdotio.android.R
+import io.putdotio.android.design.R as DesignR
 import io.putdotio.android.files.hasVlc
 import io.putdotio.sdk.files.PlaybackSource
 import java.io.Closeable
@@ -306,7 +308,6 @@ private fun MobileReadyContent(
             onSourceRequired = onSourceRequired,
             neighbours = neighbours,
             onPlay = onPlay,
-            autoplayNextVideo = autoplayNextVideo,
             onPlaybackEnded = onPlaybackEnded,
             analytics = analytics,
         )
@@ -458,14 +459,15 @@ private fun MobileReadyPlayer(
         return
     }
 
-    val initialPlayback = remember(source, title, mediaType, startPositionMillis) {
-        source?.preparePlayback(title, mediaType, startPositionMillis, offline)
+    val appName = stringResource(DesignR.string.app_name)
+    val initialPlayback = remember(source, title, mediaType, startPositionMillis, appName) {
+        source?.preparePlayback(title, mediaType, startPositionMillis, offline, appName)
     }
     val retainedPosition = rememberSaveable(fileId) {
         mutableLongStateOf(initialPlayback?.startPositionMillis ?: startPositionMillis ?: 0L)
     }
-    val preparedPlayback = remember(source, offline, title, mediaType, playerGeneration.intValue) {
-        source?.preparePlayback(title, mediaType, retainedPosition.longValue, offline)
+    val preparedPlayback = remember(source, offline, title, mediaType, playerGeneration.intValue, appName) {
+        source?.preparePlayback(title, mediaType, retainedPosition.longValue, offline, appName)
     }
     val currentOnPlayerFailure = rememberUpdatedState(onPlayerFailure)
     val currentAutoplayNextVideo = rememberUpdatedState(autoplayNextVideo)
@@ -1619,9 +1621,10 @@ private fun MobileSessionPlayerHost(
     }
 }
 
-// The file the session is currently prepared for, if any; idle sessions carry nothing.
+// The file the session is currently prepared for, if any; idle sessions carry nothing, and while
+// casting the session shows the receiver's media, which the Cast screens own.
 internal fun Media3Player.activeSessionFileId(): Long? =
-    if (playbackState == Media3Player.STATE_IDLE) {
+    if (playbackState == Media3Player.STATE_IDLE || deviceInfo.playbackType == DeviceInfo.PLAYBACK_TYPE_REMOTE) {
         null
     } else {
         currentMediaItem?.mediaId?.toLongOrNull()

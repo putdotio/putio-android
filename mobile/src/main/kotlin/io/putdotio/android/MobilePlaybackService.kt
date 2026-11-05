@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.core.content.ContextCompat
 import androidx.media3.common.C
+import androidx.media3.common.DeviceInfo
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player as Media3Player
 import androidx.media3.common.util.UnstableApi
@@ -18,7 +19,10 @@ import androidx.media3.session.SessionToken
 import io.putdotio.android.auth.MobileOAuthRuntime
 import io.putdotio.android.design.R as DesignR
 import io.putdotio.android.playback.AudioSessionAnalytics
+import io.putdotio.android.playback.CastStopCallback
+import io.putdotio.android.playback.CastStopControl
 import io.putdotio.android.playback.DefaultMobilePlayerFactory
+import io.putdotio.android.playback.MobileCast
 import io.putdotio.android.playback.MobileSleepTimer
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackPositionObserver
@@ -32,19 +36,23 @@ import kotlinx.coroutines.launch
 /**
  * Owns the audio player so playback outlives the player screen: the session
  * drives the foreground notification, lock-screen and headset controls, and
- * audio focus while the app is in the background.
+ * audio focus while the app is in the background. While a Cast session runs
+ * the session drives the receiver instead, whatever it plays.
  */
 class MobilePlaybackService : MediaSessionService() {
     private var session: MediaSession? = null
+    private var local: Media3Player? = null
     private var taskRemoved = false
     private var positionObserver: PlaybackPositionObserver? = null
     private var analyticsObserver: Closeable? = null
     private val scope = MainScope()
+    private val castStop by lazy { CastStopControl(this) { MobileCast.stopCasting(this) } }
 
     @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
     override fun onCreate() {
         super.onCreate()
         val player = DefaultMobilePlayerFactory.create(this, PlaybackMediaType.AUDIO)
+        local = player
         // Streaming with the screen off needs the CPU and radio awake; a foreground service alone does not.
         (player as? ExoPlayer)?.setWakeMode(C.WAKE_MODE_NETWORK)
         positionObserver = MobileOAuthRuntime.get(this).playbackReporting.observe(player)
@@ -60,8 +68,18 @@ class MobilePlaybackService : MediaSessionService() {
                 }
             },
         )
+        val sessionPlayer = MobileCast.sessionPlayer(this, player, scope) { positionObserver?.flush() }
+        sessionPlayer.addListener(
+            object : Media3Player.Listener {
+                override fun onDeviceInfoChanged(deviceInfo: DeviceInfo) {
+                    session?.setMediaButtonPreferences(castStop.buttons(deviceInfo))
+                }
+            },
+        )
         session =
-            MediaSession.Builder(this, player)
+            MediaSession.Builder(this, sessionPlayer)
+                .setCallback(CastStopCallback(castStop))
+                .setMediaButtonPreferences(castStop.buttons(sessionPlayer.deviceInfo))
                 .setSessionActivity(
                     PendingIntent.getActivity(
                         this,
@@ -90,7 +108,7 @@ class MobilePlaybackService : MediaSessionService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
             positionObserver?.flush()
-            session?.player?.let {
+            local?.let {
                 it.stop()
                 it.clearMediaItems()
             }
@@ -115,10 +133,11 @@ class MobilePlaybackService : MediaSessionService() {
         analyticsObserver?.close()
         analyticsObserver = null
         session?.let {
-            it.player.release()
+            MobileCast.releaseSessionPlayer(this, it.player)
             it.release()
         }
         session = null
+        local = null
         super.onDestroy()
     }
 
@@ -151,8 +170,10 @@ class MobilePlaybackService : MediaSessionService() {
             future.addListener(
                 {
                     runCatching { future.get() }.onSuccess {
-                        it.stop()
-                        it.clearMediaItems()
+                        if (it.deviceInfo.playbackType == DeviceInfo.PLAYBACK_TYPE_LOCAL) {
+                            it.stop()
+                            it.clearMediaItems()
+                        }
                     }
                     MediaController.releaseFuture(future)
                 },
