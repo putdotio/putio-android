@@ -144,7 +144,7 @@ class OriginalPlaybackDecisionTest {
         )
         assertEquals("avc1.42001e", mp4.codecs)
         assertEquals(
-            CodecProfileLevel.AV1ProfileMain8 to CodecProfileLevel.AV1Level5,
+            CodecProfileLevel.AV1ProfileMain10 to CodecProfileLevel.AV1Level5,
             MediaCodecUtil.getCodecProfileAndLevel(av1)?.let { it.first to it.second },
         )
         assertEquals(MimeTypes.VIDEO_MP4V, format(captured("mpeg4-asp-mp3.avi"), "video").sampleMimeType)

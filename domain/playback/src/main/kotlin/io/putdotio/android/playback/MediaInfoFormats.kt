@@ -69,7 +69,7 @@ internal object MediaInfoFormats {
             level == null || profile == null -> null
             codec == H264 -> AVC_PROFILES[profile]?.let { "avc1.${it}00%02x".format(Locale.ROOT, level) }
             codec == HEVC -> HEVC_PROFILES[profile]?.let { "hvc1.$it.L$level.B0" }
-            codec == AV1 -> AV1_PROFILES[profile]?.let { "av01.$it.%02dM.08".format(Locale.ROOT, level) }
+            codec == AV1 -> AV1_PROFILES[profile]?.let { "av01.$it.%02dM.10".format(Locale.ROOT, level) }
             else -> null
         }
     }
