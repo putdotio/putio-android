@@ -11,6 +11,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.audioAttributes
+import io.putdotio.android.playback.playbackLoadControl
 import io.putdotio.android.playback.playbackRenderersFactory
 import java.io.Closeable
 import java.util.UUID
@@ -35,7 +36,7 @@ internal object DefaultTvPlayerFactory : TvPlayerFactory {
     @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
     override fun create(context: Context, mediaType: PlaybackMediaType): Player =
         ExoPlayer.Builder(context, playbackRenderersFactory(context))
-            .setLoadControl(tvLoadControl())
+            .setLoadControl(tvLoadControl(context))
             .setAudioAttributes(mediaType.audioAttributes(), true)
             .setHandleAudioBecomingNoisy(true)
             .build()
@@ -182,10 +183,11 @@ private fun tvSessionPlayerCommands(): Player.Commands = Player.Commands.Builder
  * `lib/queries/remote-config.ts` @ `22264d5`): at least 8 s and at most 30 s ahead, starting
  * after 1.5 s and after 3 s once it has stalled. ExoPlayer's defaults buffer 50 s, more than a
  * low-memory TV stick should hold. The RN app's other sizes had no server key and stay out.
+ * The device's byte cap still stops loading first on high-bitrate files.
  */
 @UnstableApi
-internal fun tvLoadControl(): DefaultLoadControl =
-    DefaultLoadControl.Builder()
+internal fun tvLoadControl(context: Context): DefaultLoadControl =
+    playbackLoadControl(context)
         .setBufferDurationsMs(
             TV_MIN_BUFFER_MILLIS,
             TV_MAX_BUFFER_MILLIS,

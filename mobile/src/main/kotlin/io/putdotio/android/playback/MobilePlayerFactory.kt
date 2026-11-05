@@ -121,6 +121,7 @@ internal object DefaultMobilePlayerFactory : MobilePlayerFactory {
                     ),
                 ),
             )
+            .setLoadControl(playbackLoadControl(context).build())
             .setAudioAttributes(mediaType.audioAttributes(), true)
             .setHandleAudioBecomingNoisy(true)
             .build()
