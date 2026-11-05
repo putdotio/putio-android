@@ -16,6 +16,12 @@ internal object MediaInfoFormats {
             ?.map { it.trim().lowercase(Locale.ROOT) }
             ?.any { it in PLAYABLE_CONTAINERS } == true
 
+    fun hlsOriginalContainer(format: PutioMediaFormat?): Boolean =
+        format?.name
+            ?.split(',')
+            ?.map { it.trim().lowercase(Locale.ROOT) }
+            ?.any { it in HLS_ORIGINAL_CONTAINERS } == true
+
     fun videoStreams(streams: List<PutioMediaStream>): List<PutioMediaStream> =
         streams.filter { it.codecType == VIDEO && it.codecName?.lowercase(Locale.ROOT) !in STILL_IMAGE_CODECS }
 
@@ -87,6 +93,8 @@ internal object MediaInfoFormats {
     private val PLAYABLE_CONTAINERS = setOf(
         "matroska", "webm", "mp4", "mov", "m4a", "m4v", "3gp", "3g2", "avi", "mpegts", "flv", "ogg", "mpeg",
     )
+
+    private val HLS_ORIGINAL_CONTAINERS = setOf("mp4", "m4v")
 
     private val STILL_IMAGE_CODECS = setOf("mjpeg", "png", "bmp", "gif", "webp")
 

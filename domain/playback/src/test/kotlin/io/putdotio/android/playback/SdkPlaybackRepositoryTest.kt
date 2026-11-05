@@ -14,7 +14,6 @@ import io.putdotio.sdk.files.FilesContinueQuery
 import io.putdotio.sdk.files.FilesListQuery
 import io.putdotio.sdk.files.FilesListResponse
 import io.putdotio.sdk.files.PutioFile
-import io.putdotio.sdk.files.OriginalVideoDecision
 import io.putdotio.sdk.files.PlaybackCapabilities
 import io.putdotio.sdk.files.PlaybackConversionState
 import io.putdotio.sdk.files.PlaybackPreference
@@ -80,11 +79,12 @@ class SdkPlaybackRepositoryTest {
             assertEquals(listOf(true, false, false), requests.map { it.capabilities.originalVideoPlayable })
             assertEquals(PlaybackPreference.HLS, requests[1].preference)
 
-            val decision = OriginalVideoDecision { _, _, _ -> true }
+            val decision = OriginalPlaybackDecision(FakeDecoderInventory(emptySet()))
             val converted = PlaybackCapabilities()
             assertEquals(
                 listOf(
-                    converted, PlaybackCapabilities(originalVideoDecision = decision),
+                    converted,
+                    PlaybackCapabilities(originalVideoDecision = decision.forPreference(PlaybackPreference.HLS)),
                     PlaybackCapabilities(originalVideoPlayable = true),
                     converted, converted, converted,
                 ),

@@ -10,8 +10,10 @@ import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
 import io.putdotio.sdk.files.OriginalVideoDecision
 import io.putdotio.sdk.files.PlaybackCapabilities
+import io.putdotio.sdk.files.PlaybackPreference
 import io.putdotio.sdk.files.PlaybackRequest
 import io.putdotio.sdk.files.PutioMediaInfo
+import io.putdotio.sdk.files.PutioMediaStream
 import io.putdotio.sdk.files.PutioPlaybackIssue
 
 public enum class OriginalVideoPolicy {
@@ -26,20 +28,39 @@ public fun interface DecoderInventory {
 
 public class OriginalPlaybackDecision(
     private val decoders: DecoderInventory,
-) : OriginalVideoDecision {
-    public fun fallbackReason(mediaInfo: PutioMediaInfo?): PlaybackFallbackReason? {
+) {
+    private val decisions = PlaybackPreference.entries.associateWith { preference ->
+        OriginalVideoDecision { mediaInfo, _, _ -> fallbackReason(mediaInfo, preference) == null }
+    }
+
+    public fun forPreference(preference: PlaybackPreference): OriginalVideoDecision = decisions.getValue(preference)
+
+    public fun fallbackReason(mediaInfo: PutioMediaInfo?, preference: PlaybackPreference): PlaybackFallbackReason? {
         if (mediaInfo == null) return PlaybackFallbackReason.NoMediaInfo
-        val issues = mediaInfo.playbackIssues.orEmpty()
         val streams = mediaInfo.streams.orEmpty()
-        val video = MediaInfoFormats.videoStreams(streams).firstOrNull()
-        val audio = MediaInfoFormats.audioStreams(streams)
-        val videoFormat = video?.let(MediaInfoFormats::toFormat)
-        val audioFormats = audio.mapNotNull(MediaInfoFormats::toFormat)
-        return when {
+        val container = when (preference) {
+            PlaybackPreference.HLS -> MediaInfoFormats.hlsOriginalContainer(mediaInfo.format)
+            PlaybackPreference.MP4 -> MediaInfoFormats.playableContainer(mediaInfo.format)
+        }
+        return issueReason(mediaInfo.playbackIssues.orEmpty()) ?: when {
+            streams.isEmpty() -> PlaybackFallbackReason.NoMediaInfo
+            !container -> PlaybackFallbackReason.ContainerUnsupported
+            else -> streamReason(streams)
+        }
+    }
+
+    private fun issueReason(issues: List<PutioPlaybackIssue>): PlaybackFallbackReason? =
+        when {
             issues.any { it in FALLBACK_ISSUES } -> PlaybackFallbackReason.PlaybackIssue
             issues.any { it !in PLAYABLE_ISSUES } -> PlaybackFallbackReason.UnknownIssue
-            streams.isEmpty() -> PlaybackFallbackReason.NoMediaInfo
-            !MediaInfoFormats.playableContainer(mediaInfo.format) -> PlaybackFallbackReason.ContainerUnsupported
+            else -> null
+        }
+
+    private fun streamReason(streams: List<PutioMediaStream>): PlaybackFallbackReason? {
+        val videoFormat = MediaInfoFormats.videoStreams(streams).firstOrNull()?.let(MediaInfoFormats::toFormat)
+        val audio = MediaInfoFormats.audioStreams(streams)
+        val audioFormats = audio.mapNotNull(MediaInfoFormats::toFormat)
+        return when {
             videoFormat == null -> PlaybackFallbackReason.CodecUnmapped
             !decoders.plays(videoFormat) -> PlaybackFallbackReason.VideoUnsupported
             audio.isEmpty() -> null
@@ -48,12 +69,6 @@ public class OriginalPlaybackDecision(
             else -> null
         }
     }
-
-    override fun canPlayOriginal(
-        mediaInfo: PutioMediaInfo?,
-        needConvert: Boolean,
-        isMp4Available: Boolean,
-    ): Boolean = fallbackReason(mediaInfo) == null
 
     private companion object {
         val FALLBACK_ISSUES = setOf(
@@ -98,12 +113,13 @@ public class MediaCodecDecoderInventory(
 
 internal fun PlaybackRequest.withOriginalVideo(
     policy: OriginalVideoPolicy,
-    decision: OriginalVideoDecision,
+    decision: OriginalPlaybackDecision,
 ): PlaybackRequest =
     copy(
         capabilities = when {
             !capabilities.originalVideoPlayable -> PlaybackCapabilities()
-            policy == OriginalVideoPolicy.Check -> PlaybackCapabilities(originalVideoDecision = decision)
+            policy == OriginalVideoPolicy.Check ->
+                PlaybackCapabilities(originalVideoDecision = decision.forPreference(preference))
             policy == OriginalVideoPolicy.Always -> PlaybackCapabilities(originalVideoPlayable = true)
             else -> PlaybackCapabilities()
         },

@@ -6,6 +6,14 @@ import androidx.media3.common.MimeTypes
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.putdotio.android.playback.PlaybackFallbackReason.AudioUnsupported
+import io.putdotio.android.playback.PlaybackFallbackReason.CodecUnmapped
+import io.putdotio.android.playback.PlaybackFallbackReason.ContainerUnsupported
+import io.putdotio.android.playback.PlaybackFallbackReason.NoMediaInfo
+import io.putdotio.android.playback.PlaybackFallbackReason.PlaybackIssue
+import io.putdotio.android.playback.PlaybackFallbackReason.UnknownIssue
+import io.putdotio.android.playback.PlaybackFallbackReason.VideoUnsupported
+import io.putdotio.sdk.files.PlaybackPreference
 import io.putdotio.sdk.files.PutioMediaFormat
 import io.putdotio.sdk.files.PutioMediaInfo
 import io.putdotio.sdk.files.PutioMediaStream
@@ -27,21 +35,32 @@ class OriginalPlaybackDecisionTest {
     fun capturedFilesPlayOriginalOnlyWhereThePhoneDecodesThem() {
         val decision = OriginalPlaybackDecision(FakeDecoderInventory(PHONE))
 
-        assertNull(decision.fallbackReason(captured("h264-high-aac.mkv")))
-        assertNull(decision.fallbackReason(captured("h264-aac.mp4")))
-        assertNull(decision.fallbackReason(captured("mpeg4-asp-mp3.avi")))
-        assertNull(decision.fallbackReason(captured("hevc-main10-aac.mkv")))
-        assertNull(decision.fallbackReason(captured("hevc-main10-flac-ass-first.mkv")))
-        assertEquals(PlaybackFallbackReason.ContainerUnsupported, decision.fallbackReason(captured("wmv3-wmav2.asf")))
-        assertEquals(PlaybackFallbackReason.AudioUnsupported, decision.fallbackReason(captured("h264-dts-ass.mkv")))
-        assertEquals(PlaybackFallbackReason.AudioUnsupported, decision.fallbackReason(captured("hevc-main10-eac3.mkv")))
-        assertEquals(PlaybackFallbackReason.VideoUnsupported, decision.fallbackReason(captured("av1-4k-eac3.mkv")))
+        assertNull(decision.reason(captured("h264-high-aac.mkv")))
+        assertNull(decision.reason(captured("h264-aac.mp4")))
+        assertNull(decision.reason(captured("mpeg4-asp-mp3.avi")))
+        assertNull(decision.reason(captured("hevc-main10-aac.mkv")))
+        assertNull(decision.reason(captured("hevc-main10-flac-ass-first.mkv")))
+        assertEquals(ContainerUnsupported, decision.reason(captured("wmv3-wmav2.asf")))
+        assertEquals(AudioUnsupported, decision.reason(captured("h264-dts-ass.mkv")))
+        assertEquals(AudioUnsupported, decision.reason(captured("hevc-main10-eac3.mkv")))
+        assertEquals(VideoUnsupported, decision.reason(captured("av1-4k-eac3.mkv")))
         assertEquals(
-            PlaybackFallbackReason.UnknownIssue,
-            decision.fallbackReason(captured("vp8-vorbis-future-issue.webm")),
+            UnknownIssue,
+            decision.reason(captured("vp8-vorbis-future-issue.webm")),
         )
-        assertFalse(decision.canPlayOriginal(captured("wmv3-wmav2.asf"), needConvert = false, isMp4Available = true))
-        assertTrue(decision.canPlayOriginal(captured("h264-high-aac.mkv"), needConvert = true, isMp4Available = false))
+        assertFalse(decision.forPreference(MP4).canPlayOriginal(captured("wmv3-wmav2.asf"), false, true))
+        assertTrue(decision.forPreference(MP4).canPlayOriginal(captured("h264-high-aac.mkv"), true, false))
+    }
+
+    @Test
+    fun hlsOriginalsAreMp4OnlyAsPutIoServesThem() {
+        val decision = OriginalPlaybackDecision(FakeDecoderInventory(PHONE))
+
+        assertNull(decision.reason(captured("h264-aac.mp4"), HLS))
+        assertEquals(ContainerUnsupported, decision.reason(captured("h264-high-aac.mkv"), HLS))
+        assertEquals(ContainerUnsupported, decision.reason(captured("mpeg4-asp-mp3.avi"), HLS))
+        assertFalse(decision.forPreference(HLS).canPlayOriginal(captured("h264-high-aac.mkv"), true, false))
+        assertTrue(decision.forPreference(MP4).canPlayOriginal(captured("h264-high-aac.mkv"), true, false))
     }
 
     @Test
@@ -52,9 +71,9 @@ class OriginalPlaybackDecisionTest {
         }
         val decision = OriginalPlaybackDecision(rejectsMain10)
 
-        assertEquals(PlaybackFallbackReason.VideoUnsupported, decision.fallbackReason(captured("hevc-main10-aac.mkv")))
-        assertNull(decision.fallbackReason(captured("h264-high-aac.mkv")))
-        assertNull(decision.fallbackReason(mediaInfo(video("hevc", profile = "Main", level = 120), audio("aac"))))
+        assertEquals(VideoUnsupported, decision.reason(captured("hevc-main10-aac.mkv")))
+        assertNull(decision.reason(captured("h264-high-aac.mkv")))
+        assertNull(decision.reason(mediaInfo(video("hevc", profile = "Main", level = 120), audio("aac"))))
     }
 
     @Test
@@ -62,48 +81,48 @@ class OriginalPlaybackDecisionTest {
         val tv = FakeDecoderInventory(PHONE + MimeTypes.AUDIO_E_AC3)
         val decision = OriginalPlaybackDecision(tv)
 
-        assertNull(decision.fallbackReason(captured("hevc-main10-4k-dts-eac3-truehd.mkv")))
+        assertNull(decision.reason(captured("hevc-main10-4k-dts-eac3-truehd.mkv")))
         assertEquals(
             listOf(MimeTypes.VIDEO_H265, MimeTypes.AUDIO_DTS, MimeTypes.AUDIO_E_AC3),
             tv.asked.map { it.sampleMimeType },
         )
-        assertNull(decision.fallbackReason(mediaInfo(video("h264"))))
+        assertNull(decision.reason(mediaInfo(video("h264"))))
     }
 
     @Test
     fun playbackIssuesFallBackUnlessTheyAreKnownToPlay() {
         val decision = OriginalPlaybackDecision(FakeDecoderInventory(PHONE))
         fun withIssues(vararg issues: String) =
-            decision.fallbackReason(
+            decision.reason(
                 mediaInfo(video("h264"), audio("aac")).copy(playbackIssues = issues.map(PutioPlaybackIssue::fromRaw)),
             )
 
         listOf("malformed_sei", "malformed_parameter_sets", "interlaced_video", "excessive_frame_rate").forEach {
-            assertEquals(it, PlaybackFallbackReason.PlaybackIssue, withIssues(it, "open_gop"))
+            assertEquals(it, PlaybackIssue, withIssues(it, "open_gop"))
         }
         assertNull(withIssues("open_gop", "movie_fragments", "sparse_idr"))
-        assertEquals(PlaybackFallbackReason.UnknownIssue, withIssues("sparse_idr", "future_issue"))
+        assertEquals(UnknownIssue, withIssues("sparse_idr", "future_issue"))
     }
 
     @Test
     fun missingOrUnmappedMediaInfoResolvesConverted() {
         val decision = OriginalPlaybackDecision(FakeDecoderInventory(PHONE + MimeTypes.VIDEO_MPEG))
 
-        assertEquals(PlaybackFallbackReason.NoMediaInfo, decision.fallbackReason(null))
-        assertEquals(PlaybackFallbackReason.NoMediaInfo, decision.fallbackReason(PutioMediaInfo(format = MATROSKA)))
+        assertEquals(NoMediaInfo, decision.reason(null))
+        assertEquals(NoMediaInfo, decision.reason(PutioMediaInfo(format = MATROSKA)))
         assertEquals(
-            PlaybackFallbackReason.CodecUnmapped,
-            decision.fallbackReason(mediaInfo(video("mpeg1video"), audio("mp2"))),
+            CodecUnmapped,
+            decision.reason(mediaInfo(video("mpeg1video"), audio("mp2"))),
         )
         listOf(video("vc1") to audio("aac"), video("mjpeg") to audio("aac"), video("h264") to audio("wmav2"))
             .forEach { (video, audio) ->
-                assertEquals(PlaybackFallbackReason.CodecUnmapped, decision.fallbackReason(mediaInfo(video, audio)))
+                assertEquals(CodecUnmapped, decision.reason(mediaInfo(video, audio)))
             }
         assertEquals(
-            PlaybackFallbackReason.ContainerUnsupported,
-            decision.fallbackReason(mediaInfo(video("h264"), audio("aac")).copy(format = PutioMediaFormat())),
+            ContainerUnsupported,
+            decision.reason(mediaInfo(video("h264"), audio("aac")).copy(format = PutioMediaFormat())),
         )
-        assertNull(decision.fallbackReason(mediaInfo(video("mjpeg"), video("h264"), audio("aac"))))
+        assertNull(decision.reason(mediaInfo(video("mjpeg"), video("h264"), audio("aac"))))
     }
 
     @Test
@@ -147,6 +166,9 @@ class OriginalPlaybackDecisionTest {
         assertEquals(MimeTypes.AUDIO_RAW, MediaInfoFormats.toFormat(audio("pcm_s16le"))?.sampleMimeType)
     }
 
+    private fun OriginalPlaybackDecision.reason(info: PutioMediaInfo?, preference: PlaybackPreference = MP4) =
+        fallbackReason(info, preference)
+
     private fun format(info: PutioMediaInfo, type: String): Format =
         requireNotNull(MediaInfoFormats.toFormat(info.streams.orEmpty().first { it.codecType == type }))
 
@@ -173,6 +195,8 @@ class OriginalPlaybackDecisionTest {
 
     private companion object {
         val MATROSKA = PutioMediaFormat(name = "matroska")
+        val HLS = PlaybackPreference.HLS
+        val MP4 = PlaybackPreference.MP4
         val PHONE = setOf(
             MimeTypes.VIDEO_H264,
             MimeTypes.VIDEO_H265,
