@@ -35,6 +35,7 @@ import io.putdotio.android.design.R as DesignR
 import io.putdotio.android.settings.AccountSettingsState
 import io.putdotio.android.settings.AndroidAppConfigState
 import io.putdotio.sdk.files.PlaybackSource
+import io.putdotio.sdk.files.PlaybackSourceKind
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -45,13 +46,19 @@ import kotlinx.coroutines.flow.StateFlow
 internal typealias MobileCastMediaLoader =
     suspend (PlaybackSource?, String?) -> PlaybackRepositoryResult<PlaybackCastMedia>
 
-/** [MobileCastMediaLoader] for [target], resolving it again when no source is at hand. */
+/**
+ * [MobileCastMediaLoader] for [target], resolving it again when no source is at hand, or when the
+ * source is an original video: a receiver gets video only converted.
+ */
 internal suspend fun PlaybackRepository.castMediaFor(
     target: PlaybackTarget,
     source: PlaybackSource?,
     subtitleKey: String?,
 ): PlaybackRepositoryResult<PlaybackCastMedia> {
-    val resolved = source?.let { PlaybackRepositoryResult.Success(PlaybackResolution.Ready(it)) } ?: resolve(target)
+    val video = target.mediaType == PlaybackMediaType.VIDEO
+    val resolved = source?.takeUnless { video && it.kind == PlaybackSourceKind.ORIGINAL }
+        ?.let { PlaybackRepositoryResult.Success(PlaybackResolution.Ready(it)) }
+        ?: resolve(target, convertedOnly = video)
     val ready = (resolved as? PlaybackRepositoryResult.Success)?.value as? PlaybackResolution.Ready
     return when {
         ready != null -> castMedia(target, ready.source, subtitleKey)
@@ -76,7 +83,8 @@ internal class SignedInCastAccount(
         (repository.findNextVideo(target) as? PlaybackNextResult.Found)?.target
 
     override suspend fun prepare(target: PlaybackTarget): CastPrepared? {
-        val resolved = repository.resolve(target) as? PlaybackRepositoryResult.Success
+        val resolved = repository.resolve(target, convertedOnly = target.mediaType == PlaybackMediaType.VIDEO)
+            as? PlaybackRepositoryResult.Success
         val ready = resolved?.value as? PlaybackResolution.Ready ?: return null
         val source = ready.source
         val policy = settings.value.subtitleStartupPolicy()
@@ -192,6 +200,7 @@ internal fun MobileCastPlayback(
     castButton: @Composable (Modifier) -> Unit,
     onBack: () -> Unit,
     onSourceRequired: (Long?) -> Unit,
+    onOriginalRejected: (PlaybackFallbackReason, Long) -> Boolean,
     neighbours: PlaybackNeighbours,
     onPlay: (PlaybackTarget) -> Unit,
     onPlaybackEnded: () -> Unit,
@@ -208,10 +217,15 @@ internal fun MobileCastPlayback(
     var attempt by remember(fileId) { mutableIntStateOf(0) }
     val currentPolicy by rememberUpdatedState(subtitleStartupPolicy)
     val currentOnSourceRequired by rememberUpdatedState(onSourceRequired)
+    val currentOnOriginalRejected by rememberUpdatedState(onOriginalRejected)
     // A session reconnecting holds the handover until it answers again.
     val connected = cast.availability.collectAsStateWithLifecycle().value is CastAvailability.Connected
     LaunchedEffect(fileId, source, connected, attempt) {
         if (!connected) return@LaunchedEffect
+        val startMillis = state.castStartMillis(preferences)
+        if (!cast.holds(fileId) && currentOnOriginalRejected(PlaybackFallbackReason.CastReceiver, startMillis)) {
+            return@LaunchedEffect
+        }
         failed = false
         // One player at a time: session audio stops once the receiver takes over, for a video too.
         playerFactory.stopAudio(context)
@@ -396,7 +410,7 @@ private suspend fun MobileCastController.handOver(
             loaded.value,
             item,
             CastHandover(
-                positionMillis = retained ?: ready?.source?.startFromSeconds?.toPlaybackMillis() ?: 0L,
+                positionMillis = state.castStartMillis(preferences),
                 playing = preferences.resumeAfterLifecyclePause,
                 speed = preferences.playbackSpeed,
             ),
@@ -404,6 +418,10 @@ private suspend fun MobileCastController.handOver(
     }
     return if (holds || loaded != null) CastHandoverOutcome.Started else CastHandoverOutcome.Failed
 }
+
+private fun PlaybackState.castStartMillis(preferences: RetainedPlayerPreferences): Long =
+    preferences.positionMillis ?: resumePositionMillis
+        ?: (content as? PlaybackContent.Ready)?.source?.startFromSeconds?.toPlaybackMillis() ?: 0L
 
 /** Session audio reopens without a source; its lease rests on the account's resume setting alone. */
 private fun PlaybackState.castItem(playerFactory: MobilePlayerFactory, appName: String): MediaItem {

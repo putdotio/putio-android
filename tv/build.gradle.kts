@@ -12,6 +12,16 @@ android {
         // Device-code OAuth apps from the legacy tv-native lane: one per TV store.
         buildConfigField("String", "PUTIO_TV_OAUTH_CLIENT_ID_ANDROID_TV", "\"6221\"")
         buildConfigField("String", "PUTIO_TV_OAUTH_CLIENT_ID_FIRE_TV", "\"6233\"")
+        buildConfigField("boolean", "PUTIO_FORCE_ORIGINAL_VIDEO", "false")
+    }
+    buildTypes {
+        debug {
+            buildConfigField(
+                "boolean",
+                "PUTIO_FORCE_ORIGINAL_VIDEO",
+                (providers.gradleProperty("putioForceOriginalVideo").orNull == "true").toString(),
+            )
+        }
     }
     // The system search provider's authority, generated per variant below.
     buildFeatures.resValues = true

@@ -68,6 +68,7 @@ import io.putdotio.android.playback.PlaybackCastMedia
 import io.putdotio.android.playback.PlaybackController
 import io.putdotio.android.playback.PlaybackEvent
 import io.putdotio.android.playback.PlaybackFailure
+import io.putdotio.android.playback.PlaybackFallbackReason
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackNeighbours
 import io.putdotio.android.playback.PlaybackNextResult
@@ -81,6 +82,7 @@ import io.putdotio.android.playback.confirmedAutoplayNextVideo
 import io.putdotio.android.playback.dispatch
 import io.putdotio.android.playback.mobilePlaybackViewModelFactory
 import io.putdotio.android.playback.playbackPreference
+import io.putdotio.android.playback.originalFallbackTelemetry
 import io.putdotio.android.playback.playerFailureTelemetry
 import io.putdotio.android.playback.putioFailure
 import io.putdotio.android.playback.rememberPictureInPictureMode
@@ -508,6 +510,7 @@ private fun MobilePlaybackRoute(
                 PutioDiagnostics.capture(playing.playerFailureTelemetry(failure))
             }
         },
+        onOriginalRejected = controller::rejectOriginal,
         onBack = onBack,
         subtitleStartupPolicy = subtitleStartupPolicy,
         autoplayNextVideo = autoplayNextVideo,
@@ -525,6 +528,15 @@ private fun MobilePlaybackRoute(
         cast = cast,
         castMedia = castMediaFor(castMedia, state.target),
     )
+}
+
+private fun PlaybackController.rejectOriginal(reason: PlaybackFallbackReason, positionMillis: Long): Boolean {
+    val playing = state.value
+    val consumed = dispatch(PlaybackEvent.OriginalRejected(reason, positionMillis))
+    if (consumed && reason != PlaybackFallbackReason.CastReceiver) {
+        PutioDiagnostics.capture(playing.originalFallbackTelemetry(reason))
+    }
+    return consumed
 }
 
 private val PlaybackFailure.rejectsSession: Boolean get() = putioFailure is PutioFailure.AuthenticationRequired

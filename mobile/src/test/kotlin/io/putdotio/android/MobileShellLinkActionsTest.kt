@@ -159,7 +159,10 @@ class MobileShellLinkActionsTest {
     }
 
     private val recording = object : PlaybackRepository {
-        override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> {
+        override suspend fun resolve(
+            target: PlaybackTarget,
+            convertedOnly: Boolean,
+        ): PlaybackRepositoryResult<PlaybackResolution> {
             resolved += target
             return PlaybackRepositoryResult.Success(PlaybackResolution.Conversion(PlaybackConversionState.Queued))
         }

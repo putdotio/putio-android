@@ -293,7 +293,10 @@ class MobileFilesSelectionTest {
         }
 
         val NoPlayback = object : PlaybackRepository {
-            override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> =
+            override suspend fun resolve(
+                target: PlaybackTarget,
+                convertedOnly: Boolean,
+            ): PlaybackRepositoryResult<PlaybackResolution> =
                 error("No playback in these tests")
 
             override suspend fun findNextVideo(target: PlaybackTarget) = PlaybackNextResult.Ended

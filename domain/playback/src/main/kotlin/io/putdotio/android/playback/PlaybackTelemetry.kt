@@ -1,6 +1,5 @@
 package io.putdotio.android.playback
 
-import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.datasource.HttpDataSource
@@ -24,10 +23,27 @@ public fun PlaybackState.playerFailureTelemetry(failure: PlaybackFailure): Telem
 /** The same report for a player no [PlaybackState] follows, such as the background audio service's. */
 public fun Player.playerFailureTelemetry(error: PlaybackException, mediaType: PlaybackMediaType): TelemetryFailure {
     val item = currentMediaItem
-    val sourceKind = item?.localConfiguration?.let { local ->
-        if (local.mimeType == MimeTypes.APPLICATION_M3U8) PlaybackSourceKind.HLS else PlaybackSourceKind.MP4
-    }
-    return playbackFailureTelemetry(error.toPlaybackFailure(), item?.mediaId?.toLongOrNull(), mediaType, sourceKind)
+    val fileId = item?.mediaId?.toLongOrNull()
+    return playbackFailureTelemetry(error.toPlaybackFailure(), fileId, mediaType, item.sourceKind())
+}
+
+/**
+ * A rejected original as a non-terminal report in the same schema: the converted stream takes
+ * over, so only the reason's code goes.
+ */
+public fun PlaybackState.originalFallbackTelemetry(reason: PlaybackFallbackReason): TelemetryFailure {
+    val tags = mapOf(
+        "telemetry_event" to EVENT,
+        "schema_version" to "1",
+        "player" to "media3",
+        "playback_outcome" to "fallback",
+        "playback_terminal" to "false",
+        "playback_fallback_reason" to reason.code,
+        "source_kind" to PlaybackSourceKind.ORIGINAL.tagValue(),
+        "media_type" to target.mediaType.name.lowercase(),
+        "file_id" to "${target.fileId.value}",
+    )
+    return TelemetryFailure(EVENT, listOf("fallback", reason.code), tags)
 }
 
 private fun playbackFailureTelemetry(
@@ -109,7 +125,8 @@ private fun errorCategory(code: Int): String =
 private fun PlaybackSourceKind?.tagValue(): String =
     when (this) {
         PlaybackSourceKind.HLS -> "hls"
-        PlaybackSourceKind.MP4, PlaybackSourceKind.ORIGINAL -> "direct"
+        PlaybackSourceKind.MP4 -> "direct"
+        PlaybackSourceKind.ORIGINAL -> "original"
         null -> "unknown"
     }
 

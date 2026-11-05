@@ -53,6 +53,7 @@ import io.putdotio.android.playback.DelayedSubtitleCues
 import io.putdotio.android.playback.PlaybackAnalyticsReporter
 import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackFailure
+import io.putdotio.android.playback.PlaybackFallbackReason
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackNeighbours
 import io.putdotio.android.playback.previousAt
@@ -60,8 +61,10 @@ import io.putdotio.android.playback.PlaybackState
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.playback.SubtitleCueOverlay
 import io.putdotio.android.playback.SubtitleStartupPolicy
+import io.putdotio.android.playback.directPlayVerdict
 import io.putdotio.android.playback.displayAspectRatioOrNull
 import io.putdotio.android.playback.orHiddenWhen
+import io.putdotio.android.playback.originalRejection
 import io.putdotio.android.playback.playbackSurfaceType
 import io.putdotio.android.playback.preparePlayback
 import io.putdotio.android.playback.rememberSubtitleAppearanceStore
@@ -92,6 +95,7 @@ internal fun TvPlayerScreen(
     onRestart: () -> Unit,
     onPlayerFailure: (PlaybackFailure, Long) -> Unit,
     modifier: Modifier = Modifier,
+    onOriginalRejected: (PlaybackFallbackReason, Long) -> Boolean = { _, _ -> false },
     onRefreshConversion: () -> Unit = {},
     onStartConversion: () -> Unit = {},
     playerFactory: TvPlayerFactory = DefaultTvPlayerFactory,
@@ -122,6 +126,7 @@ internal fun TvPlayerScreen(
                     playerFactory = playerFactory,
                     reporter = reporter,
                     onPlayerFailure = onPlayerFailure,
+                    onOriginalRejected = onOriginalRejected,
                     onExit = onBack,
                     autoplayNextVideo = autoplayNextVideo,
                     onPlaybackEnded = onPlaybackEnded,
@@ -189,6 +194,7 @@ private fun TvReadyPlayer(
     playerFactory: TvPlayerFactory,
     reporter: TvPlaybackReporter,
     onPlayerFailure: (PlaybackFailure, Long) -> Unit,
+    onOriginalRejected: (PlaybackFallbackReason, Long) -> Boolean,
     onExit: () -> Unit,
     autoplayNextVideo: Boolean,
     onPlaybackEnded: () -> Boolean,
@@ -217,6 +223,7 @@ private fun TvReadyPlayer(
         source.preparePlayback(target.name, target.mediaType, stoppedAtMillis ?: resumePositionMillis)
     }
     val currentOnPlayerFailure by rememberUpdatedState(onPlayerFailure)
+    val currentOnOriginalRejected by rememberUpdatedState(onOriginalRejected)
     val currentOnExit by rememberUpdatedState(onExit)
     val currentAutoplayNextVideo by rememberUpdatedState(autoplayNextVideo)
     val currentOnPlaybackEnded by rememberUpdatedState(onPlaybackEnded)
@@ -282,10 +289,17 @@ private fun TvReadyPlayer(
             }
 
             override fun onPlayerError(error: PlaybackException) {
-                currentOnPlayerFailure(error.toPlaybackFailure(), player.currentPosition.coerceAtLeast(0L))
+                val position = player.currentPosition.coerceAtLeast(0L)
+                val rejection = error.originalRejection().takeUnless { firstFrameShown }
+                if (rejection == null || !currentOnOriginalRejected(rejection, position)) {
+                    currentOnPlayerFailure(error.toPlaybackFailure(), position)
+                }
             }
 
             override fun onTracksChanged(value: Tracks) {
+                val rejection = directPlayVerdict(value).takeUnless { nowPlaying }
+                val position = player.currentPosition.coerceAtLeast(0L)
+                if (rejection != null && currentOnOriginalRejected(rejection, position)) return
                 tracks = value
                 player.keepChoices(
                     value,

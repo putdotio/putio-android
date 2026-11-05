@@ -99,7 +99,7 @@ class PlaybackCastMediaTest {
             "http://api.put.io/v2/files/42/stream",
             "https://cdn.example.com/v2/files/42/stream",
         ).forEach { url ->
-            val source = source(PlaybackSourceKind.ORIGINAL, url, PlaybackSubtitles.None)
+            val source = source(PlaybackSourceKind.MP4, url, PlaybackSubtitles.None)
             assertNull(url, source.toCastMedia(Video, DOWNLOAD))
         }
     }

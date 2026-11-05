@@ -111,6 +111,7 @@ internal fun MobilePlayerScreen(
     onPlayerFailure: (PlaybackFailure, Long) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    onOriginalRejected: (PlaybackFallbackReason, Long) -> Boolean = { _, _ -> false },
     autoplayNextVideo: Boolean = false,
     onPlaybackEnded: () -> Unit = {},
     /** The file's end, whatever autoplay does next, and Cast handovers. */
@@ -155,6 +156,7 @@ internal fun MobilePlayerScreen(
             subtitleStartupPolicy = subtitleStartupPolicy,
             keyboardNavigation = keyboardNavigation,
             onPlayerFailure = onPlayerFailure,
+            onOriginalRejected = onOriginalRejected,
             autoplayNextVideo = autoplayNextVideo,
             onPlaybackEnded = onPlaybackEnded,
             analytics = analytics,
@@ -280,6 +282,7 @@ private fun MobileReadyContent(
     subtitleStartupPolicy: SubtitleStartupPolicy?,
     keyboardNavigation: MutableState<Boolean>,
     onPlayerFailure: (PlaybackFailure, Long) -> Unit,
+    onOriginalRejected: (PlaybackFallbackReason, Long) -> Boolean,
     autoplayNextVideo: Boolean,
     onPlaybackEnded: () -> Unit,
     analytics: PlaybackAnalyticsReporter,
@@ -306,6 +309,7 @@ private fun MobileReadyContent(
             castButton = playerCast.button,
             onBack = onBack,
             onSourceRequired = onSourceRequired,
+            onOriginalRejected = onOriginalRejected,
             neighbours = neighbours,
             onPlay = onPlay,
             onPlaybackEnded = onPlaybackEnded,
@@ -343,6 +347,7 @@ private fun MobileReadyContent(
             onKeyboardNavigation = { keyboardNavigation.value = true },
             onPointerNavigation = { keyboardNavigation.value = false },
             onPlayerFailure = onPlayerFailure,
+            onOriginalRejected = onOriginalRejected,
             autoplayNextVideo = autoplayNextVideo,
             onPlaybackEnded = onPlaybackEnded,
             analytics = analytics,
@@ -424,6 +429,7 @@ private fun MobileReadyPlayer(
     onKeyboardNavigation: () -> Unit,
     onPointerNavigation: () -> Unit,
     onPlayerFailure: (PlaybackFailure, Long) -> Unit,
+    onOriginalRejected: (PlaybackFallbackReason, Long) -> Boolean,
     autoplayNextVideo: Boolean,
     onPlaybackEnded: () -> Unit,
     analytics: PlaybackAnalyticsReporter,
@@ -470,6 +476,7 @@ private fun MobileReadyPlayer(
         source?.preparePlayback(title, mediaType, retainedPosition.longValue, offline, appName)
     }
     val currentOnPlayerFailure = rememberUpdatedState(onPlayerFailure)
+    val currentOnOriginalRejected = rememberUpdatedState(onOriginalRejected)
     val currentAutoplayNextVideo = rememberUpdatedState(autoplayNextVideo)
     val currentOnPlaybackEnded = rememberUpdatedState(onPlaybackEnded)
     val currentOnReachedEnd = rememberUpdatedState<() -> Unit> { analytics.reachedEnd() }
@@ -561,6 +568,7 @@ private fun MobileReadyPlayer(
         currentOnPlaybackEnded = currentOnPlaybackEnded,
         currentOnReachedEnd = currentOnReachedEnd,
         currentOnPlayerFailure = currentOnPlayerFailure,
+        currentOnOriginalRejected = currentOnOriginalRejected,
         currentOnPlaybackRetained = currentOnPlaybackRetained,
         currentOnPositionChanged = currentOnPositionChanged,
         pictureInPicture = pictureInPicture,
@@ -650,6 +658,7 @@ private class ReadyPlayerState(
     var retainedPlayIntent by mutableStateOf(resumeAfterLifecyclePause)
     var failurePositionMillis by mutableStateOf<Long?>(null)
     var endedReported by mutableStateOf(false)
+    var firstFrameRendered by mutableStateOf(false)
     var seekWindow by mutableStateOf(player.currentSeekWindow())
     var nextSeekRequestId by mutableLongStateOf(0L)
 
@@ -971,6 +980,7 @@ private fun PlayerListenerEffect(
     currentOnPlaybackEnded: State<() -> Unit>,
     currentOnReachedEnd: State<() -> Unit>,
     currentOnPlayerFailure: State<(PlaybackFailure, Long) -> Unit>,
+    currentOnOriginalRejected: State<(PlaybackFallbackReason, Long) -> Boolean>,
     currentOnPlaybackRetained: State<(RetainedPlayback) -> Unit>,
     currentOnPositionChanged: State<(Long) -> Unit>,
     pictureInPicture: State<Boolean>,
@@ -1014,10 +1024,17 @@ private fun PlayerListenerEffect(
                         positionMillis = errorPositionMillis,
                         playWhenReady = player.playWhenReady,
                     ).dispatch(currentOnPlaybackRetained.value, currentOnPositionChanged.value)
-                    currentOnPlayerFailure.value(
-                        error.toPlaybackFailure(),
-                        player.currentPosition,
-                    )
+                    val rejection = error.originalRejection().takeUnless { playerState.firstFrameRendered }
+                    if (rejection == null || !currentOnOriginalRejected.value(rejection, errorPositionMillis)) {
+                        currentOnPlayerFailure.value(
+                            error.toPlaybackFailure(),
+                            player.currentPosition,
+                        )
+                    }
+                }
+
+                override fun onRenderedFirstFrame() {
+                    playerState.firstFrameRendered = true
                 }
 
                 override fun onCues(cueGroup: CueGroup) {
@@ -1045,6 +1062,12 @@ private fun PlayerListenerEffect(
                 }
 
                 override fun onTracksChanged(tracks: Tracks) {
+                    val rejection = directPlayVerdict(tracks).takeUnless { isAudio || playerState.playerReleased }
+                    if (rejection != null &&
+                        currentOnOriginalRejected.value(rejection, player.currentPosition.coerceAtLeast(0L))
+                    ) {
+                        return
+                    }
                     resolveRetainedSubtitleSelection(tracks.playbackSubtitleTracks())
                     if (playerState.optionsInitialized) {
                         val parameters = player.trackSelectionParameters.withRetainedAudioSelection(

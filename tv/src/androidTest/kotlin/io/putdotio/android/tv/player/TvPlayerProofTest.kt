@@ -877,7 +877,10 @@ class TvPlayerProofTest {
         )
         var offlineFailed = false
         val repository = object : PlaybackRepository {
-            override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> =
+            override suspend fun resolve(
+                target: PlaybackTarget,
+                convertedOnly: Boolean,
+            ): PlaybackRepositoryResult<PlaybackResolution> =
                 when {
                     target.fileId.value == FIXTURE_FILE_ID && conversion.isNotEmpty() ->
                         PlaybackRepositoryResult.Success(conversion.removeFirst())
@@ -892,6 +895,7 @@ class TvPlayerProofTest {
 
             override suspend fun startConversion(
                 target: PlaybackTarget,
+                convertedOnly: Boolean,
             ): PlaybackRepositoryResult<PlaybackResolution> {
                 check(target.fileId.value == FIXTURE_FILE_ID)
                 conversionStarts.incrementAndGet()
@@ -977,7 +981,10 @@ class TvPlayerProofTest {
         val factory = ProofPlayerFactory()
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
         val repository = object : PlaybackRepository {
-            override suspend fun resolve(target: PlaybackTarget) = PlaybackRepositoryResult.Success(
+            override suspend fun resolve(
+                target: PlaybackTarget,
+                convertedOnly: Boolean,
+            ) = PlaybackRepositoryResult.Success(
                 PlaybackResolution.Ready(source.copy(startFromSeconds = server.startFromSeconds), useStartFrom = true),
             )
 

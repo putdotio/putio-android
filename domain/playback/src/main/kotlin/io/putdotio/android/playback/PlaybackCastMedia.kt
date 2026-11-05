@@ -55,9 +55,10 @@ public data class PlaybackCastSubtitle(
 
 /**
  * The Cast form of this source, or null when it cannot go to a receiver: a URL that is not put.io's
- * HTTPS API, such as one only this device's cache can answer. Video goes as the source the account's
- * playback setting chose, HLS or MP4; audio as the original. Sidecar subtitles, which MP4 and
- * original sources list, go as WebVTT tracks; HLS carries its own in the playlist.
+ * HTTPS API, such as one only this device's cache can answer, or an original video, which the
+ * default receiver cannot be trusted to decode. Video goes as the source the account's playback
+ * setting chose, HLS or MP4; audio as the original. Sidecar subtitles, which MP4 and original
+ * sources list, go as WebVTT tracks; HLS carries its own in the playlist.
  */
 public fun PlaybackSource.toCastMedia(
     target: PlaybackTarget,
@@ -65,7 +66,9 @@ public fun PlaybackSource.toCastMedia(
     activeSubtitleKey: String? = null,
 ): PlaybackCastMedia? {
     require(downloadToken.isNotBlank()) { "Download token must not be blank" }
-    val mediaUrl = url.value.withDownloadToken(downloadToken) ?: return null
+    val mediaUrl = url.value.withDownloadToken(downloadToken)
+        ?.takeUnless { kind == PlaybackSourceKind.ORIGINAL && target.mediaType == PlaybackMediaType.VIDEO }
+        ?: return null
     val sidecar = (subtitles as? PlaybackSubtitles.Sidecar)?.tracks.orEmpty()
     val tracks = sidecar.mapNotNull { subtitle ->
         subtitle.url.value.withDownloadToken(downloadToken, SUBTITLE_FORMAT_QUERY to WEBVTT)?.let { subtitle to it }
@@ -98,10 +101,7 @@ private fun PlaybackSource.castContentType(target: PlaybackTarget): String =
     when (kind) {
         PlaybackSourceKind.HLS -> HLS_CONTENT_TYPE
         PlaybackSourceKind.MP4 -> MP4_CONTENT_TYPE
-        PlaybackSourceKind.ORIGINAL -> when (target.mediaType) {
-            PlaybackMediaType.AUDIO -> AUDIO_CONTENT_TYPES[target.name.extension()] ?: DEFAULT_AUDIO_CONTENT_TYPE
-            PlaybackMediaType.VIDEO -> VIDEO_CONTENT_TYPES[target.name.extension()] ?: MP4_CONTENT_TYPE
-        }
+        PlaybackSourceKind.ORIGINAL -> AUDIO_CONTENT_TYPES[target.name.extension()] ?: DEFAULT_AUDIO_CONTENT_TYPE
     }
 
 private fun String.extension(): String = substringAfterLast('.', missingDelimiterValue = "").lowercase()
@@ -163,9 +163,4 @@ private val AUDIO_CONTENT_TYPES = mapOf(
     "oga" to "audio/ogg",
     "opus" to "audio/ogg",
     "wav" to "audio/wav",
-)
-private val VIDEO_CONTENT_TYPES = mapOf(
-    "mp4" to MP4_CONTENT_TYPE,
-    "m4v" to MP4_CONTENT_TYPE,
-    "webm" to "video/webm",
 )

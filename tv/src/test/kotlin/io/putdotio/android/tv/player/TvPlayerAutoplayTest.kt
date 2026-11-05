@@ -425,7 +425,10 @@ class TvPlayerAutoplayTest {
     ): List<Long> {
         val lookups = mutableListOf<Long>()
         val repository = object : PlaybackRepository {
-            override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> {
+            override suspend fun resolve(
+                target: PlaybackTarget,
+                convertedOnly: Boolean,
+            ): PlaybackRepositoryResult<PlaybackResolution> {
                 val id = target.fileId.value
                 return PlaybackRepositoryResult.Success(
                     PlaybackResolution.Ready(

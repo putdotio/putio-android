@@ -278,7 +278,10 @@ private class RootMoveBackPreview {
 }
 
 private object NoMoveBackPlayback : PlaybackRepository {
-    override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> =
+    override suspend fun resolve(
+        target: PlaybackTarget,
+        convertedOnly: Boolean,
+    ): PlaybackRepositoryResult<PlaybackResolution> =
         error("Unexpected playback in Move Back proof")
     override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult =
         error("Unexpected playback in Move Back proof")

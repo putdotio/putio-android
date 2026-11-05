@@ -82,7 +82,10 @@ internal fun TrashRestoreProofShell(
 }
 
 private object TrashRestoreNoPlayback : PlaybackRepository {
-    override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> =
+    override suspend fun resolve(
+        target: PlaybackTarget,
+        convertedOnly: Boolean,
+    ): PlaybackRepositoryResult<PlaybackResolution> =
         error("Unexpected playback in Trash proof")
     override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult =
         error("Unexpected playback in Trash proof")

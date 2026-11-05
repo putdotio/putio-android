@@ -23,15 +23,23 @@ import org.junit.Test
 class OfflinePlaybackRepositoryTest {
     private val target = PlaybackTarget(FilesItemId(7L), "Sintel.mkv")
     private val delegateCalls = mutableListOf<PlaybackTarget>()
+    private val convertedOnlyCalls = mutableListOf<Boolean>()
     private val delegate = object : PlaybackRepository {
-        override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> {
+        override suspend fun resolve(
+            target: PlaybackTarget,
+            convertedOnly: Boolean,
+        ): PlaybackRepositoryResult<PlaybackResolution> {
+            convertedOnlyCalls += convertedOnly
             delegateCalls += target
             return PlaybackRepositoryResult.Failure(
                 PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IOException("offline"))),
             )
         }
 
-        override suspend fun startConversion(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> =
+        override suspend fun startConversion(
+            target: PlaybackTarget,
+            convertedOnly: Boolean,
+        ): PlaybackRepositoryResult<PlaybackResolution> =
             error("No conversion expected")
 
         override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult = PlaybackNextResult.Ended
@@ -117,6 +125,19 @@ class OfflinePlaybackRepositoryTest {
         assertTrue(repository.resolve(target) is PlaybackRepositoryResult.Failure)
         assertTrue(repository.resolve(target.copy(fileId = FilesItemId(8L))) is PlaybackRepositoryResult.Failure)
         assertEquals(2, delegateCalls.size)
+    }
+
+    @Test
+    fun convertedOnlyStreamsInPlaceOfAnOriginalVideoDownload() = runBlocking {
+        val original = OfflinePlaybackRepository(
+            downloadsOf(completed().copy(artifact = DownloadArtifact.ORIGINAL)), delegate, PutioCredentialUrl::of,
+        )
+        val hls = OfflinePlaybackRepository(downloadsOf(completed()), delegate, PutioCredentialUrl::of)
+
+        assertTrue(original.resolve(target) is PlaybackRepositoryResult.Success)
+        assertTrue(original.resolve(target, convertedOnly = true) is PlaybackRepositoryResult.Failure)
+        assertTrue(hls.resolve(target, convertedOnly = true) is PlaybackRepositoryResult.Success)
+        assertEquals(listOf(true), convertedOnlyCalls)
     }
 
     private fun completed() = DownloadEntry(

@@ -57,6 +57,27 @@ class SdkPlaybackRepositoryTest {
         }
 
     @Test
+    fun convertedOnlyAndAudioNeverAllowAnOriginalVideo() =
+        runBlocking {
+            val requests = mutableListOf<PlaybackRequest>()
+            val repository = SdkPlaybackRepository(
+                playbackPreference = { PlaybackPreference.HLS },
+                loadAccount = { account(downloadToken = Token, useStartFrom = false) },
+                resolvePlayback = {
+                    requests += it
+                    io.putdotio.sdk.files.PlaybackResolution.Conversion(PlaybackConversionState.Queued)
+                },
+            )
+
+            repository.resolve(Target)
+            repository.resolve(Target, convertedOnly = true)
+            repository.resolve(Target.copy(mediaType = PlaybackMediaType.AUDIO))
+
+            assertEquals(listOf(true, false, false), requests.map { it.capabilities.originalVideoPlayable })
+            assertEquals(PlaybackPreference.HLS, requests[1].preference)
+        }
+
+    @Test
     fun hideSubtitlesRequestsNoSubtitleTracks() =
         runBlocking {
             val requests = mutableListOf<PlaybackRequest>()

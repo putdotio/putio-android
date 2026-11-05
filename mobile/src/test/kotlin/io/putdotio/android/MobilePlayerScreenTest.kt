@@ -2585,6 +2585,12 @@ internal class RecordingPlayer(
         invalidateState()
     }
 
+    fun renderFirstFrame() {
+        state = state.buildUpon().setNewlyRenderedFirstFrame(true).build()
+        invalidateState()
+        state = state.buildUpon().setNewlyRenderedFirstFrame(false).build()
+    }
+
     fun updateVideoSize(size: VideoSize) {
         state = state.buildUpon().setVideoSize(size).build()
         invalidateState()

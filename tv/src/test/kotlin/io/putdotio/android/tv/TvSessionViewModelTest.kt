@@ -938,7 +938,10 @@ class TvSessionViewModelTest {
         /** Durations the file's own listing carries, filled in for a video target without one. */
         val listedDurations = mutableMapOf<FilesItemId, Double>()
 
-        override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> {
+        override suspend fun resolve(
+            target: PlaybackTarget,
+            convertedOnly: Boolean,
+        ): PlaybackRepositoryResult<PlaybackResolution> {
             resolved += target
             preferencesSeen += preference()
             val duration = listedDurations[target.fileId]
