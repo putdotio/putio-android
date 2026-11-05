@@ -1066,10 +1066,12 @@ class MobilePlayerMediaItemTest {
 
     @Test
     fun audioMediaItemIsTaggedAsMusicForSystemMediaControls() {
-        val item = audioSource().toMediaItem("song.mp3", PlaybackMediaType.AUDIO)
+        val item = audioSource().toMediaItem("song.mp3", PlaybackMediaType.AUDIO, artist = "put.io")
 
         assertEquals(MediaMetadata.MEDIA_TYPE_MUSIC, item.mediaMetadata.mediaType)
         assertEquals("song.mp3", item.mediaMetadata.title)
+        assertEquals("put.io", item.mediaMetadata.artist)
+        assertNull(audioSource().toMediaItem("song.mp3", PlaybackMediaType.AUDIO).mediaMetadata.artist)
     }
 
     private fun subtitle(

@@ -20,6 +20,7 @@ import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.auth.MobileOAuthRuntime
 import io.putdotio.android.auth.MobileSessionKey
+import io.putdotio.android.design.R as DesignR
 import io.putdotio.android.downloads.DownloadsController
 import io.putdotio.android.downloads.DownloadsEvent
 import io.putdotio.android.downloads.MobileDownloadCache
@@ -336,6 +337,7 @@ private fun SignedInMobileSession(
                 reportingPlayerFactory,
                 appConfigController.state,
                 accountSettingsController.state,
+                appContext.getString(DesignR.string.app_name),
             ),
         )
     }

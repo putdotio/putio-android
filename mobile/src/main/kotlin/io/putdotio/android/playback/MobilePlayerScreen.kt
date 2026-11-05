@@ -94,6 +94,7 @@ import io.putdotio.android.MobileShortcutScope
 import io.putdotio.android.mobileKeyCommand
 import io.putdotio.android.MobileLoadingState
 import io.putdotio.android.R
+import io.putdotio.android.design.R as DesignR
 import io.putdotio.android.files.hasVlc
 import io.putdotio.sdk.files.PlaybackSource
 import java.io.Closeable
@@ -473,14 +474,15 @@ private fun MobileReadyPlayer(
         return
     }
 
-    val initialPlayback = remember(source, title, mediaType, startPositionMillis) {
-        source?.preparePlayback(title, mediaType, startPositionMillis, offline)
+    val appName = stringResource(DesignR.string.app_name)
+    val initialPlayback = remember(source, title, mediaType, startPositionMillis, appName) {
+        source?.preparePlayback(title, mediaType, startPositionMillis, offline, appName)
     }
     val retainedPosition = rememberSaveable(fileId) {
         mutableLongStateOf(initialPlayback?.startPositionMillis ?: startPositionMillis ?: 0L)
     }
-    val preparedPlayback = remember(source, offline, title, mediaType, playerGeneration.intValue) {
-        source?.preparePlayback(title, mediaType, retainedPosition.longValue, offline)
+    val preparedPlayback = remember(source, offline, title, mediaType, playerGeneration.intValue, appName) {
+        source?.preparePlayback(title, mediaType, retainedPosition.longValue, offline, appName)
     }
     val currentOnPlayerFailure = rememberUpdatedState(onPlayerFailure)
     val currentAutoplayNextVideo = rememberUpdatedState(autoplayNextVideo)

@@ -58,6 +58,7 @@ import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import io.putdotio.android.MobilePlaybackService
 import io.putdotio.android.R
+import io.putdotio.android.design.R as DesignR
 import java.io.Closeable
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.MainScope
@@ -146,7 +147,7 @@ internal object MobileCast {
             .setLocalPlayer(local)
             .setRemotePlayer(
                 RemoteCastPlayer.Builder(context.applicationContext)
-                    .setMediaItemConverter(PutioCastMediaItemConverter())
+                    .setMediaItemConverter(PutioCastMediaItemConverter(context))
                     .build(),
             )
             .setTransferCallback(
@@ -297,7 +298,9 @@ internal class CastStopCallback(private val castStop: CastStopControl) : MediaSe
 }
 
 @UnstableApi
-internal class PutioCastMediaItemConverter : MediaItemConverter {
+internal class PutioCastMediaItemConverter(context: Context) : MediaItemConverter {
+    private val appName = context.getString(DesignR.string.app_name)
+
     override fun toMediaQueueItem(mediaItem: MediaItem): MediaQueueItem {
         val media = mediaItem.localConfiguration?.tag as? PlaybackCastMedia
         val info = media?.toMediaInfo() ?: MediaInfo.Builder(mediaItem.mediaId).build()
@@ -313,6 +316,7 @@ internal class PutioCastMediaItemConverter : MediaItemConverter {
             .setMediaMetadata(
                 Media3Metadata.Builder()
                     .setTitle(metadata?.getString(MediaMetadata.KEY_TITLE))
+                    .setArtist(metadata?.getString(MediaMetadata.KEY_ARTIST) ?: appName)
                     .setArtworkUri(metadata?.images?.firstOrNull()?.url)
                     .setMediaType(
                         if (metadata?.mediaType == MediaMetadata.MEDIA_TYPE_MUSIC_TRACK) {

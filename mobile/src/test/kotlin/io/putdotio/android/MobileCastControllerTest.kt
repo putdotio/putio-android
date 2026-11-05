@@ -189,6 +189,7 @@ class MobileCastControllerTest {
             MobilePlayerFactory { _, _ -> error("Casting plays nothing on the phone") },
             MutableStateFlow(readyAndroidAppConfigState(AndroidAppConfigPreferences(autoplayNextVideo = true))),
             MutableStateFlow(readyAccountSettingsState(DefaultAccountSettingsPreferences.copy(nextEpisode = false))),
+            appName = "put.io",
         )
         cast.autoplay.follow(SESSION, account)
         gateway.connect()

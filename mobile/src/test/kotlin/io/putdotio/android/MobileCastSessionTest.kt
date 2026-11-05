@@ -130,7 +130,7 @@ class MobileCastSessionTest {
 
     @Test
     fun theSessionSendsTheReceiverOnlyMediaMadeForItNeverALocalUrl() {
-        val converter = PutioCastMediaItemConverter()
+        val converter = PutioCastMediaItemConverter(app)
         val local = MediaItem.Builder()
             .setMediaId("42")
             .setUri("https://api.put.io/v2/files/42/stream?oauth_token=session-token")
@@ -143,8 +143,8 @@ class MobileCastSessionTest {
     }
 
     @Test
-    fun theSessionShowsTheReceiversMediaByFileAndTitleWithoutItsUrl() {
-        val converter = PutioCastMediaItemConverter()
+    fun theSessionShowsTheReceiversMediaByFileAndTitleUnderTheAppNameWithoutItsUrl() {
+        val converter = PutioCastMediaItemConverter(app)
         val media = requireNotNull(Source.toCastMedia(Track, "download-token"))
         val queued = converter.toMediaQueueItem(MediaItem.Builder().setUri(media.url).setTag(media).build())
         assertEquals(media.url, queued.media?.contentUrl)
@@ -153,6 +153,7 @@ class MobileCastSessionTest {
 
         assertEquals("42", shown.mediaId)
         assertEquals("track.mp3", shown.mediaMetadata.title)
+        assertEquals("put.io", shown.mediaMetadata.artist)
         assertEquals(MediaMetadata.MEDIA_TYPE_MUSIC, shown.mediaMetadata.mediaType)
         assertNull(shown.localConfiguration)
     }

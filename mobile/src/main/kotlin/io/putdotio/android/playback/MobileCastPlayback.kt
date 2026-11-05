@@ -31,6 +31,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.util.UnstableApi
 import io.putdotio.android.R
+import io.putdotio.android.design.R as DesignR
 import io.putdotio.android.settings.AccountSettingsState
 import io.putdotio.android.settings.AndroidAppConfigState
 import io.putdotio.sdk.files.PlaybackSource
@@ -67,6 +68,7 @@ internal class SignedInCastAccount(
     private val playerFactory: MobilePlayerFactory,
     private val appConfig: StateFlow<AndroidAppConfigState>,
     private val settings: StateFlow<AccountSettingsState>,
+    private val appName: String,
 ) : CastAccount {
     override val autoplay: Boolean get() = appConfig.value.confirmedAutoplayNextVideo()
 
@@ -83,7 +85,7 @@ internal class SignedInCastAccount(
             CastPrepared(
                 media = media.copy(playlistSubtitle = castPlaylistSubtitle(source, null, policy)),
                 item = playerFactory.reportableItem(
-                    source.toMediaItem(target.name, target.mediaType),
+                    source.toMediaItem(target.name, target.mediaType, artist = appName),
                     ready.useStartFrom,
                 ),
                 startMillis = ready.unattendedStartMillis(target.durationSeconds),
@@ -196,6 +198,7 @@ internal fun MobileCastPlayback(
     analytics: PlaybackAnalyticsReporter,
 ) {
     val context = LocalContext.current
+    val appName = stringResource(DesignR.string.app_name)
     val currentAnalytics by rememberUpdatedState(analytics)
     val target = state.target
     val fileId = target.fileId.value
@@ -222,7 +225,8 @@ internal fun MobileCastPlayback(
                 loaded
             }
         }
-        val outcome = cast.handOver(state, load, preferences, playerFactory, currentOnSourceRequired)
+        val item = state.castItem(playerFactory, appName)
+        val outcome = cast.handOver(state, load, preferences, item, currentOnSourceRequired)
         failed = outcome == CastHandoverOutcome.Failed
         currentAnalytics.report(outcome)
     }
@@ -369,7 +373,7 @@ private suspend fun MobileCastController.handOver(
     state: PlaybackState,
     castMedia: suspend (PlaybackSource?) -> PlaybackRepositoryResult<PlaybackCastMedia>,
     preferences: RetainedPlayerPreferences,
-    playerFactory: MobilePlayerFactory,
+    item: MediaItem,
     onSourceRequired: (Long?) -> Unit,
 ): CastHandoverOutcome {
     val target = state.target
@@ -377,11 +381,6 @@ private suspend fun MobileCastController.handOver(
     val ready = state.content as? PlaybackContent.Ready
     // Unknown stays unknown, so resolving a source still finds put.io's saved position.
     val retained = preferences.positionMillis ?: state.resumePositionMillis
-    // Session audio reopens without a source; its lease rests on the account's resume setting alone.
-    val item = playerFactory.reportableItem(
-        ready?.source?.toMediaItem(target.name, target.mediaType) ?: bareItem(fileId, target.name),
-        ready?.useStartFrom ?: true,
-    )
     val holds = holds(fileId)
     if (!holds && ready == null) {
         onSourceRequired(retained)
@@ -406,6 +405,16 @@ private suspend fun MobileCastController.handOver(
     return if (holds || loaded != null) CastHandoverOutcome.Started else CastHandoverOutcome.Failed
 }
 
+/** Session audio reopens without a source; its lease rests on the account's resume setting alone. */
+private fun PlaybackState.castItem(playerFactory: MobilePlayerFactory, appName: String): MediaItem {
+    val ready = content as? PlaybackContent.Ready
+    return playerFactory.reportableItem(
+        ready?.source?.toMediaItem(target.name, target.mediaType, artist = appName)
+            ?: bareItem(target.fileId.value, target.name, appName),
+        ready?.useStartFrom ?: true,
+    )
+}
+
 private enum class CastHandoverOutcome { Started, SourceRequested, Failed }
 
 private fun PlaybackAnalyticsReporter.report(outcome: CastHandoverOutcome) {
@@ -424,8 +433,8 @@ private fun androidx.media3.common.Player.seekBy(intervals: SeekIntervals, direc
 }
 
 /** A receiver already playing [fileId], reached without a source: controls only, no reporting lease. */
-private fun bareItem(fileId: Long, title: String): MediaItem =
+private fun bareItem(fileId: Long, title: String, artist: String): MediaItem =
     MediaItem.Builder()
         .setMediaId(fileId.toString())
-        .setMediaMetadata(MediaMetadata.Builder().setTitle(title).build())
+        .setMediaMetadata(MediaMetadata.Builder().setTitle(title).setArtist(artist).build())
         .build()
