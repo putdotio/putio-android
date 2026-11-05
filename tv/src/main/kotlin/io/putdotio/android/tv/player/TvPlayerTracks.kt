@@ -17,6 +17,7 @@ import io.putdotio.android.playback.toAudioSelection
 import io.putdotio.android.playback.toBundle
 import io.putdotio.android.playback.toSubtitleSelection
 import io.putdotio.android.playback.withRetainedAudioSelection
+import io.putdotio.android.playback.inFileSubtitleLanguage
 import io.putdotio.android.playback.withSubtitleSelection
 import io.putdotio.android.playback.withSubtitleTracks
 
@@ -73,6 +74,7 @@ internal fun Player.keepChoices(
         tracks = current.playbackSubtitleTracks(),
         textDefaults = textDefaults,
         captionLanguages = captionLanguages,
+        inFileLanguage = inFileSubtitleLanguage(),
     )
     val withAudio = withSubtitles.withRetainedAudioSelection(options.audio, current.playbackAudioTracks())
     if (withAudio != trackSelectionParameters) trackSelectionParameters = withAudio
@@ -93,6 +95,7 @@ internal fun Player.followSubtitlePolicy(
             currentTracks.playbackSubtitleTracks(),
             textDefaults,
             captionLanguages,
+            inFileSubtitleLanguage(),
         )
     } else {
         restoreSubtitleSelection(current, null, policy)

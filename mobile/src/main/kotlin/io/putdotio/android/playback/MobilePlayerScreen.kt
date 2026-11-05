@@ -787,6 +787,7 @@ private fun SubtitleStartupEffect(
                         player.currentTracks.playbackSubtitleTracks(),
                         playerState.defaultTrackSelection,
                         context.captionLanguages(),
+                        player.inFileSubtitleLanguage(),
                     )
                 } else {
                     restoreSubtitleSelection(
@@ -1005,6 +1006,7 @@ private fun PlayerListenerEffect(
                 tracks = tracks,
                 textDefaults = playerState.defaultTrackSelection,
                 captionLanguages = context.captionLanguages(),
+                inFileLanguage = player.inFileSubtitleLanguage(),
             )
             if (parameters != player.trackSelectionParameters) {
                 player.trackSelectionParameters = parameters

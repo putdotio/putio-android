@@ -167,6 +167,24 @@ class PlaybackSubtitleSelectionTest {
     }
 
     @Test
+    fun anOriginalsInFileLanguageOutranksTheDeviceAndTheContainerDefault() {
+        val turkishDevice = TrackSelectionParameters.Builder().setPreferredTextLanguages("tr").build()
+        val file = serverTracks(defaultId = "tr")
+        val tracks = file.subtitleTracks()
+
+        val deviceOnly = turkishDevice.withSubtitleSelection(SubtitleSelection.Automatic, tracks, turkishDevice)
+        val ranked = turkishDevice.withSubtitleSelection(
+            SubtitleSelection.Automatic,
+            tracks,
+            turkishDevice,
+            inFileLanguage = "eng",
+        )
+
+        assertEquals("tr", selectedTextId(deviceOnly, file))
+        assertEquals("en", selectedTextId(ranked, file))
+    }
+
+    @Test
     fun anUnlabelledServerDefaultStaysWhenNoDeviceLanguageMatches() {
         val deviceDefaults = TrackSelectionParameters.Builder().build()
         val flagged = TrackGroup(

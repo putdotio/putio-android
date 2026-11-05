@@ -71,7 +71,11 @@ public fun PlaybackSource.toMediaItem(
                         PlaybackMediaType.AUDIO -> MediaMetadata.MEDIA_TYPE_MUSIC
                     },
                 )
-                .setExtras(analyticsExtras(kind, offline))
+                .setExtras(
+                    analyticsExtras(kind, offline).apply {
+                        inFileSubtitleLanguage()?.let { putString(IN_FILE_SUBTITLE_LANGUAGE_KEY, it) }
+                    },
+                )
                 .build(),
         )
         .setSubtitleConfigurations(subtitleConfigurations)

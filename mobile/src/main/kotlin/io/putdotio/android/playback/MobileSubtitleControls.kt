@@ -105,6 +105,7 @@ internal fun MobileSubtitlesSheetContent(
             tracks = snapshot.subtitleTracks,
             textDefaults = defaultTrackSelection,
             captionLanguages = context.captionLanguages(),
+            inFileLanguage = player.inFileSubtitleLanguage(),
         )
         onDone()
     }

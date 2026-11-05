@@ -84,6 +84,10 @@ class PlaybackTrackLabelsTest {
             .subtitleConfigurations
         assertEquals(listOf("os-en", "folder-en"), configurations.map { it.id })
         assertEquals(listOf(0, 0), configurations.map { it.selectionFlags })
+        assertEquals("eng", original.toMediaItem("episode.mkv").inFileSubtitleLanguage())
+        assertNull(source(PlaybackSourceKind.MP4, subtitles).toMediaItem("episode.mp4").inFileSubtitleLanguage())
+        val rankedExternal = PlaybackSubtitles.Sidecar(subtitles.tracks.drop(2))
+        assertNull(source(PlaybackSourceKind.ORIGINAL, rankedExternal).toMediaItem("episode.mkv").inFileSubtitleLanguage())
 
         listOf(PlaybackSourceKind.MP4, PlaybackSourceKind.HLS).forEach { kind ->
             assertEquals(subtitles, source(kind, subtitles).playerSubtitles())

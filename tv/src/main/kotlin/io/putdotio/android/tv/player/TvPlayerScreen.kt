@@ -78,6 +78,7 @@ import io.putdotio.android.playback.withAudioSelection
 import io.putdotio.android.playback.withAudioTrack
 import io.putdotio.android.playback.withReportingLease
 import io.putdotio.android.playback.captionLanguages
+import io.putdotio.android.playback.inFileSubtitleLanguage
 import io.putdotio.android.playback.withSubtitleSelection
 import io.putdotio.sdk.files.PlaybackSource
 import java.util.UUID
@@ -495,6 +496,7 @@ private fun TvReadyPlayer(
                     tracks = choices.subtitles,
                     textDefaults = defaultTrackSelection,
                     captionLanguages = context.captionLanguages(),
+                    inFileLanguage = player.inFileSubtitleLanguage(),
                 )
                 closeSheet()
             },
