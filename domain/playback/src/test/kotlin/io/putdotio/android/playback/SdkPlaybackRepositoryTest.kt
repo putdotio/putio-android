@@ -64,33 +64,34 @@ class SdkPlaybackRepositoryTest {
     fun convertedOnlyAndAudioNeverAllowAnOriginalVideo() =
         runBlocking {
             val requests = mutableListOf<PlaybackRequest>()
-            val decision = OriginalVideoDecision { _, _, _ -> true }
-            fun repository(policy: OriginalVideoPolicy) = SdkPlaybackRepository(
+            val repository = SdkPlaybackRepository(
                 playbackPreference = { PlaybackPreference.HLS },
                 loadAccount = { account(downloadToken = Token, useStartFrom = false) },
                 resolvePlayback = {
                     requests += it
                     io.putdotio.sdk.files.PlaybackResolution.Conversion(PlaybackConversionState.Queued)
                 },
-                originalVideo = { policy.capabilities(decision) },
             )
 
-            OriginalVideoPolicy.entries.forEach { policy ->
-                repository(policy).resolve(Target)
-                repository(policy).resolve(Target, convertedOnly = true)
-                repository(policy).resolve(Target.copy(mediaType = PlaybackMediaType.AUDIO))
-            }
+            repository.resolve(Target)
+            repository.resolve(Target, convertedOnly = true)
+            repository.resolve(Target.copy(mediaType = PlaybackMediaType.AUDIO))
 
+            assertEquals(listOf(true, false, false), requests.map { it.capabilities.originalVideoPlayable })
+            assertEquals(PlaybackPreference.HLS, requests[1].preference)
+
+            val decision = OriginalVideoDecision { _, _, _ -> true }
             val converted = PlaybackCapabilities()
             assertEquals(
                 listOf(
+                    converted, PlaybackCapabilities(originalVideoDecision = decision),
+                    PlaybackCapabilities(originalVideoPlayable = true),
                     converted, converted, converted,
-                    PlaybackCapabilities(originalVideoDecision = decision), converted, converted,
-                    PlaybackCapabilities(originalVideoPlayable = true), converted, converted,
                 ),
-                requests.map { it.capabilities },
+                requests.take(2).flatMap { request ->
+                    OriginalVideoPolicy.entries.map { request.withOriginalVideo(it, decision).capabilities }
+                },
             )
-            assertEquals(PlaybackPreference.HLS, requests[1].preference)
         }
 
     @Test
@@ -109,9 +110,9 @@ class SdkPlaybackRepositoryTest {
                 listFolder = { _, _ -> throw AssertionError("The probed duration needs no listing") },
             )
 
-            val ready = (repository.resolve(Target) as PlaybackRepositoryResult.Success).value as PlaybackResolution.Ready
+            val resolved = repository.resolve(Target) as PlaybackRepositoryResult.Success
 
-            assertEquals(60.019, ready.durationSeconds)
+            assertEquals(60.019, (resolved.value as PlaybackResolution.Ready).durationSeconds)
         }
 
     @Test
@@ -293,11 +294,10 @@ class SdkPlaybackRepositoryTest {
                     playbackPreference = { PlaybackPreference.HLS },
                     loadAccount = { account(downloadToken = Token, useStartFrom = true) },
                     resolvePlayback = {
-                        val converted = if (it.capabilities == PlaybackCapabilities()) " converted" else ""
+                        val converted = if (it.capabilities.originalVideoPlayable) "" else " converted"
                         calls += "resolve ${it.fileId}$converted"
                         io.putdotio.sdk.files.PlaybackResolution.Conversion(PlaybackConversionState.Queued)
                     },
-                    originalVideo = { PlaybackCapabilities(originalVideoPlayable = true) },
                 ),
                 startMp4Conversion = {
                     calls += "start $it"

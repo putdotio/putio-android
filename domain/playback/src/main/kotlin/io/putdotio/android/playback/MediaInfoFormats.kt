@@ -3,10 +3,12 @@ package io.putdotio.android.playback
 import androidx.media3.common.C
 import androidx.media3.common.Format
 import androidx.media3.common.MimeTypes
+import androidx.media3.common.util.UnstableApi
 import io.putdotio.sdk.files.PutioMediaFormat
 import io.putdotio.sdk.files.PutioMediaStream
 import java.util.Locale
 
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal object MediaInfoFormats {
     fun playableContainer(format: PutioMediaFormat?): Boolean =
         format?.name

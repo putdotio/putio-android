@@ -10,6 +10,7 @@ import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
 import io.putdotio.sdk.files.OriginalVideoDecision
 import io.putdotio.sdk.files.PlaybackCapabilities
+import io.putdotio.sdk.files.PlaybackRequest
 import io.putdotio.sdk.files.PutioMediaInfo
 import io.putdotio.sdk.files.PutioPlaybackIssue
 
@@ -95,9 +96,15 @@ public class MediaCodecDecoderInventory(
             .isPassthroughPlaybackSupported(format, AudioAttributes.DEFAULT)
 }
 
-internal fun OriginalVideoPolicy.capabilities(decision: OriginalVideoDecision): PlaybackCapabilities =
-    when (this) {
-        OriginalVideoPolicy.Never -> PlaybackCapabilities()
-        OriginalVideoPolicy.Check -> PlaybackCapabilities(originalVideoDecision = decision)
-        OriginalVideoPolicy.Always -> PlaybackCapabilities(originalVideoPlayable = true)
-    }
+internal fun PlaybackRequest.withOriginalVideo(
+    policy: OriginalVideoPolicy,
+    decision: OriginalVideoDecision,
+): PlaybackRequest =
+    copy(
+        capabilities = when {
+            !capabilities.originalVideoPlayable -> PlaybackCapabilities()
+            policy == OriginalVideoPolicy.Check -> PlaybackCapabilities(originalVideoDecision = decision)
+            policy == OriginalVideoPolicy.Always -> PlaybackCapabilities(originalVideoPlayable = true)
+            else -> PlaybackCapabilities()
+        },
+    )

@@ -169,7 +169,6 @@ internal class SdkPlaybackRepository internal constructor(
     private val continueListing: suspend (String, FilesContinueQuery) -> FilesListResponse = { _, _ ->
         error("Folder pagination is not configured")
     },
-    private val originalVideo: () -> PlaybackCapabilities = { PlaybackCapabilities() },
 ) : PlaybackRepository {
     constructor(
         client: PutioClient,
@@ -179,7 +178,12 @@ internal class SdkPlaybackRepository internal constructor(
     ) : this(
         playbackPreference = playbackPreference,
         loadAccount = client::loadMediaAccount,
-        resolvePlayback = { request -> withContext(Dispatchers.IO) { client.files.resolvePlayback(request) } },
+        resolvePlayback = OriginalPlaybackDecision(decoders).let { decision ->
+            { request ->
+                val resolved = request.withOriginalVideo(originalVideoPolicy(), decision)
+                withContext(Dispatchers.IO) { client.files.resolvePlayback(resolved) }
+            }
+        },
         loadFile = { fileId ->
             client.files.get(
                 fileId,
@@ -188,9 +192,6 @@ internal class SdkPlaybackRepository internal constructor(
         },
         listFolder = client.files::list,
         continueListing = client.files::continueList,
-        originalVideo = OriginalPlaybackDecision(decoders).let { decision ->
-            { originalVideoPolicy().capabilities(decision) }
-        },
     )
 
     @Suppress("TooGenericExceptionCaught")
@@ -212,11 +213,9 @@ internal class SdkPlaybackRepository internal constructor(
                     mediaCredential = PlaybackMediaCredential.downloadToken(downloadToken),
                     preference = preference,
                     useStartFrom = account.settings.useStartFrom,
-                    capabilities = if (convertedOnly || target.mediaType != PlaybackMediaType.VIDEO) {
-                        PlaybackCapabilities()
-                    } else {
-                        originalVideo()
-                    },
+                    capabilities = PlaybackCapabilities(
+                        originalVideoPlayable = !convertedOnly && target.mediaType == PlaybackMediaType.VIDEO,
+                    ),
                     // hide_subtitles asks for no subtitles at all, as every reference player does.
                     includeSidecarSubtitles = !hideSubtitles,
                     maxSubtitleCount = if (hideSubtitles) 0 else null,
