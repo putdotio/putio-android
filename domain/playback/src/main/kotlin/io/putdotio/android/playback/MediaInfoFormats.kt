@@ -63,7 +63,7 @@ internal object MediaInfoFormats {
         val profile = stream.profile?.trim()?.lowercase(Locale.ROOT)
         return when {
             codec == VP9 -> VP9_PROFILES[profile]?.let { (number, bitDepth) ->
-                "vp09.%02d.%02d.%02d".format(Locale.ROOT, number, level ?: VP9_LOWEST_LEVEL, bitDepth)
+                "vp09.$number.%02d.$bitDepth".format(Locale.ROOT, level ?: VP9_LOWEST_LEVEL)
             }
             level == null || profile == null -> null
             codec == H264 -> AVC_PROFILES[profile]?.let { "avc1.${it}00%02x".format(Locale.ROOT, level) }
@@ -151,10 +151,10 @@ internal object MediaInfoFormats {
     )
 
     private val VP9_PROFILES = mapOf(
-        "profile 0" to (0 to 8),
-        "profile 1" to (1 to 8),
-        "profile 2" to (2 to 10),
-        "profile 3" to (3 to 10),
+        "profile 0" to ("00" to "08"),
+        "profile 1" to ("01" to "08"),
+        "profile 2" to ("02" to "10"),
+        "profile 3" to ("03" to "10"),
     )
 
     private val AV1_PROFILES = mapOf(
