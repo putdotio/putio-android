@@ -202,6 +202,26 @@ class MobileCastSessionAudioTest {
     }
 
     @Test
+    fun aFileStartedHereWhileSessionAudioWasStillOnItsWayKeepsPlaying() {
+        val local = LocalPlayer(HANDED_OVER)
+        val account = SlowCastAccount(next = null)
+        cast.autoplay.follow(SESSION, account)
+        gateway.connect()
+        cast.castFromSession(AudioItem, HANDED_OVER, local, scope)
+        idle()
+
+        gateway.disconnect()
+        local.setMediaItem(OtherItem, 0L)
+        local.play()
+        account.answer.complete(Unit)
+        waitFor(RECEIVER_SETTLED)
+
+        assertEquals("7", local.currentMediaItem?.mediaId)
+        assertEquals(0L, local.currentPosition)
+        assertTrue(local.playWhenReady)
+    }
+
+    @Test
     fun sessionAudioWhoseReceiverIsStuckConnectingEndsTheSessionAndPlaysOnHereWhenTheSameFileOpens() {
         val local = LocalPlayer(HANDED_OVER)
         cast.autoplay.follow(SESSION, FakeCastAccount(next = null))

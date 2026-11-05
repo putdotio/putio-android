@@ -491,6 +491,7 @@ private class SessionHandoff(
     }
 
     private fun playHere() {
+        if (local.currentMediaItem?.let { it.mediaId != item.mediaId } == true) return
         val receiverHeld = gateway.endedStatus?.takeIf { it.fileId == fileId }?.state in PLAYED_STATES
         val handback = cast.takeHandover(fileId)?.takeIf { receiverHeld }
         if (handback == null && local.currentMediaItem?.mediaId == item.mediaId) {
