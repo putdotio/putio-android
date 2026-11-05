@@ -153,7 +153,7 @@ internal object MobileCast {
                 CastTransfer(
                     toReceiver = { item, handover ->
                         beforeHandover()
-                        cast.castFromSession(item, handover)
+                        cast.castFromSession(item, handover, local, scope)
                     },
                     toLocal = { cast.resumeHere(local, scope) },
                 ),

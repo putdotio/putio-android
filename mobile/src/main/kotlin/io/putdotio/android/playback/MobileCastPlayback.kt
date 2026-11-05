@@ -71,11 +71,7 @@ internal class SignedInCastAccount(
     override val autoplay: Boolean get() = appConfig.value.confirmedAutoplayNextVideo()
 
     override suspend fun next(target: PlaybackTarget): PlaybackTarget? =
-        if (settings.value.nextEpisodeEnabled()) {
-            (repository.findNextVideo(target) as? PlaybackNextResult.Found)?.target
-        } else {
-            null
-        }
+        (repository.findNextVideo(target) as? PlaybackNextResult.Found)?.target
 
     override suspend fun prepare(target: PlaybackTarget): CastPrepared? {
         val resolved = repository.resolve(target) as? PlaybackRepositoryResult.Success

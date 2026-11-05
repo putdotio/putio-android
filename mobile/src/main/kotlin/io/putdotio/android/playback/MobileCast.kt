@@ -213,10 +213,12 @@ internal class CastAutoplay(private val cast: MobileCastController) {
 
     private suspend fun advance(fileId: Long, media: PlaybackCastMedia, lent: CastAccount) {
         autoplayed += fileId
+        val loads = cast.loadsSent
         val next = lent.next(PlaybackTarget(FilesItemId(fileId), media.title, PlaybackMediaType.VIDEO))
             ?.takeUnless { it.fileId.value in autoplayed }
         val prepared = next?.let { lent.prepare(it) }
-        if (cast.sentMedia?.fileId != fileId || cast.status.value?.fileId != fileId || cast.awaitsReceiver) return
+        val overtaken = cast.loadsSent != loads || cast.awaitsReceiver
+        if (overtaken || cast.sentMedia?.fileId != fileId || cast.status.value?.fileId != fileId) return
         val sent = next != null && prepared != null &&
             cast.cast(prepared.media, prepared.item, CastHandover(prepared.startMillis, playing = true), chosen = false)
         mutableAdvanced.tryEmit(if (sent && next != null) CastAdvance.Next(fileId, next) else CastAdvance.End(fileId))
@@ -241,6 +243,7 @@ internal class MobileCastController(
     val remotePlayer: CastRemotePlayer = CastRemotePlayer(gateway, scope, clock) { startMillis ->
         // A file that finished or failed has left the receiver; playing it again sends it once more.
         sentMedia?.takeIf { gateway.status.value?.fileId == it.fileId }?.let { media ->
+            loadsSent++
             gateway.load(media, startMillis, autoplay = true, speed = gateway.status.value?.speed ?: 1f)
         }
     }
@@ -250,6 +253,9 @@ internal class MobileCastController(
     private val handovers = mutableMapOf<Long, CastHandover>()
 
     var sentMedia: PlaybackCastMedia? = null
+        private set
+
+    var loadsSent: Long = 0L
         private set
 
     /** Set while a session that sign-out ended winds down. */
@@ -317,26 +323,33 @@ internal class MobileCastController(
             if (chosen) autoplay.restart()
             handovers.remove(media.fileId)
             sending = media.fileId
+            loadsSent++
             gateway.load(media, local.positionMillis.coerceAtLeast(0L), local.playing, local.speed)
         }
         return loads
     }
 
-    fun castFromSession(item: MediaItem, local: CastHandover) {
+    fun castFromSession(item: MediaItem, handover: CastHandover, local: Player, playerScope: CoroutineScope) {
         val fileId = item.mediaId.toLongOrNull() ?: return
-        handovers[fileId] = local
+        handovers[fileId] = handover
+        val loads = loadsSent
         val target = PlaybackTarget(
             FilesItemId(fileId),
             item.mediaMetadata.title?.toString().orEmpty(),
             PlaybackMediaType.AUDIO,
         )
-        scope.launch {
+        playerScope.launch {
             val account = autoplay.account
             val connected = withTimeoutOrNull(SESSION_CONNECT_WAIT_MILLIS) {
                 gateway.availability.first { it is CastAvailability.Connected }
             }
             val prepared = if (account != null && connected != null) account.prepare(target) else null
-            if (prepared != null && fileId in handovers) cast(prepared.media, item, local)
+            if (loadsSent != loads || fileId !in handovers) return@launch
+            if (prepared != null && (cast(prepared.media, item, handover) || holds(fileId))) return@launch
+            gateway.stopCasting()
+            withTimeoutOrNull(MOVE_HERE_WAIT_MILLIS) { gateway.availability.first { !it.casting } } ?: return@launch
+            if (local.mediaItemCount > 0) return@launch
+            handovers.remove(fileId)?.let { local.playFrom(item, it) }
         }
     }
 
@@ -428,12 +441,15 @@ internal fun MobileCastController.resumeHere(local: Player, scope: CoroutineScop
         val target = PlaybackTarget(FilesItemId(fileId), ended.title.orEmpty(), PlaybackMediaType.AUDIO)
         val prepared = autoplay.account?.prepare(target) ?: return@launch
         if (local.mediaItemCount > 0) return@launch
-        val handover = takeHandover(fileId) ?: return@launch
-        local.setMediaItem(prepared.item, handover.positionMillis)
-        local.setPlaybackSpeed(handover.speed)
-        local.playWhenReady = handover.playing
-        local.prepare()
+        takeHandover(fileId)?.let { local.playFrom(prepared.item, it) }
     }
+}
+
+private fun Player.playFrom(item: MediaItem, handover: CastHandover) {
+    setMediaItem(item, handover.positionMillis)
+    setPlaybackSpeed(handover.speed)
+    playWhenReady = handover.playing
+    prepare()
 }
 
 internal fun Player.releaseOnceCastEnds(availability: StateFlow<CastAvailability>, scope: CoroutineScope) {
