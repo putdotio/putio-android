@@ -76,14 +76,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isSelectable
-import io.putdotio.android.playback.PlaybackSubtitleTrack
 import io.putdotio.android.playback.withSubtitleSelection
 import io.putdotio.android.playback.restoreSubtitleSelection
 import io.putdotio.android.playback.SubtitleStartupPolicy
 import io.putdotio.android.playback.toSubtitleTrackIdentity
 import io.putdotio.android.playback.SubtitleCueOverlay
 import io.putdotio.android.playback.SUBTITLE_CUES_TAG
-import io.putdotio.android.playback.MobileSubtitleTrackOption
+import io.putdotio.android.playback.MobileSideSheetOption
 import io.putdotio.android.playback.observePlayerControlInteraction
 import io.putdotio.android.playback.observePlayerControlKeyActivity
 
@@ -426,19 +425,16 @@ class MobileSubtitleControlsTest {
     }
 
     @Test
-    fun subtitleTrackOptionForwardsPointerAndKeyboardModality() {
-        val group =
-            TrackGroup(
-                Format.Builder().setId("en").setSampleMimeType(MimeTypes.TEXT_VTT).build(),
-            )
+    fun sideSheetOptionForwardsPointerAndKeyboardModality() {
         var pointerEvents = 0
         var keyEvents = 0
         lateinit var inputModeManager: InputModeManager
         compose.setContent {
             inputModeManager = LocalInputModeManager.current
             PutioTheme {
-                MobileSubtitleTrackOption(
-                    track = PlaybackSubtitleTrack(group, 0, label = "English", selected = false),
+                MobileSideSheetOption(
+                    label = "English",
+                    selected = false,
                     onClick = {},
                     modifier =
                         Modifier

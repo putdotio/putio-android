@@ -153,22 +153,6 @@ internal fun MobileSubtitlesSheetContent(
 }
 
 @Composable
-internal fun MobileSubtitleTrackOption(
-    track: PlaybackSubtitleTrack,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-) {
-    MobileSideSheetOption(
-        label = subtitleTrackLabels(listOf(track), emptyList()).single(),
-        selected = track.selected,
-        enabled = enabled,
-        onClick = onClick,
-        modifier = modifier,
-    )
-}
-
-@Composable
 private fun MobileSubtitleAppearanceRow(textSize: SubtitleTextSize, offsetMillis: Long, onClick: () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
