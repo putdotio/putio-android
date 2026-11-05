@@ -5,11 +5,10 @@
   ],
   "packageRules": [
     {
-      "description": "The API 26 Robolectric runtime must stay on Android 8.0; newer 8.x builds are API 27.",
+      "description": "Robolectric's runtimes follow the robolectric release that expects them, and the API 26 one must stay on Android 8.0; a robolectric bump updates them by hand.",
       "matchPackageNames": [
         "org.robolectric:android-all-instrumented"
       ],
-      "matchCurrentValue": "/^8\\./",
       "enabled": false
     }
   ]
