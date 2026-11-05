@@ -72,8 +72,7 @@ class SdkPlaybackRepositoryTest {
                     requests += it
                     io.putdotio.sdk.files.PlaybackResolution.Conversion(PlaybackConversionState.Queued)
                 },
-                originalVideoPolicy = { policy },
-                originalVideoDecision = decision,
+                originalVideo = { policy.capabilities(decision) },
             )
 
             OriginalVideoPolicy.entries.forEach { policy ->
@@ -82,11 +81,12 @@ class SdkPlaybackRepositoryTest {
                 repository(policy).resolve(Target.copy(mediaType = PlaybackMediaType.AUDIO))
             }
 
+            val converted = PlaybackCapabilities()
             assertEquals(
                 listOf(
-                    PlaybackCapabilities(), PlaybackCapabilities(), PlaybackCapabilities(),
-                    PlaybackCapabilities(originalVideoDecision = decision), PlaybackCapabilities(), PlaybackCapabilities(),
-                    PlaybackCapabilities(originalVideoPlayable = true), PlaybackCapabilities(), PlaybackCapabilities(),
+                    converted, converted, converted,
+                    PlaybackCapabilities(originalVideoDecision = decision), converted, converted,
+                    PlaybackCapabilities(originalVideoPlayable = true), converted, converted,
                 ),
                 requests.map { it.capabilities },
             )
@@ -101,7 +101,9 @@ class SdkPlaybackRepositoryTest {
                 loadAccount = { account(downloadToken = Token, useStartFrom = true) },
                 resolvePlayback = {
                     io.putdotio.sdk.files.PlaybackResolution.Ready(
-                        playbackSource().copy(mediaInfo = PutioMediaInfo(format = PutioMediaFormat(duration = 60.019))),
+                        playbackSource().copy(
+                            mediaInfo = PutioMediaInfo(format = PutioMediaFormat(duration = 60.019)),
+                        ),
                     )
                 },
                 listFolder = { _, _ -> throw AssertionError("The probed duration needs no listing") },
@@ -291,10 +293,11 @@ class SdkPlaybackRepositoryTest {
                     playbackPreference = { PlaybackPreference.HLS },
                     loadAccount = { account(downloadToken = Token, useStartFrom = true) },
                     resolvePlayback = {
-                        calls += "resolve ${it.fileId}" + if (it.capabilities == PlaybackCapabilities()) " converted" else ""
+                        val converted = if (it.capabilities == PlaybackCapabilities()) " converted" else ""
+                        calls += "resolve ${it.fileId}$converted"
                         io.putdotio.sdk.files.PlaybackResolution.Conversion(PlaybackConversionState.Queued)
                     },
-                    originalVideoPolicy = { OriginalVideoPolicy.Always },
+                    originalVideo = { PlaybackCapabilities(originalVideoPlayable = true) },
                 ),
                 startMp4Conversion = {
                     calls += "start $it"

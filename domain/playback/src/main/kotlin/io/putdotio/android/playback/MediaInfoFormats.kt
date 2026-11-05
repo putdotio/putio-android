@@ -55,12 +55,13 @@ internal object MediaInfoFormats {
     }
 
     private fun videoCodecs(codec: String, stream: PutioMediaStream): String? {
-        val level = stream.level?.takeIf { it > 0 } ?: return null
-        val profile = stream.profile?.trim()?.lowercase(Locale.ROOT) ?: return null
-        return when (codec) {
-            H264 -> AVC_PROFILES[profile]?.let { "avc1.%02x00%02x".format(Locale.ROOT, it, level) }
-            HEVC -> HEVC_PROFILES[profile]?.let { "hvc1.$it.L$level.B0" }
-            AV1 -> AV1_PROFILES[profile]?.let { "av01.$it.%02dM.08".format(Locale.ROOT, level) }
+        val level = stream.level?.takeIf { it > 0 }
+        val profile = stream.profile?.trim()?.lowercase(Locale.ROOT)
+        return when {
+            level == null || profile == null -> null
+            codec == H264 -> AVC_PROFILES[profile]?.let { "avc1.${it}00%02x".format(Locale.ROOT, level) }
+            codec == HEVC -> HEVC_PROFILES[profile]?.let { "hvc1.$it.L$level.B0" }
+            codec == AV1 -> AV1_PROFILES[profile]?.let { "av01.$it.%02dM.08".format(Locale.ROOT, level) }
             else -> null
         }
     }
@@ -121,14 +122,14 @@ internal object MediaInfoFormats {
     )
 
     private val AVC_PROFILES = mapOf(
-        "baseline" to 66,
-        "constrained baseline" to 66,
-        "main" to 77,
-        "extended" to 88,
-        "high" to 100,
-        "high 10" to 110,
-        "high 4:2:2" to 122,
-        "high 4:4:4 predictive" to 244,
+        "baseline" to "42",
+        "constrained baseline" to "42",
+        "main" to "4d",
+        "extended" to "58",
+        "high" to "64",
+        "high 10" to "6e",
+        "high 4:2:2" to "7a",
+        "high 4:4:4 predictive" to "f4",
     )
 
     private val HEVC_PROFILES = mapOf(
@@ -139,8 +140,8 @@ internal object MediaInfoFormats {
     )
 
     private val AV1_PROFILES = mapOf(
-        "main" to 0,
-        "high" to 1,
-        "professional" to 2,
+        "main" to "0",
+        "high" to "1",
+        "professional" to "2",
     )
 }

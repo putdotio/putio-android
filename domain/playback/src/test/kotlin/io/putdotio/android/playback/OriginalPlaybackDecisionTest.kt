@@ -36,7 +36,10 @@ class OriginalPlaybackDecisionTest {
         assertEquals(PlaybackFallbackReason.AudioUnsupported, decision.fallbackReason(captured("h264-dts-ass.mkv")))
         assertEquals(PlaybackFallbackReason.AudioUnsupported, decision.fallbackReason(captured("hevc-main10-eac3.mkv")))
         assertEquals(PlaybackFallbackReason.VideoUnsupported, decision.fallbackReason(captured("av1-4k-eac3.mkv")))
-        assertEquals(PlaybackFallbackReason.UnknownIssue, decision.fallbackReason(captured("vp8-vorbis-future-issue.webm")))
+        assertEquals(
+            PlaybackFallbackReason.UnknownIssue,
+            decision.fallbackReason(captured("vp8-vorbis-future-issue.webm")),
+        )
         assertFalse(decision.canPlayOriginal(captured("wmv3-wmav2.asf"), needConvert = false, isMp4Available = true))
         assertTrue(decision.canPlayOriginal(captured("h264-high-aac.mkv"), needConvert = true, isMp4Available = false))
     }
@@ -92,9 +95,10 @@ class OriginalPlaybackDecisionTest {
             PlaybackFallbackReason.CodecUnmapped,
             decision.fallbackReason(mediaInfo(video("mpeg1video"), audio("mp2"))),
         )
-        assertEquals(PlaybackFallbackReason.CodecUnmapped, decision.fallbackReason(mediaInfo(video("vc1"), audio("aac"))))
-        assertEquals(PlaybackFallbackReason.CodecUnmapped, decision.fallbackReason(mediaInfo(video("mjpeg"), audio("aac"))))
-        assertEquals(PlaybackFallbackReason.CodecUnmapped, decision.fallbackReason(mediaInfo(video("h264"), audio("wmav2"))))
+        listOf(video("vc1") to audio("aac"), video("mjpeg") to audio("aac"), video("h264") to audio("wmav2"))
+            .forEach { (video, audio) ->
+                assertEquals(PlaybackFallbackReason.CodecUnmapped, decision.fallbackReason(mediaInfo(video, audio)))
+            }
         assertEquals(
             PlaybackFallbackReason.ContainerUnsupported,
             decision.fallbackReason(mediaInfo(video("h264"), audio("aac")).copy(format = PutioMediaFormat())),
@@ -136,7 +140,10 @@ class OriginalPlaybackDecisionTest {
         )
         assertEquals(listOf(6, 6, 6), audio.map { it.channelCount })
         assertEquals(MimeTypes.AUDIO_MPEG, format(captured("mpeg4-asp-mp3.avi"), "audio").sampleMimeType)
-        assertEquals(MimeTypes.AUDIO_DTS_HD, MediaInfoFormats.toFormat(audio("dts", profile = "DTS-HD MA"))?.sampleMimeType)
+        assertEquals(
+            MimeTypes.AUDIO_DTS_HD,
+            MediaInfoFormats.toFormat(audio("dts", profile = "DTS-HD MA"))?.sampleMimeType,
+        )
         assertEquals(MimeTypes.AUDIO_RAW, MediaInfoFormats.toFormat(audio("pcm_s16le"))?.sampleMimeType)
     }
 
@@ -152,7 +159,14 @@ class OriginalPlaybackDecisionTest {
         PutioMediaInfo(format = MATROSKA, streams = streams.toList(), playbackIssues = emptyList())
 
     private fun video(codec: String, profile: String? = null, level: Int? = null): PutioMediaStream =
-        PutioMediaStream(codecType = "video", codecName = codec, width = 1920, height = 1080, profile = profile, level = level)
+        PutioMediaStream(
+            codecType = "video",
+            codecName = codec,
+            width = 1920,
+            height = 1080,
+            profile = profile,
+            level = level,
+        )
 
     private fun audio(codec: String, profile: String? = null): PutioMediaStream =
         PutioMediaStream(codecType = "audio", codecName = codec, channels = 2, profile = profile)

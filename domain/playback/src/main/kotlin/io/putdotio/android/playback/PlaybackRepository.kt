@@ -19,7 +19,6 @@ import io.putdotio.sdk.files.FileMp4ConversionStatus
 import io.putdotio.sdk.files.FilesContinueQuery
 import io.putdotio.sdk.files.FilesListQuery
 import io.putdotio.sdk.files.FilesListResponse
-import io.putdotio.sdk.files.OriginalVideoDecision
 import io.putdotio.sdk.files.PlaybackCapabilities
 import io.putdotio.sdk.files.PutioFile
 import io.putdotio.sdk.files.PutioFileType
@@ -170,8 +169,7 @@ internal class SdkPlaybackRepository internal constructor(
     private val continueListing: suspend (String, FilesContinueQuery) -> FilesListResponse = { _, _ ->
         error("Folder pagination is not configured")
     },
-    private val originalVideoPolicy: () -> OriginalVideoPolicy = { OriginalVideoPolicy.Never },
-    private val originalVideoDecision: OriginalVideoDecision = OriginalVideoDecision { _, _, _ -> false },
+    private val originalVideo: () -> PlaybackCapabilities = { PlaybackCapabilities() },
 ) : PlaybackRepository {
     constructor(
         client: PutioClient,
@@ -190,8 +188,9 @@ internal class SdkPlaybackRepository internal constructor(
         },
         listFolder = client.files::list,
         continueListing = client.files::continueList,
-        originalVideoPolicy = originalVideoPolicy,
-        originalVideoDecision = OriginalPlaybackDecision(decoders),
+        originalVideo = OriginalPlaybackDecision(decoders).let { decision ->
+            { originalVideoPolicy().capabilities(decision) }
+        },
     )
 
     @Suppress("TooGenericExceptionCaught")
@@ -216,7 +215,7 @@ internal class SdkPlaybackRepository internal constructor(
                     capabilities = if (convertedOnly || target.mediaType != PlaybackMediaType.VIDEO) {
                         PlaybackCapabilities()
                     } else {
-                        originalVideoPolicy().capabilities(originalVideoDecision)
+                        originalVideo()
                     },
                     // hide_subtitles asks for no subtitles at all, as every reference player does.
                     includeSidecarSubtitles = !hideSubtitles,
