@@ -78,6 +78,78 @@ class MobileCastSessionAudioTest {
     }
 
     @Test
+    fun sessionAudioTheReceiverBuffersAndThenRejectsEndsTheSessionAndPlaysOnHere() {
+        val local = LocalPlayer(HANDED_OVER)
+        cast.autoplay.follow(SESSION, FakeCastAccount(next = null))
+        gateway.connect()
+
+        cast.castFromSession(AudioItem, HANDED_OVER, local, scope)
+        idle()
+        gateway.report(CastRemoteState.Buffering, positionMillis = 95_000L)
+        assertEquals("42", local.currentMediaItem?.mediaId)
+        gateway.report(CastRemoteState.Failed, positionMillis = 0L)
+        waitFor(RECEIVER_SETTLED)
+
+        assertEquals(listOf("stop"), gateway.commands)
+        assertPlaysHereWhereItStood(local)
+    }
+
+    @Test
+    fun sessionAudioOnASlowReceiverStaysThereOnceItPlays() {
+        val local = LocalPlayer(HANDED_OVER)
+        cast.autoplay.follow(SESSION, FakeCastAccount(next = null))
+        gateway.connect()
+
+        cast.castFromSession(AudioItem, HANDED_OVER, local, scope)
+        idle()
+        gateway.report(CastRemoteState.Buffering, positionMillis = 95_000L)
+        waitFor(PAST_THE_WAIT)
+        gateway.report(CastRemoteState.Playing, positionMillis = 95_000L)
+        waitFor(RECEIVER_SETTLED)
+
+        assertTrue(gateway.commands.isEmpty())
+        assertEquals(0, local.mediaItemCount)
+    }
+
+    @Test
+    fun sessionAudioAScreenClearedHereStillPlaysOnHereWhenTheReceiverRejectsIt() {
+        val local = LocalPlayer()
+        cast.autoplay.follow(SESSION, FakeCastAccount(next = null))
+        gateway.connect()
+
+        cast.castFromSession(AudioItem, HANDED_OVER, local, scope)
+        idle()
+        gateway.report(CastRemoteState.Failed, positionMillis = 0L)
+        waitFor(RECEIVER_SETTLED)
+
+        assertEquals(listOf("stop"), gateway.commands)
+        assertPlaysHereWhereItStood(local)
+        assertNull(cast.takeHandover(42L))
+    }
+
+    @Test
+    fun sessionAudioWhoseSessionEndsDuringTheLookupPlaysOnFromWhereTheReceiverGotTo() {
+        val local = LocalPlayer(HANDED_OVER)
+        val account = SlowCastAccount(next = null)
+        cast.autoplay.follow(SESSION, account)
+        gateway.connect()
+        gateway.report(CastRemoteState.Playing, positionMillis = 120_000L)
+
+        cast.castFromSession(AudioItem, HANDED_OVER, local, scope)
+        idle()
+        now += 5_000L
+        gateway.disconnect()
+        account.answer.complete(Unit)
+        waitFor(RECEIVER_SETTLED)
+
+        assertTrue(gateway.loads.isEmpty())
+        assertEquals("42", local.currentMediaItem?.mediaId)
+        assertEquals(125_000L, local.currentPosition)
+        assertTrue(local.playWhenReady)
+        assertNull(cast.takeHandover(42L))
+    }
+
+    @Test
     fun sessionAudioWhoseReceiverIsStuckConnectingEndsTheSessionAndPlaysOnHereWhenTheSameFileOpens() {
         val local = LocalPlayer(HANDED_OVER)
         cast.autoplay.follow(SESSION, FakeCastAccount(next = null))
@@ -134,6 +206,7 @@ class MobileCastSessionAudioTest {
         val local = LocalPlayer(HANDED_OVER)
         cast.autoplay.follow(SESSION, FakeCastAccount(next = null))
         gateway.connect()
+        gateway.reportsOnSignOut = false
         cast.castFromSession(AudioItem, HANDED_OVER, local, scope)
         idle()
 

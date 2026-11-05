@@ -66,6 +66,7 @@ internal class FakeCastGateway(private val clock: () -> Long) : CastGateway {
     val loads = mutableListOf<Load>()
     val commands = mutableListOf<String>()
     var stopsAtOnce = true
+    var reportsOnSignOut = true
     fun connect(device: String = "Living room TV") {
         availability.value = CastAvailability.Connected(device)
         idleMain()
@@ -124,7 +125,7 @@ internal class FakeCastGateway(private val clock: () -> Long) : CastGateway {
 
     override fun endForSignOut() {
         // As the SDK may: the receiver's status lands before the session's end does.
-        report(CastRemoteState.Playing, positionMillis = 90_000L)
+        if (reportsOnSignOut) report(CastRemoteState.Playing, positionMillis = 90_000L)
         availability.value = CastAvailability.Available
         endedStatus = null
         status.value = null
