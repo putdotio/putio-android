@@ -9,5 +9,10 @@
             android:name=".tv.TvProofActivity"
             android:configChanges="assetsPaths"
             android:exported="false" />
+        <activity
+            android:name=".tv.TvDirectPlaySpikeActivity"
+            android:configChanges="orientation|screenLayout|screenSize|smallestScreenSize|assetsPaths"
+            android:exported="true"
+            android:permission="android.permission.DUMP" />
     </application>
 </manifest>

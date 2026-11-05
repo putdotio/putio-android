@@ -16,6 +16,9 @@ private const val EMULATOR_CODEC_WORKAROUND_API = 37
 @UnstableApi
 public fun playbackRenderersFactory(context: Context): DefaultRenderersFactory {
     val renderersFactory: DefaultRenderersFactory = SubtitleTimingRenderersFactory(context)
+    if (BuildConfig.DIRECT_PLAY_SPIKE) {
+        renderersFactory.setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
+    }
     if (requiresEmulatorCodecWorkaround(Build.VERSION.SDK_INT, Build.HARDWARE)) {
         // API 37's goldfish AVC codec can fail its memfd queue before decoding a frame.
         renderersFactory

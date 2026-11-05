@@ -10,6 +10,9 @@ coroutines = "1.11.0"
 lifecycle = "2.11.0"
 navigationCompose = "2.10.2"
 media3 = "1.11.1"
+assMedia = "0.5.1"
+jellyfinMedia3Ffmpeg = "1.9.0+1"
+libvlc = "3.7.7"
 mediarouter = "1.8.1"
 okhttp = "5.5.1"
 playPublisher = "4.1.1"
@@ -59,6 +62,9 @@ androidx-media3-session = { module = "androidx.media3:media3-session", version.r
 androidx-media3-ui = { module = "androidx.media3:media3-ui", version.ref = "media3" }
 androidx-media3-ui-compose = { module = "androidx.media3:media3-ui-compose", version.ref = "media3" }
 androidx-media3-ui-compose-material3 = { module = "androidx.media3:media3-ui-compose-material3", version.ref = "media3" }
+ass-media = { module = "io.github.peerless2012:ass-media", version.ref = "assMedia" }
+jellyfin-media3-ffmpeg-decoder = { module = "org.jellyfin.media3:media3-ffmpeg-decoder", version.ref = "jellyfinMedia3Ffmpeg" }
+libvlc-all = { module = "org.videolan.android:libvlc-all", version.ref = "libvlc" }
 androidx-mediarouter = { module = "androidx.mediarouter:mediarouter", version.ref = "mediarouter" }
 androidx-test-core = { module = "androidx.test:core-ktx", version.ref = "androidxTestCore" }
 androidx-test-espresso-core = { module = "androidx.test.espresso:espresso-core", version.ref = "androidxTestEspresso" }

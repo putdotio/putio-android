@@ -6,6 +6,7 @@ plugins {
 }
 
 android {
+    packaging.jniLibs.pickFirsts += "**/libc++_shared.so"
     defaultConfig {
         // The existing Android TV listing's identity.
         applicationId = "io.put.putio"

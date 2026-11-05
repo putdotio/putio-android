@@ -25,6 +25,7 @@ plugins {
 }
 
 android {
+    packaging.jniLibs.pickFirsts += "**/libc++_shared.so"
     defaultConfig {
         // Shared with the TV app: one Google Play listing serves both, phones get this bundle and
         // TVs the TV one (AGENTS.md#google-play-delivery).

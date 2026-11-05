@@ -7,6 +7,14 @@ android {
 
     // State builders other modules' tests reuse.
     testFixtures.enable = true
+
+    buildFeatures.buildConfig = true
+    defaultConfig.buildConfigField("boolean", "DIRECT_PLAY_SPIKE", "false")
+    buildTypes.getByName("debug").buildConfigField(
+        "boolean",
+        "DIRECT_PLAY_SPIKE",
+        providers.gradleProperty("putioDirectPlaySpike").orNull.toBoolean().toString(),
+    )
 }
 
 dependencies {
@@ -26,6 +34,10 @@ dependencies {
     implementation(libs.androidx.media3.ui.compose)
     implementation(libs.putio.sdk.kotlin)
     implementation(libs.kotlinx.coroutines.android)
+    debugApi(libs.jellyfin.media3.ffmpeg.decoder)
+    debugApi(libs.ass.media)
+    debugApi(libs.libvlc.all)
+    debugImplementation(libs.androidx.activity.compose)
     testFixturesImplementation(project(":core:common"))
     testImplementation(testFixtures(project(":core:common")))
     testImplementation(testFixtures(project(":domain:account")))

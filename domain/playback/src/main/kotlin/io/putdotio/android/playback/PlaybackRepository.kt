@@ -21,6 +21,7 @@ import io.putdotio.sdk.files.FilesListQuery
 import io.putdotio.sdk.files.FilesListResponse
 import io.putdotio.sdk.files.PutioFile
 import io.putdotio.sdk.files.PutioFileType
+import io.putdotio.sdk.files.PlaybackCapabilities
 import io.putdotio.sdk.files.PlaybackConversionState
 import io.putdotio.sdk.files.PlaybackMediaCredential
 import io.putdotio.sdk.files.PlaybackPreference
@@ -193,6 +194,7 @@ internal class SdkPlaybackRepository internal constructor(
                     mediaCredential = PlaybackMediaCredential.downloadToken(downloadToken),
                     preference = preference,
                     useStartFrom = account.settings.useStartFrom,
+                    capabilities = PlaybackCapabilities(originalVideoPlayable = BuildConfig.DIRECT_PLAY_SPIKE),
                     // hide_subtitles asks for no subtitles at all, as every reference player does.
                     includeSidecarSubtitles = !hideSubtitles,
                     maxSubtitleCount = if (hideSubtitles) 0 else null,
