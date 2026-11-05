@@ -14,6 +14,8 @@ import io.putdotio.sdk.files.FilesContinueQuery
 import io.putdotio.sdk.files.FilesListQuery
 import io.putdotio.sdk.files.FilesListResponse
 import io.putdotio.sdk.files.PutioFile
+import io.putdotio.sdk.files.OriginalVideoDecision
+import io.putdotio.sdk.files.PlaybackCapabilities
 import io.putdotio.sdk.files.PlaybackConversionState
 import io.putdotio.sdk.files.PlaybackPreference
 import io.putdotio.sdk.files.PlaybackRequest
@@ -22,6 +24,8 @@ import io.putdotio.sdk.files.PlaybackSourceKind
 import io.putdotio.sdk.files.PlaybackSubtitles
 import io.putdotio.sdk.files.PutioCredentialUrl
 import io.putdotio.sdk.files.PutioFileType
+import io.putdotio.sdk.files.PutioMediaFormat
+import io.putdotio.sdk.files.PutioMediaInfo
 import io.putdotio.sdk.files.PutioVideoMetadata
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -60,21 +64,52 @@ class SdkPlaybackRepositoryTest {
     fun convertedOnlyAndAudioNeverAllowAnOriginalVideo() =
         runBlocking {
             val requests = mutableListOf<PlaybackRequest>()
-            val repository = SdkPlaybackRepository(
+            val decision = OriginalVideoDecision { _, _, _ -> true }
+            fun repository(policy: OriginalVideoPolicy) = SdkPlaybackRepository(
                 playbackPreference = { PlaybackPreference.HLS },
                 loadAccount = { account(downloadToken = Token, useStartFrom = false) },
                 resolvePlayback = {
                     requests += it
                     io.putdotio.sdk.files.PlaybackResolution.Conversion(PlaybackConversionState.Queued)
                 },
+                originalVideoPolicy = { policy },
+                originalVideoDecision = decision,
             )
 
-            repository.resolve(Target)
-            repository.resolve(Target, convertedOnly = true)
-            repository.resolve(Target.copy(mediaType = PlaybackMediaType.AUDIO))
+            OriginalVideoPolicy.entries.forEach { policy ->
+                repository(policy).resolve(Target)
+                repository(policy).resolve(Target, convertedOnly = true)
+                repository(policy).resolve(Target.copy(mediaType = PlaybackMediaType.AUDIO))
+            }
 
-            assertEquals(listOf(true, false, false), requests.map { it.capabilities.originalVideoPlayable })
+            assertEquals(
+                listOf(
+                    PlaybackCapabilities(), PlaybackCapabilities(), PlaybackCapabilities(),
+                    PlaybackCapabilities(originalVideoDecision = decision), PlaybackCapabilities(), PlaybackCapabilities(),
+                    PlaybackCapabilities(originalVideoPlayable = true), PlaybackCapabilities(), PlaybackCapabilities(),
+                ),
+                requests.map { it.capabilities },
+            )
             assertEquals(PlaybackPreference.HLS, requests[1].preference)
+        }
+
+    @Test
+    fun theProbedDurationSkipsTheFolderListing() =
+        runBlocking {
+            val repository = SdkPlaybackRepository(
+                playbackPreference = { PlaybackPreference.HLS },
+                loadAccount = { account(downloadToken = Token, useStartFrom = true) },
+                resolvePlayback = {
+                    io.putdotio.sdk.files.PlaybackResolution.Ready(
+                        playbackSource().copy(mediaInfo = PutioMediaInfo(format = PutioMediaFormat(duration = 60.019))),
+                    )
+                },
+                listFolder = { _, _ -> throw AssertionError("The probed duration needs no listing") },
+            )
+
+            val ready = (repository.resolve(Target) as PlaybackRepositoryResult.Success).value as PlaybackResolution.Ready
+
+            assertEquals(60.019, ready.durationSeconds)
         }
 
     @Test
@@ -256,9 +291,10 @@ class SdkPlaybackRepositoryTest {
                     playbackPreference = { PlaybackPreference.HLS },
                     loadAccount = { account(downloadToken = Token, useStartFrom = true) },
                     resolvePlayback = {
-                        calls += "resolve ${it.fileId}"
+                        calls += "resolve ${it.fileId}" + if (it.capabilities == PlaybackCapabilities()) " converted" else ""
                         io.putdotio.sdk.files.PlaybackResolution.Conversion(PlaybackConversionState.Queued)
                     },
+                    originalVideoPolicy = { OriginalVideoPolicy.Always },
                 ),
                 startMp4Conversion = {
                     calls += "start $it"
@@ -269,7 +305,7 @@ class SdkPlaybackRepositoryTest {
             val result = repository.startConversion(Target) as PlaybackRepositoryResult.Success
 
             assertEquals(PlaybackResolution.Conversion(PlaybackConversionState.Queued), result.value)
-            assertEquals(listOf("start ${Target.fileId.value}", "resolve ${Target.fileId.value}"), calls)
+            assertEquals(listOf("start ${Target.fileId.value}", "resolve ${Target.fileId.value} converted"), calls)
 
             val rejected = ConvertingPlaybackRepository(
                 SdkPlaybackRepository(

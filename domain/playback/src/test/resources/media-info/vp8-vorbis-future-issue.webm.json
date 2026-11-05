@@ -1,0 +1,29 @@
+{
+  "format": {
+    "bit_rate": null,
+    "duration": 734.167,
+    "name": "matroska"
+  },
+  "mime_type": "video/webm",
+  "playback_issues": [
+    "open_gop",
+    "future_issue"
+  ],
+  "streams": [
+    {
+      "codec_name": "vp8",
+      "codec_type": "video",
+      "height": 800,
+      "level": -99,
+      "profile": "0",
+      "rfc6381_codec": null,
+      "width": 1920
+    },
+    {
+      "channels": 2,
+      "codec_name": "vorbis",
+      "codec_type": "audio",
+      "rfc6381_codec": null
+    }
+  ]
+}

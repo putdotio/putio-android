@@ -1,0 +1,43 @@
+{
+  "format": {
+    "bit_rate": 35632654,
+    "duration": 60.019,
+    "name": "matroska"
+  },
+  "mime_type": "video/x-matroska",
+  "playback_issues": [],
+  "streams": [
+    {
+      "codec_name": "hevc",
+      "codec_type": "video",
+      "height": 2160,
+      "level": 150,
+      "profile": "Main 10",
+      "rfc6381_codec": null,
+      "width": 3840
+    },
+    {
+      "channels": 6,
+      "codec_name": "dts",
+      "codec_type": "audio",
+      "rfc6381_codec": null
+    },
+    {
+      "channels": 6,
+      "codec_name": "eac3",
+      "codec_type": "audio",
+      "rfc6381_codec": null
+    },
+    {
+      "channels": 6,
+      "codec_name": "truehd",
+      "codec_type": "audio",
+      "rfc6381_codec": null
+    },
+    {
+      "codec_name": "ass",
+      "codec_type": "subtitle",
+      "rfc6381_codec": null
+    }
+  ]
+}

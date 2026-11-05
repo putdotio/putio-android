@@ -19,6 +19,7 @@ import io.putdotio.sdk.files.FileMp4ConversionStatus
 import io.putdotio.sdk.files.FilesContinueQuery
 import io.putdotio.sdk.files.FilesListQuery
 import io.putdotio.sdk.files.FilesListResponse
+import io.putdotio.sdk.files.OriginalVideoDecision
 import io.putdotio.sdk.files.PlaybackCapabilities
 import io.putdotio.sdk.files.PutioFile
 import io.putdotio.sdk.files.PutioFileType
@@ -27,8 +28,10 @@ import io.putdotio.sdk.files.PlaybackMediaCredential
 import io.putdotio.sdk.files.PlaybackPreference
 import io.putdotio.sdk.files.PlaybackRequest
 import io.putdotio.sdk.files.PlaybackSource
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withContext
 import java.util.concurrent.CancellationException
 
 public sealed interface PlaybackRepositoryResult<out T> {
@@ -167,19 +170,18 @@ internal class SdkPlaybackRepository internal constructor(
     private val continueListing: suspend (String, FilesContinueQuery) -> FilesListResponse = { _, _ ->
         error("Folder pagination is not configured")
     },
+    private val originalVideoPolicy: () -> OriginalVideoPolicy = { OriginalVideoPolicy.Never },
+    private val originalVideoDecision: OriginalVideoDecision = OriginalVideoDecision { _, _, _ -> false },
 ) : PlaybackRepository {
     constructor(
         client: PutioClient,
         playbackPreference: () -> PlaybackPreference,
-        originalVideoPlayable: () -> Boolean = { false },
+        originalVideoPolicy: () -> OriginalVideoPolicy = { OriginalVideoPolicy.Never },
+        decoders: DecoderInventory = DecoderInventory { false },
     ) : this(
         playbackPreference = playbackPreference,
         loadAccount = client::loadMediaAccount,
-        resolvePlayback = { request ->
-            client.files.resolvePlayback(
-                request.takeIf { originalVideoPlayable() } ?: request.copy(capabilities = PlaybackCapabilities()),
-            )
-        },
+        resolvePlayback = { request -> withContext(Dispatchers.IO) { client.files.resolvePlayback(request) } },
         loadFile = { fileId ->
             client.files.get(
                 fileId,
@@ -188,6 +190,8 @@ internal class SdkPlaybackRepository internal constructor(
         },
         listFolder = client.files::list,
         continueListing = client.files::continueList,
+        originalVideoPolicy = originalVideoPolicy,
+        originalVideoDecision = OriginalPlaybackDecision(decoders),
     )
 
     @Suppress("TooGenericExceptionCaught")
@@ -209,9 +213,11 @@ internal class SdkPlaybackRepository internal constructor(
                     mediaCredential = PlaybackMediaCredential.downloadToken(downloadToken),
                     preference = preference,
                     useStartFrom = account.settings.useStartFrom,
-                    capabilities = PlaybackCapabilities(
-                        originalVideoPlayable = !convertedOnly && target.mediaType == PlaybackMediaType.VIDEO,
-                    ),
+                    capabilities = if (convertedOnly || target.mediaType != PlaybackMediaType.VIDEO) {
+                        PlaybackCapabilities()
+                    } else {
+                        originalVideoPolicy().capabilities(originalVideoDecision)
+                    },
                     // hide_subtitles asks for no subtitles at all, as every reference player does.
                     includeSidecarSubtitles = !hideSubtitles,
                     maxSubtitleCount = if (hideSubtitles) 0 else null,
@@ -220,7 +226,10 @@ internal class SdkPlaybackRepository internal constructor(
             val ready = resolution.toAppResolution(account.settings.useStartFrom, hideSubtitles)
             PlaybackRepositoryResult.Success(
                 if (ready is PlaybackResolution.Ready && target.needsDuration()) {
-                    ready.copy(durationSeconds = videoDuration(target.fileId.value))
+                    ready.copy(
+                        durationSeconds = ready.source.mediaInfo?.format?.duration?.takeIf { it.isFinite() && it > 0.0 }
+                            ?: videoDuration(target.fileId.value),
+                    )
                 } else {
                     ready
                 },
@@ -426,9 +435,10 @@ public class ConvertingPlaybackRepository internal constructor(
     public constructor(
         client: PutioClient,
         playbackPreference: () -> PlaybackPreference,
-        originalVideoPlayable: () -> Boolean = { false },
+        originalVideoPolicy: () -> OriginalVideoPolicy = { OriginalVideoPolicy.Never },
+        decoders: DecoderInventory = DecoderInventory { false },
     ) : this(
-        delegate = SdkPlaybackRepository(client, playbackPreference, originalVideoPlayable),
+        delegate = SdkPlaybackRepository(client, playbackPreference, originalVideoPolicy, decoders),
         startMp4Conversion = { fileId ->
             client.files.startMp4Conversion(fileId).status != FileMp4ConversionStatus.NOT_AVAILABLE
         },
@@ -441,7 +451,7 @@ public class ConvertingPlaybackRepository internal constructor(
     ): PlaybackRepositoryResult<PlaybackResolution> =
         try {
             val accepted = startMp4Conversion(target.fileId.value)
-            val resolved = delegate.resolve(target, convertedOnly)
+            val resolved = delegate.resolve(target, convertedOnly = true)
             val read = (resolved as? PlaybackRepositoryResult.Success)?.value as? PlaybackResolution.Conversion
             val stillNotAvailable = read?.state == PlaybackConversionState.NotAvailable
             // A status read that has not caught up with an accepted start polls once more before

@@ -9,7 +9,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.datasource.HttpDataSource
 import io.putdotio.android.PutioFailure
 import io.putdotio.sdk.files.PlaybackSource
-import io.putdotio.sdk.files.PlaybackSourceKind
+import io.putdotio.sdk.files.PlaybackStreamFormat
 import io.putdotio.sdk.files.PlaybackSubtitle
 import io.putdotio.sdk.files.PlaybackSubtitles
 import kotlin.math.roundToLong
@@ -61,7 +61,7 @@ public fun PlaybackSource.toMediaItem(
     return MediaItem.Builder()
         .setMediaId(fileId.toString())
         .setUri(url.value)
-        .setMimeType(if (kind == PlaybackSourceKind.HLS) MimeTypes.APPLICATION_M3U8 else null)
+        .setMimeType(if (format == PlaybackStreamFormat.HLS) MimeTypes.APPLICATION_M3U8 else null)
         .setMediaMetadata(
             MediaMetadata.Builder()
                 .setTitle(title)

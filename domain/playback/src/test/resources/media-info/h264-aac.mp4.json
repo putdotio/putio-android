@@ -1,0 +1,26 @@
+{
+  "format": {
+    "bit_rate": 1322900,
+    "duration": 1394.149289,
+    "name": "mp4"
+  },
+  "mime_type": "video/mp4",
+  "playback_issues": [],
+  "streams": [
+    {
+      "codec_name": "h264",
+      "codec_type": "video",
+      "height": 480,
+      "level": 42,
+      "profile": "Main",
+      "rfc6381_codec": "avc1.42001e",
+      "width": 720
+    },
+    {
+      "channels": 2,
+      "codec_name": "aac",
+      "codec_type": "audio",
+      "rfc6381_codec": "mp4a.40.2"
+    }
+  ]
+}
