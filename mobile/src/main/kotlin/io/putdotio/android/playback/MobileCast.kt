@@ -274,6 +274,8 @@ internal class MobileCastController(
 
     private var signOuts = 0
 
+    private var handoff: SessionHandoff? = null
+
     val awaitsReceiver: Boolean get() = sending != null
 
     private val mutableFinished = MutableSharedFlow<Long>(
@@ -338,14 +340,17 @@ internal class MobileCastController(
         val fileId = item.mediaId.toLongOrNull() ?: return
         transferring = fileId
         val exits = signOuts
-        val handoff = SessionHandoff(this, fileId, item, handover, local) { signOuts != exits }
+        val from = handoff?.takeIf { it.fileId == fileId }?.handover ?: handover
+        val next = SessionHandoff(this, fileId, item, from, local) { signOuts != exits }
+        handoff = next
         playerScope.launch {
             val prepared = try {
-                handoff.prepare()
+                next.prepare()
             } finally {
-                if (transferring == fileId) transferring = null
+                if (handoff === next && transferring == fileId) transferring = null
             }
-            handoff.settle(prepared)
+            next.settle(prepared) { handoff !== next }
+            if (handoff === next) handoff = null
         }
     }
 
@@ -425,9 +430,9 @@ internal class MobileCastController(
 
 private class SessionHandoff(
     private val cast: MobileCastController,
-    private val fileId: Long,
+    val fileId: Long,
     private val item: MediaItem,
-    private val handover: CastHandover,
+    val handover: CastHandover,
     private val local: Player,
     private val signedOut: () -> Boolean,
 ) {
@@ -442,16 +447,18 @@ private class SessionHandoff(
         }?.let { cast.autoplay.account?.prepare(target) }
     }
 
-    suspend fun settle(prepared: CastPrepared?) {
+    suspend fun settle(prepared: CastPrepared?, superseded: () -> Boolean) {
         val plays = !signedOut() && !overtaken() && receiverPlays(prepared)
+        if (superseded()) return
         when {
             plays || signedOut() || overtaken() || receiverBusy() -> local.drop(item)
-            gateway.endCasting() && !signedOut() -> playHere()
+            gateway.endCasting() && !signedOut() && !superseded() -> playHere()
             signedOut() -> local.drop(item)
         }
     }
 
     private suspend fun receiverPlays(prepared: CastPrepared?): Boolean {
+        if (gateway.availability.value !is CastAvailability.Connected) return false
         val before = gateway.status.value
         if (prepared != null) cast.cast(prepared.media, item, handover)
         val reports = combine(gateway.status, gateway.availability) { status, availability ->
@@ -475,16 +482,16 @@ private class SessionHandoff(
         availability: CastAvailability,
         before: CastRemoteStatus?,
     ): ReceiverReport = when {
-        availability !is CastAvailability.Connected -> ReceiverReport.Fails
-        status?.fileId != fileId -> ReceiverReport.Silent
-        status.state == CastRemoteState.Playing || status.state == CastRemoteState.Paused -> ReceiverReport.Plays
+        !availability.casting -> ReceiverReport.Fails
+        availability !is CastAvailability.Connected || status?.fileId != fileId -> ReceiverReport.Silent
+        status.state in PLAYED_STATES -> ReceiverReport.Plays
         status.state == CastRemoteState.Failed && status !== before -> ReceiverReport.Fails
         status.state == CastRemoteState.Buffering -> ReceiverReport.Loads
         else -> ReceiverReport.Silent
     }
 
     private fun playHere() {
-        val receiverHeld = gateway.endedStatus?.takeIf { it.fileId == fileId }.live
+        val receiverHeld = gateway.endedStatus?.takeIf { it.fileId == fileId }?.state in PLAYED_STATES
         val handback = cast.takeHandover(fileId)?.takeIf { receiverHeld }
         if (handback == null && local.currentMediaItem?.mediaId == item.mediaId) {
             local.resume(handover)
@@ -555,6 +562,8 @@ private const val SESSION_CONNECT_WAIT_MILLIS = 10_000L
 private const val RECEIVER_REPORT_WAIT_MILLIS = 10_000L
 
 private const val RECEIVER_LOAD_WAIT_MILLIS = 20_000L
+
+private val PLAYED_STATES = setOf(CastRemoteState.Playing, CastRemoteState.Paused)
 
 /** Receiver states with the file still playable there. */
 private val LIVE_STATES = setOf(CastRemoteState.Buffering, CastRemoteState.Playing, CastRemoteState.Paused)

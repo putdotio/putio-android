@@ -150,6 +150,58 @@ class MobileCastSessionAudioTest {
     }
 
     @Test
+    fun sessionAudioRidesOutASessionThatReconnectsWhileTheReceiverLoads() {
+        val local = LocalPlayer(HANDED_OVER)
+        cast.autoplay.follow(SESSION, FakeCastAccount(next = null))
+        gateway.connect()
+
+        cast.castFromSession(AudioItem, HANDED_OVER, local, scope)
+        idle()
+        gateway.report(CastRemoteState.Buffering, positionMillis = 95_000L)
+        gateway.availability.value = CastAvailability.Connecting("Living room TV")
+        idle()
+        gateway.connect()
+        gateway.report(CastRemoteState.Playing, positionMillis = 95_000L)
+        waitFor(RECEIVER_SETTLED)
+
+        assertTrue(gateway.commands.isEmpty())
+        assertEquals(0, local.mediaItemCount)
+    }
+
+    @Test
+    fun sessionAudioHandedOverAgainOnAResumedSessionKeepsPlayingHereWhenItEnds() {
+        val local = LocalPlayer(HANDED_OVER)
+        cast.autoplay.follow(SESSION, FakeCastAccount(next = null))
+        gateway.connect()
+        cast.castFromSession(AudioItem, HANDED_OVER, local, scope)
+        idle()
+        gateway.report(CastRemoteState.Buffering, positionMillis = 95_000L)
+
+        cast.castFromSession(AudioItem, HANDED_OVER.copy(playing = false), local, scope)
+        idle()
+        gateway.disconnect()
+        waitFor(RECEIVER_SETTLED)
+
+        assertPlaysHereWhereItStood(local)
+    }
+
+    @Test
+    fun sessionAudioTheReceiverOnlyLoadedPlaysOnHereFromWhereThePhoneStood() {
+        val local = LocalPlayer(HANDED_OVER)
+        cast.autoplay.follow(SESSION, FakeCastAccount(next = null))
+        gateway.connect()
+
+        cast.castFromSession(AudioItem, HANDED_OVER, local, scope)
+        idle()
+        gateway.report(CastRemoteState.Buffering, positionMillis = 0L)
+        gateway.disconnect()
+        waitFor(RECEIVER_SETTLED)
+
+        assertPlaysHereWhereItStood(local)
+        assertNull(cast.takeHandover(42L))
+    }
+
+    @Test
     fun sessionAudioWhoseReceiverIsStuckConnectingEndsTheSessionAndPlaysOnHereWhenTheSameFileOpens() {
         val local = LocalPlayer(HANDED_OVER)
         cast.autoplay.follow(SESSION, FakeCastAccount(next = null))
@@ -350,7 +402,6 @@ class MobileCastSessionAudioTest {
         gateway.availability.value = CastAvailability.Connecting("Kitchen speaker")
         account.answer.complete(Unit)
         idle()
-        gateway.connect("Kitchen speaker")
         waitFor(RECEIVER_SETTLED)
 
         assertTrue(gateway.loads.isEmpty())
