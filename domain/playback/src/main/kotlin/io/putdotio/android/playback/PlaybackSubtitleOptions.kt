@@ -55,7 +55,7 @@ public fun PlaybackSubtitle?.origin(): SubtitleOrigin =
         else -> SubtitleOrigin.OpenSubtitles
     }
 
-private const val SOURCE_MKV = "mkv"
+internal const val SOURCE_MKV = "mkv"
 private const val SOURCE_FOLDER = "folder"
 
 public fun PlaybackSubtitles?.sidecarTracks(): List<PlaybackSubtitle> =

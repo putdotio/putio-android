@@ -76,7 +76,6 @@ import io.putdotio.android.playback.playbackSpeedStop
 import io.putdotio.android.playback.putioSubtitle
 import io.putdotio.android.playback.subtitleTrackDetails
 import io.putdotio.android.playback.subtitleTrackLabels
-import io.putdotio.android.playback.subtitleTrackName
 import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.TvFocus
 import io.putdotio.android.tv.TvSheetLabel
@@ -115,15 +114,22 @@ private fun TrackSelectionParameters.picked(group: androidx.media3.common.TrackG
     overrides[group]?.trackIndices?.contains(index) == true
 
 @Composable
-internal fun tvPlayerChipLabels(choices: TvTrackChoices, speed: Float): TvPlayerChipLabels {
+internal fun tvPlayerChipLabels(
+    choices: TvTrackChoices,
+    subtitles: PlaybackSubtitles,
+    speed: Float,
+): TvPlayerChipLabels {
     val audioNames = audioTrackLabels(choices.audio)
     val audio = choices.currentAudio?.let { audioNames[choices.audio.indexOf(it)] }
         ?: stringResource(R.string.tv_player_audio)
-    val subtitles = choices.currentSubtitle?.let { subtitleTrackName(it) }
+    val subtitleNames = subtitleTrackLabels(choices.subtitles, subtitles.sidecarTracks(), subtitles.originsKnown())
+    val subtitle = choices.currentSubtitle?.let { subtitleNames[choices.subtitles.indexOf(it)] }
         ?: stringResource(R.string.tv_player_subtitles_off)
     val speedLabel = stringResource(R.string.tv_player_speed_value, formatPlaybackSpeed(speed))
-    return TvPlayerChipLabels(audio, subtitles, speedLabel)
+    return TvPlayerChipLabels(audio, subtitle, speedLabel)
 }
+
+private fun PlaybackSubtitles.originsKnown(): Boolean = this !is PlaybackSubtitles.Embedded
 
 internal class TvPlayerSheetActions(
     val onAudio: (PlaybackAudioTrack) -> Unit,
@@ -218,7 +224,7 @@ private fun ColumnScope.TvSubtitlesSheet(
     val current = choices.currentSubtitle
     val focusRow = Modifier.focusRequester(focus)
     val sidecar = subtitles.sidecarTracks()
-    val originsKnown = subtitles !is PlaybackSubtitles.Embedded
+    val originsKnown = subtitles.originsKnown()
     val labels = subtitleTrackLabels(choices.subtitles, sidecar, inFile = originsKnown)
     val rows = choices.subtitles.mapIndexed { index, track -> Triple(index, track, track.putioSubtitle(sidecar)) }
     val inFile = rows.filter { it.third.origin() == SubtitleOrigin.File }

@@ -27,13 +27,14 @@ internal val MobileVideoSheet.isSubtitles: Boolean
 @Composable
 internal fun MobileVideoChips(
     options: PlayerOptionsSnapshot,
+    sidecarSubtitles: List<PlaybackSubtitle>,
     subtitleStartupPolicy: SubtitleStartupPolicy?,
     onSheet: (MobileVideoSheet) -> Unit,
     modifier: Modifier,
 ) {
     MobileAudioChip(options, { onSheet(MobileVideoSheet.Audio) }, modifier)
     if (subtitleStartupPolicy?.showSubtitles != false) {
-        MobileSubtitlesChip(options, { onSheet(MobileVideoSheet.Subtitles) }, modifier)
+        MobileSubtitlesChip(options, sidecarSubtitles, { onSheet(MobileVideoSheet.Subtitles) }, modifier)
     }
     MobileSpeedChip(options, { onSheet(MobileVideoSheet.Speed) }, modifier)
 }

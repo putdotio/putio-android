@@ -41,12 +41,11 @@ public fun PlaybackSource.toMediaItem(
     offline: Boolean = false,
     artist: String? = null,
 ): MediaItem {
-    val sidecarTracks = (subtitles as? PlaybackSubtitles.Sidecar)?.tracks.orEmpty()
     // put.io's subtitle list names its first entry as `default`, the one the account's subtitle
     // languages rank first; it carries Media3's default flag like the HLS master's DEFAULT=YES.
-    val defaultKey = sidecarTracks.firstOrNull()?.key
+    val defaultKey = subtitles.sidecarTracks().firstOrNull()?.key
     val subtitleConfigurations =
-        sidecarTracks
+        playerSubtitles().sidecarTracks()
             .mapNotNull { subtitle ->
                 val mimeType = subtitle.toSubtitleMimeType() ?: return@mapNotNull null
                 MediaItem.SubtitleConfiguration.Builder(subtitle.url.value.toUri())

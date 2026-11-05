@@ -66,6 +66,7 @@ import io.putdotio.android.playback.displayAspectRatioOrNull
 import io.putdotio.android.playback.orHiddenWhen
 import io.putdotio.android.playback.originalRejection
 import io.putdotio.android.playback.playbackSurfaceType
+import io.putdotio.android.playback.playerSubtitles
 import io.putdotio.android.playback.preparePlayback
 import io.putdotio.android.playback.rememberSubtitleAppearanceStore
 import io.putdotio.android.playback.restoreSubtitleSelection
@@ -390,6 +391,7 @@ private fun TvReadyPlayer(
     }
 
     val choices = TvTrackChoices(tracks, parameters, subtitleStartupPolicy)
+    val subtitles = remember(source) { source.playerSubtitles() }
     val subtitlesHidden = choices.subtitlesHidden
     val chips = choices.chips(nextEpisode = nextEpisode, audioOnly = target.mediaType == PlaybackMediaType.AUDIO)
     LaunchedEffect(subtitlesHidden, overlay.sheet) {
@@ -445,7 +447,7 @@ private fun TvReadyPlayer(
                     listingDurationMillis = target.durationSeconds?.toPlaybackMillis(),
                 ),
                 chips = chips,
-                chipLabels = tvPlayerChipLabels(choices, speed),
+                chipLabels = tvPlayerChipLabels(choices, subtitles, speed),
                 focused = overlay.shownFocus(chips, nextTrack),
             )
         } else {
@@ -460,7 +462,7 @@ private fun TvReadyPlayer(
                     startPositionMillis = prepared.startPositionMillis,
                     listingDurationMillis = target.durationSeconds?.toPlaybackMillis(),
                     chips = chips,
-                    chipLabels = tvPlayerChipLabels(choices, speed),
+                    chipLabels = tvPlayerChipLabels(choices, subtitles, speed),
                     focused = overlay.shownFocus(chips),
                     circles = !overlay.upNext,
                 )
@@ -476,7 +478,7 @@ private fun TvReadyPlayer(
         backFromSizeAndTiming = overlay.backFromSizeAndTiming,
         returnFocus = focus,
         choices = choices,
-        subtitles = source.subtitles,
+        subtitles = subtitles,
         speed = speed,
         textSize = appearance.textSize,
         offsetMillis = options.subtitleOffsetMillis,

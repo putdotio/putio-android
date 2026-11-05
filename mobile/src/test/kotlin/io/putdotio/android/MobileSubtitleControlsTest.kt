@@ -245,7 +245,7 @@ class MobileSubtitleControlsTest {
         PutioTheme {
             val options = rememberPlayerOptionsSnapshot(player)
             Column(Modifier.verticalScroll(rememberScrollState())) {
-                MobileSubtitlesChip(options, {})
+                MobileSubtitlesChip(options, sidecar, {})
                 MobileSubtitlesSheetContent(
                     player = player,
                     snapshot = options,

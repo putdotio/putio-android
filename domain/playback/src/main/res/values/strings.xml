@@ -2,6 +2,7 @@
 <resources>
     <string name="playback_audio_track_number">Audio track %1$d</string>
     <string name="playback_subtitle_unknown">Unknown</string>
+    <string name="playback_subtitle_number">Subtitle %1$d</string>
     <string name="playback_track_disambiguated">%1$s (track %2$d)</string>
     <string name="playback_audio_mono">mono</string>
     <string name="playback_audio_stereo">stereo</string>
