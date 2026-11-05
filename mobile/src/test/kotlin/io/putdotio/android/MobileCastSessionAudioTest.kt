@@ -209,6 +209,7 @@ class MobileCastSessionAudioTest {
         gateway.connect()
         cast.castFromSession(AudioItem, HANDED_OVER, local, scope)
         idle()
+        gateway.report(CastRemoteState.Buffering, positionMillis = 0L)
 
         gateway.disconnect()
         local.setMediaItem(OtherItem, 0L)
@@ -219,6 +220,7 @@ class MobileCastSessionAudioTest {
         assertEquals("7", local.currentMediaItem?.mediaId)
         assertEquals(0L, local.currentPosition)
         assertTrue(local.playWhenReady)
+        assertNull(cast.takeHandover(42L))
     }
 
     @Test
