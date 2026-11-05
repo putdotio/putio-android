@@ -388,8 +388,8 @@ transitions into fades and holds animations still.
 
 ## Accessibility
 
-- Text follows the system font size up to a 1.3 font scale, as the iOS app
-  caps it.
+- Text follows the system font size up to a 1.3 font scale on mobile, as the
+  iOS app caps it, and 1.15 on TV, where type is already sized for the room.
 - Icon-only controls carry a name that says what they change; a cut name keeps
   the full name as its description.
 

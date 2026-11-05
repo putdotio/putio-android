@@ -12,7 +12,7 @@ import io.putdotio.android.tv.toTvLaunchRequest
 import io.putdotio.android.tv.toUri
 import io.putdotio.android.tv.auth.TvAuthRuntime
 
-class MainActivity : BasePutioActivity() {
+class MainActivity : TvActivity() {
     private val launchRequests: TvLaunchRequests by lazy { ViewModelProvider(this)[TvLaunchRequests::class.java] }
 
     override fun onCreate(savedInstanceState: Bundle?) {
