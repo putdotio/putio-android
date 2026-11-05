@@ -289,7 +289,10 @@ class MobilePublicLinksTest {
     }
 
     private object NoPlayback : PlaybackRepository {
-        override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> =
+        override suspend fun resolve(
+            target: PlaybackTarget,
+            convertedOnly: Boolean,
+        ): PlaybackRepositoryResult<PlaybackResolution> =
             error("Unexpected playback")
 
         override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult = PlaybackNextResult.Ended

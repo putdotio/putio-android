@@ -252,7 +252,10 @@ class MobileLiveAudioAttachmentProofTest {
 private class UnavailableAttachmentRepository : PlaybackRepository {
     val resolveCalls = AtomicInteger()
     val nextCalls = AtomicInteger()
-    override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> {
+    override suspend fun resolve(
+        target: PlaybackTarget,
+        convertedOnly: Boolean,
+    ): PlaybackRepositoryResult<PlaybackResolution> {
         resolveCalls.incrementAndGet()
         return PlaybackRepositoryResult.Failure(
             PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IOException("Controlled offline source"))),

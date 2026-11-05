@@ -103,6 +103,7 @@ public data class PlaybackState internal constructor(
      * start a conversion; after it, polls, checks and retries never start one.
      */
     internal val conversionStatusRead: Boolean = false,
+    internal val convertedOnly: Boolean = false,
 )
 
 public sealed interface PlaybackEvent {
@@ -131,6 +132,12 @@ public sealed interface PlaybackEvent {
     public data class PlayerFailed(
         val failure: PlaybackFailure,
         val resumePositionMillis: Long,
+    ) : PlaybackEvent
+
+    /** The streamed original cannot play here; the converted stream takes over at [positionMillis]. */
+    public data class OriginalRejected(
+        val reason: PlaybackFallbackReason,
+        val positionMillis: Long,
     ) : PlaybackEvent
 
     public data class ResolveSucceeded(
@@ -165,6 +172,7 @@ public sealed interface PlaybackEffect {
     public data class Resolve(
         override val target: PlaybackTarget,
         override val requestId: PlaybackRequestId,
+        val convertedOnly: Boolean = false,
     ) : PlaybackEffect
 
     public data class FindNext(
@@ -176,6 +184,7 @@ public sealed interface PlaybackEffect {
     public data class StartConversion(
         override val target: PlaybackTarget,
         override val requestId: PlaybackRequestId,
+        val convertedOnly: Boolean = false,
     ) : PlaybackEffect
 }
 
@@ -223,6 +232,7 @@ public object PlaybackReducer {
             PlaybackEvent.PlayerEnded -> state.playerEnded()
             is PlaybackEvent.SourceRequired -> state.sourceRequired(event)
             is PlaybackEvent.PlayerFailed -> state.playerFailed(event)
+            is PlaybackEvent.OriginalRejected -> state.originalRejected(event)
             is PlaybackEvent.ResolveSucceeded -> state.resolveSucceeded(event)
             is PlaybackEvent.ResolveFailed -> state.resolveFailed(event)
             is PlaybackEvent.NextChosen,
@@ -242,7 +252,7 @@ private fun PlaybackState.sourceRequired(event: PlaybackEvent.SourceRequired): P
             nextRequestValue = nextRequestValue + 1,
             resumePositionMillis = event.resumePositionMillis?.coerceAtLeast(0L) ?: resumePositionMillis,
         ),
-        effect = PlaybackEffect.Resolve(target, requestId),
+        effect = PlaybackEffect.Resolve(target, requestId, convertedOnly),
     )
 }
 
@@ -273,7 +283,7 @@ private fun PlaybackState.retry(): PlaybackTransition {
                     content = PlaybackContent.Loading(requestId),
                     nextRequestValue = nextRequestValue + 1,
                 ),
-                effect = PlaybackEffect.Resolve(target, requestId),
+                effect = PlaybackEffect.Resolve(target, requestId, convertedOnly),
             )
 
         is PlaybackContent.NextFailed ->
@@ -361,7 +371,11 @@ private fun PlaybackState.conversionResolved(state: PlaybackConversionState): Pl
             nextRequestValue = nextRequestValue + 1,
             conversionStatusRead = true,
         ),
-        if (start) PlaybackEffect.StartConversion(target, requestId) else PlaybackEffect.Resolve(target, requestId),
+        if (start) {
+            PlaybackEffect.StartConversion(target, requestId, convertedOnly)
+        } else {
+            PlaybackEffect.Resolve(target, requestId, convertedOnly)
+        },
     )
 }
 
@@ -379,7 +393,11 @@ private fun PlaybackState.refreshConversion(start: Boolean): PlaybackTransition 
             content = conversion.copy(refreshRequestId = requestId),
             nextRequestValue = nextRequestValue + 1,
         ),
-        if (start) PlaybackEffect.StartConversion(target, requestId) else PlaybackEffect.Resolve(target, requestId),
+        if (start) {
+            PlaybackEffect.StartConversion(target, requestId, convertedOnly)
+        } else {
+            PlaybackEffect.Resolve(target, requestId, convertedOnly)
+        },
     )
 }
 

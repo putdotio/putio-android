@@ -19,6 +19,7 @@ import io.putdotio.sdk.files.FileMp4ConversionStatus
 import io.putdotio.sdk.files.FilesContinueQuery
 import io.putdotio.sdk.files.FilesListQuery
 import io.putdotio.sdk.files.FilesListResponse
+import io.putdotio.sdk.files.PlaybackCapabilities
 import io.putdotio.sdk.files.PutioFile
 import io.putdotio.sdk.files.PutioFileType
 import io.putdotio.sdk.files.PlaybackConversionState
@@ -96,10 +97,17 @@ public val PlaybackFailure.retryable: Boolean
     }
 
 public interface PlaybackRepository {
-    public suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution>
+    /** [convertedOnly] never resolves an original video. */
+    public suspend fun resolve(
+        target: PlaybackTarget,
+        convertedOnly: Boolean = false,
+    ): PlaybackRepositoryResult<PlaybackResolution>
 
-    /** Starts converting [target] to MP4, then resolves it again. */
-    public suspend fun startConversion(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> =
+    /** Starts converting [target] to MP4, then resolves it again as [resolve] does. */
+    public suspend fun startConversion(
+        target: PlaybackTarget,
+        convertedOnly: Boolean = false,
+    ): PlaybackRepositoryResult<PlaybackResolution> =
         PlaybackRepositoryResult.Failure(
             PlaybackFailure.Putio(
                 PutioFailure.Unexpected(UnsupportedOperationException("This source cannot start a conversion")),
@@ -163,10 +171,15 @@ internal class SdkPlaybackRepository internal constructor(
     constructor(
         client: PutioClient,
         playbackPreference: () -> PlaybackPreference,
+        originalVideoPlayable: () -> Boolean = { false },
     ) : this(
         playbackPreference = playbackPreference,
         loadAccount = client::loadMediaAccount,
-        resolvePlayback = client.files::resolvePlayback,
+        resolvePlayback = { request ->
+            client.files.resolvePlayback(
+                request.takeIf { originalVideoPlayable() } ?: request.copy(capabilities = PlaybackCapabilities()),
+            )
+        },
         loadFile = { fileId ->
             client.files.get(
                 fileId,
@@ -178,7 +191,10 @@ internal class SdkPlaybackRepository internal constructor(
     )
 
     @Suppress("TooGenericExceptionCaught")
-    override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> =
+    override suspend fun resolve(
+        target: PlaybackTarget,
+        convertedOnly: Boolean,
+    ): PlaybackRepositoryResult<PlaybackResolution> =
         try {
             val preference = playbackPreference()
             val account = loadAccount()
@@ -193,6 +209,9 @@ internal class SdkPlaybackRepository internal constructor(
                     mediaCredential = PlaybackMediaCredential.downloadToken(downloadToken),
                     preference = preference,
                     useStartFrom = account.settings.useStartFrom,
+                    capabilities = PlaybackCapabilities(
+                        originalVideoPlayable = !convertedOnly && target.mediaType == PlaybackMediaType.VIDEO,
+                    ),
                     // hide_subtitles asks for no subtitles at all, as every reference player does.
                     includeSidecarSubtitles = !hideSubtitles,
                     maxSubtitleCount = if (hideSubtitles) 0 else null,
@@ -239,10 +258,6 @@ internal class SdkPlaybackRepository internal constructor(
         } catch (unexpected: Exception) {
             PlaybackRepositoryResult.Failure(PlaybackFailure.Putio(PutioFailure.Unexpected(unexpected)))
         }
-
-    // The near-end rule needs a video's duration, and so does Continue watching, even for a video never started.
-    private fun PlaybackTarget.needsDuration(): Boolean =
-        durationSeconds == null && mediaType == PlaybackMediaType.VIDEO
 
     /**
      * Single-file reads omit `video_metadata`; listing the file returns it as the parent. A
@@ -378,6 +393,10 @@ internal class SdkPlaybackRepository internal constructor(
     }
 }
 
+// The near-end rule needs a video's duration, and so does Continue watching, even for a video never started.
+private fun PlaybackTarget.needsDuration(): Boolean =
+    durationSeconds == null && mediaType == PlaybackMediaType.VIDEO
+
 private fun PlaybackMediaType.fileType(): PutioFileType =
     when (this) {
         PlaybackMediaType.VIDEO -> PutioFileType.VIDEO
@@ -407,18 +426,22 @@ public class ConvertingPlaybackRepository internal constructor(
     public constructor(
         client: PutioClient,
         playbackPreference: () -> PlaybackPreference,
+        originalVideoPlayable: () -> Boolean = { false },
     ) : this(
-        delegate = SdkPlaybackRepository(client, playbackPreference),
+        delegate = SdkPlaybackRepository(client, playbackPreference, originalVideoPlayable),
         startMp4Conversion = { fileId ->
             client.files.startMp4Conversion(fileId).status != FileMp4ConversionStatus.NOT_AVAILABLE
         },
     )
 
     @Suppress("TooGenericExceptionCaught")
-    override suspend fun startConversion(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> =
+    override suspend fun startConversion(
+        target: PlaybackTarget,
+        convertedOnly: Boolean,
+    ): PlaybackRepositoryResult<PlaybackResolution> =
         try {
             val accepted = startMp4Conversion(target.fileId.value)
-            val resolved = delegate.resolve(target)
+            val resolved = delegate.resolve(target, convertedOnly)
             val read = (resolved as? PlaybackRepositoryResult.Success)?.value as? PlaybackResolution.Conversion
             val stillNotAvailable = read?.state == PlaybackConversionState.NotAvailable
             // A status read that has not caught up with an accepted start polls once more before

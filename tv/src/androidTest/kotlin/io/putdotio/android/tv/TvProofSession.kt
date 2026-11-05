@@ -137,7 +137,7 @@ internal fun tvProofDependencies(
     recentSearchStore = recentSearchStore,
     playbackRepository = {
         object : PlaybackRepository {
-            override suspend fun resolve(target: PlaybackTarget) =
+            override suspend fun resolve(target: PlaybackTarget, convertedOnly: Boolean) =
                 PlaybackRepositoryResult.Success(playback())
 
             override suspend fun findNextVideo(target: PlaybackTarget) = error("No next video expected")

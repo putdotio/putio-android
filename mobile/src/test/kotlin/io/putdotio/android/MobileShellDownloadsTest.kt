@@ -205,7 +205,10 @@ class MobileShellDownloadsTest {
     private companion object {
         const val TIMEOUT = 5_000L
         val Converting = object : PlaybackRepository {
-            override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> =
+            override suspend fun resolve(
+                target: PlaybackTarget,
+                convertedOnly: Boolean,
+            ): PlaybackRepositoryResult<PlaybackResolution> =
                 PlaybackRepositoryResult.Success(PlaybackResolution.Conversion(PlaybackConversionState.Queued))
 
             override suspend fun findNextVideo(target: PlaybackTarget) = PlaybackNextResult.Ended

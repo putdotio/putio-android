@@ -2,6 +2,7 @@ package io.putdotio.android.downloads
 
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.playback.PlaybackCastMedia
+import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackNeighbours
 import io.putdotio.android.playback.PlaybackNextResult
 import io.putdotio.android.playback.PlaybackRepository
@@ -59,11 +60,17 @@ internal class OfflinePlaybackRepository(
     private val resume: OfflineResume = OfflineResume.Off,
     private val requestedUrl: suspend (FilesItemId) -> String? = { null },
 ) : PlaybackRepository {
-    override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> {
+    override suspend fun resolve(
+        target: PlaybackTarget,
+        convertedOnly: Boolean,
+    ): PlaybackRepositoryResult<PlaybackResolution> {
         val state = downloads.value
         val entry = state.entry(target.fileId)
             ?.takeIf { state.isAvailableOffline(target.fileId) && localCopyAvailable(it.fileId) }
-            ?: return delegate.resolve(target)
+            ?.takeUnless {
+                convertedOnly && it.artifact == DownloadArtifact.ORIGINAL && target.mediaType == PlaybackMediaType.VIDEO
+            }
+            ?: return delegate.resolve(target, convertedOnly)
         val hls = entry.artifact == DownloadArtifact.HLS
         // A download made for a hide_subtitles account holds no subtitle rendition, and a cold
         // offline start cannot read the setting, so the row's own copy of it hides the picker.
@@ -90,8 +97,10 @@ internal class OfflinePlaybackRepository(
         )
     }
 
-    override suspend fun startConversion(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> =
-        delegate.startConversion(target)
+    override suspend fun startConversion(
+        target: PlaybackTarget,
+        convertedOnly: Boolean,
+    ): PlaybackRepositoryResult<PlaybackResolution> = delegate.startConversion(target, convertedOnly)
 
     // A receiver streams a downloaded file from put.io: the token-free API URL gets the download token.
     override suspend fun castMedia(

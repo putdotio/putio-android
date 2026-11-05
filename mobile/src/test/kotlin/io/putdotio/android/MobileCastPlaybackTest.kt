@@ -38,7 +38,9 @@ import io.putdotio.android.playback.PlaybackResolution
 import io.putdotio.android.playback.PlaybackStartup
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.playback.SubtitleStartupPolicy
+import io.putdotio.android.playback.castMediaFor
 import io.putdotio.android.playback.toCastMedia
+import io.putdotio.sdk.files.PlaybackConversionState
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSourceKind
 import io.putdotio.sdk.files.PlaybackSubtitles
@@ -50,6 +52,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -253,6 +256,38 @@ class MobileCastPlaybackTest {
         }
     }
 
+    @Test
+    fun aStreamedOriginalVideoWaitsForItsConversionInsteadOfReachingTheReceiver() {
+        val repository = UnconvertedMkv()
+        val original = PlaybackController(Mkv, repository, scope)
+        compose.setContent {
+            val state by original.state.collectAsState()
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = state,
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    onOriginalRejected = { reason, positionMillis ->
+                        original.dispatch(PlaybackEvent.OriginalRejected(reason, positionMillis))
+                    },
+                    playerFactory = MobilePlayerFactory { _, _ -> error("Casting plays nothing on the phone") },
+                    cast = cast,
+                    castMedia = { source, key -> repository.castMediaFor(Mkv, source, key) },
+                )
+            }
+        }
+
+        compose.runOnIdle {
+            assertTrue(original.state.value.content is PlaybackContent.Conversion)
+            assertEquals(false, repository.resolved.first())
+            assertTrue(repository.resolved.drop(1).isNotEmpty() && repository.resolved.drop(1).all { it })
+            assertEquals(listOf(true), repository.conversions)
+            assertTrue(gateway.loads.isEmpty())
+        }
+        original.close()
+    }
+
     private fun ReceiverGateway.report(fileId: Long, state: CastRemoteState) {
         compose.runOnIdle {
             status.value = CastRemoteStatus(
@@ -304,7 +339,10 @@ class MobileCastPlaybackTest {
 
     /** Two episodes in one folder: the first one's next is the second, which is the last. */
     private object Episodes : PlaybackRepository {
-        override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> =
+        override suspend fun resolve(
+            target: PlaybackTarget,
+            convertedOnly: Boolean,
+        ): PlaybackRepositoryResult<PlaybackResolution> =
             PlaybackRepositoryResult.Success(PlaybackResolution.Ready(source(target.fileId.value)))
 
         override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult =
@@ -313,7 +351,10 @@ class MobileCastPlaybackTest {
 
     /** An episode put.io streams as HLS, whose playlist carries its subtitles. */
     private object HlsEpisode : PlaybackRepository {
-        override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> =
+        override suspend fun resolve(
+            target: PlaybackTarget,
+            convertedOnly: Boolean,
+        ): PlaybackRepositoryResult<PlaybackResolution> =
             PlaybackRepositoryResult.Success(
                 PlaybackResolution.Ready(
                     PlaybackSource(
@@ -327,6 +368,35 @@ class MobileCastPlaybackTest {
                     ),
                 ),
             )
+
+        override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult = PlaybackNextResult.Ended
+    }
+
+    private class UnconvertedMkv : PlaybackRepository {
+        val resolved = mutableListOf<Boolean>()
+        val conversions = mutableListOf<Boolean>()
+
+        override suspend fun resolve(
+            target: PlaybackTarget,
+            convertedOnly: Boolean,
+        ): PlaybackRepositoryResult<PlaybackResolution> {
+            resolved += convertedOnly
+            return PlaybackRepositoryResult.Success(
+                if (convertedOnly) {
+                    PlaybackResolution.Conversion(PlaybackConversionState.NotAvailable)
+                } else {
+                    PlaybackResolution.Ready(source(target.fileId.value).copy(kind = PlaybackSourceKind.ORIGINAL))
+                },
+            )
+        }
+
+        override suspend fun startConversion(
+            target: PlaybackTarget,
+            convertedOnly: Boolean,
+        ): PlaybackRepositoryResult<PlaybackResolution> {
+            conversions += convertedOnly
+            return PlaybackRepositoryResult.Success(PlaybackResolution.Conversion(PlaybackConversionState.Queued))
+        }
 
         override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult = PlaybackNextResult.Ended
     }
@@ -348,6 +418,7 @@ class MobileCastPlaybackTest {
         const val TOKEN = "download-token"
         val Episode1 = PlaybackTarget(FilesItemId(1L), "Show S01E01.mp4")
         val Episode2 = PlaybackTarget(FilesItemId(2L), "Show S01E02.mp4")
+        val Mkv = PlaybackTarget(FilesItemId(3L), "Show S01E03.mkv")
 
         fun episode(fileId: Long) = listOf(Episode1, Episode2).single { it.fileId.value == fileId }
 

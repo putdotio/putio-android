@@ -50,7 +50,10 @@ class TvPlayerConversionTest {
         val controller = PlaybackController(
             PlaybackTarget(FilesItemId(9), "Sintel.mp4", PlaybackMediaType.VIDEO),
             object : PlaybackRepository {
-                override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> {
+                override suspend fun resolve(
+                    target: PlaybackTarget,
+                    convertedOnly: Boolean,
+                ): PlaybackRepositoryResult<PlaybackResolution> {
                     resolutions += 1
                     return PlaybackRepositoryResult.Success(answers.removeFirst())
                 }
@@ -95,7 +98,10 @@ class TvPlayerConversionTest {
         val controller = PlaybackController(
             PlaybackTarget(FilesItemId(9), "Sintel.mp4", PlaybackMediaType.VIDEO),
             object : PlaybackRepository {
-                override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> {
+                override suspend fun resolve(
+                    target: PlaybackTarget,
+                    convertedOnly: Boolean,
+                ): PlaybackRepositoryResult<PlaybackResolution> {
                     resolutions += 1
                     return PlaybackRepositoryResult.Success(answers.removeFirst())
                 }

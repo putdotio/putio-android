@@ -133,6 +133,7 @@ class MobilePlaybackViewModelTest {
 
         override suspend fun resolve(
             target: PlaybackTarget,
+            convertedOnly: Boolean,
         ): PlaybackRepositoryResult<PlaybackResolution> {
             resolvedTargets += target
             return PlaybackRepositoryResult.Success(

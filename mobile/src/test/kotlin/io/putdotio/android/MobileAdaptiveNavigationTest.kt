@@ -365,7 +365,10 @@ private fun navigationFiles(nested: Boolean): FilesBrowserState {
 }
 
 private object NoNavigationPlayback : PlaybackRepository {
-    override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> =
+    override suspend fun resolve(
+        target: PlaybackTarget,
+        convertedOnly: Boolean,
+    ): PlaybackRepositoryResult<PlaybackResolution> =
         error("Navigation must not resolve playback")
 
     override suspend fun findNextVideo(target: PlaybackTarget) = PlaybackNextResult.Ended

@@ -11,6 +11,7 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
+import androidx.media3.common.Tracks
 import androidx.media3.common.Player
 import androidx.media3.common.SimpleBasePlayer
 import androidx.media3.common.util.UnstableApi
@@ -217,13 +218,24 @@ internal class FakePlayer : SimpleBasePlayer(Looper.getMainLooper()) {
         invalidateState()
     }
 
-    fun fail(positionMillis: Long) {
+    fun fail(positionMillis: Long, errorCode: Int = PlaybackException.ERROR_CODE_IO_UNSPECIFIED) {
         state = state.buildUpon()
             .setContentPositionMs(positionMillis)
-            .setPlayerError(PlaybackException("Playback failed", null, PlaybackException.ERROR_CODE_IO_UNSPECIFIED))
+            .setPlayerError(PlaybackException("Playback failed", null, errorCode))
             .setPlaybackState(STATE_IDLE)
             .build()
         invalidateState()
+    }
+
+    fun showTracks(tracks: Tracks) {
+        state = state.buildUpon().setPlaylist(state.playlist.map { it.buildUpon().setTracks(tracks).build() }).build()
+        invalidateState()
+    }
+
+    fun renderFirstFrame() {
+        state = state.buildUpon().setNewlyRenderedFirstFrame(true).build()
+        invalidateState()
+        state = state.buildUpon().setNewlyRenderedFirstFrame(false).build()
     }
 
     private companion object {

@@ -130,11 +130,12 @@ private val CAST = AnalyticsEvent.Player.Chromecast
 
 private fun MediaItem.fileId(): Long? = mediaId.toLongOrNull()
 
-private fun MediaItem?.playback(): AnalyticsEvent.Playback {
-    val extras = this?.mediaMetadata?.extras
-    val kind = extras?.getString(SOURCE_KIND_KEY)?.let { name -> PlaybackSourceKind.entries.find { it.name == name } }
-    return playback(PlaybackMediaType.AUDIO, kind, extras?.getBoolean(OFFLINE_KEY) == true, LOCAL)
-}
+internal fun MediaItem?.sourceKind(): PlaybackSourceKind? =
+    this?.mediaMetadata?.extras?.getString(SOURCE_KIND_KEY)
+        ?.let { name -> PlaybackSourceKind.entries.find { it.name == name } }
+
+private fun MediaItem?.playback(): AnalyticsEvent.Playback =
+    playback(PlaybackMediaType.AUDIO, sourceKind(), this?.mediaMetadata?.extras?.getBoolean(OFFLINE_KEY) == true, LOCAL)
 
 private fun PlaybackState.playback(player: AnalyticsEvent.Player): AnalyticsEvent.Playback =
     playback(target.mediaType, content as? PlaybackContent.Ready, player)

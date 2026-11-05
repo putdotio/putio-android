@@ -175,7 +175,9 @@ private fun TvSignedInApp(
             streamUrls = SdkFilesStreamUrls(runtime.putioClient),
             filesItemResolver = filesRepository,
             recentSearchStore = { scope -> AppConfigRecentSearchStore(runtime.putioClient, scope) },
-            playbackRepository = { preference -> ConvertingPlaybackRepository(runtime.putioClient, preference) },
+            playbackRepository = { preference ->
+                ConvertingPlaybackRepository(runtime.putioClient, preference) { BuildConfig.PUTIO_FORCE_ORIGINAL_VIDEO }
+            },
             writePlaybackPosition = SdkPlaybackPositionRepository(runtime.putioClient)::write,
             watchNext = runtime.watchNext::recorder,
             folderCounts = SdkFilesFolderCounts(runtime.putioClient),

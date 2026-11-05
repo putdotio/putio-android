@@ -198,7 +198,10 @@ class TvPlayerResumeTest {
         val controller = PlaybackController(
             PlaybackTarget(FilesItemId(9), "Sintel.mp4", PlaybackMediaType.VIDEO, DURATION_SECONDS.toDouble()),
             object : PlaybackRepository {
-                override suspend fun resolve(target: PlaybackTarget) = PlaybackRepositoryResult.Success(
+                override suspend fun resolve(
+                    target: PlaybackTarget,
+                    convertedOnly: Boolean,
+                ) = PlaybackRepositoryResult.Success(
                     PlaybackResolution.Ready(source(startFromSeconds = SAVED_SECONDS.toDouble()), useStartFrom = true),
                 )
 

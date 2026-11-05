@@ -522,7 +522,10 @@ class MobileCastControllerTest {
         )
 
     private object Folder : PlaybackRepository {
-        override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> =
+        override suspend fun resolve(
+            target: PlaybackTarget,
+            convertedOnly: Boolean,
+        ): PlaybackRepositoryResult<PlaybackResolution> =
             PlaybackRepositoryResult.Success(
                 PlaybackResolution.Ready(
                     PlaybackSource(

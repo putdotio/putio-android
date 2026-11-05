@@ -480,7 +480,10 @@ internal class ShellProofPlayerFactory(private val player: Player?) : MobilePlay
 }
 
 internal object NoShellProofPlayback : PlaybackRepository {
-    override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> =
+    override suspend fun resolve(
+        target: PlaybackTarget,
+        convertedOnly: Boolean,
+    ): PlaybackRepositoryResult<PlaybackResolution> =
         error("The shell proof must not resolve playback")
 
     override suspend fun findNextVideo(target: PlaybackTarget) = PlaybackNextResult.Ended

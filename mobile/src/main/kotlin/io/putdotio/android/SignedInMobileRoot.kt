@@ -303,9 +303,11 @@ private fun SignedInMobileSession(
         downloadsController,
         account.userId,
     ) {
-        val streaming = ConvertingPlaybackRepository(runtime.putioClient) {
-            appConfigController.state.value.playbackPreference()
-        }
+        val streaming = ConvertingPlaybackRepository(
+            runtime.putioClient,
+            playbackPreference = { appConfigController.state.value.playbackPreference() },
+            originalVideoPlayable = { BuildConfig.PUTIO_FORCE_ORIGINAL_VIDEO },
+        )
         downloadsController?.offlineFirstPlayback(
             MobileDownloadCache.get(appContext),
             runtime,

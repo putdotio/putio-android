@@ -24,7 +24,10 @@ class PlaybackControllerTest {
     fun resumeChoiceIsRetainedWithoutAnotherResolution() = runBlocking {
         var resolutions = 0
         val repository = object : PlaybackRepository {
-            override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> {
+            override suspend fun resolve(
+                target: PlaybackTarget,
+                convertedOnly: Boolean,
+            ): PlaybackRepositoryResult<PlaybackResolution> {
                 resolutions += 1
                 return PlaybackRepositoryResult.Success(
                     PlaybackResolution.Ready(playbackSource(target.fileId.value).copy(startFromSeconds = 12.345), true),
@@ -50,7 +53,10 @@ class PlaybackControllerTest {
     fun closingAnAttachedSessionPreventsDeferredSourceWork() = runBlocking {
         var calls = 0
         val repository = object : PlaybackRepository {
-            override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> {
+            override suspend fun resolve(
+                target: PlaybackTarget,
+                convertedOnly: Boolean,
+            ): PlaybackRepositoryResult<PlaybackResolution> {
                 calls += 1
                 return PlaybackRepositoryResult.Success(PlaybackResolution.Ready(playbackSource(target.fileId.value)))
             }
@@ -75,7 +81,10 @@ class PlaybackControllerTest {
         runBlocking {
             val calls = mutableListOf<String>()
             val repository = object : PlaybackRepository {
-                override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> {
+                override suspend fun resolve(
+                    target: PlaybackTarget,
+                    convertedOnly: Boolean,
+                ): PlaybackRepositoryResult<PlaybackResolution> {
                     val started = "start" in calls
                     val state = if (started) PlaybackConversionState.Queued else PlaybackConversionState.NotAvailable
                     calls += "resolve"
@@ -84,6 +93,7 @@ class PlaybackControllerTest {
 
                 override suspend fun startConversion(
                     target: PlaybackTarget,
+                    convertedOnly: Boolean,
                 ): PlaybackRepositoryResult<PlaybackResolution> {
                     calls += "start"
                     return PlaybackRepositoryResult.Success(
@@ -118,7 +128,10 @@ class PlaybackControllerTest {
             val started = CompletableDeferred<Unit>()
             val cancelled = CompletableDeferred<Unit>()
             val repository = object : PlaybackRepository {
-                override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> {
+                override suspend fun resolve(
+                    target: PlaybackTarget,
+                    convertedOnly: Boolean,
+                ): PlaybackRepositoryResult<PlaybackResolution> {
                     started.complete(Unit)
                     try {
                         awaitCancellation()
@@ -146,7 +159,10 @@ class PlaybackControllerTest {
             val cancelled = CompletableDeferred<Unit>()
             val parentJob = Job()
             val repository = object : PlaybackRepository {
-                override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> {
+                override suspend fun resolve(
+                    target: PlaybackTarget,
+                    convertedOnly: Boolean,
+                ): PlaybackRepositoryResult<PlaybackResolution> {
                     started.complete(Unit)
                     try {
                         awaitCancellation()
@@ -180,6 +196,7 @@ class PlaybackControllerTest {
                 object : PlaybackRepository {
                     override suspend fun resolve(
                         target: PlaybackTarget,
+                        convertedOnly: Boolean,
                     ): PlaybackRepositoryResult<PlaybackResolution> {
                         calls += "resolve:${target.fileId.value}"
                         return PlaybackRepositoryResult.Success(

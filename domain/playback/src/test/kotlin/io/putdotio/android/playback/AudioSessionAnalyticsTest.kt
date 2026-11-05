@@ -117,7 +117,10 @@ class AudioSessionAnalyticsTest {
     private fun TestScope.controller(ready: Boolean = false, failFirst: Boolean = false): PlaybackController {
         var failures = if (failFirst) 1 else 0
         val repository = object : PlaybackRepository {
-            override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> =
+            override suspend fun resolve(
+                target: PlaybackTarget,
+                convertedOnly: Boolean,
+            ): PlaybackRepositoryResult<PlaybackResolution> =
                 if (failures-- > 0) {
                     PlaybackRepositoryResult.Failure(
                         PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IOException("offline"))),

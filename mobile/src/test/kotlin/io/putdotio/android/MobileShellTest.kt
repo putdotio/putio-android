@@ -1600,7 +1600,10 @@ class MobileShellPlaybackTest {
     fun aVideoRowOpensWithItsListingDuration() {
         val targets = mutableListOf<PlaybackTarget>()
         val repository = object : PlaybackRepository by ConversionRepository {
-            override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> {
+            override suspend fun resolve(
+                target: PlaybackTarget,
+                convertedOnly: Boolean,
+            ): PlaybackRepositoryResult<PlaybackResolution> {
                 targets += target
                 return ConversionRepository.resolve(target)
             }
@@ -1972,7 +1975,10 @@ class MobileShellPlaybackTest {
     fun mediaNotificationTapOpensTheLiveAudioPlayer() {
         var resolves = 0
         val unavailableRepository = object : PlaybackRepository {
-            override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> {
+            override suspend fun resolve(
+                target: PlaybackTarget,
+                convertedOnly: Boolean,
+            ): PlaybackRepositoryResult<PlaybackResolution> {
                 resolves += 1
                 return PlaybackRepositoryResult.Failure(
                     PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IllegalStateException("offline"))),
@@ -2009,7 +2015,10 @@ class MobileShellPlaybackTest {
         val pending = MutableStateFlow(false)
         val targets = mutableListOf<PlaybackTarget>()
         val repository = object : PlaybackRepository {
-            override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> {
+            override suspend fun resolve(
+                target: PlaybackTarget,
+                convertedOnly: Boolean,
+            ): PlaybackRepositoryResult<PlaybackResolution> {
                 targets += target
                 return EndingPlaybackRepository.resolve(target)
             }
@@ -2275,6 +2284,7 @@ private val ConversionRepository =
     object : PlaybackRepository {
         override suspend fun resolve(
             target: PlaybackTarget,
+            convertedOnly: Boolean,
         ): PlaybackRepositoryResult<PlaybackResolution> =
             PlaybackRepositoryResult.Success(
                 PlaybackResolution.Conversion(PlaybackConversionState.Queued),
@@ -2286,6 +2296,7 @@ private val AuthenticationFailureRepository =
     object : PlaybackRepository {
         override suspend fun resolve(
             target: PlaybackTarget,
+            convertedOnly: Boolean,
         ): PlaybackRepositoryResult<PlaybackResolution> =
             PlaybackRepositoryResult.Failure(
                 PlaybackFailure.Putio(
@@ -2299,6 +2310,7 @@ private val VideoConvertsAudioReadyRepository =
     object : PlaybackRepository {
         override suspend fun resolve(
             target: PlaybackTarget,
+            convertedOnly: Boolean,
         ): PlaybackRepositoryResult<PlaybackResolution> =
             if (target.mediaType == PlaybackMediaType.AUDIO) {
                 EndingPlaybackRepository.resolve(target)
@@ -2312,6 +2324,7 @@ private val EndingPlaybackRepository =
     object : PlaybackRepository {
         override suspend fun resolve(
             target: PlaybackTarget,
+            convertedOnly: Boolean,
         ): PlaybackRepositoryResult<PlaybackResolution> =
             PlaybackRepositoryResult.Success(
                 PlaybackResolution.Ready(

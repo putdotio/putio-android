@@ -119,13 +119,13 @@ public class PlaybackController(
     }
 
     private suspend fun PlaybackEffect.Resolve.resolveEvent(): PlaybackEvent =
-        when (val result = repository.resolve(target)) {
+        when (val result = repository.resolve(target, convertedOnly)) {
             is PlaybackRepositoryResult.Success -> PlaybackEvent.ResolveSucceeded(requestId, result.value)
             is PlaybackRepositoryResult.Failure -> PlaybackEvent.ResolveFailed(requestId, result.failure)
         }
 
     private suspend fun PlaybackEffect.StartConversion.startConversionEvent(): PlaybackEvent =
-        when (val result = repository.startConversion(target)) {
+        when (val result = repository.startConversion(target, convertedOnly)) {
             is PlaybackRepositoryResult.Success -> PlaybackEvent.ResolveSucceeded(requestId, result.value)
             is PlaybackRepositoryResult.Failure -> PlaybackEvent.ResolveFailed(requestId, result.failure)
         }

@@ -19,6 +19,7 @@ import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackNextResult
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.playback.SubtitleStartupPolicy
+import io.putdotio.android.playback.originalFallbackTelemetry
 import io.putdotio.android.playback.playerFailureTelemetry
 import io.putdotio.android.playback.putioFailure
 import io.putdotio.android.playback.rememberFolderNeighbours
@@ -104,6 +105,12 @@ internal fun TvPlaybackRoute(
             val telemetry = controller.state.value.playerFailureTelemetry(failure)
             if (controller.dispatch(PlaybackEvent.PlayerFailed(failure, positionMillis))) {
                 PutioDiagnostics.capture(telemetry)
+            }
+        },
+        onOriginalRejected = { reason, positionMillis ->
+            val telemetry = controller.state.value.originalFallbackTelemetry(reason)
+            controller.dispatch(PlaybackEvent.OriginalRejected(reason, positionMillis)).also { consumed ->
+                if (consumed) PutioDiagnostics.capture(telemetry)
             }
         },
         onRefreshConversion = { controller.dispatch(PlaybackEvent.RefreshConversion) },
