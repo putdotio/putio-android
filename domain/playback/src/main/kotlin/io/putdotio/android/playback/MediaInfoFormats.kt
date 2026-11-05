@@ -62,6 +62,9 @@ internal object MediaInfoFormats {
         val level = stream.level?.takeIf { it > 0 }
         val profile = stream.profile?.trim()?.lowercase(Locale.ROOT)
         return when {
+            codec == VP9 -> VP9_PROFILES[profile]?.let { (number, bitDepth) ->
+                "vp09.%02d.%02d.%02d".format(Locale.ROOT, number, level ?: VP9_LOWEST_LEVEL, bitDepth)
+            }
             level == null || profile == null -> null
             codec == H264 -> AVC_PROFILES[profile]?.let { "avc1.${it}00%02x".format(Locale.ROOT, level) }
             codec == HEVC -> HEVC_PROFILES[profile]?.let { "hvc1.$it.L$level.B0" }
@@ -84,6 +87,8 @@ internal object MediaInfoFormats {
     private const val H264 = "h264"
     private const val HEVC = "hevc"
     private const val AV1 = "av1"
+    private const val VP9 = "vp9"
+    private const val VP9_LOWEST_LEVEL = 10
     private const val DTS = "dts"
 
     private val PLAYABLE_CONTAINERS = setOf(
@@ -99,7 +104,7 @@ internal object MediaInfoFormats {
         HEVC to MimeTypes.VIDEO_H265,
         AV1 to MimeTypes.VIDEO_AV1,
         "vp8" to MimeTypes.VIDEO_VP8,
-        "vp9" to MimeTypes.VIDEO_VP9,
+        VP9 to MimeTypes.VIDEO_VP9,
         "mpeg4" to MimeTypes.VIDEO_MP4V,
         "mpeg2video" to MimeTypes.VIDEO_MPEG2,
         "h263" to MimeTypes.VIDEO_H263,
@@ -143,6 +148,13 @@ internal object MediaInfoFormats {
         "main 10" to "2.4",
         "main still picture" to "3.8",
         "rext" to "4.10",
+    )
+
+    private val VP9_PROFILES = mapOf(
+        "profile 0" to (0 to 8),
+        "profile 1" to (1 to 8),
+        "profile 2" to (2 to 10),
+        "profile 3" to (3 to 10),
     )
 
     private val AV1_PROFILES = mapOf(

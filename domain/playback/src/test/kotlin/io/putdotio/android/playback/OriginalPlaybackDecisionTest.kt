@@ -88,6 +88,18 @@ class OriginalPlaybackDecisionTest {
     }
 
     @Test
+    fun anInventoryThatRejectsVp9Profile2PicksConverted() {
+        val rejectsProfile2 = FakeDecoderInventory(PHONE) { format ->
+            format.sampleMimeType == MimeTypes.VIDEO_VP9 &&
+                MediaCodecUtil.getCodecProfileAndLevel(format)?.first == CodecProfileLevel.VP9Profile2
+        }
+        val decision = OriginalPlaybackDecision(rejectsProfile2)
+
+        assertEquals(VideoUnsupported, decision.reason(mediaInfo(video("vp9", profile = "Profile 2"), audio("opus"))))
+        assertNull(decision.reason(mediaInfo(video("vp9", profile = "Profile 0"), audio("opus"))))
+    }
+
+    @Test
     fun oneDecodableOrPassedThroughAudioStreamIsEnough() {
         val tv = FakeDecoderInventory(PHONE + MimeTypes.AUDIO_E_AC3)
         val decision = OriginalPlaybackDecision(tv)
