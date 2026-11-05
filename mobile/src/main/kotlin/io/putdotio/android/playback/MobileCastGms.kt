@@ -24,7 +24,9 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.BackgroundExecutor
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.CommandButton
+import androidx.media3.session.MediaSession
 import androidx.media3.session.SessionCommand
+import androidx.media3.session.SessionResult
 import androidx.mediarouter.media.MediaRouteSelector
 import androidx.mediarouter.media.MediaRouter
 import com.google.android.gms.cast.CastDevice as GmsCastDevice
@@ -52,6 +54,8 @@ import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
 import com.google.android.gms.common.images.WebImage
 import com.google.android.gms.tasks.Task
+import com.google.common.util.concurrent.Futures
+import com.google.common.util.concurrent.ListenableFuture
 import io.putdotio.android.MobilePlaybackService
 import io.putdotio.android.R
 import java.io.Closeable
@@ -262,6 +266,34 @@ internal class CastStopControl(context: Context, private val stop: () -> Unit) {
     private companion object {
         const val ACTION_STOP_CASTING = "io.putdotio.android.action.STOP_CASTING"
     }
+}
+
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+internal class CastStopCallback(private val castStop: CastStopControl) : MediaSession.Callback {
+    override fun onConnectAsync(
+        session: MediaSession,
+        controller: MediaSession.ControllerInfo,
+    ): ListenableFuture<MediaSession.ConnectionResult> {
+        val defaults = MediaSession.ConnectionResult.AcceptedResultBuilder(session, controller).build()
+        val commands = defaults.availableSessionCommands.buildUpon().add(castStop.command).build()
+        return Futures.immediateFuture(
+            MediaSession.ConnectionResult.AcceptedResultBuilder(session, controller)
+                .setAvailableSessionCommands(commands)
+                .build(),
+        )
+    }
+
+    override fun onCustomCommand(
+        session: MediaSession,
+        controller: MediaSession.ControllerInfo,
+        customCommand: SessionCommand,
+        args: Bundle,
+    ): ListenableFuture<SessionResult> =
+        if (castStop.handle(customCommand)) {
+            Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+        } else {
+            super.onCustomCommand(session, controller, customCommand, args)
+        }
 }
 
 @UnstableApi

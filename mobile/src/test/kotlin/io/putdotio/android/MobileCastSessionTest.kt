@@ -11,6 +11,8 @@ import androidx.media3.common.Player
 import androidx.media3.common.SimpleBasePlayer
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.CommandButton
+import androidx.media3.session.MediaController
+import androidx.media3.session.MediaSession
 import androidx.media3.session.SessionCommand
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -22,6 +24,7 @@ import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.playback.CastAvailability
 import io.putdotio.android.playback.CastHandover
 import io.putdotio.android.playback.CastSignOutEnd
+import io.putdotio.android.playback.CastStopCallback
 import io.putdotio.android.playback.CastStopControl
 import io.putdotio.android.playback.CastTransfer
 import io.putdotio.android.playback.GmsCastGateway
@@ -168,6 +171,26 @@ class MobileCastSessionTest {
         assertEquals(emptyList<CommandButton>(), control.buttons(DeviceInfo.UNKNOWN))
         assertFalse(control.handle(SessionCommand("another", Bundle.EMPTY)))
         assertEquals(1, stops)
+    }
+
+    @Test
+    fun theNotificationControllerSeesTheReceiverPlayAndCanStopCasting() {
+        val control = CastStopControl(app) {}
+        val receiver = FakePlayer(DeviceInfo.PLAYBACK_TYPE_REMOTE, AudioItem)
+        val session = MediaSession.Builder(app, receiver).setCallback(CastStopCallback(control)).build()
+        try {
+            val pending = MediaController.Builder(app, session.token).buildAsync()
+            shadowOf(Looper.getMainLooper()).idle()
+            val controller = pending.get()
+
+            assertFalse(controller.currentTimeline.isEmpty)
+            assertEquals(Player.STATE_READY, controller.playbackState)
+            assertTrue(controller.isCommandAvailable(Player.COMMAND_PLAY_PAUSE))
+            assertTrue(controller.isSessionCommandAvailable(control.command))
+            controller.release()
+        } finally {
+            session.release()
+        }
     }
 
     @Test
