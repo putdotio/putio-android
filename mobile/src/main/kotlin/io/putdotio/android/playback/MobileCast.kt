@@ -17,6 +17,7 @@ import io.putdotio.sdk.files.PlaybackSubtitles
 import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -44,7 +45,7 @@ internal sealed interface CastAvailability {
 
     data class Connecting(val deviceName: String?) : CastAvailability
 
-    data class Connected(val deviceName: String, val sessionId: String? = null) : CastAvailability
+    data class Connected(val deviceName: String) : CastAvailability
 }
 
 internal val CastAvailability.showsButton: Boolean
@@ -269,7 +270,7 @@ internal class MobileCastController(
 
     private var sending: Long? = null
 
-    private var claimedIn: CastAvailability? = null
+    private var transferring: Long? = null
 
     val awaitsReceiver: Boolean get() = sending != null
 
@@ -309,7 +310,7 @@ internal class MobileCastController(
      * instead of loading. Media that finished or failed there is sent again.
      */
     fun holds(fileId: Long): Boolean =
-        sending == fileId || gateway.status.value?.let { it.fileId == fileId && it.state in LIVE_STATES } == true
+        sending == fileId || transferring == fileId || gateway.status.value?.takeIf { it.fileId == fileId }.live
 
     /**
      * Sends [media] to the receiver from where local playback stood, unless the receiver already
@@ -318,7 +319,6 @@ internal class MobileCastController(
      */
     fun cast(media: PlaybackCastMedia, item: MediaItem, local: CastHandover, chosen: Boolean = true): Boolean {
         if (gateway.availability.value !is CastAvailability.Connected || ending) return false
-        claimedIn = gateway.availability.value
         remotePlayer.adopt(item)
         val loads = !holds(media.fileId)
         sentMedia = media
@@ -335,24 +335,32 @@ internal class MobileCastController(
     fun castFromSession(item: MediaItem, handover: CastHandover, local: Player, playerScope: CoroutineScope) {
         val fileId = item.mediaId.toLongOrNull() ?: return
         handovers[fileId] = handover
+        transferring = fileId
         val loads = loadsSent
+        val overtaken = { loadsSent != loads || fileId !in handovers }
         val target = PlaybackTarget(
             FilesItemId(fileId),
             item.mediaMetadata.title?.toString().orEmpty(),
             PlaybackMediaType.AUDIO,
         )
         playerScope.launch {
-            val account = autoplay.account
-            val session = withTimeoutOrNull(SESSION_CONNECT_WAIT_MILLIS) {
-                gateway.availability.first { it is CastAvailability.Connected }
+            val prepared = try {
+                withTimeoutOrNull(SESSION_CONNECT_WAIT_MILLIS) {
+                    gateway.availability.first { it is CastAvailability.Connected }
+                }?.let { autoplay.account?.prepare(target) }
+            } finally {
+                if (transferring == fileId) transferring = null
             }
-            val prepared = if (account != null && session != null) account.prepare(target) else null
-            if (loadsSent != loads || fileId !in handovers) return@launch
-            if (prepared != null && cast(prepared.media, item, handover)) return@launch
-            if (holds(fileId)) return@launch attach(item, prepared?.media)
-            val stops = session != null && claimedIn != session && gateway.availability.value == session
-            if (!gateway.castingEnded(stops) || local.mediaItemCount > 0) return@launch
-            handovers.remove(fileId)?.let { local.playFrom(item, it) }
+            if (overtaken()) return@launch
+            if (prepared != null && (cast(prepared.media, item, handover) || holds(fileId))) {
+                handovers.remove(fileId)
+                return@launch
+            }
+            delay(STATUS_WAIT_MILLIS)
+            if (overtaken()) return@launch
+            handovers.remove(fileId)
+            if (awaitsReceiver || gateway.status.value.live) return@launch
+            if (gateway.endCasting() && local.mediaItemCount == 0) local.playFrom(item, handover)
         }
     }
 
@@ -362,7 +370,6 @@ internal class MobileCastController(
      */
     fun attach(item: MediaItem, media: PlaybackCastMedia? = null) {
         if (ending) return
-        claimedIn = gateway.availability.value
         remotePlayer.adopt(item)
         if (media != null) sentMedia = media
     }
@@ -449,9 +456,8 @@ internal fun MobileCastController.resumeHere(local: Player, scope: CoroutineScop
     }
 }
 
-private suspend fun CastGateway.castingEnded(stop: Boolean): Boolean {
-    if (!stop) return !availability.value.casting
-    stopCasting()
+private suspend fun CastGateway.endCasting(): Boolean {
+    if (availability.value.casting) stopCasting()
     return withTimeoutOrNull(MOVE_HERE_WAIT_MILLIS) { availability.first { !it.casting } } != null
 }
 
@@ -472,8 +478,13 @@ internal fun Player.releaseOnceCastEnds(availability: StateFlow<CastAvailability
 
 internal const val MOVE_HERE_WAIT_MILLIS = 10_000L
 
+private const val STATUS_WAIT_MILLIS = 5_000L
+
 /** Receiver states with the file still playable there. */
 private val LIVE_STATES = setOf(CastRemoteState.Buffering, CastRemoteState.Playing, CastRemoteState.Paused)
+
+private val CastRemoteStatus?.live: Boolean
+    get() = this?.state in LIVE_STATES
 
 /**
  * The subtitle the receiver shows first, by the same rules as the local player: none when the
@@ -675,6 +686,5 @@ internal class CastRemotePlayer(
 
     private companion object {
         const val MICROS_PER_MILLI = 1_000L
-        const val STATUS_WAIT_MILLIS = 5_000L
     }
 }

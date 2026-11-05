@@ -1927,6 +1927,7 @@ class MobilePlayerAudioTest {
         compose.runOnIdle {
             player.updatePlaybackState(Media3Player.STATE_READY)
             assertTrue(player.playWhenReady)
+            assertEquals("put.io", player.currentMediaItem?.mediaMetadata?.artist)
         }
         compose.mainClock.advanceTimeBy(5_000L)
         compose.mainClock.advanceTimeByFrame()
