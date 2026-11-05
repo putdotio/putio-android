@@ -272,6 +272,8 @@ internal class MobileCastController(
 
     private var transferring: Long? = null
 
+    private var signOuts = 0
+
     val awaitsReceiver: Boolean get() = sending != null
 
     private val mutableFinished = MutableSharedFlow<Long>(
@@ -337,6 +339,7 @@ internal class MobileCastController(
         handovers[fileId] = handover
         transferring = fileId
         val loads = loadsSent
+        val exits = signOuts
         val overtaken = { loadsSent != loads || fileId !in handovers }
         val target = PlaybackTarget(
             FilesItemId(fileId),
@@ -360,7 +363,7 @@ internal class MobileCastController(
             if (overtaken()) return@launch
             handovers.remove(fileId)
             if (awaitsReceiver || gateway.status.value.live) return@launch
-            if (gateway.endCasting() && local.mediaItemCount == 0) local.playFrom(item, handover)
+            gateway.endThenPlayHere(local, item, handover) { signOuts != exits }
         }
     }
 
@@ -390,6 +393,7 @@ internal class MobileCastController(
 
     /** Signing out ends the session: the receiver holds the account's download token. */
     fun end() {
+        signOuts++
         // Nothing goes to the departing session while it winds down.
         ending = gateway.availability.value.let {
             it is CastAvailability.Connected || it is CastAvailability.Connecting
@@ -459,6 +463,15 @@ internal fun MobileCastController.resumeHere(local: Player, scope: CoroutineScop
 private suspend fun CastGateway.endCasting(): Boolean {
     if (availability.value.casting) stopCasting()
     return withTimeoutOrNull(MOVE_HERE_WAIT_MILLIS) { availability.first { !it.casting } } != null
+}
+
+private suspend fun CastGateway.endThenPlayHere(
+    local: Player,
+    item: MediaItem,
+    handover: CastHandover,
+    signedOut: () -> Boolean,
+) {
+    if (endCasting() && !signedOut() && local.mediaItemCount == 0) local.playFrom(item, handover)
 }
 
 private fun Player.playFrom(item: MediaItem, handover: CastHandover) {

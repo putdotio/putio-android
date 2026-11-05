@@ -16,7 +16,6 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -83,15 +82,12 @@ class TvExternalOpenProofTest {
         compose.onNodeWithContentDescription("Search files").assertIsFocused().performTextInput("proof")
         compose.waitUntil(5_000) { hasContentDescription("Play $VIDEO") }
 
-        // A video result plays at once, after the resume prompt.
+        // A video result plays at once from its saved position, without asking.
         focus("Play $VIDEO")
         screenshot("02-search-results")
         press(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.waitUntil(10_000) { compose.onAllNodesWithText(CONTINUE_LABEL).fetchSemanticsNodes().isNotEmpty() }
-        compose.onNodeWithText(CONTINUE_LABEL).assertIsFocused()
-        screenshot("03-resume-prompt")
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(10_000) { compose.onAllNodesWithTag(TV_PLAYER_TAG).fetchSemanticsNodes().isNotEmpty() }
+        assertEquals(0, compose.onAllNodesWithText(RESUME_PREFIX, substring = true).fetchSemanticsNodes().size)
         Thread.sleep(PLAY_MILLIS)
         screenshot("04-playing")
         // Back hides the controls, then leaves playback.
@@ -230,7 +226,7 @@ class TvExternalOpenProofTest {
         val movies = proofItem(MOVIES_ID, "Movies", PutioFileType.FOLDER, FilesFolder.Root.id)
         val folder = proofItem(FOLDER_ID, FOLDER, PutioFileType.FOLDER, FilesFolder.Root.id)
         val video = proofItem(VIDEO_ID, VIDEO, PutioFileType.VIDEO, folder.id)
-        val document = proofItem(DOCUMENT_ID, DOCUMENT, PutioFileType.PDF, folder.id)
+        val document = proofItem(DOCUMENT_ID, DOCUMENT, PutioFileType.FILE, folder.id)
         val listings = mapOf(
             FilesFolder.Root.id to FilesPage(listOf(movies, folder), null),
             movies.id to FilesPage(
@@ -263,7 +259,7 @@ class TvExternalOpenProofTest {
      */
     private fun pagedDependencies(): TvSessionDependencies {
         val folder = proofItem(PAGED_FOLDER_ID, PAGED_FOLDER, PutioFileType.FOLDER, FilesFolder.Root.id)
-        val document = proofItem(PAGED_DOCUMENT_ID, PAGED_DOCUMENT, PutioFileType.PDF, folder.id)
+        val document = proofItem(PAGED_DOCUMENT_ID, PAGED_DOCUMENT, PutioFileType.FILE, folder.id)
         val scans = (1 until PAGE_COUNT * PAGE_SIZE).map {
             proofItem(200L + it, "Scan $it.jpg", PutioFileType.IMAGE, folder.id)
         }
@@ -355,18 +351,18 @@ class TvExternalOpenProofTest {
         const val DOCUMENT_ID = 9_350_002L
         const val FOLDER = "Documents"
         const val VIDEO = "TV open proof.mp4"
-        const val DOCUMENT = "notes.pdf"
+        const val DOCUMENT = "notes.zip"
         const val FIRST_SCAN = "Scan 1.jpg"
         const val SEARCH_FIELD = "Search files"
         const val NO_HISTORY = "No activity yet."
         const val HISTORY = "History"
         const val ACCOUNT_ENTRY = "Library"
         const val SAVED_SECONDS = 45.0
-        const val CONTINUE_LABEL = "Continue playing from 00:45"
+        const val RESUME_PREFIX = "Resume from"
         const val PAGED_FOLDER_ID = 45L
         const val PAGED_FOLDER = "Sample folder"
         const val PAGED_DOCUMENT_ID = 9_350_003L
-        const val PAGED_DOCUMENT = "Harbor notes.pdf"
+        const val PAGED_DOCUMENT = "Harbor notes.zip"
         const val PAGE_COUNT = 3
         const val PAGE_SIZE = 50
         // The third page's 13th row.

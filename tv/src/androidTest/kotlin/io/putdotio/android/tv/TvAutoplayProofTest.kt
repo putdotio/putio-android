@@ -115,11 +115,11 @@ class TvAutoplayProofTest {
 
         // The first video plays to its end; the next in the folder has a saved position, so it asks.
         compose.waitUntil(FIXTURE_MILLIS * 3) {
-            compose.onAllNodesWithText(SECOND_CONTINUE_LABEL).fetchSemanticsNodes().isNotEmpty()
+            compose.onAllNodesWithText(SECOND_RESUME_TITLE).fetchSemanticsNodes().isNotEmpty()
         }
         assertNotNull("Autoplay stays in playback", compose.runOnIdle { session.playback.value })
         compose.onNodeWithText(SECOND).assertExists()
-        compose.onNodeWithText(SECOND_CONTINUE_LABEL).assertIsFocused()
+        compose.onNodeWithText(RESUME).assertIsFocused()
         assertEquals(listOf(FIRST_ID), lookups.toList())
         val firstEnd = writes.toList().last { it.first == FIRST_ID }.second
         assertTrue("The finished video's end is written: $firstEnd s", firstEnd >= FIXTURE_SECONDS - 1.0)
@@ -137,13 +137,10 @@ class TvAutoplayProofTest {
         compose.waitUntil(10_000) { isFocused("Play $SECOND") }
         screenshot("05-back-on-the-autoplayed-row")
 
-        // The folder's last video leaves playback when it ends, back on its row.
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.waitUntil(10_000) {
-            compose.onAllNodesWithText(RESUME_PREFIX, substring = true).fetchSemanticsNodes().isNotEmpty()
-        }
+        // The folder's last video resumes without asking and leaves playback when it ends, back on its row.
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(10_000) { compose.onAllNodesWithTag(TV_PLAYER_TAG).fetchSemanticsNodes().isNotEmpty() }
+        assertEquals(0, compose.onAllNodesWithText(RESUME_PREFIX, substring = true).fetchSemanticsNodes().size)
         Thread.sleep(PLAY_MILLIS)
         screenshot("06-last-playing")
         compose.waitUntil(FIXTURE_MILLIS * 3) { compose.runOnIdle { session.playback.value == null } }
@@ -357,8 +354,9 @@ class TvAutoplayProofTest {
         const val FIXTURE_SECONDS = 30.0
         const val FIXTURE_MILLIS = 30_000L
         const val SECOND_SAVED_SECONDS = 5.0
-        const val SECOND_CONTINUE_LABEL = "Continue playing from 00:05"
-        const val RESUME_PREFIX = "Continue playing from"
+        const val SECOND_RESUME_TITLE = "Resume from 0:05?"
+        const val RESUME = "Resume"
+        const val RESUME_PREFIX = "Resume from"
         const val STEP_MILLIS = 400L
         const val PLAY_MILLIS = 2_000L
     }
