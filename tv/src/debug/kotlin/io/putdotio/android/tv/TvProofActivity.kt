@@ -1,5 +1,5 @@
 package io.putdotio.android.tv
 
-import io.putdotio.android.BasePutioActivity
+import io.putdotio.android.TvActivity
 
-internal class TvProofActivity : BasePutioActivity()
+internal class TvProofActivity : TvActivity()

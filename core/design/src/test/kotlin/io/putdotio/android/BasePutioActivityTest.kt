@@ -30,6 +30,10 @@ class BasePutioActivityTest {
         }
     }
 
+    private class LowerCapActivity : BasePutioActivity() {
+        override val maxFontScale: Float get() = 1.15f
+    }
+
     private var previousFontScale = 1f
 
     @Before
@@ -53,6 +57,18 @@ class BasePutioActivityTest {
         assertEquals(0.85f, fontScaleAt(0.85f))
         assertEquals(1.15f, fontScaleAt(1.15f))
         assertEquals(1.3f, fontScaleAt(1.3f))
+    }
+
+    @Test
+    fun anActivityCanLowerTheCap() {
+        RuntimeEnvironment.setFontScale(2f)
+        val controller = Robolectric.buildActivity(LowerCapActivity::class.java).setup()
+        assertEquals(1.15f, controller.get().resources.configuration.fontScale)
+        controller.destroy()
+        RuntimeEnvironment.setFontScale(1.1f)
+        val below = Robolectric.buildActivity(LowerCapActivity::class.java).setup()
+        assertEquals(1.1f, below.get().resources.configuration.fontScale)
+        below.destroy()
     }
 
     @Test
