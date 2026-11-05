@@ -25,11 +25,11 @@
 Sign in with your put.io account to browse, search, and stream your files.
 
 - **Mobile:** Files, Search, History, Transfers, Trash, and Account; offline
-  Downloads; video and audio playback with Cast; a widget, shortcuts, and the
-  system file picker.
+  Downloads; video and audio playback with Cast, original files where the
+  device decodes them; a widget, shortcuts, and the system file picker.
 - **TV:** device-code sign-in, Home, Files, Search, History, Trash, and
-  Account; full-screen playback; the launcher's Play Next row and system
-  search.
+  Account; full-screen playback, original files where the device decodes
+  them; the launcher's Play Next row and system search.
 
 Crash reports stay on unless Diagnostics is off. Product analytics run only
 once the account turns them on.

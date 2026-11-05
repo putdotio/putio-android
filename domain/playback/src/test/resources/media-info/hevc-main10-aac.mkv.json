@@ -1,0 +1,26 @@
+{
+  "format": {
+    "bit_rate": 3304117,
+    "duration": 1207.785,
+    "name": "matroska"
+  },
+  "mime_type": "video/x-matroska",
+  "playback_issues": [],
+  "streams": [
+    {
+      "codec_name": "hevc",
+      "codec_type": "video",
+      "height": 1080,
+      "level": 120,
+      "profile": "Main 10",
+      "rfc6381_codec": null,
+      "width": 1920
+    },
+    {
+      "channels": 2,
+      "codec_name": "aac",
+      "codec_type": "audio",
+      "rfc6381_codec": null
+    }
+  ]
+}

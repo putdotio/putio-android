@@ -27,6 +27,7 @@ dependencies {
     implementation(libs.putio.sdk.kotlin)
     implementation(libs.kotlinx.coroutines.android)
     testFixturesImplementation(project(":core:common"))
+    testFixturesImplementation(libs.androidx.media3.common)
     testImplementation(testFixtures(project(":core:common")))
     testImplementation(testFixtures(project(":domain:account")))
 }

@@ -1,0 +1,26 @@
+{
+  "format": {
+    "bit_rate": 418180,
+    "duration": 1212.995,
+    "name": "asf"
+  },
+  "mime_type": "video/x-ms-asf",
+  "playback_issues": [],
+  "streams": [
+    {
+      "channels": 2,
+      "codec_name": "wmav2",
+      "codec_type": "audio",
+      "rfc6381_codec": null
+    },
+    {
+      "codec_name": "wmv3",
+      "codec_type": "video",
+      "height": 240,
+      "level": -99,
+      "profile": "Main",
+      "rfc6381_codec": null,
+      "width": 320
+    }
+  ]
+}

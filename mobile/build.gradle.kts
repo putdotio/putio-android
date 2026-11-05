@@ -18,8 +18,12 @@ fun localMobileOAuthClientIdOverride(): String {
     return value
 }
 
-fun forceOriginalVideo(): String =
-    (providers.gradleProperty("putioForceOriginalVideo").orNull == "true").toString()
+fun originalVideoPolicy(): String =
+    when {
+        providers.gradleProperty("putioForceOriginalVideo").orNull == "true" -> "Always"
+        providers.gradleProperty("putioCheckOriginalVideo").orNull == "true" -> "Check"
+        else -> "Never"
+    }
 
 plugins {
     id("putio.android.application")
@@ -39,7 +43,7 @@ android {
         // build type overrides this empty default with the local value and the
         // runtime honours it only when BuildConfig.DEBUG is true.
         buildConfigField("String", "PUTIO_MOBILE_OAUTH_CLIENT_ID_DEBUG_OVERRIDE", "\"\"")
-        buildConfigField("boolean", "PUTIO_FORCE_ORIGINAL_VIDEO", "false")
+        buildConfigField("String", "PUTIO_ORIGINAL_VIDEO", "\"Never\"")
     }
 
     buildTypes {
@@ -51,7 +55,7 @@ android {
                 "PUTIO_MOBILE_OAUTH_CLIENT_ID_DEBUG_OVERRIDE",
                 "\"${localMobileOAuthClientIdOverride()}\"",
             )
-            buildConfigField("boolean", "PUTIO_FORCE_ORIGINAL_VIDEO", forceOriginalVideo())
+            buildConfigField("String", "PUTIO_ORIGINAL_VIDEO", "\"${originalVideoPolicy()}\"")
         }
     }
 

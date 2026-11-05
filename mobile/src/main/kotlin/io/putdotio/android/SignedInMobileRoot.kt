@@ -48,6 +48,8 @@ import io.putdotio.android.history.HistoryEvent
 import io.putdotio.android.history.SdkHistoryRepository
 import io.putdotio.android.history.authoritativeSessionFailure
 import io.putdotio.android.playback.ConvertingPlaybackRepository
+import io.putdotio.android.playback.MediaCodecDecoderInventory
+import io.putdotio.android.playback.OriginalVideoPolicy
 import io.putdotio.android.playback.DefaultMobilePlayerFactory
 import io.putdotio.android.playback.MobileCast
 import io.putdotio.android.playback.MobilePlayerFactory
@@ -306,7 +308,8 @@ private fun SignedInMobileSession(
         val streaming = ConvertingPlaybackRepository(
             runtime.putioClient,
             playbackPreference = { appConfigController.state.value.playbackPreference() },
-            originalVideoPlayable = { BuildConfig.PUTIO_FORCE_ORIGINAL_VIDEO },
+            originalVideoPolicy = { OriginalVideoPolicy.valueOf(BuildConfig.PUTIO_ORIGINAL_VIDEO) },
+            decoders = MediaCodecDecoderInventory(appContext),
         )
         downloadsController?.offlineFirstPlayback(
             MobileDownloadCache.get(appContext),
