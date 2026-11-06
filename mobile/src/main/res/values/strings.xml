@@ -244,6 +244,11 @@
     <string name="mobile_settings_about_privacy_note">Nothing here identifies you or your files. Paste it into a support ticket.</string>
     <string name="mobile_settings_about_copy">Copy for support</string>
     <string name="mobile_settings_about_copied">Copied to clipboard</string>
+    <string name="mobile_settings_open_source_licenses">Open source licenses</string>
+    <string name="mobile_settings_open_source_licenses_description">This app includes these open source components. Each comes under its own license, linked below with its source code.</string>
+    <string name="mobile_settings_open_source_name" translatable="false">%1$s %2$s</string>
+    <string name="mobile_settings_open_source_source">Source code</string>
+    <string name="mobile_settings_open_source_license">License text</string>
     <string name="mobile_action_close">Close</string>
     <string name="mobile_action_more_options">More options</string>
     <string name="mobile_settings_playback_loading">Loading playback settings</string>

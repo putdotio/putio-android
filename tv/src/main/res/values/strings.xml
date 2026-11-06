@@ -278,6 +278,9 @@
     <string name="tv_account_trash_disable_confirm">Turn off</string>
     <string name="tv_account_history_enabled">Keep account history</string>
     <string name="tv_account_qr_value">QR code</string>
+    <string name="tv_account_open_source_licenses">Open source licenses. This app includes these components, each under its own license. Scan a code for its source code and license.</string>
+    <string name="tv_account_open_source_name" translatable="false">%1$s %2$s</string>
+    <string name="tv_account_open_source_terms">%1$s · %2$s</string>
     <string name="tv_account_qr_caption">Scan with your phone’s camera to open it there.</string>
     <string name="tv_account_qr_description">QR code for %1$s</string>
     <string name="tv_account_about_version">Version</string>

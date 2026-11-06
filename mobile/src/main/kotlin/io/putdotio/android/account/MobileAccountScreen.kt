@@ -124,6 +124,7 @@ internal fun MobileAccountScreen(
     onManagePublicLinks: (() -> Unit)? = null,
     onPrivacyControls: () -> Unit = {},
     onAppInfo: () -> Unit = {},
+    onOpenSourceLicenses: () -> Unit = {},
     library: MobileAccountLibrary = MobileAccountLibrary(),
     /** Bytes this account's downloads hold on the device; null when it holds none, which hides the option. */
     downloadsOnDeviceBytes: Long? = null,
@@ -170,6 +171,7 @@ internal fun MobileAccountScreen(
                 rows = rows,
                 onAppInfo = onAppInfo,
                 onPrivacyPolicy = { uriHandler.openSafely(PrivacyLinks.POLICY) },
+                onOpenSourceLicenses = onOpenSourceLicenses,
                 onSignOut = { dialog = AccountDialog.SignOut },
             )
         }
@@ -329,6 +331,7 @@ private fun LazyListScope.aboutItems(
     rows: AccountRows,
     onAppInfo: () -> Unit,
     onPrivacyPolicy: () -> Unit,
+    onOpenSourceLicenses: () -> Unit,
     onSignOut: () -> Unit,
 ) {
     settingsGroup(
@@ -342,6 +345,10 @@ private fun LazyListScope.aboutItems(
             SettingsRow {
                 rows.Link(it, AccountR.string.privacy_policy, R.drawable.ic_ph_file_text, null,
                     onPrivacyPolicy, MOBILE_PRIVACY_POLICY_ROW_TAG)
+            },
+            SettingsRow {
+                rows.Link(it, R.string.mobile_settings_open_source_licenses, R.drawable.ic_ph_list_bullets, null,
+                    onOpenSourceLicenses, MOBILE_OPEN_SOURCE_LICENSES_ROW_TAG)
             },
         ),
     )

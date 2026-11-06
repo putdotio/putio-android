@@ -19,6 +19,8 @@ script headers and `--help` own the harness.
   `src/testFixtures`.
 - Report a failure as a `TelemetryFailure` of codes, never as a raw error or
   message.
+- A nextlib bump updates `openSourceNotices` to the FFmpeg, dav1d and Mbed TLS
+  versions its `ffmpeg/setup.sh` pins.
 - Mobile and TV share data, domain, theme, and component foundations; their
   shells diverge where input differs. TV should feel like Android TV: Compose
   for TV, D-pad focus, system media sessions, and platform search.

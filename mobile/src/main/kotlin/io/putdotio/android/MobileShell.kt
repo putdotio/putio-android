@@ -54,6 +54,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import io.putdotio.android.account.InactiveAccountNotice
 import io.putdotio.android.account.MOBILE_APP_INFO_ROUTE
+import io.putdotio.android.account.MOBILE_OPEN_SOURCE_LICENSES_ROUTE
 import io.putdotio.android.account.MOBILE_PRIVACY_CONTROLS_ROUTE
 import io.putdotio.android.account.MobileInactiveAccountNotice
 import io.putdotio.android.auth.MobileAccount
@@ -1249,6 +1250,7 @@ private fun accountSubpageTitle(route: String?): Int? =
         MOBILE_PUBLIC_LINKS_ROUTE -> R.string.mobile_settings_exclusive_links
         MOBILE_PRIVACY_CONTROLS_ROUTE -> R.string.mobile_settings_privacy_controls
         MOBILE_APP_INFO_ROUTE -> R.string.mobile_settings_about
+        MOBILE_OPEN_SOURCE_LICENSES_ROUTE -> R.string.mobile_settings_open_source_licenses
         else -> null
     }
 
