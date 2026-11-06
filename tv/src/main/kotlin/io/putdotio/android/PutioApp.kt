@@ -84,6 +84,7 @@ import io.putdotio.android.tv.TvOfflineScreen
 import io.putdotio.android.tv.TvSession
 import io.putdotio.android.tv.TvUndoFailure
 import io.putdotio.android.tv.TvSessionDependencies
+import io.putdotio.android.tv.TvSessionKey
 import io.putdotio.android.tv.tvAppConfigRepository
 import io.putdotio.android.tv.TvSessionViewModel
 import io.putdotio.android.tv.TvShell
@@ -201,9 +202,15 @@ private fun TvSignedInApp(
         )
     }
     val pendingLaunch by launchRequests.pending.collectAsStateWithLifecycle()
+    LaunchedEffect(sessionViewModel, signedIn.account, signedIn.sessionId, dependencies) {
+        sessionViewModel.prepare(signedIn.account, signedIn.sessionId, dependencies)
+    }
+    val prepared by sessionViewModel.prepared.collectAsStateWithLifecycle()
     // Looked up every composition, not remembered: the view model closes the session on its
     // own auth collector, and a cached closed controller would silently swallow events.
-    val session = sessionViewModel.sessionFor(signedIn.account, signedIn.sessionId, dependencies)
+    val session = sessionViewModel
+        .takeIf { prepared == TvSessionKey(signedIn.account.userId, signedIn.sessionId) }
+        ?.sessionFor(signedIn.account, signedIn.sessionId, dependencies)
     if (session == null) {
         TvStartupScreen(stringResource(R.string.tv_session_checking))
         return

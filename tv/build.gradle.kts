@@ -1,3 +1,4 @@
+import com.android.build.api.variant.HostTestBuilder
 import com.android.build.api.variant.ResValue
 
 fun originalVideoPolicy(): String =
@@ -6,6 +7,7 @@ fun originalVideoPolicy(): String =
 plugins {
     id("putio.android.application")
     id("putio.build-logic")
+    alias(libs.plugins.androidx.baselineprofile)
 }
 
 android {
@@ -26,7 +28,17 @@ android {
     buildFeatures.resValues = true
 }
 
+baselineProfile {
+    mergeIntoMain = true
+}
+
 androidComponents {
+    beforeVariants(selector().withBuildType("nonMinifiedRelease")) { variant ->
+        variant.hostTests[HostTestBuilder.UNIT_TEST_TYPE]?.enable = false
+    }
+    beforeVariants(selector().withBuildType("benchmarkRelease")) { variant ->
+        variant.hostTests[HostTestBuilder.UNIT_TEST_TYPE]?.enable = false
+    }
     onVariants { variant ->
         // searchable.xml names the suggestions provider, whose authority follows the variant's id.
         variant.resValues.put(
@@ -79,6 +91,7 @@ dependencies {
     implementation(libs.androidx.media3.session)
     implementation(libs.androidx.media3.ui)
     implementation(libs.androidx.media3.ui.compose)
+    implementation(libs.androidx.profileinstaller)
     implementation(libs.androidx.tv.material)
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
@@ -88,6 +101,8 @@ dependencies {
     // Encodes the sign-in QR code on the device: pure Java, no transitive dependencies, and R8
     // keeps only the encoder. Its decoder reads the rendered code back in the unit tests.
     implementation(libs.zxing.core)
+
+    baselineProfile(project(":baselineprofile:tv"))
 
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)

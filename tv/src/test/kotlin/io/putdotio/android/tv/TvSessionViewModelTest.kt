@@ -74,12 +74,14 @@ import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
+import java.util.concurrent.Executor
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -300,6 +302,22 @@ class TvSessionViewModelTest {
         streamResult = { offline }
         assertEquals(offline, session.originalStreamUrl(streamItem.id))
         assertNull(session.fileActionFailure.value)
+    }
+
+    @Test
+    fun `prepare builds the session off the caller and closes one whose session ended meanwhile`() {
+        val builds = ArrayDeque<Runnable>()
+        val viewModel = TvSessionViewModel(auth, buildContext = Executor(builds::addLast).asCoroutineDispatcher())
+        viewModel.prepare(account(), TvAuthSessionId(1), dependencies)
+        assertTrue(stores.isEmpty())
+        builds.removeFirst().run()
+        assertEquals(TvSessionKey(42, TvAuthSessionId(1)), viewModel.prepared.value)
+        assertNotNull(viewModel.sessionFor(account(), TvAuthSessionId(1), dependencies))
+        viewModel.prepare(account(), TvAuthSessionId(2), dependencies)
+        auth.value = signedIn(3)
+        builds.removeFirst().run()
+        assertEquals(listOf(true, true), stores.map { it.closed })
+        assertEquals(TvSessionKey(42, TvAuthSessionId(1)), viewModel.prepared.value)
     }
 
     @Test
