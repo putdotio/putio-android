@@ -317,6 +317,7 @@ class TvSessionViewModelTest {
         auth.value = signedIn(3)
         builds.removeFirst().run()
         assertEquals(listOf(true, true), stores.map { it.closed })
+        assertEquals(TvSessionKey(42, TvAuthSessionId(1)), viewModel.prepared.value)
     }
 
     @Test

@@ -486,9 +486,9 @@ internal class TvSessionViewModel(
         viewModelScope.launch {
             val session = withContext(buildContext) { newSession(account, key, dependencies) }
             var adopted = false
-            active.valueFor(key) { session.also { adopted = true } }
+            val held = active.valueFor(key) { session.also { adopted = true } }
             if (!adopted) session.close()
-            mutablePrepared.value = key
+            if (held != null) mutablePrepared.value = key
         }
     }
 
