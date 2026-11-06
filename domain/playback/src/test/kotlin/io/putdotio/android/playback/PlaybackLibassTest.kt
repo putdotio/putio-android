@@ -28,20 +28,11 @@ class PlaybackLibassTest {
 
     @Test
     fun libassRendersOnlyOn64BitDevicesWithALargeHeap() {
-        assertTrue(rendersAssWithLibass(is64Bit = true, isLowRam = false, memoryClassMb = 256, textScale = 1f))
-        assertTrue(rendersAssWithLibass(is64Bit = true, isLowRam = false, memoryClassMb = 512, textScale = 1f))
-        assertFalse(rendersAssWithLibass(is64Bit = false, isLowRam = false, memoryClassMb = 512, textScale = 1f))
-        assertFalse(rendersAssWithLibass(is64Bit = true, isLowRam = true, memoryClassMb = 512, textScale = 1f))
-        assertFalse(rendersAssWithLibass(is64Bit = true, isLowRam = false, memoryClassMb = 192, textScale = 1f))
-    }
-
-    @Test
-    fun aSubtitleSizeTheViewerPickedKeepsMedia3TextCues() {
-        SubtitleTextSize.entries.filter { it != SubtitleTextSize.Medium }.forEach { size ->
-            assertFalse(
-                rendersAssWithLibass(is64Bit = true, isLowRam = false, memoryClassMb = 512, textScale = size.scale),
-            )
-        }
+        assertTrue(rendersAssWithLibass(is64Bit = true, isLowRam = false, memoryClassMb = 256))
+        assertTrue(rendersAssWithLibass(is64Bit = true, isLowRam = false, memoryClassMb = 512))
+        assertFalse(rendersAssWithLibass(is64Bit = false, isLowRam = false, memoryClassMb = 512))
+        assertFalse(rendersAssWithLibass(is64Bit = true, isLowRam = true, memoryClassMb = 512))
+        assertFalse(rendersAssWithLibass(is64Bit = true, isLowRam = false, memoryClassMb = 192))
     }
 
     @Test
@@ -63,7 +54,7 @@ class PlaybackLibassTest {
 
     @Test
     fun sidecarAssKeepsMedia3TextCues() {
-        val factory = MatroskaAssSubtitleParserFactory(AssHandler(AssRenderType.CUES))
+        val factory = MatroskaAssSubtitleParserFactory(AssHandler(AssRenderType.CUES)) { true }
         val sidecar = Format.Builder()
             .setSampleMimeType(MimeTypes.TEXT_SSA)
             .setContainerMimeType(MimeTypes.TEXT_SSA)
@@ -77,9 +68,38 @@ class PlaybackLibassTest {
         assertNull(cue.bitmap)
     }
 
+    @Test
+    fun aSubtitleSizeTheViewerPickedKeepsEmbeddedAssAsMedia3TextCues() {
+        SubtitleAppearanceStore(context).update(SubtitleTextSize.Large)
+        val factory = MatroskaAssSubtitleParserFactory(AssHandler(AssRenderType.CUES), context::drawsAssWithLibass)
+        val embedded = Format.Builder()
+            .setSampleMimeType(MimeTypes.TEXT_SSA)
+            .setContainerMimeType(MimeTypes.VIDEO_MATROSKA)
+            .setInitializationData(listOf(EMBEDDED_FORMAT.toByteArray(), EMBEDDED_HEADER.toByteArray()))
+            .build()
+        val cues = mutableListOf<CuesWithTiming>()
+
+        factory.create(embedded).parse(EMBEDDED_SAMPLE.toByteArray(), SubtitleParser.OutputOptions.allCues(), cues::add)
+
+        val cue = cues.flatMap { it.cues }.single()
+        assertEquals("Embedded line", cue.text.toString())
+        assertNull(cue.bitmap)
+    }
+
     private fun ExoPlayer.usesLibass(): Boolean = (0 until rendererCount).any { getRenderer(it) is AssRenderer }
 
     private companion object {
+        const val EMBEDDED_FORMAT =
+            "Format: Start, End, ReadOrder, Layer, Style, Name, MarginL, MarginR, MarginV, Effect, Text"
+        const val EMBEDDED_SAMPLE = "Dialogue: 0:00:01:00,0:00:02:00,1,0,Default,,0,0,0,,Embedded line"
+        val EMBEDDED_HEADER = """
+            [Script Info]
+            ScriptType: v4.00+
+
+            [V4+ Styles]
+            Format: Name, Fontname, Fontsize, PrimaryColour, Alignment
+            Style: Default,Arial,40,&H00FFFFFF,2
+        """.trimIndent()
         val SIDECAR = """
             [Script Info]
             ScriptType: v4.00+

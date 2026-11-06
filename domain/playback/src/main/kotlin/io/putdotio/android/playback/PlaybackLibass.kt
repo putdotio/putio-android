@@ -4,6 +4,7 @@ import android.app.ActivityManager
 import android.content.Context
 import android.net.Uri
 import android.os.Process
+import androidx.media3.common.C
 import androidx.media3.common.Format
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
@@ -35,23 +36,43 @@ public fun libassSubtitles(
     context: Context,
     mediaType: PlaybackMediaType,
     cacheMegabytes: Int,
-): LibassSubtitles? {
-    val activityManager = context.getSystemService(ActivityManager::class.java)
-    val affordable = rendersAssWithLibass(
+): LibassSubtitles? =
+    LibassSubtitles(cacheMegabytes).takeIf { context.affordsLibass() && mediaType == PlaybackMediaType.VIDEO }
+
+private fun Context.affordsLibass(): Boolean {
+    val activityManager = getSystemService(ActivityManager::class.java)
+    return rendersAssWithLibass(
         is64Bit = Process.is64Bit(),
         isLowRam = activityManager.isLowRamDevice,
         memoryClassMb = activityManager.memoryClass,
-        textScale = SubtitleAppearanceStore(context).textSize.scale * context.captionFontScale(),
     )
-    return LibassSubtitles(cacheMegabytes).takeIf { affordable && mediaType == PlaybackMediaType.VIDEO }
 }
 
 internal fun rendersAssWithLibass(
     is64Bit: Boolean,
     isLowRam: Boolean,
     memoryClassMb: Int,
-    textScale: Float,
-): Boolean = is64Bit && !isLowRam && memoryClassMb >= LIBASS_MIN_HEAP_MB && textScale == 1f
+): Boolean = is64Bit && !isLowRam && memoryClassMb >= LIBASS_MIN_HEAP_MB
+
+internal fun Context.drawsAssWithLibass(): Boolean = drawsAssWithLibass(SubtitleAppearanceStore.storedTextSize(this))
+
+private fun Context.drawsAssWithLibass(size: SubtitleTextSize): Boolean = size.scale * captionFontScale() == 1f
+
+public fun Player.redrawAss(context: Context, from: SubtitleTextSize, to: SubtitleTextSize) {
+    val libassChoiceChanged = context.drawsAssWithLibass(from) != context.drawsAssWithLibass(to)
+    if (!libassChoiceChanged || !playsEmbeddedAss() || !context.affordsLibass()) return
+    stop()
+    prepare()
+}
+
+private fun Player.playsEmbeddedAss(): Boolean =
+    currentTracks.groups.any { group ->
+        group.type == C.TRACK_TYPE_TEXT && group.isSelected && (0 until group.length).any { index ->
+            val format = group.getTrackFormat(index)
+            format.containerMimeType == MimeTypes.VIDEO_MATROSKA &&
+                (format.sampleMimeType == MimeTypes.TEXT_SSA || format.codecs == MimeTypes.TEXT_SSA)
+        }
+    }
 
 @UnstableApi
 public fun playbackExoPlayer(
@@ -68,11 +89,13 @@ public fun playbackExoPlayer(
             .build()
     }
     val handler = AssHandler(AssRenderType.CUES, AssHandlerConfig(cacheSize = libass.cacheMegabytes))
-    val parsers = MatroskaAssSubtitleParserFactory(handler)
+    val appContext = context.applicationContext
+    val parsers = MatroskaAssSubtitleParserFactory(handler, appContext::drawsAssWithLibass)
+    val extractors = AssExtractorsFactory(parsers, handler, appContext::drawsAssWithLibass)
     val player = builder
         .setRenderersFactory(AssRenderersFactory(handler, playbackRenderersFactory(context)))
         .setMediaSourceFactory(
-            DefaultMediaSourceFactory(dataSourceFactory, AssExtractorsFactory(parsers, handler))
+            DefaultMediaSourceFactory(dataSourceFactory, extractors)
                 .setSubtitleParserFactory(parsers),
         )
         .build()
@@ -100,6 +123,7 @@ public fun playbackExoPlayer(
 private class AssExtractorsFactory(
     private val parsers: SubtitleParser.Factory,
     private val handler: AssHandler,
+    private val drawsWithLibass: () -> Boolean,
 ) : ExtractorsFactory {
     private val defaults = DefaultExtractorsFactory()
 
@@ -114,14 +138,16 @@ private class AssExtractorsFactory(
     }
 
     private fun withAss(extractors: Array<Extractor>): Array<Extractor> =
-        extractors.map { if (it is MatroskaExtractor) AssFontsMatroskaExtractor(parsers, handler) else it }
-            .toTypedArray()
+        extractors.map {
+            if (it is MatroskaExtractor) AssFontsMatroskaExtractor(parsers, handler, drawsWithLibass) else it
+        }.toTypedArray()
 }
 
 @UnstableApi
 private class AssFontsMatroskaExtractor(
     parsers: SubtitleParser.Factory,
     handler: AssHandler,
+    private val drawsWithLibass: () -> Boolean,
 ) : AssMatroskaExtractor(parsers, handler, 0) {
     private var hasAssTrack = false
     private var attachmentName: String? = null
@@ -147,7 +173,8 @@ private class AssFontsMatroskaExtractor(
     }
 
     override fun binaryElement(id: Int, contentSize: Int, input: ExtractorInput) {
-        val usableFont = attachmentName != null && attachmentMime in fontMimeTypes && hasAssTrack
+        val usableFont = attachmentName != null && attachmentMime in fontMimeTypes && hasAssTrack &&
+            drawsWithLibass()
         if (id == ID_FILE_DATA && !usableFont) {
             input.skipFully(contentSize)
         } else {
@@ -164,6 +191,7 @@ private class AssFontsMatroskaExtractor(
 @UnstableApi
 internal class MatroskaAssSubtitleParserFactory(
     private val handler: AssHandler,
+    private val drawsWithLibass: () -> Boolean,
 ) : SubtitleParser.Factory {
     private val media3 = DefaultSubtitleParserFactory()
     private val tracks = mutableListOf<AssTrack>()
@@ -175,7 +203,7 @@ internal class MatroskaAssSubtitleParserFactory(
     override fun create(format: Format): SubtitleParser {
         val embeddedAss = format.containerMimeType == MimeTypes.VIDEO_MATROSKA &&
             format.sampleMimeType == MimeTypes.TEXT_SSA
-        if (!embeddedAss) return media3.create(format)
+        if (!embeddedAss || !drawsWithLibass()) return media3.create(format)
         val track = handler.createTrack(format)
         synchronized(tracks) { tracks += track }
         return AssSegmentSubtitleParser(handler, track)

@@ -12,6 +12,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.media3.common.Player as Media3Player
 import androidx.media3.common.TrackSelectionParameters
@@ -119,6 +120,7 @@ internal fun MobileVideoSheets(
     var shown by remember { mutableStateOf(sheet ?: MobileVideoSheet.Audio) }
     if (sheet != null) shown = sheet
     val close = { onSheet(null) }
+    val context = LocalContext.current
     MobilePlayerSideSheet(
         visible = sheet != null,
         title = stringResource(shown.title()),
@@ -152,7 +154,11 @@ internal fun MobileVideoSheets(
             MobileVideoSheet.SubtitleAppearance -> MobileSubtitleAppearanceContent(
                 textSize = appearance.textSize,
                 offsetMillis = preferences.subtitleOffsetMillis,
-                onTextSize = appearance::update,
+                onTextSize = { size ->
+                    val previous = appearance.textSize
+                    appearance.update(size)
+                    player.redrawAss(context, previous, size)
+                },
                 onOffset = {
                     preferences.subtitleOffsetMillis =
                         it.coerceIn(-SUBTITLE_OFFSET_LIMIT_MILLIS, SUBTITLE_OFFSET_LIMIT_MILLIS)
