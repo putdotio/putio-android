@@ -99,7 +99,7 @@ class SwitchedToConvertedTest {
             listOf(
                 converted, converted, converted,
                 converted,
-                PlaybackCapabilities(originalVideoDecision = decision.forPreference(PlaybackPreference.HLS)),
+                PlaybackCapabilities(originalVideoDecision = decision.originalVideoDecision),
                 PlaybackCapabilities(originalVideoPlayable = true),
             ),
             requests.flatMap { request ->

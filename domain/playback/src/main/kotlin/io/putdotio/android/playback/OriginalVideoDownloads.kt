@@ -4,7 +4,6 @@ import io.putdotio.android.files.FilesItemId
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.files.FileDetailsQuery
 import io.putdotio.sdk.files.PlaybackCapabilities
-import io.putdotio.sdk.files.PlaybackPreference
 import io.putdotio.sdk.files.PutioFile
 import io.putdotio.sdk.files.PutioFileType
 import java.util.concurrent.CancellationException
@@ -46,7 +45,7 @@ public class OriginalVideoDownloads internal constructor(
         if (policy == OriginalVideoPolicy.Never || switchedToConverted.contains(fileId)) return false
         val file = loadFile(fileId)
         return file.fileType == PutioFileType.VIDEO &&
-            policy.capabilities(decision, PlaybackPreference.HLS).accept(file)
+            policy.capabilities(decision).accept(file)
     }
 
     private fun PlaybackCapabilities.accept(file: PutioFile): Boolean =

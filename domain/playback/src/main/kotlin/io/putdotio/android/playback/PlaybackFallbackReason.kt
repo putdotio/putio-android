@@ -5,8 +5,10 @@ import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.ExoPlaybackException
 import io.putdotio.sdk.files.PlaybackSourceKind
+import java.net.HttpURLConnection
 
 /** Why a video plays converted instead of as its original. */
 public enum class PlaybackFallbackReason(
@@ -66,6 +68,8 @@ private fun PlaybackContent.Ready?.streamsOriginalVideo(target: PlaybackTarget):
 public fun PlaybackException.originalRejection(): PlaybackFallbackReason? =
     when (errorCode) {
         in PARSING_ERROR_CODES -> PlaybackFallbackReason.ContainerUnsupported
+        PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ->
+            PlaybackFallbackReason.ContainerUnsupported.takeIf { refusedAsBadRequest() }
         in FORMAT_ERROR_CODES -> when ((this as? ExoPlaybackException)?.rendererType()) {
             C.TRACK_TYPE_VIDEO -> PlaybackFallbackReason.VideoUnsupported
             C.TRACK_TYPE_AUDIO -> PlaybackFallbackReason.AudioUnsupported
@@ -73,6 +77,14 @@ public fun PlaybackException.originalRejection(): PlaybackFallbackReason? =
         }
         in DECODER_ERROR_CODES -> PlaybackFallbackReason.DecoderError
         else -> null
+    }
+
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+private fun PlaybackException.refusedAsBadRequest(): Boolean =
+    generateSequence(cause) { it.cause }.any { cause ->
+        val status = (cause as? HttpDataSource.InvalidResponseCodeException)?.responseCode
+            ?: cause.message?.relayedResponseCode()
+        status == HttpURLConnection.HTTP_BAD_REQUEST
     }
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])

@@ -1,5 +1,6 @@
 package io.putdotio.android.playback
 
+import android.net.Uri
 import androidx.media3.common.C
 import androidx.media3.common.Format
 import androidx.media3.common.MimeTypes
@@ -7,6 +8,8 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.TrackGroup
 import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DataSpec
+import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.ExoPlaybackException
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.PutioFailure
@@ -17,6 +20,7 @@ import io.putdotio.sdk.files.PlaybackSourceKind
 import io.putdotio.sdk.files.PlaybackSubtitles
 import io.putdotio.sdk.files.PutioCredentialUrl
 import java.io.IOException
+import java.net.HttpURLConnection
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -187,7 +191,7 @@ class PlaybackOriginalFallbackTest {
 
     @Test
     @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-    fun onlyParsingAndDecodingFailuresRejectTheOriginal() {
+    fun onlyParsingDecodingAndRefusedRequestFailuresRejectTheOriginal() {
         fun reason(code: Int) = PlaybackException("synthetic", null, code).originalRejection()
         fun rendererReason(mimeType: String) =
             ExoPlaybackException.createForRenderer(
@@ -218,6 +222,21 @@ class PlaybackOriginalFallbackTest {
         assertEquals(PlaybackFallbackReason.AudioUnsupported, rendererReason(MimeTypes.AUDIO_TRUEHD))
         assertNull(reason(PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED))
         assertNull(reason(PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS))
+        assertEquals(PlaybackFallbackReason.ContainerUnsupported, statusReason(HttpURLConnection.HTTP_BAD_REQUEST))
+        assertEquals(
+            PlaybackFallbackReason.ContainerUnsupported,
+            PlaybackException(
+                "synthetic",
+                IOException("Response code: 400"),
+                PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS,
+            ).originalRejection(),
+        )
+        listOf(
+            HttpURLConnection.HTTP_UNAUTHORIZED,
+            HttpURLConnection.HTTP_FORBIDDEN,
+            HttpURLConnection.HTTP_NOT_FOUND,
+            HttpURLConnection.HTTP_INTERNAL_ERROR,
+        ).forEach { assertNull("$it", statusReason(it)) }
         assertNull(reason(PlaybackException.ERROR_CODE_DECODING_RESOURCES_RECLAIMED))
     }
 
@@ -261,6 +280,20 @@ class PlaybackOriginalFallbackTest {
         assertEquals("audio/flac", original.toCastMedia(audio, "download-secret")?.contentType)
         assertEquals("video/mp4", source(PlaybackSourceKind.MP4).toCastMedia(Video, "download-secret")?.contentType)
     }
+
+    @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+    private fun statusReason(status: Int): PlaybackFallbackReason? =
+        ExoPlaybackException.createForSource(
+            HttpDataSource.InvalidResponseCodeException(
+                status,
+                null,
+                null,
+                emptyMap(),
+                DataSpec(Uri.parse("https://api.put.io/v2/files/42/hls/media.m3u8?original=1")),
+                ByteArray(0),
+            ),
+            PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS,
+        ).originalRejection()
 
     private fun ready(
         source: PlaybackSource,

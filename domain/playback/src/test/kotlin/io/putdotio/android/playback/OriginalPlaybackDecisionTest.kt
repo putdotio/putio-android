@@ -13,7 +13,6 @@ import io.putdotio.android.playback.PlaybackFallbackReason.NoMediaInfo
 import io.putdotio.android.playback.PlaybackFallbackReason.PlaybackIssue
 import io.putdotio.android.playback.PlaybackFallbackReason.UnknownIssue
 import io.putdotio.android.playback.PlaybackFallbackReason.VideoUnsupported
-import io.putdotio.sdk.files.PlaybackPreference
 import io.putdotio.sdk.files.PutioMediaFormat
 import io.putdotio.sdk.files.PutioMediaInfo
 import io.putdotio.sdk.files.PutioMediaStream
@@ -48,30 +47,26 @@ class OriginalPlaybackDecisionTest {
             UnknownIssue,
             decision.reason(captured("vp8-vorbis-future-issue.webm")),
         )
-        assertFalse(decision.forPreference(MP4).canPlayOriginal(captured("wmv3-wmav2.asf"), false, true))
-        assertTrue(decision.forPreference(MP4).canPlayOriginal(captured("h264-high-aac.mkv"), true, false))
+        assertFalse(decision.originalVideoDecision.canPlayOriginal(captured("wmv3-wmav2.asf"), false, true))
+        assertTrue(decision.originalVideoDecision.canPlayOriginal(captured("h264-high-aac.mkv"), true, false))
     }
 
     @Test
-    fun hlsOriginalsAreMp4OnlyAsPutIoServesThem() {
+    fun everyContainerTheDeviceChecksAcceptsPlaysItsOriginal() {
         val decision = OriginalPlaybackDecision(FakeDecoderInventory(PHONE))
 
-        assertNull(decision.reason(captured("h264-aac.mp4"), HLS))
-        assertEquals(ContainerUnsupported, decision.reason(captured("h264-high-aac.mkv"), HLS))
-        assertEquals(ContainerUnsupported, decision.reason(captured("mpeg4-asp-mp3.avi"), HLS))
-        assertEquals(
-            ContainerUnsupported,
-            decision.reason(captured("h264-aac.mp4").copy(mimeType = "video/quicktime"), HLS),
-        )
-        assertFalse(decision.forPreference(HLS).canPlayOriginal(captured("h264-high-aac.mkv"), true, false))
-        assertTrue(decision.forPreference(MP4).canPlayOriginal(captured("h264-high-aac.mkv"), true, false))
+        assertNull(decision.reason(captured("h264-high-aac.mkv")))
+        assertNull(decision.reason(captured("mpeg4-asp-mp3.avi")))
+        assertNull(decision.reason(captured("h264-aac.mp4").copy(mimeType = "video/quicktime")))
+        assertTrue(decision.originalVideoDecision.canPlayOriginal(captured("h264-high-aac.mkv"), true, false))
+        assertTrue(decision.originalVideoDecision.canPlayOriginal(captured("mpeg4-asp-mp3.avi"), true, false))
     }
 
     @Test
     fun aDecoderQueryThatThrowsPicksConverted() {
         val decision = OriginalPlaybackDecision(FakeDecoderInventory(PHONE) { error("MediaCodecList failed") })
 
-        assertFalse(decision.forPreference(MP4).canPlayOriginal(captured("h264-high-aac.mkv"), true, false))
+        assertFalse(decision.originalVideoDecision.canPlayOriginal(captured("h264-high-aac.mkv"), true, false))
     }
 
     @Test
@@ -189,8 +184,7 @@ class OriginalPlaybackDecisionTest {
         assertEquals(MimeTypes.AUDIO_RAW, MediaInfoFormats.toFormat(audio("pcm_s16le"))?.sampleMimeType)
     }
 
-    private fun OriginalPlaybackDecision.reason(info: PutioMediaInfo?, preference: PlaybackPreference = MP4) =
-        fallbackReason(info, preference)
+    private fun OriginalPlaybackDecision.reason(info: PutioMediaInfo?) = fallbackReason(info)
 
     private fun format(info: PutioMediaInfo, type: String): Format =
         requireNotNull(MediaInfoFormats.toFormat(info.streams.orEmpty().first { it.codecType == type }))
@@ -218,8 +212,6 @@ class OriginalPlaybackDecisionTest {
 
     private companion object {
         val MATROSKA = PutioMediaFormat(name = "matroska")
-        val HLS = PlaybackPreference.HLS
-        val MP4 = PlaybackPreference.MP4
         val PHONE = setOf(
             MimeTypes.VIDEO_H264,
             MimeTypes.VIDEO_H265,

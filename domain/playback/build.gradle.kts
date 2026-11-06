@@ -45,6 +45,7 @@ dependencies {
     testFixturesImplementation(libs.androidx.media3.common)
     testImplementation(testFixtures(project(":core:common")))
     testImplementation(testFixtures(project(":domain:account")))
+    testImplementation(libs.okhttp)
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.test.runner)
 }
