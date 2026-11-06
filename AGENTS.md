@@ -28,6 +28,8 @@ script headers and `--help` own the harness.
   for TV, D-pad focus, system media sessions, and platform search.
 - [`putio-sdk-kotlin`](https://github.com/putdotio/putio-sdk-kotlin) is the
   API boundary. Close an SDK gap there instead of adding app-local HTTP.
+- A change to TV startup, sign-in or Home regenerates the TV baseline profile
+  with `scripts/generate-baseline-profile.sh` on an emulator you booted.
 - Never hand-write design values or edit generated output.
   `scripts/sync-design-assets.sh` (macOS only) and `scripts/generate-icons.sh`
   write them from the locks in `design/`.

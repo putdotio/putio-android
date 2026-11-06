@@ -76,6 +76,7 @@ import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackEvent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -92,6 +93,8 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlin.coroutines.CoroutineContext
 
 /** What one signed-in TV session needs to build its controllers. */
 internal data class TvSessionDependencies(
@@ -457,6 +460,7 @@ internal data class TvSessionKey(
 /** Holds the controllers of the signed-in session so they never outlive it. */
 internal class TvSessionViewModel(
     private val authState: StateFlow<TvAuthState>,
+    private val buildContext: CoroutineContext = Dispatchers.Default,
 ) : ViewModel() {
     private val active = SessionScopedHolder<TvAuthState, TvSessionKey, TvSession>(
         authState = authState,
@@ -464,6 +468,29 @@ internal class TvSessionViewModel(
         scope = viewModelScope,
         close = TvSession::close,
     )
+    private val mutablePrepared = MutableStateFlow<TvSessionKey?>(null)
+    private var preparing: TvSessionKey? = null
+
+    /** The session [prepare] last finished building; [sessionFor] then returns it without building. */
+    val prepared: StateFlow<TvSessionKey?> = mutablePrepared.asStateFlow()
+
+    /** Builds the session's controllers on [buildContext], so no frame waits for them or their disk reads. */
+    fun prepare(
+        account: TvAccount,
+        sessionId: TvAuthSessionId,
+        dependencies: TvSessionDependencies,
+    ) {
+        val key = TvSessionKey(account.userId, sessionId)
+        if (preparing == key) return
+        preparing = key
+        viewModelScope.launch {
+            val session = withContext(buildContext) { newSession(account, key, dependencies) }
+            var adopted = false
+            active.valueFor(key) { session.also { adopted = true } }
+            if (!adopted) session.close()
+            mutablePrepared.value = key
+        }
+    }
 
     fun sessionFor(
         account: TvAccount,
@@ -471,17 +498,18 @@ internal class TvSessionViewModel(
         dependencies: TvSessionDependencies,
     ): TvSession? {
         val key = TvSessionKey(account.userId, sessionId)
-        return active.valueFor(key) {
-            TvSession(
-                dependencies = dependencies,
-                historyEnabled = account.historyEnabled,
-                sessionCurrent = { authState.value.sessionKey() == key },
-                parentScope = viewModelScope,
-                watchNext = dependencies.watchNext(account.userId, sessionId),
-                accountId = account.userId,
-            )
-        }
+        return active.valueFor(key) { newSession(account, key, dependencies) }
     }
+
+    private fun newSession(account: TvAccount, key: TvSessionKey, dependencies: TvSessionDependencies) =
+        TvSession(
+            dependencies = dependencies,
+            historyEnabled = account.historyEnabled,
+            sessionCurrent = { authState.value.sessionKey() == key },
+            parentScope = viewModelScope,
+            watchNext = dependencies.watchNext(key.userId, key.sessionId),
+            accountId = key.userId,
+        )
 
     override fun onCleared() {
         active.clear()
