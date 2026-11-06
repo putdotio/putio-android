@@ -5,8 +5,6 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.Player as Media3Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.session.MediaController
 import io.putdotio.android.MobilePlaybackService
 import io.putdotio.android.auth.MobileOAuthRuntime
@@ -108,25 +106,25 @@ internal object DefaultMobilePlayerFactory : MobilePlayerFactory {
         context: android.content.Context,
         mediaType: PlaybackMediaType,
     ): Media3Player {
-        return ExoPlayer.Builder(context, playbackRenderersFactory(context))
-            // Completed downloads play from the cache; everything else streams through the same source.
-            // Local schemes such as file:// bypass it; network URLs still go through the cache.
-            .setMediaSourceFactory(
-                DefaultMediaSourceFactory(
-                    DefaultDataSource.Factory(
-                        context,
-                        MobileDownloadCache.get(context).let {
-                            it.playbackFactory(it.activeUserId ?: NO_DOWNLOAD_USER)
-                        },
-                    ),
-                ),
-            )
-            .setLoadControl(playbackLoadControl(context).build())
-            .setAudioAttributes(mediaType.audioAttributes(), true)
-            .setHandleAudioBecomingNoisy(true)
-            .build()
+        // Completed downloads play from the cache; everything else streams through the same source.
+        // Local schemes such as file:// bypass it; network URLs still go through the cache.
+        val dataSource = DefaultDataSource.Factory(
+            context,
+            MobileDownloadCache.get(context).let { it.playbackFactory(it.activeUserId ?: NO_DOWNLOAD_USER) },
+        )
+        return playbackExoPlayer(
+            context,
+            libassSubtitles(context, mediaType, MOBILE_LIBASS_CACHE_MB),
+            dataSource,
+        ) {
+            setLoadControl(playbackLoadControl(context).build())
+                .setAudioAttributes(mediaType.audioAttributes(), true)
+                .setHandleAudioBecomingNoisy(true)
+        }
     }
 }
 
 /** Players created before sign-in hold no user; the cache then never matches and everything streams. */
 private const val NO_DOWNLOAD_USER = -1L
+
+private const val MOBILE_LIBASS_CACHE_MB = 128

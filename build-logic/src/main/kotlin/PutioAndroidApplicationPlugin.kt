@@ -97,6 +97,8 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
                 checkReleaseBuilds = false
             }
 
+            packaging.jniLibs.excludes += "**/libc++_shared.so"
+
             // Robolectric-backed Compose tests need the app's resources.
             testOptions.unitTests.isIncludeAndroidResources = true
 

@@ -4,6 +4,7 @@ plugins {
 
 val media3Version = libs.versions.media3.get()
 val nextlibVersion = libs.versions.nextlib.get()
+val assMediaVersion = libs.versions.assMedia.get()
 check(nextlibVersion.startsWith("$media3Version-")) {
     "nextlib $nextlibVersion is built for another Media3 than $media3Version; bump them together"
 }
@@ -15,6 +16,7 @@ android {
     testFixtures.enable = true
     buildFeatures.buildConfig = true
     defaultConfig.buildConfigField("String", "NEXTLIB_VERSION", "\"$nextlibVersion\"")
+    defaultConfig.buildConfigField("String", "ASS_MEDIA_VERSION", "\"$assMediaVersion\"")
 }
 
 dependencies {
@@ -29,10 +31,13 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.media3.common)
     implementation(libs.androidx.media3.datasource)
+    implementation(libs.androidx.media3.effect)
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.androidx.media3.exoplayer.hls)
     implementation(libs.androidx.media3.ui)
     implementation(libs.androidx.media3.ui.compose)
+    implementation(libs.ass.kt)
+    implementation(libs.ass.media)
     implementation(libs.nextlib.media3ext)
     implementation(libs.putio.sdk.kotlin)
     implementation(libs.kotlinx.coroutines.android)
