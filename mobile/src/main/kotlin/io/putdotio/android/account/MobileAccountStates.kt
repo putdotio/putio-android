@@ -87,6 +87,10 @@ internal fun VideoPlaybackType.labelResource(): Int =
         VideoPlaybackType.Mp4 -> R.string.mobile_settings_video_playback_mp4
     }
 
+@StringRes
+internal fun playOriginalsLabel(enabled: Boolean): Int =
+    if (enabled) R.string.mobile_settings_play_originals_on else R.string.mobile_settings_play_originals_off
+
 internal val AccountSettingsChange.disablesTrash: Boolean
     get() = this is AccountSettingsChange.Toggle && key == AccountSettingsKey.Trash && !enabled
 

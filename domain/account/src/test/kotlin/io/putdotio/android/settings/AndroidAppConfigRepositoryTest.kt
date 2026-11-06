@@ -26,9 +26,13 @@ class AndroidAppConfigRepositoryTest {
                 mapOf(
                     VIDEO_PLAYBACK_TYPE_KEY to JsonPrimitive("mp4"),
                     AUTOPLAY_NEXT_VIDEO_KEY to JsonPrimitive(true),
+                    PLAY_ORIGINALS_KEY to JsonPrimitive(false),
                 ),
             ).toAndroidPreferences()
-        assertEquals(AndroidAppConfigPreferences(VideoPlaybackType.Mp4, autoplayNextVideo = true), parsed)
+        assertEquals(
+            AndroidAppConfigPreferences(VideoPlaybackType.Mp4, autoplayNextVideo = true, playOriginals = false),
+            parsed,
+        )
 
         listOf(
             AppConfig(emptyMap()),
@@ -36,6 +40,8 @@ class AndroidAppConfigRepositoryTest {
             AppConfig(mapOf(VIDEO_PLAYBACK_TYPE_KEY to JsonPrimitive(false))),
             AppConfig(mapOf(AUTOPLAY_NEXT_VIDEO_KEY to JsonPrimitive("true"))),
             AppConfig(mapOf(AUTOPLAY_NEXT_VIDEO_KEY to JsonArray(emptyList()))),
+            AppConfig(mapOf(PLAY_ORIGINALS_KEY to JsonPrimitive("false"))),
+            AppConfig(mapOf(PLAY_ORIGINALS_KEY to JsonArray(emptyList()))),
         ).forEach { malformed ->
             assertEquals(AndroidAppConfigPreferences(), malformed.toAndroidPreferences())
         }
@@ -70,6 +76,10 @@ class AndroidAppConfigRepositoryTest {
         assertEquals(
             AppConfigUpdate(AUTOPLAY_NEXT_VIDEO_KEY, JsonPrimitive(true)),
             AndroidAppConfigChange.AutoplayNextVideo(enabled = true).toUpdate(),
+        )
+        assertEquals(
+            AppConfigUpdate("play_originals", JsonPrimitive(false)),
+            AndroidAppConfigChange.PlayOriginals(enabled = false).toUpdate(),
         )
     }
 

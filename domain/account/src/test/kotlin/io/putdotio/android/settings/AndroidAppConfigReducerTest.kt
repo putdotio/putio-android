@@ -18,6 +18,8 @@ class AndroidAppConfigReducerTest {
                 Preferences.copy(videoPlaybackType = VideoPlaybackType.Mp4),
             AndroidAppConfigChange.AutoplayNextVideo(enabled = true) to
                 Preferences.copy(autoplayNextVideo = true),
+            AndroidAppConfigChange.PlayOriginals(enabled = false) to
+                Preferences.copy(playOriginals = false),
         ).forEach { (change, expected) ->
             val transition = loadedState(Preferences).reduce(ChangeRequested(change))
 

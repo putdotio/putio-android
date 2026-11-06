@@ -72,6 +72,28 @@ class PlaybackPreferencesTest {
     }
 
     @Test
+    fun originalsFollowTheConfirmedSettingAndStayConvertedUntilItLoads() {
+        val on = AndroidAppConfigPreferences(playOriginals = true)
+        val off = AndroidAppConfigPreferences(playOriginals = false)
+        OriginalVideoPolicy.entries.forEach { build ->
+            assertEquals(build, readyState(on).originalVideoPolicy(build))
+            assertEquals(OriginalVideoPolicy.Never, readyState(off).originalVideoPolicy(build))
+            assertEquals(OriginalVideoPolicy.Never, AndroidAppConfigReducer.start().state.originalVideoPolicy(build))
+        }
+        val turningOn = AndroidAppConfigReducer.reduce(
+            readyState(off),
+            AndroidAppConfigEvent.ChangeRequested(AndroidAppConfigChange.PlayOriginals(true)),
+        )
+        assertEquals(OriginalVideoPolicy.Never, turningOn.state.originalVideoPolicy(OriginalVideoPolicy.Check))
+        val requestId = requireNotNull(turningOn.effect).requestId
+        val refreshed = AndroidAppConfigReducer.reduce(
+            AndroidAppConfigReducer.reduce(turningOn.state, AndroidAppConfigEvent.SaveSucceeded(requestId)).state,
+            AndroidAppConfigEvent.RefreshSucceeded(requestId, on),
+        )
+        assertEquals(OriginalVideoPolicy.Check, refreshed.state.originalVideoPolicy(OriginalVideoPolicy.Check))
+    }
+
+    @Test
     fun playbackKeepsConfirmedFormatThroughSaveAndRefreshFailures() {
         val saving = AndroidAppConfigReducer.reduce(
             readyState(),

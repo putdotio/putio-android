@@ -67,6 +67,8 @@ import io.putdotio.android.playback.SdkPlaybackPositionRepository
 import io.putdotio.android.playback.ConvertingPlaybackRepository
 import io.putdotio.android.playback.MediaCodecDecoderInventory
 import io.putdotio.android.playback.OriginalVideoPolicy
+import io.putdotio.android.playback.originalVideoPolicy
+import io.putdotio.android.playback.playbackPreference
 import io.putdotio.android.tv.player.TvPlaybackLayer
 import io.putdotio.android.tv.player.TvPlaybackRoute
 import io.putdotio.android.tv.player.openPlaybackInVlc
@@ -177,11 +179,13 @@ private fun TvSignedInApp(
             streamUrls = SdkFilesStreamUrls(runtime.putioClient),
             filesItemResolver = filesRepository,
             recentSearchStore = { scope -> AppConfigRecentSearchStore(runtime.putioClient, scope) },
-            playbackRepository = { preference ->
+            playbackRepository = { appConfig ->
                 ConvertingPlaybackRepository(
                     runtime.putioClient,
-                    preference,
-                    originalVideoPolicy = { OriginalVideoPolicy.valueOf(BuildConfig.PUTIO_ORIGINAL_VIDEO) },
+                    playbackPreference = { appConfig().playbackPreference() },
+                    originalVideoPolicy = {
+                        appConfig().originalVideoPolicy(OriginalVideoPolicy.valueOf(BuildConfig.PUTIO_ORIGINAL_VIDEO))
+                    },
                     decoders = MediaCodecDecoderInventory(appContext),
                 )
             },

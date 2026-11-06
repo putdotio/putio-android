@@ -124,5 +124,7 @@ internal fun AndroidAppConfigChange.analyticsEvent(): AnalyticsEvent.SettingsCha
         )
         is AndroidAppConfigChange.AutoplayNextVideo ->
             AnalyticsEvent.SettingsChanged(Setting.AutoplayNextVideo, SettingValue.of(enabled))
-        AndroidAppConfigChange.ProductAnalyticsPromptAnswered -> null
+        is AndroidAppConfigChange.PlayOriginals,
+        AndroidAppConfigChange.ProductAnalyticsPromptAnswered,
+        -> null
     }

@@ -56,6 +56,18 @@ internal fun VideoPlaybackType.tvDescription(): Int =
         VideoPlaybackType.Mp4 -> R.string.tv_account_video_playback_mp4_description
     }
 
+@StringRes
+internal fun playOriginalsTvLabel(enabled: Boolean): Int =
+    if (enabled) R.string.tv_account_play_originals_on else R.string.tv_account_play_originals_off
+
+@StringRes
+internal fun playOriginalsTvDescription(enabled: Boolean): Int =
+    if (enabled) {
+        R.string.tv_account_play_originals_on_description
+    } else {
+        R.string.tv_account_play_originals_off_description
+    }
+
 @Composable
 internal fun tvMonoArguments(@StringRes template: Int, vararg values: String): AnnotatedString {
     val text = stringResource(template, *values)

@@ -79,6 +79,7 @@ import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.playback.rememberFolderNeighbours
 import io.putdotio.android.playback.SubtitleStartupPolicy
 import io.putdotio.android.playback.confirmedAutoplayNextVideo
+import io.putdotio.android.playback.confirmedPlayOriginals
 import io.putdotio.android.playback.dispatch
 import io.putdotio.android.playback.mobilePlaybackViewModelFactory
 import io.putdotio.android.playback.playbackPreference
@@ -335,7 +336,13 @@ internal fun MobileNavHost(
                     )
                 }
                 composable(MOBILE_APP_INFO_ROUTE) {
-                    MobileAppInfoScreen(mobileAppDiagnostics(appConfigState.playbackPreference(), deviceClass))
+                    MobileAppInfoScreen(
+                        mobileAppDiagnostics(
+                            appConfigState.playbackPreference(),
+                            appConfigState.confirmedPlayOriginals(),
+                            deviceClass,
+                        ),
+                    )
                 }
                 composable(MOBILE_PRIVACY_CONTROLS_ROUTE) {
                     MobilePrivacyControlsScreen(
