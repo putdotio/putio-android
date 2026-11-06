@@ -35,7 +35,8 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class NativeCrashProofTest {
     private val arguments: Bundle = InstrumentationRegistry.getArguments()
-    private val application = InstrumentationRegistry.getInstrumentation().targetContext.applicationContext as Application
+    private val application =
+        InstrumentationRegistry.getInstrumentation().targetContext.applicationContext as Application
     private val files = DiagnosticsFiles(application)
     private val events = CopyOnWriteArrayList<String>()
 
@@ -104,6 +105,13 @@ class NativeCrashProofTest {
         const val SEND_TIMEOUT_MILLIS = 30_000L
         const val POLL_MILLIS = 250L
         val CONFIGURATION = SentryConfiguration.of("https://synthetickey@o0.example.invalid/1", "proof", "mobile")
-        val UNLISTED = listOf("\"threads\"", "\"breadcrumbs\"", "/data/app", "/data/user", "\"debug_file\"", "\"value\"")
+        val UNLISTED = listOf(
+            "\"threads\"",
+            "\"breadcrumbs\"",
+            "/data/app",
+            "/data/user",
+            "\"debug_file\"",
+            "\"value\"",
+        )
     }
 }

@@ -273,7 +273,6 @@ private fun TvAccountBody(
     showHome: TvShowHome?,
 ) {
     var sheet by rememberSaveable { mutableStateOf<TvAccountSheet?>(null) }
-    var notice by rememberSaveable { mutableIntStateOf(0) }
     val focus = remember { TvAccountFocus() }
     val paneHasFocus = rememberTvPaneHasFocus()
     val refocus = remember { mutableIntStateOf(0) }
@@ -340,10 +339,6 @@ private fun TvAccountBody(
                 onSettingsEvent = onSettingsEvent,
                 onAppConfigEvent = onAppConfigEvent,
                 open = open,
-                openNotice = { index ->
-                    notice = index
-                    open(TvAccountSheet.OpenSourceNotice, RowKey.notice(index))
-                },
             ),
             library = TvLibraryRows(trashSizeBytes, onManageTrash, showHome),
             playbackPreference = appConfigState.playbackPreference(),
@@ -358,7 +353,7 @@ private fun TvAccountBody(
         onAppConfigEvent = onAppConfigEvent,
         onSignOut = onSignOut,
         loadTunnelRoutes = loadTunnelRoutes,
-        notice = notice,
+        notice = openSourceNotices.indices.firstOrNull { RowKey.notice(it) == lastFocus.value },
         returnFocus = { key -> focus.requester(key) },
         onClose = { sheet = null },
     )
@@ -471,7 +466,7 @@ private fun TvAccountSheets(
     onAppConfigEvent: (AndroidAppConfigEvent) -> Boolean,
     onSignOut: () -> Unit,
     loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>>,
-    notice: Int,
+    notice: Int?,
     returnFocus: (String) -> FocusRequester,
     onClose: () -> Unit,
 ) {
@@ -534,12 +529,13 @@ private fun TvAccountSheets(
             onDismiss = onClose,
             returnFocus = returnFocus(RowKey.SERVICES),
         )
-        TvAccountSheet.OpenSourceNotice -> openSourceNotices.getOrNull(notice)?.let {
+        TvAccountSheet.OpenSourceNotice -> notice?.let { index ->
+            val source = openSourceNotices[index]
             TvQrSheet(
-                title = stringResource(R.string.tv_account_open_source_name, it.name, it.version),
-                url = it.sourceUrl,
+                title = stringResource(R.string.tv_account_open_source_name, source.name, source.version),
+                url = source.sourceUrl,
                 onDismiss = onClose,
-                returnFocus = returnFocus(RowKey.notice(notice)),
+                returnFocus = returnFocus(RowKey.notice(index)),
             )
         }
         TvAccountSheet.TrashOff -> TvConfirmDialog(
@@ -575,7 +571,6 @@ private class TvAccountRowsScope(
     val onSettingsEvent: (AccountSettingsEvent) -> Boolean,
     val onAppConfigEvent: (AndroidAppConfigEvent) -> Boolean,
     val open: (TvAccountSheet, String) -> Unit,
-    val openNotice: (Int) -> Unit,
 ) {
     private val settings = (settingsState.content as? AccountSettingsContent.Ready)?.preferences
     private val config = (appConfigState.content as? AndroidAppConfigContent.Ready)?.preferences
@@ -896,8 +891,12 @@ private class TvAccountRowsScope(
                     title = stringResource(R.string.tv_account_open_source_name, notice.name, notice.version),
                     icon = R.drawable.ic_ph_file_text,
                     segment = segmentOf(index, openSourceNotices.size),
-                    description = stringResource(R.string.tv_account_open_source_terms, notice.license, notice.copyright),
-                    onClick = { openNotice(index) },
+                    description = stringResource(
+                        R.string.tv_account_open_source_terms,
+                        notice.license,
+                        notice.copyright,
+                    ),
+                    onClick = { open(TvAccountSheet.OpenSourceNotice, RowKey.notice(index)) },
                     modifier = Modifier.accountFocus(context, RowKey.notice(index)),
                 ) { focused -> TvSettingValue(qr, focused) }
             }

@@ -50,7 +50,8 @@ class FfmpegAudioProofTest {
     @Test
     fun theAppRenderersDecodeTheFileAsExpected() {
         assumeTrue("FFmpeg audio proof requires opt-in", arguments.getString("putio.ffmpegAudio.enabled") == "true")
-        val file = File(context.getExternalFilesDir(null), requireNotNull(arguments.getString("putio.ffmpegAudio.file")))
+        val name = requireNotNull(arguments.getString("putio.ffmpegAudio.file"))
+        val file = File(context.getExternalFilesDir(null), name)
         val audioMime = requireNotNull(arguments.getString("putio.ffmpegAudio.audioMime"))
         val expect = requireNotNull(arguments.getString("putio.ffmpegAudio.expect"))
         assertTrue("Missing ${file.path}", file.isFile)
@@ -74,7 +75,8 @@ class FfmpegAudioProofTest {
             .put("platformAudio", platformOnly.plays(audioFormat))
             .put("inventoryVideo", videoFormat?.let(withFfmpeg::plays))
         Log.i(TAG, "RESULT $result")
-        InstrumentationRegistry.getInstrumentation().sendStatus(0, Bundle().apply { putString("result", result.toString()) })
+        val status = Bundle().apply { putString("result", result.toString()) }
+        InstrumentationRegistry.getInstrumentation().sendStatus(0, status)
 
         assertNull(run.error)
         assertEquals(audioMime, run.audioFormat?.sampleMimeType)
@@ -83,9 +85,15 @@ class FfmpegAudioProofTest {
         when (expect) {
             "decoded" -> {
                 assertFalse(platformOnly.plays(audioFormat))
-                assertTrue("FFmpeg did not take the audio: ${run.audioDecoder}", run.audioDecoder.orEmpty().startsWith("ffmpeg"))
+                assertTrue(
+                    "FFmpeg did not take the audio: ${run.audioDecoder}",
+                    run.audioDecoder.orEmpty().startsWith("ffmpeg"),
+                )
                 assertNotNull(run.videoDecoder)
-                assertFalse("Video left MediaCodec: ${run.videoDecoder}", run.videoDecoder.orEmpty().startsWith("ffmpeg"))
+                assertFalse(
+                    "Video left MediaCodec: ${run.videoDecoder}",
+                    run.videoDecoder.orEmpty().startsWith("ffmpeg"),
+                )
                 assertTrue(run.videoSupported == true)
             }
             "rejected" -> {
@@ -189,7 +197,11 @@ class FfmpegAudioProofTest {
                 videoSupported = video.isTrackSupported(0)
             }
 
-            override fun onDroppedVideoFrames(eventTime: AnalyticsListener.EventTime, droppedFrames: Int, elapsedMs: Long) {
+            override fun onDroppedVideoFrames(
+                eventTime: AnalyticsListener.EventTime,
+                droppedFrames: Int,
+                elapsedMs: Long,
+            ) {
                 this@PlayerRun.droppedFrames += droppedFrames
             }
 
