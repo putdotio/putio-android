@@ -273,10 +273,6 @@ internal class MobileOAuthRuntime(
             MobileCast.sessionLeft(context, session)
         }
 
-        /**
-         * What sign-out removes from this device for every account: move targets, Continue watching
-         * and the videos switched to converted.
-         */
         private fun clearAccountLocalState(context: Context) {
             MobileMoveTargetStore.clearAll(context)
             DeviceContinueWatchingStore.clearAll(context)

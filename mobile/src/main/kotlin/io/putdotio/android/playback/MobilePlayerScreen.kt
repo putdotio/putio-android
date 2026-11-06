@@ -628,7 +628,6 @@ private fun MobileReadyPlayer(
     )
 }
 
-/** The viewer's switch to converted, from where [player] stands; null unless an original video streams. */
 private fun PlaybackSource?.switchToConverted(
     mediaType: PlaybackMediaType,
     offline: Boolean,

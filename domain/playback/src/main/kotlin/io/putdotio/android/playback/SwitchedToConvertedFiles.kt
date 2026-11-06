@@ -20,7 +20,6 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.IOException
 
-/** The videos the viewer switched to converted on this device; each plays converted when it opens again. */
 public interface SwitchedToConvertedFiles {
     public suspend fun contains(fileId: Long): Boolean
 
@@ -33,11 +32,9 @@ public interface SwitchedToConvertedFiles {
     }
 }
 
-/** The newest [limit] files, newest last; switching a listed file again makes it the newest. */
 internal fun List<Long>.withSwitched(fileId: Long, limit: Int = SWITCHED_TO_CONVERTED_LIMIT): List<Long> =
     (filterNot { it == fileId } + fileId).takeLast(limit)
 
-/** One DataStore list for the device, never in `/config`; sign-out empties it with [clear]. */
 public class DataStoreSwitchedToConvertedFiles internal constructor(
     private val store: DataStore<Preferences>,
     private val scope: CoroutineScope,

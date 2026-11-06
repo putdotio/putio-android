@@ -113,7 +113,6 @@ public class MediaCodecDecoderInventory(
             .isPassthroughPlaybackSupported(format, AudioAttributes.DEFAULT)
 }
 
-/** [withOriginalVideo], except that a video the viewer switched to converted never opens its original. */
 internal suspend fun PlaybackRequest.withOriginalVideo(
     policy: OriginalVideoPolicy,
     decision: OriginalPlaybackDecision,

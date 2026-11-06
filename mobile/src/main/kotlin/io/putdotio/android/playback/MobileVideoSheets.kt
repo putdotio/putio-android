@@ -180,7 +180,6 @@ private fun MobileVideoSheet.title(): Int =
         MobileVideoSheet.Stream -> PlaybackR.string.playback_stream
     }
 
-/** Stream: the original playing now, or converted from here on for this file. */
 @Composable
 private fun MobileStreamSheetContent(onOriginal: () -> Unit, onConverted: () -> Unit) {
     Column(Modifier.selectableGroup()) {

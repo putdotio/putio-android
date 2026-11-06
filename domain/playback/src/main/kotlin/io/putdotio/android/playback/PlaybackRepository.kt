@@ -118,7 +118,6 @@ public interface PlaybackRepository {
 
     public suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult
 
-    /** Remembers that the viewer switched [target] to converted, so it opens converted next time. */
     public fun rememberSwitchedToConverted(target: PlaybackTarget): Unit = Unit
 
     /**
