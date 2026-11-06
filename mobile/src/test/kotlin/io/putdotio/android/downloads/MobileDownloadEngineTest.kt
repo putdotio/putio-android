@@ -449,11 +449,18 @@ class MobileDownloadEngineTest {
         val io = StandardTestDispatcher()
 
         engine(ALICE, store, manager, io)
-        runBlocking { store.upsert(entry(13L, accepted = false)) }
+        runBlocking {
+            store.updateStatus(FilesItemId(12L)) { it.copy(pauseRequested = true) }
+            store.upsert(entry(13L, accepted = false))
+        }
         io.scheduler.advanceUntilIdle()
         shadowOf(Looper.getMainLooper()).idle()
 
-        assertEquals("$ALICE:12", startedRequest().id)
+        val intent = shadowOf(context).nextStartedService
+        val request =
+            IntentCompat.getParcelableExtra(intent, DownloadService.KEY_DOWNLOAD_REQUEST, DownloadRequest::class.java)
+        assertEquals("$ALICE:12", request?.id)
+        assertEquals(MobileDownloadEngine.STOP_REASON_PAUSED, intent.getIntExtra(DownloadService.KEY_STOP_REASON, -1))
         assertNull(shadowOf(context).nextStartedService)
     }
 

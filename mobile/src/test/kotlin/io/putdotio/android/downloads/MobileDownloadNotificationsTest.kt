@@ -129,16 +129,16 @@ class MobileDownloadNotificationsTest {
     }
 
     @Test
-    fun aRejectedOriginalFallsBackToConvertedSignedInOrNotUnlessItIsBeingDeleted() = runBlocking {
+    fun aRejectedOriginalFallsBackToConvertedParkedWhenSignedOutUnlessItIsBeingDeleted() = runBlocking {
         shadowOf(context).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
         val original = DownloadArtifact.ORIGINAL_HLS
         val store = MobileDownloadStore(context, USER)
         store.upsert(row(13L, "Spring.mp4").copy(artifact = original))
         store.upsert(row(14L, "Summer.mp4").copy(artifact = original, removing = true))
-        val fellBack = mutableListOf<Pair<Long, DownloadEntry>>()
+        val fellBack = mutableListOf<Triple<Long, DownloadEntry, Boolean>>()
         val listener = MobileDownloadNotifications(
             context,
-            fallBack = { _, user, entry -> fellBack += user to entry },
+            fallBack = { _, user, entry, parked -> fellBack += Triple(user, entry, parked) },
         ) { signedIn }
 
         signedIn = null
@@ -147,8 +147,9 @@ class MobileDownloadNotificationsTest {
         }
 
         assertTrue(shadowOf(manager).allNotifications.isEmpty())
-        val (user, converted) = fellBack.single()
+        val (user, converted, parked) = fellBack.single()
         assertEquals(USER to FilesItemId(13L), user to converted.fileId)
+        assertTrue(parked)
         assertEquals(DownloadArtifact.HLS to DownloadStatus.Queued, converted.artifact to converted.status)
     }
 

@@ -34,7 +34,7 @@ internal class MobileDownloadsViewModel(
         context: Context,
         userId: Long,
         sessionId: MobileAuthSessionId,
-        acceptsOriginal: suspend (FilesItemId) -> Boolean,
+        acceptsOriginal: suspend (FilesItemId) -> Boolean?,
     ): DownloadsController? =
         session.valueFor(MobileSessionKey(userId, sessionId)) {
             val store = MobileDownloadStore.shared(context, userId)

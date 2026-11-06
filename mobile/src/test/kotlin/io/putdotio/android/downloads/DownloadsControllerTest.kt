@@ -436,6 +436,28 @@ class DownloadsControllerTest {
         }
     }
 
+    @Test
+    fun aRedownloadKeepsItsRenditionWhenTheDecisionCannotAnswer() = runBlocking {
+        var original: Boolean? = null
+        store.upsert(
+            DownloadEntry(
+                video.fileId, video.name, PutioFileType.VIDEO, DownloadArtifact.ORIGINAL_HLS, DownloadStatus.Missing,
+                createdAt = 1L, accepted = true,
+            ),
+        )
+        DownloadsController(store, engine, this, acceptsOriginal = { original }).use { controller ->
+            assertTrue(controller.dispatch(DownloadsEvent.Start(video)))
+            engine.await { it.started.size == 1 }
+            assertEquals(DownloadArtifact.ORIGINAL_HLS, engine.started.single().artifact)
+
+            store.fail(video.fileId)
+            original = false
+            assertTrue(controller.dispatch(DownloadsEvent.Retry(video.fileId)))
+            engine.await { it.replaced.size == 1 }
+            assertEquals(DownloadArtifact.HLS, engine.replaced.single().artifact)
+        }
+    }
+
     private suspend fun DownloadsController.awaitState(predicate: (DownloadsState) -> Boolean): DownloadsState =
         withTimeout(5_000L) { state.first(predicate) }
 }

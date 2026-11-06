@@ -9,8 +9,7 @@ import io.putdotio.sdk.files.PutioMediaInfo
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
+import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
@@ -24,16 +23,17 @@ class OriginalVideoDownloadsTest {
     fun theCheckDownloadsTheOriginalOnlyWhereThePlayerWouldPlayItOverHls() = runBlocking {
         val downloads = downloads(OriginalVideoPolicy.Check)
 
-        assertTrue(downloads.accepts(file(H264_MP4, captured("h264-aac.mp4"))))
-        assertFalse(downloads.accepts(file(AV1_MKV, captured("av1-4k-eac3.mkv"))))
-        assertFalse(downloads.accepts(file(UNPROBED, mediaInfo = null)))
+        assertEquals(true, downloads.accepts(file(H264_MP4, captured("h264-aac.mp4"))))
+        assertEquals(false, downloads.accepts(file(AV1_MKV, captured("av1-4k-eac3.mkv"))))
+        assertEquals(false, downloads.accepts(file(UNPROBED, mediaInfo = null)))
         assertEquals(listOf(H264_MP4, AV1_MKV, UNPROBED), loaded)
     }
 
     @Test
     fun playOriginalsOffAndSwitchedFilesDownloadConvertedWithoutAsking() = runBlocking {
-        assertFalse(downloads(OriginalVideoPolicy.Never).accepts(file(H264_MP4, captured("h264-aac.mp4"))))
-        assertFalse(
+        assertEquals(false, downloads(OriginalVideoPolicy.Never).accepts(file(H264_MP4, captured("h264-aac.mp4"))))
+        assertEquals(
+            false,
             downloads(OriginalVideoPolicy.Check, switched = setOf(H264_MP4))
                 .accepts(file(H264_MP4, captured("h264-aac.mp4"))),
         )
@@ -44,12 +44,12 @@ class OriginalVideoDownloadsTest {
     fun theDebugForceTakesEveryVideoButNoOtherType() = runBlocking {
         val downloads = downloads(OriginalVideoPolicy.Always)
 
-        assertTrue(downloads.accepts(file(UNPROBED, mediaInfo = null)))
-        assertFalse(downloads.accepts(file(TRACK, mediaInfo = null, type = PutioFileType.AUDIO)))
+        assertEquals(true, downloads.accepts(file(UNPROBED, mediaInfo = null)))
+        assertEquals(false, downloads.accepts(file(TRACK, mediaInfo = null, type = PutioFileType.AUDIO)))
     }
 
     @Test
-    fun aFailedLookupDownloadsConverted() = runBlocking {
+    fun aFailedLookupAnswersNothing() = runBlocking {
         val downloads = OriginalVideoDownloads(
             originalVideoPolicy = { OriginalVideoPolicy.Always },
             decision = OriginalPlaybackDecision(FakeDecoderInventory(PHONE)),
@@ -57,7 +57,7 @@ class OriginalVideoDownloadsTest {
             loadFile = { error("offline") },
         )
 
-        assertFalse(downloads.accepts(FilesItemId(H264_MP4)))
+        assertNull(downloads.accepts(FilesItemId(H264_MP4)))
     }
 
     private val files = mutableMapOf<Long, PutioFile>()

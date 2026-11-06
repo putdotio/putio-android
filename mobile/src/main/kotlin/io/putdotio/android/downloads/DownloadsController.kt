@@ -34,7 +34,7 @@ internal class DownloadsController(
     private val store: DownloadStore,
     private val engine: DownloadEngine,
     parentScope: CoroutineScope,
-    private val acceptsOriginal: suspend (FilesItemId) -> Boolean = { false },
+    private val acceptsOriginal: suspend (FilesItemId) -> Boolean? = { false },
     /** A monotonic clock for speed intervals, which a wall-clock change must not bend. */
     private val elapsedMillis: () -> Long = { System.nanoTime() / NANOS_PER_MILLI },
     private val clock: () -> Long = System::currentTimeMillis,
@@ -121,8 +121,9 @@ internal class DownloadsController(
         enqueue {
             // Re-check under the mutation lock: a removal may have landed since dispatch.
             if (!accepts(entry.fileId, retry = false)) return@enqueue
+            val held = store.find(entry.fileId)?.artifact
             store.upsert(entry)
-            queueStart(entry, held = null)
+            queueStart(entry, held)
         }
         return true
     }
@@ -130,8 +131,7 @@ internal class DownloadsController(
     private fun queueStart(entry: DownloadEntry, held: DownloadArtifact?) {
         val original = if (entry.type == PutioFileType.VIDEO) {
             scope.async {
-                withTimeoutOrNull(ORIGINAL_DECISION_TIMEOUT) { lookups.withPermit { acceptsOriginal(entry.fileId) } }
-                    ?: false
+                lookups.withPermit { withTimeoutOrNull(ORIGINAL_DECISION_TIMEOUT) { acceptsOriginal(entry.fileId) } }
             }
         } else {
             null
@@ -147,7 +147,7 @@ internal class DownloadsController(
                     !engine.isRemoving(it.fileId) && synchronized(lock) { it.fileId !in mutableState.value.removing }
             } ?: return
             val artifact = when (original) {
-                null -> current.artifact
+                null -> pending.held ?: current.artifact
                 true -> DownloadArtifact.ORIGINAL_HLS
                 false -> DownloadArtifact.HLS
             }
@@ -281,7 +281,7 @@ internal class DownloadsController(
     }
 }
 
-private class PendingStart(val entry: DownloadEntry, val held: DownloadArtifact?, val original: Deferred<Boolean>?)
+private class PendingStart(val entry: DownloadEntry, val held: DownloadArtifact?, val original: Deferred<Boolean?>?)
 
 /** Progress is display-only, so it polls outside the mutation queue and dies with the controller scope. */
 private class ProgressWatch(

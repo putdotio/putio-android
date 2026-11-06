@@ -37,10 +37,11 @@ internal sealed interface DownloadOutcome {
 internal class MobileDownloadNotifications(
     private val context: Context,
     private val stores: (Long) -> MobileDownloadStore = { MobileDownloadStore.shared(context, it) },
-    private val fallBack: (DownloadManager, Long, DownloadEntry) -> Unit = { manager, userId, converted ->
-        stores(userId).updateStatusBlocking(converted.fileId) { converted }
-        replaceDownloadRequest(context, manager, userId, converted)
-    },
+    private val fallBack: (DownloadManager, Long, DownloadEntry, Boolean) -> Unit =
+        { manager, userId, converted, parked ->
+            stores(userId).updateStatusBlocking(converted.fileId) { converted }
+            replaceDownloadRequest(context, manager, userId, converted, parked)
+        },
     private val signedInUser: () -> Long?,
 ) : DownloadManager.Listener {
     override fun onDownloadChanged(
@@ -60,7 +61,7 @@ internal class MobileDownloadNotifications(
         // A row being deleted, or one this device never indexed, stays quiet.
         if (download.fallingBackToConverted(finalException)) {
             stores(owner).find(fileId)?.takeUnless { it.removing }
-                ?.let { fallBack(downloadManager, owner, it.convertedFallback()) }
+                ?.let { fallBack(downloadManager, owner, it.convertedFallback(), owner != signedInUser()) }
         } else if (owner == signedInUser()) {
             MobileDownloadStore.peek(context, owner, fileId)?.takeUnless { it.removing }
                 ?.let { post(context, owner, it, outcome) }
@@ -214,7 +215,15 @@ internal fun Download.fallingBackToConverted(error: Exception?): Boolean =
         request.artifact.fallsBackToConverted(error.toFailureReason(), bytesDownloaded)
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-internal fun replaceDownloadRequest(context: Context, manager: DownloadManager, userId: Long, entry: DownloadEntry) {
+internal fun replaceDownloadRequest(
+    context: Context,
+    manager: DownloadManager,
+    userId: Long,
+    entry: DownloadEntry,
+    parked: Boolean = false,
+) {
     manager.removeDownload(downloadContentId(userId, entry.fileId))
-    sendDownloadRequest(context, userId, entry) { request, stopReason -> manager.addDownload(request, stopReason) }
+    sendDownloadRequest(context, userId, entry) { request, stopReason ->
+        manager.addDownload(request, if (parked) MobileDownloadEngine.STOP_REASON_OTHER_USER else stopReason)
+    }
 }

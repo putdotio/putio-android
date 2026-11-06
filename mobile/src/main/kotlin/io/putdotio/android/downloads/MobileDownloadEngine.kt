@@ -157,7 +157,7 @@ internal class MobileDownloadEngine(
                 // dropped it. Finished rows read as missing, failed rows wait for Retry, and
                 // everything else goes back in the queue.
                 entry.isCompleted -> store.markMissing(entry.fileId)
-                entry.canRetry || inherited[entry.fileId] != entry -> Unit
+                entry.canRetry || inherited[entry.fileId]?.copy(pauseRequested = entry.pauseRequested) != entry -> Unit
                 else -> start(entry)
             }
         }
