@@ -36,11 +36,10 @@ internal sealed interface DownloadOutcome {
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal class MobileDownloadNotifications(
     private val context: Context,
+    private val stores: (Long) -> MobileDownloadStore = { MobileDownloadStore.shared(context, it) },
     private val fallBack: (DownloadManager, Long, DownloadEntry) -> Unit = { manager, userId, converted ->
-        if (MobileDownloadCache.get(context).activeUserId != userId) {
-            MobileDownloadStore.shared(context, userId).updateStatusBlocking(converted.fileId) { converted }
-            sendDownloadRequest(context, userId, converted) { manager.addDownload(it) }
-        }
+        stores(userId).updateStatusBlocking(converted.fileId) { converted }
+        replaceDownloadRequest(context, manager, userId, converted)
     },
     private val signedInUser: () -> Long?,
 ) : DownloadManager.Listener {
@@ -55,17 +54,17 @@ internal class MobileDownloadNotifications(
             Download.STATE_FAILED -> DownloadOutcome.Failed(finalException.toFailureReason())
             else -> return
         }
-        val userId = download.request.ownerUserId()?.takeIf { it == signedInUser() } ?: return
-        val fileId = fileIdOf(userId, download.request.id)
-        // A row being deleted, or one this device never indexed, stays quiet.
-        val entry = fileId?.let { MobileDownloadStore.peek(context, userId, it) }
-        val converted = (outcome as? DownloadOutcome.Failed)
-            ?.let { entry?.convertedFallback(it.reason, download.bytesDownloaded) }
-        when {
-            entry?.removing != false -> Unit
-            converted != null -> fallBack(downloadManager, userId, converted)
-            else -> post(context, userId, entry, outcome)
+        val owner = download.request.ownerUserId() ?: return
+        val fileId = fileIdOf(owner, download.request.id) ?: return
+        if (download.fallingBackToConverted(finalException)) {
+            stores(owner).find(fileId)?.takeUnless { it.removing }
+                ?.let { fallBack(downloadManager, owner, it.convertedFallback()) }
+            return
         }
+        if (owner != signedInUser()) return
+        // A row being deleted, or one this device never indexed, stays quiet.
+        val entry = MobileDownloadStore.peek(context, owner, fileId)?.takeUnless { it.removing } ?: return
+        post(context, owner, entry, outcome)
     }
 
     companion object {

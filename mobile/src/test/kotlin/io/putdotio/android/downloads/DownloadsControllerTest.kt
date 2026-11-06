@@ -398,6 +398,44 @@ class DownloadsControllerTest {
         controller.close()
     }
 
+    @Test
+    fun originalLookupsRunTogetherAndStartsKeepTapOrder() = runTest {
+        val episodes = (20L..22L).map { video.copy(fileId = FilesItemId(it), name = "Episode $it.mkv") }
+        val controller = DownloadsController(store, engine, backgroundScope, acceptsOriginal = { awaitCancellation() })
+        for (request in listOf(episodes[0], audio, episodes[1], episodes[2])) {
+            assertTrue(controller.dispatch(DownloadsEvent.Start(request)))
+        }
+        advanceTimeBy(9.seconds)
+        runCurrent()
+        assertTrue(engine.started.isEmpty())
+
+        advanceTimeBy(2.seconds)
+        runCurrent()
+        assertEquals(
+            listOf(episodes[0].fileId, audio.fileId, episodes[1].fileId, episodes[2].fileId),
+            engine.started.map { it.fileId },
+        )
+        controller.close()
+    }
+
+    @Test
+    fun aRetriedVideoAsksTheDecisionAgainAndReplacesAnotherRendition() = runBlocking {
+        var original = true
+        DownloadsController(store, engine, this, acceptsOriginal = { original }).use { controller ->
+            assertTrue(controller.dispatch(DownloadsEvent.Start(video)))
+            engine.await { it.started.size == 1 }
+            store.fail(video.fileId)
+            original = false
+
+            assertTrue(controller.dispatch(DownloadsEvent.Retry(video.fileId)))
+            engine.await { it.replaced.size == 1 }
+
+            assertEquals(DownloadArtifact.ORIGINAL_HLS, engine.started.single().artifact)
+            assertEquals(DownloadArtifact.HLS, engine.replaced.single().artifact)
+            assertEquals(DownloadArtifact.HLS, store.find(video.fileId)?.artifact)
+        }
+    }
+
     private suspend fun DownloadsController.awaitState(predicate: (DownloadsState) -> Boolean): DownloadsState =
         withTimeout(5_000L) { state.first(predicate) }
 }
@@ -434,6 +472,7 @@ internal class FakeDownloadStore : DownloadStore {
 
 internal class FakeDownloadEngine : DownloadEngine {
     val started = mutableListOf<DownloadEntry>()
+    val replaced = mutableListOf<DownloadEntry>()
     val removed = mutableListOf<FilesItemId>()
     val paused = mutableListOf<FilesItemId>()
     val resumed = mutableListOf<FilesItemId>()
@@ -446,6 +485,11 @@ internal class FakeDownloadEngine : DownloadEngine {
 
     override fun start(entry: DownloadEntry) {
         started += entry
+        version.value += 1
+    }
+
+    override fun replace(entry: DownloadEntry) {
+        replaced += entry
         version.value += 1
     }
 

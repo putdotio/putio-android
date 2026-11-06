@@ -129,20 +129,26 @@ class MobileDownloadNotificationsTest {
     }
 
     @Test
-    fun aRejectedOriginalPostsNothingAndFallsBackToConverted() = runBlocking {
+    fun aRejectedOriginalFallsBackToConvertedSignedInOrNotUnlessItIsBeingDeleted() = runBlocking {
         shadowOf(context).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
-        MobileDownloadStore(context, USER).upsert(row(13L, "Spring.mp4").copy(artifact = DownloadArtifact.ORIGINAL_HLS))
+        val original = DownloadArtifact.ORIGINAL_HLS
+        val store = MobileDownloadStore(context, USER)
+        store.upsert(row(13L, "Spring.mp4").copy(artifact = original))
+        store.upsert(row(14L, "Summer.mp4").copy(artifact = original, removing = true))
         val fellBack = mutableListOf<Pair<Long, DownloadEntry>>()
         val listener = MobileDownloadNotifications(
             context,
             fallBack = { _, user, entry -> fellBack += user to entry },
         ) { signedIn }
 
-        listener.changed(download(13L, Download.STATE_FAILED), rejected(HTTP_BAD_REQUEST))
+        signedIn = null
+        for (id in listOf(13L, 14L)) {
+            listener.changed(download(id, Download.STATE_FAILED, artifact = original), rejected(HTTP_BAD_REQUEST))
+        }
 
         assertTrue(shadowOf(manager).allNotifications.isEmpty())
         val (user, converted) = fellBack.single()
-        assertEquals(USER, user)
+        assertEquals(USER to FilesItemId(13L), user to converted.fileId)
         assertEquals(DownloadArtifact.HLS to DownloadStatus.Queued, converted.artifact to converted.status)
     }
 
@@ -310,8 +316,9 @@ class MobileDownloadNotificationsTest {
         user: Long = USER,
         name: String? = null,
         stopReason: Int = Download.STOP_REASON_NONE,
+        artifact: DownloadArtifact = DownloadArtifact.ORIGINAL,
     ) = Download(
-        DownloadRequest.Builder("$user:$fileId", Uri.parse("https://api.put.io/v2/files/$fileId/stream"))
+        DownloadRequest.Builder("$user:$fileId", Uri.parse(artifact.apiUrl(FilesItemId(fileId))))
             .setData(name?.encodeToByteArray())
             .build(),
         state,

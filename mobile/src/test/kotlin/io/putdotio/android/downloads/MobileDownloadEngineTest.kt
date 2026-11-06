@@ -441,6 +441,23 @@ class MobileDownloadEngineTest {
     }
 
     @Test
+    fun reconcileRequeuesOnlyRowsFromBeforeThisSessionStarted() {
+        val store = store(ALICE)
+        runBlocking { store.upsert(entry(12L, accepted = false)) }
+        val manager = manager()
+        awaitMain { manager.isInitialized }
+        val io = StandardTestDispatcher()
+
+        engine(ALICE, store, manager, io)
+        runBlocking { store.upsert(entry(13L, accepted = false)) }
+        io.scheduler.advanceUntilIdle()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertEquals("$ALICE:12", startedRequest().id)
+        assertNull(shadowOf(context).nextStartedService)
+    }
+
+    @Test
     fun closeBeforeTheIndexReadLandsKeepsParkedTransfersParked() {
         index.putDownload(download("$ALICE:10", Download.STATE_STOPPED, stopReason = PARKED))
         val store = store(ALICE)
@@ -518,6 +535,7 @@ class MobileDownloadEngineTest {
         val ids = listOf(REJECTED, PARTIAL, OFFLINE)
         runBlocking { for (id in ids) store.upsert(entry(id, accepted = true).copy(artifact = ORIGINAL_HLS)) }
         val manager = manager(concurrency = ids.size).apply { minRetryCount = 0 }
+        manager.addListener(MobileDownloadNotifications(context, stores = { store }) { ALICE })
         engine(ALICE, store, manager)
         awaitMain { manager.isInitialized }
         generateSequence { shadowOf(context).nextStartedService }.toList()
@@ -572,13 +590,16 @@ class MobileDownloadEngineTest {
             "https://api.put.io/v2/files/10/hls/media.m3u8?subtitle_key=all&max_subtitle_count=0&original=1",
             ORIGINAL_HLS.apiUrl(FilesItemId(10L), subtitlesHidden = true),
         )
-        val sent = mutableListOf<DownloadRequest>()
-        sendDownloadRequest(context, ALICE, entry(10L, accepted = false).copy(artifact = ORIGINAL_HLS)) { sent += it }
-        assertEquals(MimeTypes.APPLICATION_M3U8, sent.single().mimeType)
+        val sent = mutableListOf<Pair<DownloadRequest, Int>>()
+        val paused = entry(10L, accepted = false).copy(artifact = ORIGINAL_HLS, pauseRequested = true)
+        sendDownloadRequest(context, ALICE, paused) { request, stopReason -> sent += request to stopReason }
+        val (request, stopReason) = sent.single()
+        assertEquals(MimeTypes.APPLICATION_M3U8, request.mimeType)
+        assertEquals(MobileDownloadEngine.STOP_REASON_PAUSED, stopReason)
 
         index.putDownload(
             Download(
-                sent.single(), Download.STATE_STOPPED, 5L, 5L, TOTAL, PARKED, Download.FAILURE_REASON_NONE,
+                request, Download.STATE_STOPPED, 5L, 5L, TOTAL, PARKED, Download.FAILURE_REASON_NONE,
                 DownloadProgress(),
             ),
         )

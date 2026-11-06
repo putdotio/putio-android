@@ -50,6 +50,7 @@ internal class MobileDownloadEngine(
     private val standInName = appContext.getString(R.string.mobile_downloads_recovered_name)
     private val removing = mutableSetOf<FilesItemId>()
     private val parkOnTokenClearing: () -> Unit = { park() }
+    private val inherited = store.entries.value.associateBy { it.fileId }
 
     // A sign-out closes this engine; nothing it scheduled may un-park that user's transfers afterwards.
     @Volatile
@@ -156,13 +157,19 @@ internal class MobileDownloadEngine(
                 // dropped it. Finished rows read as missing, failed rows wait for Retry, and
                 // everything else goes back in the queue.
                 entry.isCompleted -> store.markMissing(entry.fileId)
-                entry.canRetry -> Unit
+                entry.canRetry || inherited[entry.fileId] != entry -> Unit
                 else -> start(entry)
             }
         }
     }
 
     override fun start(entry: DownloadEntry) = sendDownloadRequest(appContext, userId, entry)
+
+    override fun replace(entry: DownloadEntry) {
+        if (closed) return
+        replaceDownloadRequest(appContext, downloadManager, userId, entry)
+        startServiceForResume()
+    }
 
     override suspend fun remove(fileId: FilesItemId) {
         val contentId = downloadContentId(userId, fileId)
@@ -278,7 +285,7 @@ internal class MobileDownloadEngine(
     private fun reflect(download: Download, error: Exception?) {
         val fileId = fileIdOf(userId, download.request.id)
             ?.takeUnless { closed || download.state == Download.STATE_REMOVING }
-        if (fileId == null || fallBackToConverted(fileId, download, error)) return
+        if (fileId == null || download.fallingBackToConverted(error)) return
         val pause = downloadManager.pauseReason()
         val status = download.toStatus(error, pause) ?: return
         // A pause that reached Media3 before its request did, or that parking overwrote, is applied
@@ -301,18 +308,6 @@ internal class MobileDownloadEngine(
                 pauseRequested = current.pauseRequested && !download.isTerminalState,
             )
         }
-    }
-
-    private fun fallBackToConverted(fileId: FilesItemId, download: Download, error: Exception?): Boolean {
-        val converted = store.find(fileId)?.takeIf { download.state == Download.STATE_FAILED }?.let { entry ->
-            val reason = error?.toFailureReason() ?: (entry.status as? DownloadStatus.Failed)?.reason
-            reason?.let { entry.convertedFallback(it, download.bytesDownloaded) }
-        }
-        converted?.let { fallback ->
-            store.updateStatusBlocking(fileId) { fallback }
-            sendDownloadRequest(appContext, userId, fallback) { downloadManager.addDownload(it) }
-        }
-        return converted != null
     }
 
     /**
@@ -341,8 +336,8 @@ internal fun sendDownloadRequest(
     context: Context,
     userId: Long,
     entry: DownloadEntry,
-    send: (DownloadRequest) -> Unit = {
-        DownloadService.sendAddDownload(context, MobileDownloadService::class.java, it, true)
+    send: (DownloadRequest, Int) -> Unit = { request, stopReason ->
+        DownloadService.sendAddDownload(context, MobileDownloadService::class.java, request, stopReason, true)
     },
 ) {
     val url = entry.artifact.apiUrl(entry.fileId, subtitlesHidden = entry.subtitlesHidden == true)
@@ -351,9 +346,28 @@ internal fun sendDownloadRequest(
         // The name rides along so a row lost from the app's index can be rebuilt with it.
         .setData(entry.name.encodeToByteArray())
         .build()
-    send(request)
+    send(request, if (entry.pauseRequested) MobileDownloadEngine.STOP_REASON_PAUSED else Download.STOP_REASON_NONE)
     MobileDownloadNotifications.cancel(context, userId, entry.fileId)
 }
+
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+internal fun replaceDownloadRequest(context: Context, manager: DownloadManager, userId: Long, entry: DownloadEntry) {
+    manager.removeDownload(downloadContentId(userId, entry.fileId))
+    sendDownloadRequest(context, userId, entry) { request, stopReason -> manager.addDownload(request, stopReason) }
+}
+
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+internal val DownloadRequest.artifact: DownloadArtifact
+    get() = when {
+        mimeType != MimeTypes.APPLICATION_M3U8 && !uri.path.orEmpty().endsWith(".m3u8") -> DownloadArtifact.ORIGINAL
+        uri.getQueryParameter(ORIGINAL_QUERY) == "1" -> DownloadArtifact.ORIGINAL_HLS
+        else -> DownloadArtifact.HLS
+    }
+
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+internal fun Download.fallingBackToConverted(error: Exception?): Boolean =
+    state == Download.STATE_FAILED && error != null &&
+        request.artifact.fallsBackToConverted(error.toFailureReason(), bytesDownloaded)
 
 /** This user's file id in a `userId:fileId` request id; null for another account's request. */
 internal fun fileIdOf(userId: Long, contentId: String): FilesItemId? {
@@ -369,18 +383,15 @@ internal fun fileIdOf(userId: Long, contentId: String): FilesItemId? {
  */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 private fun Download.recoveredEntry(fileId: FilesItemId, standInName: String): DownloadEntry {
-    val hls = request.mimeType == MimeTypes.APPLICATION_M3U8 || request.uri.path.orEmpty().endsWith(".m3u8")
+    val artifact = request.artifact
+    val hls = artifact.isHls
     val subtitleCount = request.uri.getQueryParameter("max_subtitle_count")
     val time = startTimeMs.takeIf { it > 0L } ?: updateTimeMs
     return DownloadEntry(
         fileId = fileId,
         name = request.data.decodeToString().ifBlank { standInName },
         type = if (hls) PutioFileType.VIDEO else PutioFileType.AUDIO,
-        artifact = when {
-            !hls -> DownloadArtifact.ORIGINAL
-            request.uri.getQueryParameter(ORIGINAL_QUERY) == "1" -> DownloadArtifact.ORIGINAL_HLS
-            else -> DownloadArtifact.HLS
-        },
+        artifact = artifact,
         status = DownloadStatus.Queued,
         createdAt = time,
         accepted = true,

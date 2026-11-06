@@ -6,16 +6,21 @@ import java.io.Closeable
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
@@ -41,7 +46,8 @@ internal class DownloadsController(
         DownloadsState(concurrency = engine.concurrency).withEntries(store.entries.value),
     )
     private val mutations = Mutex()
-    private val decisions = Mutex()
+    private val lookups = Semaphore(ORIGINAL_DECISION_PARALLELISM)
+    private val starts = Channel<PendingStart>(Channel.UNLIMITED)
     private var closed = false
     private val speeds = SpeedWatch()
 
@@ -52,6 +58,7 @@ internal class DownloadsController(
     val state: StateFlow<DownloadsState> = mutableState.asStateFlow()
 
     init {
+        scope.launch { for (pending in starts) startInOrder(pending) }
         scope.launch {
             store.entries.collect { entries ->
                 val running = entries.filter { it.status is DownloadStatus.Downloading }
@@ -115,23 +122,38 @@ internal class DownloadsController(
             // Re-check under the mutation lock: a removal may have landed since dispatch.
             if (!accepts(entry.fileId, retry = false)) return@enqueue
             store.upsert(entry)
-            if (entry.type == PutioFileType.VIDEO) scope.launch { startVideo(entry) } else engine.start(entry)
+            queueStart(entry, held = null)
         }
         return true
     }
 
-    private suspend fun startVideo(entry: DownloadEntry) {
-        val original = decisions.withLock {
-            withTimeoutOrNull(ORIGINAL_DECISION_TIMEOUT) { acceptsOriginal(entry.fileId) } == true
+    private fun queueStart(entry: DownloadEntry, held: DownloadArtifact?) {
+        val original = if (entry.type == PutioFileType.VIDEO) {
+            scope.async {
+                withTimeoutOrNull(ORIGINAL_DECISION_TIMEOUT) { lookups.withPermit { acceptsOriginal(entry.fileId) } }
+                    ?: false
+            }
+        } else {
+            null
         }
-        enqueue {
-            val current = store.find(entry.fileId)?.takeIf {
-                it.createdAt == entry.createdAt && !it.accepted && !it.removing && !engine.isRemoving(it.fileId) &&
-                    synchronized(lock) { it.fileId !in mutableState.value.removing }
-            } ?: return@enqueue
-            val chosen = if (original) current.copy(artifact = DownloadArtifact.ORIGINAL_HLS) else current
+        starts.trySend(PendingStart(entry, held, original))
+    }
+
+    private suspend fun startInOrder(pending: PendingStart) {
+        val original = pending.original?.await()
+        mutations.withLock {
+            val current = store.find(pending.entry.fileId)?.takeIf {
+                it.createdAt == pending.entry.createdAt && it.queuedAt == pending.entry.queuedAt && !it.removing &&
+                    !engine.isRemoving(it.fileId) && synchronized(lock) { it.fileId !in mutableState.value.removing }
+            } ?: return
+            val artifact = when (original) {
+                null -> current.artifact
+                true -> DownloadArtifact.ORIGINAL_HLS
+                false -> DownloadArtifact.HLS
+            }
+            val chosen = current.copy(artifact = artifact)
             if (chosen != current) store.upsert(chosen)
-            engine.start(chosen)
+            if (pending.held != null && pending.held != artifact) engine.replace(chosen) else engine.start(chosen)
         }
     }
 
@@ -143,7 +165,7 @@ internal class DownloadsController(
             // A pause that raced the failure must not hold the retried request.
             val queued = entry.copy(status = DownloadStatus.Queued, queuedAt = clock(), pauseRequested = false)
             store.upsert(queued)
-            engine.start(queued)
+            queueStart(queued, held = entry.artifact)
         }
         return true
     }
@@ -259,6 +281,8 @@ internal class DownloadsController(
     }
 }
 
+private class PendingStart(val entry: DownloadEntry, val held: DownloadArtifact?, val original: Deferred<Boolean>?)
+
 /** Progress is display-only, so it polls outside the mutation queue and dies with the controller scope. */
 private class ProgressWatch(
     private val scope: CoroutineScope,
@@ -331,6 +355,7 @@ private class SpeedWatch {
 
 private const val NANOS_PER_MILLI = 1_000_000L
 private val ORIGINAL_DECISION_TIMEOUT = 10.seconds
+private const val ORIGINAL_DECISION_PARALLELISM = 4
 private val PROGRESS_INTERVAL = 1.seconds
 
 /** Video starts as converted HLS until the original decision answers; audio has only the original. */

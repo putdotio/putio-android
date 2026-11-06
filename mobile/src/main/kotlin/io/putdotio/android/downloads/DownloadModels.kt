@@ -117,11 +117,12 @@ internal data class DownloadEntry(
     val isPausedByUser: Boolean get() = (status as? DownloadStatus.Paused)?.reason == DownloadPauseReason.USER
 }
 
-internal fun DownloadEntry.convertedFallback(reason: DownloadFailureReason, bytesDownloaded: Long): DownloadEntry? =
-    copy(artifact = DownloadArtifact.HLS, status = DownloadStatus.Queued, pauseRequested = false).takeIf {
-        artifact == DownloadArtifact.ORIGINAL_HLS && bytesDownloaded == 0L &&
-            (reason == DownloadFailureReason.UNAVAILABLE || reason == DownloadFailureReason.UNEXPECTED)
-    }
+internal fun DownloadArtifact.fallsBackToConverted(reason: DownloadFailureReason, bytesDownloaded: Long): Boolean =
+    this == DownloadArtifact.ORIGINAL_HLS && bytesDownloaded == 0L &&
+        (reason == DownloadFailureReason.UNAVAILABLE || reason == DownloadFailureReason.UNEXPECTED)
+
+internal fun DownloadEntry.convertedFallback(): DownloadEntry =
+    copy(artifact = DownloadArtifact.HLS, status = DownloadStatus.Queued, pauseRequested = false)
 
 /** Enough of a Files item to start a download without another API call. */
 internal data class DownloadRequest(
