@@ -350,7 +350,7 @@ internal fun sendDownloadRequest(
     MobileDownloadNotifications.cancel(context, userId, entry.fileId)
 }
 
-@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+@get:androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal val DownloadRequest.artifact: DownloadArtifact
     get() = when {
         mimeType != MimeTypes.APPLICATION_M3U8 && !uri.path.orEmpty().endsWith(".m3u8") -> DownloadArtifact.ORIGINAL
