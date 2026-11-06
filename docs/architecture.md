@@ -111,7 +111,7 @@ reports no playback issue that needs converting, the device's decoders take its
 video, and its decoders, audio passthrough or the bundled FFmpeg take one audio
 stream; otherwise it plays converted. FFmpeg decodes audio only, after
 MediaCodec. Devices with the memory for it draw ASS/SSA subtitles with libass,
-styling included; others show their text. Under HLS, put.io serves only MP4 originals. An original that still
+styling included, unless the viewer picked a subtitle size; others show their text. Under HLS, put.io serves only MP4 originals. An original that still
 fails before its first frame falls back to converted at the same position. The
 viewer can also switch an original to converted from the player; the device
 remembers the last 200 switched files and opens them converted. Cast always gets the
