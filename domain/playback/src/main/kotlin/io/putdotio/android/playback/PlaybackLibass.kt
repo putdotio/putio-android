@@ -150,6 +150,8 @@ private class AssFontsMatroskaExtractor(
     private val drawsWithLibass: () -> Boolean,
 ) : AssMatroskaExtractor(parsers, handler, 0) {
     private var hasAssTrack = false
+    private var tracksRead = false
+    private var fontBytesBeforeTracks = 0L
     private var attachmentName: String? = null
     private var attachmentMime: String? = null
 
@@ -159,7 +161,10 @@ private class AssFontsMatroskaExtractor(
     }
 
     override fun endMasterElement(id: Int) {
-        if (id == ID_ATTACHED_FILE) forgetAttachment()
+        when (id) {
+            ID_ATTACHED_FILE -> forgetAttachment()
+            ID_TRACKS -> tracksRead = true
+        }
         super.endMasterElement(id)
     }
 
@@ -173,13 +178,20 @@ private class AssFontsMatroskaExtractor(
     }
 
     override fun binaryElement(id: Int, contentSize: Int, input: ExtractorInput) {
-        val usableFont = attachmentName != null && attachmentMime in fontMimeTypes && hasAssTrack &&
-            drawsWithLibass()
-        if (id == ID_FILE_DATA && !usableFont) {
-            input.skipFully(contentSize)
-        } else {
+        if (id != ID_FILE_DATA) return super.binaryElement(id, contentSize, input)
+        val font = attachmentName != null && attachmentMime in fontMimeTypes && drawsWithLibass()
+        if (font && mayRender(contentSize)) {
             super.binaryElement(id, contentSize, input)
+        } else {
+            input.skipFully(contentSize)
         }
+    }
+
+    private fun mayRender(fontBytes: Int): Boolean {
+        if (tracksRead) return hasAssTrack
+        val fits = fontBytesBeforeTracks + fontBytes <= MAX_FONT_BYTES_BEFORE_TRACKS
+        if (fits) fontBytesBeforeTracks += fontBytes
+        return fits
     }
 
     private fun forgetAttachment() {
@@ -218,4 +230,6 @@ internal class MatroskaAssSubtitleParserFactory(
 
 private const val LIBASS_MIN_HEAP_MB = 256
 private const val ID_CODEC_ID = 0x86
+private const val ID_TRACKS = 0x1654AE6B
+private const val MAX_FONT_BYTES_BEFORE_TRACKS = 32L * 1024 * 1024
 private val ASS_CODEC_IDS = setOf("S_TEXT/ASS", "S_TEXT/SSA")
