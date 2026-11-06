@@ -52,19 +52,19 @@ internal class MobileDownloadNotifications(
         val outcome = when (download.state) {
             Download.STATE_COMPLETED -> DownloadOutcome.Completed
             Download.STATE_FAILED -> DownloadOutcome.Failed(finalException.toFailureReason())
-            else -> return
+            else -> null
         }
-        val owner = download.request.ownerUserId() ?: return
-        val fileId = fileIdOf(owner, download.request.id) ?: return
+        val owner = download.request.ownerUserId()
+        val fileId = owner?.let { fileIdOf(it, download.request.id) }
+        if (outcome == null || owner == null || fileId == null) return
+        // A row being deleted, or one this device never indexed, stays quiet.
         if (download.fallingBackToConverted(finalException)) {
             stores(owner).find(fileId)?.takeUnless { it.removing }
                 ?.let { fallBack(downloadManager, owner, it.convertedFallback()) }
-            return
+        } else if (owner == signedInUser()) {
+            MobileDownloadStore.peek(context, owner, fileId)?.takeUnless { it.removing }
+                ?.let { post(context, owner, it, outcome) }
         }
-        if (owner != signedInUser()) return
-        // A row being deleted, or one this device never indexed, stays quiet.
-        val entry = MobileDownloadStore.peek(context, owner, fileId)?.takeUnless { it.removing } ?: return
-        post(context, owner, entry, outcome)
     }
 
     companion object {
@@ -207,3 +207,14 @@ internal fun DownloadFailureReason.message(): Int =
         DownloadFailureReason.STORAGE -> R.string.mobile_downloads_status_failed_storage
         DownloadFailureReason.UNEXPECTED -> R.string.mobile_downloads_status_failed_unexpected
     }
+
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+internal fun Download.fallingBackToConverted(error: Exception?): Boolean =
+    state == Download.STATE_FAILED && error != null &&
+        request.artifact.fallsBackToConverted(error.toFailureReason(), bytesDownloaded)
+
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+internal fun replaceDownloadRequest(context: Context, manager: DownloadManager, userId: Long, entry: DownloadEntry) {
+    manager.removeDownload(downloadContentId(userId, entry.fileId))
+    sendDownloadRequest(context, userId, entry) { request, stopReason -> manager.addDownload(request, stopReason) }
+}

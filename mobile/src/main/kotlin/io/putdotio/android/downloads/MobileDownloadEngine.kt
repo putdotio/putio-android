@@ -351,23 +351,12 @@ internal fun sendDownloadRequest(
 }
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-internal fun replaceDownloadRequest(context: Context, manager: DownloadManager, userId: Long, entry: DownloadEntry) {
-    manager.removeDownload(downloadContentId(userId, entry.fileId))
-    sendDownloadRequest(context, userId, entry) { request, stopReason -> manager.addDownload(request, stopReason) }
-}
-
-@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal val DownloadRequest.artifact: DownloadArtifact
     get() = when {
         mimeType != MimeTypes.APPLICATION_M3U8 && !uri.path.orEmpty().endsWith(".m3u8") -> DownloadArtifact.ORIGINAL
         uri.getQueryParameter(ORIGINAL_QUERY) == "1" -> DownloadArtifact.ORIGINAL_HLS
         else -> DownloadArtifact.HLS
     }
-
-@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-internal fun Download.fallingBackToConverted(error: Exception?): Boolean =
-    state == Download.STATE_FAILED && error != null &&
-        request.artifact.fallsBackToConverted(error.toFailureReason(), bytesDownloaded)
 
 /** This user's file id in a `userId:fileId` request id; null for another account's request. */
 internal fun fileIdOf(userId: Long, contentId: String): FilesItemId? {

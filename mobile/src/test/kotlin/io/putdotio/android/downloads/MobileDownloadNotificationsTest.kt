@@ -143,7 +143,7 @@ class MobileDownloadNotificationsTest {
 
         signedIn = null
         for (id in listOf(13L, 14L)) {
-            listener.changed(download(id, Download.STATE_FAILED, artifact = original), rejected(HTTP_BAD_REQUEST))
+            listener.changed(failedOriginal(id), rejected(HTTP_BAD_REQUEST))
         }
 
         assertTrue(shadowOf(manager).allNotifications.isEmpty())
@@ -316,9 +316,8 @@ class MobileDownloadNotificationsTest {
         user: Long = USER,
         name: String? = null,
         stopReason: Int = Download.STOP_REASON_NONE,
-        artifact: DownloadArtifact = DownloadArtifact.ORIGINAL,
     ) = Download(
-        DownloadRequest.Builder("$user:$fileId", Uri.parse(artifact.apiUrl(FilesItemId(fileId))))
+        DownloadRequest.Builder("$user:$fileId", Uri.parse("https://api.put.io/v2/files/$fileId/stream"))
             .setData(name?.encodeToByteArray())
             .build(),
         state,
@@ -327,6 +326,18 @@ class MobileDownloadNotificationsTest {
         0L,
         stopReason,
         if (state == Download.STATE_FAILED) Download.FAILURE_REASON_UNKNOWN else Download.FAILURE_REASON_NONE,
+        DownloadProgress(),
+    )
+
+    private fun failedOriginal(fileId: Long) = Download(
+        DownloadRequest.Builder("$USER:$fileId", Uri.parse(DownloadArtifact.ORIGINAL_HLS.apiUrl(FilesItemId(fileId))))
+            .build(),
+        Download.STATE_FAILED,
+        0L,
+        0L,
+        0L,
+        Download.STOP_REASON_NONE,
+        Download.FAILURE_REASON_UNKNOWN,
         DownloadProgress(),
     )
 
