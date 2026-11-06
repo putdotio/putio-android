@@ -7,7 +7,8 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.extractor.text.CuesWithTiming
 import androidx.media3.extractor.text.SubtitleParser
 import io.github.peerless2012.ass.media.AssHandler
-import io.github.peerless2012.ass.media.parser.AssSubtitleParserFactory
+import io.github.peerless2012.ass.media.render.AssRenderer
+import androidx.media3.exoplayer.ExoPlayer
 import io.github.peerless2012.ass.media.type.AssRenderType
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -27,11 +28,20 @@ class PlaybackLibassTest {
 
     @Test
     fun libassRendersOnlyOn64BitDevicesWithALargeHeap() {
-        assertTrue(rendersAssWithLibass(is64Bit = true, isLowRam = false, memoryClassMb = 256))
-        assertTrue(rendersAssWithLibass(is64Bit = true, isLowRam = false, memoryClassMb = 512))
-        assertFalse(rendersAssWithLibass(is64Bit = false, isLowRam = false, memoryClassMb = 512))
-        assertFalse(rendersAssWithLibass(is64Bit = true, isLowRam = true, memoryClassMb = 512))
-        assertFalse(rendersAssWithLibass(is64Bit = true, isLowRam = false, memoryClassMb = 192))
+        assertTrue(rendersAssWithLibass(is64Bit = true, isLowRam = false, memoryClassMb = 256, textScale = 1f))
+        assertTrue(rendersAssWithLibass(is64Bit = true, isLowRam = false, memoryClassMb = 512, textScale = 1f))
+        assertFalse(rendersAssWithLibass(is64Bit = false, isLowRam = false, memoryClassMb = 512, textScale = 1f))
+        assertFalse(rendersAssWithLibass(is64Bit = true, isLowRam = true, memoryClassMb = 512, textScale = 1f))
+        assertFalse(rendersAssWithLibass(is64Bit = true, isLowRam = false, memoryClassMb = 192, textScale = 1f))
+    }
+
+    @Test
+    fun aSubtitleSizeTheViewerPickedKeepsMedia3TextCues() {
+        SubtitleTextSize.entries.filter { it != SubtitleTextSize.Medium }.forEach { size ->
+            assertFalse(
+                rendersAssWithLibass(is64Bit = true, isLowRam = false, memoryClassMb = 512, textScale = size.scale),
+            )
+        }
     }
 
     @Test
@@ -53,7 +63,7 @@ class PlaybackLibassTest {
 
     @Test
     fun sidecarAssKeepsMedia3TextCues() {
-        val factory = MatroskaAssSubtitleParserFactory(AssSubtitleParserFactory(AssHandler(AssRenderType.CUES)))
+        val factory = MatroskaAssSubtitleParserFactory(AssHandler(AssRenderType.CUES))
         val sidecar = Format.Builder()
             .setSampleMimeType(MimeTypes.TEXT_SSA)
             .setContainerMimeType(MimeTypes.TEXT_SSA)
@@ -66,6 +76,8 @@ class PlaybackLibassTest {
         assertEquals("Sidecar line", cue.text.toString())
         assertNull(cue.bitmap)
     }
+
+    private fun ExoPlayer.usesLibass(): Boolean = (0 until rendererCount).any { getRenderer(it) is AssRenderer }
 
     private companion object {
         val SIDECAR = """

@@ -72,15 +72,17 @@ public fun Context.captionLanguages(): List<String> =
         ?.let(::listOf)
         .orEmpty()
 
+internal fun Context.captionFontScale(): Float =
+    (getSystemService(Context.CAPTIONING_SERVICE) as? CaptioningManager)
+        ?.takeIf { it.isEnabled }
+        ?.fontScale
+        ?: 1f
+
 @UnstableApi
 internal class SubtitleCueRenderer(
     context: Context,
 ) {
-    private val captionScale =
-        (context.getSystemService(Context.CAPTIONING_SERVICE) as? CaptioningManager)
-            ?.takeIf { it.isEnabled }
-            ?.fontScale
-            ?: 1f
+    private val captionScale = context.captionFontScale()
     private val placed = CueLayer(context)
 
     // WebVTT gives each cue without a line its own line counted up from the bottom (-1, -2, ...),

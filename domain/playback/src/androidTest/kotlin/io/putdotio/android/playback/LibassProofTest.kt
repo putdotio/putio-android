@@ -22,6 +22,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import io.github.peerless2012.ass.media.render.AssRenderer
 import java.io.File
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -33,15 +34,6 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/**
- * Opt-in, no API calls: plays a local MKV with ASS subtitles on the app's shared player, muted, and
- * reports whether libass drew its cues, the first-frame and seek times, and the cues it showed.
- *
- * Arguments: `putio.libass.enabled=true`; `putio.libass.file`, a file name in this test package's
- * external files directory; `putio.libass.mode`, `tier` (the device's own choice), `on` or `off`;
- * `putio.libass.expect`, `libass` (bitmap cues) or `text` (Media3's SSA text cues);
- * `putio.libass.runId`, which names the PNG of the cues it writes next to the file.
- */
 @RunWith(AndroidJUnit4::class)
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 class LibassProofTest {
@@ -118,7 +110,7 @@ class LibassProofTest {
             val startedAt = SystemClock.elapsedRealtime()
             val player = onPlayer {
                 playbackExoPlayer(context, libass) { setLooper(thread.looper) }.apply {
-                    libassActive = usesLibass()
+                    libassActive = (0 until rendererCount).any { getRenderer(it) is AssRenderer }
                     volume = 0f
                     setVideoSurface(reader.surface)
                     addAnalyticsListener(Listener(startedAt))
