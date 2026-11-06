@@ -48,6 +48,7 @@ internal class DownloadsController(
     private val mutations = Mutex()
     private val lookups = Semaphore(ORIGINAL_DECISION_PARALLELISM)
     private val starts = Channel<PendingStart>(Channel.UNLIMITED)
+    private val latestStarts = mutableMapOf<FilesItemId, PendingStart>()
     private var closed = false
     private val speeds = SpeedWatch()
 
@@ -136,15 +137,19 @@ internal class DownloadsController(
         } else {
             null
         }
-        starts.trySend(PendingStart(entry, held, original))
+        val pending = PendingStart(entry, held, original)
+        latestStarts[entry.fileId] = pending
+        starts.trySend(pending)
     }
 
     private suspend fun startInOrder(pending: PendingStart) {
         val original = pending.original?.await()
         mutations.withLock {
+            if (latestStarts[pending.entry.fileId] !== pending) return
+            latestStarts -= pending.entry.fileId
             val current = store.find(pending.entry.fileId)?.takeIf {
-                it.createdAt == pending.entry.createdAt && it.queuedAt == pending.entry.queuedAt && !it.removing &&
-                    !engine.isRemoving(it.fileId) && synchronized(lock) { it.fileId !in mutableState.value.removing }
+                !it.removing && !engine.isRemoving(it.fileId) &&
+                    synchronized(lock) { it.fileId !in mutableState.value.removing }
             } ?: return
             val artifact = when (original) {
                 null -> pending.held ?: current.artifact

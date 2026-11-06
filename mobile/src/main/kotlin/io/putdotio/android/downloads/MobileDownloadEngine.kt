@@ -163,7 +163,15 @@ internal class MobileDownloadEngine(
         }
     }
 
-    override fun start(entry: DownloadEntry) = sendDownloadRequest(appContext, userId, entry)
+    override fun start(entry: DownloadEntry) {
+        try {
+            sendDownloadRequest(appContext, userId, entry)
+        } catch (_: IllegalStateException) {
+            sendDownloadRequest(appContext, userId, entry) { request, stopReason ->
+                downloadManager.addDownload(request, stopReason)
+            }
+        }
+    }
 
     override fun replace(entry: DownloadEntry) {
         if (closed) return

@@ -458,6 +458,27 @@ class DownloadsControllerTest {
         }
     }
 
+    @Test
+    fun aRetryStartsEvenWhenAReportRewritesItsRowWhileTheDecisionRuns() = runBlocking {
+        val decision = CompletableDeferred<Boolean>()
+        store.upsert(
+            DownloadEntry(
+                video.fileId, video.name, PutioFileType.VIDEO, DownloadArtifact.HLS,
+                DownloadStatus.Failed(DownloadFailureReason.NETWORK, 0L), createdAt = 1L, accepted = true,
+            ),
+        )
+        DownloadsController(store, engine, this, acceptsOriginal = { decision.await() }).use { controller ->
+            assertTrue(controller.dispatch(DownloadsEvent.Retry(video.fileId)))
+            val queued = store.await { rows -> rows.single().status == DownloadStatus.Queued }.single()
+            val reported = DownloadStatus.Failed(DownloadFailureReason.UNEXPECTED, 0L)
+            store.upsert(queued.copy(status = reported, queuedAt = 1L))
+
+            decision.complete(false)
+            engine.await { it.started.size == 1 }
+            assertEquals(video.fileId, engine.started.single().fileId)
+        }
+    }
+
     private suspend fun DownloadsController.awaitState(predicate: (DownloadsState) -> Boolean): DownloadsState =
         withTimeout(5_000L) { state.first(predicate) }
 }
