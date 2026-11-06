@@ -149,6 +149,15 @@ private val RELAYED_RESPONSE_CODE = Regex("""Response code: (\d{3})""")
 
 internal fun String.relayedResponseCode(): Int? = RELAYED_RESPONSE_CODE.find(this)?.groupValues?.get(1)?.toIntOrNull()
 
+internal fun Throwable?.causeChain(): List<Throwable> = generateSequence(this) { it.cause }.take(MAX_CAUSES).toList()
+
+internal fun List<Throwable>.responseStatus(): Int? =
+    firstNotNullOfOrNull { cause ->
+        (cause as? HttpDataSource.InvalidResponseCodeException)?.responseCode ?: cause.message?.relayedResponseCode()
+    }
+
+private const val MAX_CAUSES = 16
+
 public fun Double.toPlaybackMillis(): Long =
     (this * MILLIS_PER_SECOND)
         .coerceIn(0.0, Long.MAX_VALUE.toDouble())
