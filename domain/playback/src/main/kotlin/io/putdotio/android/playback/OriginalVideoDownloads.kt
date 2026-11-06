@@ -3,6 +3,7 @@ package io.putdotio.android.playback
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.files.FileDetailsQuery
+import io.putdotio.sdk.files.PlaybackCapabilities
 import io.putdotio.sdk.files.PlaybackPreference
 import io.putdotio.sdk.files.PutioFile
 import io.putdotio.sdk.files.PutioFileType
@@ -25,31 +26,36 @@ public class OriginalVideoDownloads internal constructor(
         originalVideoPolicy = originalVideoPolicy,
         decision = OriginalPlaybackDecision(decoders),
         switchedToConverted = switchedToConverted,
-        loadFile = { fileId -> withContext(Dispatchers.IO) { client.files.get(fileId, MEDIA_INFO_QUERY) } },
+        loadFile = { fileId -> client.files.get(fileId, MEDIA_INFO_QUERY) },
     )
+
+    public suspend fun accepts(fileId: FilesItemId): Boolean =
+        withContext(Dispatchers.IO) {
+            val policy = originalVideoPolicy()
+            val skipped = policy == OriginalVideoPolicy.Never || switchedToConverted.contains(fileId.value)
+            val file = if (skipped) null else lookUp(fileId.value)
+            file != null && file.fileType == PutioFileType.VIDEO &&
+                policy.capabilities(decision, PlaybackPreference.HLS).accept(file)
+        }
 
     // Any failed lookup downloads converted; cancellation still propagates.
     @Suppress("TooGenericExceptionCaught")
-    public suspend fun accepts(fileId: FilesItemId): Boolean {
-        val policy = originalVideoPolicy()
-        if (policy == OriginalVideoPolicy.Never || switchedToConverted.contains(fileId.value)) return false
-        val capabilities = policy.capabilities(decision, PlaybackPreference.HLS)
-        val file = try {
-            loadFile(fileId.value)
+    private suspend fun lookUp(fileId: Long): PutioFile? =
+        try {
+            loadFile(fileId)
         } catch (error: CancellationException) {
             throw error
         } catch (_: Exception) {
-            return false
+            null
         }
-        return file.fileType == PutioFileType.VIDEO && (
-            capabilities.originalVideoPlayable ||
-                capabilities.originalVideoDecision?.canPlayOriginal(
-                    mediaInfo = file.mediaInfo,
-                    needConvert = file.needConvert,
-                    isMp4Available = file.isMp4Available,
-                ) == true
-            )
-    }
+
+    private fun PlaybackCapabilities.accept(file: PutioFile): Boolean =
+        originalVideoPlayable ||
+            originalVideoDecision?.canPlayOriginal(
+                mediaInfo = file.mediaInfo,
+                needConvert = file.needConvert,
+                isMp4Available = file.isMp4Available,
+            ) == true
 
     private companion object {
         val MEDIA_INFO_QUERY = FileDetailsQuery(

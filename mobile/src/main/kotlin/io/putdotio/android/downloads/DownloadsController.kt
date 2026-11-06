@@ -29,12 +29,10 @@ internal class DownloadsController(
     private val store: DownloadStore,
     private val engine: DownloadEngine,
     parentScope: CoroutineScope,
-    private val progressInterval: Duration = 1.seconds,
+    private val acceptsOriginal: suspend (FilesItemId) -> Boolean = { false },
     /** A monotonic clock for speed intervals, which a wall-clock change must not bend. */
     private val elapsedMillis: () -> Long = { System.nanoTime() / NANOS_PER_MILLI },
     private val clock: () -> Long = System::currentTimeMillis,
-    private val acceptsOriginal: suspend (FilesItemId) -> Boolean = { false },
-    private val originalDecisionTimeout: Duration = 10.seconds,
 ) : Closeable {
     private val lock = Any()
     private val controllerJob = SupervisorJob(parentScope.coroutineContext[Job])
@@ -43,12 +41,13 @@ internal class DownloadsController(
         DownloadsState(concurrency = engine.concurrency).withEntries(store.entries.value),
     )
     private val mutations = Mutex()
+    private val decisions = Mutex()
     private var closed = false
     private val speeds = SpeedWatch()
 
     // Speed is measured on progress ticks alone: a stalled transfer, whose unchanged bytes the store
     // does not re-emit, falls to no speed, and another row's change never moves a baseline.
-    private val progress = ProgressWatch(scope, engine, progressInterval) { sampleSpeeds(store.entries.value) }
+    private val progress = ProgressWatch(scope, engine, PROGRESS_INTERVAL) { sampleSpeeds(store.entries.value) }
 
     val state: StateFlow<DownloadsState> = mutableState.asStateFlow()
 
@@ -122,7 +121,9 @@ internal class DownloadsController(
     }
 
     private suspend fun startVideo(entry: DownloadEntry) {
-        val original = withTimeoutOrNull(originalDecisionTimeout) { acceptsOriginal(entry.fileId) } == true
+        val original = decisions.withLock {
+            withTimeoutOrNull(ORIGINAL_DECISION_TIMEOUT) { acceptsOriginal(entry.fileId) } == true
+        }
         enqueue {
             val current = store.find(entry.fileId)?.takeIf {
                 it.createdAt == entry.createdAt && !it.accepted && !it.removing && !engine.isRemoving(it.fileId) &&
@@ -329,6 +330,8 @@ private class SpeedWatch {
 }
 
 private const val NANOS_PER_MILLI = 1_000_000L
+private val ORIGINAL_DECISION_TIMEOUT = 10.seconds
+private val PROGRESS_INTERVAL = 1.seconds
 
 /** Video starts as converted HLS until the original decision answers; audio has only the original. */
 private fun PutioFileType.downloadArtifact(): DownloadArtifact? =

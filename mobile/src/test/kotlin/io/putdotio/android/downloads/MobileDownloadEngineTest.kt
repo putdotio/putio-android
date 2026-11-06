@@ -530,11 +530,10 @@ class MobileDownloadEngineTest {
         }
         downloaders.await("$ALICE:$OFFLINE").fail(UnknownHostException("offline"))
 
-        awaitMain { ids.all { manager.stateOf("$ALICE:$it") == Download.STATE_FAILED } }
-        awaitMain { store.find(FilesItemId(REJECTED))?.artifact == DownloadArtifact.HLS }
-        assertEquals(DownloadStatus.Queued, store.status(REJECTED))
-        val resent = startedRequest()
-        assertEquals("$ALICE:$REJECTED", resent.id)
+        awaitMain { ids.all { index.getDownload("$ALICE:$it")?.state == Download.STATE_FAILED } }
+        awaitMain { manager.stateOf("$ALICE:$REJECTED") == Download.STATE_DOWNLOADING }
+        assertEquals(DownloadArtifact.HLS, store.find(FilesItemId(REJECTED))?.artifact)
+        val resent = manager.currentDownloads.single { it.request.id == "$ALICE:$REJECTED" }.request
         assertEquals(DownloadArtifact.HLS.apiUrl(FilesItemId(REJECTED)), resent.uri.toString())
         assertEquals(MimeTypes.APPLICATION_M3U8, resent.mimeType)
         awaitMain { store.status(PARTIAL) is DownloadStatus.Failed && store.status(OFFLINE) is DownloadStatus.Failed }

@@ -2,7 +2,7 @@ package io.putdotio.android.downloads
 
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.sdk.files.PutioFileType
-import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -346,8 +346,14 @@ class DownloadsControllerTest {
         val asked = mutableListOf<FilesItemId>()
         val accepted = setOf(video.fileId)
         val rejected = video.copy(fileId = FilesItemId(9L), name = "Tears.mkv")
-        DownloadsController(store, engine, this, acceptsOriginal = { asked += it; it in accepted }).use { controller ->
-            for (request in listOf(video, rejected, audio)) assertTrue(controller.dispatch(DownloadsEvent.Start(request)))
+        val decision: suspend (FilesItemId) -> Boolean = { fileId ->
+            asked += fileId
+            fileId in accepted
+        }
+        DownloadsController(store, engine, this, acceptsOriginal = decision).use { controller ->
+            for (request in listOf(video, rejected, audio)) {
+                assertTrue(controller.dispatch(DownloadsEvent.Start(request)))
+            }
             engine.await { it.started.size == 3 }
 
             val started = engine.started.associate { it.fileId to it.artifact }
@@ -379,19 +385,17 @@ class DownloadsControllerTest {
     }
 
     @Test
-    fun aDecisionThatNeverAnswersDownloadsConverted() = runBlocking {
-        val controller = DownloadsController(
-            store,
-            engine,
-            this,
-            acceptsOriginal = { awaitCancellation() },
-            originalDecisionTimeout = 50.milliseconds,
-        )
-        controller.use {
-            assertTrue(it.dispatch(DownloadsEvent.Start(video)))
-            engine.await { engine -> engine.started.size == 1 }
-            assertEquals(DownloadArtifact.HLS, engine.started.single().artifact)
-        }
+    fun aDecisionThatNeverAnswersDownloadsConverted() = runTest {
+        val controller = DownloadsController(store, engine, backgroundScope, acceptsOriginal = { awaitCancellation() })
+        assertTrue(controller.dispatch(DownloadsEvent.Start(video)))
+        advanceTimeBy(9.seconds)
+        runCurrent()
+        assertTrue(engine.started.isEmpty())
+
+        advanceTimeBy(2.seconds)
+        runCurrent()
+        assertEquals(DownloadArtifact.HLS, engine.started.single().artifact)
+        controller.close()
     }
 
     private suspend fun DownloadsController.awaitState(predicate: (DownloadsState) -> Boolean): DownloadsState =

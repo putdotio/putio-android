@@ -277,8 +277,8 @@ internal class MobileDownloadEngine(
 
     private fun reflect(download: Download, error: Exception?) {
         val fileId = fileIdOf(userId, download.request.id)
-        if (closed || fileId == null || download.state == Download.STATE_REMOVING) return
-        if (fallBackToConverted(fileId, download, error)) return
+            ?.takeUnless { closed || download.state == Download.STATE_REMOVING }
+        if (fileId == null || fallBackToConverted(fileId, download, error)) return
         val pause = downloadManager.pauseReason()
         val status = download.toStatus(error, pause) ?: return
         // A pause that reached Media3 before its request did, or that parking overwrote, is applied
@@ -304,15 +304,17 @@ internal class MobileDownloadEngine(
     }
 
     private fun fallBackToConverted(fileId: FilesItemId, download: Download, error: Exception?): Boolean {
-        if (download.state != Download.STATE_FAILED) return false
-        val entry = store.find(fileId) ?: return false
-        val reason = error?.toFailureReason()
-            ?: (entry.status as? DownloadStatus.Failed)?.reason
-            ?: DownloadFailureReason.UNEXPECTED
-        val converted = entry.convertedFallback(reason, download.bytesDownloaded) ?: return false
-        store.updateStatusBlocking(fileId) { converted }
-        start(converted)
-        return true
+        val converted = store.find(fileId)?.takeIf { download.state == Download.STATE_FAILED }?.let { entry ->
+            val reason = error?.toFailureReason()
+                ?: (entry.status as? DownloadStatus.Failed)?.reason
+                ?: DownloadFailureReason.UNEXPECTED
+            entry.convertedFallback(reason, download.bytesDownloaded)
+        }
+        converted?.let { fallback ->
+            store.updateStatusBlocking(fileId) { fallback }
+            sendDownloadRequest(appContext, userId, fallback) { downloadManager.addDownload(it) }
+        }
+        return converted != null
     }
 
     /**
@@ -360,16 +362,6 @@ internal fun fileIdOf(userId: Long, contentId: String): FilesItemId? {
     if (contentId.substringBefore(':', missingDelimiterValue = "").toLongOrNull() != userId) return null
     return contentId.substringAfter(':').toLongOrNull()?.takeIf { it > 0L }?.let(::FilesItemId)
 }
-
-/**
- * An original over HLS that put.io rejected before any bytes landed, as the converted HLS download that
- * replaces it; null for every other failure, which stays failed and retries as it was.
- */
-internal fun DownloadEntry.convertedFallback(reason: DownloadFailureReason, bytesDownloaded: Long): DownloadEntry? =
-    copy(artifact = DownloadArtifact.HLS, status = DownloadStatus.Queued, pauseRequested = false).takeIf {
-        artifact == DownloadArtifact.ORIGINAL_HLS && bytesDownloaded == 0L &&
-            (reason == DownloadFailureReason.UNAVAILABLE || reason == DownloadFailureReason.UNEXPECTED)
-    }
 
 /**
  * A row rebuilt from Media3's record when the app's own row is gone. The rendition comes from the

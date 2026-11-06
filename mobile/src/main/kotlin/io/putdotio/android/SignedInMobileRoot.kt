@@ -197,15 +197,18 @@ internal fun SignedInMobileRoot(
         trashViewModel.controllerFor(account.userId, sessionId, trashRepository)
     }
     val downloadsContext = LocalContext.current.applicationContext
-    val downloadsController = remember(downloadsViewModel, downloadsContext, account.userId, sessionId) {
-        val originals = OriginalVideoDownloads(
-            runtime.putioClient,
-            originalVideoPolicy = appConfigController::originalVideoPolicy,
-            decoders = MediaCodecDecoderInventory(downloadsContext),
-            switchedToConverted = DataStoreSwitchedToConvertedFiles.get(downloadsContext),
-        )
-        downloadsViewModel?.controllerFor(downloadsContext, account.userId, sessionId, originals::accepts)
-    }
+    val downloadsController =
+        remember(downloadsViewModel, downloadsContext, appConfigController, account.userId, sessionId) {
+            appConfigController?.let { config ->
+                val originals = OriginalVideoDownloads(
+                    runtime.putioClient,
+                    originalVideoPolicy = config::originalVideoPolicy,
+                    decoders = MediaCodecDecoderInventory(downloadsContext),
+                    switchedToConverted = DataStoreSwitchedToConvertedFiles.get(downloadsContext),
+                )
+                downloadsViewModel?.controllerFor(downloadsContext, account.userId, sessionId, originals::accepts)
+            }
+        }
     val publicLinksRepository = remember(runtime.putioClient) { SdkPublicLinksRepository(runtime.putioClient) }
     val publicLinksController =
         remember(publicLinksViewModel, publicLinksRepository, account.userId, sessionId) {

@@ -133,9 +133,10 @@ class MobileDownloadNotificationsTest {
         shadowOf(context).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
         MobileDownloadStore(context, USER).upsert(row(13L, "Spring.mp4").copy(artifact = DownloadArtifact.ORIGINAL_HLS))
         val fellBack = mutableListOf<Pair<Long, DownloadEntry>>()
-        val listener = MobileDownloadNotifications(context, fallBack = { user, entry -> fellBack += user to entry }) {
-            signedIn
-        }
+        val listener = MobileDownloadNotifications(
+            context,
+            fallBack = { _, user, entry -> fellBack += user to entry },
+        ) { signedIn }
 
         listener.changed(download(13L, Download.STATE_FAILED), rejected(HTTP_BAD_REQUEST))
 

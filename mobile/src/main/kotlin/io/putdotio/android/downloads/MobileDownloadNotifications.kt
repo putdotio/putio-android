@@ -32,16 +32,14 @@ internal sealed interface DownloadOutcome {
  * tap opens the row in Downloads; a finished copy offers Play, a failed one Try again and Open in Downloads.
  * Nothing is posted while the app's notifications are off, the channel is blocked, or, from
  * Android 13, POST_NOTIFICATIONS is not granted, nor for an account other than the one signed in now.
- * An original over HLS that falls back to converted posts nothing; with no engine running for its owner,
- * [fallBack] starts the converted download here.
  */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal class MobileDownloadNotifications(
     private val context: Context,
-    private val fallBack: (userId: Long, converted: DownloadEntry) -> Unit = { userId, converted ->
+    private val fallBack: (DownloadManager, Long, DownloadEntry) -> Unit = { manager, userId, converted ->
         if (MobileDownloadCache.get(context).activeUserId != userId) {
             MobileDownloadStore.shared(context, userId).updateStatusBlocking(converted.fileId) { converted }
-            sendDownloadRequest(context, userId, converted)
+            sendDownloadRequest(context, userId, converted) { manager.addDownload(it) }
         }
     },
     private val signedInUser: () -> Long?,
@@ -65,7 +63,7 @@ internal class MobileDownloadNotifications(
             ?.let { entry?.convertedFallback(it.reason, download.bytesDownloaded) }
         when {
             entry?.removing != false -> Unit
-            converted != null -> fallBack(userId, converted)
+            converted != null -> fallBack(downloadManager, userId, converted)
             else -> post(context, userId, entry, outcome)
         }
     }
