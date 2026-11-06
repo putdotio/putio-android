@@ -305,10 +305,8 @@ internal class MobileDownloadEngine(
 
     private fun fallBackToConverted(fileId: FilesItemId, download: Download, error: Exception?): Boolean {
         val converted = store.find(fileId)?.takeIf { download.state == Download.STATE_FAILED }?.let { entry ->
-            val reason = error?.toFailureReason()
-                ?: (entry.status as? DownloadStatus.Failed)?.reason
-                ?: DownloadFailureReason.UNEXPECTED
-            entry.convertedFallback(reason, download.bytesDownloaded)
+            val reason = error?.toFailureReason() ?: (entry.status as? DownloadStatus.Failed)?.reason
+            reason?.let { entry.convertedFallback(it, download.bytesDownloaded) }
         }
         converted?.let { fallback ->
             store.updateStatusBlocking(fileId) { fallback }

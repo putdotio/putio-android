@@ -530,7 +530,7 @@ class MobileDownloadEngineTest {
         }
         downloaders.await("$ALICE:$OFFLINE").fail(UnknownHostException("offline"))
 
-        awaitMain { ids.all { index.getDownload("$ALICE:$it")?.state == Download.STATE_FAILED } }
+        awaitMain { listOf(PARTIAL, OFFLINE).all { index.getDownload("$ALICE:$it")?.state == Download.STATE_FAILED } }
         awaitMain { manager.stateOf("$ALICE:$REJECTED") == Download.STATE_DOWNLOADING }
         assertEquals(DownloadArtifact.HLS, store.find(FilesItemId(REJECTED))?.artifact)
         val resent = manager.currentDownloads.single { it.request.id == "$ALICE:$REJECTED" }.request
@@ -541,6 +541,24 @@ class MobileDownloadEngineTest {
         assertEquals(DownloadFailureReason.UNEXPECTED, (store.status(PARTIAL) as DownloadStatus.Failed).reason)
         assertEquals(ORIGINAL_HLS, store.find(FilesItemId(OFFLINE))?.artifact)
         assertEquals(DownloadFailureReason.NETWORK, (store.status(OFFLINE) as DownloadStatus.Failed).reason)
+        assertNull(shadowOf(context).nextStartedService)
+    }
+
+    @Test
+    fun aFailureReconcileFindsWithoutItsReasonKeepsTheOriginal() {
+        index.putDownload(
+            Download(
+                DownloadRequest.Builder("$ALICE:$OFFLINE", originalUri(OFFLINE)).build(),
+                Download.STATE_FAILED, 0L, 0L, TOTAL, Download.STOP_REASON_NONE, Download.FAILURE_REASON_UNKNOWN,
+            ),
+        )
+        val store = store(ALICE)
+        runBlocking { store.upsert(entry(OFFLINE, accepted = true).copy(artifact = ORIGINAL_HLS)) }
+
+        engine(ALICE, store, manager())
+
+        awaitMain { store.status(OFFLINE) is DownloadStatus.Failed }
+        assertEquals(ORIGINAL_HLS, store.find(FilesItemId(OFFLINE))?.artifact)
         assertNull(shadowOf(context).nextStartedService)
     }
 
