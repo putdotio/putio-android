@@ -31,6 +31,7 @@ import io.putdotio.sdk.files.PutioFileType
 import java.io.IOException
 import java.net.UnknownHostException
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
@@ -570,6 +571,36 @@ class MobileDownloadEngineTest {
     }
 
     @Test
+    fun aFallbackBehindAnotherRemovalStillRemovesTheOriginalsBytes() {
+        val store = store(ALICE)
+        runBlocking { store.upsert(entry(REJECTED, accepted = true).copy(artifact = ORIGINAL_HLS)) }
+        val manager = manager(concurrency = 2).apply { minRetryCount = 0 }
+        manager.addListener(MobileDownloadNotifications(context, stores = { store }) { ALICE })
+        engine(ALICE, store, manager)
+        awaitMain { manager.isInitialized }
+        val other = Uri.parse(DownloadArtifact.HLS.apiUrl(FilesItemId(OFFLINE)))
+        val hold = downloaders.holdRemovals()
+        manager.addDownload(DownloadRequest.Builder("$ALICE:$OFFLINE", other).build())
+        manager.addDownload(DownloadRequest.Builder("$ALICE:$REJECTED", originalUri(REJECTED)).build())
+        downloaders.await("$ALICE:$OFFLINE")
+        val rejectedTransfer = downloaders.await("$ALICE:$REJECTED")
+
+        manager.removeDownload("$ALICE:$OFFLINE")
+        awaitMain { other in downloaders.removed }
+        rejectedTransfer.fail(rejected(HTTP_BAD_REQUEST))
+        awaitMain { store.find(FilesItemId(REJECTED))?.artifact == DownloadArtifact.HLS }
+        hold.countDown()
+
+        awaitMain { manager.stateOf("$ALICE:$REJECTED") == Download.STATE_DOWNLOADING }
+        assertEquals(listOf(other, originalUri(REJECTED)), downloaders.removed.toList())
+        assertEquals(
+            DownloadArtifact.HLS.apiUrl(FilesItemId(REJECTED)),
+            manager.currentDownloads.single { it.request.id == "$ALICE:$REJECTED" }.request.uri.toString(),
+        )
+        assertEquals(DownloadArtifact.HLS, store.find(FilesItemId(REJECTED))?.artifact)
+    }
+
+    @Test
     fun aFailureReconcileFindsWithoutItsReasonKeepsTheOriginal() {
         index.putDownload(
             Download(
@@ -758,20 +789,33 @@ class MobileDownloadEngineTest {
 private class ScriptedDownloaders : DownloaderFactory {
     private val transfers = ConcurrentHashMap<String, LinkedBlockingQueue<ScriptedTransfer>>()
 
+    val removed = CopyOnWriteArrayList<Uri>()
+
+    @Volatile
+    private var removalGate = CountDownLatch(0)
+
     override fun createDownloader(request: DownloadRequest): Downloader =
-        ScriptedTransfer().also { queue(request.id).put(it) }
+        ScriptedTransfer {
+            removed += request.uri
+            removalGate.await(10L, TimeUnit.SECONDS)
+        }.also { queue(request.id).put(it) }
+
+    fun holdRemovals(): CountDownLatch = CountDownLatch(1).also { removalGate = it }
 
     fun await(id: String): ScriptedTransfer = checkNotNull(queue(id).poll(10L, TimeUnit.SECONDS)) {
         "No transfer started for $id"
     }
 
-    fun releaseAll() = transfers.values.forEach { queue -> queue.forEach { it.cancel() } }
+    fun releaseAll() {
+        removalGate.countDown()
+        transfers.values.forEach { queue -> queue.forEach { it.cancel() } }
+    }
 
     private fun queue(id: String) = transfers.getOrPut(id) { LinkedBlockingQueue() }
 }
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-private class ScriptedTransfer : Downloader {
+private class ScriptedTransfer(private val onRemove: () -> Unit = {}) : Downloader {
     private val released = CountDownLatch(1)
 
     private val steps = LinkedBlockingQueue<Pair<Long, Float>>()
@@ -799,7 +843,7 @@ private class ScriptedTransfer : Downloader {
 
     override fun cancel() = released.countDown()
 
-    override fun remove() = Unit
+    override fun remove() = onRemove()
 
     private companion object {
         const val DONE = -1L

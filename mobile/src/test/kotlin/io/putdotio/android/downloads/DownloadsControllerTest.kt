@@ -531,7 +531,7 @@ internal class FakeDownloadEngine : DownloadEngine {
         version.value += 1
     }
 
-    override fun replace(entry: DownloadEntry) {
+    override suspend fun replace(entry: DownloadEntry) {
         replaced += entry
         version.value += 1
     }

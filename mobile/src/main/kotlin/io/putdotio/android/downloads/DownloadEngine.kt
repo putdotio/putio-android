@@ -11,7 +11,7 @@ internal interface DownloadEngine {
     /** Starts or resumes; a retry after failure or a missing copy is the same call. */
     fun start(entry: DownloadEntry)
 
-    fun replace(entry: DownloadEntry) = start(entry)
+    suspend fun replace(entry: DownloadEntry) = start(entry)
 
     /** Removes cached bytes and any in-flight transfer; the index row goes when the engine confirms. */
     suspend fun remove(fileId: FilesItemId)

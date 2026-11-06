@@ -70,7 +70,7 @@ internal class MobileDownloadEngine(
             val fileId = fileIdOf(userId, download.request.id)
             if (closed || fileId == null) return
             synchronized(removing) { removing -= fileId }
-            store.removeBlocking(fileId)
+            if (store.find(fileId)?.removing != false) store.removeBlocking(fileId)
         }
 
         // Media3 keeps queued rows queued while offline or low on storage; the rows show why nothing moves.
@@ -173,9 +173,18 @@ internal class MobileDownloadEngine(
         }
     }
 
-    override fun replace(entry: DownloadEntry) {
+    override suspend fun replace(entry: DownloadEntry) {
         if (closed) return
-        replaceDownloadRequest(appContext, downloadManager, userId, entry)
+        val contentId = downloadContentId(userId, entry.fileId)
+        val known = withContext(ioDispatcher) {
+            try {
+                downloadManager.downloadIndex.getDownload(contentId) != null
+            } catch (_: IOException) {
+                false
+            }
+        }
+        if (closed) return
+        if (known) downloads.replacements.replace(appContext, downloadManager, userId, entry) else start(entry)
         startServiceForResume()
     }
 
