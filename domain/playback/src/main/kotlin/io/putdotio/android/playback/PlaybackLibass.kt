@@ -8,6 +8,7 @@ import android.os.SystemClock
 import android.util.Log
 import androidx.media3.common.Format
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.Player
 import androidx.media3.common.util.Consumer
 import androidx.media3.common.util.UnstableApi
@@ -21,6 +22,7 @@ import androidx.media3.extractor.Extractor
 import androidx.media3.extractor.ExtractorsFactory
 import androidx.media3.extractor.mkv.MatroskaExtractor
 import androidx.media3.extractor.text.CuesWithTiming
+import androidx.media3.extractor.text.DefaultSubtitleParserFactory
 import androidx.media3.extractor.text.SubtitleParser
 import io.github.peerless2012.ass.media.AssHandler
 import io.github.peerless2012.ass.media.AssHandlerConfig
@@ -66,7 +68,7 @@ public fun playbackExoPlayer(
             .build()
     }
     val handler = AssHandler(AssRenderType.CUES, AssHandlerConfig(cacheSize = libass.cacheMegabytes))
-    val parsers = TimedSubtitleParserFactory(AssSubtitleParserFactory(handler))
+    val parsers = MatroskaAssSubtitleParserFactory(AssSubtitleParserFactory(handler))
     val player = builder
         .setRenderersFactory(AssRenderersFactory(handler, playbackRenderersFactory(context)))
         .setMediaSourceFactory(
@@ -116,15 +118,24 @@ private class AssExtractorsFactory(
 }
 
 @UnstableApi
-internal class TimedSubtitleParserFactory(
-    private val delegate: SubtitleParser.Factory,
-) : SubtitleParser.Factory by delegate {
+internal class MatroskaAssSubtitleParserFactory(
+    private val libass: SubtitleParser.Factory,
+) : SubtitleParser.Factory {
+    private val media3 = DefaultSubtitleParserFactory()
+
+    override fun supportsFormat(format: Format): Boolean = parsers(format).supportsFormat(format)
+
+    override fun getCueReplacementBehavior(format: Format): Int = parsers(format).getCueReplacementBehavior(format)
+
     override fun create(format: Format): SubtitleParser {
         val startedAt = SystemClock.elapsedRealtime()
-        val parser = delegate.create(format)
+        val parser = parsers(format).create(format)
         logTiming { "create ${format.codecs ?: format.sampleMimeType} ${SystemClock.elapsedRealtime() - startedAt} ms" }
         return TimedSubtitleParser(parser)
     }
+
+    private fun parsers(format: Format): SubtitleParser.Factory =
+        if (format.containerMimeType == MimeTypes.VIDEO_MATROSKA) libass else media3
 }
 
 @UnstableApi
