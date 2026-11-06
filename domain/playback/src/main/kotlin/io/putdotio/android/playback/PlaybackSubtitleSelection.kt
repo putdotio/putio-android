@@ -94,12 +94,14 @@ public fun TrackSelectionParameters.withSubtitleSelection(
     tracks: List<PlaybackSubtitleTrack>,
     textDefaults: TrackSelectionParameters? = null,
     captionLanguages: List<String> = emptyList(),
+    inFileLanguage: String? = null,
 ): TrackSelectionParameters {
     val builder =
         buildUpon()
             .clearOverridesOfType(C.TRACK_TYPE_TEXT)
             .setIgnoredTextSelectionFlags(0)
     val preferredLanguages = when {
+        inFileLanguage != null -> listOf(inFileLanguage)
         textDefaults == null -> emptyList()
         textDefaults.usePreferredTextLanguagesAndRoleFlagsFromCaptioningManager -> captionLanguages
         else -> textDefaults.preferredTextLanguages
@@ -112,11 +114,11 @@ public fun TrackSelectionParameters.withSubtitleSelection(
                 .build()
 
         SubtitleSelection.Automatic -> {
-            if (tracks.any(PlaybackSubtitleTrack::isServerDefault)) {
-                // Media3 ranks the device's caption language above a track's default flag; with no
-                // preference left, the account's default subtitle wins.
+            if (inFileLanguage != null || tracks.any(PlaybackSubtitleTrack::isServerDefault)) {
+                // Media3 ranks the device's caption language above a track's default flag; with only
+                // the account's in-file language, or no preference, left, the account's choice wins.
                 builder
-                    .setPreferredTextLanguages()
+                    .setPreferredTextLanguage(inFileLanguage)
                     .setPreferredTextRoleFlags(0)
                     .setPreferredTextLabels()
                     .setSelectUndeterminedTextLanguage(false)
@@ -169,21 +171,25 @@ internal val PlaybackSubtitleTrack.isServerDefault: Boolean
 /**
  * Reapplies the subtitle choice in effect to [tracks] as they arrive: off while the account hides
  * subtitles, whatever was picked, else the viewer's pick, else automatic selection when the
- * account auto-selects. Off and forced-only need no tracks.
+ * account auto-selects. Off and forced-only need no tracks. An original's [inFileLanguage], the
+ * account's top-ranked language among the file's own tracks, outranks the device's caption language.
  */
+// Each parameter is a separate input: the pick, the account policy, the tracks and three language sources.
+@Suppress("LongParameterList")
 public fun TrackSelectionParameters.withSubtitleTracks(
     retained: SubtitleSelection?,
     startupPolicy: SubtitleStartupPolicy?,
     tracks: List<PlaybackSubtitleTrack>,
     textDefaults: TrackSelectionParameters,
     captionLanguages: List<String> = emptyList(),
+    inFileLanguage: String? = null,
 ): TrackSelectionParameters {
     if (startupPolicy?.showSubtitles == false) return withSubtitleSelection(SubtitleSelection.Off, tracks)
     val autoSelects = startupPolicy?.showSubtitles == true && startupPolicy.autoSelectSubtitles
     val selection = retained ?: SubtitleSelection.Automatic.takeIf { autoSelects }
     return when (selection) {
         is SubtitleSelection.Track, SubtitleSelection.Automatic ->
-            withSubtitleSelection(selection, tracks, textDefaults, captionLanguages)
+            withSubtitleSelection(selection, tracks, textDefaults, captionLanguages, inFileLanguage)
         SubtitleSelection.Off, null -> this
     }
 }

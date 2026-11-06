@@ -1,6 +1,8 @@
 package io.putdotio.android.playback
 
+import android.content.res.Resources
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.media3.common.C
@@ -18,7 +20,8 @@ public fun audioTrackLabels(tracks: List<PlaybackAudioTrack>): List<String> {
             ?: languageName(track.identity.language) ?: track.label?.takeIf(String::isNotBlank)
             ?: stringResource(R.string.playback_audio_track_number, index + 1)
     }
-    return numberRepeatedRows(names, tracks.map { audioTrackDetails(it) })
+    val details = tracks.map { audioTrackDetails(it) }
+    return LocalResources.current.numberRepeatedRows(names, details)
 }
 
 @Composable
@@ -52,17 +55,22 @@ public fun subtitleTrackLabels(
     tracks: List<PlaybackSubtitleTrack>,
     sidecar: List<PlaybackSubtitle>,
     inFile: Boolean = true,
+): List<String> = LocalResources.current.subtitleTrackLabels(tracks, sidecar, inFile)
+
+internal fun Resources.subtitleTrackLabels(
+    tracks: List<PlaybackSubtitleTrack>,
+    sidecar: List<PlaybackSubtitle>,
+    inFile: Boolean,
 ): List<String> =
     numberRepeatedRows(
-        names = tracks.map { subtitleTrackName(it) },
+        names = tracks.mapIndexed { index, track -> subtitleTrackName(track, index) },
         details = tracks.map { subtitleTrackDetails(it, it.putioSubtitle(sidecar), inFile) },
     )
 
-@Composable
-public fun subtitleTrackName(track: PlaybackSubtitleTrack): String {
-    val name = track.knownName() ?: stringResource(R.string.playback_subtitle_unknown)
+private fun Resources.subtitleTrackName(track: PlaybackSubtitleTrack, index: Int): String {
+    val name = track.knownName() ?: track.formatName() ?: getString(R.string.playback_subtitle_number, index + 1)
     return if (track.identity.roleFlags and C.ROLE_FLAG_DESCRIBES_MUSIC_AND_SOUND != 0) {
-        name + TRACK_DETAIL_SEPARATOR + stringResource(R.string.playback_subtitle_sdh)
+        name + TRACK_DETAIL_SEPARATOR + getString(R.string.playback_subtitle_sdh)
     } else {
         name
     }
@@ -74,19 +82,26 @@ public fun subtitleTrackName(track: PlaybackSubtitleTrack): String {
  */
 @Composable
 public fun subtitleTrackDetails(track: PlaybackSubtitleTrack, subtitle: PlaybackSubtitle?, inFile: Boolean): String? =
+    LocalResources.current.subtitleTrackDetails(track, subtitle, inFile)
+
+internal fun Resources.subtitleTrackDetails(
+    track: PlaybackSubtitleTrack,
+    subtitle: PlaybackSubtitle?,
+    inFile: Boolean,
+): String? =
     when (subtitle.origin()) {
-        SubtitleOrigin.Folder -> stringResource(R.string.playback_subtitles_from_folder)
-        SubtitleOrigin.OpenSubtitles -> stringResource(R.string.playback_subtitles_from_opensubtitles)
+        SubtitleOrigin.Folder -> getString(R.string.playback_subtitles_from_folder)
+        SubtitleOrigin.OpenSubtitles -> getString(R.string.playback_subtitles_from_opensubtitles)
         SubtitleOrigin.File ->
             if (inFile && subtitle == null && languageName(track.identity.language) == null) {
-                stringResource(R.string.playback_subtitles_embedded)
+                getString(R.string.playback_subtitles_embedded)
             } else {
-                subtitle?.format?.takeIf { it.isNotBlank() }?.uppercase(Locale.ROOT) ?: track.formatName()
+                subtitle?.format?.takeIf { it.isNotBlank() }?.uppercase(Locale.ROOT)
+                    ?: track.formatName()?.takeIf { track.knownName() != null }
             }
     }
 
-@Composable
-private fun numberRepeatedRows(names: List<String>, details: List<String?>): List<String> {
+private fun Resources.numberRepeatedRows(names: List<String>, details: List<String?>): List<String> {
     val rows = names.zip(details)
     val numbered = names.mapIndexed { index, name ->
         if (rows.count { it == rows[index] } > 1) numberedTrack(name, index) else name
@@ -96,9 +111,8 @@ private fun numberRepeatedRows(names: List<String>, details: List<String?>): Lis
     return names.mapIndexed { index, name -> numberedTrack(name, index) }
 }
 
-@Composable
-private fun numberedTrack(name: String, index: Int): String =
-    stringResource(R.string.playback_track_disambiguated, name, index + 1)
+private fun Resources.numberedTrack(name: String, index: Int): String =
+    getString(R.string.playback_track_disambiguated, name, index + 1)
 
 private const val SURROUND_5_1 = 6
 private const val SURROUND_7_1 = 8

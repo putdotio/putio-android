@@ -107,7 +107,7 @@ class MobilePlayerChromeTest {
                             settings = {
                                 val options = rememberPlayerOptionsSnapshot(player)
                                 MobileAudioChip(options, {})
-                                MobileSubtitlesChip(options, {})
+                                MobileSubtitlesChip(options, emptyList(), {})
                                 MobileSpeedChip(options, {})
                             },
                             topActions = { MobilePictureInPictureButton({}, Modifier) },

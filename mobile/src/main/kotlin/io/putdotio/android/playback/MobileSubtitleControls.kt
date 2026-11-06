@@ -62,11 +62,13 @@ private fun PlayerOptionsSnapshot.currentSubtitle(): PlaybackSubtitleTrack? {
 @Composable
 internal fun MobileSubtitlesChip(
     snapshot: PlayerOptionsSnapshot,
+    sidecar: List<PlaybackSubtitle>,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val current = snapshot.currentSubtitle()
-    val label = current?.let { subtitleTrackName(it) }
+    val names = subtitleTrackLabels(snapshot.subtitleTracks, sidecar)
+    val label = current?.let { names[snapshot.subtitleTracks.indexOf(it)] }
         ?: stringResource(R.string.mobile_playback_subtitles_disabled)
     MobilePlayerChip(
         label = label,
@@ -103,6 +105,7 @@ internal fun MobileSubtitlesSheetContent(
             tracks = snapshot.subtitleTracks,
             textDefaults = defaultTrackSelection,
             captionLanguages = context.captionLanguages(),
+            inFileLanguage = player.inFileSubtitleLanguage(),
         )
         onDone()
     }
@@ -148,22 +151,6 @@ internal fun MobileSubtitlesSheetContent(
             }
     }
     MobileSubtitleAppearanceRow(textSize, offsetMillis, onAppearance)
-}
-
-@Composable
-internal fun MobileSubtitleTrackOption(
-    track: PlaybackSubtitleTrack,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-) {
-    MobileSideSheetOption(
-        label = subtitleTrackName(track),
-        selected = track.selected,
-        enabled = enabled,
-        onClick = onClick,
-        modifier = modifier,
-    )
 }
 
 @Composable

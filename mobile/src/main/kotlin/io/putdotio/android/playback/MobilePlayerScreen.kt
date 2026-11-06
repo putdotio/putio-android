@@ -357,7 +357,7 @@ private fun MobileReadyContent(
             onBack = onBack,
             onVideoAspectRatio = onVideoAspectRatio,
             pictureInPicture = pictureInPicture,
-            sidecarSubtitles = ready?.source?.subtitles.sidecarTracks(),
+            sidecarSubtitles = ready?.source?.playerSubtitles().sidecarTracks(),
             nextEpisode = nextEpisode,
             onNextEpisode = onNextEpisode,
             neighbours = neighbours,
@@ -787,6 +787,7 @@ private fun SubtitleStartupEffect(
                         player.currentTracks.playbackSubtitleTracks(),
                         playerState.defaultTrackSelection,
                         context.captionLanguages(),
+                        player.inFileSubtitleLanguage(),
                     )
                 } else {
                     restoreSubtitleSelection(
@@ -1005,6 +1006,7 @@ private fun PlayerListenerEffect(
                 tracks = tracks,
                 textDefaults = playerState.defaultTrackSelection,
                 captionLanguages = context.captionLanguages(),
+                inFileLanguage = player.inFileSubtitleLanguage(),
             )
             if (parameters != player.trackSelectionParameters) {
                 player.trackSelectionParameters = parameters
@@ -1307,7 +1309,9 @@ private fun MobileReadyPlayerContent(
                     castButton(optionModifier)
                     MobilePictureInPictureButton(enterPictureInPicture, optionModifier)
                 },
-                settings = { MobileVideoChips(options, subtitleStartupPolicy, { sheet = it }, optionModifier) },
+                settings = {
+                    MobileVideoChips(options, sidecarSubtitles, subtitleStartupPolicy, { sheet = it }, optionModifier)
+                },
                 trailingChip = { MobileNextEpisodeChip(nextEpisode, onNextEpisode, optionModifier) },
                 onFooterHeight = { footerHeight = it },
                 fold = fold,
