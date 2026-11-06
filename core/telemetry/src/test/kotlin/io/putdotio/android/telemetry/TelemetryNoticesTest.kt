@@ -8,7 +8,7 @@ class TelemetryNoticesTest {
     @Test
     fun theSentryNativeNoticeFollowsTheSentryRelease() {
         assertEquals(
-            "Set telemetryNotices to the sentry-native-ndk that sentry-android-ndk ${SentryAndroidBuildConfig.VERSION_NAME} depends on",
+            "Set telemetryNotices to the sentry-native-ndk Sentry ${SentryAndroidBuildConfig.VERSION_NAME} depends on",
             SentryAndroidBuildConfig.VERSION_NAME,
             NOTICED_SENTRY_ANDROID,
         )
