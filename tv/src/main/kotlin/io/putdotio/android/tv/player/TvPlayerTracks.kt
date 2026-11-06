@@ -26,11 +26,13 @@ internal fun tvPlayerChips(
     subtitlesHidden: Boolean,
     nextEpisode: Boolean,
     audioOnly: Boolean = false,
+    original: Boolean = false,
 ): List<TvPlayerControl> =
     buildList {
         if (audioTracks > if (audioOnly) 1 else 0) add(TvPlayerControl.Audio)
         if (!subtitlesHidden && !audioOnly) add(TvPlayerControl.Subtitles)
         add(TvPlayerControl.Speed)
+        if (original && !audioOnly) add(TvPlayerControl.Stream)
         if (nextEpisode) add(TvPlayerControl.NextEpisode)
     }
 

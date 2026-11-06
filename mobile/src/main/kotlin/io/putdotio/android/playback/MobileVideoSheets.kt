@@ -3,6 +3,9 @@ package io.putdotio.android.playback
 import android.view.KeyEvent
 import io.putdotio.android.playback.R as PlaybackR
 import androidx.annotation.StringRes
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -29,6 +32,7 @@ internal fun MobileVideoChips(
     options: PlayerOptionsSnapshot,
     sidecarSubtitles: List<PlaybackSubtitle>,
     subtitleStartupPolicy: SubtitleStartupPolicy?,
+    original: Boolean,
     onSheet: (MobileVideoSheet) -> Unit,
     modifier: Modifier,
 ) {
@@ -37,6 +41,16 @@ internal fun MobileVideoChips(
         MobileSubtitlesChip(options, sidecarSubtitles, { onSheet(MobileVideoSheet.Subtitles) }, modifier)
     }
     MobileSpeedChip(options, { onSheet(MobileVideoSheet.Speed) }, modifier)
+    if (original) {
+        val label = stringResource(PlaybackR.string.playback_stream_original)
+        MobilePlayerChip(
+            label = label,
+            description = stringResource(PlaybackR.string.playback_stream_chip, label),
+            onClick = { onSheet(MobileVideoSheet.Stream) },
+            leadingIcon = R.drawable.ic_ph_film_strip,
+            modifier = modifier,
+        )
+    }
 }
 
 /** Next episode, when the account's next-episode setting found one. */
@@ -97,6 +111,7 @@ internal fun MobileVideoSheets(
     appearance: SubtitleAppearanceStore,
     preferences: RetainedPlayerPreferences,
     onSubtitleSelectionChanged: (SubtitleSelection) -> Unit,
+    onSwitchToConverted: (() -> Unit)?,
     modifier: Modifier,
     panelModifier: Modifier,
 ) {
@@ -144,6 +159,13 @@ internal fun MobileVideoSheets(
                 },
             )
             MobileVideoSheet.Speed -> MobileSpeedSheetContent(player, options)
+            MobileVideoSheet.Stream -> MobileStreamSheetContent(
+                onOriginal = close,
+                onConverted = {
+                    close()
+                    onSwitchToConverted?.invoke()
+                },
+            )
         }
     }
 }
@@ -155,4 +177,23 @@ private fun MobileVideoSheet.title(): Int =
         MobileVideoSheet.Subtitles -> R.string.mobile_playback_subtitles_title
         MobileVideoSheet.SubtitleAppearance -> PlaybackR.string.playback_size_and_timing
         MobileVideoSheet.Speed -> R.string.mobile_playback_speed
+        MobileVideoSheet.Stream -> PlaybackR.string.playback_stream
     }
+
+@Composable
+private fun MobileStreamSheetContent(onOriginal: () -> Unit, onConverted: () -> Unit) {
+    Column(Modifier.selectableGroup()) {
+        MobileSideSheetOption(
+            label = stringResource(PlaybackR.string.playback_stream_original),
+            selected = true,
+            supporting = { Text(stringResource(PlaybackR.string.playback_stream_original_detail)) },
+            onClick = onOriginal,
+        )
+        MobileSideSheetOption(
+            label = stringResource(PlaybackR.string.playback_stream_converted),
+            selected = false,
+            supporting = { Text(stringResource(PlaybackR.string.playback_stream_converted_detail)) },
+            onClick = onConverted,
+        )
+    }
+}

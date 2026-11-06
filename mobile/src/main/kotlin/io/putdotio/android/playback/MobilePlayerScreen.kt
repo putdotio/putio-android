@@ -94,6 +94,7 @@ import io.putdotio.android.R
 import io.putdotio.android.design.R as DesignR
 import io.putdotio.android.files.hasVlc
 import io.putdotio.sdk.files.PlaybackSource
+import io.putdotio.sdk.files.PlaybackSourceKind
 import java.io.Closeable
 import kotlinx.coroutines.delay
 import io.putdotio.android.MobileIconButton
@@ -623,8 +624,21 @@ private fun MobileReadyPlayer(
         enterPictureInPicture = enterPictureInPicture,
         pictureInPictureSeeks = pictureInPictureSeeks,
         castButton = castButton,
+        onSwitchToConverted = source.switchToConverted(mediaType, offline, player, currentOnOriginalRejected),
     )
 }
+
+private fun PlaybackSource?.switchToConverted(
+    mediaType: PlaybackMediaType,
+    offline: Boolean,
+    player: Media3Player,
+    onOriginalRejected: State<(PlaybackFallbackReason, Long) -> Boolean>,
+): (() -> Unit)? =
+    if (this?.kind == PlaybackSourceKind.ORIGINAL && mediaType == PlaybackMediaType.VIDEO && !offline) {
+        { onOriginalRejected.value(PlaybackFallbackReason.UserSwitched, player.currentPosition.coerceAtLeast(0L)) }
+    } else {
+        null
+    }
 
 /**
  * What the screen tracks about one player. It is remembered with that player, so a recreated
@@ -1190,6 +1204,7 @@ private fun MobileReadyPlayerContent(
     enterPictureInPicture: (() -> Unit)?,
     pictureInPictureSeeks: SeekRelay,
     castButton: @Composable (Modifier) -> Unit,
+    onSwitchToConverted: (() -> Unit)?,
 ) {
     val player = playerState.player
     fun seek(direction: SeekDirection) {
@@ -1310,7 +1325,14 @@ private fun MobileReadyPlayerContent(
                     MobilePictureInPictureButton(enterPictureInPicture, optionModifier)
                 },
                 settings = {
-                    MobileVideoChips(options, sidecarSubtitles, subtitleStartupPolicy, { sheet = it }, optionModifier)
+                    MobileVideoChips(
+                        options = options,
+                        sidecarSubtitles = sidecarSubtitles,
+                        subtitleStartupPolicy = subtitleStartupPolicy,
+                        original = onSwitchToConverted != null,
+                        onSheet = { sheet = it },
+                        modifier = optionModifier,
+                    )
                 },
                 trailingChip = { MobileNextEpisodeChip(nextEpisode, onNextEpisode, optionModifier) },
                 onFooterHeight = { footerHeight = it },
@@ -1330,6 +1352,7 @@ private fun MobileReadyPlayerContent(
                 appearance = appearance,
                 preferences = preferences,
                 onSubtitleSelectionChanged = onSubtitleSelectionChanged,
+                onSwitchToConverted = onSwitchToConverted,
                 modifier = Modifier.zIndex(2.5f),
                 panelModifier = optionModifier,
             )

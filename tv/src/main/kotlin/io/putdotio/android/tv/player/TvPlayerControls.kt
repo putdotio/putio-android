@@ -345,6 +345,9 @@ internal fun TvPlayerChips(chips: List<TvPlayerControl>, labels: TvPlayerChipLab
                     labels.speed,
                     stringResource(PlaybackR.string.playback_speed_chip, labels.speed),
                 )
+                TvPlayerControl.Stream -> stringResource(PlaybackR.string.playback_stream_original).let {
+                    Triple(R.drawable.ic_ph_film_strip, it, stringResource(PlaybackR.string.playback_stream_chip, it))
+                }
                 else -> stringResource(PlaybackR.string.playback_next_episode).let {
                     Triple(R.drawable.ic_ph_skip_forward, it, it)
                 }

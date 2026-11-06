@@ -81,6 +81,7 @@ import io.putdotio.android.playback.captionLanguages
 import io.putdotio.android.playback.inFileSubtitleLanguage
 import io.putdotio.android.playback.withSubtitleSelection
 import io.putdotio.sdk.files.PlaybackSource
+import io.putdotio.sdk.files.PlaybackSourceKind
 import java.util.UUID
 import kotlinx.coroutines.delay
 
@@ -394,7 +395,11 @@ private fun TvReadyPlayer(
     val choices = TvTrackChoices(tracks, parameters, subtitleStartupPolicy)
     val subtitles = remember(source) { source.playerSubtitles() }
     val subtitlesHidden = choices.subtitlesHidden
-    val chips = choices.chips(nextEpisode = nextEpisode, audioOnly = target.mediaType == PlaybackMediaType.AUDIO)
+    val chips = choices.chips(
+        nextEpisode = nextEpisode,
+        audioOnly = target.mediaType == PlaybackMediaType.AUDIO,
+        original = source.streamsOriginalVideo(target),
+    )
     LaunchedEffect(subtitlesHidden, overlay.sheet) {
         val subtitleSheet = overlay.sheet == TvPlayerSheet.Subtitles || overlay.sheet == TvPlayerSheet.SizeAndTiming
         if (subtitlesHidden && subtitleSheet) apply(overlay.closeSheet())
@@ -509,9 +514,16 @@ private fun TvReadyPlayer(
             onOffset = { offset -> options = options.copy(subtitleOffsetMillis = offset) },
         ),
         onDismiss = { apply(overlay.back()) },
+        onSwitchToConverted = {
+            closeSheet()
+            currentOnOriginalRejected(PlaybackFallbackReason.UserSwitched, player.currentPosition.coerceAtLeast(0L))
+        },
         timingPreview = cueLayer,
     )
 }
+
+private fun PlaybackSource.streamsOriginalVideo(target: PlaybackTarget): Boolean =
+    kind == PlaybackSourceKind.ORIGINAL && target.mediaType == PlaybackMediaType.VIDEO
 
 private class TvStageState(firstFrameShown: Boolean, playbackState: Int, val controlsVisible: Boolean) {
     val waiting = !firstFrameShown && playbackState != Player.STATE_READY && playbackState != Player.STATE_ENDED
