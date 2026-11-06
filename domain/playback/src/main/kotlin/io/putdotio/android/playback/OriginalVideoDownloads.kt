@@ -29,29 +29,25 @@ public class OriginalVideoDownloads internal constructor(
         loadFile = { fileId -> client.files.get(fileId, MEDIA_INFO_QUERY) },
     )
 
+    @Suppress("TooGenericExceptionCaught")
     public suspend fun accepts(fileId: FilesItemId): Boolean? =
         withContext(Dispatchers.IO) {
-            val policy = originalVideoPolicy()
-            if (policy == OriginalVideoPolicy.Never || switchedToConverted.contains(fileId.value)) {
-                false
-            } else {
-                lookUp(fileId.value)?.let { file ->
-                    file.fileType == PutioFileType.VIDEO &&
-                        policy.capabilities(decision, PlaybackPreference.HLS).accept(file)
-                }
+            try {
+                decide(fileId.value)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                null
             }
         }
 
-    // A failed lookup answers nothing; cancellation still propagates.
-    @Suppress("TooGenericExceptionCaught")
-    private suspend fun lookUp(fileId: Long): PutioFile? =
-        try {
-            loadFile(fileId)
-        } catch (error: CancellationException) {
-            throw error
-        } catch (_: Exception) {
-            null
-        }
+    private suspend fun decide(fileId: Long): Boolean {
+        val policy = originalVideoPolicy()
+        if (policy == OriginalVideoPolicy.Never || switchedToConverted.contains(fileId)) return false
+        val file = loadFile(fileId)
+        return file.fileType == PutioFileType.VIDEO &&
+            policy.capabilities(decision, PlaybackPreference.HLS).accept(file)
+    }
 
     private fun PlaybackCapabilities.accept(file: PutioFile): Boolean =
         originalVideoPlayable ||

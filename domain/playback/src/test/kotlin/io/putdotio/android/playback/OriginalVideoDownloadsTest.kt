@@ -58,6 +58,17 @@ class OriginalVideoDownloadsTest {
         )
 
         assertNull(downloads.accepts(FilesItemId(H264_MP4)))
+        val unreadable = OriginalVideoDownloads(
+            originalVideoPolicy = { OriginalVideoPolicy.Check },
+            decision = OriginalPlaybackDecision(FakeDecoderInventory(PHONE)),
+            switchedToConverted = object : SwitchedToConvertedFiles {
+                override suspend fun contains(fileId: Long): Boolean = error("corrupt store")
+
+                override fun add(fileId: Long) = Unit
+            },
+            loadFile = { error("not reached") },
+        )
+        assertNull(unreadable.accepts(FilesItemId(H264_MP4)))
     }
 
     private val files = mutableMapOf<Long, PutioFile>()

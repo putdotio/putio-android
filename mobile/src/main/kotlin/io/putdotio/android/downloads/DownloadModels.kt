@@ -115,6 +115,9 @@ internal data class DownloadEntry(
     val canPause: Boolean get() = isActive && !isPausedByUser
 
     val isPausedByUser: Boolean get() = (status as? DownloadStatus.Paused)?.reason == DownloadPauseReason.USER
+
+    val holdsBytes: Boolean
+        get() = status == DownloadStatus.Missing || ((status as? DownloadStatus.Failed)?.bytesDownloaded ?: 0L) > 0L
 }
 
 internal fun DownloadArtifact.fallsBackToConverted(reason: DownloadFailureReason, bytesDownloaded: Long): Boolean =

@@ -7,6 +7,7 @@ import android.app.NotificationManager
 import android.content.ComponentName
 import android.content.Intent
 import android.net.Uri
+import androidx.core.content.IntentCompat
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.database.StandaloneDatabaseProvider
 import androidx.media3.datasource.DataSpec
@@ -16,6 +17,7 @@ import androidx.media3.exoplayer.offline.Download
 import androidx.media3.exoplayer.offline.DownloadManager
 import androidx.media3.exoplayer.offline.DownloadProgress
 import androidx.media3.exoplayer.offline.DownloadRequest
+import androidx.media3.exoplayer.offline.DownloadService
 import androidx.media3.exoplayer.scheduler.Requirements
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -135,11 +137,7 @@ class MobileDownloadNotificationsTest {
         val store = MobileDownloadStore(context, USER)
         store.upsert(row(13L, "Spring.mp4").copy(artifact = original))
         store.upsert(row(14L, "Summer.mp4").copy(artifact = original, removing = true))
-        val fellBack = mutableListOf<Triple<Long, DownloadEntry, Boolean>>()
-        val listener = MobileDownloadNotifications(
-            context,
-            fallBack = { _, user, entry, parked -> fellBack += Triple(user, entry, parked) },
-        ) { signedIn }
+        val listener = MobileDownloadNotifications(context, stores = { store }) { signedIn }
 
         signedIn = null
         for (id in listOf(13L, 14L)) {
@@ -147,10 +145,18 @@ class MobileDownloadNotificationsTest {
         }
 
         assertTrue(shadowOf(manager).allNotifications.isEmpty())
-        val (user, converted, parked) = fellBack.single()
-        assertEquals(USER to FilesItemId(13L), user to converted.fileId)
-        assertTrue(parked)
-        assertEquals(DownloadArtifact.HLS to DownloadStatus.Queued, converted.artifact to converted.status)
+        val sent = generateSequence { shadowOf(context).nextStartedService }.toList().single()
+        val request =
+            IntentCompat.getParcelableExtra(sent, DownloadService.KEY_DOWNLOAD_REQUEST, DownloadRequest::class.java)
+        assertEquals("$USER:13", request?.id)
+        assertEquals(DownloadArtifact.HLS.apiUrl(FilesItemId(13L)), request?.uri.toString())
+        assertEquals(
+            MobileDownloadEngine.STOP_REASON_OTHER_USER,
+            sent.getIntExtra(DownloadService.KEY_STOP_REASON, -1),
+        )
+        val converted = store.find(FilesItemId(13L))
+        assertEquals(DownloadArtifact.HLS to DownloadStatus.Queued, converted?.artifact to converted?.status)
+        assertEquals(original, store.find(FilesItemId(14L))?.artifact)
     }
 
     @Test

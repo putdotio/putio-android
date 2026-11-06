@@ -108,7 +108,7 @@ internal class DownloadsController(
     private fun start(request: DownloadRequest): Boolean {
         val artifact = request.type.downloadArtifact()
         if (artifact == null || !accepts(request.fileId, retry = false)) return false
-        val entry = DownloadEntry(
+        val fresh = DownloadEntry(
             fileId = request.fileId,
             name = request.name,
             type = request.type,
@@ -121,23 +121,24 @@ internal class DownloadsController(
         )
         enqueue {
             // Re-check under the mutation lock: a removal may have landed since dispatch.
-            if (!accepts(entry.fileId, retry = false)) return@enqueue
-            val held = store.find(entry.fileId)?.artifact
+            if (!accepts(fresh.fileId, retry = false)) return@enqueue
+            val earlier = store.find(fresh.fileId)
+            val entry = earlier?.let { fresh.copy(artifact = it.artifact) } ?: fresh
             store.upsert(entry)
-            queueStart(entry, held)
+            queueStart(entry, decide = earlier?.holdsBytes != true)
         }
         return true
     }
 
-    private fun queueStart(entry: DownloadEntry, held: DownloadArtifact?) {
-        val original = if (entry.type == PutioFileType.VIDEO) {
+    private fun queueStart(entry: DownloadEntry, decide: Boolean) {
+        val original = if (decide && entry.type == PutioFileType.VIDEO) {
             scope.async {
                 lookups.withPermit { withTimeoutOrNull(ORIGINAL_DECISION_TIMEOUT) { acceptsOriginal(entry.fileId) } }
             }
         } else {
             null
         }
-        val pending = PendingStart(entry, held, original)
+        val pending = PendingStart(entry, original)
         latestStarts[entry.fileId] = pending
         starts.trySend(pending)
     }
@@ -151,14 +152,13 @@ internal class DownloadsController(
                 !it.removing && !engine.isRemoving(it.fileId) &&
                     synchronized(lock) { it.fileId !in mutableState.value.removing }
             } ?: return
-            val artifact = when (original) {
-                null -> pending.held ?: current.artifact
-                true -> DownloadArtifact.ORIGINAL_HLS
-                false -> DownloadArtifact.HLS
+            val chosen = when (original) {
+                null -> current
+                true -> current.copy(artifact = DownloadArtifact.ORIGINAL_HLS)
+                false -> current.copy(artifact = DownloadArtifact.HLS)
             }
-            val chosen = current.copy(artifact = artifact)
             if (chosen != current) store.upsert(chosen)
-            if (pending.held != null && pending.held != artifact) engine.replace(chosen) else engine.start(chosen)
+            engine.start(chosen)
         }
     }
 
@@ -170,7 +170,7 @@ internal class DownloadsController(
             // A pause that raced the failure must not hold the retried request.
             val queued = entry.copy(status = DownloadStatus.Queued, queuedAt = clock(), pauseRequested = false)
             store.upsert(queued)
-            queueStart(queued, held = entry.artifact)
+            queueStart(queued, decide = !entry.holdsBytes)
         }
         return true
     }
@@ -286,7 +286,7 @@ internal class DownloadsController(
     }
 }
 
-private class PendingStart(val entry: DownloadEntry, val held: DownloadArtifact?, val original: Deferred<Boolean?>?)
+private class PendingStart(val entry: DownloadEntry, val original: Deferred<Boolean?>?)
 
 /** Progress is display-only, so it polls outside the mutation queue and dies with the controller scope. */
 private class ProgressWatch(

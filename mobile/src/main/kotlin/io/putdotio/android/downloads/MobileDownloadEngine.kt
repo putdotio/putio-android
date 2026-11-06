@@ -3,7 +3,6 @@ package io.putdotio.android.downloads
 import android.content.Context
 import android.system.ErrnoException
 import android.system.OsConstants
-import androidx.core.net.toUri
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.HttpDataSource
@@ -70,7 +69,7 @@ internal class MobileDownloadEngine(
             val fileId = fileIdOf(userId, download.request.id)
             if (closed || fileId == null) return
             synchronized(removing) { removing -= fileId }
-            if (store.find(fileId)?.removing != false) store.removeBlocking(fileId)
+            store.removeBlocking(fileId)
         }
 
         // Media3 keeps queued rows queued while offline or low on storage; the rows show why nothing moves.
@@ -163,30 +162,7 @@ internal class MobileDownloadEngine(
         }
     }
 
-    override fun start(entry: DownloadEntry) {
-        try {
-            sendDownloadRequest(appContext, userId, entry)
-        } catch (_: IllegalStateException) {
-            sendDownloadRequest(appContext, userId, entry) { request, stopReason ->
-                downloadManager.addDownload(request, stopReason)
-            }
-        }
-    }
-
-    override suspend fun replace(entry: DownloadEntry) {
-        if (closed) return
-        val contentId = downloadContentId(userId, entry.fileId)
-        val known = withContext(ioDispatcher) {
-            try {
-                downloadManager.downloadIndex.getDownload(contentId) != null
-            } catch (_: IOException) {
-                false
-            }
-        }
-        if (closed) return
-        if (known) downloads.replacements.replace(appContext, downloadManager, userId, entry) else start(entry)
-        startServiceForResume()
-    }
+    override fun start(entry: DownloadEntry) = startDownload(appContext, downloadManager, userId, entry)
 
     override suspend fun remove(fileId: FilesItemId) {
         val contentId = downloadContentId(userId, fileId)
@@ -341,30 +317,6 @@ internal class MobileDownloadEngine(
         /** Media3 stop reason for a transfer the viewer paused. */
         const val STOP_REASON_PAUSED = 2
     }
-}
-
-/**
- * Hands [userId]'s download to Media3 through the download service: a new request, or a failed or
- * missing one again, which joins the back of the queue. Its last outcome notification goes once the
- * service has the request; a start the system refuses throws and leaves it, Try again included.
- */
-@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-internal fun sendDownloadRequest(
-    context: Context,
-    userId: Long,
-    entry: DownloadEntry,
-    send: (DownloadRequest, Int) -> Unit = { request, stopReason ->
-        DownloadService.sendAddDownload(context, MobileDownloadService::class.java, request, stopReason, true)
-    },
-) {
-    val url = entry.artifact.apiUrl(entry.fileId, subtitlesHidden = entry.subtitlesHidden == true)
-    val request = DownloadRequest.Builder(downloadContentId(userId, entry.fileId), url.toUri())
-        .setMimeType(if (entry.artifact.isHls) MimeTypes.APPLICATION_M3U8 else null)
-        // The name rides along so a row lost from the app's index can be rebuilt with it.
-        .setData(entry.name.encodeToByteArray())
-        .build()
-    send(request, if (entry.pauseRequested) MobileDownloadEngine.STOP_REASON_PAUSED else Download.STOP_REASON_NONE)
-    MobileDownloadNotifications.cancel(context, userId, entry.fileId)
 }
 
 @get:androidx.annotation.OptIn(markerClass = [UnstableApi::class])

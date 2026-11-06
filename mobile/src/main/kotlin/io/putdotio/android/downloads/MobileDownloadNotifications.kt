@@ -12,13 +12,11 @@ import androidx.core.content.ContextCompat
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.offline.Download
 import androidx.media3.exoplayer.offline.DownloadManager
-import androidx.media3.exoplayer.offline.DownloadRequest
 import io.putdotio.android.MobileDeepLink
 import io.putdotio.android.R
 import io.putdotio.android.design.R as DesignR
 import io.putdotio.android.pendingIntent
 import io.putdotio.android.files.FilesItemId
-import java.util.concurrent.ConcurrentHashMap
 
 /** What a finished transfer tells the viewer; Media3 reports both on its process-wide manager. */
 internal sealed interface DownloadOutcome {
@@ -39,12 +37,6 @@ internal sealed interface DownloadOutcome {
 internal class MobileDownloadNotifications(
     private val context: Context,
     private val stores: (Long) -> MobileDownloadStore = { MobileDownloadStore.shared(context, it) },
-    private val replacements: DownloadReplacements = DownloadReplacements(),
-    private val fallBack: (DownloadManager, Long, DownloadEntry, Boolean) -> Unit =
-        { manager, userId, converted, parked ->
-            stores(userId).updateStatusBlocking(converted.fileId) { converted }
-            replacements.replace(context, manager, userId, converted, parked)
-        },
     private val signedInUser: () -> Long?,
 ) : DownloadManager.Listener {
     override fun onDownloadChanged(
@@ -63,20 +55,19 @@ internal class MobileDownloadNotifications(
         if (outcome == null || owner == null || fileId == null) return
         // A row being deleted, or one this device never indexed, stays quiet.
         if (download.fallingBackToConverted(finalException)) {
-            stores(owner).find(fileId)?.takeUnless { it.removing }
-                ?.let { fallBack(downloadManager, owner, it.convertedFallback(), owner != signedInUser()) }
+            stores(owner).find(fileId)?.takeUnless { it.removing }?.let { fallBack(downloadManager, owner, it) }
         } else if (owner == signedInUser()) {
             MobileDownloadStore.peek(context, owner, fileId)?.takeUnless { it.removing }
                 ?.let { post(context, owner, it, outcome) }
         }
     }
 
-    override fun onDownloadRemoved(downloadManager: DownloadManager, download: Download) {
-        val replacement = replacements.take(download.request.id)
-        val kept = download.request.ownerUserId()?.let { owner ->
-            fileIdOf(owner, download.request.id)?.let { stores(owner).find(it)?.removing == false }
-        } == true
-        if (replacement != null && kept) downloadManager.addDownload(replacement.request, replacement.stopReason)
+    private fun fallBack(manager: DownloadManager, owner: Long, original: DownloadEntry) {
+        val converted = original.convertedFallback()
+        stores(owner).updateStatusBlocking(converted.fileId) { converted }
+        val parked = owner != signedInUser()
+        val stopReason = if (parked) MobileDownloadEngine.STOP_REASON_OTHER_USER else Download.STOP_REASON_NONE
+        startDownload(context, manager, owner, converted, stopReason)
     }
 
     companion object {
@@ -224,26 +215,3 @@ internal fun DownloadFailureReason.message(): Int =
 internal fun Download.fallingBackToConverted(error: Exception?): Boolean =
     state == Download.STATE_FAILED && error != null &&
         request.artifact.fallsBackToConverted(error.toFailureReason(), bytesDownloaded)
-
-@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-internal class DownloadReplacements {
-    class Replacement(val request: DownloadRequest, val stopReason: Int)
-
-    private val pending = ConcurrentHashMap<String, Replacement>()
-
-    fun replace(
-        context: Context,
-        manager: DownloadManager,
-        userId: Long,
-        entry: DownloadEntry,
-        parked: Boolean = false,
-    ) {
-        sendDownloadRequest(context, userId, entry) { request, stopReason ->
-            pending[request.id] =
-                Replacement(request, if (parked) MobileDownloadEngine.STOP_REASON_OTHER_USER else stopReason)
-        }
-        manager.removeDownload(downloadContentId(userId, entry.fileId))
-    }
-
-    fun take(contentId: String): Replacement? = pending.remove(contentId)
-}

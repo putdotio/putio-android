@@ -103,8 +103,6 @@ internal class MobileDownloadCache private constructor(context: Context) {
      * engine stops requests that belong to a user who is not signed in. Transfers
      * wait for a network and for the system to stop reporting low storage.
      */
-    val replacements = DownloadReplacements()
-
     val downloadManager: DownloadManager = DownloadManager(
         appContext,
         DefaultDownloadIndex(databaseProvider),
@@ -113,7 +111,7 @@ internal class MobileDownloadCache private constructor(context: Context) {
         maxParallelDownloads = MobileDownloadSettings(appContext).concurrency
         minRetryCount = MIN_RETRIES
         requirements = DOWNLOAD_REQUIREMENTS
-        addListener(MobileDownloadNotifications(appContext, replacements = replacements) {
+        addListener(MobileDownloadNotifications(appContext) {
             (MobileOAuthRuntime.get(appContext).authController.state.value as? MobileAuthState.SignedIn)
                 ?.account?.userId
         })

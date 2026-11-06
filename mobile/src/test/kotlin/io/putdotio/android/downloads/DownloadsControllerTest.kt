@@ -419,42 +419,46 @@ class DownloadsControllerTest {
     }
 
     @Test
-    fun aRetriedVideoAsksTheDecisionAgainAndReplacesAnotherRendition() = runBlocking {
-        var original = true
-        DownloadsController(store, engine, this, acceptsOriginal = { original }).use { controller ->
-            assertTrue(controller.dispatch(DownloadsEvent.Start(video)))
-            engine.await { it.started.size == 1 }
-            store.fail(video.fileId)
-            original = false
-
-            assertTrue(controller.dispatch(DownloadsEvent.Retry(video.fileId)))
-            engine.await { it.replaced.size == 1 }
-
-            assertEquals(DownloadArtifact.ORIGINAL_HLS, engine.started.single().artifact)
-            assertEquals(DownloadArtifact.HLS, engine.replaced.single().artifact)
-            assertEquals(DownloadArtifact.HLS, store.find(video.fileId)?.artifact)
+    fun aRetryOrRedownloadAsksTheDecisionAgainOnlyWhenNothingIsHeld() = runBlocking {
+        var original: Boolean? = false
+        val asked = mutableListOf<FilesItemId>()
+        val partial = video.copy(fileId = FilesItemId(9L), name = "Tears.mkv")
+        for ((request, bytes) in listOf(video to 0L, partial to 10L)) {
+            store.upsert(
+                DownloadEntry(
+                    request.fileId, request.name, PutioFileType.VIDEO, DownloadArtifact.ORIGINAL_HLS,
+                    DownloadStatus.Failed(DownloadFailureReason.NETWORK, bytes), createdAt = 1L, accepted = true,
+                ),
+            )
         }
-    }
-
-    @Test
-    fun aRedownloadKeepsItsRenditionWhenTheDecisionCannotAnswer() = runBlocking {
-        var original: Boolean? = null
-        store.upsert(
-            DownloadEntry(
-                video.fileId, video.name, PutioFileType.VIDEO, DownloadArtifact.ORIGINAL_HLS, DownloadStatus.Missing,
-                createdAt = 1L, accepted = true,
-            ),
-        )
-        DownloadsController(store, engine, this, acceptsOriginal = { original }).use { controller ->
-            assertTrue(controller.dispatch(DownloadsEvent.Start(video)))
-            engine.await { it.started.size == 1 }
-            assertEquals(DownloadArtifact.ORIGINAL_HLS, engine.started.single().artifact)
-
-            store.fail(video.fileId)
-            original = false
+        val decision: suspend (FilesItemId) -> Boolean? = { fileId ->
+            asked += fileId
+            original
+        }
+        DownloadsController(store, engine, this, acceptsOriginal = decision).use { controller ->
             assertTrue(controller.dispatch(DownloadsEvent.Retry(video.fileId)))
-            engine.await { it.replaced.size == 1 }
-            assertEquals(DownloadArtifact.HLS, engine.replaced.single().artifact)
+            assertTrue(controller.dispatch(DownloadsEvent.Retry(partial.fileId)))
+            engine.await { it.started.size == 2 }
+            assertEquals(
+                listOf(video.fileId to DownloadArtifact.HLS, partial.fileId to DownloadArtifact.ORIGINAL_HLS),
+                engine.started.map { it.fileId to it.artifact },
+            )
+            assertEquals(listOf(video.fileId), asked)
+
+            val rejected = DownloadStatus.Failed(DownloadFailureReason.UNAVAILABLE, 0L)
+            store.find(video.fileId)?.let {
+                store.upsert(it.copy(artifact = DownloadArtifact.ORIGINAL_HLS, status = rejected))
+            }
+            store.find(partial.fileId)?.let { store.upsert(it.copy(status = DownloadStatus.Missing)) }
+            original = null
+            assertTrue(controller.dispatch(DownloadsEvent.Start(video)))
+            assertTrue(controller.dispatch(DownloadsEvent.Start(partial)))
+            engine.await { it.started.size == 4 }
+            assertEquals(
+                listOf(video.fileId, partial.fileId).map { it to DownloadArtifact.ORIGINAL_HLS },
+                engine.started.drop(2).map { it.fileId to it.artifact },
+            )
+            assertEquals(listOf(video.fileId, video.fileId), asked)
         }
     }
 
@@ -515,7 +519,6 @@ internal class FakeDownloadStore : DownloadStore {
 
 internal class FakeDownloadEngine : DownloadEngine {
     val started = mutableListOf<DownloadEntry>()
-    val replaced = mutableListOf<DownloadEntry>()
     val removed = mutableListOf<FilesItemId>()
     val paused = mutableListOf<FilesItemId>()
     val resumed = mutableListOf<FilesItemId>()
@@ -528,11 +531,6 @@ internal class FakeDownloadEngine : DownloadEngine {
 
     override fun start(entry: DownloadEntry) {
         started += entry
-        version.value += 1
-    }
-
-    override suspend fun replace(entry: DownloadEntry) {
-        replaced += entry
         version.value += 1
     }
 
