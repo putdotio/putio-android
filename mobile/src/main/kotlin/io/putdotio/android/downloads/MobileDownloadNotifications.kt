@@ -73,11 +73,10 @@ internal class MobileDownloadNotifications(
 
     override fun onDownloadRemoved(downloadManager: DownloadManager, download: Download) {
         val replacement = replacements.take(download.request.id)
-        val owner = download.request.ownerUserId()
-        val fileId = owner?.let { fileIdOf(it, download.request.id) }
-        if (replacement != null && owner != null && fileId != null && stores(owner).find(fileId)?.removing == false) {
-            downloadManager.addDownload(replacement.request, replacement.stopReason)
-        }
+        val kept = download.request.ownerUserId()?.let { owner ->
+            fileIdOf(owner, download.request.id)?.let { stores(owner).find(it)?.removing == false }
+        } == true
+        if (replacement != null && kept) downloadManager.addDownload(replacement.request, replacement.stopReason)
     }
 
     companion object {
