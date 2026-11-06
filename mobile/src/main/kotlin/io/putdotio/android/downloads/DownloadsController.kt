@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * One controller per signed-in user. Rows come from the store, which the engine
@@ -32,6 +33,8 @@ internal class DownloadsController(
     /** A monotonic clock for speed intervals, which a wall-clock change must not bend. */
     private val elapsedMillis: () -> Long = { System.nanoTime() / NANOS_PER_MILLI },
     private val clock: () -> Long = System::currentTimeMillis,
+    private val acceptsOriginal: suspend (FilesItemId) -> Boolean = { false },
+    private val originalDecisionTimeout: Duration = 10.seconds,
 ) : Closeable {
     private val lock = Any()
     private val controllerJob = SupervisorJob(parentScope.coroutineContext[Job])
@@ -113,9 +116,22 @@ internal class DownloadsController(
             // Re-check under the mutation lock: a removal may have landed since dispatch.
             if (!accepts(entry.fileId, retry = false)) return@enqueue
             store.upsert(entry)
-            engine.start(entry)
+            if (entry.type == PutioFileType.VIDEO) scope.launch { startVideo(entry) } else engine.start(entry)
         }
         return true
+    }
+
+    private suspend fun startVideo(entry: DownloadEntry) {
+        val original = withTimeoutOrNull(originalDecisionTimeout) { acceptsOriginal(entry.fileId) } == true
+        enqueue {
+            val current = store.find(entry.fileId)?.takeIf {
+                it.createdAt == entry.createdAt && !it.accepted && !it.removing && !engine.isRemoving(it.fileId) &&
+                    synchronized(lock) { it.fileId !in mutableState.value.removing }
+            } ?: return@enqueue
+            val chosen = if (original) current.copy(artifact = DownloadArtifact.ORIGINAL_HLS) else current
+            if (chosen != current) store.upsert(chosen)
+            engine.start(chosen)
+        }
     }
 
     // Media3 queues a re-added failed or finished request behind everything already waiting.
@@ -314,7 +330,7 @@ private class SpeedWatch {
 
 private const val NANOS_PER_MILLI = 1_000_000L
 
-/** Video downloads the HLS rendition the player streams; audio has only the original. */
+/** Video starts as converted HLS until the original decision answers; audio has only the original. */
 private fun PutioFileType.downloadArtifact(): DownloadArtifact? =
     when (this) {
         PutioFileType.VIDEO -> DownloadArtifact.HLS

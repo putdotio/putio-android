@@ -12,6 +12,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.database.StandaloneDatabaseProvider
 import androidx.media3.datasource.ByteArrayDataSource
 import androidx.media3.datasource.DataSpec
+import androidx.media3.datasource.HttpDataSource
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.CacheWriter
 import androidx.media3.exoplayer.offline.DefaultDownloadIndex
@@ -27,6 +28,8 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.sdk.files.PutioFileType
+import java.io.IOException
+import java.net.UnknownHostException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.LinkedBlockingQueue
@@ -510,6 +513,67 @@ class MobileDownloadEngineTest {
     }
 
     @Test
+    fun anOriginalPutIoRejectsBeforeAnyBytesFallsBackToConvertedAndOtherFailuresStay() {
+        val store = store(ALICE)
+        val ids = listOf(REJECTED, PARTIAL, OFFLINE)
+        runBlocking { for (id in ids) store.upsert(entry(id, accepted = true).copy(artifact = ORIGINAL_HLS)) }
+        val manager = manager(concurrency = ids.size).apply { minRetryCount = 0 }
+        engine(ALICE, store, manager)
+        awaitMain { manager.isInitialized }
+        generateSequence { shadowOf(context).nextStartedService }.toList()
+        for (id in ids) manager.addDownload(DownloadRequest.Builder("$ALICE:$id", originalUri(id)).build())
+
+        downloaders.await("$ALICE:$REJECTED").fail(rejected(HTTP_BAD_REQUEST))
+        downloaders.await("$ALICE:$PARTIAL").apply { report(100L) }.also { transfer ->
+            awaitMain { manager.currentDownloads.any { it.request.id == "$ALICE:$PARTIAL" && it.bytesDownloaded > 0 } }
+            transfer.fail(rejected(HTTP_BAD_REQUEST))
+        }
+        downloaders.await("$ALICE:$OFFLINE").fail(UnknownHostException("offline"))
+
+        awaitMain { ids.all { manager.stateOf("$ALICE:$it") == Download.STATE_FAILED } }
+        awaitMain { store.find(FilesItemId(REJECTED))?.artifact == DownloadArtifact.HLS }
+        assertEquals(DownloadStatus.Queued, store.status(REJECTED))
+        val resent = startedRequest()
+        assertEquals("$ALICE:$REJECTED", resent.id)
+        assertEquals(DownloadArtifact.HLS.apiUrl(FilesItemId(REJECTED)), resent.uri.toString())
+        assertEquals(MimeTypes.APPLICATION_M3U8, resent.mimeType)
+        awaitMain { store.status(PARTIAL) is DownloadStatus.Failed && store.status(OFFLINE) is DownloadStatus.Failed }
+        assertEquals(ORIGINAL_HLS, store.find(FilesItemId(PARTIAL))?.artifact)
+        assertEquals(DownloadFailureReason.UNEXPECTED, (store.status(PARTIAL) as DownloadStatus.Failed).reason)
+        assertEquals(ORIGINAL_HLS, store.find(FilesItemId(OFFLINE))?.artifact)
+        assertEquals(DownloadFailureReason.NETWORK, (store.status(OFFLINE) as DownloadStatus.Failed).reason)
+        assertNull(shadowOf(context).nextStartedService)
+    }
+
+    @Test
+    fun anOriginalOverHlsAsksForTheSameSubtitlesAndARebuiltRowKeepsIt() {
+        assertEquals(
+            "https://api.put.io/v2/files/10/hls/media.m3u8?subtitle_key=all&max_subtitle_count=-1&original=1",
+            ORIGINAL_HLS.apiUrl(FilesItemId(10L)),
+        )
+        assertEquals(
+            "https://api.put.io/v2/files/10/hls/media.m3u8?subtitle_key=all&max_subtitle_count=0&original=1",
+            ORIGINAL_HLS.apiUrl(FilesItemId(10L), subtitlesHidden = true),
+        )
+        val sent = mutableListOf<DownloadRequest>()
+        sendDownloadRequest(context, ALICE, entry(10L, accepted = false).copy(artifact = ORIGINAL_HLS)) { sent += it }
+        assertEquals(MimeTypes.APPLICATION_M3U8, sent.single().mimeType)
+
+        index.putDownload(
+            Download(
+                sent.single(), Download.STATE_STOPPED, 5L, 5L, TOTAL, PARKED, Download.FAILURE_REASON_NONE,
+                DownloadProgress(),
+            ),
+        )
+        preferences.edit().putString(storeKey(ALICE), "[{not json").commit()
+        val store = store(ALICE)
+        engine(ALICE, store, manager())
+
+        awaitMain { store.find(FilesItemId(10L)) != null }
+        assertEquals(PutioFileType.VIDEO to ORIGINAL_HLS, store.find(FilesItemId(10L))?.let { it.type to it.artifact })
+    }
+
+    @Test
     fun offlinePlaybackReadsBackTheUrlEachDownloadWasRequestedWith() {
         val earlier = "https://api.put.io/v2/files/10/hls/media.m3u8?subtitle_key=all"
         index.putDownload(download("$ALICE:10", Download.STATE_COMPLETED, bytes = TOTAL, uri = earlier))
@@ -518,6 +582,12 @@ class MobileDownloadEngineTest {
         assertNull(index.requestedUrl(BOB, FilesItemId(10L)))
         assertNull(index.requestedUrl(ALICE, FilesItemId(11L)))
     }
+
+    private fun originalUri(id: Long): Uri = Uri.parse(ORIGINAL_HLS.apiUrl(FilesItemId(id)))
+
+    private fun rejected(code: Int) = HttpDataSource.InvalidResponseCodeException(
+        code, null, null, emptyMap(), DataSpec(Uri.EMPTY), ByteArray(0),
+    )
 
     private fun manager(concurrency: Int = 1): DownloadManager =
         DownloadManager(context, index, downloaders).apply {
@@ -622,6 +692,11 @@ class MobileDownloadEngineTest {
     )
 
     private companion object {
+        val ORIGINAL_HLS = DownloadArtifact.ORIGINAL_HLS
+        const val REJECTED = 50L
+        const val PARTIAL = 51L
+        const val OFFLINE = 52L
+        const val HTTP_BAD_REQUEST = 400
         const val ALICE = 1L
         const val BOB = 2L
         const val PARKED = MobileDownloadEngine.STOP_REASON_OTHER_USER
@@ -656,12 +731,20 @@ private class ScriptedTransfer : Downloader {
 
     private val steps = LinkedBlockingQueue<Pair<Long, Float>>()
 
+    @Volatile
+    private var failure: IOException? = null
+
+    fun fail(error: IOException) {
+        failure = error
+    }
+
     fun report(bytes: Long, percent: Float = bytes * PERCENT / TOTAL_BYTES) = steps.put(bytes to percent)
 
     fun finish() = steps.put(DONE to 0f)
 
     override fun download(progressListener: Downloader.ProgressListener?) {
         while (released.count > 0L) {
+            failure?.let { throw it }
             val (bytes, percent) = steps.poll(POLL_MILLIS, TimeUnit.MILLISECONDS) ?: continue
             if (bytes == DONE) return
             progressListener?.onProgress(TOTAL_BYTES, bytes, percent)

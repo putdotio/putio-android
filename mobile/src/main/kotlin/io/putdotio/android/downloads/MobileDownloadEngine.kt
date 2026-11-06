@@ -278,6 +278,7 @@ internal class MobileDownloadEngine(
     private fun reflect(download: Download, error: Exception?) {
         val fileId = fileIdOf(userId, download.request.id)
         if (closed || fileId == null || download.state == Download.STATE_REMOVING) return
+        if (fallBackToConverted(fileId, download, error)) return
         val pause = downloadManager.pauseReason()
         val status = download.toStatus(error, pause) ?: return
         // A pause that reached Media3 before its request did, or that parking overwrote, is applied
@@ -300,6 +301,18 @@ internal class MobileDownloadEngine(
                 pauseRequested = current.pauseRequested && !download.isTerminalState,
             )
         }
+    }
+
+    private fun fallBackToConverted(fileId: FilesItemId, download: Download, error: Exception?): Boolean {
+        if (download.state != Download.STATE_FAILED) return false
+        val entry = store.find(fileId) ?: return false
+        val reason = error?.toFailureReason()
+            ?: (entry.status as? DownloadStatus.Failed)?.reason
+            ?: DownloadFailureReason.UNEXPECTED
+        val converted = entry.convertedFallback(reason, download.bytesDownloaded) ?: return false
+        store.updateStatusBlocking(fileId) { converted }
+        start(converted)
+        return true
     }
 
     /**
@@ -334,7 +347,7 @@ internal fun sendDownloadRequest(
 ) {
     val url = entry.artifact.apiUrl(entry.fileId, subtitlesHidden = entry.subtitlesHidden == true)
     val request = DownloadRequest.Builder(downloadContentId(userId, entry.fileId), url.toUri())
-        .setMimeType(if (entry.artifact == DownloadArtifact.HLS) MimeTypes.APPLICATION_M3U8 else null)
+        .setMimeType(if (entry.artifact.isHls) MimeTypes.APPLICATION_M3U8 else null)
         // The name rides along so a row lost from the app's index can be rebuilt with it.
         .setData(entry.name.encodeToByteArray())
         .build()
@@ -349,8 +362,19 @@ internal fun fileIdOf(userId: Long, contentId: String): FilesItemId? {
 }
 
 /**
+ * An original over HLS that put.io rejected before any bytes landed, as the converted HLS download that
+ * replaces it; null for every other failure, which stays failed and retries as it was.
+ */
+internal fun DownloadEntry.convertedFallback(reason: DownloadFailureReason, bytesDownloaded: Long): DownloadEntry? =
+    copy(artifact = DownloadArtifact.HLS, status = DownloadStatus.Queued, pauseRequested = false).takeIf {
+        artifact == DownloadArtifact.ORIGINAL_HLS && bytesDownloaded == 0L &&
+            (reason == DownloadFailureReason.UNAVAILABLE || reason == DownloadFailureReason.UNEXPECTED)
+    }
+
+/**
  * A row rebuilt from Media3's record when the app's own row is gone. The rendition comes from the
- * request: an HLS playlist is a video, an original is audio, as only audio downloads the original.
+ * request: an HLS playlist is a video, original over HLS when it asks for `original`, and a file is
+ * audio, as only audio downloads the original file.
  * The name is the one the request carried, else a neutral stand-in; the status follows Media3.
  */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
@@ -362,7 +386,11 @@ private fun Download.recoveredEntry(fileId: FilesItemId, standInName: String): D
         fileId = fileId,
         name = request.data.decodeToString().ifBlank { standInName },
         type = if (hls) PutioFileType.VIDEO else PutioFileType.AUDIO,
-        artifact = if (hls) DownloadArtifact.HLS else DownloadArtifact.ORIGINAL,
+        artifact = when {
+            !hls -> DownloadArtifact.ORIGINAL
+            request.uri.getQueryParameter(ORIGINAL_QUERY) == "1" -> DownloadArtifact.ORIGINAL_HLS
+            else -> DownloadArtifact.HLS
+        },
         status = DownloadStatus.Queued,
         createdAt = time,
         accepted = true,
@@ -379,15 +407,19 @@ private fun MobileDownloadStore.markMissing(fileId: FilesItemId) =
 /**
  * Built here, not by the SDK: its URL builders embed `oauth_token`, and Media3 persists
  * this URL, so it must stay token-free. HLS asks for every subtitle rendition, or for none
- * when the account hides subtitles, as streaming does.
+ * when the account hides subtitles, as streaming does; an original over HLS asks the same.
  */
-internal fun DownloadArtifact.apiUrl(fileId: FilesItemId, subtitlesHidden: Boolean = false): String =
-    when (this) {
-        DownloadArtifact.HLS ->
-            "https://api.put.io/v2/files/${fileId.value}/hls/media.m3u8" +
-                "?subtitle_key=all&max_subtitle_count=${if (subtitlesHidden) 0 else HLS_ALL_SUBTITLES}"
+internal fun DownloadArtifact.apiUrl(fileId: FilesItemId, subtitlesHidden: Boolean = false): String {
+    val hls = "https://api.put.io/v2/files/${fileId.value}/hls/media.m3u8" +
+        "?subtitle_key=all&max_subtitle_count=${if (subtitlesHidden) 0 else HLS_ALL_SUBTITLES}"
+    return when (this) {
+        DownloadArtifact.HLS -> hls
+        DownloadArtifact.ORIGINAL_HLS -> "$hls&$ORIGINAL_QUERY=1"
         DownloadArtifact.ORIGINAL -> "https://api.put.io/v2/files/${fileId.value}/stream"
     }
+}
+
+private const val ORIGINAL_QUERY = "original"
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 private fun Download.toStatus(error: Exception?, pause: DownloadPauseReason?): DownloadStatus? =

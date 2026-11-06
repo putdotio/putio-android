@@ -2,6 +2,9 @@ package io.putdotio.android.downloads
 
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.sdk.files.PutioFileType
+import kotlin.time.Duration.Companion.milliseconds
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
@@ -10,11 +13,14 @@ import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.yield
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+
+private const val SETTLE_YIELDS = 10
 
 class DownloadsControllerTest {
     private val video = DownloadRequest(FilesItemId(7L), "Sintel.mkv", PutioFileType.VIDEO, 1_000L)
@@ -333,6 +339,59 @@ class DownloadsControllerTest {
         advanceTimeBy(1_000L)
         runCurrent()
         assertEquals(0L, controller.state.value.speeds[video.fileId])
+    }
+
+    @Test
+    fun aVideoDownloadsTheOriginalOverHlsOnlyWhenTheOriginalDecisionAcceptsIt() = runBlocking {
+        val asked = mutableListOf<FilesItemId>()
+        val accepted = setOf(video.fileId)
+        val rejected = video.copy(fileId = FilesItemId(9L), name = "Tears.mkv")
+        DownloadsController(store, engine, this, acceptsOriginal = { asked += it; it in accepted }).use { controller ->
+            for (request in listOf(video, rejected, audio)) assertTrue(controller.dispatch(DownloadsEvent.Start(request)))
+            engine.await { it.started.size == 3 }
+
+            val started = engine.started.associate { it.fileId to it.artifact }
+            assertEquals(DownloadArtifact.ORIGINAL_HLS, started[video.fileId])
+            assertEquals(DownloadArtifact.HLS, started[rejected.fileId])
+            assertEquals(DownloadArtifact.ORIGINAL, started[audio.fileId])
+            assertEquals(started, store.entries.value.associate { it.fileId to it.artifact })
+            assertEquals(setOf(video.fileId, rejected.fileId), asked.toSet())
+        }
+    }
+
+    @Test
+    fun aVideoShowsQueuedWhileTheDecisionRunsAndACancelledOneNeverStarts() = runBlocking {
+        val decision = CompletableDeferred<Boolean>()
+        DownloadsController(store, engine, this, acceptsOriginal = { decision.await() }).use { controller ->
+            assertTrue(controller.dispatch(DownloadsEvent.Start(video)))
+            val waiting = controller.awaitState { it.entry(video.fileId) != null }.entry(video.fileId)
+            assertEquals(DownloadStatus.Queued, waiting?.status)
+            assertTrue(engine.started.isEmpty())
+
+            assertTrue(controller.dispatch(DownloadsEvent.Cancel(video.fileId)))
+            engine.await { it.removed == listOf(video.fileId) }
+            engine.finishRemoval(video.fileId, store)
+            decision.complete(true)
+            controller.awaitState { it.entries.isEmpty() && it.removing.isEmpty() }
+            repeat(SETTLE_YIELDS) { yield() }
+            assertTrue(engine.started.isEmpty())
+        }
+    }
+
+    @Test
+    fun aDecisionThatNeverAnswersDownloadsConverted() = runBlocking {
+        val controller = DownloadsController(
+            store,
+            engine,
+            this,
+            acceptsOriginal = { awaitCancellation() },
+            originalDecisionTimeout = 50.milliseconds,
+        )
+        controller.use {
+            assertTrue(it.dispatch(DownloadsEvent.Start(video)))
+            engine.await { engine -> engine.started.size == 1 }
+            assertEquals(DownloadArtifact.HLS, engine.started.single().artifact)
+        }
     }
 
     private suspend fun DownloadsController.awaitState(predicate: (DownloadsState) -> Boolean): DownloadsState =

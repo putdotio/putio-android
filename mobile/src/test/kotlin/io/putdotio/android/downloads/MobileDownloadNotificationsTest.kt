@@ -9,6 +9,8 @@ import android.content.Intent
 import android.net.Uri
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.database.StandaloneDatabaseProvider
+import androidx.media3.datasource.DataSpec
+import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.offline.DefaultDownloadIndex
 import androidx.media3.exoplayer.offline.Download
 import androidx.media3.exoplayer.offline.DownloadManager
@@ -124,6 +126,23 @@ class MobileDownloadNotificationsTest {
         for (action in finished.actions + failed.actions) {
             assertTrue(shadowOf(action.actionIntent).savedIntent.extras?.isEmpty != false)
         }
+    }
+
+    @Test
+    fun aRejectedOriginalPostsNothingAndFallsBackToConverted() = runBlocking {
+        shadowOf(context).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        MobileDownloadStore(context, USER).upsert(row(13L, "Spring.mp4").copy(artifact = DownloadArtifact.ORIGINAL_HLS))
+        val fellBack = mutableListOf<Pair<Long, DownloadEntry>>()
+        val listener = MobileDownloadNotifications(context, fallBack = { user, entry -> fellBack += user to entry }) {
+            signedIn
+        }
+
+        listener.changed(download(13L, Download.STATE_FAILED), rejected(HTTP_BAD_REQUEST))
+
+        assertTrue(shadowOf(manager).allNotifications.isEmpty())
+        val (user, converted) = fellBack.single()
+        assertEquals(USER, user)
+        assertEquals(DownloadArtifact.HLS to DownloadStatus.Queued, converted.artifact to converted.status)
     }
 
     @Test
@@ -317,7 +336,12 @@ class MobileDownloadNotificationsTest {
         )
     }
 
+    private fun rejected(code: Int) = HttpDataSource.InvalidResponseCodeException(
+        code, null, null, emptyMap(), DataSpec(Uri.EMPTY), ByteArray(0),
+    )
+
     private companion object {
+        const val HTTP_BAD_REQUEST = 400
         const val USER = 7L
         const val OTHER = 8L
     }

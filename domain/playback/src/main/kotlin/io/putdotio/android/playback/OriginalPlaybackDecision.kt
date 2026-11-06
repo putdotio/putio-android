@@ -127,11 +127,19 @@ internal fun PlaybackRequest.withOriginalVideo(
     decision: OriginalPlaybackDecision,
 ): PlaybackRequest =
     copy(
-        capabilities = when {
-            !capabilities.originalVideoPlayable -> PlaybackCapabilities()
-            policy == OriginalVideoPolicy.Check ->
-                PlaybackCapabilities(originalVideoDecision = decision.forPreference(preference))
-            policy == OriginalVideoPolicy.Always -> PlaybackCapabilities(originalVideoPlayable = true)
-            else -> PlaybackCapabilities()
+        capabilities = if (capabilities.originalVideoPlayable) {
+            policy.capabilities(decision, preference)
+        } else {
+            PlaybackCapabilities()
         },
     )
+
+internal fun OriginalVideoPolicy.capabilities(
+    decision: OriginalPlaybackDecision,
+    preference: PlaybackPreference,
+): PlaybackCapabilities =
+    when (this) {
+        OriginalVideoPolicy.Check -> PlaybackCapabilities(originalVideoDecision = decision.forPreference(preference))
+        OriginalVideoPolicy.Always -> PlaybackCapabilities(originalVideoPlayable = true)
+        OriginalVideoPolicy.Never -> PlaybackCapabilities()
+    }

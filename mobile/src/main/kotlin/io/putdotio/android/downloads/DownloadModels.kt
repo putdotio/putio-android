@@ -4,12 +4,16 @@ import io.putdotio.android.files.FilesItemId
 import io.putdotio.sdk.files.PutioFileType
 
 /**
- * Which rendition the cache holds. Video downloads the same HLS rendition the
- * player streams; audio has no HLS rendition and downloads the original file.
+ * Which rendition the cache holds. Video downloads the converted HLS rendition, or the original over HLS when
+ * Play originals is on and the player's original decision accepts the file; audio downloads the original file.
  */
 internal enum class DownloadArtifact {
     HLS,
     ORIGINAL,
+    ORIGINAL_HLS,
+    ;
+
+    val isHls: Boolean get() = this != ORIGINAL
 }
 
 internal sealed interface DownloadStatus {

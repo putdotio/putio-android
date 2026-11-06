@@ -9,6 +9,7 @@ import io.putdotio.android.playback.PlaybackRepositoryResult
 import io.putdotio.android.playback.PlaybackResolution
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.sdk.files.PlaybackSourceKind
+import io.putdotio.sdk.files.PlaybackStreamFormat
 import io.putdotio.sdk.files.PlaybackSubtitles
 import io.putdotio.sdk.files.PutioCredentialUrl
 import io.putdotio.sdk.files.PutioFileType
@@ -137,6 +138,27 @@ class OfflinePlaybackRepositoryTest {
         assertTrue(original.resolve(target) is PlaybackRepositoryResult.Success)
         assertTrue(original.resolve(target, convertedOnly = true) is PlaybackRepositoryResult.Failure)
         assertTrue(hls.resolve(target, convertedOnly = true) is PlaybackRepositoryResult.Success)
+        assertEquals(listOf(true), convertedOnlyCalls)
+    }
+
+    @Test
+    fun anOriginalOverHlsPlaysOfflineAsAnOriginalSourceAndConvertedOnlyStreams() = runBlocking {
+        val repository = OfflinePlaybackRepository(
+            downloadsOf(completed().copy(artifact = DownloadArtifact.ORIGINAL_HLS)), delegate, PutioCredentialUrl::of,
+        )
+
+        val ready = (repository.resolve(target) as PlaybackRepositoryResult.Success).value as PlaybackResolution.Ready
+
+        assertEquals(PlaybackSourceKind.ORIGINAL, ready.source.kind)
+        assertEquals(PlaybackStreamFormat.HLS, ready.source.format)
+        assertEquals(PlaybackSubtitles.Embedded, ready.source.subtitles)
+        assertEquals(
+            "https://api.put.io/v2/files/7/hls/media.m3u8?subtitle_key=all&max_subtitle_count=-1&original=1",
+            ready.source.url.value,
+        )
+        assertTrue(ready.offline)
+        assertTrue(delegateCalls.isEmpty())
+        assertTrue(repository.resolve(target, convertedOnly = true) is PlaybackRepositoryResult.Failure)
         assertEquals(listOf(true), convertedOnlyCalls)
     }
 

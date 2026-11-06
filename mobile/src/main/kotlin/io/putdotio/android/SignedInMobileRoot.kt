@@ -50,6 +50,7 @@ import io.putdotio.android.history.authoritativeSessionFailure
 import io.putdotio.android.playback.ConvertingPlaybackRepository
 import io.putdotio.android.playback.DataStoreSwitchedToConvertedFiles
 import io.putdotio.android.playback.MediaCodecDecoderInventory
+import io.putdotio.android.playback.OriginalVideoDownloads
 import io.putdotio.android.playback.OriginalVideoPolicy
 import io.putdotio.android.playback.DefaultMobilePlayerFactory
 import io.putdotio.android.playback.MobileCast
@@ -197,7 +198,13 @@ internal fun SignedInMobileRoot(
     }
     val downloadsContext = LocalContext.current.applicationContext
     val downloadsController = remember(downloadsViewModel, downloadsContext, account.userId, sessionId) {
-        downloadsViewModel?.controllerFor(downloadsContext, account.userId, sessionId)
+        val originals = OriginalVideoDownloads(
+            runtime.putioClient,
+            originalVideoPolicy = appConfigController::originalVideoPolicy,
+            decoders = MediaCodecDecoderInventory(downloadsContext),
+            switchedToConverted = DataStoreSwitchedToConvertedFiles.get(downloadsContext),
+        )
+        downloadsViewModel?.controllerFor(downloadsContext, account.userId, sessionId, originals::accepts)
     }
     val publicLinksRepository = remember(runtime.putioClient) { SdkPublicLinksRepository(runtime.putioClient) }
     val publicLinksController =
@@ -310,11 +317,7 @@ private fun SignedInMobileSession(
         val streaming = ConvertingPlaybackRepository(
             runtime.putioClient,
             playbackPreference = { appConfigController.state.value.playbackPreference() },
-            originalVideoPolicy = {
-                appConfigController.state.value.originalVideoPolicy(
-                    OriginalVideoPolicy.valueOf(BuildConfig.PUTIO_ORIGINAL_VIDEO),
-                )
-            },
+            originalVideoPolicy = appConfigController::originalVideoPolicy,
             decoders = MediaCodecDecoderInventory(appContext),
             switchedToConverted = DataStoreSwitchedToConvertedFiles.get(appContext),
         )
@@ -616,6 +619,9 @@ private class MobileSignOut(
         }
     }
 }
+
+private fun AndroidAppConfigController.originalVideoPolicy(): OriginalVideoPolicy =
+    state.value.originalVideoPolicy(OriginalVideoPolicy.valueOf(BuildConfig.PUTIO_ORIGINAL_VIDEO))
 
 /** Offline playback falls back to the resume setting this device last confirmed. */
 @Composable

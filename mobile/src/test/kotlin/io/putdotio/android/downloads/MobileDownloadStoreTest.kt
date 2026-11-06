@@ -35,15 +35,18 @@ class MobileDownloadStoreTest {
             DownloadArtifact.ORIGINAL,
         )
         val running = entry(3L, DownloadStatus.Downloading(50L, 50f))
+        val original = entry(4L, DownloadStatus.Completed(8_192L), artifact = DownloadArtifact.ORIGINAL_HLS)
         store.upsert(completed)
         store.upsert(failed)
         store.upsert(running)
+        store.upsert(original)
 
         val reloaded = MobileDownloadStore(preferences, "user-1", Dispatchers.Unconfined)
             .entries.value.sortedBy { it.fileId.value }
         assertEquals(completed, reloaded[0])
         assertEquals(failed, reloaded[1])
         assertEquals(running.copy(status = DownloadStatus.Queued), reloaded[2])
+        assertEquals(original, reloaded[3])
     }
 
     @Test
