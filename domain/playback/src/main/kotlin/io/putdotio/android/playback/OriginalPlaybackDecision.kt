@@ -41,7 +41,7 @@ internal class OriginalPlaybackDecision(
         if (mediaInfo == null) return PlaybackFallbackReason.NoMediaInfo
         val streams = mediaInfo.streams.orEmpty()
         val container = when (preference) {
-            PlaybackPreference.HLS -> MediaInfoFormats.hlsOriginalContainer(mediaInfo.mimeType)
+            PlaybackPreference.HLS -> MediaInfoFormats.hlsOriginal(mediaInfo)
             PlaybackPreference.MP4 -> MediaInfoFormats.playableContainer(mediaInfo.format)
         }
         return issueReason(mediaInfo.playbackIssues.orEmpty()) ?: when {

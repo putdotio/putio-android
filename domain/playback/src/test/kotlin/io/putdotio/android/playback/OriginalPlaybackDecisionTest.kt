@@ -68,6 +68,27 @@ class OriginalPlaybackDecisionTest {
     }
 
     @Test
+    fun hlsOriginalsAreOnlyVideoPutIoSegments() {
+        val decision = OriginalPlaybackDecision(FakeDecoderInventory(PHONE + MimeTypes.VIDEO_AV1))
+        fun mp4(video: PutioMediaStream) =
+            PutioMediaInfo(
+                mimeType = "video/mp4",
+                format = PutioMediaFormat(name = "mp4"),
+                streams = listOf(video, audio("aac")),
+                playbackIssues = emptyList(),
+            )
+        val vp9 = mp4(video("vp9", profile = "Profile 0").copy(rfc6381Codec = "vp09.00.30.08.01.01.01.01.00"))
+        val av1 = mp4(video("av1", profile = "Main", level = 12).copy(rfc6381Codec = "av01.0.12M.08.0.111.02.02.01.0"))
+
+        assertEquals(ContainerUnsupported, decision.reason(vp9, HLS))
+        assertEquals(ContainerUnsupported, decision.reason(av1, HLS))
+        assertNull(decision.reason(vp9, MP4))
+        assertNull(decision.reason(av1, MP4))
+        assertNull(decision.reason(mp4(video("hevc", profile = "Main", level = 120)), HLS))
+        assertNull(decision.reason(mp4(video("h264", profile = "High", level = 41)), HLS))
+    }
+
+    @Test
     fun aDecoderQueryThatThrowsPicksConverted() {
         val decision = OriginalPlaybackDecision(FakeDecoderInventory(PHONE) { error("MediaCodecList failed") })
 

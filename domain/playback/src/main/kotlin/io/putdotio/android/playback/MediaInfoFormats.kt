@@ -5,6 +5,7 @@ import androidx.media3.common.Format
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.util.UnstableApi
 import io.putdotio.sdk.files.PutioMediaFormat
+import io.putdotio.sdk.files.PutioMediaInfo
 import io.putdotio.sdk.files.PutioMediaStream
 import java.util.Locale
 
@@ -16,7 +17,10 @@ internal object MediaInfoFormats {
             ?.map { it.trim().lowercase(Locale.ROOT) }
             ?.any { it in PLAYABLE_CONTAINERS } == true
 
-    fun hlsOriginalContainer(mimeType: String?): Boolean = mimeType in HLS_ORIGINAL_MIME_TYPES
+    fun hlsOriginal(mediaInfo: PutioMediaInfo): Boolean =
+        mediaInfo.mimeType in HLS_ORIGINAL_MIME_TYPES &&
+            videoStreams(mediaInfo.streams.orEmpty()).firstOrNull()
+                ?.let { it.codecName?.lowercase(Locale.ROOT) in HLS_ORIGINAL_VIDEO_CODECS } != false
 
     fun videoStreams(streams: List<PutioMediaStream>): List<PutioMediaStream> =
         streams.filter { it.codecType == VIDEO && it.codecName?.lowercase(Locale.ROOT) !in STILL_IMAGE_CODECS }
@@ -96,6 +100,9 @@ internal object MediaInfoFormats {
     )
 
     private val HLS_ORIGINAL_MIME_TYPES = setOf("video/mp4", "audio/mp4", "video/x-m4v")
+
+    // put.io's HLS original drops VP9 video and refuses AV1; only these reach its segments.
+    private val HLS_ORIGINAL_VIDEO_CODECS = setOf(H264, HEVC)
 
     private val STILL_IMAGE_CODECS = setOf("mjpeg", "png", "bmp", "gif", "webp")
 
