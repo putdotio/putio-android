@@ -36,6 +36,7 @@ internal sealed interface DownloadOutcome {
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal class MobileDownloadNotifications(
     private val context: Context,
+    private val stores: (Long) -> MobileDownloadStore = { MobileDownloadStore.shared(context, it) },
     private val signedInUser: () -> Long?,
 ) : DownloadManager.Listener {
     override fun onDownloadChanged(
@@ -47,13 +48,26 @@ internal class MobileDownloadNotifications(
         val outcome = when (download.state) {
             Download.STATE_COMPLETED -> DownloadOutcome.Completed
             Download.STATE_FAILED -> DownloadOutcome.Failed(finalException.toFailureReason())
-            else -> return
+            else -> null
         }
-        val userId = download.request.ownerUserId()?.takeIf { it == signedInUser() } ?: return
-        val fileId = fileIdOf(userId, download.request.id)
+        val owner = download.request.ownerUserId()
+        val fileId = owner?.let { fileIdOf(it, download.request.id) }
+        if (outcome == null || owner == null || fileId == null) return
         // A row being deleted, or one this device never indexed, stays quiet.
-        val entry = fileId?.let { MobileDownloadStore.peek(context, userId, it) }
-        if (entry?.removing == false) post(context, userId, entry, outcome)
+        if (download.fallingBackToConverted(finalException)) {
+            stores(owner).find(fileId)?.takeUnless { it.removing }?.let { fallBack(downloadManager, owner, it) }
+        } else if (owner == signedInUser()) {
+            MobileDownloadStore.peek(context, owner, fileId)?.takeUnless { it.removing }
+                ?.let { post(context, owner, it, outcome) }
+        }
+    }
+
+    private fun fallBack(manager: DownloadManager, owner: Long, original: DownloadEntry) {
+        val converted = original.convertedFallback()
+        stores(owner).updateStatusBlocking(converted.fileId) { converted }
+        val parked = owner != signedInUser()
+        val stopReason = if (parked) MobileDownloadEngine.STOP_REASON_OTHER_USER else Download.STOP_REASON_NONE
+        startDownload(context, manager, owner, converted, stopReason)
     }
 
     companion object {
@@ -196,3 +210,8 @@ internal fun DownloadFailureReason.message(): Int =
         DownloadFailureReason.STORAGE -> R.string.mobile_downloads_status_failed_storage
         DownloadFailureReason.UNEXPECTED -> R.string.mobile_downloads_status_failed_unexpected
     }
+
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+internal fun Download.fallingBackToConverted(error: Exception?): Boolean =
+    state == Download.STATE_FAILED && error != null &&
+        request.artifact.fallsBackToConverted(error.toFailureReason(), bytesDownloaded)

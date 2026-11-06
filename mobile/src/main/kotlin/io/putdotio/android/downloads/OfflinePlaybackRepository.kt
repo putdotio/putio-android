@@ -13,6 +13,7 @@ import io.putdotio.android.settings.AccountSettingsState
 import io.putdotio.android.settings.confirmedResumePlayback
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSourceKind
+import io.putdotio.sdk.files.PlaybackStreamFormat
 import io.putdotio.sdk.files.PlaybackSubtitles
 import io.putdotio.sdk.files.PutioCredentialUrl
 import kotlinx.coroutines.flow.StateFlow
@@ -68,23 +69,24 @@ internal class OfflinePlaybackRepository(
         val entry = state.entry(target.fileId)
             ?.takeIf { state.isAvailableOffline(target.fileId) && localCopyAvailable(it.fileId) }
             ?.takeUnless {
-                convertedOnly && it.artifact == DownloadArtifact.ORIGINAL && target.mediaType == PlaybackMediaType.VIDEO
+                convertedOnly && it.artifact != DownloadArtifact.HLS && target.mediaType == PlaybackMediaType.VIDEO
             }
             ?: return delegate.resolve(target, convertedOnly)
-        val hls = entry.artifact == DownloadArtifact.HLS
+        val hls = entry.artifact.isHls
         // A download made for a hide_subtitles account holds no subtitle rendition, and a cold
         // offline start cannot read the setting, so the row's own copy of it hides the picker.
         val subtitlesHidden = entry.subtitlesHidden == true
         val resumeEnabled = resume.enabled()
         val source = PlaybackSource(
             fileId = entry.fileId.value,
-            kind = if (hls) PlaybackSourceKind.HLS else PlaybackSourceKind.ORIGINAL,
+            kind = if (entry.artifact == DownloadArtifact.HLS) PlaybackSourceKind.HLS else PlaybackSourceKind.ORIGINAL,
             url = credentialUrl(
                 requestedUrl(entry.fileId) ?: entry.artifact.apiUrl(entry.fileId, subtitlesHidden),
             ),
             startFromSeconds = if (resumeEnabled) resume.position(entry) else 0.0,
             // HLS subtitle renditions are inside the downloaded playlist set.
             subtitles = if (hls && !subtitlesHidden) PlaybackSubtitles.Embedded else PlaybackSubtitles.None,
+            format = if (hls) PlaybackStreamFormat.HLS else PlaybackStreamFormat.PROGRESSIVE,
         )
         return PlaybackRepositoryResult.Success(
             PlaybackResolution.Ready(

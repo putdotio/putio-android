@@ -1,9 +1,13 @@
 package io.putdotio.android.downloads
 
 import android.app.Notification
+import android.content.Context
+import androidx.core.net.toUri
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.offline.Download
 import androidx.media3.exoplayer.offline.DownloadManager
+import androidx.media3.exoplayer.offline.DownloadRequest
 import androidx.media3.exoplayer.offline.DownloadService
 import androidx.media3.exoplayer.scheduler.PlatformScheduler
 import androidx.media3.exoplayer.scheduler.Scheduler
@@ -42,3 +46,49 @@ class MobileDownloadService : DownloadService(
         const val CHANNEL_ID = "downloads"
     }
 }
+
+/**
+ * Hands [userId]'s download to Media3 through the download service: a new request, or a failed or
+ * missing one again, which joins the back of the queue. Its last outcome notification goes once the
+ * service has the request; a start the system refuses throws and leaves it, Try again included.
+ */
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+internal fun sendDownloadRequest(
+    context: Context,
+    userId: Long,
+    entry: DownloadEntry,
+    stopReason: Int = entry.stopReason,
+    send: (DownloadRequest, Int) -> Unit = { request, reason ->
+        DownloadService.sendAddDownload(context, MobileDownloadService::class.java, request, reason, true)
+    },
+) {
+    val url = entry.artifact.apiUrl(entry.fileId, subtitlesHidden = entry.subtitlesHidden == true)
+    val request = DownloadRequest.Builder(downloadContentId(userId, entry.fileId), url.toUri())
+        .setMimeType(if (entry.artifact.isHls) MimeTypes.APPLICATION_M3U8 else null)
+        // The name rides along so a row lost from the app's index can be rebuilt with it.
+        .setData(entry.name.encodeToByteArray())
+        .build()
+    send(request, stopReason)
+    MobileDownloadNotifications.cancel(context, userId, entry.fileId)
+}
+
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+internal fun startDownload(
+    context: Context,
+    manager: DownloadManager,
+    userId: Long,
+    entry: DownloadEntry,
+    stopReason: Int = entry.stopReason,
+) {
+    try {
+        sendDownloadRequest(context, userId, entry, stopReason)
+    } catch (_: IllegalStateException) {
+        sendDownloadRequest(context, userId, entry, stopReason) { request, reason ->
+            manager.addDownload(request, reason)
+        }
+    }
+}
+
+@get:androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+private val DownloadEntry.stopReason: Int
+    get() = if (pauseRequested) MobileDownloadEngine.STOP_REASON_PAUSED else Download.STOP_REASON_NONE

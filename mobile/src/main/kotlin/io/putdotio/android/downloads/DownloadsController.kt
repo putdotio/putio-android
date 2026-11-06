@@ -6,16 +6,22 @@ import java.io.Closeable
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * One controller per signed-in user. Rows come from the store, which the engine
@@ -28,7 +34,7 @@ internal class DownloadsController(
     private val store: DownloadStore,
     private val engine: DownloadEngine,
     parentScope: CoroutineScope,
-    private val progressInterval: Duration = 1.seconds,
+    private val acceptsOriginal: suspend (FilesItemId) -> Boolean? = { false },
     /** A monotonic clock for speed intervals, which a wall-clock change must not bend. */
     private val elapsedMillis: () -> Long = { System.nanoTime() / NANOS_PER_MILLI },
     private val clock: () -> Long = System::currentTimeMillis,
@@ -40,16 +46,20 @@ internal class DownloadsController(
         DownloadsState(concurrency = engine.concurrency).withEntries(store.entries.value),
     )
     private val mutations = Mutex()
+    private val lookups = Semaphore(ORIGINAL_DECISION_PARALLELISM)
+    private val starts = Channel<PendingStart>(Channel.UNLIMITED)
+    private val latestStarts = mutableMapOf<FilesItemId, PendingStart>()
     private var closed = false
     private val speeds = SpeedWatch()
 
     // Speed is measured on progress ticks alone: a stalled transfer, whose unchanged bytes the store
     // does not re-emit, falls to no speed, and another row's change never moves a baseline.
-    private val progress = ProgressWatch(scope, engine, progressInterval) { sampleSpeeds(store.entries.value) }
+    private val progress = ProgressWatch(scope, engine, PROGRESS_INTERVAL) { sampleSpeeds(store.entries.value) }
 
     val state: StateFlow<DownloadsState> = mutableState.asStateFlow()
 
     init {
+        scope.launch { for (pending in starts) startInOrder(pending) }
         scope.launch {
             store.entries.collect { entries ->
                 val running = entries.filter { it.status is DownloadStatus.Downloading }
@@ -98,7 +108,7 @@ internal class DownloadsController(
     private fun start(request: DownloadRequest): Boolean {
         val artifact = request.type.downloadArtifact()
         if (artifact == null || !accepts(request.fileId, retry = false)) return false
-        val entry = DownloadEntry(
+        val fresh = DownloadEntry(
             fileId = request.fileId,
             name = request.name,
             type = request.type,
@@ -111,11 +121,45 @@ internal class DownloadsController(
         )
         enqueue {
             // Re-check under the mutation lock: a removal may have landed since dispatch.
-            if (!accepts(entry.fileId, retry = false)) return@enqueue
+            if (!accepts(fresh.fileId, retry = false)) return@enqueue
+            val earlier = store.find(fresh.fileId)
+            val entry = earlier?.let { fresh.copy(artifact = it.artifact) } ?: fresh
             store.upsert(entry)
-            engine.start(entry)
+            queueStart(entry, decide = earlier?.holdsBytes != true)
         }
         return true
+    }
+
+    private fun queueStart(entry: DownloadEntry, decide: Boolean) {
+        val original = if (decide && entry.type == PutioFileType.VIDEO) {
+            scope.async {
+                lookups.withPermit { withTimeoutOrNull(ORIGINAL_DECISION_TIMEOUT) { acceptsOriginal(entry.fileId) } }
+            }
+        } else {
+            null
+        }
+        val pending = PendingStart(entry, original)
+        latestStarts[entry.fileId] = pending
+        starts.trySend(pending)
+    }
+
+    private suspend fun startInOrder(pending: PendingStart) {
+        val original = pending.original?.await()
+        mutations.withLock {
+            if (latestStarts[pending.entry.fileId] !== pending) return
+            latestStarts -= pending.entry.fileId
+            val current = store.find(pending.entry.fileId)?.takeIf {
+                !it.removing && !engine.isRemoving(it.fileId) &&
+                    synchronized(lock) { it.fileId !in mutableState.value.removing }
+            } ?: return
+            val chosen = when (original) {
+                null -> current
+                true -> current.copy(artifact = DownloadArtifact.ORIGINAL_HLS)
+                false -> current.copy(artifact = DownloadArtifact.HLS)
+            }
+            if (chosen != current) store.upsert(chosen)
+            engine.start(chosen)
+        }
     }
 
     // Media3 queues a re-added failed or finished request behind everything already waiting.
@@ -126,7 +170,7 @@ internal class DownloadsController(
             // A pause that raced the failure must not hold the retried request.
             val queued = entry.copy(status = DownloadStatus.Queued, queuedAt = clock(), pauseRequested = false)
             store.upsert(queued)
-            engine.start(queued)
+            queueStart(queued, decide = !entry.holdsBytes)
         }
         return true
     }
@@ -242,6 +286,8 @@ internal class DownloadsController(
     }
 }
 
+private class PendingStart(val entry: DownloadEntry, val original: Deferred<Boolean?>?)
+
 /** Progress is display-only, so it polls outside the mutation queue and dies with the controller scope. */
 private class ProgressWatch(
     private val scope: CoroutineScope,
@@ -313,8 +359,11 @@ private class SpeedWatch {
 }
 
 private const val NANOS_PER_MILLI = 1_000_000L
+private val ORIGINAL_DECISION_TIMEOUT = 10.seconds
+private const val ORIGINAL_DECISION_PARALLELISM = 4
+private val PROGRESS_INTERVAL = 1.seconds
 
-/** Video downloads the HLS rendition the player streams; audio has only the original. */
+/** Video starts as converted HLS until the original decision answers; audio has only the original. */
 private fun PutioFileType.downloadArtifact(): DownloadArtifact? =
     when (this) {
         PutioFileType.VIDEO -> DownloadArtifact.HLS

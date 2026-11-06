@@ -7,13 +7,17 @@ import android.app.NotificationManager
 import android.content.ComponentName
 import android.content.Intent
 import android.net.Uri
+import androidx.core.content.IntentCompat
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.database.StandaloneDatabaseProvider
+import androidx.media3.datasource.DataSpec
+import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.offline.DefaultDownloadIndex
 import androidx.media3.exoplayer.offline.Download
 import androidx.media3.exoplayer.offline.DownloadManager
 import androidx.media3.exoplayer.offline.DownloadProgress
 import androidx.media3.exoplayer.offline.DownloadRequest
+import androidx.media3.exoplayer.offline.DownloadService
 import androidx.media3.exoplayer.scheduler.Requirements
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -124,6 +128,35 @@ class MobileDownloadNotificationsTest {
         for (action in finished.actions + failed.actions) {
             assertTrue(shadowOf(action.actionIntent).savedIntent.extras?.isEmpty != false)
         }
+    }
+
+    @Test
+    fun aRejectedOriginalFallsBackToConvertedParkedWhenSignedOutUnlessItIsBeingDeleted() = runBlocking {
+        shadowOf(context).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        val original = DownloadArtifact.ORIGINAL_HLS
+        val store = MobileDownloadStore(context, USER)
+        store.upsert(row(13L, "Spring.mp4").copy(artifact = original))
+        store.upsert(row(14L, "Summer.mp4").copy(artifact = original, removing = true))
+        val listener = MobileDownloadNotifications(context, stores = { store }) { signedIn }
+
+        signedIn = null
+        for (id in listOf(13L, 14L)) {
+            listener.changed(failedOriginal(id), rejected(HTTP_BAD_REQUEST))
+        }
+
+        assertTrue(shadowOf(manager).allNotifications.isEmpty())
+        val sent = generateSequence { shadowOf(context).nextStartedService }.toList().single()
+        val request =
+            IntentCompat.getParcelableExtra(sent, DownloadService.KEY_DOWNLOAD_REQUEST, DownloadRequest::class.java)
+        assertEquals("$USER:13", request?.id)
+        assertEquals(DownloadArtifact.HLS.apiUrl(FilesItemId(13L)), request?.uri.toString())
+        assertEquals(
+            MobileDownloadEngine.STOP_REASON_OTHER_USER,
+            sent.getIntExtra(DownloadService.KEY_STOP_REASON, -1),
+        )
+        val converted = store.find(FilesItemId(13L))
+        assertEquals(DownloadArtifact.HLS to DownloadStatus.Queued, converted?.artifact to converted?.status)
+        assertEquals(original, store.find(FilesItemId(14L))?.artifact)
     }
 
     @Test
@@ -303,6 +336,18 @@ class MobileDownloadNotificationsTest {
         DownloadProgress(),
     )
 
+    private fun failedOriginal(fileId: Long) = Download(
+        DownloadRequest.Builder("$USER:$fileId", Uri.parse(DownloadArtifact.ORIGINAL_HLS.apiUrl(FilesItemId(fileId))))
+            .build(),
+        Download.STATE_FAILED,
+        0L,
+        0L,
+        0L,
+        Download.STOP_REASON_NONE,
+        Download.FAILURE_REASON_UNKNOWN,
+        DownloadProgress(),
+    )
+
     private fun running(fileId: Long, name: String, percent: Float): Download {
         val queued = download(fileId, Download.STATE_DOWNLOADING, name = name)
         return Download(
@@ -317,7 +362,12 @@ class MobileDownloadNotificationsTest {
         )
     }
 
+    private fun rejected(code: Int) = HttpDataSource.InvalidResponseCodeException(
+        code, null, null, emptyMap(), DataSpec(Uri.EMPTY), ByteArray(0),
+    )
+
     private companion object {
+        const val HTTP_BAD_REQUEST = 400
         const val USER = 7L
         const val OTHER = 8L
     }
