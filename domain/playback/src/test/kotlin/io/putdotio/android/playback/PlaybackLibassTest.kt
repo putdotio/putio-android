@@ -40,11 +40,12 @@ class PlaybackLibassTest {
     }
 
     @Test
-    fun thePlayerAddsTheLibassRendererOnlyWhenAsked() {
+    fun thePlayerAddsTheLibassRendererOnlyWhenAskedAndKeepsTheSubtitleLead() {
         val withLibass = playbackExoPlayer(context, LibassSubtitles(cacheMegabytes = 32))
         val withoutLibass = playbackExoPlayer(context, libass = null)
 
         assertTrue(withLibass.usesLibass())
+        assertTrue((0 until withLibass.rendererCount).any { withLibass.getRenderer(it) is SubtitleLeadRenderer })
         assertFalse(withoutLibass.usesLibass())
         withLibass.release()
         withoutLibass.release()
