@@ -1,5 +1,6 @@
 package io.putdotio.android
 
+import android.net.Uri
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -11,6 +12,9 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.TrackGroup
 import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DataSpec
+import androidx.media3.datasource.HttpDataSource
+import androidx.media3.exoplayer.ExoPlaybackException
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.files.FilesItemId
@@ -29,6 +33,7 @@ import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSourceKind
 import io.putdotio.sdk.files.PlaybackSubtitles
 import io.putdotio.sdk.files.PutioCredentialUrl
+import java.net.HttpURLConnection
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -82,6 +87,20 @@ class MobileOriginalFallbackTest {
         }
         compose.runOnIdle {
             assertTrue(state.content is PlaybackContent.Loading)
+            assertTrue(failures.isEmpty())
+        }
+    }
+
+    @Test
+    fun aRefusedOriginalRequestHandsOverToConvertedAtTheSamePosition() {
+        setScreen()
+        compose.runOnIdle {
+            players.single().movePositionTo(42_000L)
+            players.single().fail(RefusedOriginal)
+        }
+        compose.runOnIdle {
+            assertEquals(PlaybackContent.Loading(PlaybackRequestId(2L)), state.content)
+            assertTrue(state.resumePositionMillis in SamePosition)
             assertTrue(failures.isEmpty())
         }
     }
@@ -142,6 +161,17 @@ class MobileOriginalFallbackTest {
         val Video = PlaybackTarget(FilesItemId(42L), "episode.mkv")
         val SamePosition = 42_000L..43_000L
         val DecoderFailure = PlaybackException("synthetic", null, PlaybackException.ERROR_CODE_DECODING_FAILED)
+        val RefusedOriginal: PlaybackException = ExoPlaybackException.createForSource(
+            HttpDataSource.InvalidResponseCodeException(
+                HttpURLConnection.HTTP_BAD_REQUEST,
+                null,
+                null,
+                emptyMap(),
+                DataSpec(Uri.parse("https://api.put.io/v2/files/42/hls/media.m3u8?original=1")),
+                ByteArray(0),
+            ),
+            PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS,
+        )
         val UnsupportedVideo = Tracks(
             listOf(
                 Tracks.Group(

@@ -24,9 +24,10 @@ class OriginalVideoDownloadsTest {
         val downloads = downloads(OriginalVideoPolicy.Check)
 
         assertEquals(true, downloads.accepts(file(H264_MP4, captured("h264-aac.mp4"))))
+        assertEquals(true, downloads.accepts(file(H264_MKV, captured("h264-high-aac.mkv"))))
         assertEquals(false, downloads.accepts(file(AV1_MKV, captured("av1-4k-eac3.mkv"))))
         assertEquals(false, downloads.accepts(file(UNPROBED, mediaInfo = null)))
-        assertEquals(listOf(H264_MP4, AV1_MKV, UNPROBED), loaded)
+        assertEquals(listOf(H264_MP4, H264_MKV, AV1_MKV, UNPROBED), loaded)
     }
 
     @Test
@@ -109,6 +110,7 @@ class OriginalVideoDownloadsTest {
         const val AV1_MKV = 12L
         const val UNPROBED = 13L
         const val TRACK = 14L
+        const val H264_MKV = 15L
         val PHONE = setOf(MimeTypes.VIDEO_H264, MimeTypes.AUDIO_AAC, MimeTypes.AUDIO_E_AC3)
     }
 }

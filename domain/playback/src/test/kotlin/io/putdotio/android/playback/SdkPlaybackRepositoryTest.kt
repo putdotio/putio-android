@@ -84,7 +84,7 @@ class SdkPlaybackRepositoryTest {
             assertEquals(
                 listOf(
                     converted,
-                    PlaybackCapabilities(originalVideoDecision = decision.forPreference(PlaybackPreference.HLS)),
+                    PlaybackCapabilities(originalVideoDecision = decision.originalVideoDecision),
                     PlaybackCapabilities(originalVideoPlayable = true),
                     converted, converted, converted,
                 ),

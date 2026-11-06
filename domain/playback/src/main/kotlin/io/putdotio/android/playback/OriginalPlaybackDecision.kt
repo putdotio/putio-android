@@ -11,7 +11,6 @@ import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
 import io.github.anilbeesetti.nextlib.media3ext.ffdecoder.FfmpegLibrary
 import io.putdotio.sdk.files.OriginalVideoDecision
 import io.putdotio.sdk.files.PlaybackCapabilities
-import io.putdotio.sdk.files.PlaybackPreference
 import io.putdotio.sdk.files.PlaybackRequest
 import io.putdotio.sdk.files.PutioMediaInfo
 import io.putdotio.sdk.files.PutioMediaStream
@@ -30,24 +29,16 @@ public fun interface DecoderInventory {
 internal class OriginalPlaybackDecision(
     private val decoders: DecoderInventory,
 ) {
-    private val decisions = PlaybackPreference.entries.associateWith { preference ->
-        OriginalVideoDecision { mediaInfo, _, _ ->
-            runCatching { fallbackReason(mediaInfo, preference) == null }.getOrDefault(false)
-        }
+    val originalVideoDecision: OriginalVideoDecision = OriginalVideoDecision { mediaInfo, _, _ ->
+        runCatching { fallbackReason(mediaInfo) == null }.getOrDefault(false)
     }
 
-    fun forPreference(preference: PlaybackPreference): OriginalVideoDecision = decisions.getValue(preference)
-
-    fun fallbackReason(mediaInfo: PutioMediaInfo?, preference: PlaybackPreference): PlaybackFallbackReason? {
+    fun fallbackReason(mediaInfo: PutioMediaInfo?): PlaybackFallbackReason? {
         if (mediaInfo == null) return PlaybackFallbackReason.NoMediaInfo
         val streams = mediaInfo.streams.orEmpty()
-        val container = when (preference) {
-            PlaybackPreference.HLS -> MediaInfoFormats.hlsOriginalContainer(mediaInfo.mimeType)
-            PlaybackPreference.MP4 -> MediaInfoFormats.playableContainer(mediaInfo.format)
-        }
         return issueReason(mediaInfo.playbackIssues.orEmpty()) ?: when {
             streams.isEmpty() -> PlaybackFallbackReason.NoMediaInfo
-            !container -> PlaybackFallbackReason.ContainerUnsupported
+            !MediaInfoFormats.playableContainer(mediaInfo.format) -> PlaybackFallbackReason.ContainerUnsupported
             else -> streamReason(streams)
         }
     }
@@ -132,18 +123,15 @@ internal fun PlaybackRequest.withOriginalVideo(
 ): PlaybackRequest =
     copy(
         capabilities = if (capabilities.originalVideoPlayable) {
-            policy.capabilities(decision, preference)
+            policy.capabilities(decision)
         } else {
             PlaybackCapabilities()
         },
     )
 
-internal fun OriginalVideoPolicy.capabilities(
-    decision: OriginalPlaybackDecision,
-    preference: PlaybackPreference,
-): PlaybackCapabilities =
+internal fun OriginalVideoPolicy.capabilities(decision: OriginalPlaybackDecision): PlaybackCapabilities =
     when (this) {
-        OriginalVideoPolicy.Check -> PlaybackCapabilities(originalVideoDecision = decision.forPreference(preference))
+        OriginalVideoPolicy.Check -> PlaybackCapabilities(originalVideoDecision = decision.originalVideoDecision)
         OriginalVideoPolicy.Always -> PlaybackCapabilities(originalVideoPlayable = true)
         OriginalVideoPolicy.Never -> PlaybackCapabilities()
     }

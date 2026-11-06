@@ -2,7 +2,6 @@ package io.putdotio.android.playback
 
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
-import androidx.media3.datasource.HttpDataSource
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.telemetry.AnalyticsEvent
 import io.putdotio.android.telemetry.TelemetryFailure
@@ -71,12 +70,8 @@ private fun playbackFailureTelemetry(
 }
 
 private fun PlaybackFailure.engineFacts(): Pair<PlaybackException?, Int?> {
-    val causes = generateSequence(cause) { it.cause }.take(MAX_CAUSES).toList()
-    val exception = causes.filterIsInstance<PlaybackException>().firstOrNull()
-    val status = causes.firstNotNullOfOrNull { cause ->
-        (cause as? HttpDataSource.InvalidResponseCodeException)?.responseCode ?: cause.message?.relayedResponseCode()
-    }
-    return exception to status
+    val causes = cause.causeChain()
+    return causes.filterIsInstance<PlaybackException>().firstOrNull() to causes.responseStatus()
 }
 
 /** The failure as product analytics' `error`: `source` is a deleted, unpaid or throttled file. */
@@ -131,4 +126,3 @@ private fun PlaybackSourceKind?.tagValue(): String =
     }
 
 private const val EVENT = "playback_failure"
-private const val MAX_CAUSES = 16
