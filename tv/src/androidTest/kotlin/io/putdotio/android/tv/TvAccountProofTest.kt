@@ -92,6 +92,20 @@ class TvAccountProofTest {
     }
 
     @Test
+    fun openSourceNotices() {
+        mount()
+        repeat(4) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
+        press(KeyEvent.KEYCODE_DPAD_RIGHT)
+        compose.waitUntil(5_000) { isFocused(VERSION) }
+        repeat(MAX_ABOUT_ROWS) { if (!isFocused(FFMPEG)) press(KeyEvent.KEYCODE_DPAD_DOWN) }
+        compose.waitUntil(5_000) { isFocused(FFMPEG) }
+        screenshot("androidtv-about-licenses")
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitUntil(5_000) { compose.onAllNodesWithText(FFMPEG_SOURCE).fetchSemanticsNodes().isNotEmpty() }
+        screenshot("androidtv-about-license-qr")
+    }
+
+    @Test
     fun proxySheet() {
         mount()
         press(KeyEvent.KEYCODE_DPAD_DOWN)
@@ -250,6 +264,9 @@ class TvAccountProofTest {
         const val RESUME = "Resume where you left off"
         const val DIAGNOSTICS = "Diagnostics"
         const val VERSION = "Version"
+        const val FFMPEG = "FFmpeg 9.0.1"
+        const val FFMPEG_SOURCE = "https://ffmpeg.org/releases/ffmpeg-9.0.1.tar.xz"
+        const val MAX_ABOUT_ROWS = 10
         const val PROXY = "Proxy"
         const val PLAY_ORIGINALS = "Play originals"
         const val ON = "On"

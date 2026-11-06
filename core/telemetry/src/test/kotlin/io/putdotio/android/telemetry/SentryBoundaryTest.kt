@@ -67,6 +67,31 @@ class SentryBoundaryTest {
     }
 
     @Test
+    fun aNativeCrashKeepsOnlyWhatSymbolicatesIt() {
+        val options = configured(SentryBoundary.open(launch = true), files())
+
+        val sent = checkNotNull(options.beforeSend?.execute(nativeCrash(), Hint()))
+
+        val json = StringWriter().also { JsonSerializer(SentryOptions()).serialize(sent, it) }.toString()
+        assertEquals(json, emptyList<String>(), (LEAKS + INSTALL_PATH).filter(json::contains))
+        val exception = checkNotNull(sent.exceptions?.single())
+        assertEquals("SIGSEGV", exception.type)
+        assertNull(exception.value)
+        assertEquals("signalhandler", exception.mechanism?.type)
+        val frame = checkNotNull(exception.stacktrace?.frames?.single())
+        assertEquals("0x7a1c2b3f40", frame.instructionAddr)
+        assertEquals("libavcodec.so", frame.`package`)
+        val image = checkNotNull(sent.debugMeta?.images?.single())
+        assertEquals("elf", image.type)
+        assertEquals("1f2e3d4c-5b6a-7980-1a2b-3c4d5e6f7a8b", image.debugId)
+        assertEquals("4c3d2e1f6a5b8079", image.codeId)
+        assertEquals("arm64", image.arch)
+        assertEquals("0x7a1c000000", image.imageAddr)
+        assertEquals(5_679_760L, image.imageSize)
+        assertEquals("libavcodec.so", image.codeFile)
+    }
+
+    @Test
     fun aReportedFailureLeavesAsCodes() {
         val failure = TelemetryFailure("playback_failure", listOf("network", RELEASE_NAME), mapOf("file_id" to TITLE))
         val hint = Hint().apply { set(SentryBoundary.FAILURE_HINT, failure) }
@@ -196,6 +221,53 @@ class SentryBoundaryTest {
             unknown = mapOf(LEAK to LEAK)
         }
 
+    private fun nativeCrash(): SentryEvent =
+        SentryEvent().apply {
+            level = SentryLevel.FATAL
+            platform = "native"
+            message = Message().apply { formatted = LEAK }
+            exceptions = listOf(
+                SentryException().apply {
+                    type = "SIGSEGV"
+                    value = LEAK
+                    mechanism = Mechanism().apply {
+                        type = "signalhandler"
+                        isHandled = false
+                        meta = mapOf(LEAK to LEAK)
+                    }
+                    stacktrace = SentryStackTrace(
+                        listOf(
+                            SentryStackFrame().apply {
+                                instructionAddr = "0x7a1c2b3f40"
+                                `package` = "$INSTALL_PATH/lib/arm64/libavcodec.so"
+                                absPath = LEAK
+                            },
+                        ),
+                    )
+                },
+            )
+            threads = listOf(SentryThread().apply { name = LEAK })
+            debugMeta = DebugMeta().apply {
+                images = listOf(
+                    DebugImage().apply {
+                        type = "elf"
+                        debugId = "1f2e3d4c-5b6a-7980-1a2b-3c4d5e6f7a8b"
+                        codeId = "4c3d2e1f6a5b8079"
+                        arch = "arm64"
+                        imageAddr = "0x7a1c000000"
+                        imageSize = 5_679_760L
+                        codeFile = "$INSTALL_PATH/lib/arm64/libavcodec.so"
+                        debugFile = LEAK
+                    },
+                    DebugImage().apply {
+                        type = "macho"
+                        codeFile = LEAK
+                    },
+                )
+            }
+            fillLeakyContexts(contexts)
+        }
+
     private fun fillLeakyContexts(contexts: Contexts) {
         contexts.setApp(App().apply { appName = LEAK })
         contexts.setDevice(
@@ -232,5 +304,6 @@ class SentryBoundaryTest {
         const val HOST = "media.example.invalid"
         const val LEAK = "$TITLE https://$HOST/hls/$FILE_NAME?oauth_token=$TOKEN"
         val LEAKS = listOf(TITLE, FILE_NAME, TOKEN, HOST)
+        const val INSTALL_PATH = "/data/app/~~c2ludGhldGlj==/io.put.putio-c3ludGhldGlj=="
     }
 }

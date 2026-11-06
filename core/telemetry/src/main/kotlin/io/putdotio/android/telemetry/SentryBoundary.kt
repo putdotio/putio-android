@@ -165,8 +165,7 @@ private fun allowlisted(event: SentryEvent, installation: String?, surface: Stri
         user = installation?.let { User().apply { id = it } }
         tags = mapOf("surface" to surface) + failure?.tags.orEmpty()
         exceptions = failure?.let { listOf(it.exception()) } ?: event.exceptions?.map(::allowlisted)
-        // Sentry picks the R8 mapping that deobfuscates the frames by this id.
-        debugMeta = event.debugMeta?.images?.filter { it.type == DebugImage.PROGUARD }?.let { images ->
+        debugMeta = event.debugMeta?.images?.filter { it.type in SYMBOLICATED_IMAGES }?.let { images ->
             DebugMeta().apply { this.images = images.map(::allowlisted) }
         }
         allowlisted(event.contexts, contexts)
@@ -210,16 +209,27 @@ private fun allowlisted(exception: SentryException) =
                         function = from.function
                         lineno = from.lineno
                         isInApp = from.isInApp
+                        instructionAddr = from.instructionAddr
+                        `package` = from.`package`?.substringAfterLast('/')
                     }
                 },
             )
         }
     }
 
+private const val NATIVE_IMAGE = "elf"
+private val SYMBOLICATED_IMAGES = setOf(DebugImage.PROGUARD, NATIVE_IMAGE)
+
 private fun allowlisted(image: DebugImage) =
     DebugImage().apply {
         type = image.type
         uuid = image.uuid
+        debugId = image.debugId
+        codeId = image.codeId
+        arch = image.arch
+        imageAddr = image.imageAddr
+        imageSize = image.imageSize
+        codeFile = image.codeFile?.takeIf { image.type == NATIVE_IMAGE }?.substringAfterLast('/')
     }
 
 private fun TelemetryFailure.exception() =

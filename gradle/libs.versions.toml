@@ -10,6 +10,7 @@ coroutines = "1.11.0"
 datastore = "1.3.0"
 lifecycle = "2.11.0"
 navigationCompose = "2.10.2"
+nextlib = "1.11.1-0.17.0"
 media3 = "1.11.1"
 mediarouter = "1.8.1"
 okhttp = "5.5.1"
@@ -61,6 +62,7 @@ androidx-media3-session = { module = "androidx.media3:media3-session", version.r
 androidx-media3-ui = { module = "androidx.media3:media3-ui", version.ref = "media3" }
 androidx-media3-ui-compose = { module = "androidx.media3:media3-ui-compose", version.ref = "media3" }
 androidx-media3-ui-compose-material3 = { module = "androidx.media3:media3-ui-compose-material3", version.ref = "media3" }
+nextlib-media3ext = { module = "io.github.anilbeesetti:nextlib-media3ext", version.ref = "nextlib" }
 androidx-mediarouter = { module = "androidx.mediarouter:mediarouter", version.ref = "mediarouter" }
 androidx-test-core = { module = "androidx.test:core-ktx", version.ref = "androidxTestCore" }
 androidx-test-espresso-core = { module = "androidx.test.espresso:espresso-core", version.ref = "androidxTestEspresso" }
@@ -79,9 +81,10 @@ okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
 putio-sdk-kotlin = { module = "io.put:putio-sdk-kotlin", version.ref = "putioSdkKotlin" }
 # Google Cast sends from the mobile players only; the TV app builds the same id and never sends.
 play-services-cast-framework = { module = "com.google.android.gms:play-services-cast-framework", version.ref = "playServicesCastFramework" }
-# Core only: JVM crashes and ANRs. No NDK, replay or performance modules.
 posthog-android = { module = "com.posthog:posthog-android", version.ref = "posthog" }
+# JVM and native crashes and ANRs. No replay or performance modules.
 sentry-android-core = { module = "io.sentry:sentry-android-core", version.ref = "sentry" }
+sentry-android-ndk = { module = "io.sentry:sentry-android-ndk", version.ref = "sentry" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 # The SDK 35 runtime every Robolectric test pins with @Config(sdk = [35]); its version is the one
 # the robolectric release above expects, and a mismatch fails offline tests by name.

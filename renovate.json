@@ -10,6 +10,14 @@
         "org.robolectric:android-all-instrumented"
       ],
       "enabled": false
+    },
+    {
+      "description": "nextlib is built against one Media3 release, so a Media3 bump waits for the matching nextlib; playbackNotices follows by hand.",
+      "matchPackageNames": [
+        "androidx.media3:**",
+        "io.github.anilbeesetti:**"
+      ],
+      "groupName": "Media3 and nextlib"
     }
   ]
 }

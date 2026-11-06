@@ -25,11 +25,13 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import io.putdotio.android.account.MOBILE_APP_INFO_ROUTE
+import io.putdotio.android.account.MOBILE_OPEN_SOURCE_LICENSES_ROUTE
 import io.putdotio.android.account.MOBILE_PRIVACY_CONTROLS_ROUTE
 import io.putdotio.android.account.MobileAccountLibrary
 import io.putdotio.android.account.MobileAccountScreen
 import io.putdotio.android.account.MobileAppInfoScreen
 import io.putdotio.android.account.bytesOnDevice
+import io.putdotio.android.account.MobileOpenSourceLicensesScreen
 import io.putdotio.android.account.MobilePrivacyControlsScreen
 import io.putdotio.android.account.mobileAppDiagnostics
 import io.putdotio.android.auth.MobileAccount
@@ -327,6 +329,9 @@ internal fun MobileNavHost(
                             navController.navigate(MOBILE_PRIVACY_CONTROLS_ROUTE) { launchSingleTop = true }
                         },
                         onAppInfo = { navController.navigate(MOBILE_APP_INFO_ROUTE) { launchSingleTop = true } },
+                        onOpenSourceLicenses = {
+                            navController.navigate(MOBILE_OPEN_SOURCE_LICENSES_ROUTE) { launchSingleTop = true }
+                        },
                         library = MobileAccountLibrary(
                             exclusiveLinkCount =
                                 (publicLinks?.state?.content as? PublicLinksContent.Ready)?.links?.size,
@@ -343,6 +348,9 @@ internal fun MobileNavHost(
                             deviceClass,
                         ),
                     )
+                }
+                composable(MOBILE_OPEN_SOURCE_LICENSES_ROUTE) {
+                    MobileOpenSourceLicensesScreen()
                 }
                 composable(MOBILE_PRIVACY_CONTROLS_ROUTE) {
                     MobilePrivacyControlsScreen(

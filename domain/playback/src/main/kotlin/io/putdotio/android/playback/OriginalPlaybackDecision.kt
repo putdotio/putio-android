@@ -8,6 +8,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.audio.AudioCapabilities
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
+import io.github.anilbeesetti.nextlib.media3ext.ffdecoder.FfmpegLibrary
 import io.putdotio.sdk.files.OriginalVideoDecision
 import io.putdotio.sdk.files.PlaybackCapabilities
 import io.putdotio.sdk.files.PlaybackPreference
@@ -88,16 +89,19 @@ internal class OriginalPlaybackDecision(
 }
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-public class MediaCodecDecoderInventory(
+public class MediaCodecDecoderInventory internal constructor(
     context: Context,
+    private val softwareAudio: (String) -> Boolean,
 ) : DecoderInventory {
+    public constructor(context: Context) : this(context, FfmpegLibrary::supportsFormat)
+
     private val context = context.applicationContext
 
     override fun plays(format: Format): Boolean {
         val mimeType = format.sampleMimeType ?: return false
         return mimeType == MimeTypes.AUDIO_RAW ||
             decodes(format) ||
-            MimeTypes.isAudio(mimeType) && passesThrough(format)
+            MimeTypes.isAudio(mimeType) && (passesThrough(format) || softwareAudio(mimeType))
     }
 
     private fun decodes(format: Format): Boolean =
