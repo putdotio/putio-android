@@ -65,6 +65,7 @@ public fun Player.redrawAss(context: Context, from: SubtitleTextSize, to: Subtit
     prepare()
 }
 
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 private fun Player.hasEmbeddedAss(): Boolean =
     currentTracks.groups.any { group ->
         group.type == C.TRACK_TYPE_TEXT && (0 until group.length).any { index ->
