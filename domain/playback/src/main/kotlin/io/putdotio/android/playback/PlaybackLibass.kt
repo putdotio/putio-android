@@ -60,14 +60,14 @@ private fun Context.drawsAssWithLibass(size: SubtitleTextSize): Boolean = size.s
 
 public fun Player.redrawAss(context: Context, from: SubtitleTextSize, to: SubtitleTextSize) {
     val libassChoiceChanged = context.drawsAssWithLibass(from) != context.drawsAssWithLibass(to)
-    if (!libassChoiceChanged || !playsEmbeddedAss() || !context.affordsLibass()) return
+    if (!libassChoiceChanged || !hasEmbeddedAss() || !context.affordsLibass()) return
     stop()
     prepare()
 }
 
-private fun Player.playsEmbeddedAss(): Boolean =
+private fun Player.hasEmbeddedAss(): Boolean =
     currentTracks.groups.any { group ->
-        group.type == C.TRACK_TYPE_TEXT && group.isSelected && (0 until group.length).any { index ->
+        group.type == C.TRACK_TYPE_TEXT && (0 until group.length).any { index ->
             val format = group.getTrackFormat(index)
             format.containerMimeType == MimeTypes.VIDEO_MATROSKA &&
                 (format.sampleMimeType == MimeTypes.TEXT_SSA || format.codecs == MimeTypes.TEXT_SSA)
@@ -103,7 +103,12 @@ public fun playbackExoPlayer(
         object : Player.Listener {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 handler.render?.release()
-                if (parsers.releaseTracks()) handler.ass.clearFont()
+                parsers.releaseTracks()
+                if (handler.hasTracks()) handler.ass.clearFont()
+            }
+
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_IDLE) parsers.releaseTracks()
             }
         },
     )
@@ -221,10 +226,8 @@ internal class MatroskaAssSubtitleParserFactory(
         return AssSegmentSubtitleParser(handler, track)
     }
 
-    fun releaseTracks(): Boolean {
-        val released = synchronized(tracks) { tracks.toList().also { tracks.clear() } }
-        released.forEach(AssTrack::release)
-        return released.isNotEmpty()
+    fun releaseTracks() {
+        synchronized(tracks) { tracks.toList().also { tracks.clear() } }.forEach(AssTrack::release)
     }
 }
 
