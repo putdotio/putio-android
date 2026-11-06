@@ -273,6 +273,7 @@ private fun TvAccountBody(
     showHome: TvShowHome?,
 ) {
     var sheet by rememberSaveable { mutableStateOf<TvAccountSheet?>(null) }
+    var notice by rememberSaveable { mutableIntStateOf(0) }
     val focus = remember { TvAccountFocus() }
     val paneHasFocus = rememberTvPaneHasFocus()
     val refocus = remember { mutableIntStateOf(0) }
@@ -282,6 +283,7 @@ private fun TvAccountBody(
     val rightPane = remember { FocusRequester() }
     val open = { next: TvAccountSheet, from: String ->
         lastFocus.value = from
+        notice = openSourceNotices.indices.firstOrNull { RowKey.notice(it) == from } ?: notice
         sheet = next
     }
 
@@ -353,7 +355,7 @@ private fun TvAccountBody(
         onAppConfigEvent = onAppConfigEvent,
         onSignOut = onSignOut,
         loadTunnelRoutes = loadTunnelRoutes,
-        notice = openSourceNotices.indices.firstOrNull { RowKey.notice(it) == lastFocus.value },
+        notice = notice,
         returnFocus = { key -> focus.requester(key) },
         onClose = { sheet = null },
     )
@@ -466,7 +468,7 @@ private fun TvAccountSheets(
     onAppConfigEvent: (AndroidAppConfigEvent) -> Boolean,
     onSignOut: () -> Unit,
     loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>>,
-    notice: Int?,
+    notice: Int,
     returnFocus: (String) -> FocusRequester,
     onClose: () -> Unit,
 ) {
@@ -529,13 +531,12 @@ private fun TvAccountSheets(
             onDismiss = onClose,
             returnFocus = returnFocus(RowKey.SERVICES),
         )
-        TvAccountSheet.OpenSourceNotice -> notice?.let { index ->
-            val source = openSourceNotices[index]
+        TvAccountSheet.OpenSourceNotice -> openSourceNotices.getOrNull(notice)?.let {
             TvQrSheet(
-                title = stringResource(R.string.tv_account_open_source_name, source.name, source.version),
-                url = source.sourceUrl,
+                title = stringResource(R.string.tv_account_open_source_name, it.name, it.version),
+                url = it.sourceUrl,
                 onDismiss = onClose,
-                returnFocus = returnFocus(RowKey.notice(index)),
+                returnFocus = returnFocus(RowKey.notice(notice)),
             )
         }
         TvAccountSheet.TrashOff -> TvConfirmDialog(

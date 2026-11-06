@@ -37,10 +37,7 @@ public fun playbackRenderersFactory(context: Context): DefaultRenderersFactory {
     return renderersFactory
 }
 
-/**
- * Media3's renderers, with FFmpeg audio after MediaCodec and passthrough for codecs the device
- * lacks, and text renderers that can read ahead; see [setSubtitleLead]. Video stays on MediaCodec.
- */
+/** Media3's renderers with FFmpeg audio after MediaCodec, and text renderers that read ahead; see [setSubtitleLead]. */
 @UnstableApi
 internal class PlaybackRenderersFactory(context: Context) : DefaultRenderersFactory(context) {
     override fun buildAudioRenderers(

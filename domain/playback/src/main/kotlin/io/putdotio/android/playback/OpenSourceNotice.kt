@@ -9,7 +9,6 @@ public class OpenSourceNotice internal constructor(
     public val licenseUrl: String,
 )
 
-/** The native code playback ships under licenses that require a notice, as nextlib's build links it. */
 public val openSourceNotices: List<OpenSourceNotice> = listOf(
     OpenSourceNotice(
         name = "nextlib",

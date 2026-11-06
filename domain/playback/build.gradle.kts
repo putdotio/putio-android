@@ -9,6 +9,12 @@ android {
     testFixtures.enable = true
 }
 
+val media3Version = libs.versions.media3.get()
+val nextlibVersion = libs.versions.nextlib.get()
+check(nextlibVersion.startsWith("$media3Version-")) {
+    "nextlib $nextlibVersion is built for another Media3 than $media3Version; bump them together"
+}
+
 dependencies {
     implementation(project(":core:common"))
     implementation(project(":core:telemetry"))

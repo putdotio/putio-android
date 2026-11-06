@@ -10,6 +10,14 @@
         "org.robolectric:android-all-instrumented"
       ],
       "enabled": false
+    },
+    {
+      "description": "nextlib is built against one Media3 release, and OpenSourceNotice.kt names its version; they update together, and the notice by hand.",
+      "matchPackageNames": [
+        "androidx.media3:**",
+        "io.github.anilbeesetti:**"
+      ],
+      "groupName": "Media3 and nextlib"
     }
   ]
 }

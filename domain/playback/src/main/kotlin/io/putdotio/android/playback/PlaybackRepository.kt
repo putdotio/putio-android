@@ -183,8 +183,10 @@ internal class SdkPlaybackRepository internal constructor(
         loadAccount = client::loadMediaAccount,
         resolvePlayback = OriginalPlaybackDecision(decoders).let { decision ->
             { request ->
-                val resolved = request.withOriginalVideo(originalVideoPolicy(), decision, switchedToConverted)
-                withContext(Dispatchers.IO) { client.files.resolvePlayback(resolved) }
+                withContext(Dispatchers.IO) {
+                    val resolved = request.withOriginalVideo(originalVideoPolicy(), decision, switchedToConverted)
+                    client.files.resolvePlayback(resolved)
+                }
             }
         },
         loadFile = { fileId ->
