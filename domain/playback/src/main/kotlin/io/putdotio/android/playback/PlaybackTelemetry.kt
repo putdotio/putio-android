@@ -2,6 +2,7 @@ package io.putdotio.android.playback
 
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.datasource.HttpDataSource
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.telemetry.AnalyticsEvent
 import io.putdotio.android.telemetry.TelemetryFailure
@@ -124,5 +125,14 @@ private fun PlaybackSourceKind?.tagValue(): String =
         PlaybackSourceKind.ORIGINAL -> "original"
         null -> "unknown"
     }
+
+internal fun Throwable?.causeChain(): List<Throwable> = generateSequence(this) { it.cause }.take(MAX_CAUSES).toList()
+
+internal fun List<Throwable>.responseStatus(): Int? =
+    firstNotNullOfOrNull { cause ->
+        (cause as? HttpDataSource.InvalidResponseCodeException)?.responseCode ?: cause.message?.relayedResponseCode()
+    }
+
+private const val MAX_CAUSES = 16
 
 private const val EVENT = "playback_failure"
