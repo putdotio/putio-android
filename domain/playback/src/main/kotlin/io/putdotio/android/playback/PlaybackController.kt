@@ -52,6 +52,11 @@ public class PlaybackController(
                     mutableState.value = it.state
                 }
             }
+        if (transition.consumed && event is PlaybackEvent.OriginalRejected &&
+            event.reason == PlaybackFallbackReason.UserSwitched
+        ) {
+            repository.rememberSwitchedToConverted(transition.state.target)
+        }
         transition.effect?.let(::launchEffect)
         return transition.consumed
     }

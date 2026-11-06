@@ -48,6 +48,7 @@ import io.putdotio.android.history.HistoryEvent
 import io.putdotio.android.history.SdkHistoryRepository
 import io.putdotio.android.history.authoritativeSessionFailure
 import io.putdotio.android.playback.ConvertingPlaybackRepository
+import io.putdotio.android.playback.DataStoreSwitchedToConvertedFiles
 import io.putdotio.android.playback.MediaCodecDecoderInventory
 import io.putdotio.android.playback.OriginalVideoPolicy
 import io.putdotio.android.playback.DefaultMobilePlayerFactory
@@ -315,6 +316,7 @@ private fun SignedInMobileSession(
                 )
             },
             decoders = MediaCodecDecoderInventory(appContext),
+            switchedToConverted = DataStoreSwitchedToConvertedFiles.get(appContext),
         )
         downloadsController?.offlineFirstPlayback(
             MobileDownloadCache.get(appContext),

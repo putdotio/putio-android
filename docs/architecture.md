@@ -109,7 +109,9 @@ media session for system controls. A video plays its original file only when
 the app's Play originals setting is on (the default), put.io's `media_info` reports no playback issue that needs converting and the
 device's decoders, or audio passthrough, take its video and one audio stream;
 otherwise it plays converted. Under HLS, put.io serves only MP4 originals. An original that still fails before its first
-frame falls back to converted at the same position. Cast always gets the
+frame falls back to converted at the same position. The viewer can also switch
+an original to converted from the player; the device remembers the last 200
+switched files and opens them converted. Cast always gets the
 converted stream. Where VLC is installed, a video the player
 can't play, or one still converting, offers Open in VLC; TV offers it on every
 video. Play positions sync to put.io, throttled and flushed on exit, never per

@@ -65,6 +65,7 @@ import io.putdotio.android.trash.TrashContent
 import io.putdotio.android.trash.TrashState
 import io.putdotio.android.playback.SdkPlaybackPositionRepository
 import io.putdotio.android.playback.ConvertingPlaybackRepository
+import io.putdotio.android.playback.DataStoreSwitchedToConvertedFiles
 import io.putdotio.android.playback.MediaCodecDecoderInventory
 import io.putdotio.android.playback.OriginalVideoPolicy
 import io.putdotio.android.playback.originalVideoPolicy
@@ -187,6 +188,7 @@ private fun TvSignedInApp(
                         appConfig().originalVideoPolicy(OriginalVideoPolicy.valueOf(BuildConfig.PUTIO_ORIGINAL_VIDEO))
                     },
                     decoders = MediaCodecDecoderInventory(appContext),
+                    switchedToConverted = DataStoreSwitchedToConvertedFiles.get(appContext),
                 )
             },
             writePlaybackPosition = SdkPlaybackPositionRepository(runtime.putioClient)::write,

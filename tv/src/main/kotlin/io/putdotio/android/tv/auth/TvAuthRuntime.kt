@@ -6,6 +6,7 @@ import io.putdotio.android.auth.PendingTokenRevocations
 import io.putdotio.android.auth.PutioAuthTokenRevoker
 import io.putdotio.android.auth.watchNetworkReturns
 import io.putdotio.android.files.DeviceContinueWatchingStore
+import io.putdotio.android.playback.DataStoreSwitchedToConvertedFiles
 import io.putdotio.android.search.SdkSearchRepository
 import io.putdotio.android.settings.SdkAccountSettingsRepository
 import io.putdotio.android.settings.confirmProductAnalytics
@@ -110,11 +111,11 @@ internal class TvAuthRuntime(
             applicationScope.launch {
                 authController.quietSignOuts.filter { it > 0 }.collect {
                     ProductAnalytics.update(null, enabled = false)
-                    clearHome(context)
+                    clearAccountLocalState(context)
                 }
             }
             applicationScope.launch {
-                authController.state.filter { it is TvAuthState.Linking }.collect { clearHome(context) }
+                authController.state.filter { it is TvAuthState.Linking }.collect { clearAccountLocalState(context) }
             }
             return TvAuthRuntime(
                 putioClient = putioClient,
@@ -131,9 +132,10 @@ internal class TvAuthRuntime(
     }
 }
 
-private fun clearHome(context: Context) {
+private fun clearAccountLocalState(context: Context) {
     DeviceContinueWatchingStore.clearAll(context)
     TvDeviceShowHomeStore.clearAll(context)
+    DataStoreSwitchedToConvertedFiles.get(context).clear()
 }
 
 internal fun TvAuthState.diagnosticsAnswer(): DiagnosticsAnswer? =

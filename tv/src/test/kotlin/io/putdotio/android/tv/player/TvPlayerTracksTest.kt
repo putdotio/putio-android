@@ -22,6 +22,34 @@ class TvPlayerTracksTest {
     }
 
     @Test
+    fun aStreamedOriginalVideoOffersTheStreamChipBeforeNextEpisode() {
+        assertEquals(
+            listOf(
+                TvPlayerControl.Audio,
+                TvPlayerControl.Subtitles,
+                TvPlayerControl.Speed,
+                TvPlayerControl.Stream,
+                TvPlayerControl.NextEpisode,
+            ),
+            tvPlayerChips(audioTracks = 1, subtitlesHidden = false, nextEpisode = true, original = true),
+        )
+        assertEquals(
+            listOf(TvPlayerControl.Speed),
+            tvPlayerChips(
+                audioTracks = 1,
+                subtitlesHidden = false,
+                nextEpisode = false,
+                audioOnly = true,
+                original = true,
+            ),
+        )
+        assertEquals(
+            TvPlayerSheet.Stream,
+            TvPlayerOverlay().openSheet(TvPlayerControl.Stream).overlay.sheet,
+        )
+    }
+
+    @Test
     fun audioOffersSpeedAndTheAudioChipOnlyWithTracksToChoose() {
         assertEquals(
             listOf(TvPlayerControl.Speed),

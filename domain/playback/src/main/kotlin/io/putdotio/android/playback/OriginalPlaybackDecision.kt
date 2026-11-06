@@ -113,6 +113,16 @@ public class MediaCodecDecoderInventory(
             .isPassthroughPlaybackSupported(format, AudioAttributes.DEFAULT)
 }
 
+/** [withOriginalVideo], except that a video the viewer switched to converted never opens its original. */
+internal suspend fun PlaybackRequest.withOriginalVideo(
+    policy: OriginalVideoPolicy,
+    decision: OriginalPlaybackDecision,
+    switched: SwitchedToConvertedFiles,
+): PlaybackRequest {
+    val switchedVideo = capabilities.originalVideoPlayable && switched.contains(fileId)
+    return withOriginalVideo(if (switchedVideo) OriginalVideoPolicy.Never else policy, decision)
+}
+
 internal fun PlaybackRequest.withOriginalVideo(
     policy: OriginalVideoPolicy,
     decision: OriginalPlaybackDecision,

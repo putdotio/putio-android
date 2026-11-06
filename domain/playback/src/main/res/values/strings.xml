@@ -19,6 +19,12 @@
     <string name="playback_audio_chip">Audio: %1$s</string>
     <string name="playback_subtitles_chip">Subtitles: %1$s</string>
     <string name="playback_speed_chip">Playback speed %1$s</string>
+    <string name="playback_stream">Stream</string>
+    <string name="playback_stream_chip">Stream: %1$s</string>
+    <string name="playback_stream_original">Original</string>
+    <string name="playback_stream_original_detail">The file as it is</string>
+    <string name="playback_stream_converted">Converted</string>
+    <string name="playback_stream_converted_detail">Remembered for this file</string>
     <string name="playback_speed_slower">Slower, %1$s</string>
     <string name="playback_speed_faster">Faster, %1$s</string>
     <string name="playback_subtitles_in_file">In this file</string>
