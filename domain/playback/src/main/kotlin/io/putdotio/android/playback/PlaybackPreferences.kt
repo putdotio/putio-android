@@ -17,6 +17,12 @@ public fun AndroidAppConfigState.playbackPreference(): PlaybackPreference =
 public fun AndroidAppConfigState.confirmedAutoplayNextVideo(): Boolean =
     confirmedPreferences?.autoplayNextVideo == true
 
+public fun AndroidAppConfigState.confirmedPlayOriginals(): Boolean =
+    confirmedPreferences?.playOriginals == true
+
+public fun AndroidAppConfigState.originalVideoPolicy(build: OriginalVideoPolicy): OriginalVideoPolicy =
+    if (confirmedPlayOriginals()) build else OriginalVideoPolicy.Never
+
 /** The account's `hide_subtitles` and `dont_autoselect_subtitles`, once settings have loaded. */
 public fun AccountSettingsState.subtitleStartupPolicy(): SubtitleStartupPolicy? =
     (content as? AccountSettingsContent.Ready)

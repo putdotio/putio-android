@@ -22,4 +22,10 @@ class SettingsAnalyticsTest {
         val other = AccountSettingsChange.Toggle(AccountSettingsKey.History, enabled = false)
         assertEquals(change, SaveStep.Saving(2L, other, saving = true).savedAfter(saving))
     }
+
+    @Test
+    fun playOriginalsSendsNoSettingsChanged() {
+        assertNull(AndroidAppConfigChange.PlayOriginals(enabled = true).analyticsEvent())
+        assertNull(AndroidAppConfigChange.PlayOriginals(enabled = false).analyticsEvent())
+    }
 }

@@ -57,6 +57,7 @@ import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.SignedInCastAccount
 import io.putdotio.android.playback.dispatch
 import io.putdotio.android.playback.playbackPreference
+import io.putdotio.android.playback.originalVideoPolicy
 import io.putdotio.android.search.ActiveSearchHistorySession
 import io.putdotio.android.search.MobileSearchHistoryViewModel
 import io.putdotio.android.search.SdkSearchRepository
@@ -308,7 +309,11 @@ private fun SignedInMobileSession(
         val streaming = ConvertingPlaybackRepository(
             runtime.putioClient,
             playbackPreference = { appConfigController.state.value.playbackPreference() },
-            originalVideoPolicy = { OriginalVideoPolicy.valueOf(BuildConfig.PUTIO_ORIGINAL_VIDEO) },
+            originalVideoPolicy = {
+                appConfigController.state.value.originalVideoPolicy(
+                    OriginalVideoPolicy.valueOf(BuildConfig.PUTIO_ORIGINAL_VIDEO),
+                )
+            },
             decoders = MediaCodecDecoderInventory(appContext),
         )
         downloadsController?.offlineFirstPlayback(

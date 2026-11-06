@@ -38,6 +38,7 @@ import io.putdotio.android.history.HistoryController
 import io.putdotio.android.history.HistoryFileOpener
 import io.putdotio.android.history.HistoryRepository
 import io.putdotio.android.tv.history.TvHistoryFiles
+import io.putdotio.android.settings.AndroidAppConfigState
 import io.putdotio.android.settings.captureSavedAppConfig
 import io.putdotio.android.settings.captureSavedSettings
 import io.putdotio.android.playback.PlaybackController
@@ -47,7 +48,6 @@ import io.putdotio.android.playback.PlaybackNextResult
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
 import io.putdotio.android.playback.PlaybackTarget
-import io.putdotio.android.playback.playbackPreference
 import io.putdotio.android.search.RecentSearchStoreOwner
 import io.putdotio.android.search.SearchController
 import io.putdotio.android.search.SearchFolderNames
@@ -74,7 +74,6 @@ import io.putdotio.android.tv.watchnext.TvWatchNextRecorder
 import io.putdotio.android.tv.watchnext.toWatchNextMedia
 import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackEvent
-import io.putdotio.sdk.files.PlaybackPreference
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
@@ -109,8 +108,8 @@ internal data class TvSessionDependencies(
     /** Turns the file id a history event names into the item Files can open. */
     val filesItemResolver: FilesItemResolver,
     val recentSearchStore: (CoroutineScope) -> RecentSearchStoreOwner,
-    /** Resolves playable sources; reads the account's HLS/MP4 choice at each resolution. */
-    val playbackRepository: (preference: () -> PlaybackPreference) -> PlaybackRepository,
+    /** Resolves playable sources; reads this app's HLS/MP4 and Play originals choices at each resolution. */
+    val playbackRepository: (appConfig: () -> AndroidAppConfigState) -> PlaybackRepository,
     /** Saves a media file's playback position (`start_from`), as mobile's reporting does. */
     val writePlaybackPosition: suspend (fileId: Long, seconds: Double) -> PlaybackRepositoryResult<Unit>,
     /** The launcher's Watch Next row, as one signed-in session reports to it. */
@@ -180,7 +179,7 @@ internal class TvSession internal constructor(
     private val fileActionFailures = TvActionFailure()
     private val watchedJobs = mutableMapOf<FilesItemId, Job>()
     private val watchNextHandledDeletes = mutableSetOf<FilesRequestId>()
-    private val playbackRepository = dependencies.playbackRepository { appConfig.state.value.playbackPreference() }
+    private val playbackRepository = dependencies.playbackRepository { appConfig.state.value }
     private val mutablePlayback = MutableStateFlow<PlaybackController?>(null)
     /** The item that started playback; autoplay stays within its folder. */
     private var playbackStart: FilesItem? = null

@@ -80,6 +80,7 @@ import io.putdotio.android.account.MOBILE_ACCOUNT_AVATAR_FALLBACK_TAG
 import io.putdotio.android.account.MOBILE_ACCOUNT_LIST_TAG
 import io.putdotio.android.account.MOBILE_ACCOUNT_SIGN_OUT_TAG
 import io.putdotio.android.account.MOBILE_CHOICE_SAVE_TAG
+import io.putdotio.android.account.MOBILE_PLAY_ORIGINALS_ROW_TAG
 import io.putdotio.android.account.MOBILE_ACCOUNT_STORAGE_PROGRESS_TAG
 import io.putdotio.android.account.MOBILE_DEFAULT_SORT_ROW_TAG
 import io.putdotio.android.account.MOBILE_MANAGE_PUBLIC_LINKS_TAG
@@ -93,6 +94,7 @@ import io.putdotio.android.account.MobileAccountScreen
 import io.putdotio.android.account.MobileAppInfoScreen
 import io.putdotio.android.account.mobileAppDiagnostics
 import io.putdotio.android.playback.playbackPreference
+import io.putdotio.android.playback.confirmedPlayOriginals
 import io.putdotio.android.trash.MOBILE_MANAGE_TRASH_TAG
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.assertIsOff
@@ -491,6 +493,10 @@ class MobileAccountPlaybackSettingsTest {
         compose.onNodeWithTag(MOBILE_CHOICE_SAVE_TAG).performClick()
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Autoplay next video"))
         compose.onNodeWithText("Autoplay next video").performClick()
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_PLAY_ORIGINALS_ROW_TAG))
+        compose.onNodeWithTag(MOBILE_PLAY_ORIGINALS_ROW_TAG).assertTextContains("On").performClick()
+        compose.onNodeWithText("Always plays the converted version.").performClick()
+        compose.onNodeWithTag(MOBILE_CHOICE_SAVE_TAG).performClick()
 
         assertEquals(
             listOf(
@@ -499,6 +505,9 @@ class MobileAccountPlaybackSettingsTest {
                 ),
                 AndroidAppConfigEvent.ChangeRequested(
                     AndroidAppConfigChange.AutoplayNextVideo(enabled = true),
+                ),
+                AndroidAppConfigEvent.ChangeRequested(
+                    AndroidAppConfigChange.PlayOriginals(enabled = false),
                 ),
             ),
             appConfigEvents,
@@ -778,7 +787,7 @@ class MobileAccountAboutTest {
     private fun diagnostics(
         state: AndroidAppConfigState,
         deviceClass: AppDiagnostics.DeviceClass = AppDiagnostics.DeviceClass.Phone,
-    ) = mobileAppDiagnostics(state.playbackPreference(), deviceClass)
+    ) = mobileAppDiagnostics(state.playbackPreference(), state.confirmedPlayOriginals(), deviceClass)
 }
 
 @RunWith(AndroidJUnit4::class)

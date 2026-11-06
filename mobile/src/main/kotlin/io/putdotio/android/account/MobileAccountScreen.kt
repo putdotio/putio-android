@@ -99,6 +99,7 @@ internal const val MOBILE_ACCOUNT_STORAGE_PROGRESS_TAG = "mobile-account-storage
 internal const val MOBILE_ACCOUNT_SIGN_OUT_TAG = "mobile-account-sign-out"
 internal const val MOBILE_TUNNEL_ROUTE_ROW_TAG = "mobile-tunnel-route-row"
 internal const val MOBILE_VIDEO_PLAYBACK_ROW_TAG = "mobile-video-playback-row"
+internal const val MOBILE_PLAY_ORIGINALS_ROW_TAG = "mobile-play-originals-row"
 internal const val MOBILE_PRIVACY_POLICY_ROW_TAG = "mobile-privacy-policy-row"
 
 /** What Account's Library rows show beside their titles, when the app already knows it. */
@@ -187,7 +188,7 @@ internal fun MobileAccountScreen(
     )
 }
 
-private enum class AccountDialog { None, TrashOff, SignOut, Proxy, VideoPlayback }
+private enum class AccountDialog { None, TrashOff, SignOut, Proxy, VideoPlayback, PlayOriginals }
 
 private fun LazyListScope.libraryGroup(
     rows: AccountRows,
@@ -245,7 +246,8 @@ private fun LazyListScope.filesItems(settingsState: AccountSettingsState, rows: 
 
 /**
  * Playback mixes account-wide settings (resume, proxy) with this app's `/config` (autoplay, video
- * playback); each row shows once its source has loaded, and `/config`'s loading or failure follows.
+ * playback, originals); each row shows once its source has loaded, and `/config`'s loading or failure
+ * follows.
  */
 private fun LazyListScope.playbackItems(
     settingsState: AccountSettingsState,
@@ -267,6 +269,7 @@ private fun LazyListScope.playbackItems(
             },
             config?.let { preferences -> SettingsRow { rows.AutoplayNext(it, preferences) } },
             config?.let { preferences -> SettingsRow { rows.VideoPlayback(it, preferences) } },
+            config?.let { preferences -> SettingsRow { rows.PlayOriginals(it, preferences) } },
             settings?.let { preferences -> SettingsRow { rows.Proxy(it, preferences) } },
         ),
     )
@@ -422,6 +425,16 @@ private fun MobileAccountDialogs(
                 onDismiss = onDismiss,
             )
         }
+        AccountDialog.PlayOriginals -> if (config != null) {
+            MobilePlayOriginalsDialog(
+                selected = config.playOriginals,
+                onSave = {
+                    onDismiss()
+                    onAppConfigEvent(AndroidAppConfigEvent.ChangeRequested(AndroidAppConfigChange.PlayOriginals(it)))
+                },
+                onDismiss = onDismiss,
+            )
+        }
     }
 }
 
@@ -525,6 +538,25 @@ private class AccountRows(
             saving = change((mutation as? AndroidAppConfigMutation.Saving)?.change),
             onChoose = { onOpen(AccountDialog.VideoPlayback) },
             tag = MOBILE_VIDEO_PLAYBACK_ROW_TAG,
+            failure = (mutation as? AndroidAppConfigMutation.Failed)?.takeIf { change(it.change) }?.let { failed ->
+                { MobileAppConfigMutationError(failed.failure, failed.operation) { onRetryConfig() } }
+            },
+        )
+    }
+
+    @Composable
+    fun PlayOriginals(segment: SettingsSegment, preferences: AndroidAppConfigPreferences) {
+        val mutation = appConfigState.mutation
+        val change = { candidate: AndroidAppConfigChange? -> candidate is AndroidAppConfigChange.PlayOriginals }
+        ChoiceSegment(
+            segment = segment,
+            title = R.string.mobile_settings_play_originals,
+            icon = R.drawable.ic_ph_file_video,
+            value = stringResource(playOriginalsLabel(preferences.playOriginals)),
+            enabled = configEnabled,
+            saving = change((mutation as? AndroidAppConfigMutation.Saving)?.change),
+            onChoose = { onOpen(AccountDialog.PlayOriginals) },
+            tag = MOBILE_PLAY_ORIGINALS_ROW_TAG,
             failure = (mutation as? AndroidAppConfigMutation.Failed)?.takeIf { change(it.change) }?.let { failed ->
                 { MobileAppConfigMutationError(failed.failure, failed.operation) { onRetryConfig() } }
             },

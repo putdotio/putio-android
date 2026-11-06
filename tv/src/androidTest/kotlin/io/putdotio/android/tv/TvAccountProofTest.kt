@@ -96,11 +96,24 @@ class TvAccountProofTest {
         mount()
         press(KeyEvent.KEYCODE_DPAD_DOWN)
         press(KeyEvent.KEYCODE_DPAD_RIGHT)
-        repeat(3) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
+        repeat(4) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
         compose.waitUntil(5_000) { isFocused(PROXY) }
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(5_000) { isFocused(CDN77) }
         screenshot("androidtv-st-d2-proxy")
+    }
+
+    @Test
+    fun playOriginalsSheet() {
+        mount()
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        press(KeyEvent.KEYCODE_DPAD_RIGHT)
+        repeat(3) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
+        compose.waitUntil(5_000) { isFocused(PLAY_ORIGINALS) }
+        screenshot("androidtv-play-originals-row")
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitUntil(5_000) { isFocused(ON) }
+        screenshot("androidtv-play-originals-sheet")
     }
 
     @Test
@@ -238,6 +251,8 @@ class TvAccountProofTest {
         const val DIAGNOSTICS = "Diagnostics"
         const val VERSION = "Version"
         const val PROXY = "Proxy"
+        const val PLAY_ORIGINALS = "Play originals"
+        const val ON = "On"
         const val CDN77 = "cdn77"
         const val SIGN_OUT = "Sign out"
         const val SIGN_OUT_TITLE = "Sign out of put.io?"
