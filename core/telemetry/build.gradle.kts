@@ -9,5 +9,6 @@ android {
 dependencies {
     implementation(libs.posthog.android)
     implementation(libs.sentry.android.core)
+    implementation(libs.sentry.android.ndk)
     implementation(libs.okhttp)
 }

@@ -3,21 +3,31 @@ package io.putdotio.android.playback
 import android.app.ActivityManager
 import android.content.Context
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
+import androidx.media3.exoplayer.Renderer
+import androidx.media3.exoplayer.audio.AudioRendererEventListener
+import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
+import androidx.media3.exoplayer.text.TextOutput
 import androidx.media3.ui.compose.SURFACE_TYPE_SURFACE_VIEW
 import androidx.media3.ui.compose.SURFACE_TYPE_TEXTURE_VIEW
+import io.github.anilbeesetti.nextlib.media3ext.ffdecoder.FfmpegAudioRenderer
 
 private const val EMULATOR_CODEC_WORKAROUND_API = 37
 
-/** The renderers every ExoPlayer in the app starts from, on either surface; text takes a timing offset. */
+/**
+ * The renderers every ExoPlayer in the app starts from, on either surface: FFmpeg decodes audio
+ * MediaCodec can't, and text takes a timing offset.
+ */
 @UnstableApi
 public fun playbackRenderersFactory(context: Context): DefaultRenderersFactory {
-    val renderersFactory: DefaultRenderersFactory = SubtitleTimingRenderersFactory(context)
+    val renderersFactory: DefaultRenderersFactory = PlaybackRenderersFactory(context)
     if (requiresEmulatorCodecWorkaround(Build.VERSION.SDK_INT, Build.HARDWARE)) {
         // API 37's goldfish AVC codec can fail its memfd queue before decoding a frame.
         renderersFactory
@@ -25,6 +35,48 @@ public fun playbackRenderersFactory(context: Context): DefaultRenderersFactory {
             .setEnableDecoderFallback(true)
     }
     return renderersFactory
+}
+
+/**
+ * Media3's renderers, with FFmpeg audio after MediaCodec and passthrough for codecs the device
+ * lacks, and text renderers that can read ahead; see [setSubtitleLead]. Video stays on MediaCodec.
+ */
+@UnstableApi
+internal class PlaybackRenderersFactory(context: Context) : DefaultRenderersFactory(context) {
+    override fun buildAudioRenderers(
+        context: Context,
+        extensionRendererMode: Int,
+        mediaCodecSelector: MediaCodecSelector,
+        enableDecoderFallback: Boolean,
+        audioSink: AudioSink,
+        eventHandler: Handler,
+        eventListener: AudioRendererEventListener,
+        out: ArrayList<Renderer>,
+    ) {
+        super.buildAudioRenderers(
+            context,
+            extensionRendererMode,
+            mediaCodecSelector,
+            enableDecoderFallback,
+            audioSink,
+            eventHandler,
+            eventListener,
+            out,
+        )
+        out += FfmpegAudioRenderer(eventHandler, eventListener, audioSink)
+    }
+
+    override fun buildTextRenderers(
+        context: Context,
+        output: TextOutput,
+        outputLooper: Looper,
+        extensionRendererMode: Int,
+        out: ArrayList<Renderer>,
+    ) {
+        val first = out.size
+        super.buildTextRenderers(context, output, outputLooper, extensionRendererMode, out)
+        for (index in first until out.size) out[index] = SubtitleLeadRenderer(out[index])
+    }
 }
 
 /**

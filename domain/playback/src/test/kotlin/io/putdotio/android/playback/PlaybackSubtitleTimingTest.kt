@@ -56,7 +56,7 @@ class PlaybackSubtitleTimingTest {
 
     @Test
     fun onlyTextRenderersTakeTheOffset() {
-        val renderers = SubtitleTimingRenderersFactory(ApplicationProvider.getApplicationContext())
+        val renderers = PlaybackRenderersFactory(ApplicationProvider.getApplicationContext())
             .createRenderers(
                 Handler(Looper.getMainLooper()),
                 object : VideoRendererEventListener {},

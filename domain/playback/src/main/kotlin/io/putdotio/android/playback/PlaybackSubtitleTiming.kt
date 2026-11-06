@@ -1,36 +1,16 @@
 package io.putdotio.android.playback
 
-import android.content.Context
-import android.os.Looper
 import androidx.media3.common.C
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.text.Cue
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.ForwardingRenderer
 import androidx.media3.exoplayer.Renderer
-import androidx.media3.exoplayer.text.TextOutput
 
 private const val MICROS_PER_MILLI = 1_000L
-
-/** Renderers whose text renderers can read ahead; see [setSubtitleLead]. */
-@UnstableApi
-internal class SubtitleTimingRenderersFactory(context: Context) : DefaultRenderersFactory(context) {
-    override fun buildTextRenderers(
-        context: Context,
-        output: TextOutput,
-        outputLooper: Looper,
-        extensionRendererMode: Int,
-        out: ArrayList<Renderer>,
-    ) {
-        val first = out.size
-        super.buildTextRenderers(context, output, outputLooper, extensionRendererMode, out)
-        for (index in first until out.size) out[index] = SubtitleLeadRenderer(out[index])
-    }
-}
 
 /**
  * A text renderer that reads its cues [leadUs] ahead of the playback position, from the samples
