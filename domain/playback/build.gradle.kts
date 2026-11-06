@@ -2,17 +2,19 @@ plugins {
     id("putio.android.library")
 }
 
+val media3Version = libs.versions.media3.get()
+val nextlibVersion = libs.versions.nextlib.get()
+check(nextlibVersion.startsWith("$media3Version-")) {
+    "nextlib $nextlibVersion is built for another Media3 than $media3Version; bump them together"
+}
+
 android {
     namespace = "io.putdotio.android.playback"
 
     // State builders other modules' tests reuse.
     testFixtures.enable = true
-}
-
-val media3Version = libs.versions.media3.get()
-val nextlibVersion = libs.versions.nextlib.get()
-check(nextlibVersion.startsWith("$media3Version-")) {
-    "nextlib $nextlibVersion is built for another Media3 than $media3Version; bump them together"
+    buildFeatures.buildConfig = true
+    defaultConfig.buildConfigField("String", "NEXTLIB_VERSION", "\"$nextlibVersion\"")
 }
 
 dependencies {

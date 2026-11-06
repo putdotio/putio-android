@@ -165,7 +165,6 @@ private fun allowlisted(event: SentryEvent, installation: String?, surface: Stri
         user = installation?.let { User().apply { id = it } }
         tags = mapOf("surface" to surface) + failure?.tags.orEmpty()
         exceptions = failure?.let { listOf(it.exception()) } ?: event.exceptions?.map(::allowlisted)
-        // Sentry picks the R8 mapping and each native library's symbols for the frames by these ids.
         debugMeta = event.debugMeta?.images?.filter { it.type in SYMBOLICATED_IMAGES }?.let { images ->
             DebugMeta().apply { this.images = images.map(::allowlisted) }
         }

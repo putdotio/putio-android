@@ -24,10 +24,13 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import io.putdotio.android.BuildConfig
+import io.putdotio.android.OpenSourceNotice
 import io.putdotio.android.R
+import io.putdotio.android.appSourceNotice
 import io.putdotio.android.design.PutioTypeScale
-import io.putdotio.android.playback.OpenSourceNotice
-import io.putdotio.android.playback.openSourceNotices
+import io.putdotio.android.playback.playbackNotices
+import io.putdotio.android.telemetry.telemetryNotices
 
 internal const val MOBILE_OPEN_SOURCE_LICENSES_ROUTE = "account/open-source-licenses"
 internal const val MOBILE_OPEN_SOURCE_LICENSES_ROW_TAG = "mobile-open-source-licenses-row"
@@ -49,7 +52,7 @@ internal fun MobileOpenSourceLicensesScreen(modifier: Modifier = Modifier) {
                 modifier = Modifier.padding(start = 32.dp, end = 32.dp, top = 4.dp, bottom = 8.dp),
             )
         }
-        items(openSourceNotices, key = { it.name }) { notice ->
+        items(OPEN_SOURCE_NOTICES, key = { it.name }) { notice ->
             NoticeGroup(notice, onOpen = { uriHandler.openSafely(it) })
         }
     }
@@ -114,3 +117,4 @@ private fun NoticeLink(segment: SettingsSegment, @StringRes title: Int, onClick:
 }
 
 private const val INTRO_KEY = "open-source-licenses-intro"
+private val OPEN_SOURCE_NOTICES = listOf(appSourceNotice(BuildConfig.VERSION_NAME)) + playbackNotices + telemetryNotices

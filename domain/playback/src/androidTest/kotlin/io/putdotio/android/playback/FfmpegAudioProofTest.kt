@@ -70,6 +70,7 @@ class FfmpegAudioProofTest {
             .put("videoSupported", run.videoSupported)
             .put("positionMs", run.positionMs)
             .put("droppedFrames", run.droppedFrames)
+            .put("audioUnderruns", run.audioUnderruns)
             .put("error", run.error?.errorCodeName)
             .put("inventoryAudio", withFfmpeg.plays(audioFormat))
             .put("platformAudio", platformOnly.plays(audioFormat))
@@ -117,6 +118,7 @@ class FfmpegAudioProofTest {
         @Volatile var error: PlaybackException? = null
         @Volatile var positionMs: Long = 0
         @Volatile var droppedFrames: Int = 0
+        @Volatile var audioUnderruns: Int = 0
 
         fun play(millis: Long) {
             val reader = ImageReader.newInstance(SURFACE_WIDTH, SURFACE_HEIGHT, ImageFormat.PRIVATE, SURFACE_IMAGES)
@@ -203,6 +205,15 @@ class FfmpegAudioProofTest {
                 elapsedMs: Long,
             ) {
                 this@PlayerRun.droppedFrames += droppedFrames
+            }
+
+            override fun onAudioUnderrun(
+                eventTime: AnalyticsListener.EventTime,
+                bufferSize: Int,
+                bufferSizeMs: Long,
+                elapsedSinceLastFeedMs: Long,
+            ) {
+                audioUnderruns++
             }
 
             override fun onPlayerError(eventTime: AnalyticsListener.EventTime, error: PlaybackException) {

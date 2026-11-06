@@ -7,6 +7,7 @@ android {
 }
 
 dependencies {
+    implementation(project(":core:common"))
     implementation(libs.posthog.android)
     implementation(libs.sentry.android.core)
     implementation(libs.sentry.android.ndk)

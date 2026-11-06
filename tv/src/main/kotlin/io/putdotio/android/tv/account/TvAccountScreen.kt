@@ -63,11 +63,12 @@ import io.putdotio.android.BuildConfig
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.account.PrivacyLinks
+import io.putdotio.android.appSourceNotice
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioRadius
 import io.putdotio.android.isSupportedAvatarUrl
 import io.putdotio.android.playback.confirmedPlayOriginals
-import io.putdotio.android.playback.openSourceNotices
+import io.putdotio.android.playback.playbackNotices
 import io.putdotio.android.playback.playbackPreference
 import io.putdotio.android.settings.AccountSettingsChange
 import io.putdotio.android.settings.AccountSettingsContent
@@ -88,6 +89,7 @@ import io.putdotio.android.settings.TunnelRouteOption
 import io.putdotio.android.settings.putioFailure
 import io.putdotio.android.telemetry.AnalyticsEvent
 import io.putdotio.android.telemetry.ProductAnalytics
+import io.putdotio.android.telemetry.telemetryNotices
 import io.putdotio.android.tv.TvConfirmDialog
 import io.putdotio.android.tv.TvQrCode
 import io.putdotio.android.tv.auth.TvAccount
@@ -283,7 +285,7 @@ private fun TvAccountBody(
     val rightPane = remember { FocusRequester() }
     val open = { next: TvAccountSheet, from: String ->
         lastFocus.value = from
-        notice = openSourceNotices.indices.firstOrNull { RowKey.notice(it) == from } ?: notice
+        notice = OPEN_SOURCE_NOTICES.indices.firstOrNull { RowKey.notice(it) == from } ?: notice
         sheet = next
     }
 
@@ -531,7 +533,7 @@ private fun TvAccountSheets(
             onDismiss = onClose,
             returnFocus = returnFocus(RowKey.SERVICES),
         )
-        TvAccountSheet.OpenSourceNotice -> openSourceNotices.getOrNull(notice)?.let {
+        TvAccountSheet.OpenSourceNotice -> OPEN_SOURCE_NOTICES.getOrNull(notice)?.let {
             TvQrSheet(
                 title = stringResource(R.string.tv_account_open_source_name, it.name, it.version),
                 url = it.sourceUrl,
@@ -887,11 +889,11 @@ private class TvAccountRowsScope(
         )
         val qr = AnnotatedString(stringResource(R.string.tv_account_qr_value))
         TvSegments {
-            openSourceNotices.forEachIndexed { index, notice ->
+            OPEN_SOURCE_NOTICES.forEachIndexed { index, notice ->
                 TvSettingRow(
                     title = stringResource(R.string.tv_account_open_source_name, notice.name, notice.version),
                     icon = R.drawable.ic_ph_file_text,
-                    segment = segmentOf(index, openSourceNotices.size),
+                    segment = segmentOf(index, OPEN_SOURCE_NOTICES.size),
                     description = stringResource(
                         R.string.tv_account_open_source_terms,
                         notice.license,
@@ -1162,6 +1164,7 @@ internal fun tvAppDiagnostics(playbackPreference: PlaybackPreference, playOrigin
         playOriginals = playOriginals,
     )
 
+private val OPEN_SOURCE_NOTICES = listOf(appSourceNotice(BuildConfig.VERSION_NAME)) + playbackNotices + telemetryNotices
 private val LIBRARY_KEYS = mapOf(
     AccountSettingsKey.Trash to RowKey.TRASH,
     AccountSettingsKey.DefaultSort to RowKey.DEFAULT_SORT,

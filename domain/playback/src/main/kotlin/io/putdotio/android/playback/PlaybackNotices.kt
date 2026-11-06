@@ -1,15 +1,8 @@
 package io.putdotio.android.playback
 
-public class OpenSourceNotice internal constructor(
-    public val name: String,
-    public val version: String,
-    public val license: String,
-    public val copyright: String,
-    public val sourceUrl: String,
-    public val licenseUrl: String,
-)
+import io.putdotio.android.OpenSourceNotice
 
-public val openSourceNotices: List<OpenSourceNotice> = listOf(
+public val playbackNotices: List<OpenSourceNotice> = listOf(
     OpenSourceNotice(
         name = "nextlib",
         version = "1.11.1-0.17.0",
