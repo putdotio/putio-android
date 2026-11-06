@@ -94,10 +94,12 @@ class TvSwitchToConvertedProofTest {
         switched.clear()
         val factory = RecordingPlayerFactory()
         val first = compose.runOnUiThread { PlaybackController(Target, LocalFixtures(), scope) }
-        var open by mutableStateOf(first)
+        var open by mutableStateOf<PlaybackController?>(first)
         compose.setContent {
             PutioTvTheme {
-                TvPlaybackRoute(controller = open, onExit = {}, onSessionRejected = {}, playerFactory = factory)
+                open?.let {
+                    TvPlaybackRoute(controller = it, onExit = {}, onSessionRejected = {}, playerFactory = factory)
+                }
             }
         }
         compose.waitUntil(30_000) {
@@ -128,20 +130,23 @@ class TvSwitchToConvertedProofTest {
                 "Converted plays on from $switchedAt ms, now at $converted ms",
                 converted in switchedAt - DRIFT_MILLIS..switchedAt + DRIFT_MILLIS * 2,
             )
-            assertTrue(
-                "A converted stream offers no switch",
-                compose.onAllNodesWithContentDescription(STREAM_CHIP).fetchSemanticsNodes().isEmpty(),
-            )
         }
+        assertTrue(
+            "A converted stream offers no switch",
+            compose.onAllNodesWithContentDescription(STREAM_CHIP).fetchSemanticsNodes().isEmpty(),
+        )
         assertTrue(runBlocking { switched.contains(Target.fileId.value) })
 
         val again = compose.runOnUiThread { PlaybackController(Target, LocalFixtures(), scope) }
         compose.runOnIdle {
             first.close()
-            open = again
+            open = null
         }
+        compose.runOnIdle { open = again }
         compose.waitUntil(30_000) {
-            compose.runOnIdle { again.readyKind() == PlaybackSourceKind.MP4 && factory.playing() }
+            compose.runOnIdle {
+                again.readyKind() == PlaybackSourceKind.MP4 && factory.players.size == 3 && factory.playing()
+            }
         }
         screenshot("04-reopened-converted")
         compose.runOnIdle { assertEquals(listOf(false, true, false), asked) }
