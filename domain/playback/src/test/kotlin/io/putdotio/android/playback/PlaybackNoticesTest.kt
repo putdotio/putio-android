@@ -12,4 +12,13 @@ class PlaybackNoticesTest {
             playbackNotices.single { it.name == "nextlib" }.version,
         )
     }
+
+    @Test
+    fun theAssMediaNoticesFollowTheCatalog() {
+        assertEquals(
+            "Set playbackNotices to the libass-cmake submodules ass-media ${BuildConfig.ASS_MEDIA_VERSION} pins",
+            BuildConfig.ASS_MEDIA_VERSION,
+            playbackNotices.single { it.name == "ass-media" }.version,
+        )
+    }
 }

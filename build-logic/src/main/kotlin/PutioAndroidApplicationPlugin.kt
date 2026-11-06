@@ -97,6 +97,12 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
                 checkReleaseBuilds = false
             }
 
+            packaging.jniLibs.excludes += listOf(
+                "**/libc++_shared.so",
+                "lib/armeabi-v7a/libass*.so",
+                "lib/x86/libass*.so",
+            )
+
             // Robolectric-backed Compose tests need the app's resources.
             testOptions.unitTests.isIncludeAndroidResources = true
 

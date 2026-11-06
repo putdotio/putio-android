@@ -65,6 +65,7 @@ import io.putdotio.android.playback.directPlayVerdict
 import io.putdotio.android.playback.displayAspectRatioOrNull
 import io.putdotio.android.playback.orHiddenWhen
 import io.putdotio.android.playback.originalRejection
+import io.putdotio.android.playback.redrawAss
 import io.putdotio.android.playback.playbackSurfaceType
 import io.putdotio.android.playback.playerSubtitles
 import io.putdotio.android.playback.preparePlayback
@@ -510,7 +511,11 @@ private fun TvReadyPlayer(
                 options = options.copy(speed = choice)
                 player.setPlaybackSpeed(choice)
             },
-            onTextSize = appearance::update,
+            onTextSize = { size ->
+                val previous = appearance.textSize
+                appearance.update(size)
+                player.redrawAss(context, previous, size)
+            },
             onOffset = { offset -> options = options.copy(subtitleOffsetMillis = offset) },
         ),
         onDismiss = { apply(overlay.back()) },

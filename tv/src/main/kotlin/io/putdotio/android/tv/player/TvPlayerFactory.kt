@@ -7,12 +7,12 @@ import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
-import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.audioAttributes
 import io.putdotio.android.playback.playbackLoadControl
-import io.putdotio.android.playback.playbackRenderersFactory
+import io.putdotio.android.playback.libassSubtitles
+import io.putdotio.android.playback.playbackExoPlayer
 import java.io.Closeable
 import java.util.UUID
 
@@ -35,11 +35,11 @@ internal fun interface TvPlayerFactory {
 internal object DefaultTvPlayerFactory : TvPlayerFactory {
     @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
     override fun create(context: Context, mediaType: PlaybackMediaType): Player =
-        ExoPlayer.Builder(context, playbackRenderersFactory(context))
-            .setLoadControl(tvLoadControl(context))
-            .setAudioAttributes(mediaType.audioAttributes(), true)
-            .setHandleAudioBecomingNoisy(true)
-            .build()
+        playbackExoPlayer(context, libassSubtitles(context, mediaType, TV_LIBASS_CACHE_MB)) {
+            setLoadControl(tvLoadControl(context))
+                .setAudioAttributes(mediaType.audioAttributes(), true)
+                .setHandleAudioBecomingNoisy(true)
+        }
 
     override fun publish(context: Context, player: Player): Closeable {
         val launch = (
@@ -200,3 +200,5 @@ internal const val TV_MIN_BUFFER_MILLIS = 8_000
 internal const val TV_MAX_BUFFER_MILLIS = 30_000
 internal const val TV_BUFFER_FOR_PLAYBACK_MILLIS = 1_500
 internal const val TV_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MILLIS = 3_000
+
+private const val TV_LIBASS_CACHE_MB = 32

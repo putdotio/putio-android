@@ -12,12 +12,13 @@
       "enabled": false
     },
     {
-      "description": "nextlib is built against one Media3 release, so a Media3 bump waits for the matching nextlib; playbackNotices follows by hand.",
+      "description": "nextlib and ass-media are built against one Media3 release, so a Media3 bump waits for the matching nextlib and ass-media; playbackNotices follows by hand.",
       "matchPackageNames": [
         "androidx.media3:**",
-        "io.github.anilbeesetti:**"
+        "io.github.anilbeesetti:**",
+        "io.github.peerless2012:**"
       ],
-      "groupName": "Media3 and nextlib"
+      "groupName": "Media3, nextlib and ass-media"
     }
   ]
 }

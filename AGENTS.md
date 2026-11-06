@@ -20,8 +20,9 @@ script headers and `--help` own the harness.
 - Report a failure as a `TelemetryFailure` of codes, never as a raw error or
   message.
 - A nextlib bump updates `playbackNotices` to the FFmpeg, dav1d and Mbed TLS
-  versions its `ffmpeg/setup.sh` pins; a Sentry bump updates `telemetryNotices`
-  to the sentry-native its NDK module depends on.
+  versions its `ffmpeg/setup.sh` pins; an ass-media bump updates them to the
+  libraries its `libass-cmake` submodule pins; a Sentry bump updates
+  `telemetryNotices` to the sentry-native its NDK module depends on.
 - Mobile and TV share data, domain, theme, and component foundations; their
   shells diverge where input differs. TV should feel like Android TV: Compose
   for TV, D-pad focus, system media sessions, and platform search.

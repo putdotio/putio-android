@@ -92,7 +92,7 @@ private const val MILLIS_PER_SECOND = 1_000.0
 
 @Stable
 public class SubtitleAppearanceStore(private val context: Context?) {
-    public var textSize: SubtitleTextSize by mutableStateOf(read())
+    public var textSize: SubtitleTextSize by mutableStateOf(context?.let(::storedTextSize) ?: SubtitleTextSize.Medium)
         private set
 
     public fun update(size: SubtitleTextSize) {
@@ -102,15 +102,15 @@ public class SubtitleAppearanceStore(private val context: Context?) {
         }
     }
 
-    private fun read(): SubtitleTextSize {
-        val stored = context?.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
-            ?.getString(TEXT_SIZE_KEY, null)
-        return SubtitleTextSize.entries.firstOrNull { it.name == stored } ?: SubtitleTextSize.Medium
-    }
+    internal companion object {
+        private const val PREFERENCES_NAME = "io.put.player"
+        private const val TEXT_SIZE_KEY = "subtitle_text_size"
 
-    private companion object {
-        const val PREFERENCES_NAME = "io.put.player"
-        const val TEXT_SIZE_KEY = "subtitle_text_size"
+        fun storedTextSize(context: Context): SubtitleTextSize {
+            val stored = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
+                .getString(TEXT_SIZE_KEY, null)
+            return SubtitleTextSize.entries.firstOrNull { it.name == stored } ?: SubtitleTextSize.Medium
+        }
     }
 }
 
