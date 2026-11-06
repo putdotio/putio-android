@@ -63,7 +63,7 @@ import androidx.compose.material3.IconButtonDefaults
 internal const val MOBILE_PLAYER_SIDE_SHEET_TAG = "mobile-player-side-sheet"
 
 /** The panels the video's option chips open from the right. */
-internal enum class MobileVideoSheet { Audio, Subtitles, SubtitleAppearance, Speed }
+internal enum class MobileVideoSheet { Audio, Subtitles, SubtitleAppearance, Speed, Stream }
 
 internal val MOBILE_PLAYER_SIDE_SHEET_WIDTH = 340.dp
 private const val SIDE_SHEET_SCRIM_ALPHA = 0.55f

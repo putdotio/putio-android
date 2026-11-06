@@ -106,8 +106,8 @@ internal class TvTrackChoices(
                 ?: subtitles.firstOrNull { it.selected }
         }
 
-    fun chips(nextEpisode: Boolean, audioOnly: Boolean): List<TvPlayerControl> =
-        tvPlayerChips(audio.size, subtitlesHidden, nextEpisode, audioOnly)
+    fun chips(nextEpisode: Boolean, audioOnly: Boolean, original: Boolean): List<TvPlayerControl> =
+        tvPlayerChips(audio.size, subtitlesHidden, nextEpisode, audioOnly, original)
 }
 
 private fun TrackSelectionParameters.picked(group: androidx.media3.common.TrackGroup, index: Int): Boolean =
@@ -152,21 +152,16 @@ internal fun TvPlayerSheets(
     offsetMillis: Long,
     actions: TvPlayerSheetActions,
     onDismiss: () -> Unit,
+    onSwitchToConverted: () -> Unit,
     timingPreview: @Composable BoxScope.() -> Unit,
 ) {
     if (sheet == null) return
     if (choices.subtitlesHidden && (sheet == TvPlayerSheet.Subtitles || sheet == TvPlayerSheet.SizeAndTiming)) return
-    val title = when (sheet) {
-        TvPlayerSheet.Audio -> R.string.tv_player_audio
-        TvPlayerSheet.Subtitles -> R.string.tv_player_subtitles
-        TvPlayerSheet.Speed -> R.string.tv_player_speed
-        TvPlayerSheet.SizeAndTiming -> PlaybackR.string.playback_size_and_timing
-    }
     key(sheet) {
         TvSideSheet(
             onDismiss = onDismiss,
             returnFocus = returnFocus,
-            title = stringResource(title),
+            title = stringResource(sheet.title),
             backdrop = timingPreview.takeIf { sheet == TvPlayerSheet.SizeAndTiming },
         ) { focus ->
             when (sheet) {
@@ -184,6 +179,7 @@ internal fun TvPlayerSheets(
                 TvPlayerSheet.Speed -> TvSpeedSheet(speed, focus, actions.onSpeed)
                 TvPlayerSheet.SizeAndTiming ->
                     TvSizeAndTimingSheet(textSize, offsetMillis, focus, actions.onTextSize, actions.onOffset)
+                TvPlayerSheet.Stream -> TvStreamSheet(focus, onDismiss, onSwitchToConverted)
             }
         }
     }
@@ -208,6 +204,34 @@ private fun ColumnScope.TvAudioSheet(
                 modifier = if (index == focusIndex) Modifier.focusRequester(focus) else Modifier,
             )
         }
+    }
+}
+
+private val TvPlayerSheet.title: Int
+    get() = when (this) {
+        TvPlayerSheet.Audio -> R.string.tv_player_audio
+        TvPlayerSheet.Subtitles -> R.string.tv_player_subtitles
+        TvPlayerSheet.Speed -> R.string.tv_player_speed
+        TvPlayerSheet.SizeAndTiming -> PlaybackR.string.playback_size_and_timing
+        TvPlayerSheet.Stream -> PlaybackR.string.playback_stream
+    }
+
+@Composable
+private fun ColumnScope.TvStreamSheet(focus: FocusRequester, onOriginal: () -> Unit, onConverted: () -> Unit) {
+    TvSheetRows {
+        TvSheetOption(
+            label = stringResource(PlaybackR.string.playback_stream_original),
+            detail = AnnotatedString(stringResource(PlaybackR.string.playback_stream_original_detail)),
+            selected = true,
+            onClick = onOriginal,
+            modifier = Modifier.focusRequester(focus),
+        )
+        TvSheetOption(
+            label = stringResource(PlaybackR.string.playback_stream_converted),
+            detail = AnnotatedString(stringResource(PlaybackR.string.playback_stream_converted_detail)),
+            selected = false,
+            onClick = onConverted,
+        )
     }
 }
 

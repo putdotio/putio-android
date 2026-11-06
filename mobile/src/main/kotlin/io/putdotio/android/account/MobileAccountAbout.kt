@@ -44,6 +44,7 @@ internal const val MOBILE_ABOUT_COPIED_TAG = "mobile-about-copied"
 
 internal fun mobileAppDiagnostics(
     playbackPreference: PlaybackPreference,
+    playOriginals: Boolean,
     deviceClass: AppDiagnostics.DeviceClass,
 ): AppDiagnostics =
     AppDiagnostics(
@@ -55,6 +56,7 @@ internal fun mobileAppDiagnostics(
         runtimeVersion = Build.VERSION.SDK_INT,
         deviceClass = deviceClass,
         player = playerLabel(playbackPreference),
+        playOriginals = playOriginals,
     )
 
 // Media3 is the only player; the stream method is the one playback actually uses,

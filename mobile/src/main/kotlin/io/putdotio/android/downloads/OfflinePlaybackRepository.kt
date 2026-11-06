@@ -111,6 +111,9 @@ internal class OfflinePlaybackRepository(
 
     override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult = delegate.findNextVideo(target)
 
+    override fun rememberSwitchedToConverted(target: PlaybackTarget): Unit =
+        delegate.rememberSwitchedToConverted(target)
+
     override suspend fun findNeighbours(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackNeighbours> =
         delegate.findNeighbours(target)
 }

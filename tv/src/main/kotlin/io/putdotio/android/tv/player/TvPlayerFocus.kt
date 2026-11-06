@@ -10,6 +10,7 @@ internal enum class TvPlayerControl {
     Audio,
     Subtitles,
     Speed,
+    Stream,
     NextEpisode,
 }
 
@@ -61,6 +62,7 @@ internal fun TvPlayerOverlay.openSheet(chip: TvPlayerControl): TvPlayerTransitio
         TvPlayerControl.Audio -> TvPlayerSheet.Audio
         TvPlayerControl.Subtitles -> TvPlayerSheet.Subtitles
         TvPlayerControl.Speed -> TvPlayerSheet.Speed
+        TvPlayerControl.Stream -> TvPlayerSheet.Stream
         else -> null
     }
     return if (exited || sheet == null) {

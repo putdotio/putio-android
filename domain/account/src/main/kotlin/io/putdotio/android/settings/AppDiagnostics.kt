@@ -14,6 +14,7 @@ public data class AppDiagnostics(
     val runtimeVersion: Int,
     val deviceClass: DeviceClass,
     val player: String,
+    val playOriginals: Boolean,
 ) {
     public enum class ReleaseChannel(internal val wireValue: String) {
         Stable("stable"),
@@ -48,5 +49,6 @@ public data class AppDiagnostics(
             "runtime_version" to runtimeVersion.toString(),
             "device_class" to deviceClass.wireValue,
             "player" to player,
+            "play_originals" to if (playOriginals) "on" else "off",
         ).joinToString("\n") { (key, value) -> "$key: $value" }
 }

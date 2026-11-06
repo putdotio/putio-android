@@ -106,11 +106,14 @@ stateDiagram-v2
 
 Media3 plays every stream, HLS or MP4 per the account's setting, with a
 media session for system controls. A video plays its original file only when
-put.io's `media_info` reports no playback issue that needs converting, the
-device's decoders take its video, and its decoders, audio passthrough or the
-bundled FFmpeg take one audio stream; otherwise it plays converted. FFmpeg
-decodes audio only, after MediaCodec. Under HLS, put.io serves only MP4 originals. An original that still fails before its first
-frame falls back to converted at the same position. Cast always gets the
+the app's Play originals setting is on (the default), put.io's `media_info`
+reports no playback issue that needs converting, the device's decoders take its
+video, and its decoders, audio passthrough or the bundled FFmpeg take one audio
+stream; otherwise it plays converted. FFmpeg decodes audio only, after
+MediaCodec. Under HLS, put.io serves only MP4 originals. An original that still
+fails before its first frame falls back to converted at the same position. The
+viewer can also switch an original to converted from the player; the device
+remembers the last 200 switched files and opens them converted. Cast always gets the
 converted stream. Where VLC is installed, a video the player
 can't play, or one still converting, offers Open in VLC; TV offers it on every
 video. Play positions sync to put.io, throttled and flushed on exit, never per

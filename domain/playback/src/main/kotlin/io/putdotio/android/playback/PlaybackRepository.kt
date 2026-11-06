@@ -118,6 +118,8 @@ public interface PlaybackRepository {
 
     public suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult
 
+    public fun rememberSwitchedToConverted(target: PlaybackTarget): Unit = Unit
+
     /**
      * The files of [target]'s media type on either side of it in its folder, in name order, and
      * the folder's name. The API has no queue, so audio's skip buttons and Up next read this.
@@ -175,12 +177,13 @@ internal class SdkPlaybackRepository internal constructor(
         playbackPreference: () -> PlaybackPreference,
         originalVideoPolicy: () -> OriginalVideoPolicy = { OriginalVideoPolicy.Never },
         decoders: DecoderInventory = DecoderInventory { false },
+        switchedToConverted: SwitchedToConvertedFiles = SwitchedToConvertedFiles.None,
     ) : this(
         playbackPreference = playbackPreference,
         loadAccount = client::loadMediaAccount,
         resolvePlayback = OriginalPlaybackDecision(decoders).let { decision ->
             { request ->
-                val resolved = request.withOriginalVideo(originalVideoPolicy(), decision)
+                val resolved = request.withOriginalVideo(originalVideoPolicy(), decision, switchedToConverted)
                 withContext(Dispatchers.IO) { client.files.resolvePlayback(resolved) }
             }
         },
@@ -429,18 +432,31 @@ public class ConvertingPlaybackRepository internal constructor(
     private val delegate: PlaybackRepository,
     /** Starts the conversion; true when the server accepted it (any status but not available). */
     private val startMp4Conversion: suspend (Long) -> Boolean,
+    private val switchedToConverted: SwitchedToConvertedFiles = SwitchedToConvertedFiles.None,
 ) : PlaybackRepository by delegate {
     public constructor(
         client: PutioClient,
         playbackPreference: () -> PlaybackPreference,
         originalVideoPolicy: () -> OriginalVideoPolicy = { OriginalVideoPolicy.Never },
         decoders: DecoderInventory = DecoderInventory { false },
+        switchedToConverted: SwitchedToConvertedFiles = SwitchedToConvertedFiles.None,
     ) : this(
-        delegate = SdkPlaybackRepository(client, playbackPreference, originalVideoPolicy, decoders),
+        delegate = SdkPlaybackRepository(
+            client,
+            playbackPreference,
+            originalVideoPolicy,
+            decoders,
+            switchedToConverted,
+        ),
         startMp4Conversion = { fileId ->
             client.files.startMp4Conversion(fileId).status != FileMp4ConversionStatus.NOT_AVAILABLE
         },
+        switchedToConverted = switchedToConverted,
     )
+
+    override fun rememberSwitchedToConverted(target: PlaybackTarget) {
+        if (target.mediaType == PlaybackMediaType.VIDEO) switchedToConverted.add(target.fileId.value)
+    }
 
     @Suppress("TooGenericExceptionCaught")
     override suspend fun startConversion(

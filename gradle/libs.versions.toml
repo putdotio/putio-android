@@ -7,6 +7,7 @@ coil = "3.6.3"
 composeBom = "2026.09.00"
 coreKtx = "1.19.1"
 coroutines = "1.11.0"
+datastore = "1.3.0"
 lifecycle = "2.11.0"
 navigationCompose = "2.10.2"
 nextlib = "1.11.1-0.17.0"
@@ -43,6 +44,7 @@ androidx-compose-material3-navigation-suite = { module = "androidx.compose.mater
 androidx-compose-material3-adaptive-layout = { module = "androidx.compose.material3.adaptive:adaptive-layout" }
 androidx-compose-ui = { module = "androidx.compose.ui:ui" }
 androidx-compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling" }
+androidx-datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastore" }
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
 androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle" }
 androidx-lifecycle-runtime-ktx = { module = "androidx.lifecycle:lifecycle-runtime-ktx", version.ref = "lifecycle" }

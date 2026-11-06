@@ -15,7 +15,7 @@ internal data class TvPlayerOverlay(
     val nowPlaying: Boolean = false,
 )
 
-internal enum class TvPlayerSheet { Audio, Subtitles, Speed, SizeAndTiming }
+internal enum class TvPlayerSheet { Audio, Subtitles, Speed, SizeAndTiming, Stream }
 
 internal sealed interface TvPlayerCommand {
     data object Play : TvPlayerCommand

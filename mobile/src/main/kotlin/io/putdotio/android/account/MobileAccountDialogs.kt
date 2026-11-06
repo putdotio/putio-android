@@ -90,6 +90,32 @@ internal fun MobilePlaybackTypeDialog(
     )
 }
 
+@Composable
+internal fun MobilePlayOriginalsDialog(
+    selected: Boolean,
+    onSave: (Boolean) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    MobileChoiceDialog(
+        title = stringResource(R.string.mobile_settings_play_originals),
+        message = stringResource(R.string.mobile_settings_play_originals_description),
+        choices = listOf(true, false),
+        label = { stringResource(playOriginalsLabel(it)) },
+        description = {
+            stringResource(
+                if (it) {
+                    R.string.mobile_settings_play_originals_on_description
+                } else {
+                    R.string.mobile_settings_play_originals_off_description
+                },
+            )
+        },
+        selected = selected,
+        onSave = onSave,
+        onDismiss = onDismiss,
+    )
+}
+
 // Routes load when the picker opens: the list depends on the account's CDN eligibility
 // and the caller's address, so it is not worth caching across the session.
 @Composable

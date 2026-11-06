@@ -14,6 +14,7 @@ class AppDiagnosticsTest {
             runtimeVersion = 37,
             deviceClass = AppDiagnostics.DeviceClass.Phone,
             player = "media3/hls",
+            playOriginals = false,
         )
 
     @Test
@@ -28,6 +29,7 @@ class AppDiagnosticsTest {
             runtime_version: 37
             device_class: phone
             player: media3/hls
+            play_originals: off
             """.trimIndent(),
             diagnostics.supportText(),
         )

@@ -44,6 +44,7 @@ import io.putdotio.android.settings.AndroidAppConfigChange
 import io.putdotio.android.settings.AndroidAppConfigPreferences
 import io.putdotio.android.settings.AndroidAppConfigRepository
 import io.putdotio.android.settings.VideoPlaybackType
+import io.putdotio.android.playback.playbackPreference
 import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackEvent
 import io.putdotio.android.playback.PlaybackMediaType
@@ -145,7 +146,9 @@ class TvSessionViewModelTest {
                 PutioResult.Success(media(itemId.value, "resolved-${itemId.value}", PutioFileType.VIDEO))
         },
         recentSearchStore = { FakeRecentSearchStore().also { stores += it } },
-        playbackRepository = { preference -> playbackRepository.also { it.preference = preference } },
+        playbackRepository = { appConfig ->
+            playbackRepository.also { it.preference = { appConfig().playbackPreference() } }
+        },
         writePlaybackPosition = { _, _ -> PlaybackRepositoryResult.Success(Unit) },
     )
 

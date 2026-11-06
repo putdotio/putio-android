@@ -1,11 +1,7 @@
 import com.android.build.api.variant.ResValue
 
 fun originalVideoPolicy(): String =
-    when {
-        providers.gradleProperty("putioForceOriginalVideo").orNull == "true" -> "Always"
-        providers.gradleProperty("putioCheckOriginalVideo").orNull == "true" -> "Check"
-        else -> "Never"
-    }
+    if (providers.gradleProperty("putioForceOriginalVideo").orNull == "true") "Always" else "Check"
 
 plugins {
     id("putio.android.application")
@@ -19,7 +15,7 @@ android {
         // Device-code OAuth apps from the legacy tv-native lane: one per TV store.
         buildConfigField("String", "PUTIO_TV_OAUTH_CLIENT_ID_ANDROID_TV", "\"6221\"")
         buildConfigField("String", "PUTIO_TV_OAUTH_CLIENT_ID_FIRE_TV", "\"6233\"")
-        buildConfigField("String", "PUTIO_ORIGINAL_VIDEO", "\"Never\"")
+        buildConfigField("String", "PUTIO_ORIGINAL_VIDEO", "\"Check\"")
     }
     buildTypes {
         debug {

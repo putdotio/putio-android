@@ -182,6 +182,24 @@ class TvAccountScreenTest {
     }
 
     @Test
+    fun playOriginalsTurnsOffInASheet() {
+        show(settingsState = { ready(preferences) }, appConfigState = { readyConfig(VideoPlaybackType.Hls) })
+
+        openPlaybackRow("Play originals", downs = 3)
+        compose.onNode(inSheet("On")).performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNode(inSheet("Off")).performKeyInput { pressCenter() }
+        compose.onNodeWithText("Always plays the converted version.").assertIsDisplayed()
+        compose.onNode(inSheet("Save")).performKeyInput { pressCenter() }
+        assertEquals(
+            listOf<AndroidAppConfigEvent>(
+                AndroidAppConfigEvent.ChangeRequested(AndroidAppConfigChange.PlayOriginals(enabled = false)),
+            ),
+            appConfigEvents,
+        )
+        compose.onNodeWithText("Play originals").assertIsFocused()
+    }
+
+    @Test
     fun proxySheetListsRoutesWithTheirDescriptionsAndCancelChangesNothing() {
         show(
             settingsState = { ready(preferences) },
@@ -196,7 +214,7 @@ class TvAccountScreenTest {
             },
         )
 
-        openPlaybackRow("Proxy", downs = 3)
+        openPlaybackRow("Proxy", downs = 4)
         compose.onNodeWithText("Choose your proxy").assertIsDisplayed()
         compose.onNodeWithText("Straight from put.io's servers in Amsterdam.").assertIsDisplayed()
         compose.onNode(inSheet("cdn77")).performKeyInput {

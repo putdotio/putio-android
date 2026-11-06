@@ -316,6 +316,25 @@ internal fun TvVideoPlaybackSheet(
 }
 
 @Composable
+internal fun TvPlayOriginalsSheet(
+    selected: Boolean,
+    onSave: (Boolean) -> Unit,
+    onDismiss: () -> Unit,
+    returnFocus: FocusRequester?,
+) {
+    TvChoiceSheet(
+        title = stringResource(R.string.tv_account_play_originals),
+        choices = listOf(true, false).map {
+            TvSheetChoice(it, stringResource(playOriginalsTvLabel(it)), stringResource(playOriginalsTvDescription(it)))
+        },
+        selected = selected,
+        onSave = onSave,
+        onDismiss = onDismiss,
+        returnFocus = returnFocus,
+    )
+}
+
+@Composable
 internal fun TvQrSheet(
     title: String,
     url: String,

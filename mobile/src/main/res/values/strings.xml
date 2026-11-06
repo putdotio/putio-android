@@ -260,6 +260,12 @@
     <string name="mobile_settings_video_playback_mp4">Direct MP4</string>
     <string name="mobile_settings_video_playback_hls_description">Adapts to your connection. Best for most people.</string>
     <string name="mobile_settings_video_playback_mp4_description">Original quality when the file is already MP4.</string>
+    <string name="mobile_settings_play_originals">Play originals</string>
+    <string name="mobile_settings_play_originals_description">Choose whether this app plays original files.</string>
+    <string name="mobile_settings_play_originals_on">On</string>
+    <string name="mobile_settings_play_originals_off">Off</string>
+    <string name="mobile_settings_play_originals_on_description">Original quality when this device can play the file.</string>
+    <string name="mobile_settings_play_originals_off_description">Always plays the converted version.</string>
     <string name="mobile_settings_autoplay_next">Autoplay next video</string>
     <string name="mobile_settings_default_sort">Default sort order</string>
     <string name="mobile_settings_default_sort_unknown">Not set</string>
