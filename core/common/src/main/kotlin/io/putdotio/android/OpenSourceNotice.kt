@@ -15,6 +15,6 @@ public fun appSourceNotice(appVersion: String): OpenSourceNotice =
         version = appVersion,
         license = "GPL-3.0",
         copyright = "Copyright © put.io",
-        sourceUrl = "https://github.com/putdotio/putio-android/tree/v$appVersion",
+        sourceUrl = "https://github.com/putdotio/putio-android/tree/v${appVersion.substringBefore('-')}",
         licenseUrl = "https://www.gnu.org/licenses/gpl-3.0.html",
     )
