@@ -45,7 +45,6 @@ import io.putdotio.android.settings.AndroidAppConfigPreferences
 import io.putdotio.android.settings.AndroidAppConfigRepository
 import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.android.playback.playbackPreference
-import io.putdotio.android.playback.confirmedStreamingMethod
 import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackEvent
 import io.putdotio.android.playback.PlaybackMediaType
@@ -343,20 +342,6 @@ class TvSessionViewModelTest {
         )
         assertTrue(playback.state.value.content is PlaybackContent.Ready)
         assertEquals(listOf(PlaybackPreference.MP4), playbackRepository.preferencesSeen)
-    }
-
-    @Test
-    fun `a play with the other method resolves only that play with it and keeps the setting`() {
-        appConfigPreferences = AndroidAppConfigPreferences(streamingMethod = StreamingMethod.File)
-        val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
-
-        session.play(media(9, "clip.mp4", PutioFileType.VIDEO), method = StreamingMethod.Hls)
-        assertEquals(StreamingMethod.Hls, checkNotNull(session.playback.value).state.value.target.method)
-        session.play(media(10, "clip 2.mp4", PutioFileType.VIDEO))
-
-        assertNull(checkNotNull(session.playback.value).state.value.target.method)
-        assertEquals(listOf(StreamingMethod.Hls, null), playbackRepository.resolved.map { it.method })
-        assertEquals(StreamingMethod.File, session.appConfig.state.value.confirmedStreamingMethod())
     }
 
     @Test

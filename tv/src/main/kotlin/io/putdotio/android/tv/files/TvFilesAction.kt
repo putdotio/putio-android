@@ -359,10 +359,7 @@ internal fun TvFilesAction.label(): String =
             TvFilesAction.Resume -> R.string.tv_files_action_resume
             TvFilesAction.Play -> R.string.tv_files_detail_play
             TvFilesAction.StartOver -> R.string.tv_files_detail_start_over
-            is TvFilesAction.PlayWith -> when (method) {
-                StreamingMethod.Hls -> R.string.tv_files_action_play_standard
-                StreamingMethod.File -> R.string.tv_files_action_play_direct
-            }
+            is TvFilesAction.PlayWith -> method.playWithLabel()
             TvFilesAction.OpenInVlc -> R.string.tv_files_action_vlc
             is TvFilesAction.SetWatched ->
                 if (watched) R.string.tv_files_action_mark_watched else R.string.tv_files_action_mark_unwatched
@@ -371,6 +368,13 @@ internal fun TvFilesAction.label(): String =
             TvFilesAction.RemoveFromContinueWatching -> R.string.tv_home_remove_continue_watching
         },
     )
+
+@StringRes
+private fun StreamingMethod.playWithLabel(): Int =
+    when (this) {
+        StreamingMethod.Hls -> R.string.tv_files_action_play_standard
+        StreamingMethod.File -> R.string.tv_files_action_play_direct
+    }
 
 @DrawableRes
 internal fun TvFilesAction.icon(): Int =
