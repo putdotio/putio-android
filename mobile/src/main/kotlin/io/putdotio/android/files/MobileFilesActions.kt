@@ -134,6 +134,9 @@ internal data class MobileFilesItemActions(
 
     fun withPlayWith(setting: StreamingMethod, play: (FilesItem, StreamingMethod) -> Unit): MobileFilesItemActions =
         copy(playWith = MobilePlayWith(setting.other(), play))
+
+    fun playingWithVia(play: (FilesItem, StreamingMethod) -> Unit): MobileFilesItemActions =
+        copy(playWith = playWith?.let { MobilePlayWith(it.method, play) })
 }
 
 internal class MobilePlayWith(val method: StreamingMethod, val play: (FilesItem, StreamingMethod) -> Unit)
