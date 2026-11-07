@@ -28,6 +28,7 @@ import io.putdotio.android.files.MOBILE_FILES_MOVE_ACTION_TAG
 import io.putdotio.android.files.MOBILE_FILES_OPEN_ACTION_TAG
 import io.putdotio.android.files.MOBILE_FILES_OPEN_WITH_ACTION_TAG
 import io.putdotio.android.files.MOBILE_FILES_PLAY_ACTION_TAG
+import io.putdotio.android.files.MOBILE_FILES_PLAY_WITH_ACTION_TAG
 import io.putdotio.android.files.MOBILE_FILES_RENAME_ACTION_TAG
 import io.putdotio.android.files.MOBILE_FILES_RENAME_FIELD_TAG
 import io.putdotio.android.files.MOBILE_FILES_SELECT_ACTION_TAG
@@ -55,6 +56,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import io.putdotio.android.files.FilesOpenOrigin
+import io.putdotio.android.settings.StreamingMethod
+import androidx.compose.runtime.key
 
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35], qualifiers = "en-rUS")
@@ -109,6 +112,37 @@ class MobileFilesActionsSheetTest {
         compose.onNodeWithTag(MOBILE_FILES_WATCHED_ACTION_TAG).performScrollTo().performClick()
         compose.onNodeWithTag(MOBILE_FILES_PLAY_ACTION_TAG).performClick()
         compose.runOnIdle { assertEquals(listOf("vlc", "select", "watched=true", "play"), chosen) }
+    }
+
+    @Test
+    fun onlyAVideoOffersTheOtherPlaybackMethod() {
+        val folder = started.copy(id = FilesItemId(8L), name = "Season 4", type = PutioFileType.FOLDER, playback = null)
+        val note = started.copy(id = FilesItemId(9L), name = "notes.txt", type = PutioFileType.TEXT, playback = null)
+        val song = started.copy(id = FilesItemId(10L), name = "song.mp3", type = PutioFileType.AUDIO, playback = null)
+        var item by mutableStateOf(started)
+        compose.setContent {
+            PutioTheme {
+                key(item.id.value) {
+                    MobileFilesActions(
+                        item = item,
+                        folderId = FilesFolder.Root.id,
+                        operation = FilesFolderOperation.Idle,
+                        renameCompletion = null,
+                        onEvent = {},
+                        onDismiss = {},
+                        confirmedTrashEnabled = true,
+                        onPlayItem = {},
+                        itemActions = MobileFilesItemActions().withPlayWith(StreamingMethod.Hls) { _, _ -> },
+                    )
+                }
+            }
+        }
+        compose.onNodeWithTag(MOBILE_FILES_PLAY_WITH_ACTION_TAG).performScrollTo().assertIsDisplayed()
+        listOf(folder, note, song).forEach { other ->
+            item = other
+            compose.onNodeWithText(other.name).assertIsDisplayed()
+            compose.onNodeWithTag(MOBILE_FILES_PLAY_WITH_ACTION_TAG).assertDoesNotExist()
+        }
     }
 
     @Test

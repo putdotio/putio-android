@@ -737,6 +737,8 @@
     <!-- Item actions and dialogs (#373) -->
     <string name="mobile_action_dismiss">Dismiss</string>
     <string name="mobile_files_play">Play</string>
+    <string name="mobile_files_play_with_standard">Play with Standard</string>
+    <string name="mobile_files_play_with_direct_play">Play with Direct play</string>
     <string name="mobile_files_download_action">Download</string>
     <string name="mobile_files_share_action">Share</string>
     <string name="mobile_files_open_in_vlc">Open in VLC</string>

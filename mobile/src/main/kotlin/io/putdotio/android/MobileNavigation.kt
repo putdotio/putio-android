@@ -99,6 +99,7 @@ import io.putdotio.android.settings.AccountSettingsRepositoryResult
 import io.putdotio.android.settings.AccountSettingsState
 import io.putdotio.android.settings.AndroidAppConfigEvent
 import io.putdotio.android.settings.AndroidAppConfigState
+import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.android.settings.AppDiagnostics
 import io.putdotio.android.settings.TunnelRouteOption
 import io.putdotio.android.settings.confirmedResumePlayback
@@ -127,7 +128,8 @@ import io.putdotio.android.files.MobileSearchResultActions
 import io.putdotio.android.files.MobileSearchResultActionsHost
 import io.putdotio.android.search.SearchContent
 
-internal const val MOBILE_PLAYBACK_ROUTE = "playback/{fileId}?name={name}&media={media}&duration={duration}"
+internal const val MOBILE_PLAYBACK_ROUTE =
+    "playback/{fileId}?name={name}&media={media}" + "&duration={duration}&method={method}"
 
 @Composable
 internal fun MobileNavHost(
@@ -211,6 +213,9 @@ internal fun MobileNavHost(
                             vlcInstalled = rememberVlcInstalled(),
                         ) ?: MobileFilesItemActions()
                         ).withContinueWatching(continueWatching)
+                        .withPlayWith(appConfigState.confirmedStreamingMethod()) { item, method ->
+                            navController.navigateToPlayback(item, method = method)
+                        }
                     val fileOpener = remember(account.userId) { MobileFileOpener(account.userId) }
                     val filesContext = LocalContext.current
                     MobileFilesTab(
@@ -386,6 +391,11 @@ internal fun MobileNavHost(
                                 nullable = true
                                 defaultValue = null
                             },
+                            navArgument("method") {
+                                type = NavType.StringType
+                                nullable = true
+                                defaultValue = null
+                            },
                         ),
                 ) { backStackEntry ->
                     val fileId = requireNotNull(backStackEntry.arguments?.getLong("fileId"))
@@ -397,7 +407,9 @@ internal fun MobileNavHost(
                     // The listing's duration spares resolution a lookup for the near-end rule.
                     val durationSeconds = backStackEntry.arguments?.getString("duration")?.toDoubleOrNull()
                         ?.takeIf { it.isFinite() && it > 0.0 }
-                    val target = PlaybackTarget(FilesItemId(fileId), name, mediaType, durationSeconds)
+                    val method = backStackEntry.arguments?.getString("method")
+                        ?.let { wire -> StreamingMethod.entries.firstOrNull { it.wireValue == wire } }
+                    val target = PlaybackTarget(FilesItemId(fileId), name, mediaType, durationSeconds, method = method)
                     val castContext = LocalContext.current
                     val cast = remember(castContext) { MobileCast.controller(castContext) }
                     val playbackViewModel: MobilePlaybackViewModel =
@@ -599,9 +611,14 @@ internal fun NavHostController.navigateToTrash() {
     navigate(MOBILE_TRASH_ROUTE) { launchSingleTop = true }
 }
 
-internal fun NavHostController.navigateToPlayback(item: FilesItem, replaceCurrentPlayback: Boolean = false) {
+internal fun NavHostController.navigateToPlayback(
+    item: FilesItem,
+    replaceCurrentPlayback: Boolean = false,
+    method: StreamingMethod? = null,
+) {
     val mediaType = PlaybackMediaType.fromFileType(item.type) ?: return
-    navigateToPlayback(item.id, item.name, mediaType, replaceCurrentPlayback, item.playback?.durationSeconds)
+    val route = playbackRoute(item.id, item.name, mediaType, item.playback?.durationSeconds, method)
+    navigatePlayback(route, replaceCurrentPlayback)
 }
 
 internal fun NavHostController.navigateToPlayback(
@@ -611,8 +628,23 @@ internal fun NavHostController.navigateToPlayback(
     replaceCurrentPlayback: Boolean = false,
     durationSeconds: Double? = null,
 ) {
+    navigatePlayback(playbackRoute(fileId, name, mediaType, durationSeconds), replaceCurrentPlayback)
+}
+
+private fun playbackRoute(
+    fileId: FilesItemId,
+    name: String,
+    mediaType: PlaybackMediaType,
+    durationSeconds: Double?,
+    method: StreamingMethod? = null,
+): String {
     val duration = durationSeconds?.let { "&duration=$it" }.orEmpty()
-    navigate("playback/${fileId.value}?name=${Uri.encode(name)}&media=${mediaType.name}$duration") {
+    val methodArgument = method?.let { "&method=${it.wireValue}" }.orEmpty()
+    return "playback/${fileId.value}?name=${Uri.encode(name)}&media=${mediaType.name}$duration$methodArgument"
+}
+
+private fun NavHostController.navigatePlayback(route: String, replaceCurrentPlayback: Boolean) {
+    navigate(route) {
         if (replaceCurrentPlayback) popUpTo(MOBILE_PLAYBACK_ROUTE) { inclusive = true }
     }
 }

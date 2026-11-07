@@ -45,6 +45,7 @@ import io.putdotio.android.search.SearchOutput
 import io.putdotio.android.search.SearchState
 import io.putdotio.android.search.authoritativeSessionFailure
 import io.putdotio.android.playback.confirmedAutoplayNextVideo
+import io.putdotio.android.playback.confirmedStreamingMethod
 import io.putdotio.android.playback.nextEpisodeEnabled
 import io.putdotio.android.playback.subtitleStartupPolicy
 import io.putdotio.android.settings.AccountSettingsRepositoryResult
@@ -52,6 +53,7 @@ import io.putdotio.android.settings.AccountSettingsState
 import io.putdotio.android.settings.AndroidAppConfigState
 import io.putdotio.android.settings.SdkAccountSettingsRepository
 import io.putdotio.android.settings.SdkAndroidAppConfigRepository
+import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.android.settings.TunnelRouteOption
 import io.putdotio.android.settings.authoritativeSessionFailure
 import io.putdotio.android.files.FilesSort
@@ -410,6 +412,7 @@ internal fun TvSessionShell(
                     session = session,
                     filesState = filesState,
                     settingsState = settingsState,
+                    playbackMethod = appConfigState.confirmedStreamingMethod(),
                     accountDefaultSort = accountDefaultSort,
                     fileActionFailure = fileActionFailure,
                     undoFailure = undoFailure,
@@ -424,6 +427,7 @@ internal fun TvSessionShell(
                     session = session,
                     searchState = searchState,
                     settingsState = settingsState,
+                    playbackMethod = appConfigState.confirmedStreamingMethod(),
                     openRejected = openRejected,
                     recentSearchFailure = recentSearchFailure,
                     fileActionFailure = fileActionFailure,
@@ -505,6 +509,7 @@ private fun TvFilesPane(
     session: TvSession,
     filesState: FilesBrowserState,
     settingsState: AccountSettingsState,
+    playbackMethod: StreamingMethod,
     accountDefaultSort: FilesSort?,
     fileActionFailure: PutioFailure?,
     undoFailure: TvUndoFailure?,
@@ -543,6 +548,8 @@ private fun TvFilesPane(
         onEvent = session.files::dispatch,
         onPlayMedia = { session.play(it) },
         onPlay = session::play,
+        playbackMethod = playbackMethod,
+        onPlayWith = { item, method -> session.play(item, method = method) },
         modifier = Modifier.focusRequester(paneFocus),
         sessionKey = sessionKey,
         focusMemory = session.filesFocusMemory,
@@ -693,6 +700,7 @@ private fun TvSearchPane(
     session: TvSession,
     searchState: SearchState,
     settingsState: AccountSettingsState,
+    playbackMethod: StreamingMethod,
     openRejected: Boolean,
     recentSearchFailure: PutioFailure?,
     fileActionFailure: PutioFailure?,
@@ -715,6 +723,7 @@ private fun TvSearchPane(
         trashEnabled = null,
         canDelete = false,
         resumePlayback = resumePlayback,
+        playbackMethod = playbackMethod,
     )
     val currentPins by rememberUpdatedState(pins)
     val currentContext by rememberUpdatedState(actionContext)
@@ -732,6 +741,9 @@ private fun TvSearchPane(
                     },
                     handlers = TvFilesActionHandlers(
                         onPlay = { item, start -> playStart.open(session, item, start) },
+                        onPlayWith = { item, method ->
+                            playStart.open(session, item) { session.play(it, method = method) }
+                        },
                         onOpenInVlc = { item ->
                             playStart.open(session, item) { picked ->
                                 streamScope.launch {

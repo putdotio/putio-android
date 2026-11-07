@@ -78,6 +78,8 @@ import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.files.FilesRequestId
 import io.putdotio.android.files.FilesSort
+import io.putdotio.android.files.MOBILE_FILES_PLAY_ACTION_TAG
+import io.putdotio.android.files.MOBILE_FILES_PLAY_WITH_ACTION_TAG
 import io.putdotio.android.files.MOBILE_FILES_SHARE_ACTION_TAG
 import io.putdotio.android.files.MOBILE_FILES_SORT_TAG
 import io.putdotio.android.files.copyForTest
@@ -110,6 +112,7 @@ import io.putdotio.android.settings.AndroidAppConfigContent
 import io.putdotio.android.settings.AndroidAppConfigEvent
 import io.putdotio.android.settings.AndroidAppConfigMutation
 import io.putdotio.android.settings.AndroidAppConfigPreferences
+import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.android.settings.AndroidAppConfigState
 import io.putdotio.android.settings.AccountSettingsState
 import io.putdotio.android.settings.DefaultAccountSettingsPreferences
@@ -1622,6 +1625,77 @@ class MobileShellPlaybackTest {
         }
         compose.onNodeWithContentDescription("Back").performClick()
         compose.onNodeWithTag(MOBILE_NAV_BAR_TAG).assertIsDisplayed()
+    }
+
+    @Test
+    fun aVideoMenuPlaysOnceWithDirectPlayUnderStandard() {
+        val targets = recordingTargets()
+        compose.setPlaybackShell(playback = ShellPlayback(targets.repository))
+
+        compose.onNodeWithContentDescription("Actions for episode.mkv").performClick()
+        compose.onNodeWithText("Play with Standard").assertDoesNotExist()
+        compose.onNodeWithText("Play with Direct play").assertIsDisplayed().performClick()
+        compose.onNodeWithText("Converting to MP4").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Back").performClick()
+        compose.onNodeWithText("episode.mkv").performClick()
+        compose.onNodeWithText("Converting to MP4").assertIsDisplayed()
+
+        compose.runOnIdle {
+            assertEquals(
+                listOf(
+                    PlaybackTarget(FilesItemId(8L), "episode.mkv", method = StreamingMethod.File),
+                    PlaybackTarget(FilesItemId(8L), "episode.mkv"),
+                ),
+                targets.resolved,
+            )
+        }
+    }
+
+    @Test
+    fun aVideoMenuPlaysWithStandardUnderDirectPlay() {
+        val targets = recordingTargets()
+        val directPlay = AndroidAppConfigPreferences(streamingMethod = StreamingMethod.File)
+        compose.setPlaybackShell(
+            appConfigState = readyAndroidAppConfigState(directPlay),
+            playback = ShellPlayback(targets.repository),
+        )
+
+        compose.onNodeWithContentDescription("Actions for episode.mkv").performClick()
+        compose.onNodeWithText("Play with Direct play").assertDoesNotExist()
+        compose.onNodeWithText("Play with Standard").assertIsDisplayed().performClick()
+        compose.onNodeWithText("Converting to MP4").assertIsDisplayed()
+
+        compose.runOnIdle {
+            assertEquals(
+                listOf(PlaybackTarget(FilesItemId(8L), "episode.mkv", method = StreamingMethod.Hls)),
+                targets.resolved,
+            )
+        }
+    }
+
+    @Test
+    fun anAudioMenuOffersNoOtherPlaybackMethod() {
+        compose.setPlaybackShell(filesState = mediaFilesState())
+
+        compose.onNodeWithContentDescription("Actions for song.mp3").performClick()
+        compose.onNodeWithTag(MOBILE_FILES_PLAY_ACTION_TAG).assertIsDisplayed()
+        compose.onNodeWithTag(MOBILE_FILES_PLAY_WITH_ACTION_TAG).assertDoesNotExist()
+    }
+
+    private class RecordingTargets(val resolved: MutableList<PlaybackTarget>, val repository: PlaybackRepository)
+
+    private fun recordingTargets(): RecordingTargets {
+        val resolved = mutableListOf<PlaybackTarget>()
+        val repository = object : PlaybackRepository by ConversionRepository {
+            override suspend fun resolve(
+                target: PlaybackTarget,
+                convertedOnly: Boolean,
+            ): PlaybackRepositoryResult<PlaybackResolution> {
+                resolved += target
+                return ConversionRepository.resolve(target)
+            }
+        }
+        return RecordingTargets(resolved, repository)
     }
 
     @Test

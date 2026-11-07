@@ -1,6 +1,7 @@
 package io.putdotio.android.playback
 
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.sdk.account.AccountDisk
 import io.putdotio.sdk.account.AccountDownloadToken
 import io.putdotio.sdk.account.AccountInfo
@@ -386,6 +387,35 @@ class SdkPlaybackRepositoryTest {
 
             assertEquals(listOf(PlaybackPreference.HLS, PlaybackPreference.MP4), requests.map { it.preference })
             assertEquals(2, providerCalls)
+        }
+
+    @Test
+    fun aTargetMethodResolvesThatPlayAndANullOneFollowsTheSetting() =
+        runBlocking {
+            val requests = mutableListOf<PlaybackRequest>()
+            fun repository(setting: PlaybackPreference) = SdkPlaybackRepository(
+                playbackPreference = { setting },
+                loadAccount = { account(downloadToken = Token, useStartFrom = true) },
+                resolvePlayback = {
+                    requests += it
+                    io.putdotio.sdk.files.PlaybackResolution.Conversion(PlaybackConversionState.Queued)
+                },
+            )
+
+            repository(PlaybackPreference.HLS).resolve(Target.copy(method = StreamingMethod.File))
+            repository(PlaybackPreference.MP4).resolve(Target.copy(method = StreamingMethod.Hls))
+            repository(PlaybackPreference.HLS).resolve(Target)
+            repository(PlaybackPreference.MP4).resolve(Target)
+
+            assertEquals(
+                listOf(
+                    PlaybackPreference.MP4,
+                    PlaybackPreference.HLS,
+                    PlaybackPreference.HLS,
+                    PlaybackPreference.MP4,
+                ),
+                requests.map { it.preference },
+            )
         }
 
     @Test

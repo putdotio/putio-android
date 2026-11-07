@@ -100,6 +100,7 @@ import io.putdotio.android.tv.TvSnackbarMessage
 import io.putdotio.android.tv.TvSnackbarState
 import io.putdotio.android.tv.TvTrashUndoOffer
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.settings.StreamingMethod
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.withFrameNanos
 import io.putdotio.android.tv.returnDestination
@@ -136,6 +137,8 @@ internal fun TvFilesScreen(
      */
     focusMemory: MutableMap<Long, Long> = remember(sessionKey) { mutableMapOf() },
     onPlay: (FilesItem, TvPlayStart) -> Unit = { item, _ -> onPlayMedia(item) },
+    playbackMethod: StreamingMethod? = null,
+    onPlayWith: (FilesItem, StreamingMethod) -> Unit = { _, _ -> },
     resumePlayback: Boolean = true,
     detailSources: TvFilesDetailSources = remember(sessionKey) { TvFilesDetailSources.None },
     /** Opens images, PDFs and text in the viewer; without it they land on the unsupported screen. */
@@ -212,6 +215,7 @@ internal fun TvFilesScreen(
         trashEnabled = confirmedTrashEnabled,
         canDelete = current.operation.canStartOperation,
         resumePlayback = resumePlayback,
+        playbackMethod = playbackMethod,
     )
     val actionContextOf = { item: FilesItem -> actionContext.copy(pinned = item.pinnedIn(pinnedIds)) }
     val actionsOf = { item: FilesItem -> item.tvActions(actionContextOf(item)) }
@@ -220,6 +224,7 @@ internal fun TvFilesScreen(
     }
     val handlers = TvFilesActionHandlers(
         onPlay = onPlay,
+        onPlayWith = onPlayWith,
         onOpenInVlc = onOpenInVlc,
         onSetWatched = onSetWatched,
         onSetPinned = onSetPinned,
