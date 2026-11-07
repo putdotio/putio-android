@@ -35,8 +35,8 @@ internal class OriginalPlaybackDecision(
     fun fallbackReason(mediaInfo: PutioMediaInfo?): PlaybackFallbackReason? {
         if (mediaInfo == null) return PlaybackFallbackReason.NoMediaInfo
         val streams = mediaInfo.streams.orEmpty()
-        if (!mediaInfo.playbackIssues.isNullOrEmpty()) return PlaybackFallbackReason.PlaybackIssue
         return when {
+            !mediaInfo.playbackIssues.isNullOrEmpty() -> PlaybackFallbackReason.PlaybackIssue
             streams.isEmpty() -> PlaybackFallbackReason.NoMediaInfo
             !MediaInfoFormats.playableContainer(mediaInfo.format) -> PlaybackFallbackReason.ContainerUnsupported
             else -> streamReason(streams)
