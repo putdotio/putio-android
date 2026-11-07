@@ -237,7 +237,8 @@ internal fun TvUnsupportedScreen(target: PlaybackTarget) {
         TvEmptyState(
             glyph = PutioEmptyGlyph.NoResults,
             headline = stringResource(R.string.tv_player_unsupported_title),
-            message = null,
+            message = stringResource(R.string.tv_player_unsupported_video_message)
+                .takeIf { target.mediaType == PlaybackMediaType.VIDEO },
         )
     }
 }
