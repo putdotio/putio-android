@@ -21,6 +21,7 @@ public enum class PlaybackFallbackReason(
     NoMediaInfo("no_media_info"),
     CodecUnmapped("codec_unmapped"),
     VideoUnsupported("video_unsupported"),
+    NoVideoTrack("no_video_track"),
     AudioUnsupported("audio_unsupported"),
     ContainerUnsupported("container_unsupported"),
     DecoderError("decoder_error"),
@@ -28,15 +29,17 @@ public enum class PlaybackFallbackReason(
 }
 
 /**
- * Whether the device plays these tracks: null when it does, or when there is no video track to
- * judge yet; otherwise why the original falls back.
+ * Whether the device plays these tracks: null when it does, or before any track is known; otherwise
+ * why the original falls back. Tracks without video mean the stream lost it, as put.io's HLS does
+ * for VP9 originals, so callers skip this verdict for audio files.
  */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 public fun directPlayVerdict(tracks: Tracks): PlaybackFallbackReason? {
     val video = tracks.groups.filter { it.type == C.TRACK_TYPE_VIDEO }
     val audio = tracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }
     return when {
-        video.isEmpty() -> null
+        tracks.isEmpty -> null
+        video.isEmpty() -> PlaybackFallbackReason.NoVideoTrack
         video.none { it.isSupported(false) } -> PlaybackFallbackReason.VideoUnsupported
         audio.isNotEmpty() && audio.none { it.isSupported(false) } -> PlaybackFallbackReason.AudioUnsupported
         else -> null

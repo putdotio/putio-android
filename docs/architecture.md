@@ -115,7 +115,7 @@ video, and its decoders, audio passthrough or the bundled FFmpeg take one audio
 stream; otherwise it plays converted. FFmpeg decodes audio only, after
 MediaCodec. Devices with the memory for it draw ASS/SSA subtitles with libass,
 styling included, unless the viewer picked a subtitle size; others show their text. An original that still
-fails before its first frame falls back to converted at the same position. The
+fails before its first frame, or opens without a video track, falls back to converted at the same position. The
 viewer can also switch an original to converted from the player; the device
 remembers the last 200 switched files and opens them converted. Cast always gets the
 converted stream. Where VLC is installed, a video the player
