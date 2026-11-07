@@ -7,11 +7,9 @@ import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.sdk.files.PlaybackPreference
 
 public fun AndroidAppConfigState.playbackPreference(): PlaybackPreference =
-    when (confirmedPreferences?.streamingMethod) {
+    when (confirmedStreamingMethod()) {
         StreamingMethod.File -> PlaybackPreference.MP4
-        StreamingMethod.Hls,
-        null,
-        -> PlaybackPreference.HLS
+        StreamingMethod.Hls -> PlaybackPreference.HLS
     }
 
 public fun AndroidAppConfigState.confirmedAutoplayNextVideo(): Boolean =

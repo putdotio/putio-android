@@ -258,7 +258,7 @@
     <string name="mobile_settings_playback_method_description">Choose how this app plays videos.</string>
     <string name="mobile_settings_playback_standard">Standard</string>
     <string name="mobile_settings_playback_direct">Direct play</string>
-    <string name="mobile_settings_playback_standard_description">Works on every device, with Cast and downloads. Converted videos play at up to 1080p, stereo.</string>
+    <string name="mobile_settings_playback_standard_description">Works on every device. Converted videos play at up to 1080p, stereo.</string>
     <string name="mobile_settings_playback_direct_description">Plays the original file, up to 4K and surround, when this device can. Converted otherwise.</string>
     <string name="mobile_settings_autoplay_next">Autoplay next video</string>
     <string name="mobile_settings_default_sort">Default sort order</string>
