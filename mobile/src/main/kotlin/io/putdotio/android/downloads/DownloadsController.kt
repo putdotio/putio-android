@@ -69,7 +69,11 @@ internal class DownloadsController(
                 }
             }
         }
-        enqueue { for (entry in store.entries.value) if (entry.awaitsDirectPlay) queueStart(entry, decide = true) }
+        enqueue {
+            for (entry in store.entries.value) {
+                if (entry.awaitsDirectPlay) queueStart(entry, decide = true, startup = true)
+            }
+        }
     }
 
     private fun sampleSpeeds(entries: List<DownloadEntry>) {
@@ -122,17 +126,23 @@ internal class DownloadsController(
         enqueue {
             // Re-check under the mutation lock: a removal may have landed since dispatch.
             if (!accepts(fresh.fileId, retry = false)) return@enqueue
-            val kept = store.find(fresh.fileId)?.takeIf { it.keepsArtifact && request.method == null }
+            val replaced = store.find(fresh.fileId)
+            val kept = replaced?.takeIf { it.keepsArtifact && request.method == null }
             val entry = kept?.let {
                 fresh.copy(artifact = it.artifact, subtitles = it.subtitles, accepted = it.accepted)
             } ?: fresh
             store.upsert(entry)
-            queueStart(entry, decide = kept == null)
+            queueStart(entry, decide = kept == null, replaced = replaced)
         }
         return true
     }
 
-    private fun queueStart(entry: DownloadEntry, decide: Boolean) {
+    private fun queueStart(
+        entry: DownloadEntry,
+        decide: Boolean,
+        replaced: DownloadEntry? = null,
+        startup: Boolean = false,
+    ) {
         val directPlay = if (decide && entry.resolvesDirectPlay) {
             scope.async {
                 lookups.withPermit { sources.directPlay(entry.fileId, entry.subtitlesHidden != true) }
@@ -140,7 +150,7 @@ internal class DownloadsController(
         } else {
             null
         }
-        val pending = PendingStart(entry, directPlay)
+        val pending = PendingStart(entry, directPlay, replaced, startup)
         latestStarts[entry.fileId] = pending
         starts.trySend(pending)
     }
@@ -152,9 +162,10 @@ internal class DownloadsController(
             latestStarts -= pending.entry.fileId
             val current = store.find(pending.entry.fileId)?.takeIf {
                 !it.removing && !engine.isRemoving(it.fileId) &&
-                    synchronized(lock) { it.fileId !in mutableState.value.removing }
+                    synchronized(lock) { it.fileId !in mutableState.value.removing } &&
+                    (!pending.startup || it.awaitsDirectPlay && !engine.hasRecord(it.fileId))
             } ?: return
-            val chosen = current.decidedBy(directPlay)
+            val chosen = pending.replaced?.takeIf { directPlay.unavailable } ?: current.decidedBy(directPlay)
             if (chosen != current) store.upsert(chosen)
             if (directPlay.unavailable) {
                 engine.notifyFailed(chosen, DownloadFailureReason.UNAVAILABLE)
@@ -173,7 +184,7 @@ internal class DownloadsController(
             // A pause that raced the failure must not hold the retried request.
             val queued = start.entry.copy(status = DownloadStatus.Queued, queuedAt = clock(), pauseRequested = false)
             store.upsert(queued)
-            queueStart(queued, decide = start.decides)
+            queueStart(queued, decide = start.decides, replaced = entry)
         }
         return true
     }
@@ -289,7 +300,12 @@ internal class DownloadsController(
     }
 }
 
-private class PendingStart(val entry: DownloadEntry, val directPlay: Deferred<DirectPlayDownload?>?)
+private class PendingStart(
+    val entry: DownloadEntry,
+    val directPlay: Deferred<DirectPlayDownload?>?,
+    val replaced: DownloadEntry?,
+    val startup: Boolean,
+)
 
 /** Progress is display-only, so it polls outside the mutation queue and dies with the controller scope. */
 private class ProgressWatch(

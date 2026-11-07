@@ -18,6 +18,8 @@ internal interface DownloadEngine {
 
     fun isRemoving(fileId: FilesItemId): Boolean = false
 
+    suspend fun hasRecord(fileId: FilesItemId): Boolean = false
+
     /**
      * Holds a running or waiting transfer, keeping its bytes, until it is released again; a released
      * one rejoins the queue in its old place.

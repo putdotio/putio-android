@@ -21,8 +21,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * A download notification's actions: Try again on a failed download, Pause and Cancel on the running
@@ -121,14 +119,12 @@ internal class MobileDownloadActionReceiver : BroadcastReceiver() {
                 signedIn = signedInAccount(context),
                 find = { userId, fileId -> MobileDownloadStore.peek(context, userId, fileId) },
                 start = { userId, entry ->
-                    withContext(Dispatchers.IO) {
-                        downloads.dropReplacedBytes(downloads.downloadManager.downloadIndex, userId, entry)
-                    }
+                    downloads.dropReplacedBytes(downloads.downloadManager, userId, entry, Dispatchers.IO)
                     sendDownloadRequest(context, userId, entry)
                 },
                 dismiss = { userId, fileId -> MobileDownloadNotifications.cancel(context, userId, fileId) },
                 decision = DownloadRetryDecision(
-                    directPlay = directPlay::resolve,
+                    directPlay = { fileId, subtitles -> directPlay.resolve(fileId, subtitles, RETRY_LOOKUP_BUDGET) },
                     save = { userId, entry -> MobileDownloadStore.shared(context, userId).upsert(entry) },
                     failed = { userId, entry ->
                         MobileDownloadNotifications.post(
@@ -261,16 +257,15 @@ internal class DownloadNotificationRetries(
     private suspend fun queue(userId: Long, entry: DownloadEntry): DownloadRetryOutcome {
         val retry = entry.retryStart()
         val answer = if (retry.asksDirectPlay) {
-            withTimeoutOrNull(RETRY_LOOKUP_BUDGET) { decision.directPlay(entry.fileId, entry.subtitlesHidden != true) }
+            decision.directPlay(entry.fileId, entry.subtitlesHidden != true)
         } else {
             null
         }
-        val chosen = retry.entry.decidedBy(answer)
         if (answer.unavailable) {
-            decision.save(userId, chosen)
-            decision.failed(userId, chosen)
+            decision.failed(userId, entry)
             return DownloadRetryOutcome.UNAVAILABLE
         }
+        val chosen = retry.entry.decidedBy(answer)
         if (chosen.artifact != entry.artifact || chosen.subtitles != entry.subtitles) {
             decision.save(userId, entry.copy(artifact = chosen.artifact, subtitles = chosen.subtitles))
         }

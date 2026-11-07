@@ -189,6 +189,48 @@ class DownloadMethodsTest {
     }
 
     @Test
+    fun aLostLookupNeverStartsOverADownloadMedia3AlreadyHoldsOrFinishedMeanwhile() = runBlocking {
+        val lost = DownloadEntry(
+            video.fileId, video.name, PutioFileType.VIDEO, DownloadArtifact.MP4, DownloadStatus.Queued, createdAt = 1L,
+        )
+        val finished = lost.copy(fileId = tears.fileId, name = tears.name)
+        val waiting = lost.copy(fileId = FilesItemId(30L), name = "Waiting.mkv")
+        for (row in listOf(lost, finished, waiting)) store.upsert(row)
+        engine.recorded += lost.fileId
+        val answer = CompletableDeferred<DirectPlayDownload>()
+        val sources = DownloadSources({ StreamingMethod.Hls }) { fileId, _ ->
+            asked += fileId to true
+            answer.await()
+        }
+        DownloadsController(store, engine, this, sources = sources).use {
+            withTimeout(5_000L) { while (asked.size < 3) yield() }
+            store.upsert(finished.copy(status = DownloadStatus.Completed(1_000L), accepted = true))
+
+            answer.complete(original())
+            engine.await { it.started.isNotEmpty() }
+            settle()
+            assertEquals(listOf(waiting.fileId), engine.started.map { it.fileId })
+            assertEquals(lost, store.find(lost.fileId))
+        }
+    }
+
+    @Test
+    fun anUnavailableAnswerToAFileMenuMethodLeavesTheRowMedia3HoldsAsItWas() = runBlocking {
+        val missing = failed(DownloadArtifact.HLS, 0L).copy(status = DownloadStatus.Missing)
+        store.upsert(missing)
+        engine.recorded += missing.fileId
+        val unavailable = DirectPlayDownload(DirectPlayDownloadSource.Unavailable)
+        controller(StreamingMethod.Hls, mapOf(video.fileId to unavailable)).use { controller ->
+            assertTrue(controller.dispatch(DownloadsEvent.Start(video.copy(method = StreamingMethod.File))))
+            engine.await { it.failed.size == 1 }
+
+            assertEquals(listOf(missing), store.entries.value)
+            assertEquals(missing to DownloadFailureReason.UNAVAILABLE, engine.failed.single())
+            assertTrue(engine.started.isEmpty())
+        }
+    }
+
+    @Test
     fun aVideoShowsQueuedWhileTheLookupRunsAndACancelledOneNeverStarts() = runBlocking {
         val answer = CompletableDeferred<DirectPlayDownload>()
         val sources = DownloadSources({ StreamingMethod.File }) { _, _ -> answer.await() }

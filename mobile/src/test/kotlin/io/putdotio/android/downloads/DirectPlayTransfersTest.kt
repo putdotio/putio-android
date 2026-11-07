@@ -99,7 +99,7 @@ class DirectPlayTransfersTest {
     @Test
     fun anOriginalVideoRefusedBeforeItsFirstByteDownloadsTheConvertedFileWithItsSubtitles() = runBlocking {
         val store = MobileDownloadStore(preferences, "user-$USER", Dispatchers.Unconfined)
-        val original = entry(DownloadArtifact.ORIGINAL, listOf(ENGLISH))
+        val original = entry(DownloadArtifact.ORIGINAL, listOf(ENGLISH)).copy(accepted = false)
         store.upsert(original)
         val listener = MobileDownloadNotifications(context, stores = { store }) { USER }
 
@@ -115,6 +115,7 @@ class DirectPlayTransfersTest {
         val row = store.find(original.fileId)
         assertEquals(DownloadArtifact.MP4 to DownloadStatus.Queued, row?.artifact to row?.status)
         assertEquals(listOf(ENGLISH), row?.subtitles)
+        assertEquals(false, row?.awaitsDirectPlay)
     }
 
     @Test

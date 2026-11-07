@@ -67,7 +67,7 @@ internal class MobileDownloadEngine(
 
         override fun onDownloadRemoved(downloadManager: DownloadManager, download: Download) {
             val fileId = fileIdOf(userId, download.request.id)
-            if (closed || fileId == null) return
+            if (closed || fileId == null || download.request.id in downloads.replacing) return
             synchronized(removing) { removing -= fileId }
             store.removeBlocking(fileId)
         }
@@ -164,7 +164,7 @@ internal class MobileDownloadEngine(
     }
 
     override suspend fun start(entry: DownloadEntry) {
-        withContext(ioDispatcher) { downloads.dropReplacedBytes(downloadManager.downloadIndex, userId, entry) }
+        downloads.dropReplacedBytes(downloadManager, userId, entry, ioDispatcher)
         if (!closed) startDownload(appContext, downloadManager, userId, entry)
     }
 
@@ -176,15 +176,7 @@ internal class MobileDownloadEngine(
         val contentId = downloadContentId(userId, fileId)
         // The record is read before the remove goes out, so Media3 cannot confirm it before the
         // row is marked; the service queue runs it after any add already posted either way.
-        val known = withContext(ioDispatcher) {
-            try {
-                downloadManager.downloadIndex.getDownload(contentId) != null
-            } catch (_: IOException) {
-                // An unreadable index proves nothing; the row stays removing until Media3 reports or
-                // the next reconcile finds no record.
-                true
-            }
-        }
+        val known = hasRecord(fileId)
         MobileDownloadNotifications.cancel(appContext, userId, fileId)
         DownloadService.sendRemoveDownload(appContext, MobileDownloadService::class.java, contentId, false)
         if (known) {
@@ -223,6 +215,16 @@ internal class MobileDownloadEngine(
             // Refused from the background; see above.
         }
     }
+
+    // An unreadable index proves nothing: a removal waits for Media3, and a startup lookup leaves the row alone.
+    override suspend fun hasRecord(fileId: FilesItemId): Boolean =
+        withContext(ioDispatcher) {
+            try {
+                downloadManager.downloadIndex.getDownload(downloadContentId(userId, fileId)) != null
+            } catch (_: IOException) {
+                true
+            }
+        }
 
     /** True while Media3 is still deleting this file's bytes; a new download must wait. */
     override fun isRemoving(fileId: FilesItemId): Boolean = synchronized(removing) { fileId in removing }

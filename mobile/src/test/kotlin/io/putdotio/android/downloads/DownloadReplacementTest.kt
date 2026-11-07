@@ -3,6 +3,7 @@ package io.putdotio.android.downloads
 import android.app.Application
 import android.content.Context
 import android.net.Uri
+import android.os.Looper
 import androidx.core.content.IntentCompat
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.database.StandaloneDatabaseProvider
@@ -16,6 +17,7 @@ import androidx.media3.exoplayer.offline.DownloadManager
 import androidx.media3.exoplayer.offline.DownloadProgress
 import androidx.media3.exoplayer.offline.DownloadRequest
 import androidx.media3.exoplayer.offline.DownloadService
+import androidx.media3.exoplayer.offline.DownloaderFactory
 import androidx.media3.exoplayer.scheduler.Requirements
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -25,6 +27,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -88,6 +91,32 @@ class DownloadReplacementTest {
     }
 
     @Test
+    fun aStartForAnotherRequestStopsALiveDownloadAndDropsItsBytesWithoutLosingTheRow() {
+        val paused = entry(13L, DownloadArtifact.ORIGINAL, DownloadStatus.Paused(DownloadPauseReason.USER, 4L))
+            .copy(subtitles = listOf(ENGLISH), pauseRequested = true)
+        index.putDownload(record(paused, Download.STATE_STOPPED, MobileDownloadEngine.STOP_REASON_PAUSED))
+        val held = listOf(request(paused).uri.toString(), ENGLISH.url)
+        for (url in held) cache(url)
+        runBlocking { store.upsert(paused) }
+        val engine = engine(MobileDownloadCache.get(context).downloaderFactory)
+
+        val start = scope.launch { engine.start(paused.copy(subtitles = listOf(FRENCH))) }
+        val deadline = System.currentTimeMillis() + WAIT_MILLIS
+        while (!start.isCompleted && System.currentTimeMillis() < deadline) {
+            shadowOf(Looper.getMainLooper()).idle()
+            Thread.sleep(POLL_MILLIS)
+        }
+
+        assertTrue(start.isCompleted)
+        assertEquals(listOf(false, false), held.map(::cached))
+        assertEquals(paused.fileId, store.find(paused.fileId)?.fileId)
+        assertEquals(
+            listOf("$USER:13 [fr-key]"),
+            sentAdds().map { "${it.id} ${it.data.toDownloadRequestData().subtitles.map { s -> s.key }}" },
+        )
+    }
+
+    @Test
     fun aDirectPlayVideoLostMidLookupIsLeftForTheControllersLookup() {
         runBlocking {
             store.upsert(entry(20L, DownloadArtifact.MP4, DownloadStatus.Queued).copy(accepted = false))
@@ -99,8 +128,10 @@ class DownloadReplacementTest {
         assertEquals(listOf("$USER:21"), sentAdds().map { it.id })
     }
 
-    private fun engine(): MobileDownloadEngine {
-        val manager = DownloadManager(context, index) { error("No transfer runs here") }.apply {
+    private fun engine(
+        downloaders: DownloaderFactory = DownloaderFactory { error("No transfer runs here") },
+    ): MobileDownloadEngine {
+        val manager = DownloadManager(context, index, downloaders).apply {
             requirements = Requirements(0)
             managers += this
         }
@@ -138,13 +169,13 @@ class DownloadReplacementTest {
         return checkNotNull(sent)
     }
 
-    private fun record(entry: DownloadEntry, state: Int) = Download(
+    private fun record(entry: DownloadEntry, state: Int, stopReason: Int = Download.STOP_REASON_NONE) = Download(
         request(entry),
         state,
         0L,
         0L,
         TOTAL,
-        Download.STOP_REASON_NONE,
+        stopReason,
         if (state == Download.STATE_FAILED) Download.FAILURE_REASON_UNKNOWN else Download.FAILURE_REASON_NONE,
         DownloadProgress(),
     )
@@ -163,6 +194,8 @@ class DownloadReplacementTest {
         const val USER = 7L
         const val TOTAL = 1_000L
         const val CACHED_BYTES = 4
+        const val WAIT_MILLIS = 5_000L
+        const val POLL_MILLIS = 10L
         val KEYS = UserScopedCacheKeys(USER)
         val NO_BYTES = DownloadStatus.Failed(DownloadFailureReason.NETWORK, 0L)
         val ENGLISH = DownloadSubtitle(

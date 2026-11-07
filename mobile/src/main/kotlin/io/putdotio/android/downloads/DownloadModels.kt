@@ -138,7 +138,7 @@ internal fun DownloadFailureReason.fallsBackToConverted(bytesDownloaded: Long): 
 
 internal fun DownloadEntry.convertedFallback(): DownloadEntry? =
     artifact.convertedFallback(type)?.let { converted ->
-        copy(artifact = converted, status = DownloadStatus.Queued, pauseRequested = false)
+        copy(artifact = converted, status = DownloadStatus.Queued, accepted = true, pauseRequested = false)
     }
 
 /** Enough of a Files item to start a download without another API call. */

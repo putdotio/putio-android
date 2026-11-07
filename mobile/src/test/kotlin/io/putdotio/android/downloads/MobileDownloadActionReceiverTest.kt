@@ -97,13 +97,10 @@ class MobileDownloadActionReceiverTest {
         assertEquals(listOf("en-key"), sent.first().subtitles.map { it.key })
         assertEquals(listOf(11L, 13L), asked)
         assertEquals(
-            listOf(
-                untouched.copy(artifact = DownloadArtifact.ORIGINAL, subtitles = sent.first().subtitles),
-                gone.copy(status = DownloadStatus.Failed(DownloadFailureReason.UNAVAILABLE, 0L)),
-            ),
+            listOf(untouched.copy(artifact = DownloadArtifact.ORIGINAL, subtitles = sent.first().subtitles)),
             saved,
         )
-        assertEquals(listOf(saved.last()), failed)
+        assertEquals(listOf(gone), failed)
         assertTrue(dismissed.isEmpty())
     }
 

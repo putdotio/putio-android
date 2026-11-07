@@ -138,6 +138,29 @@ class DirectPlayDownloadsTest {
         assertNull(answer.await())
     }
 
+    @Test
+    fun aBudgetKeepsALateFileAnswerAndGivesSubtitlesOnlyWhatIsLeft() = runTest {
+        val tight = DirectPlayDownloads(
+            originalVideoPolicy = { OriginalVideoPolicy.Check },
+            decision = OriginalPlaybackDecision(FakeDecoderInventory(PHONE)),
+            switchedToConverted = SwitchedToConvertedFiles.None,
+            loadFile = { id ->
+                delay(3.seconds)
+                files.getValue(id)
+            },
+            listSubtitles = { awaitCancellation() },
+            io = EmptyCoroutineContext,
+        )
+        val video = file(H264_MKV, captured("h264-high-aac.mkv"))
+
+        val answer = async { tight.resolve(video, includeSubtitles = true, budget = 4.seconds) }
+        advanceTimeBy(4.seconds)
+        runCurrent()
+
+        assertTrue(answer.isCompleted)
+        assertEquals(DirectPlayDownload(Original), answer.await())
+    }
+
     private suspend fun DirectPlayDownloads.source(fileId: FilesItemId): DirectPlayDownloadSource? =
         resolve(fileId, includeSubtitles = false)?.source
 

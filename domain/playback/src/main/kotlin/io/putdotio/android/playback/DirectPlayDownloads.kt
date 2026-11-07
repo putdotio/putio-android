@@ -9,6 +9,7 @@ import io.putdotio.sdk.files.PutioFile
 import io.putdotio.sdk.files.PutioFileType
 import java.util.concurrent.CancellationException
 import kotlin.coroutines.CoroutineContext
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -47,16 +48,27 @@ public class DirectPlayDownloads internal constructor(
         listSubtitles = { fileId -> client.files.listSubtitles(fileId).subtitles },
     )
 
-    /** Null when the file could not be read; subtitles are best effort and never fail the answer. */
-    public suspend fun resolve(fileId: FilesItemId, includeSubtitles: Boolean): DirectPlayDownload? =
+    /**
+     * Null when the file could not be read within [budget]; subtitles are best effort within what is left of it
+     * and never fail the answer.
+     */
+    public suspend fun resolve(
+        fileId: FilesItemId,
+        includeSubtitles: Boolean,
+        budget: Duration = LOOKUP_TIMEOUT + SUBTITLES_TIMEOUT,
+    ): DirectPlayDownload? =
         withContext(io) {
-            val source = withTimeoutOrNull(LOOKUP_TIMEOUT) { sourceOrNull(fileId.value) } ?: return@withContext null
-            val subtitles = if (includeSubtitles && source != DirectPlayDownloadSource.Unavailable) {
-                withTimeoutOrNull(SUBTITLES_TIMEOUT) { subtitles(fileId.value) }.orEmpty()
-            } else {
-                emptyList()
+            var answer: DirectPlayDownload? = null
+            withTimeoutOrNull(budget) {
+                val source = withTimeoutOrNull(LOOKUP_TIMEOUT) { sourceOrNull(fileId.value) }
+                    ?: return@withTimeoutOrNull
+                answer = DirectPlayDownload(source)
+                if (includeSubtitles && source != DirectPlayDownloadSource.Unavailable) {
+                    val subtitles = withTimeoutOrNull(SUBTITLES_TIMEOUT) { subtitles(fileId.value) }.orEmpty()
+                    answer = DirectPlayDownload(source, subtitles)
+                }
             }
-            DirectPlayDownload(source, subtitles)
+            answer
         }
 
     @Suppress("TooGenericExceptionCaught")

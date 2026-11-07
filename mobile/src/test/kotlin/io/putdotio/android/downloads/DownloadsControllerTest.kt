@@ -375,6 +375,7 @@ internal class FakeDownloadEngine : DownloadEngine {
     val paused = mutableListOf<FilesItemId>()
     val resumed = mutableListOf<FilesItemId>()
     val failed = mutableListOf<Pair<DownloadEntry, DownloadFailureReason>>()
+    val recorded = mutableSetOf<FilesItemId>()
     override var concurrency: Int = DOWNLOAD_CONCURRENCY_DEFAULT
         private set
     var progressRefreshes = 0
@@ -399,6 +400,8 @@ internal class FakeDownloadEngine : DownloadEngine {
     }
 
     override fun isRemoving(fileId: FilesItemId): Boolean = fileId in removing
+
+    override suspend fun hasRecord(fileId: FilesItemId): Boolean = fileId in recorded
 
     override suspend fun setPaused(fileId: FilesItemId, paused: Boolean) {
         if (paused) this.paused += fileId else resumed += fileId

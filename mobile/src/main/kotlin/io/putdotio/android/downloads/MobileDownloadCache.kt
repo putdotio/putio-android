@@ -31,10 +31,17 @@ import io.putdotio.android.auth.MobileOAuthRuntime
 import io.putdotio.android.files.FilesItemId
 import java.io.File
 import java.io.IOException
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.resume
+import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
 
 private const val OAUTH_TOKEN_QUERY = "oauth_token"
@@ -100,7 +107,7 @@ internal class MobileDownloadCache private constructor(context: Context) {
             .setUpstreamDataSourceFactory(upstreamFactory)
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
 
-    private val downloaderFactory =
+    internal val downloaderFactory: DownloaderFactory =
         UserScopedDownloaderFactory(::cacheFactory, Executors.newFixedThreadPool(DOWNLOAD_THREADS))
 
     /**
@@ -152,14 +159,29 @@ internal class MobileDownloadCache private constructor(context: Context) {
         downloadManager.downloadIndex.offlineRequest(userId, fileId)
             ?.let { request -> request.copy(subtitles = request.subtitles.filter { holdsSubtitle(userId, it) }) }
 
-    fun dropReplacedBytes(index: DownloadIndex, userId: Long, entry: DownloadEntry) {
-        val recorded = try {
-            index.getDownload(downloadContentId(userId, entry.fileId))
-        } catch (_: IOException) {
-            null
+    private val replacingIds: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
+    val replacing: Set<String> get() = replacingIds
+
+    suspend fun dropReplacedBytes(manager: DownloadManager, userId: Long, entry: DownloadEntry, io: CoroutineContext) {
+        val contentId = downloadContentId(userId, entry.fileId)
+        val recorded = withContext(io) {
+            try {
+                manager.downloadIndex.getDownload(contentId)
+            } catch (_: IOException) {
+                null
+            }
         }
-        if (recorded?.isTerminalState == true && !recorded.request.fetchesSameAs(entry.downloadRequest(userId))) {
-            downloaderFactory.createDownloader(recorded.request).remove()
+        if (recorded == null || recorded.request.fetchesSameAs(entry.downloadRequest(userId))) return
+        if (recorded.isTerminalState) {
+            withContext(io) { downloaderFactory.createDownloader(recorded.request).remove() }
+            return
+        }
+        replacingIds += contentId
+        try {
+            withTimeoutOrNull(REPLACE_TIMEOUT) { manager.removeAndAwait(contentId) }
+        } finally {
+            replacingIds -= contentId
         }
     }
 
@@ -180,6 +202,7 @@ internal class MobileDownloadCache private constructor(context: Context) {
         private const val MIN_RETRIES = 3
         private val DOWNLOAD_REQUIREMENTS = Requirements(Requirements.NETWORK or Requirements.DEVICE_STORAGE_NOT_LOW)
         private const val SESSION_SETTLE_TIMEOUT_SECONDS = 30L
+        private val REPLACE_TIMEOUT = 10.seconds
 
         @Volatile
         private var instance: MobileDownloadCache? = null
@@ -205,6 +228,21 @@ internal fun DownloadRequest.ownerUserId(): Long? = id.substringBefore(':', miss
 internal fun DownloadIndex.offlineRequest(userId: Long, fileId: FilesItemId): OfflineRequest? =
     getDownload(downloadContentId(userId, fileId))?.request?.let { request ->
         OfflineRequest(request.uri.toString(), request.data.toDownloadRequestData().subtitles)
+    }
+
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+private suspend fun DownloadManager.removeAndAwait(contentId: String) =
+    suspendCancellableCoroutine { continuation ->
+        val listener = object : DownloadManager.Listener {
+            override fun onDownloadRemoved(downloadManager: DownloadManager, download: Download) {
+                if (download.request.id != contentId) return
+                downloadManager.removeListener(this)
+                continuation.resume(Unit)
+            }
+        }
+        addListener(listener)
+        continuation.invokeOnCancellation { removeListener(listener) }
+        removeDownload(contentId)
     }
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
