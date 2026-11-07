@@ -108,6 +108,7 @@ import io.putdotio.android.playback.rememberNowPlaying
 import io.putdotio.android.search.MobileHistoryOverflow
 import io.putdotio.android.search.MobileSearchBar
 import io.putdotio.android.search.MobileSearchFieldText
+import io.putdotio.android.search.MobileSearchPlayWith
 import io.putdotio.android.search.RecentSearchEdit
 import io.putdotio.android.search.SearchFilter
 import io.putdotio.android.search.SearchReducer
@@ -122,6 +123,7 @@ import io.putdotio.android.settings.AndroidAppConfigEvent
 import io.putdotio.android.settings.AndroidAppConfigState
 import io.putdotio.android.settings.AppDiagnostics
 import io.putdotio.android.settings.ConfirmedDefaultSort
+import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.android.settings.TunnelRouteOption
 import io.putdotio.android.settings.confirmedDefaultSort
 import io.putdotio.android.sharing.MOBILE_PUBLIC_LINKS_ROUTE
@@ -231,8 +233,10 @@ internal fun MobileShell(
     val currentSearchActions by rememberUpdatedState(searchHistoryActions)
     // The search field owns its text; a recent search is the one thing besides typing that sets it.
     var searchFieldText by remember(sessionId) { mutableStateOf<MobileSearchFieldText?>(null) }
+    val searchPlayWith = remember(sessionId) { MobileSearchPlayWith() }
     val searchActions = remember(searchHistoryActions) {
         searchHistoryActions.copy(
+            onResultWith = { item, method -> searchPlayWith.open(item, method, searchHistoryActions.onResult) },
             onRecentSearch = { term ->
                 searchFieldText = MobileSearchFieldText(term.value)
                 searchHistoryActions.onRecentSearch(term)
@@ -329,6 +333,7 @@ internal fun MobileShell(
         transferDraft = transferDraft,
         navController = navController,
         playbackFileId = playbackFileId,
+        searchPlayWith = searchPlayWith,
         onFilesEvent = onFilesEvent,
         onFilesOpened = { leaveSearch(true) },
         onNavigationRejected = { rejectedNavigation = FilesFailure.NavigationBlocked },
@@ -747,6 +752,7 @@ private fun ContentNavigationEffect(
     transferDraft: MobileTransferDraft,
     navController: NavHostController,
     playbackFileId: Long?,
+    searchPlayWith: MobileSearchPlayWith,
     onFilesEvent: (FilesBrowserEvent) -> Boolean,
     onFilesOpened: () -> Unit,
     onNavigationRejected: () -> Unit,
@@ -762,8 +768,13 @@ private fun ContentNavigationEffect(
             if (item.isPlayable) {
                 // A delayed history result must not displace a newer transfer draft. A newer pick
                 // replaces the player, so Back still returns to the screen below it.
+                val method = if (origin == FilesOpenOrigin.SEARCH) searchPlayWith.take(item) else null
                 if (!editingTransfer) {
-                    navController.navigateToPlayback(item, replaceCurrentPlayback = currentPlaybackFileId != null)
+                    navController.navigateToPlayback(
+                        item,
+                        replaceCurrentPlayback = currentPlaybackFileId != null,
+                        method = method,
+                    )
                 }
             } else if (currentOnFilesEvent(FilesBrowserEvent.OpenExternalItem(item, origin))) {
                 // A delayed history result may update Files without displacing a newer transfer draft.
@@ -1294,6 +1305,7 @@ internal data class MobileSearchHistoryActions(
     val onQueryChanged: (String) -> Unit = {},
     val onSubmit: () -> Unit = {},
     val onResult: (FilesItem) -> Unit = {},
+    val onResultWith: (FilesItem, StreamingMethod) -> Unit = { _, _ -> },
     val onNextPage: () -> Unit = {},
     val onRetry: () -> Unit = {},
     val onRecentSearch: (SearchTerm) -> Unit = {},

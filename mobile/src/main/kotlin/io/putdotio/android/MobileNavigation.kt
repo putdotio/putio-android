@@ -14,6 +14,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import io.putdotio.android.files.MobilePlayWith
 import io.putdotio.android.files.rememberVlcInstalled
 import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -230,6 +231,9 @@ internal fun MobileNavHost(
                                 actions = MobileSearchResultActions(
                                     itemActions = filesItemActions.copy(
                                         onOpenWith = { fileOpener.openWithAnotherApp(filesContext, it) },
+                                        playWith = filesItemActions.playWith?.let {
+                                            MobilePlayWith(it.method, searchHistoryActions.onResultWith)
+                                        },
                                     ),
                                     downloads = downloadsState,
                                     // Through the result's own open, so the query joins Recent searches.
