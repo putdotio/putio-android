@@ -261,12 +261,17 @@ internal class DownloadNotificationRetries(
         } else {
             null
         }
-        if (retry.asksDirectPlay && signedIn() != SignedInAccount.User(userId)) return DownloadRetryOutcome.REFUSED
-        if (answer.unavailable) {
-            decision.failed(userId, entry)
-            return DownloadRetryOutcome.UNAVAILABLE
+        return when {
+            retry.asksDirectPlay && signedIn() != SignedInAccount.User(userId) -> DownloadRetryOutcome.REFUSED
+            answer.unavailable -> {
+                decision.failed(userId, entry)
+                DownloadRetryOutcome.UNAVAILABLE
+            }
+            else -> startDecided(userId, entry, retry.entry.decidedBy(answer))
         }
-        val chosen = retry.entry.decidedBy(answer)
+    }
+
+    private suspend fun startDecided(userId: Long, entry: DownloadEntry, chosen: DownloadEntry): DownloadRetryOutcome {
         if (chosen.artifact != entry.artifact || chosen.subtitles != entry.subtitles) {
             decision.save(userId, entry.copy(artifact = chosen.artifact, subtitles = chosen.subtitles))
         }
