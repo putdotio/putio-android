@@ -147,6 +147,42 @@ class MobileDownloadActionReceiverTest {
     }
 
     @Test
+    fun aRowRemovedOrChangedDuringTheDirectPlayLookupIsNotRevived() = runBlocking {
+        val removed = row(11L, DownloadStatus.Failed(DownloadFailureReason.NETWORK, 0L))
+            .copy(artifact = DownloadArtifact.MP4)
+        val deleting = row(12L, DownloadStatus.Failed(DownloadFailureReason.NETWORK, 0L))
+            .copy(artifact = DownloadArtifact.MP4)
+        for (entry in listOf(removed, deleting)) rows[USER to entry.fileId.value] = entry
+        val sent = mutableListOf<DownloadEntry>()
+        val saved = mutableListOf<DownloadEntry>()
+        val deciding = DownloadNotificationRetries(
+            signedIn = { account },
+            find = { userId, fileId -> rows[userId to fileId.value] },
+            start = { _, entry -> sent += entry },
+            dismiss = { userId, fileId -> dismissed += userId to fileId },
+            decision = DownloadRetryDecision(
+                directPlay = { fileId, _ ->
+                    if (fileId == removed.fileId) {
+                        rows.remove(USER to fileId.value)
+                    } else {
+                        rows[USER to fileId.value] = deleting.copy(removing = true)
+                    }
+                    DirectPlayDownload(DirectPlayDownloadSource.Original, listOf(ENGLISH))
+                },
+                save = { _, entry -> saved += entry },
+            ),
+        )
+
+        assertEquals(DownloadRetryOutcome.NOT_RETRYABLE, deciding.retry(USER, removed.fileId))
+        assertEquals(DownloadRetryOutcome.NOT_RETRYABLE, deciding.retry(USER, deleting.fileId))
+
+        assertTrue(sent.isEmpty())
+        assertTrue(saved.isEmpty())
+        assertEquals(null, rows[USER to removed.fileId.value])
+        assertEquals(listOf(USER to removed.fileId, USER to deleting.fileId), dismissed)
+    }
+
+    @Test
     fun anUnconfirmedSessionLeavesTheNotificationForLater() = runBlocking {
         rows[USER to 11L] = row(11L, DownloadStatus.Failed(DownloadFailureReason.NETWORK, 0L))
         account = SignedInAccount.Unknown

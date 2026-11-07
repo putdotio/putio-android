@@ -263,6 +263,7 @@ internal class DownloadNotificationRetries(
         }
         return when {
             retry.asksDirectPlay && signedIn() != SignedInAccount.User(userId) -> DownloadRetryOutcome.REFUSED
+            retry.asksDirectPlay && find(userId, entry.fileId) != entry -> DownloadRetryOutcome.NOT_RETRYABLE
             answer.unavailable -> {
                 decision.failed(userId, entry)
                 DownloadRetryOutcome.UNAVAILABLE
