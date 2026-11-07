@@ -93,13 +93,6 @@
     },
     {
       "resDir": "mobile/src/main/res",
-      "resource": "ic_ph_file_video",
-      "asset": "assets/regular/file-video.svg",
-      "sourceSha256": "e7364a0c8b32edddce3ff3674b295f3a991305318afef323a670270a256e1840",
-      "outputSha256": "1e0541fa38fc9419b00f42fc65ff1ad57e5e4c61b44063bab1102531e1a12bac"
-    },
-    {
-      "resDir": "mobile/src/main/res",
       "resource": "ic_ph_folder",
       "asset": "assets/regular/folder.svg",
       "sourceSha256": "4a882bcd4a91ae0a01887024f08d358932f183b6b171e87a3e48c5910364d507",
