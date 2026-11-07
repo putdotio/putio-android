@@ -17,6 +17,7 @@ internal fun tvSearchResults(
         actionsOf = { emptyList() },
         handlers = TvFilesActionHandlers(
             onPlay = onPlay,
+            onPlayWith = { _, _ -> },
             onOpenInVlc = {},
             onSetWatched = { _, _ -> },
             onSetPinned = { _, _ -> },

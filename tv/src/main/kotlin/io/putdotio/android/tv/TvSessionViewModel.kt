@@ -57,6 +57,7 @@ import io.putdotio.android.settings.AccountSettingsController
 import io.putdotio.android.settings.AccountSettingsRepository
 import io.putdotio.android.settings.AndroidAppConfigController
 import io.putdotio.android.settings.AndroidAppConfigRepository
+import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.android.settings.diagnosticsAllowed
 import io.putdotio.android.settings.productAnalyticsAnswers
 import io.putdotio.android.telemetry.ProductAnalytics
@@ -305,9 +306,9 @@ internal class TvSession internal constructor(
     val findNeighbours: suspend (PlaybackTarget) -> PlaybackRepositoryResult<PlaybackNeighbours> =
         playbackRepository::findNeighbours
 
-    fun play(item: FilesItem, start: TvPlayStart = TvPlayStart.Resume) {
+    fun play(item: FilesItem, start: TvPlayStart = TvPlayStart.Resume, method: StreamingMethod? = null) {
         durationLookup?.cancel()
-        startPlayback(item, start, fromHome = false)
+        startPlayback(item, start, fromHome = false, method)
     }
 
     /**
@@ -343,11 +344,23 @@ internal class TvSession internal constructor(
         }
     }
 
-    private fun startPlayback(item: FilesItem, start: TvPlayStart, fromHome: Boolean) {
+    private fun startPlayback(
+        item: FilesItem,
+        start: TvPlayStart,
+        fromHome: Boolean,
+        method: StreamingMethod? = null,
+    ) {
         val mediaType = PlaybackMediaType.fromFileType(item.type) ?: return
         if (!scope.isActive) return
         playingFromHome = fromHome
-        val target = PlaybackTarget(item.id, item.name, mediaType, item.playback?.durationSeconds, item.screenshotUrl)
+        val target = PlaybackTarget(
+            item.id,
+            item.name,
+            mediaType,
+            item.playback?.durationSeconds,
+            item.screenshotUrl,
+            method,
+        )
         val controller = PlaybackController(target, playbackRepository, scope, analytics = true)
         playbackReporting.startPlayback()
         mutablePlayback.getAndUpdate { controller }?.close()

@@ -3,6 +3,7 @@ package io.putdotio.android.playback
 import androidx.media3.common.MimeTypes
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.PutioConfig
 import io.putdotio.sdk.files.PlaybackPreference
@@ -24,33 +25,45 @@ import org.robolectric.annotation.Config
 @Config(sdk = [35])
 class SdkPlaybackOriginalResolutionTest {
     @Test
-    fun anyOriginalTheDeviceChecksAcceptStreamsAsTheHlsOriginal() =
+    fun standardPlaysConvertedEvenWhenTheDeviceAcceptsTheOriginal() =
         runBlocking {
             val mkv = resolve(PlaybackPreference.HLS, "h264-high-aac.mkv")
-            val avi = resolve(PlaybackPreference.HLS, "mpeg4-asp-mp3.avi")
             val asf = resolve(PlaybackPreference.HLS, "wmv3-wmav2.asf")
 
-            assertEquals(PlaybackSourceKind.ORIGINAL to HLS_ORIGINAL, mkv.kind to mkv.request())
-            assertEquals(PlaybackSourceKind.ORIGINAL to HLS_ORIGINAL, avi.kind to avi.request())
+            assertEquals(PlaybackSourceKind.HLS to HLS_CONVERTED, mkv.kind to mkv.request())
             assertEquals(PlaybackSourceKind.HLS to HLS_CONVERTED, asf.kind to asf.request())
         }
 
     @Test
-    fun theMp4MethodStreamsTheSameOriginalProgressively() =
+    fun directPlayStreamsTheOriginalTheDeviceAccepts() =
         runBlocking {
             val mkv = resolve(PlaybackPreference.MP4, "h264-high-aac.mkv")
 
-            assertEquals(PlaybackSourceKind.ORIGINAL to "/v2/files/42/stream", mkv.kind to mkv.request())
+            assertEquals(PlaybackSourceKind.ORIGINAL to ORIGINAL_STREAM, mkv.kind to mkv.request())
         }
 
-    private suspend fun resolve(preference: PlaybackPreference, mediaInfo: String): PlaybackSource {
+    @Test
+    fun aTargetMethodPicksTheOriginalCheckForThatPlay() =
+        runBlocking {
+            val directPlay = resolve(PlaybackPreference.HLS, "h264-high-aac.mkv", StreamingMethod.File)
+            val standard = resolve(PlaybackPreference.MP4, "h264-high-aac.mkv", StreamingMethod.Hls)
+
+            assertEquals(PlaybackSourceKind.ORIGINAL to ORIGINAL_STREAM, directPlay.kind to directPlay.request())
+            assertEquals(PlaybackSourceKind.HLS to HLS_CONVERTED, standard.kind to standard.request())
+        }
+
+    private suspend fun resolve(
+        preference: PlaybackPreference,
+        mediaInfo: String,
+        method: StreamingMethod? = null,
+    ): PlaybackSource {
         val repository = SdkPlaybackRepository(
             client(mediaInfo),
             playbackPreference = { preference },
             originalVideoPolicy = { OriginalVideoPolicy.Check },
             decoders = FakeDecoderInventory(PHONE),
         )
-        val result = repository.resolve(PlaybackTarget(FilesItemId(42L), mediaInfo))
+        val result = repository.resolve(PlaybackTarget(FilesItemId(42L), mediaInfo, method = method))
         val ready = (result as PlaybackRepositoryResult.Success).value as PlaybackResolution.Ready
         return ready.source
     }
@@ -90,7 +103,7 @@ class SdkPlaybackOriginalResolutionTest {
         """.trimIndent()
 
     private companion object {
-        const val HLS_ORIGINAL = "/v2/files/42/hls/media.m3u8?original=1"
+        const val ORIGINAL_STREAM = "/v2/files/42/stream"
         const val HLS_CONVERTED = "/v2/files/42/hls/media.m3u8"
         const val ACCOUNT_INFO =
             """

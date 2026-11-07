@@ -184,7 +184,9 @@ internal class SdkPlaybackRepository internal constructor(
         resolvePlayback = OriginalPlaybackDecision(decoders).let { decision ->
             { request ->
                 withContext(Dispatchers.IO) {
-                    val resolved = request.withOriginalVideo(originalVideoPolicy(), decision, switchedToConverted)
+                    val directPlay = request.preference == PlaybackPreference.MP4
+                    val policy = if (directPlay) originalVideoPolicy() else OriginalVideoPolicy.Never
+                    val resolved = request.withOriginalVideo(policy, decision, switchedToConverted)
                     client.files.resolvePlayback(resolved)
                 }
             }
@@ -205,7 +207,7 @@ internal class SdkPlaybackRepository internal constructor(
         convertedOnly: Boolean,
     ): PlaybackRepositoryResult<PlaybackResolution> =
         try {
-            val preference = playbackPreference()
+            val preference = target.method?.playbackPreference() ?: playbackPreference()
             val account = loadAccount()
             val downloadToken = account.downloadToken
                 ?: return PlaybackRepositoryResult.Failure(

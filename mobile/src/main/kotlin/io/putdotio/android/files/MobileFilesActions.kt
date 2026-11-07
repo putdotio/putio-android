@@ -72,6 +72,7 @@ import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioRadius
 import io.putdotio.android.design.putioMono
 import io.putdotio.android.downloads.DownloadStatus
+import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
@@ -86,6 +87,7 @@ internal const val MOBILE_FILES_RENAME_CONFIRM_TAG = "mobile-files-rename-confir
 internal const val MOBILE_FILES_PLAY_ACTION_TAG = "mobile-files-play-action"
 internal const val MOBILE_FILES_OPEN_ACTION_TAG = "mobile-files-open-action"
 internal const val MOBILE_FILES_OPEN_WITH_ACTION_TAG = "mobile-files-open-with-action"
+internal const val MOBILE_FILES_PLAY_WITH_ACTION_TAG = "mobile-files-play-with-action"
 internal const val MOBILE_FILES_DOWNLOAD_ACTION_TAG = "mobile-files-download-action"
 internal const val MOBILE_FILES_SHARE_ACTION_TAG = "mobile-files-share-action"
 internal const val MOBILE_FILES_VLC_ACTION_TAG = "mobile-files-vlc-action"
@@ -117,6 +119,7 @@ internal data class MobileFilesItemActions(
     val notices: Flow<MobileFilesNotice> = emptyFlow(),
     /** A link copied from the Exclusive access sheet, which closes so the snackbar can say so. */
     val onLinkCopied: (() -> Unit)? = null,
+    val playWith: MobilePlayWith? = null,
 ) {
     /** The resume setting [onSetWatched] needs is also what makes playback start from a saved position. */
     val resumes: Boolean get() = onSetWatched != null
@@ -128,7 +131,26 @@ internal data class MobileFilesItemActions(
 
     fun inViewer(inViewer: Boolean): MobileFilesItemActions =
         if (inViewer) copy(onOpen = null, onSelect = null) else this
+
+    fun withPlayWith(setting: StreamingMethod, play: (FilesItem, StreamingMethod) -> Unit): MobileFilesItemActions =
+        copy(playWith = MobilePlayWith(setting.other(), play))
+
+    fun playingWithVia(play: (FilesItem, StreamingMethod) -> Unit): MobileFilesItemActions =
+        copy(playWith = playWith?.let { MobilePlayWith(it.method, play) })
 }
+
+internal class MobilePlayWith(val method: StreamingMethod, val play: (FilesItem, StreamingMethod) -> Unit)
+
+private fun StreamingMethod.other(): StreamingMethod = when (this) {
+    StreamingMethod.Hls -> StreamingMethod.File
+    StreamingMethod.File -> StreamingMethod.Hls
+}
+
+private val StreamingMethod.playWithLabel: Int
+    get() = when (this) {
+        StreamingMethod.Hls -> R.string.mobile_files_play_with_standard
+        StreamingMethod.File -> R.string.mobile_files_play_with_direct_play
+    }
 
 /**
  * Whether the row's sheet offers anything. Download and Share read the original, and Make a copy
@@ -599,6 +621,13 @@ private fun MobileFilesActionRows(
         {
             action(item)
             onDismiss()
+        }
+    }
+    itemActions.playWith?.takeIf { listed && item.type == PutioFileType.VIDEO }?.let { playWith ->
+        MobileFilesActionRow(R.drawable.ic_ph_play_circle, playWith.method.playWithLabel,
+            MOBILE_FILES_PLAY_WITH_ACTION_TAG) {
+            onDismiss()
+            playWith.play(item, playWith.method)
         }
     }
     itemActions.onOpenWith?.takeIf { listed && !item.isFolder }?.let {

@@ -41,6 +41,7 @@ import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.files.FilesRequestId
+import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.sdk.files.PutioFileType
 import io.putdotio.sdk.files.PutioFolderType
 import org.junit.Assert.assertEquals
@@ -127,6 +128,55 @@ class TvFilesRowActionsTest {
         compose.onNode(hasText("Start over") and isFocused()).performKeyInput { pressCenter() }
         compose.runOnIdle {
             assertEquals(listOf(2L to TvPlayStart.Resume, 2L to TvPlayStart.StartOver), played)
+        }
+    }
+
+    @Test
+    fun aVideoMenuPlaysOnceWithTheOtherPlaybackMethod() {
+        val played = mutableListOf<Pair<Long, StreamingMethod>>()
+        var method by mutableStateOf(StreamingMethod.Hls)
+        compose.setTvContent {
+            TvFilesScreen(
+                state = ready(item(2, "clip.mp4", PutioFileType.VIDEO), item(3, "song.mp3", PutioFileType.AUDIO)),
+                onEvent = { true },
+                onPlayMedia = {},
+                playbackMethod = method,
+                onPlayWith = { item, with -> played += item.id.value to with },
+            )
+        }
+
+        compose.onNodeWithContentDescription("Play clip.mp4").assertIsFocused().performKeyInput { pressKey(Key.Menu) }
+        compose.onNode(hasText("Play") and isFocused()).performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNode(hasText("Play with Direct play") and isFocused()).performKeyInput { pressCenter() }
+        compose.runOnIdle { method = StreamingMethod.File }
+        compose.onNodeWithContentDescription("Play clip.mp4").assertIsFocused().performKeyInput { pressKey(Key.Menu) }
+        compose.onNode(hasText("Play") and isFocused()).performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNode(hasText("Play with Standard") and isFocused()).performKeyInput { pressCenter() }
+        compose.runOnIdle { assertEquals(listOf(2L to StreamingMethod.File, 2L to StreamingMethod.Hls), played) }
+
+        compose.onNodeWithContentDescription("Play clip.mp4").assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionDown)
+        }
+        compose.onNodeWithContentDescription("Play song.mp3").assertIsFocused().performKeyInput { pressKey(Key.Menu) }
+        compose.onNode(hasText("Play") and isFocused()).performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNode(hasText("Open in VLC") and isFocused()).assertExists()
+        compose.onAllNodesWithText("Play with", substring = true).assertCountEquals(0)
+    }
+
+    @Test
+    fun onlyVideosOfferTheOtherPlaybackMethod() {
+        val context = TvFilesActionContext(
+            watchedToggleEnabled = false,
+            trashEnabled = true,
+            canDelete = true,
+            playbackMethod = StreamingMethod.Hls,
+        )
+        fun playWith(type: PutioFileType) =
+            item(2, "file", type).tvActions(context).filterIsInstance<TvFilesAction.PlayWith>()
+
+        assertEquals(listOf(TvFilesAction.PlayWith(StreamingMethod.File)), playWith(PutioFileType.VIDEO))
+        for (type in listOf(PutioFileType.AUDIO, PutioFileType.FOLDER, PutioFileType.TEXT, PutioFileType.IMAGE)) {
+            assertEquals("$type", emptyList<TvFilesAction>(), playWith(type))
         }
     }
 

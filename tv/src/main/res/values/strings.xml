@@ -140,6 +140,8 @@
     <string name="tv_files_sort_error">Couldn’t change sorting.</string>
     <string name="tv_files_reload_error">Couldn’t reload files.</string>
     <string name="tv_files_action_resume">Resume</string>
+    <string name="tv_files_action_play_standard">Play with Standard</string>
+    <string name="tv_files_action_play_direct">Play with Direct play</string>
     <string name="tv_files_action_vlc">Open in VLC</string>
     <string name="tv_files_action_mark_watched">Mark as watched</string>
     <string name="tv_files_action_mark_unwatched">Mark as unwatched</string>

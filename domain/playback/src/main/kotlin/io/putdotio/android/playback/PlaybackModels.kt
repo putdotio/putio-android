@@ -1,6 +1,7 @@
 package io.putdotio.android.playback
 
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.sdk.files.PlaybackConversionState
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PutioFileType
@@ -13,6 +14,8 @@ public data class PlaybackTarget(
     val durationSeconds: Double? = null,
     /** put.io's still image of the media, as a token-free URL; null when the listing has none. */
     val posterUrl: String? = null,
+    /** This play's method from a file menu; null follows the app's playback method. */
+    val method: StreamingMethod? = null,
 )
 
 public enum class PlaybackMediaType {

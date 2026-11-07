@@ -49,6 +49,7 @@ import io.putdotio.android.files.FilesFolderState
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesStreamUrlResult
 import io.putdotio.android.files.canStartOperation
+import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.android.tv.TvConfirmDialog
 import io.putdotio.android.tv.TvFocus
 import io.putdotio.android.tv.TvPlayStart
@@ -70,6 +71,8 @@ internal sealed interface TvFilesAction {
 
     data object StartOver : Tile
 
+    data class PlayWith(val method: StreamingMethod) : TvFilesAction
+
     data object OpenInVlc : TvFilesAction
 
     data class SetWatched(val watched: Boolean) : TvFilesAction
@@ -87,6 +90,7 @@ internal data class TvFilesActionContext(
     val canDelete: Boolean,
     val resumePlayback: Boolean = true,
     val pinned: Boolean? = null,
+    val playbackMethod: StreamingMethod? = null,
 )
 
 internal fun FilesItem.tvActions(context: TvFilesActionContext): List<TvFilesAction> =
@@ -113,7 +117,15 @@ private fun FilesItem.playActions(context: TvFilesActionContext): List<TvFilesAc
         } else {
             add(TvFilesAction.Play)
         }
+        val method = context.playbackMethod
+        if (type == PutioFileType.VIDEO && method != null) add(TvFilesAction.PlayWith(method.other()))
         add(TvFilesAction.OpenInVlc)
+    }
+
+private fun StreamingMethod.other(): StreamingMethod =
+    when (this) {
+        StreamingMethod.Hls -> StreamingMethod.File
+        StreamingMethod.File -> StreamingMethod.Hls
     }
 
 /** Otherwise the reducer would refuse the Delete a permanent-deletion confirmation sends. */
@@ -122,6 +134,7 @@ internal fun FilesFolderState.permanentDeleteConfirmable(trashEnabled: Boolean?)
 
 internal class TvFilesActionHandlers(
     val onPlay: (FilesItem, TvPlayStart) -> Unit,
+    val onPlayWith: (FilesItem, StreamingMethod) -> Unit,
     val onOpenInVlc: (FilesItem) -> Unit,
     val onSetWatched: (FilesItem, Boolean) -> Unit,
     val onSetPinned: (FilesItem, Boolean) -> Unit,
@@ -132,6 +145,7 @@ internal fun TvFilesActionHandlers.run(action: TvFilesAction, item: FilesItem) {
         TvFilesAction.Resume -> onPlay(item, TvPlayStart.Resume)
         TvFilesAction.Play -> onPlay(item, TvPlayStart.Resume)
         TvFilesAction.StartOver -> onPlay(item, TvPlayStart.StartOver)
+        is TvFilesAction.PlayWith -> onPlayWith(item, action.method)
         TvFilesAction.OpenInVlc -> onOpenInVlc(item)
         is TvFilesAction.SetWatched -> onSetWatched(item, action.watched)
         is TvFilesAction.SetPinned -> onSetPinned(item, action.pinned)
@@ -345,6 +359,7 @@ internal fun TvFilesAction.label(): String =
             TvFilesAction.Resume -> R.string.tv_files_action_resume
             TvFilesAction.Play -> R.string.tv_files_detail_play
             TvFilesAction.StartOver -> R.string.tv_files_detail_start_over
+            is TvFilesAction.PlayWith -> method.playWithLabel()
             TvFilesAction.OpenInVlc -> R.string.tv_files_action_vlc
             is TvFilesAction.SetWatched ->
                 if (watched) R.string.tv_files_action_mark_watched else R.string.tv_files_action_mark_unwatched
@@ -354,11 +369,19 @@ internal fun TvFilesAction.label(): String =
         },
     )
 
+@StringRes
+private fun StreamingMethod.playWithLabel(): Int =
+    when (this) {
+        StreamingMethod.Hls -> R.string.tv_files_action_play_standard
+        StreamingMethod.File -> R.string.tv_files_action_play_direct
+    }
+
 @DrawableRes
 internal fun TvFilesAction.icon(): Int =
     when (this) {
         TvFilesAction.Resume, TvFilesAction.Play -> DesignR.drawable.ic_ph_play_fill
         TvFilesAction.StartOver -> R.drawable.ic_ph_arrow_counter_clockwise
+        is TvFilesAction.PlayWith -> R.drawable.ic_ph_play_circle
         TvFilesAction.OpenInVlc -> R.drawable.ic_ph_traffic_cone
         is TvFilesAction.SetWatched -> if (watched) R.drawable.ic_ph_eye else R.drawable.ic_ph_eye_slash
         is TvFilesAction.SetPinned -> if (pinned) R.drawable.ic_ph_push_pin else R.drawable.ic_ph_push_pin_slash
