@@ -14,7 +14,6 @@ import io.putdotio.sdk.files.PlaybackCapabilities
 import io.putdotio.sdk.files.PlaybackRequest
 import io.putdotio.sdk.files.PutioMediaInfo
 import io.putdotio.sdk.files.PutioMediaStream
-import io.putdotio.sdk.files.PutioPlaybackIssue
 
 public enum class OriginalVideoPolicy {
     Never,
@@ -36,19 +35,13 @@ internal class OriginalPlaybackDecision(
     fun fallbackReason(mediaInfo: PutioMediaInfo?): PlaybackFallbackReason? {
         if (mediaInfo == null) return PlaybackFallbackReason.NoMediaInfo
         val streams = mediaInfo.streams.orEmpty()
-        return issueReason(mediaInfo.playbackIssues.orEmpty()) ?: when {
+        return when {
+            !mediaInfo.playbackIssues.isNullOrEmpty() -> PlaybackFallbackReason.PlaybackIssue
             streams.isEmpty() -> PlaybackFallbackReason.NoMediaInfo
             !MediaInfoFormats.playableContainer(mediaInfo.format) -> PlaybackFallbackReason.ContainerUnsupported
             else -> streamReason(streams)
         }
     }
-
-    private fun issueReason(issues: List<PutioPlaybackIssue>): PlaybackFallbackReason? =
-        when {
-            issues.any { it in FALLBACK_ISSUES } -> PlaybackFallbackReason.PlaybackIssue
-            issues.any { it !in PLAYABLE_ISSUES } -> PlaybackFallbackReason.UnknownIssue
-            else -> null
-        }
 
     private fun streamReason(streams: List<PutioMediaStream>): PlaybackFallbackReason? {
         val videoFormat = MediaInfoFormats.videoStreams(streams).firstOrNull()?.let(MediaInfoFormats::toFormat)
@@ -62,20 +55,6 @@ internal class OriginalPlaybackDecision(
             audioFormats.none(decoders::plays) -> PlaybackFallbackReason.AudioUnsupported
             else -> null
         }
-    }
-
-    private companion object {
-        val FALLBACK_ISSUES = setOf(
-            PutioPlaybackIssue.MALFORMED_SEI,
-            PutioPlaybackIssue.MALFORMED_PARAMETER_SETS,
-            PutioPlaybackIssue.INTERLACED_VIDEO,
-            PutioPlaybackIssue.EXCESSIVE_FRAME_RATE,
-        )
-        val PLAYABLE_ISSUES = setOf(
-            PutioPlaybackIssue.OPEN_GOP,
-            PutioPlaybackIssue.MOVIE_FRAGMENTS,
-            PutioPlaybackIssue.SPARSE_IDR,
-        )
     }
 }
 
