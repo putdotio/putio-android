@@ -185,8 +185,31 @@ class PlaybackOriginalFallbackTest {
             ),
         )
         assertNull(directPlayVerdict(tracks(video to C.FORMAT_HANDLED)))
-        assertNull(directPlayVerdict(tracks(audio to C.FORMAT_UNSUPPORTED_TYPE)))
         assertNull(directPlayVerdict(Tracks.EMPTY))
+    }
+
+    @Test
+    fun theVerdictFallsBackWhenTheStreamHasNoVideoTrack() {
+        val audio = TrackGroup(Format.Builder().setSampleMimeType(MimeTypes.AUDIO_AAC).build())
+        val subtitles = TrackGroup(Format.Builder().setSampleMimeType(MimeTypes.TEXT_VTT).build())
+
+        assertEquals(
+            PlaybackFallbackReason.NoVideoTrack,
+            directPlayVerdict(tracks(audio to C.FORMAT_HANDLED, subtitles to C.FORMAT_HANDLED)),
+        )
+        assertEquals(PlaybackFallbackReason.NoVideoTrack, directPlayVerdict(tracks(audio to C.FORMAT_UNSUPPORTED_TYPE)))
+    }
+
+    @Test
+    fun anOriginalThatOpensWithoutAVideoTrackResolvesConverted() {
+        val audio = TrackGroup(Format.Builder().setSampleMimeType(MimeTypes.AUDIO_AAC).build())
+        val reason = requireNotNull(directPlayVerdict(tracks(audio to C.FORMAT_HANDLED)))
+        val rejected = PlaybackReducer.reduce(
+            ready(source(PlaybackSourceKind.ORIGINAL)),
+            PlaybackEvent.OriginalRejected(reason, 12_000L),
+        )
+
+        assertEquals(PlaybackEffect.Resolve(Video, PlaybackRequestId(2L), convertedOnly = true), rejected.effect)
     }
 
     @Test
