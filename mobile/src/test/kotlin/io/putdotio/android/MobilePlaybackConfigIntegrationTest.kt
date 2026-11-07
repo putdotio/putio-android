@@ -33,7 +33,7 @@ import io.putdotio.android.settings.AndroidAppConfigContent
 import io.putdotio.android.settings.AndroidAppConfigEvent
 import io.putdotio.android.settings.AndroidAppConfigMutation
 import io.putdotio.android.settings.SdkAndroidAppConfigRepository
-import io.putdotio.android.settings.VideoPlaybackType
+import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.PutioConfig
 import java.io.Closeable
@@ -74,7 +74,7 @@ class MobilePlaybackConfigIntegrationTest {
             var mounted by mutableStateOf(true)
             try {
                 compose.setContent { if (mounted) fixture.Content() }
-                compose.waitUntil(5_000L) { compose.runOnIdle { fixture.confirmedFormat == VideoPlaybackType.Hls } }
+                compose.waitUntil(5_000L) { compose.runOnIdle { fixture.confirmedFormat == StreamingMethod.Hls } }
                 compose.waitUntil(5_000L) {
                     compose.onAllNodesWithText("episode.mkv").fetchSemanticsNodes().isNotEmpty()
                 }
@@ -87,12 +87,12 @@ class MobilePlaybackConfigIntegrationTest {
                     assertTrue(
                         fixture.appConfigController.dispatch(
                             AndroidAppConfigEvent.ChangeRequested(
-                                AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Mp4),
+                                AndroidAppConfigChange.PlaybackMethod(StreamingMethod.File),
                             ),
                         ),
                     )
                 }
-                compose.waitUntil(5_000L) { compose.runOnIdle { fixture.confirmedFormat == VideoPlaybackType.Mp4 } }
+                compose.waitUntil(5_000L) { compose.runOnIdle { fixture.confirmedFormat == StreamingMethod.File } }
                 compose.waitForIdle()
                 compose.onNodeWithTag(MOBILE_PLAYER_TAG).assertIsDisplayed()
                 assertEquals(listOf("/v2/files/42"), fixture.server.resolutions.toList())
@@ -181,10 +181,10 @@ private class PlaybackConfigRootFixture(
             appConfig.controllerFor(account.userId, sessionId, SdkAndroidAppConfigRepository(client)),
         )
 
-    val confirmedFormat: VideoPlaybackType?
+    val confirmedFormat: StreamingMethod?
         get() = appConfigController.state.value.let { state ->
             if (state.mutation == AndroidAppConfigMutation.Idle) {
-                (state.content as? AndroidAppConfigContent.Ready)?.preferences?.videoPlaybackType
+                (state.content as? AndroidAppConfigContent.Ready)?.preferences?.streamingMethod
             } else {
                 null
             }

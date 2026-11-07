@@ -93,13 +93,6 @@
     },
     {
       "resDir": "mobile/src/main/res",
-      "resource": "ic_ph_file_video",
-      "asset": "assets/regular/file-video.svg",
-      "sourceSha256": "e7364a0c8b32edddce3ff3674b295f3a991305318afef323a670270a256e1840",
-      "outputSha256": "1e0541fa38fc9419b00f42fc65ff1ad57e5e4c61b44063bab1102531e1a12bac"
-    },
-    {
-      "resDir": "mobile/src/main/res",
       "resource": "ic_ph_folder",
       "asset": "assets/regular/folder.svg",
       "sourceSha256": "4a882bcd4a91ae0a01887024f08d358932f183b6b171e87a3e48c5910364d507",
@@ -237,13 +230,6 @@
       "asset": "assets/regular/gauge.svg",
       "sourceSha256": "053e22a3b54c3baa7997bd0fddbf2cc35cbdd2662842b553d13d9f2a58c67f4a",
       "outputSha256": "2b5c94c8369719eb5f221ad097b74c492f6620cab639100d06315e2a3c8e87fa"
-    },
-    {
-      "resDir": "tv/src/main/res",
-      "resource": "ic_ph_file_video",
-      "asset": "assets/regular/file-video.svg",
-      "sourceSha256": "e7364a0c8b32edddce3ff3674b295f3a991305318afef323a670270a256e1840",
-      "outputSha256": "1e0541fa38fc9419b00f42fc65ff1ad57e5e4c61b44063bab1102531e1a12bac"
     },
     {
       "resDir": "tv/src/main/res",

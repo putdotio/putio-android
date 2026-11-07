@@ -115,16 +115,14 @@ internal fun AccountSettingsChange.analyticsEvent(): AnalyticsEvent.SettingsChan
 
 internal fun AndroidAppConfigChange.analyticsEvent(): AnalyticsEvent.SettingsChanged? =
     when (this) {
-        is AndroidAppConfigChange.VideoPlayback -> AnalyticsEvent.SettingsChanged(
-            Setting.VideoPlaybackType,
+        is AndroidAppConfigChange.PlaybackMethod -> AnalyticsEvent.SettingsChanged(
+            Setting.StreamingMethod,
             when (value) {
-                VideoPlaybackType.Hls -> SettingValue.Hls
-                VideoPlaybackType.Mp4 -> SettingValue.Mp4
+                StreamingMethod.Hls -> SettingValue.Hls
+                StreamingMethod.File -> SettingValue.File
             },
         )
         is AndroidAppConfigChange.AutoplayNextVideo ->
             AnalyticsEvent.SettingsChanged(Setting.AutoplayNextVideo, SettingValue.of(enabled))
-        is AndroidAppConfigChange.PlayOriginals,
-        AndroidAppConfigChange.ProductAnalyticsPromptAnswered,
-        -> null
+        AndroidAppConfigChange.ProductAnalyticsPromptAnswered -> null
     }

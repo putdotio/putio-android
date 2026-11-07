@@ -40,8 +40,8 @@ import io.putdotio.android.settings.AndroidAppConfigEvent
 import io.putdotio.android.settings.AndroidAppConfigMutation
 import io.putdotio.android.settings.AndroidAppConfigState
 import io.putdotio.android.settings.DefaultAccountSettingsPreferences
+import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.android.settings.TunnelRouteName
-import io.putdotio.android.settings.VideoPlaybackType
 import io.putdotio.android.settings.accountSettingsState
 import io.putdotio.android.settings.androidAppConfigState
 import io.putdotio.android.settings.readyAccountSettingsState
@@ -77,7 +77,7 @@ class MobileAccountLargeTextTest {
         mount()
         assertTitleAndValue("Default sort order", "Date modified, newest first")
         assertTitleAndValue("Proxy", "a-long-regional-proxy-name")
-        assertTitleAndValue("Video playback", "HLS stream")
+        assertTitleAndValue("Playback method", "Standard")
         assertTitleAndValue("Privacy controls", "Diagnostics on · Analytics off")
         assertTitleAndValue("App info", BuildConfig.VERSION_NAME)
     }
@@ -106,13 +106,13 @@ class MobileAccountLargeTextTest {
     fun shortLandscapePlaybackChooserCanReachAndSelectTheLastOption() {
         val events = mutableListOf<AndroidAppConfigEvent>()
         mount(configEvents = events)
-        scrollTo("Video playback")
-        compose.onNodeWithText("Video playback").performClick()
-        compose.onNodeWithText("Direct MP4", substring = true).performScrollTo().assertIsDisplayed().performClick()
+        scrollTo("Playback method")
+        compose.onNodeWithText("Playback method").performClick()
+        compose.onNodeWithText("Direct play", substring = true).performScrollTo().assertIsDisplayed().performClick()
         assertTrue(events.isEmpty())
         compose.onNodeWithText("Save").assertIsDisplayed().performClick()
         assertEquals(
-            listOf(AndroidAppConfigEvent.ChangeRequested(AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Mp4))),
+            listOf(AndroidAppConfigEvent.ChangeRequested(AndroidAppConfigChange.PlaybackMethod(StreamingMethod.File))),
             events,
         )
     }

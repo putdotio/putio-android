@@ -9,7 +9,7 @@ import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.apiReason
 import io.putdotio.android.settings.AccountSettingsFailure
-import io.putdotio.android.settings.VideoPlaybackType
+import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.android.settings.apiReason
 
 /** put.io's reason for a refused request, else this failure's copy. */
@@ -43,29 +43,17 @@ internal fun PutioFailure.tvAppConfigMessage(): Int =
     }
 
 @StringRes
-internal fun VideoPlaybackType.tvLabel(): Int =
+internal fun StreamingMethod.tvLabel(): Int =
     when (this) {
-        VideoPlaybackType.Hls -> R.string.tv_account_video_playback_hls
-        VideoPlaybackType.Mp4 -> R.string.tv_account_video_playback_mp4
+        StreamingMethod.Hls -> R.string.tv_account_playback_standard
+        StreamingMethod.File -> R.string.tv_account_playback_direct
     }
 
 @StringRes
-internal fun VideoPlaybackType.tvDescription(): Int =
+internal fun StreamingMethod.tvDescription(): Int =
     when (this) {
-        VideoPlaybackType.Hls -> R.string.tv_account_video_playback_hls_description
-        VideoPlaybackType.Mp4 -> R.string.tv_account_video_playback_mp4_description
-    }
-
-@StringRes
-internal fun playOriginalsTvLabel(enabled: Boolean): Int =
-    if (enabled) R.string.tv_account_play_originals_on else R.string.tv_account_play_originals_off
-
-@StringRes
-internal fun playOriginalsTvDescription(enabled: Boolean): Int =
-    if (enabled) {
-        R.string.tv_account_play_originals_on_description
-    } else {
-        R.string.tv_account_play_originals_off_description
+        StreamingMethod.Hls -> R.string.tv_account_playback_standard_description
+        StreamingMethod.File -> R.string.tv_account_playback_direct_description
     }
 
 @Composable

@@ -9,7 +9,7 @@ import io.putdotio.android.settings.AndroidAppConfigPreferences
 import io.putdotio.android.settings.AndroidAppConfigReducer
 import io.putdotio.android.settings.AndroidAppConfigRequestId
 import io.putdotio.android.settings.AndroidAppConfigState
-import io.putdotio.android.settings.VideoPlaybackType
+import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.android.settings.androidAppConfigState
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PlaybackPreference
@@ -25,7 +25,7 @@ class PlaybackPreferencesTest {
         assertEquals(
             PlaybackPreference.MP4,
             readyState(
-                AndroidAppConfigPreferences(videoPlaybackType = VideoPlaybackType.Mp4),
+                AndroidAppConfigPreferences(streamingMethod = StreamingMethod.File),
             ).playbackPreference(),
         )
         assertEquals(PlaybackPreference.HLS, AndroidAppConfigReducer.start().state.playbackPreference())
@@ -72,23 +72,23 @@ class PlaybackPreferencesTest {
     }
 
     @Test
-    fun originalsFollowTheConfirmedSettingAndStayConvertedUntilItLoads() {
-        val on = AndroidAppConfigPreferences(playOriginals = true)
-        val off = AndroidAppConfigPreferences(playOriginals = false)
+    fun originalsFollowTheConfirmedDirectPlayMethodAndStayConvertedUntilItLoads() {
+        val file = AndroidAppConfigPreferences(streamingMethod = StreamingMethod.File)
+        val hls = AndroidAppConfigPreferences(streamingMethod = StreamingMethod.Hls)
         OriginalVideoPolicy.entries.forEach { build ->
-            assertEquals(build, readyState(on).originalVideoPolicy(build))
-            assertEquals(OriginalVideoPolicy.Never, readyState(off).originalVideoPolicy(build))
+            assertEquals(build, readyState(file).originalVideoPolicy(build))
+            assertEquals(OriginalVideoPolicy.Never, readyState(hls).originalVideoPolicy(build))
             assertEquals(OriginalVideoPolicy.Never, AndroidAppConfigReducer.start().state.originalVideoPolicy(build))
         }
-        val turningOn = AndroidAppConfigReducer.reduce(
-            readyState(off),
-            AndroidAppConfigEvent.ChangeRequested(AndroidAppConfigChange.PlayOriginals(true)),
+        val switchingToFile = AndroidAppConfigReducer.reduce(
+            readyState(hls),
+            AndroidAppConfigEvent.ChangeRequested(AndroidAppConfigChange.PlaybackMethod(StreamingMethod.File)),
         )
-        assertEquals(OriginalVideoPolicy.Never, turningOn.state.originalVideoPolicy(OriginalVideoPolicy.Check))
-        val requestId = requireNotNull(turningOn.effect).requestId
+        assertEquals(OriginalVideoPolicy.Never, switchingToFile.state.originalVideoPolicy(OriginalVideoPolicy.Check))
+        val requestId = requireNotNull(switchingToFile.effect).requestId
         val refreshed = AndroidAppConfigReducer.reduce(
-            AndroidAppConfigReducer.reduce(turningOn.state, AndroidAppConfigEvent.SaveSucceeded(requestId)).state,
-            AndroidAppConfigEvent.RefreshSucceeded(requestId, on),
+            AndroidAppConfigReducer.reduce(switchingToFile.state, AndroidAppConfigEvent.SaveSucceeded(requestId)).state,
+            AndroidAppConfigEvent.RefreshSucceeded(requestId, file),
         )
         assertEquals(OriginalVideoPolicy.Check, refreshed.state.originalVideoPolicy(OriginalVideoPolicy.Check))
     }
@@ -97,7 +97,7 @@ class PlaybackPreferencesTest {
     fun playbackKeepsConfirmedFormatThroughSaveAndRefreshFailures() {
         val saving = AndroidAppConfigReducer.reduce(
             readyState(),
-            AndroidAppConfigEvent.ChangeRequested(AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Mp4)),
+            AndroidAppConfigEvent.ChangeRequested(AndroidAppConfigChange.PlaybackMethod(StreamingMethod.File)),
         )
         val requestId = requireNotNull(saving.effect).requestId
         val saveFailed = AndroidAppConfigReducer.reduce(
@@ -119,7 +119,7 @@ class PlaybackPreferencesTest {
             refreshing.state,
             AndroidAppConfigEvent.RefreshSucceeded(
                 requestId,
-                AndroidAppConfigPreferences(videoPlaybackType = VideoPlaybackType.Mp4),
+                AndroidAppConfigPreferences(streamingMethod = StreamingMethod.File),
             ),
         )
         assertEquals(PlaybackPreference.MP4, refreshed.state.playbackPreference())

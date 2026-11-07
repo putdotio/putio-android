@@ -56,7 +56,7 @@ import io.putdotio.android.PutioFailure
 import io.putdotio.android.settings.AndroidAppConfigMutation
 import io.putdotio.android.settings.AndroidAppConfigRequestId
 import io.putdotio.android.settings.AndroidAppConfigState
-import io.putdotio.android.settings.VideoPlaybackType
+import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.android.settings.accountSettingsState
 import io.putdotio.android.settings.androidAppConfigState
 import io.putdotio.android.settings.readyAccountSettingsState
@@ -80,7 +80,6 @@ import io.putdotio.android.account.MOBILE_ACCOUNT_AVATAR_FALLBACK_TAG
 import io.putdotio.android.account.MOBILE_ACCOUNT_LIST_TAG
 import io.putdotio.android.account.MOBILE_ACCOUNT_SIGN_OUT_TAG
 import io.putdotio.android.account.MOBILE_CHOICE_SAVE_TAG
-import io.putdotio.android.account.MOBILE_PLAY_ORIGINALS_ROW_TAG
 import io.putdotio.android.account.MOBILE_ACCOUNT_STORAGE_PROGRESS_TAG
 import io.putdotio.android.account.MOBILE_DEFAULT_SORT_ROW_TAG
 import io.putdotio.android.account.MOBILE_MANAGE_PUBLIC_LINKS_TAG
@@ -94,7 +93,7 @@ import io.putdotio.android.account.MobileAccountScreen
 import io.putdotio.android.account.MobileAppInfoScreen
 import io.putdotio.android.account.mobileAppDiagnostics
 import io.putdotio.android.playback.playbackPreference
-import io.putdotio.android.playback.confirmedPlayOriginals
+import io.putdotio.android.playback.confirmedStreamingMethod
 import io.putdotio.android.trash.MOBILE_MANAGE_TRASH_TAG
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.assertIsOff
@@ -469,20 +468,20 @@ class MobileAccountPlaybackSettingsTest {
     val compose = createComposeRule()
 
     @Test
-    fun playbackSettingsChooseFormatAndToggleAutoplay() {
+    fun playbackSettingsChooseMethodAndToggleAutoplay() {
         val appConfigEvents = mutableListOf<AndroidAppConfigEvent>()
         compose.setAccountContent(
             options = AccountScreenOptions(onAppConfigEvent = appConfigEvents::add),
         )
 
-        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Video playback"))
-        compose.onNodeWithText("Video playback").performClick()
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Playback method"))
+        compose.onNodeWithText("Playback method").performClick()
         compose.onNode(
             SemanticsMatcher.keyIsDefined(SemanticsProperties.SelectableGroup),
             useUnmergedTree = true,
         ).assertExists()
-        compose.onAllNodesWithText("HLS stream").assertCountEquals(2)
-        compose.onNodeWithText("Direct MP4")
+        compose.onAllNodesWithText("Standard").assertCountEquals(2)
+        compose.onNodeWithText("Direct play")
             .assert(
                 SemanticsMatcher.expectValue(
                     SemanticsProperties.Role,
@@ -493,21 +492,14 @@ class MobileAccountPlaybackSettingsTest {
         compose.onNodeWithTag(MOBILE_CHOICE_SAVE_TAG).performClick()
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Autoplay next video"))
         compose.onNodeWithText("Autoplay next video").performClick()
-        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_PLAY_ORIGINALS_ROW_TAG))
-        compose.onNodeWithTag(MOBILE_PLAY_ORIGINALS_ROW_TAG).assertTextContains("On").performClick()
-        compose.onNodeWithText("Always plays the converted version.").performClick()
-        compose.onNodeWithTag(MOBILE_CHOICE_SAVE_TAG).performClick()
 
         assertEquals(
             listOf(
                 AndroidAppConfigEvent.ChangeRequested(
-                    AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Mp4),
+                    AndroidAppConfigChange.PlaybackMethod(StreamingMethod.File),
                 ),
                 AndroidAppConfigEvent.ChangeRequested(
                     AndroidAppConfigChange.AutoplayNextVideo(enabled = true),
-                ),
-                AndroidAppConfigEvent.ChangeRequested(
-                    AndroidAppConfigChange.PlayOriginals(enabled = false),
                 ),
             ),
             appConfigEvents,
@@ -746,10 +738,10 @@ class MobileAccountAboutTest {
         }
         compose.onNodeWithTag(MOBILE_ABOUT_COPY_TAG).assertTextEquals("Copied to clipboard")
 
-        // Config settles to MP4 after the copy: the clipboard still says hls, so the label must revert.
+        // Config settles to Direct play after the copy: the clipboard still says hls, so the label must revert.
         compose.runOnIdle {
             appConfigState = readyAndroidAppConfigState(
-                preferences = DefaultAndroidAppConfigPreferences.copy(videoPlaybackType = VideoPlaybackType.Mp4),
+                preferences = DefaultAndroidAppConfigPreferences.copy(streamingMethod = StreamingMethod.File),
             )
         }
         compose.onNodeWithTag(MOBILE_ABOUT_COPY_TAG).assertTextEquals("Copy for support")
@@ -758,13 +750,13 @@ class MobileAccountAboutTest {
 
     @Test
     fun appInfoReportsTheEffectivePlayerNotAnUnconfirmedSave() {
-        val mp4 = DefaultAndroidAppConfigPreferences.copy(videoPlaybackType = VideoPlaybackType.Mp4)
-        // Optimistic Ready shows MP4, but the save is still pending: playback keeps HLS.
+        val directPlay = DefaultAndroidAppConfigPreferences.copy(streamingMethod = StreamingMethod.File)
+        // Optimistic Ready shows Direct play, but the save is still pending: playback keeps HLS.
         val pending = androidAppConfigState(
-            content = AndroidAppConfigContent.Ready(mp4),
+            content = AndroidAppConfigContent.Ready(directPlay),
             mutation = AndroidAppConfigMutation.Saving(
                 requestId = AndroidAppConfigRequestId(3L),
-                change = AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Mp4),
+                change = AndroidAppConfigChange.PlaybackMethod(StreamingMethod.File),
                 previousPreferences = DefaultAndroidAppConfigPreferences,
                 operation = AndroidAppConfigMutation.Operation.Save,
             ),
@@ -787,7 +779,7 @@ class MobileAccountAboutTest {
     private fun diagnostics(
         state: AndroidAppConfigState,
         deviceClass: AppDiagnostics.DeviceClass = AppDiagnostics.DeviceClass.Phone,
-    ) = mobileAppDiagnostics(state.playbackPreference(), state.confirmedPlayOriginals(), deviceClass)
+    ) = mobileAppDiagnostics(state.playbackPreference(), state.confirmedStreamingMethod(), deviceClass)
 }
 
 @RunWith(AndroidJUnit4::class)

@@ -1,5 +1,8 @@
 package io.putdotio.android.settings
 
+import io.putdotio.android.telemetry.AnalyticsEvent
+import io.putdotio.android.telemetry.AnalyticsEvent.Setting
+import io.putdotio.android.telemetry.AnalyticsEvent.SettingValue
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -24,8 +27,14 @@ class SettingsAnalyticsTest {
     }
 
     @Test
-    fun playOriginalsSendsNoSettingsChanged() {
-        assertNull(AndroidAppConfigChange.PlayOriginals(enabled = true).analyticsEvent())
-        assertNull(AndroidAppConfigChange.PlayOriginals(enabled = false).analyticsEvent())
+    fun playbackMethodReportsTheStreamingMethod() {
+        assertEquals(
+            AnalyticsEvent.SettingsChanged(Setting.StreamingMethod, SettingValue.Hls),
+            AndroidAppConfigChange.PlaybackMethod(StreamingMethod.Hls).analyticsEvent(),
+        )
+        assertEquals(
+            AnalyticsEvent.SettingsChanged(Setting.StreamingMethod, SettingValue.File),
+            AndroidAppConfigChange.PlaybackMethod(StreamingMethod.File).analyticsEvent(),
+        )
     }
 }

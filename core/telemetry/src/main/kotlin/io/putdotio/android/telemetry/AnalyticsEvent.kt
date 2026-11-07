@@ -26,16 +26,16 @@ public sealed interface AnalyticsEvent {
         UseStartFrom("use_start_from"),
         SortBy("sort_by"),
         TunnelRoute("tunnel_route_name"),
-        VideoPlaybackType("video_playback_type"),
+        StreamingMethod("streaming_method"),
         AutoplayNextVideo("autoplay_next_video"),
     }
 
-    /** A switch's state or a playback type, else `changed`, so a sort or route never leaves the device. */
+    /** A switch's state or a streaming method, else `changed`, so a sort or route never leaves the device. */
     public enum class SettingValue(internal val value: String) {
         On("on"),
         Off("off"),
         Hls("hls"),
-        Mp4("mp4"),
+        File("file"),
         Changed("changed"),
         ;
 
@@ -181,9 +181,9 @@ internal object AnalyticsAllowlist {
         "settings_changed" to mapOf(
             "setting" to setOf(
                 "history_enabled", "trash_enabled", "hide_subtitles", "dont_autoselect_subtitles", "use_start_from",
-                "sort_by", "tunnel_route_name", "video_playback_type", "autoplay_next_video",
+                "sort_by", "tunnel_route_name", "streaming_method", "autoplay_next_video",
             ),
-            "value" to setOf("on", "off", "hls", "mp4", "changed"),
+            "value" to setOf("on", "off", "hls", "file", "changed"),
         ),
         "playback_started" to playback,
         "playback_ended" to playback + ("duration" to setOf("lt_5m", "5m_30m", "30m_90m", "gt_90m")),

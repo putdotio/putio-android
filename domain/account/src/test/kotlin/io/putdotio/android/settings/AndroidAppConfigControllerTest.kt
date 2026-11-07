@@ -32,7 +32,7 @@ class AndroidAppConfigControllerTest {
         val controller = AndroidAppConfigController(repository, this)
         val start = CyclicBarrier(2)
         val changes = listOf(
-            AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Mp4),
+            AndroidAppConfigChange.PlaybackMethod(StreamingMethod.File),
             AndroidAppConfigChange.AutoplayNextVideo(enabled = true),
         )
         try {
@@ -118,7 +118,7 @@ class AndroidAppConfigControllerTest {
     fun refreshRetryAfterAcceptedSaveDoesNotRepeatSave() = runBlocking<Unit> {
         val repository = RefreshFailureRepository()
         val controller = AndroidAppConfigController(repository, this)
-        val change = AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Mp4)
+        val change = AndroidAppConfigChange.PlaybackMethod(StreamingMethod.File)
         controller.use {
             controller.awaitState { it.content is AndroidAppConfigContent.Ready }
             assertTrue(controller.dispatch(AndroidAppConfigEvent.ChangeRequested(change)))
@@ -131,7 +131,7 @@ class AndroidAppConfigControllerTest {
             controller.awaitState { it.mutation == AndroidAppConfigMutation.Idle }
             assertEquals(1, repository.saveCount)
             assertEquals(3, repository.loadCount)
-            assertEquals(VideoPlaybackType.Mp4, controller.state.value.readyPreferences().videoPlaybackType)
+            assertEquals(StreamingMethod.File, controller.state.value.readyPreferences().streamingMethod)
         }
     }
 
@@ -259,7 +259,7 @@ class AndroidAppConfigControllerTest {
                     PutioFailure.Unexpected(IllegalStateException("offline")),
                 )
                 else -> PutioResult.Success(
-                    AndroidAppConfigPreferences(videoPlaybackType = VideoPlaybackType.Mp4),
+                    AndroidAppConfigPreferences(streamingMethod = StreamingMethod.File),
                 )
             }
         }

@@ -51,6 +51,7 @@ import io.putdotio.android.settings.AccountSettingsRepositoryResult
 import io.putdotio.android.settings.AccountSettingsState
 import io.putdotio.android.settings.AndroidAppConfigState
 import io.putdotio.android.settings.SdkAccountSettingsRepository
+import io.putdotio.android.settings.SdkAndroidAppConfigRepository
 import io.putdotio.android.settings.TunnelRouteOption
 import io.putdotio.android.settings.authoritativeSessionFailure
 import io.putdotio.android.files.FilesSort
@@ -85,7 +86,6 @@ import io.putdotio.android.tv.TvSession
 import io.putdotio.android.tv.TvUndoFailure
 import io.putdotio.android.tv.TvSessionDependencies
 import io.putdotio.android.tv.TvSessionKey
-import io.putdotio.android.tv.tvAppConfigRepository
 import io.putdotio.android.tv.TvSessionViewModel
 import io.putdotio.android.tv.TvShell
 import io.putdotio.android.tv.TvStartupScreen
@@ -176,7 +176,7 @@ private fun TvSignedInApp(
             historyRepository = SdkHistoryRepository(runtime.putioClient),
             trashRepository = SdkTrashRepository(runtime.putioClient),
             settingsRepository = SdkAccountSettingsRepository(runtime.putioClient),
-            appConfigRepository = tvAppConfigRepository(runtime.putioClient),
+            appConfigRepository = SdkAndroidAppConfigRepository(runtime.putioClient),
             watchedRepository = SdkFilesWatchedRepository(runtime.putioClient),
             streamUrls = SdkFilesStreamUrls(runtime.putioClient),
             filesItemResolver = filesRepository,

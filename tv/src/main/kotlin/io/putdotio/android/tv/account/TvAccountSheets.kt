@@ -49,7 +49,7 @@ import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.settings.AccountSettingsRepositoryResult
 import io.putdotio.android.settings.TunnelRouteName
 import io.putdotio.android.settings.TunnelRouteOption
-import io.putdotio.android.settings.VideoPlaybackType
+import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.android.settings.putioFailure
 import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.TvButtonStyle
@@ -297,35 +297,16 @@ private fun TvSheetMessage(text: String) {
 }
 
 @Composable
-internal fun TvVideoPlaybackSheet(
-    selected: VideoPlaybackType,
-    onSave: (VideoPlaybackType) -> Unit,
+internal fun TvPlaybackMethodSheet(
+    selected: StreamingMethod,
+    onSave: (StreamingMethod) -> Unit,
     onDismiss: () -> Unit,
     returnFocus: FocusRequester?,
 ) {
     TvChoiceSheet(
-        title = stringResource(R.string.tv_account_video_playback_type),
-        choices = VideoPlaybackType.entries.map {
+        title = stringResource(R.string.tv_account_playback_method),
+        choices = StreamingMethod.entries.map {
             TvSheetChoice(it, stringResource(it.tvLabel()), stringResource(it.tvDescription()))
-        },
-        selected = selected,
-        onSave = onSave,
-        onDismiss = onDismiss,
-        returnFocus = returnFocus,
-    )
-}
-
-@Composable
-internal fun TvPlayOriginalsSheet(
-    selected: Boolean,
-    onSave: (Boolean) -> Unit,
-    onDismiss: () -> Unit,
-    returnFocus: FocusRequester?,
-) {
-    TvChoiceSheet(
-        title = stringResource(R.string.tv_account_play_originals),
-        choices = listOf(true, false).map {
-            TvSheetChoice(it, stringResource(playOriginalsTvLabel(it)), stringResource(playOriginalsTvDescription(it)))
         },
         selected = selected,
         onSave = onSave,
