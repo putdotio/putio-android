@@ -60,20 +60,15 @@ internal suspend fun AndroidAppConfigRepository.execute(effect: AndroidAppConfig
 
 internal fun AppConfig.toAndroidPreferences(): AndroidAppConfigPreferences =
     AndroidAppConfigPreferences(
-        videoPlaybackType =
-            (this[VIDEO_PLAYBACK_TYPE_KEY] as? JsonPrimitive)?.contentOrNull
-                .let { raw -> VideoPlaybackType.entries.firstOrNull { it.wireValue == raw } }
-                ?: VideoPlaybackType.Hls,
+        streamingMethod =
+            (this[STREAMING_METHOD_KEY] as? JsonPrimitive)?.contentOrNull
+                .let { raw -> StreamingMethod.entries.firstOrNull { it.wireValue == raw } }
+                ?: StreamingMethod.Hls,
         autoplayNextVideo =
             (this[AUTOPLAY_NEXT_VIDEO_KEY] as? JsonPrimitive)
                 ?.takeUnless(JsonPrimitive::isString)
                 ?.booleanOrNull
                 ?: false,
-        playOriginals =
-            (this[PLAY_ORIGINALS_KEY] as? JsonPrimitive)
-                ?.takeUnless(JsonPrimitive::isString)
-                ?.booleanOrNull
-                ?: true,
         // Only a readable "not answered" asks, so a value this app can't read never asks again.
         productAnalyticsPromptAnswered =
             this[PRODUCT_ANALYTICS_PROMPT_ANSWERED_KEY]?.let { value ->
@@ -83,19 +78,14 @@ internal fun AppConfig.toAndroidPreferences(): AndroidAppConfigPreferences =
 
 public fun AndroidAppConfigChange.toUpdate(): AppConfigUpdate =
     when (this) {
-        is AndroidAppConfigChange.VideoPlayback ->
+        is AndroidAppConfigChange.PlaybackMethod ->
             AppConfigUpdate(
-                key = VIDEO_PLAYBACK_TYPE_KEY,
+                key = STREAMING_METHOD_KEY,
                 value = JsonPrimitive(value.wireValue),
             )
         is AndroidAppConfigChange.AutoplayNextVideo ->
             AppConfigUpdate(
                 key = AUTOPLAY_NEXT_VIDEO_KEY,
-                value = JsonPrimitive(enabled),
-            )
-        is AndroidAppConfigChange.PlayOriginals ->
-            AppConfigUpdate(
-                key = PLAY_ORIGINALS_KEY,
                 value = JsonPrimitive(enabled),
             )
         AndroidAppConfigChange.ProductAnalyticsPromptAnswered ->
@@ -105,9 +95,8 @@ public fun AndroidAppConfigChange.toUpdate(): AppConfigUpdate =
             )
     }
 
-public const val VIDEO_PLAYBACK_TYPE_KEY: String = "video_playback_type"
+internal const val STREAMING_METHOD_KEY = "streaming_method"
 internal const val AUTOPLAY_NEXT_VIDEO_KEY = "autoplay_next_video"
-internal const val PLAY_ORIGINALS_KEY = "play_originals"
 
 // One flat key, dot included. put.io keeps config per OAuth app, so the web's answer doesn't reach this app.
 internal const val PRODUCT_ANALYTICS_PROMPT_ANSWERED_KEY = "dismissed.product_analytics_prompt"

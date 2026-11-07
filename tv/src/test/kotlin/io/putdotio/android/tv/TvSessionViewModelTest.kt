@@ -43,7 +43,7 @@ import io.putdotio.android.settings.AccountSettingsRepositoryResult
 import io.putdotio.android.settings.AndroidAppConfigChange
 import io.putdotio.android.settings.AndroidAppConfigPreferences
 import io.putdotio.android.settings.AndroidAppConfigRepository
-import io.putdotio.android.settings.VideoPlaybackType
+import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.android.playback.playbackPreference
 import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackEvent
@@ -329,8 +329,8 @@ class TvSessionViewModelTest {
     }
 
     @Test
-    fun `playing a video resolves it on the session with the account's playback type`() {
-        appConfigPreferences = AndroidAppConfigPreferences(videoPlaybackType = VideoPlaybackType.Mp4)
+    fun `playing a video resolves it on the session with the account's playback method`() {
+        appConfigPreferences = AndroidAppConfigPreferences(streamingMethod = StreamingMethod.File)
         val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
 
         session.play(media(9, "clip.mp4", PutioFileType.VIDEO).copy(playback = FilesPlaybackProgress(30.0, 840.0)))

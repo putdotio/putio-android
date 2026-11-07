@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import io.putdotio.android.BuildConfig
 import io.putdotio.android.R
 import io.putdotio.android.settings.AppDiagnostics
+import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.sdk.files.PlaybackPreference
 import kotlinx.coroutines.launch
 
@@ -44,7 +45,7 @@ internal const val MOBILE_ABOUT_COPIED_TAG = "mobile-about-copied"
 
 internal fun mobileAppDiagnostics(
     playbackPreference: PlaybackPreference,
-    playOriginals: Boolean,
+    streamingMethod: StreamingMethod,
     deviceClass: AppDiagnostics.DeviceClass,
 ): AppDiagnostics =
     AppDiagnostics(
@@ -56,7 +57,7 @@ internal fun mobileAppDiagnostics(
         runtimeVersion = Build.VERSION.SDK_INT,
         deviceClass = deviceClass,
         player = playerLabel(playbackPreference),
-        playOriginals = playOriginals,
+        streamingMethod = streamingMethod,
     )
 
 // Media3 is the only player; the stream method is the one playback actually uses,

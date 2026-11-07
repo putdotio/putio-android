@@ -45,9 +45,9 @@ import io.putdotio.android.settings.AndroidAppConfigPreferences
 import io.putdotio.android.settings.AndroidAppConfigReducer
 import io.putdotio.android.settings.AndroidAppConfigRequestId
 import io.putdotio.android.settings.AndroidAppConfigState
+import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.android.settings.TunnelRouteName
 import io.putdotio.android.settings.TunnelRouteOption
-import io.putdotio.android.settings.VideoPlaybackType
 import io.putdotio.android.tv.auth.TvAccount
 import io.putdotio.android.tv.pressCenter
 import io.putdotio.android.tv.setTvContent
@@ -128,7 +128,7 @@ class TvAccountScreenTest {
         compose.runOnIdle { settings = ready(preferences) }
         compose.onNodeWithText("Resume where you left off").assertIsOn()
         compose.onNodeWithText("cdn77").assertIsDisplayed()
-        compose.onNodeWithText("HLS stream").assertIsDisplayed()
+        compose.onNodeWithText("Standard").assertIsDisplayed()
         group("Playback").assertIsFocused()
     }
 
@@ -162,41 +162,25 @@ class TvAccountScreenTest {
     }
 
     @Test
-    fun videoPlaybackChoosesInASheetAndSavesOnlyOnSave() {
-        show(settingsState = { ready(preferences) }, appConfigState = { readyConfig(VideoPlaybackType.Hls) })
+    fun playbackMethodChoosesInASheetAndSavesOnlyOnSave() {
+        show(settingsState = { ready(preferences) }, appConfigState = { readyConfig(StreamingMethod.Hls) })
 
-        openPlaybackRow("Video playback", downs = 2)
-        compose.onNode(inSheet("HLS stream")).performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNode(inSheet("Direct MP4")).performKeyInput { pressCenter() }
-        compose.onNodeWithText("Original quality when the file is already MP4.").assertIsDisplayed()
+        openPlaybackRow("Playback method", downs = 2)
+        compose.onNode(inSheet("Standard")).performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNode(inSheet("Direct play")).performKeyInput { pressCenter() }
+        compose.onNodeWithText(
+            "Plays the original file, up to 4K and surround, when this device can. Converted otherwise.",
+        ).assertIsDisplayed()
         assertEquals(emptyList<AndroidAppConfigEvent>(), appConfigEvents)
         compose.onNode(inSheet("Save")).performKeyInput { pressCenter() }
         assertEquals(
             listOf<AndroidAppConfigEvent>(
-                AndroidAppConfigEvent.ChangeRequested(AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Mp4)),
+                AndroidAppConfigEvent.ChangeRequested(AndroidAppConfigChange.PlaybackMethod(StreamingMethod.File)),
             ),
             appConfigEvents,
         )
-        compose.onAllNodesWithText("Direct MP4").assertCountEquals(0)
-        compose.onNodeWithText("Video playback").assertIsFocused()
-    }
-
-    @Test
-    fun playOriginalsTurnsOffInASheet() {
-        show(settingsState = { ready(preferences) }, appConfigState = { readyConfig(VideoPlaybackType.Hls) })
-
-        openPlaybackRow("Play originals", downs = 3)
-        compose.onNode(inSheet("On")).performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNode(inSheet("Off")).performKeyInput { pressCenter() }
-        compose.onNodeWithText("Always plays the converted version.").assertIsDisplayed()
-        compose.onNode(inSheet("Save")).performKeyInput { pressCenter() }
-        assertEquals(
-            listOf<AndroidAppConfigEvent>(
-                AndroidAppConfigEvent.ChangeRequested(AndroidAppConfigChange.PlayOriginals(enabled = false)),
-            ),
-            appConfigEvents,
-        )
-        compose.onNodeWithText("Play originals").assertIsFocused()
+        compose.onAllNodesWithText("Direct play").assertCountEquals(0)
+        compose.onNodeWithText("Playback method").assertIsFocused()
     }
 
     @Test
@@ -214,7 +198,7 @@ class TvAccountScreenTest {
             },
         )
 
-        openPlaybackRow("Proxy", downs = 4)
+        openPlaybackRow("Proxy", downs = 3)
         compose.onNodeWithText("Choose your proxy").assertIsDisplayed()
         compose.onNodeWithText("Straight from put.io's servers in Amsterdam.").assertIsDisplayed()
         compose.onNode(inSheet("cdn77")).performKeyInput {
@@ -427,19 +411,19 @@ class TvAccountScreenTest {
             AccountSettingsEvent.LoadSucceeded(AccountSettingsRequestId(1), preferences),
         ).state
 
-    private fun readyConfig(type: VideoPlaybackType): AndroidAppConfigState =
+    private fun readyConfig(method: StreamingMethod): AndroidAppConfigState =
         AndroidAppConfigReducer.reduce(
             AndroidAppConfigReducer.start().state,
             AndroidAppConfigEvent.LoadSucceeded(
                 AndroidAppConfigRequestId(1),
-                AndroidAppConfigPreferences(videoPlaybackType = type),
+                AndroidAppConfigPreferences(streamingMethod = method),
             ),
         ).state
 
     private fun show(
         settingsState: () -> AccountSettingsState,
         account: () -> TvAccount = { this.account },
-        appConfigState: () -> AndroidAppConfigState = { readyConfig(VideoPlaybackType.Hls) },
+        appConfigState: () -> AndroidAppConfigState = { readyConfig(StreamingMethod.Hls) },
         onSignOut: () -> Unit = {},
         loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>> = {
             AccountSettingsRepositoryResult.Failure(

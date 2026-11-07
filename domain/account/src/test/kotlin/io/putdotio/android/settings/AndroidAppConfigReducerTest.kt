@@ -14,12 +14,10 @@ class AndroidAppConfigReducerTest {
     @Test
     fun savesTypedChangesOptimistically() {
         listOf(
-            AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Mp4) to
-                Preferences.copy(videoPlaybackType = VideoPlaybackType.Mp4),
+            AndroidAppConfigChange.PlaybackMethod(StreamingMethod.File) to
+                Preferences.copy(streamingMethod = StreamingMethod.File),
             AndroidAppConfigChange.AutoplayNextVideo(enabled = true) to
                 Preferences.copy(autoplayNextVideo = true),
-            AndroidAppConfigChange.PlayOriginals(enabled = false) to
-                Preferences.copy(playOriginals = false),
         ).forEach { (change, expected) ->
             val transition = loadedState(Preferences).reduce(ChangeRequested(change))
 
@@ -38,11 +36,11 @@ class AndroidAppConfigReducerTest {
     @Test
     fun rejectsNoOpAndConcurrentChanges() {
         val loaded = loadedState(Preferences)
-        val noOp = loaded.reduce(ChangeRequested(AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Hls)))
+        val noOp = loaded.reduce(ChangeRequested(AndroidAppConfigChange.PlaybackMethod(StreamingMethod.Hls)))
         assertFalse(noOp.consumed)
         assertSame(loaded, noOp.state)
 
-        val saving = loaded.reduce(ChangeRequested(AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Mp4)))
+        val saving = loaded.reduce(ChangeRequested(AndroidAppConfigChange.PlaybackMethod(StreamingMethod.File)))
         val concurrent = saving.state.reduce(ChangeRequested(AndroidAppConfigChange.AutoplayNextVideo(true)))
         assertFalse(concurrent.consumed)
         assertSame(saving.state, concurrent.state)
@@ -81,7 +79,7 @@ class AndroidAppConfigReducerTest {
 
     @Test
     fun acceptedSaveRefreshesAuthoritativeConfig() {
-        val saving = requestChange(AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Mp4))
+        val saving = requestChange(AndroidAppConfigChange.PlaybackMethod(StreamingMethod.File))
         val requestId = saving.saveRequestId()
 
         val refreshing = saving.state.reduce(AndroidAppConfigEvent.SaveSucceeded(requestId))
@@ -91,7 +89,7 @@ class AndroidAppConfigReducerTest {
             (refreshing.state.mutation as AndroidAppConfigMutation.Saving).operation,
         )
 
-        val authoritative = Preferences.copy(videoPlaybackType = VideoPlaybackType.Mp4, autoplayNextVideo = true)
+        val authoritative = Preferences.copy(streamingMethod = StreamingMethod.File, autoplayNextVideo = true)
         val refreshed = refreshing.state.reduce(AndroidAppConfigEvent.RefreshSucceeded(requestId, authoritative))
         assertEquals(authoritative, refreshed.state.readyPreferences())
         assertEquals(authoritative, refreshed.state.confirmedPreferences)
@@ -100,13 +98,13 @@ class AndroidAppConfigReducerTest {
 
     @Test
     fun failedRefreshRetainsAcceptedValueAndRetriesOnlyTheRead() {
-        val change = AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Mp4)
+        val change = AndroidAppConfigChange.PlaybackMethod(StreamingMethod.File)
         val saving = requestChange(change)
         val requestId = saving.saveRequestId()
         val refreshing = saving.state.reduce(AndroidAppConfigEvent.SaveSucceeded(requestId))
         val failed = refreshing.state.reduce(AndroidAppConfigEvent.RefreshFailed(requestId, Offline))
 
-        assertEquals(VideoPlaybackType.Mp4, failed.state.readyPreferences().videoPlaybackType)
+        assertEquals(StreamingMethod.File, failed.state.readyPreferences().streamingMethod)
         assertEquals(Preferences, failed.state.confirmedPreferences)
         assertEquals(
             AndroidAppConfigMutation.Operation.Refresh,
@@ -116,13 +114,13 @@ class AndroidAppConfigReducerTest {
         val retried = failed.state.reduce(AndroidAppConfigEvent.RetryChange)
         val retryEffect = retried.effect as AndroidAppConfigEffect.Refresh
         assertTrue(retryEffect.requestId.value > requestId.value)
-        assertEquals(VideoPlaybackType.Mp4, retried.state.readyPreferences().videoPlaybackType)
+        assertEquals(StreamingMethod.File, retried.state.readyPreferences().streamingMethod)
     }
 
     @Test
     fun laterChangeSupersedesOnlyRetryableMutationFailures() {
         val replacement = AndroidAppConfigChange.AutoplayNextVideo(enabled = true)
-        val authoritative = AndroidAppConfigPreferences(VideoPlaybackType.Mp4, autoplayNextVideo = true)
+        val authoritative = AndroidAppConfigPreferences(StreamingMethod.File, autoplayNextVideo = true)
 
         listOf(failedSaveState(Offline), failedRefreshState(Offline), failedRefreshState(Forbidden)).forEach { failed ->
             val shown = failed.readyPreferences()
@@ -156,7 +154,7 @@ class AndroidAppConfigReducerTest {
         val failed = failedRefreshState(Offline, AndroidAppConfigChange.AutoplayNextVideo(enabled = true))
         assertEquals(Preferences, failed.confirmedPreferences)
 
-        val saving = failed.reduce(ChangeRequested(AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Mp4)))
+        val saving = failed.reduce(ChangeRequested(AndroidAppConfigChange.PlaybackMethod(StreamingMethod.File)))
         assertEquals(Preferences, saving.state.confirmedPreferences)
 
         val saveFailed = saving.state.reduce(AndroidAppConfigEvent.SaveFailed(saving.saveRequestId(), Offline))
@@ -198,7 +196,7 @@ class AndroidAppConfigReducerTest {
         }
 
         val loaded = start.state.reduce(AndroidAppConfigEvent.LoadSucceeded(initialRequestId, Preferences)).state
-        val saving = loaded.reduce(ChangeRequested(AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Mp4)))
+        val saving = loaded.reduce(ChangeRequested(AndroidAppConfigChange.PlaybackMethod(StreamingMethod.File)))
         val requestId = saving.saveRequestId()
         listOf(
             AndroidAppConfigEvent.SaveSucceeded(AndroidAppConfigRequestId(99L)),
@@ -248,14 +246,14 @@ class AndroidAppConfigReducerTest {
     }
 
     private fun failedSaveState(failure: PutioFailure): AndroidAppConfigState {
-        val saving = requestChange(AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Mp4))
+        val saving = requestChange(AndroidAppConfigChange.PlaybackMethod(StreamingMethod.File))
         val requestId = saving.saveRequestId()
         return saving.state.reduce(AndroidAppConfigEvent.SaveFailed(requestId, failure)).state
     }
 
     private fun failedRefreshState(
         failure: PutioFailure,
-        change: AndroidAppConfigChange = AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Mp4),
+        change: AndroidAppConfigChange = AndroidAppConfigChange.PlaybackMethod(StreamingMethod.File),
     ): AndroidAppConfigState {
         val saving = requestChange(change)
         val requestId = saving.saveRequestId()

@@ -45,9 +45,9 @@ import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioDestructiveButton
 import io.putdotio.android.design.putioMono
 import io.putdotio.android.settings.AccountSettingsRepositoryResult
+import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.android.settings.TunnelRouteName
 import io.putdotio.android.settings.TunnelRouteOption
-import io.putdotio.android.settings.VideoPlaybackType
 import io.putdotio.android.settings.putioFailure
 import io.putdotio.android.neutralTextButtonColors
 
@@ -66,47 +66,21 @@ private fun Modifier.accountDialogWidth(): Modifier =
 private val ACCOUNT_DIALOG_MAX_WIDTH = 608.dp
 
 @Composable
-internal fun MobilePlaybackTypeDialog(
-    selected: VideoPlaybackType,
-    onSave: (VideoPlaybackType) -> Unit,
+internal fun MobilePlaybackMethodDialog(
+    selected: StreamingMethod,
+    onSave: (StreamingMethod) -> Unit,
     onDismiss: () -> Unit,
 ) {
     MobileChoiceDialog(
-        title = stringResource(R.string.mobile_settings_video_playback_type),
-        message = stringResource(R.string.mobile_settings_video_playback_type_description),
-        choices = VideoPlaybackType.entries,
+        title = stringResource(R.string.mobile_settings_playback_method),
+        message = stringResource(R.string.mobile_settings_playback_method_description),
+        choices = StreamingMethod.entries,
         label = { stringResource(it.labelResource()) },
         description = {
             stringResource(
                 when (it) {
-                    VideoPlaybackType.Hls -> R.string.mobile_settings_video_playback_hls_description
-                    VideoPlaybackType.Mp4 -> R.string.mobile_settings_video_playback_mp4_description
-                },
-            )
-        },
-        selected = selected,
-        onSave = onSave,
-        onDismiss = onDismiss,
-    )
-}
-
-@Composable
-internal fun MobilePlayOriginalsDialog(
-    selected: Boolean,
-    onSave: (Boolean) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    MobileChoiceDialog(
-        title = stringResource(R.string.mobile_settings_play_originals),
-        message = stringResource(R.string.mobile_settings_play_originals_description),
-        choices = listOf(true, false),
-        label = { stringResource(playOriginalsLabel(it)) },
-        description = {
-            stringResource(
-                if (it) {
-                    R.string.mobile_settings_play_originals_on_description
-                } else {
-                    R.string.mobile_settings_play_originals_off_description
+                    StreamingMethod.Hls -> R.string.mobile_settings_playback_standard_description
+                    StreamingMethod.File -> R.string.mobile_settings_playback_direct_description
                 },
             )
         },

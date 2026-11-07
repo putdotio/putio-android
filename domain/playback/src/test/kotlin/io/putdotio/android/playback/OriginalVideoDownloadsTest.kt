@@ -31,7 +31,7 @@ class OriginalVideoDownloadsTest {
     }
 
     @Test
-    fun playOriginalsOffAndSwitchedFilesDownloadConvertedWithoutAsking() = runBlocking {
+    fun standardPlaybackAndSwitchedFilesDownloadConvertedWithoutAsking() = runBlocking {
         assertEquals(false, downloads(OriginalVideoPolicy.Never).accepts(file(H264_MP4, captured("h264-aac.mp4"))))
         assertEquals(
             false,

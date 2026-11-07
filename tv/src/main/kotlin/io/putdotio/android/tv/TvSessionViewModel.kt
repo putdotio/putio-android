@@ -111,7 +111,7 @@ internal data class TvSessionDependencies(
     /** Turns the file id a history event names into the item Files can open. */
     val filesItemResolver: FilesItemResolver,
     val recentSearchStore: (CoroutineScope) -> RecentSearchStoreOwner,
-    /** Resolves playable sources; reads this app's HLS/MP4 and Play originals choices at each resolution. */
+    /** Resolves playable sources; reads this app's playback method at each resolution. */
     val playbackRepository: (appConfig: () -> AndroidAppConfigState) -> PlaybackRepository,
     /** Saves a media file's playback position (`start_from`), as mobile's reporting does. */
     val writePlaybackPosition: suspend (fileId: Long, seconds: Double) -> PlaybackRepositoryResult<Unit>,

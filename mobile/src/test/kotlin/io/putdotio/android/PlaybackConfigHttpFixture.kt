@@ -59,8 +59,8 @@ internal class PlaybackConfigHttpFixture(
 
     private fun responseBody(exchange: HttpExchange): String? =
         when ("${exchange.requestMethod} ${exchange.requestURI.path}") {
-            "GET /v2/config" -> """{"status":"OK","config":{"video_playback_type":"$format"}}"""
-            "PUT /v2/config/video_playback_type" -> {
+            "GET /v2/config" -> """{"status":"OK","config":{"streaming_method":"$format"}}"""
+            "PUT /v2/config/streaming_method" -> {
                 val body = Json.parseToJsonElement(exchange.requestBody.bufferedReader().readText()).jsonObject
                 format = body.getValue("value").jsonPrimitive.content
                 """{"status":"OK"}"""

@@ -67,7 +67,7 @@ import io.putdotio.android.appSourceNotice
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioRadius
 import io.putdotio.android.isSupportedAvatarUrl
-import io.putdotio.android.playback.confirmedPlayOriginals
+import io.putdotio.android.playback.confirmedStreamingMethod
 import io.putdotio.android.playback.playbackNotices
 import io.putdotio.android.playback.playbackPreference
 import io.putdotio.android.settings.AccountSettingsChange
@@ -85,6 +85,7 @@ import io.putdotio.android.settings.AndroidAppConfigEvent
 import io.putdotio.android.settings.AndroidAppConfigMutation
 import io.putdotio.android.settings.AndroidAppConfigState
 import io.putdotio.android.settings.AppDiagnostics
+import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.android.settings.TunnelRouteOption
 import io.putdotio.android.settings.putioFailure
 import io.putdotio.android.telemetry.AnalyticsEvent
@@ -114,8 +115,7 @@ internal enum class TvAccountGroup(@StringRes val label: Int, @DrawableRes val i
 
 internal enum class TvAccountSheet {
     Proxy,
-    VideoPlayback,
-    PlayOriginals,
+    PlaybackMethod,
     DefaultSort,
     PrivacyPolicy,
     ServicesWeUse,
@@ -133,8 +133,7 @@ private object RowKey {
     const val SHOW_HOME = "show-home"
     const val RESUME = "resume"
     const val AUTOPLAY = "autoplay"
-    const val VIDEO_PLAYBACK = "video-playback"
-    const val PLAY_ORIGINALS = "play-originals"
+    const val PLAYBACK_METHOD = "playback-method"
     const val PROXY = "proxy"
     const val SHOW_SUBTITLES = "show-subtitles"
     const val PICK_SUBTITLES = "pick-subtitles"
@@ -490,26 +489,15 @@ private fun TvAccountSheets(
                 returnFocus = returnFocus(RowKey.PROXY),
             )
         }
-        TvAccountSheet.VideoPlayback -> if (config != null) {
-            TvVideoPlaybackSheet(
-                selected = config.videoPlaybackType,
+        TvAccountSheet.PlaybackMethod -> if (config != null) {
+            TvPlaybackMethodSheet(
+                selected = config.streamingMethod,
                 onSave = {
                     onClose()
-                    onAppConfigEvent(AndroidAppConfigEvent.ChangeRequested(AndroidAppConfigChange.VideoPlayback(it)))
+                    onAppConfigEvent(AndroidAppConfigEvent.ChangeRequested(AndroidAppConfigChange.PlaybackMethod(it)))
                 },
                 onDismiss = onClose,
-                returnFocus = returnFocus(RowKey.VIDEO_PLAYBACK),
-            )
-        }
-        TvAccountSheet.PlayOriginals -> if (config != null) {
-            TvPlayOriginalsSheet(
-                selected = config.playOriginals,
-                onSave = {
-                    onClose()
-                    onAppConfigEvent(AndroidAppConfigEvent.ChangeRequested(AndroidAppConfigChange.PlayOriginals(it)))
-                },
-                onDismiss = onClose,
-                returnFocus = returnFocus(RowKey.PLAY_ORIGINALS),
+                returnFocus = returnFocus(RowKey.PLAYBACK_METHOD),
             )
         }
         TvAccountSheet.DefaultSort -> if (settings != null) {
@@ -699,26 +687,14 @@ private class TvAccountRowsScope(
                 }
                 add { segment ->
                     TvSettingRow(
-                        title = stringResource(R.string.tv_account_video_playback_type),
+                        title = stringResource(R.string.tv_account_playback_method),
                         icon = R.drawable.ic_ph_film_strip,
                         segment = segment,
-                        onClick = { if (configControls) open(TvAccountSheet.VideoPlayback, RowKey.VIDEO_PLAYBACK) },
-                        modifier = Modifier.accountFocus(context, RowKey.VIDEO_PLAYBACK),
+                        onClick = { if (configControls) open(TvAccountSheet.PlaybackMethod, RowKey.PLAYBACK_METHOD) },
+                        modifier = Modifier.accountFocus(context, RowKey.PLAYBACK_METHOD),
                     ) { focused ->
-                        val type = stringResource(preferences.videoPlaybackType.tvLabel())
-                        TvSettingValue(AnnotatedString(type), focused)
-                    }
-                }
-                add { segment ->
-                    TvSettingRow(
-                        title = stringResource(R.string.tv_account_play_originals),
-                        icon = R.drawable.ic_ph_file_video,
-                        segment = segment,
-                        onClick = { if (configControls) open(TvAccountSheet.PlayOriginals, RowKey.PLAY_ORIGINALS) },
-                        modifier = Modifier.accountFocus(context, RowKey.PLAY_ORIGINALS),
-                    ) { focused ->
-                        val value = stringResource(playOriginalsTvLabel(preferences.playOriginals))
-                        TvSettingValue(AnnotatedString(value), focused)
+                        val method = stringResource(preferences.streamingMethod.tvLabel())
+                        TvSettingValue(AnnotatedString(method), focused)
                     }
                 }
             }
@@ -846,7 +822,7 @@ private class TvAccountRowsScope(
 
     @Composable
     fun About(playbackPreference: PlaybackPreference) {
-        val diagnostics = tvAppDiagnostics(playbackPreference, appConfigState.confirmedPlayOriginals())
+        val diagnostics = tvAppDiagnostics(playbackPreference, appConfigState.confirmedStreamingMethod())
         val channel = when (diagnostics.releaseChannel) {
             AppDiagnostics.ReleaseChannel.Stable -> R.string.tv_account_about_channel_stable
             AppDiagnostics.ReleaseChannel.Internal -> R.string.tv_account_about_channel_internal
@@ -966,9 +942,8 @@ private class TvAccountRowsScope(
     private fun ConfigChangeFailure() {
         val failed = (appConfigState.mutation as? AndroidAppConfigMutation.Failed) ?: return
         val rowKey = when (failed.change) {
-            is AndroidAppConfigChange.VideoPlayback -> RowKey.VIDEO_PLAYBACK
+            is AndroidAppConfigChange.PlaybackMethod -> RowKey.PLAYBACK_METHOD
             is AndroidAppConfigChange.AutoplayNextVideo -> RowKey.AUTOPLAY
-            is AndroidAppConfigChange.PlayOriginals -> RowKey.PLAY_ORIGINALS
             AndroidAppConfigChange.ProductAnalyticsPromptAnswered -> return
         }
         val message = when (failed.operation) {
@@ -1148,7 +1123,10 @@ private fun AndroidAppConfigState.controlsEnabled(): Boolean =
         is AndroidAppConfigMutation.Failed -> current.failure !is PutioFailure.AuthenticationRequired
     }
 
-internal fun tvAppDiagnostics(playbackPreference: PlaybackPreference, playOriginals: Boolean): AppDiagnostics =
+internal fun tvAppDiagnostics(
+    playbackPreference: PlaybackPreference,
+    streamingMethod: StreamingMethod,
+): AppDiagnostics =
     AppDiagnostics(
         appVersion = BuildConfig.VERSION_NAME,
         versionCode = BuildConfig.VERSION_CODE,
@@ -1161,7 +1139,7 @@ internal fun tvAppDiagnostics(playbackPreference: PlaybackPreference, playOrigin
             PlaybackPreference.HLS -> "media3/hls"
             PlaybackPreference.MP4 -> "media3/mp4"
         },
-        playOriginals = playOriginals,
+        streamingMethod = streamingMethod,
     )
 
 private val OPEN_SOURCE_NOTICES = listOf(appSourceNotice(BuildConfig.VERSION_NAME)) + playbackNotices + telemetryNotices

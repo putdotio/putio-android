@@ -44,8 +44,8 @@ import io.putdotio.android.settings.AccountSettingsMutation
 import io.putdotio.android.settings.AccountSettingsState
 import io.putdotio.android.settings.AndroidAppConfigMutation
 import io.putdotio.android.settings.AndroidAppConfigState
+import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.android.settings.TunnelRouteName
-import io.putdotio.android.settings.VideoPlaybackType
 import io.putdotio.android.settings.apiReason
 import io.putdotio.android.settings.putioFailure
 import io.putdotio.android.neutralTextButtonColors
@@ -81,15 +81,11 @@ internal fun TunnelRouteName.displayName(): String =
     if (this == TunnelRouteName.DEFAULT) stringResource(R.string.mobile_settings_tunnel_route_default) else value
 
 @StringRes
-internal fun VideoPlaybackType.labelResource(): Int =
+internal fun StreamingMethod.labelResource(): Int =
     when (this) {
-        VideoPlaybackType.Hls -> R.string.mobile_settings_video_playback_hls
-        VideoPlaybackType.Mp4 -> R.string.mobile_settings_video_playback_mp4
+        StreamingMethod.Hls -> R.string.mobile_settings_playback_standard
+        StreamingMethod.File -> R.string.mobile_settings_playback_direct
     }
-
-@StringRes
-internal fun playOriginalsLabel(enabled: Boolean): Int =
-    if (enabled) R.string.mobile_settings_play_originals_on else R.string.mobile_settings_play_originals_off
 
 internal val AccountSettingsChange.disablesTrash: Boolean
     get() = this is AccountSettingsChange.Toggle && key == AccountSettingsKey.Trash && !enabled

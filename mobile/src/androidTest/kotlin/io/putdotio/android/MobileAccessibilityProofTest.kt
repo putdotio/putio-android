@@ -122,8 +122,8 @@ class MobileAccessibilityProofTest {
         compose.runOnIdle { settings = true }
         compose.onNodeWithTag(MOBILE_MANAGE_TRASH_TAG).assertIsDisplayed()
         capture("settings-account")
-        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Video playback"))
-        compose.onNodeWithText("Video playback").assertIsDisplayed().performClick()
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Playback method"))
+        compose.onNodeWithText("Playback method").assertIsDisplayed().performClick()
         capture("settings-playback-choice")
         compose.onNodeWithText("Cancel").performClick()
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Sign out"))

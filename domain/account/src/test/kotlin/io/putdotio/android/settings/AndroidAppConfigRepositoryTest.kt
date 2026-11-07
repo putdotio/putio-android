@@ -24,24 +24,22 @@ class AndroidAppConfigRepositoryTest {
         val parsed =
             AppConfig(
                 mapOf(
-                    VIDEO_PLAYBACK_TYPE_KEY to JsonPrimitive("mp4"),
+                    "streaming_method" to JsonPrimitive("file"),
                     AUTOPLAY_NEXT_VIDEO_KEY to JsonPrimitive(true),
-                    PLAY_ORIGINALS_KEY to JsonPrimitive(false),
                 ),
             ).toAndroidPreferences()
         assertEquals(
-            AndroidAppConfigPreferences(VideoPlaybackType.Mp4, autoplayNextVideo = true, playOriginals = false),
+            AndroidAppConfigPreferences(StreamingMethod.File, autoplayNextVideo = true),
             parsed,
         )
 
         listOf(
             AppConfig(emptyMap()),
-            AppConfig(mapOf(VIDEO_PLAYBACK_TYPE_KEY to JsonPrimitive("dash"))),
-            AppConfig(mapOf(VIDEO_PLAYBACK_TYPE_KEY to JsonPrimitive(false))),
+            AppConfig(mapOf(STREAMING_METHOD_KEY to JsonPrimitive("dash"))),
+            AppConfig(mapOf(STREAMING_METHOD_KEY to JsonPrimitive("mp4"))),
+            AppConfig(mapOf(STREAMING_METHOD_KEY to JsonPrimitive(false))),
             AppConfig(mapOf(AUTOPLAY_NEXT_VIDEO_KEY to JsonPrimitive("true"))),
             AppConfig(mapOf(AUTOPLAY_NEXT_VIDEO_KEY to JsonArray(emptyList()))),
-            AppConfig(mapOf(PLAY_ORIGINALS_KEY to JsonPrimitive("false"))),
-            AppConfig(mapOf(PLAY_ORIGINALS_KEY to JsonArray(emptyList()))),
         ).forEach { malformed ->
             assertEquals(AndroidAppConfigPreferences(), malformed.toAndroidPreferences())
         }
@@ -50,18 +48,31 @@ class AndroidAppConfigRepositoryTest {
             AndroidAppConfigPreferences(autoplayNextVideo = true),
             AppConfig(
                 mapOf(
-                    VIDEO_PLAYBACK_TYPE_KEY to JsonPrimitive("dash"),
+                    STREAMING_METHOD_KEY to JsonPrimitive("dash"),
                     AUTOPLAY_NEXT_VIDEO_KEY to JsonPrimitive(true),
                     "searchHistory" to JsonPrimitive("unrelated"),
                 ),
             ).toAndroidPreferences(),
         )
         assertEquals(
-            AndroidAppConfigPreferences(videoPlaybackType = VideoPlaybackType.Mp4),
+            AndroidAppConfigPreferences(streamingMethod = StreamingMethod.File),
             AppConfig(
                 mapOf(
-                    VIDEO_PLAYBACK_TYPE_KEY to JsonPrimitive("mp4"),
+                    STREAMING_METHOD_KEY to JsonPrimitive("file"),
                     AUTOPLAY_NEXT_VIDEO_KEY to JsonPrimitive("true"),
+                ),
+            ).toAndroidPreferences(),
+        )
+    }
+
+    @Test
+    fun ignoresLegacyPlaybackKeys() {
+        assertEquals(
+            AndroidAppConfigPreferences(streamingMethod = StreamingMethod.Hls),
+            AppConfig(
+                mapOf(
+                    "video_playback_type" to JsonPrimitive("mp4"),
+                    "play_originals" to JsonPrimitive(true),
                 ),
             ).toAndroidPreferences(),
         )
@@ -70,16 +81,16 @@ class AndroidAppConfigRepositoryTest {
     @Test
     fun createsOneExactPerKeyUpdate() {
         assertEquals(
-            AppConfigUpdate(VIDEO_PLAYBACK_TYPE_KEY, JsonPrimitive("mp4")),
-            AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Mp4).toUpdate(),
+            AppConfigUpdate("streaming_method", JsonPrimitive("file")),
+            AndroidAppConfigChange.PlaybackMethod(StreamingMethod.File).toUpdate(),
+        )
+        assertEquals(
+            AppConfigUpdate("streaming_method", JsonPrimitive("hls")),
+            AndroidAppConfigChange.PlaybackMethod(StreamingMethod.Hls).toUpdate(),
         )
         assertEquals(
             AppConfigUpdate(AUTOPLAY_NEXT_VIDEO_KEY, JsonPrimitive(true)),
             AndroidAppConfigChange.AutoplayNextVideo(enabled = true).toUpdate(),
-        )
-        assertEquals(
-            AppConfigUpdate("play_originals", JsonPrimitive(false)),
-            AndroidAppConfigChange.PlayOriginals(enabled = false).toUpdate(),
         )
     }
 
@@ -101,7 +112,7 @@ class AndroidAppConfigRepositoryTest {
                 saveConfig = { throw unexpected },
             )
         val unexpectedResult =
-            unexpectedRepository.save(AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Hls))
+            unexpectedRepository.save(AndroidAppConfigChange.PlaybackMethod(StreamingMethod.Hls))
                 as PutioResult.Failure
         assertEquals(PutioFailure.Unexpected(unexpected), unexpectedResult.failure)
     }
@@ -114,7 +125,7 @@ class AndroidAppConfigRepositoryTest {
             SdkAndroidAppConfigRepository(
                 getConfig = {
                     operations += "read"
-                    AppConfig(mapOf(VIDEO_PLAYBACK_TYPE_KEY to JsonPrimitive("hls")))
+                    AppConfig(mapOf(STREAMING_METHOD_KEY to JsonPrimitive("hls")))
                 },
                 saveConfig = { update ->
                     operations += "save"
@@ -122,7 +133,7 @@ class AndroidAppConfigRepositoryTest {
                 },
             )
         val requestId = AndroidAppConfigRequestId(7L)
-        val change = AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Mp4)
+        val change = AndroidAppConfigChange.PlaybackMethod(StreamingMethod.File)
 
         assertEquals(
             AndroidAppConfigEvent.SaveSucceeded(requestId),

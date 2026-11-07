@@ -3,13 +3,13 @@ package io.putdotio.android.playback
 import io.putdotio.android.settings.AccountSettingsContent
 import io.putdotio.android.settings.AccountSettingsState
 import io.putdotio.android.settings.AndroidAppConfigState
-import io.putdotio.android.settings.VideoPlaybackType
+import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.sdk.files.PlaybackPreference
 
 public fun AndroidAppConfigState.playbackPreference(): PlaybackPreference =
-    when (confirmedPreferences?.videoPlaybackType) {
-        VideoPlaybackType.Mp4 -> PlaybackPreference.MP4
-        VideoPlaybackType.Hls,
+    when (confirmedPreferences?.streamingMethod) {
+        StreamingMethod.File -> PlaybackPreference.MP4
+        StreamingMethod.Hls,
         null,
         -> PlaybackPreference.HLS
     }
@@ -17,11 +17,11 @@ public fun AndroidAppConfigState.playbackPreference(): PlaybackPreference =
 public fun AndroidAppConfigState.confirmedAutoplayNextVideo(): Boolean =
     confirmedPreferences?.autoplayNextVideo == true
 
-public fun AndroidAppConfigState.confirmedPlayOriginals(): Boolean =
-    confirmedPreferences?.playOriginals == true
+public fun AndroidAppConfigState.confirmedStreamingMethod(): StreamingMethod =
+    confirmedPreferences?.streamingMethod ?: StreamingMethod.Hls
 
 public fun AndroidAppConfigState.originalVideoPolicy(build: OriginalVideoPolicy): OriginalVideoPolicy =
-    if (confirmedPlayOriginals()) build else OriginalVideoPolicy.Never
+    if (confirmedStreamingMethod() == StreamingMethod.File) build else OriginalVideoPolicy.Never
 
 /** The account's `hide_subtitles` and `dont_autoselect_subtitles`, once settings have loaded. */
 public fun AccountSettingsState.subtitleStartupPolicy(): SubtitleStartupPolicy? =
