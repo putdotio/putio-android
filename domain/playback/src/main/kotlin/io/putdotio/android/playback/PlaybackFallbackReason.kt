@@ -17,7 +17,6 @@ public enum class PlaybackFallbackReason(
     UserOff("user_off"),
     UserSwitched("user_switched"),
     PlaybackIssue("playback_issue"),
-    UnknownIssue("unknown_issue"),
     NoMediaInfo("no_media_info"),
     CodecUnmapped("codec_unmapped"),
     VideoUnsupported("video_unsupported"),

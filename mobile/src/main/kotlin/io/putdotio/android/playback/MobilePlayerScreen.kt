@@ -222,7 +222,13 @@ internal fun MobilePlayerScreen(
                 is PlaybackContent.Unsupported ->
                     MobileEmptyState(
                         title = stringResource(R.string.mobile_playback_unsupported_title),
-                        message = stringResource(R.string.mobile_playback_unsupported_message),
+                        message = stringResource(
+                            if (isVideo) {
+                                R.string.mobile_playback_unsupported_video_message
+                            } else {
+                                R.string.mobile_playback_unsupported_message
+                            },
+                        ),
                     )
 
                 is PlaybackContent.Failed ->

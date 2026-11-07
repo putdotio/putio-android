@@ -11,7 +11,6 @@ import io.putdotio.android.playback.PlaybackFallbackReason.CodecUnmapped
 import io.putdotio.android.playback.PlaybackFallbackReason.ContainerUnsupported
 import io.putdotio.android.playback.PlaybackFallbackReason.NoMediaInfo
 import io.putdotio.android.playback.PlaybackFallbackReason.PlaybackIssue
-import io.putdotio.android.playback.PlaybackFallbackReason.UnknownIssue
 import io.putdotio.android.playback.PlaybackFallbackReason.VideoUnsupported
 import io.putdotio.sdk.files.PutioMediaFormat
 import io.putdotio.sdk.files.PutioMediaInfo
@@ -44,7 +43,7 @@ class OriginalPlaybackDecisionTest {
         assertEquals(AudioUnsupported, decision.reason(captured("hevc-main10-eac3.mkv")))
         assertEquals(VideoUnsupported, decision.reason(captured("av1-4k-eac3.mkv")))
         assertEquals(
-            UnknownIssue,
+            PlaybackIssue,
             decision.reason(captured("vp8-vorbis-future-issue.webm")),
         )
         assertFalse(decision.originalVideoDecision.canPlayOriginal(captured("wmv3-wmav2.asf"), false, true))
@@ -108,18 +107,20 @@ class OriginalPlaybackDecisionTest {
     }
 
     @Test
-    fun playbackIssuesFallBackUnlessTheyAreKnownToPlay() {
+    fun anyPlaybackIssueFallsBack() {
         val decision = OriginalPlaybackDecision(FakeDecoderInventory(PHONE))
         fun withIssues(vararg issues: String) =
             decision.reason(
                 mediaInfo(video("h264"), audio("aac")).copy(playbackIssues = issues.map(PutioPlaybackIssue::fromRaw)),
             )
 
-        listOf("malformed_sei", "malformed_parameter_sets", "interlaced_video", "excessive_frame_rate").forEach {
-            assertEquals(it, PlaybackIssue, withIssues(it, "open_gop"))
+        listOf(
+            "malformed_sei", "malformed_parameter_sets", "sparse_idr", "interlaced_video", "excessive_frame_rate",
+            "open_gop", "movie_fragments", "late_moov", "future_issue",
+        ).forEach {
+            assertEquals(it, PlaybackIssue, withIssues(it))
         }
-        assertNull(withIssues("open_gop", "movie_fragments", "sparse_idr"))
-        assertEquals(UnknownIssue, withIssues("sparse_idr", "future_issue"))
+        assertNull(withIssues())
     }
 
     @Test

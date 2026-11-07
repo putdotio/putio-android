@@ -142,6 +142,7 @@
     <string name="mobile_playback_convert_again">Convert again</string>
     <string name="mobile_playback_unsupported_title">Can’t play this file</string>
     <string name="mobile_playback_unsupported_message">Choose a video or audio file to start playback.</string>
+    <string name="mobile_playback_unsupported_video_message">This device can’t play the original file, and it has no converted version.</string>
     <string name="mobile_playback_error_title">Couldn’t play this video</string>
     <string name="mobile_playback_error_title_audio">Couldn’t play this audio</string>
     <string name="mobile_playback_error_forbidden">You don’t have access to this file.</string>

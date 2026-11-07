@@ -110,9 +110,10 @@ stateDiagram-v2
 Media3 plays every stream with a media session for system controls. The app's
 playback method picks the stream: Standard (the default) plays HLS, Direct play
 plays the file. A video plays its original file only under Direct play, when put.io's `media_info`
-reports no playback issue that needs converting, the device's decoders take its
+reports no playback issue, the device's decoders take its
 video, and its decoders, audio passthrough or the bundled FFmpeg take one audio
-stream; otherwise it plays converted. FFmpeg decodes audio only, after
+stream; otherwise it plays converted, and with no converted copy and nothing to
+convert it can't play. FFmpeg decodes audio only, after
 MediaCodec. Devices with the memory for it draw ASS/SSA subtitles with libass,
 styling included, unless the viewer picked a subtitle size; others show their text. An original that still
 fails before its first frame falls back to converted at the same position. The
