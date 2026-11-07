@@ -119,6 +119,34 @@ class MobileDownloadActionReceiverTest {
     }
 
     @Test
+    fun aSignOutDuringTheDirectPlayLookupStartsAndSavesNothing() = runBlocking {
+        val untouched = row(11L, DownloadStatus.Failed(DownloadFailureReason.NETWORK, 0L))
+            .copy(artifact = DownloadArtifact.MP4)
+        rows[USER to 11L] = untouched
+        val sent = mutableListOf<DownloadEntry>()
+        val saved = mutableListOf<DownloadEntry>()
+        val deciding = DownloadNotificationRetries(
+            signedIn = { account },
+            find = { userId, fileId -> rows[userId to fileId.value] },
+            start = { _, entry -> sent += entry },
+            dismiss = { userId, fileId -> dismissed += userId to fileId },
+            decision = DownloadRetryDecision(
+                directPlay = { _, _ ->
+                    account = SignedInAccount.Nobody
+                    DirectPlayDownload(DirectPlayDownloadSource.Original, listOf(ENGLISH))
+                },
+                save = { _, entry -> saved += entry },
+            ),
+        )
+
+        assertEquals(DownloadRetryOutcome.REFUSED, deciding.retry(USER, untouched.fileId))
+
+        assertTrue(sent.isEmpty())
+        assertTrue(saved.isEmpty())
+        assertEquals(listOf(USER to untouched.fileId), dismissed)
+    }
+
+    @Test
     fun anUnconfirmedSessionLeavesTheNotificationForLater() = runBlocking {
         rows[USER to 11L] = row(11L, DownloadStatus.Failed(DownloadFailureReason.NETWORK, 0L))
         account = SignedInAccount.Unknown
