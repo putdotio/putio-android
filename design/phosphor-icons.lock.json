@@ -240,13 +240,6 @@
     },
     {
       "resDir": "tv/src/main/res",
-      "resource": "ic_ph_file_video",
-      "asset": "assets/regular/file-video.svg",
-      "sourceSha256": "e7364a0c8b32edddce3ff3674b295f3a991305318afef323a670270a256e1840",
-      "outputSha256": "1e0541fa38fc9419b00f42fc65ff1ad57e5e4c61b44063bab1102531e1a12bac"
-    },
-    {
-      "resDir": "tv/src/main/res",
       "resource": "ic_ph_magnifying_glass_fill",
       "asset": "assets/fill/magnifying-glass-fill.svg",
       "sourceSha256": "e7cf953bb787af2a4b11f8a248f35b56aab2f2b44f535d03593f490a4a633244",
