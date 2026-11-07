@@ -320,7 +320,7 @@ private fun SignedInMobileSession(
         val streaming = ConvertingPlaybackRepository(
             runtime.putioClient,
             playbackPreference = { appConfigController.state.value.playbackPreference() },
-            originalVideoPolicy = appConfigController::originalVideoPolicy,
+            originalVideoPolicy = { OriginalVideoPolicy.valueOf(BuildConfig.PUTIO_ORIGINAL_VIDEO) },
             decoders = MediaCodecDecoderInventory(appContext),
             switchedToConverted = DataStoreSwitchedToConvertedFiles.get(appContext),
         )

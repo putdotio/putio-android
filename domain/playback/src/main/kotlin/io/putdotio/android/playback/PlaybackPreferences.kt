@@ -7,7 +7,10 @@ import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.sdk.files.PlaybackPreference
 
 public fun AndroidAppConfigState.playbackPreference(): PlaybackPreference =
-    when (confirmedStreamingMethod()) {
+    confirmedStreamingMethod().playbackPreference()
+
+public fun StreamingMethod.playbackPreference(): PlaybackPreference =
+    when (this) {
         StreamingMethod.File -> PlaybackPreference.MP4
         StreamingMethod.Hls -> PlaybackPreference.HLS
     }

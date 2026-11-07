@@ -69,7 +69,6 @@ import io.putdotio.android.playback.ConvertingPlaybackRepository
 import io.putdotio.android.playback.DataStoreSwitchedToConvertedFiles
 import io.putdotio.android.playback.MediaCodecDecoderInventory
 import io.putdotio.android.playback.OriginalVideoPolicy
-import io.putdotio.android.playback.originalVideoPolicy
 import io.putdotio.android.playback.playbackPreference
 import io.putdotio.android.tv.player.TvPlaybackLayer
 import io.putdotio.android.tv.player.TvPlaybackRoute
@@ -185,9 +184,7 @@ private fun TvSignedInApp(
                 ConvertingPlaybackRepository(
                     runtime.putioClient,
                     playbackPreference = { appConfig().playbackPreference() },
-                    originalVideoPolicy = {
-                        appConfig().originalVideoPolicy(OriginalVideoPolicy.valueOf(BuildConfig.PUTIO_ORIGINAL_VIDEO))
-                    },
+                    originalVideoPolicy = { OriginalVideoPolicy.valueOf(BuildConfig.PUTIO_ORIGINAL_VIDEO) },
                     decoders = MediaCodecDecoderInventory(appContext),
                     switchedToConverted = DataStoreSwitchedToConvertedFiles.get(appContext),
                 )
