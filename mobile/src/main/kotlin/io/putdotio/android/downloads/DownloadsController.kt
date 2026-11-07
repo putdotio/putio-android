@@ -2,8 +2,6 @@ package io.putdotio.android.downloads
 
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.playback.DirectPlayDownload
-import io.putdotio.android.settings.StreamingMethod
-import io.putdotio.sdk.files.PutioFileType
 import java.io.Closeable
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
@@ -23,7 +21,6 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
-import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * One controller per signed-in user. Rows come from the store, which the engine
@@ -72,6 +69,7 @@ internal class DownloadsController(
                 }
             }
         }
+        enqueue { for (entry in store.entries.value) if (entry.awaitsDirectPlay) queueStart(entry, decide = true) }
     }
 
     private fun sampleSpeeds(entries: List<DownloadEntry>) {
@@ -124,10 +122,12 @@ internal class DownloadsController(
         enqueue {
             // Re-check under the mutation lock: a removal may have landed since dispatch.
             if (!accepts(fresh.fileId, retry = false)) return@enqueue
-            val earlier = store.find(fresh.fileId)?.takeIf { it.keepsArtifact }
-            val entry = earlier?.let { fresh.copy(artifact = it.artifact, subtitles = it.subtitles) } ?: fresh
+            val kept = store.find(fresh.fileId)?.takeIf { it.keepsArtifact && request.method == null }
+            val entry = kept?.let {
+                fresh.copy(artifact = it.artifact, subtitles = it.subtitles, accepted = it.accepted)
+            } ?: fresh
             store.upsert(entry)
-            queueStart(entry, decide = earlier == null)
+            queueStart(entry, decide = kept == null)
         }
         return true
     }
@@ -135,11 +135,7 @@ internal class DownloadsController(
     private fun queueStart(entry: DownloadEntry, decide: Boolean) {
         val directPlay = if (decide && entry.resolvesDirectPlay) {
             scope.async {
-                lookups.withPermit {
-                    withTimeoutOrNull(DIRECT_PLAY_LOOKUP_TIMEOUT) {
-                        sources.directPlay(entry.fileId, entry.subtitlesHidden != true)
-                    }
-                }
+                lookups.withPermit { sources.directPlay(entry.fileId, entry.subtitlesHidden != true) }
             }
         } else {
             null
@@ -158,17 +154,13 @@ internal class DownloadsController(
                 !it.removing && !engine.isRemoving(it.fileId) &&
                     synchronized(lock) { it.fileId !in mutableState.value.removing }
             } ?: return
-            val artifact = directPlay?.artifact
-            val chosen = when {
-                directPlay == null -> current
-                artifact == null -> current.copy(status = DownloadStatus.Failed(DownloadFailureReason.UNAVAILABLE, 0L))
-                else -> current.copy(
-                    artifact = artifact,
-                    subtitles = directPlay.subtitles.mapNotNull { it.toDownloadSubtitle() },
-                )
-            }
+            val chosen = current.decidedBy(directPlay)
             if (chosen != current) store.upsert(chosen)
-            if (directPlay == null || artifact != null) engine.start(chosen)
+            if (directPlay.unavailable) {
+                engine.notifyFailed(chosen, DownloadFailureReason.UNAVAILABLE)
+            } else {
+                engine.start(chosen)
+            }
         }
     }
 
@@ -177,11 +169,11 @@ internal class DownloadsController(
         if (!accepts(event.fileId, retry = true)) return false
         enqueue {
             val entry = store.find(event.fileId)?.takeIf { accepts(it.fileId, retry = true) } ?: return@enqueue
+            val start = entry.retryStart()
             // A pause that raced the failure must not hold the retried request.
-            val queued = entry.copy(status = DownloadStatus.Queued, queuedAt = clock(), pauseRequested = false)
-                .let { if (entry.keepsArtifact) it else it.restartedBy(it.artifact.method) }
+            val queued = start.entry.copy(status = DownloadStatus.Queued, queuedAt = clock(), pauseRequested = false)
             store.upsert(queued)
-            queueStart(queued, decide = !entry.keepsArtifact)
+            queueStart(queued, decide = start.decides)
         }
         return true
     }
@@ -370,26 +362,5 @@ private class SpeedWatch {
 }
 
 private const val NANOS_PER_MILLI = 1_000_000L
-private val DIRECT_PLAY_LOOKUP_TIMEOUT = 10.seconds
 private const val DIRECT_PLAY_LOOKUP_PARALLELISM = 4
 private val PROGRESS_INTERVAL = 1.seconds
-
-/**
- * Standard video is the converted HLS rendition; Direct play video starts as the converted MP4 until its lookup
- * answers, and stays so when the lookup fails. Audio has only the original.
- */
-private fun PutioFileType.downloadArtifact(method: StreamingMethod): DownloadArtifact? =
-    when (this) {
-        PutioFileType.VIDEO -> if (method == StreamingMethod.File) DownloadArtifact.MP4 else DownloadArtifact.HLS
-        PutioFileType.AUDIO -> DownloadArtifact.ORIGINAL
-        else -> null
-    }
-
-private val DownloadEntry.keepsArtifact: Boolean
-    get() = holdsBytes && !(artifact == DownloadArtifact.ORIGINAL_HLS && status == DownloadStatus.Missing)
-
-private val DownloadEntry.resolvesDirectPlay: Boolean
-    get() = type == PutioFileType.VIDEO && artifact.method == StreamingMethod.File
-
-private fun DownloadEntry.restartedBy(method: StreamingMethod): DownloadEntry =
-    type.downloadArtifact(method)?.let { copy(artifact = it) } ?: this

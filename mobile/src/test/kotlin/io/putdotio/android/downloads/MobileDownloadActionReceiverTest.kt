@@ -7,6 +7,9 @@ import android.os.Looper
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.playback.DirectPlayDownload
+import io.putdotio.android.playback.DirectPlayDownloadSource
+import io.putdotio.sdk.files.FileSubtitle
 import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.runBlocking
@@ -48,6 +51,60 @@ class MobileDownloadActionReceiverTest {
         assertEquals(DownloadRetryOutcome.STARTED, retries.retry(USER, FilesItemId(11L)))
 
         assertEquals(listOf(USER to FilesItemId(11L)), started)
+    }
+
+    @Test
+    fun retryDecidesWhatToFetchAsRetryInDownloadsDoes() = runBlocking {
+        val untouched = row(11L, DownloadStatus.Failed(DownloadFailureReason.NETWORK, 0L))
+            .copy(artifact = DownloadArtifact.ORIGINAL_HLS)
+        val held = row(12L, DownloadStatus.Failed(DownloadFailureReason.NETWORK, 10L))
+            .copy(artifact = DownloadArtifact.ORIGINAL_HLS)
+        val gone = row(13L, DownloadStatus.Failed(DownloadFailureReason.NETWORK, 0L))
+            .copy(artifact = DownloadArtifact.MP4)
+        for (entry in listOf(untouched, held, gone)) rows[USER to entry.fileId.value] = entry
+        val sent = mutableListOf<DownloadEntry>()
+        val saved = mutableListOf<DownloadEntry>()
+        val failed = mutableListOf<DownloadEntry>()
+        val asked = mutableListOf<Long>()
+        val deciding = DownloadNotificationRetries(
+            signedIn = { account },
+            find = { userId, fileId -> rows[userId to fileId.value] },
+            start = { _, entry -> sent += entry },
+            dismiss = { userId, fileId -> dismissed += userId to fileId },
+            decision = DownloadRetryDecision(
+                directPlay = { fileId, _ ->
+                    asked += fileId.value
+                    val source = if (fileId == untouched.fileId) {
+                        DirectPlayDownloadSource.Original
+                    } else {
+                        DirectPlayDownloadSource.Unavailable
+                    }
+                    DirectPlayDownload(source, listOf(ENGLISH))
+                },
+                save = { _, entry -> saved += entry },
+                failed = { _, entry -> failed += entry },
+            ),
+        )
+
+        assertEquals(DownloadRetryOutcome.STARTED, deciding.retry(USER, untouched.fileId))
+        assertEquals(DownloadRetryOutcome.STARTED, deciding.retry(USER, held.fileId))
+        assertEquals(DownloadRetryOutcome.UNAVAILABLE, deciding.retry(USER, gone.fileId))
+
+        assertEquals(
+            listOf(11L to DownloadArtifact.ORIGINAL, 12L to DownloadArtifact.ORIGINAL_HLS),
+            sent.map { it.fileId.value to it.artifact },
+        )
+        assertEquals(listOf("en-key"), sent.first().subtitles.map { it.key })
+        assertEquals(listOf(11L, 13L), asked)
+        assertEquals(
+            listOf(
+                untouched.copy(artifact = DownloadArtifact.ORIGINAL, subtitles = sent.first().subtitles),
+                gone.copy(status = DownloadStatus.Failed(DownloadFailureReason.UNAVAILABLE, 0L)),
+            ),
+            saved,
+        )
+        assertEquals(listOf(saved.last()), failed)
+        assertTrue(dismissed.isEmpty())
     }
 
     @Test
@@ -201,5 +258,14 @@ class MobileDownloadActionReceiverTest {
     private companion object {
         const val USER = 7L
         const val OTHER = 8L
+        val ENGLISH = FileSubtitle(
+            format = "srt",
+            key = "en-key",
+            language = "English",
+            languageCode = "eng",
+            name = "Sintel.en.srt",
+            source = "opensubtitles",
+            url = "https://api.put.io/v2/files/11/subtitles/en-key",
+        )
     }
 }

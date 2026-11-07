@@ -2,7 +2,6 @@ package io.putdotio.android.downloads
 
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.playback.DirectPlayDownload
-import io.putdotio.android.playback.DirectPlayDownloadSource
 import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.sdk.files.FileSubtitle
 import io.putdotio.sdk.files.PlaybackSubtitle
@@ -26,15 +25,8 @@ internal class DownloadSources(
     val directPlay: suspend (FilesItemId, includeSubtitles: Boolean) -> DirectPlayDownload? = { _, _ -> null },
 )
 
-internal val DirectPlayDownload.artifact: DownloadArtifact?
-    get() = when (source) {
-        DirectPlayDownloadSource.Original -> DownloadArtifact.ORIGINAL
-        DirectPlayDownloadSource.Converted -> DownloadArtifact.MP4
-        DirectPlayDownloadSource.Unavailable -> null
-    }
-
 internal fun FileSubtitle.toDownloadSubtitle(): DownloadSubtitle? {
-    val parsed = url.toHttpUrlOrNull()?.takeIf { it.host == API_HOST } ?: return null
+    val parsed = url.toHttpUrlOrNull()?.takeIf { it.isHttps && it.host == API_HOST } ?: return null
     val tokenFree = parsed.newBuilder().removeAllQueryParameters(OAUTH_TOKEN_QUERY).build()
     return DownloadSubtitle(key, tokenFree.toString(), format, language, languageCode, name, source)
 }

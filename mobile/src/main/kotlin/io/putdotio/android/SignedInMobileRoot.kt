@@ -25,6 +25,7 @@ import io.putdotio.android.downloads.DownloadSources
 import io.putdotio.android.downloads.DownloadsController
 import io.putdotio.android.downloads.DownloadsEvent
 import io.putdotio.android.downloads.MobileDownloadCache
+import io.putdotio.android.downloads.mobileDirectPlayDownloads
 import io.putdotio.android.downloads.MobileDownloadsViewModel
 import io.putdotio.android.downloads.OfflinePlaybackRepository
 import io.putdotio.android.downloads.OfflinePositionsResume
@@ -51,7 +52,6 @@ import io.putdotio.android.history.authoritativeSessionFailure
 import io.putdotio.android.playback.ConvertingPlaybackRepository
 import io.putdotio.android.playback.DataStoreSwitchedToConvertedFiles
 import io.putdotio.android.playback.MediaCodecDecoderInventory
-import io.putdotio.android.playback.DirectPlayDownloads
 import io.putdotio.android.playback.OriginalVideoPolicy
 import io.putdotio.android.playback.DefaultMobilePlayerFactory
 import io.putdotio.android.playback.MobileCast
@@ -201,12 +201,7 @@ internal fun SignedInMobileRoot(
     val downloadsController =
         remember(downloadsViewModel, downloadsContext, appConfigController, account.userId, sessionId) {
             appConfigController?.let { config ->
-                val directPlay = DirectPlayDownloads(
-                    runtime.putioClient,
-                    originalVideoPolicy = { OriginalVideoPolicy.valueOf(BuildConfig.PUTIO_ORIGINAL_VIDEO) },
-                    decoders = MediaCodecDecoderInventory(downloadsContext),
-                    switchedToConverted = DataStoreSwitchedToConvertedFiles.get(downloadsContext),
-                )
+                val directPlay = mobileDirectPlayDownloads(downloadsContext, runtime.putioClient)
                 val sources = DownloadSources({ config.state.value.confirmedStreamingMethod() }, directPlay::resolve)
                 downloadsViewModel?.controllerFor(downloadsContext, account.userId, sessionId, sources)
             }

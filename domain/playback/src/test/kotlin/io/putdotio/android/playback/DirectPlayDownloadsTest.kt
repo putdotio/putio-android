@@ -11,10 +11,20 @@ import io.putdotio.sdk.files.PutioFile
 import io.putdotio.sdk.files.PutioFileType
 import io.putdotio.sdk.files.PutioMediaInfo
 import io.putdotio.sdk.files.PutioPlaybackIssue
+import kotlin.coroutines.EmptyCoroutineContext
+import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
@@ -92,6 +102,40 @@ class DirectPlayDownloadsTest {
             listSubtitles = { emptyList() },
         )
         assertNull(offline.resolve(FilesItemId(H264_MP4), includeSubtitles = true))
+    }
+
+    @Test
+    fun aSlowSubtitleListingKeepsTheAnswerWithoutSubtitlesAndALookupThatNeverAnswersGivesUp() = runTest {
+        val slowSubtitles = DirectPlayDownloads(
+            originalVideoPolicy = { OriginalVideoPolicy.Check },
+            decision = OriginalPlaybackDecision(FakeDecoderInventory(PHONE)),
+            switchedToConverted = SwitchedToConvertedFiles.None,
+            loadFile = { id ->
+                delay(9.seconds)
+                files.getValue(id)
+            },
+            listSubtitles = { awaitCancellation() },
+            io = EmptyCoroutineContext,
+        )
+        val video = file(H264_MKV, captured("h264-high-aac.mkv"))
+        assertEquals(DirectPlayDownload(Original), slowSubtitles.resolve(video, includeSubtitles = true))
+
+        val silent = DirectPlayDownloads(
+            originalVideoPolicy = { OriginalVideoPolicy.Check },
+            decision = OriginalPlaybackDecision(FakeDecoderInventory(PHONE)),
+            switchedToConverted = SwitchedToConvertedFiles.None,
+            loadFile = { awaitCancellation() },
+            listSubtitles = { emptyList() },
+            io = EmptyCoroutineContext,
+        )
+        val answer = async { silent.resolve(video, includeSubtitles = true) }
+        advanceTimeBy(9.seconds)
+        runCurrent()
+        assertFalse(answer.isCompleted)
+        advanceTimeBy(2.seconds)
+        runCurrent()
+        assertTrue(answer.isCompleted)
+        assertNull(answer.await())
     }
 
     private suspend fun DirectPlayDownloads.source(fileId: FilesItemId): DirectPlayDownloadSource? =

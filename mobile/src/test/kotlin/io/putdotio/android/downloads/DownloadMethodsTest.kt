@@ -6,15 +6,10 @@ import io.putdotio.android.playback.DirectPlayDownloadSource
 import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.sdk.files.FileSubtitle
 import io.putdotio.sdk.files.PutioFileType
-import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.test.advanceTimeBy
-import kotlinx.coroutines.test.runCurrent
-import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
 import org.junit.Assert.assertEquals
@@ -47,7 +42,7 @@ class DownloadMethodsTest {
     @Test
     fun directPlayDownloadsTheAcceptedOriginalElseTheConvertedFileWithTheirSubtitles() = runBlocking {
         val answers = mapOf(
-            video.fileId to original(ENGLISH, ELSEWHERE),
+            video.fileId to original(ENGLISH, ELSEWHERE, PLAIN),
             tears.fileId to DirectPlayDownload(DirectPlayDownloadSource.Converted, listOf(ENGLISH)),
         )
         controller(StreamingMethod.File, answers).use { controller ->
@@ -113,49 +108,84 @@ class DownloadMethodsTest {
             assertTrue(controller.dispatch(DownloadsEvent.Start(video)))
             val failed = store.await { rows -> rows.singleOrNull()?.status is DownloadStatus.Failed }.single()
             assertEquals(DownloadStatus.Failed(DownloadFailureReason.UNAVAILABLE, 0L), failed.status)
-            settle()
+            engine.await { it.failed.size == 1 }
+            assertEquals(failed to DownloadFailureReason.UNAVAILABLE, engine.failed.single())
             assertTrue(engine.started.isEmpty())
 
             assertTrue(controller.dispatch(DownloadsEvent.Retry(video.fileId)))
-            store.await { rows -> rows.single().status is DownloadStatus.Failed && asked.size == 2 }
+            engine.await { it.failed.size == 2 }
+            assertEquals(listOf(video.fileId, video.fileId), asked.map { it.first })
             assertTrue(engine.started.isEmpty())
         }
     }
 
     @Test
-    fun aDirectPlayLookupThatNeverAnswersDownloadsTheConvertedFileNeverHls() = runTest {
-        val sources = DownloadSources({ StreamingMethod.File }) { _, _ -> awaitCancellation() }
-        val controller = DownloadsController(store, engine, backgroundScope, sources = sources)
-        assertTrue(controller.dispatch(DownloadsEvent.Start(video)))
-        advanceTimeBy(9.seconds)
-        runCurrent()
-        assertTrue(engine.started.isEmpty())
-
-        advanceTimeBy(2.seconds)
-        runCurrent()
-        assertEquals(DownloadArtifact.MP4, engine.started.single().artifact)
-        controller.close()
+    fun aDirectPlayLookupWithoutAnAnswerDownloadsTheConvertedFileNeverHls() = runBlocking {
+        controller(StreamingMethod.File, emptyMap()).use { controller ->
+            assertTrue(controller.dispatch(DownloadsEvent.Start(video)))
+            engine.await { it.started.size == 1 }
+            assertEquals(DownloadArtifact.MP4, engine.started.single().artifact)
+        }
     }
 
     @Test
-    fun directPlayLookupsRunTogetherAndStartsKeepTapOrder() = runTest {
+    fun directPlayLookupsRunTogetherAndStartsKeepTapOrder() = runBlocking {
         val episodes = (20L..22L).map { video.copy(fileId = FilesItemId(it), name = "Episode $it.mkv") }
-        val sources = DownloadSources({ StreamingMethod.File }) { _, _ -> awaitCancellation() }
-        val controller = DownloadsController(store, engine, backgroundScope, sources = sources)
-        for (request in listOf(episodes[0], audio, episodes[1], episodes[2])) {
-            assertTrue(controller.dispatch(DownloadsEvent.Start(request)))
+        val answers = episodes.associate { it.fileId to CompletableDeferred<DirectPlayDownload?>() }
+        val sources = DownloadSources({ StreamingMethod.File }) { fileId, _ ->
+            asked += fileId to true
+            answers.getValue(fileId).await()
         }
-        advanceTimeBy(9.seconds)
-        runCurrent()
-        assertTrue(engine.started.isEmpty())
+        DownloadsController(store, engine, this, sources = sources).use { controller ->
+            for (request in listOf(episodes[0], audio, episodes[1], episodes[2])) {
+                assertTrue(controller.dispatch(DownloadsEvent.Start(request)))
+            }
+            withTimeout(5_000L) { while (asked.size < episodes.size) yield() }
+            assertTrue(engine.started.isEmpty())
 
-        advanceTimeBy(2.seconds)
-        runCurrent()
-        assertEquals(
-            listOf(episodes[0].fileId, audio.fileId, episodes[1].fileId, episodes[2].fileId),
-            engine.started.map { it.fileId },
+            for (episode in episodes.reversed()) answers.getValue(episode.fileId).complete(original())
+            engine.await { it.started.size == 4 }
+            assertEquals(
+                listOf(episodes[0].fileId, audio.fileId, episodes[1].fileId, episodes[2].fileId),
+                engine.started.map { it.fileId },
+            )
+        }
+    }
+
+    @Test
+    fun aFileMenuMethodReplacesHeldBytesOfTheOtherMethodAndTheSettingKeepsThem() = runBlocking {
+        store.upsert(failed(DownloadArtifact.HLS, 10L))
+        store.upsert(failed(DownloadArtifact.HLS, 10L).copy(fileId = tears.fileId, name = tears.name))
+        val answers = mapOf(video.fileId to original(ENGLISH))
+        controller(StreamingMethod.Hls, answers).use { controller ->
+            assertTrue(controller.dispatch(DownloadsEvent.Start(video.copy(method = StreamingMethod.File))))
+            assertTrue(controller.dispatch(DownloadsEvent.Start(tears)))
+            engine.await { it.started.size == 2 }
+
+            assertEquals(
+                listOf(video.fileId to DownloadArtifact.ORIGINAL, tears.fileId to DownloadArtifact.HLS),
+                engine.started.map { it.fileId to it.artifact },
+            )
+            assertEquals(listOf("en-key"), engine.started.first().subtitles.map { it.key })
+            assertEquals(listOf(video.fileId), asked.map { it.first })
+        }
+    }
+
+    @Test
+    fun aVideoWhoseLookupTheProcessLostAsksAgainOnTheNextStart() = runBlocking {
+        val lost = DownloadEntry(
+            video.fileId, video.name, PutioFileType.VIDEO, DownloadArtifact.MP4, DownloadStatus.Queued, createdAt = 1L,
         )
-        controller.close()
+        store.upsert(lost)
+        store.upsert(lost.copy(fileId = tears.fileId, accepted = true))
+        controller(StreamingMethod.Hls, mapOf(video.fileId to original(ENGLISH))).use {
+            engine.await { it.started.size == 1 }
+
+            val started = engine.started.single()
+            assertEquals(video.fileId to DownloadArtifact.ORIGINAL, started.fileId to started.artifact)
+            assertEquals(listOf("en-key"), started.subtitles.map { it.key })
+            assertEquals(listOf(video.fileId to true), asked)
+        }
     }
 
     @Test
@@ -280,5 +310,6 @@ class DownloadMethodsTest {
             url = "https://api.put.io/v2/files/7/subtitles/en-key?oauth_token=download",
         )
         val ELSEWHERE = ENGLISH.copy(key = "cdn", url = "https://cdn.example.com/subtitles/en.srt?token=t")
+        val PLAIN = ENGLISH.copy(key = "plain", url = "http://api.put.io/v2/files/7/subtitles/plain")
     }
 }

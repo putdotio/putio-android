@@ -63,12 +63,7 @@ internal fun sendDownloadRequest(
         DownloadService.sendAddDownload(context, MobileDownloadService::class.java, request, reason, true)
     },
 ) {
-    val url = entry.artifact.apiUrl(entry.fileId, subtitlesHidden = entry.subtitlesHidden == true)
-    val request = DownloadRequest.Builder(downloadContentId(userId, entry.fileId), url.toUri())
-        .setMimeType(entry.requestMimeType)
-        .setData(downloadRequestData(entry.name, entry.subtitles))
-        .build()
-    send(request, stopReason)
+    send(entry.downloadRequest(userId), stopReason)
     MobileDownloadNotifications.cancel(context, userId, entry.fileId)
 }
 
@@ -88,6 +83,19 @@ internal fun startDownload(
         }
     }
 }
+
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+internal fun DownloadEntry.downloadRequest(userId: Long): DownloadRequest {
+    val url = artifact.apiUrl(fileId, subtitlesHidden = subtitlesHidden == true)
+    return DownloadRequest.Builder(downloadContentId(userId, fileId), url.toUri())
+        .setMimeType(requestMimeType)
+        .setData(downloadRequestData(name, subtitles))
+        .build()
+}
+
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+internal fun DownloadRequest.fetchesSameAs(other: DownloadRequest): Boolean =
+    uri == other.uri && data.toDownloadRequestData().subtitles == other.data.toDownloadRequestData().subtitles
 
 private val DownloadEntry.requestMimeType: String?
     get() = when {

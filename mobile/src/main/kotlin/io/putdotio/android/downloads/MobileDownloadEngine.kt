@@ -153,16 +153,24 @@ internal class MobileDownloadEngine(
                     if (download == null) store.removeBlocking(entry.fileId) else remove(entry.fileId)
                 download != null -> Unit
                 // Media3 has no record: it lost the finished bytes, never saw the request, or
-                // dropped it. Finished rows read as missing, failed rows wait for Retry, and
-                // everything else goes back in the queue.
+                // dropped it. Finished rows read as missing, failed rows wait for Retry, a Direct play
+                // video waits for the controller to ask put.io again, and everything else goes back in the queue.
                 entry.isCompleted -> store.markMissing(entry.fileId)
-                entry.canRetry || inherited[entry.fileId]?.copy(pauseRequested = entry.pauseRequested) != entry -> Unit
+                entry.canRetry || entry.awaitsDirectPlay ||
+                    inherited[entry.fileId]?.copy(pauseRequested = entry.pauseRequested) != entry -> Unit
                 else -> start(entry)
             }
         }
     }
 
-    override fun start(entry: DownloadEntry) = startDownload(appContext, downloadManager, userId, entry)
+    override suspend fun start(entry: DownloadEntry) {
+        withContext(ioDispatcher) { downloads.dropReplacedBytes(downloadManager.downloadIndex, userId, entry) }
+        if (!closed) startDownload(appContext, downloadManager, userId, entry)
+    }
+
+    override fun notifyFailed(entry: DownloadEntry, reason: DownloadFailureReason) {
+        if (!closed) MobileDownloadNotifications.post(appContext, userId, entry, DownloadOutcome.Failed(reason))
+    }
 
     override suspend fun remove(fileId: FilesItemId) {
         val contentId = downloadContentId(userId, fileId)

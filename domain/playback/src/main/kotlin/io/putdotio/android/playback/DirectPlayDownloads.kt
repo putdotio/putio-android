@@ -8,8 +8,11 @@ import io.putdotio.sdk.files.PlaybackCapabilities
 import io.putdotio.sdk.files.PutioFile
 import io.putdotio.sdk.files.PutioFileType
 import java.util.concurrent.CancellationException
+import kotlin.coroutines.CoroutineContext
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 public enum class DirectPlayDownloadSource {
     Original,
@@ -29,6 +32,7 @@ public class DirectPlayDownloads internal constructor(
     private val switchedToConverted: SwitchedToConvertedFiles,
     private val loadFile: suspend (Long) -> PutioFile,
     private val listSubtitles: suspend (Long) -> List<FileSubtitle>,
+    private val io: CoroutineContext = Dispatchers.IO,
 ) {
     public constructor(
         client: PutioClient,
@@ -44,22 +48,25 @@ public class DirectPlayDownloads internal constructor(
     )
 
     /** Null when the file could not be read; subtitles are best effort and never fail the answer. */
-    @Suppress("TooGenericExceptionCaught")
     public suspend fun resolve(fileId: FilesItemId, includeSubtitles: Boolean): DirectPlayDownload? =
-        withContext(Dispatchers.IO) {
-            try {
-                val source = source(fileId.value)
-                val subtitles = if (includeSubtitles && source != DirectPlayDownloadSource.Unavailable) {
-                    subtitles(fileId.value)
-                } else {
-                    emptyList()
-                }
-                DirectPlayDownload(source, subtitles)
-            } catch (error: CancellationException) {
-                throw error
-            } catch (_: Exception) {
-                null
+        withContext(io) {
+            val source = withTimeoutOrNull(LOOKUP_TIMEOUT) { sourceOrNull(fileId.value) } ?: return@withContext null
+            val subtitles = if (includeSubtitles && source != DirectPlayDownloadSource.Unavailable) {
+                withTimeoutOrNull(SUBTITLES_TIMEOUT) { subtitles(fileId.value) }.orEmpty()
+            } else {
+                emptyList()
             }
+            DirectPlayDownload(source, subtitles)
+        }
+
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun sourceOrNull(fileId: Long): DirectPlayDownloadSource? =
+        try {
+            source(fileId)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            null
         }
 
     private suspend fun source(fileId: Long): DirectPlayDownloadSource {
@@ -99,6 +106,8 @@ public class DirectPlayDownloads internal constructor(
             ) == true
 
     private companion object {
+        val LOOKUP_TIMEOUT = 10.seconds
+        val SUBTITLES_TIMEOUT = 5.seconds
         val MEDIA_INFO_QUERY = FileDetailsQuery(
             mp4Size = false,
             startFrom = false,

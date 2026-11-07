@@ -30,6 +30,7 @@ import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.auth.MobileOAuthRuntime
 import io.putdotio.android.files.FilesItemId
 import java.io.File
+import java.io.IOException
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
@@ -99,6 +100,9 @@ internal class MobileDownloadCache private constructor(context: Context) {
             .setUpstreamDataSourceFactory(upstreamFactory)
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
 
+    private val downloaderFactory =
+        UserScopedDownloaderFactory(::cacheFactory, Executors.newFixedThreadPool(DOWNLOAD_THREADS))
+
     /**
      * Media3's DownloadService binds the first manager it sees for the whole
      * process, so there is exactly one. Request ids are `userId:fileId`; each
@@ -109,7 +113,7 @@ internal class MobileDownloadCache private constructor(context: Context) {
     val downloadManager: DownloadManager = DownloadManager(
         appContext,
         DefaultDownloadIndex(databaseProvider),
-        UserScopedDownloaderFactory(::cacheFactory, Executors.newFixedThreadPool(DOWNLOAD_THREADS)),
+        downloaderFactory,
     ).apply {
         maxParallelDownloads = MobileDownloadSettings(appContext).concurrency
         minRetryCount = MIN_RETRIES
@@ -147,6 +151,17 @@ internal class MobileDownloadCache private constructor(context: Context) {
     fun offlineRequest(userId: Long, fileId: FilesItemId): OfflineRequest? =
         downloadManager.downloadIndex.offlineRequest(userId, fileId)
             ?.let { request -> request.copy(subtitles = request.subtitles.filter { holdsSubtitle(userId, it) }) }
+
+    fun dropReplacedBytes(index: DownloadIndex, userId: Long, entry: DownloadEntry) {
+        val recorded = try {
+            index.getDownload(downloadContentId(userId, entry.fileId))
+        } catch (_: IOException) {
+            null
+        }
+        if (recorded?.isTerminalState == true && !recorded.request.fetchesSameAs(entry.downloadRequest(userId))) {
+            downloaderFactory.createDownloader(recorded.request).remove()
+        }
+    }
 
     private fun authorize(spec: DataSpec): DataSpec {
         if (spec.uri.host != API_HOST) return spec

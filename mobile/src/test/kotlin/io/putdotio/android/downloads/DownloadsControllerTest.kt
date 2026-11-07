@@ -374,6 +374,7 @@ internal class FakeDownloadEngine : DownloadEngine {
     val removed = mutableListOf<FilesItemId>()
     val paused = mutableListOf<FilesItemId>()
     val resumed = mutableListOf<FilesItemId>()
+    val failed = mutableListOf<Pair<DownloadEntry, DownloadFailureReason>>()
     override var concurrency: Int = DOWNLOAD_CONCURRENCY_DEFAULT
         private set
     var progressRefreshes = 0
@@ -381,8 +382,13 @@ internal class FakeDownloadEngine : DownloadEngine {
     private val removing = mutableSetOf<FilesItemId>()
     private val version = MutableStateFlow(0)
 
-    override fun start(entry: DownloadEntry) {
+    override suspend fun start(entry: DownloadEntry) {
         started += entry
+        version.value += 1
+    }
+
+    override fun notifyFailed(entry: DownloadEntry, reason: DownloadFailureReason) {
+        failed += entry to reason
         version.value += 1
     }
 
