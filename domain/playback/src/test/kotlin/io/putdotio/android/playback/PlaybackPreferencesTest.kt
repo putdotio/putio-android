@@ -72,25 +72,23 @@ class PlaybackPreferencesTest {
     }
 
     @Test
-    fun originalsFollowTheConfirmedDirectPlayMethodAndStayConvertedUntilItLoads() {
+    fun theMethodIsStandardUntilDirectPlayIsConfirmed() {
         val file = AndroidAppConfigPreferences(streamingMethod = StreamingMethod.File)
         val hls = AndroidAppConfigPreferences(streamingMethod = StreamingMethod.Hls)
-        OriginalVideoPolicy.entries.forEach { build ->
-            assertEquals(build, readyState(file).originalVideoPolicy(build))
-            assertEquals(OriginalVideoPolicy.Never, readyState(hls).originalVideoPolicy(build))
-            assertEquals(OriginalVideoPolicy.Never, AndroidAppConfigReducer.start().state.originalVideoPolicy(build))
-        }
+        assertEquals(StreamingMethod.File, readyState(file).confirmedStreamingMethod())
+        assertEquals(StreamingMethod.Hls, readyState(hls).confirmedStreamingMethod())
+        assertEquals(StreamingMethod.Hls, AndroidAppConfigReducer.start().state.confirmedStreamingMethod())
         val switchingToFile = AndroidAppConfigReducer.reduce(
             readyState(hls),
             AndroidAppConfigEvent.ChangeRequested(AndroidAppConfigChange.PlaybackMethod(StreamingMethod.File)),
         )
-        assertEquals(OriginalVideoPolicy.Never, switchingToFile.state.originalVideoPolicy(OriginalVideoPolicy.Check))
+        assertEquals(StreamingMethod.Hls, switchingToFile.state.confirmedStreamingMethod())
         val requestId = requireNotNull(switchingToFile.effect).requestId
         val refreshed = AndroidAppConfigReducer.reduce(
             AndroidAppConfigReducer.reduce(switchingToFile.state, AndroidAppConfigEvent.SaveSucceeded(requestId)).state,
             AndroidAppConfigEvent.RefreshSucceeded(requestId, file),
         )
-        assertEquals(OriginalVideoPolicy.Check, refreshed.state.originalVideoPolicy(OriginalVideoPolicy.Check))
+        assertEquals(StreamingMethod.File, refreshed.state.confirmedStreamingMethod())
     }
 
     @Test

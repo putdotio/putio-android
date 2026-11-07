@@ -13,6 +13,7 @@ import androidx.media3.exoplayer.scheduler.PlatformScheduler
 import androidx.media3.exoplayer.scheduler.Scheduler
 import io.putdotio.android.R
 import io.putdotio.android.auth.MobileOAuthRuntime
+import io.putdotio.sdk.files.PutioFileType
 
 /**
  * Foreground host for Media3 downloads. Its notification ([downloadProgressNotification]) shows the
@@ -64,9 +65,8 @@ internal fun sendDownloadRequest(
 ) {
     val url = entry.artifact.apiUrl(entry.fileId, subtitlesHidden = entry.subtitlesHidden == true)
     val request = DownloadRequest.Builder(downloadContentId(userId, entry.fileId), url.toUri())
-        .setMimeType(if (entry.artifact.isHls) MimeTypes.APPLICATION_M3U8 else null)
-        // The name rides along so a row lost from the app's index can be rebuilt with it.
-        .setData(entry.name.encodeToByteArray())
+        .setMimeType(entry.requestMimeType)
+        .setData(downloadRequestData(entry.name, entry.subtitles))
         .build()
     send(request, stopReason)
     MobileDownloadNotifications.cancel(context, userId, entry.fileId)
@@ -88,6 +88,13 @@ internal fun startDownload(
         }
     }
 }
+
+private val DownloadEntry.requestMimeType: String?
+    get() = when {
+        artifact.isHls -> MimeTypes.APPLICATION_M3U8
+        type == PutioFileType.VIDEO -> VIDEO_FILE_MIME_TYPE
+        else -> null
+    }
 
 @get:androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 private val DownloadEntry.stopReason: Int

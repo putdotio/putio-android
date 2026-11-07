@@ -322,10 +322,22 @@ internal class MobileDownloadEngine(
 @get:androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal val DownloadRequest.artifact: DownloadArtifact
     get() = when {
-        mimeType != MimeTypes.APPLICATION_M3U8 && !uri.path.orEmpty().endsWith(".m3u8") -> DownloadArtifact.ORIGINAL
+        mimeType != MimeTypes.APPLICATION_M3U8 && !uri.path.orEmpty().endsWith(".m3u8") ->
+            if (uri.path.orEmpty().endsWith(MP4_PATH)) DownloadArtifact.MP4 else DownloadArtifact.ORIGINAL
         uri.getQueryParameter(ORIGINAL_QUERY) == "1" -> DownloadArtifact.ORIGINAL_HLS
         else -> DownloadArtifact.HLS
     }
+
+@get:androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+internal val DownloadRequest.fileType: PutioFileType
+    get() = if (artifact == DownloadArtifact.ORIGINAL && mimeType != VIDEO_FILE_MIME_TYPE) {
+        PutioFileType.AUDIO
+    } else {
+        PutioFileType.VIDEO
+    }
+
+@get:androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+internal val VIDEO_FILE_MIME_TYPE: String get() = MimeTypes.VIDEO_UNKNOWN
 
 /** This user's file id in a `userId:fileId` request id; null for another account's request. */
 internal fun fileIdOf(userId: Long, contentId: String): FilesItemId? {
@@ -335,9 +347,9 @@ internal fun fileIdOf(userId: Long, contentId: String): FilesItemId? {
 
 /**
  * A row rebuilt from Media3's record when the app's own row is gone. The rendition comes from the
- * request: an HLS playlist is a video, original over HLS when it asks for `original`, and a file is
- * audio, as only audio downloads the original file.
- * The name is the one the request carried, else a neutral stand-in; the status follows Media3.
+ * request: an HLS playlist is a video, original over HLS when it asks for `original`; a file is a
+ * video when the request names a video type or the converted MP4, else audio.
+ * The name and subtitle files are the ones the request carried, else a neutral stand-in; the status follows Media3.
  */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 private fun Download.recoveredEntry(fileId: FilesItemId, standInName: String): DownloadEntry {
@@ -345,18 +357,20 @@ private fun Download.recoveredEntry(fileId: FilesItemId, standInName: String): D
     val hls = artifact.isHls
     val subtitleCount = request.uri.getQueryParameter("max_subtitle_count")
     val time = startTimeMs.takeIf { it > 0L } ?: updateTimeMs
+    val data = request.data.toDownloadRequestData()
     return DownloadEntry(
         fileId = fileId,
-        name = request.data.decodeToString().ifBlank { standInName },
-        type = if (hls) PutioFileType.VIDEO else PutioFileType.AUDIO,
+        name = data.name.ifBlank { standInName },
+        type = request.fileType,
         artifact = artifact,
         status = DownloadStatus.Queued,
         createdAt = time,
         accepted = true,
         queuedAt = time,
         recovered = true,
-        subtitlesHidden = if (hls) subtitleCount?.let { it == "0" } else null,
+        subtitlesHidden = if (hls) subtitleCount?.let { it == "0" } else false.takeIf { data.subtitles.isNotEmpty() },
         pauseRequested = stopReason == MobileDownloadEngine.STOP_REASON_PAUSED,
+        subtitles = data.subtitles,
     )
 }
 
@@ -366,7 +380,8 @@ private fun MobileDownloadStore.markMissing(fileId: FilesItemId) =
 /**
  * Built here, not by the SDK: its URL builders embed `oauth_token`, and Media3 persists
  * this URL, so it must stay token-free. HLS asks for every subtitle rendition, or for none
- * when the account hides subtitles, as streaming does; an original over HLS asks the same.
+ * when the account hides subtitles, as streaming does; an original over HLS asks the same. The
+ * original and the converted MP4 are the files File stream playback reads.
  */
 internal fun DownloadArtifact.apiUrl(fileId: FilesItemId, subtitlesHidden: Boolean = false): String {
     val hls = "https://api.put.io/v2/files/${fileId.value}/hls/media.m3u8" +
@@ -375,10 +390,12 @@ internal fun DownloadArtifact.apiUrl(fileId: FilesItemId, subtitlesHidden: Boole
         DownloadArtifact.HLS -> hls
         DownloadArtifact.ORIGINAL_HLS -> "$hls&$ORIGINAL_QUERY=1"
         DownloadArtifact.ORIGINAL -> "https://api.put.io/v2/files/${fileId.value}/stream"
+        DownloadArtifact.MP4 -> "https://api.put.io/v2/files/${fileId.value}$MP4_PATH"
     }
 }
 
 private const val ORIGINAL_QUERY = "original"
+private const val MP4_PATH = "/mp4/stream"
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 private fun Download.toStatus(error: Exception?, pause: DownloadPauseReason?): DownloadStatus? =

@@ -21,9 +21,6 @@ public fun AndroidAppConfigState.confirmedAutoplayNextVideo(): Boolean =
 public fun AndroidAppConfigState.confirmedStreamingMethod(): StreamingMethod =
     confirmedPreferences?.streamingMethod ?: StreamingMethod.Hls
 
-public fun AndroidAppConfigState.originalVideoPolicy(build: OriginalVideoPolicy): OriginalVideoPolicy =
-    if (confirmedStreamingMethod() == StreamingMethod.File) build else OriginalVideoPolicy.Never
-
 /** The account's `hide_subtitles` and `dont_autoselect_subtitles`, once settings have loaded. */
 public fun AccountSettingsState.subtitleStartupPolicy(): SubtitleStartupPolicy? =
     (content as? AccountSettingsContent.Ready)
