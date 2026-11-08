@@ -79,6 +79,21 @@ class MobileCastSessionTest {
     }
 
     @Test
+    fun aRefusedLocalNetworkStaysBlockedUntilAndroidGrantsIt() {
+        var denied = true
+        val gateway = GmsCastGateway(app, GmsCastRoutes(app), GmsCastRemote(), localNetworkDenied = { denied }) {
+            TaskCompletionSource<CastContext>().task
+        }
+
+        gateway.localNetworkAnswered()
+        assertTrue(gateway.localNetworkBlocked())
+
+        denied = false
+        gateway.localNetworkAnswered()
+        assertFalse(gateway.localNetworkBlocked())
+    }
+
+    @Test
     fun aSignOutEndsTheSessionCastResumesAfterIt() {
         val calls = mutableListOf<String>()
         val signOut = CastSignOutEnd { calls += "end" }

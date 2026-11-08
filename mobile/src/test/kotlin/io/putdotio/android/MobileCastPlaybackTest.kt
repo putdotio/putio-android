@@ -359,7 +359,7 @@ class MobileCastPlaybackTest {
 
         override fun endForSignOut() = Unit
 
-        override fun localNetworkAnswered(granted: Boolean) = Unit
+        override fun localNetworkAnswered() = Unit
 
         override fun play() = Unit
 

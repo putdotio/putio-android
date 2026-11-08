@@ -2,8 +2,13 @@ package io.putdotio.android.playback
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
 import androidx.annotation.DrawableRes
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -54,6 +59,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -64,6 +70,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.content.edit
 import io.putdotio.android.MobileSheetHandle
 import io.putdotio.android.R
 import io.putdotio.android.neutralTextButtonColors
@@ -79,29 +86,36 @@ internal const val MOBILE_CAST_RETRY_TAG = "mobile-cast-retry"
 
 /**
  * Cast in a player's top bar, once a receiver is in reach; yellow while casting. Where Android needs
- * the local network allowed first, the tap asks for it and opens the picker once allowed.
+ * the local network allowed first, the tap asks for it and opens the picker once allowed, or opens
+ * the app's settings once Android no longer prompts.
  */
 @Composable
 internal fun MobileCastButton(
     availability: CastAvailability,
     onClick: () -> Unit,
-    onLocalNetworkAnswer: (Boolean) -> Unit,
+    onLocalNetworkAnswer: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (!availability.showsButton) return
     val device = availability.connectedDevice
+    val context = LocalContext.current
+    val activity = LocalActivity.current
+    val localNetworkPrompt = remember(context, activity) {
+        LocalNetworkPrompt(context) { activity?.shouldShowRequestPermissionRationale(LOCAL_NETWORK_PERMISSION) == true }
+    }
     val askLocalNetwork = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        onLocalNetworkAnswer(granted)
+        localNetworkPrompt.answered(granted)
+        onLocalNetworkAnswer()
         if (granted) onClick()
     }
     MobileIconButton(
         device?.let { stringResource(R.string.mobile_cast_casting_to, it) } ?: stringResource(R.string.mobile_cast),
         R.drawable.ic_ph_screencast,
         onClick = {
-            if (availability == CastAvailability.NeedsLocalNetwork) {
-                askLocalNetwork.launch(LOCAL_NETWORK_PERMISSION)
-            } else {
-                onClick()
+            when {
+                availability != CastAvailability.NeedsLocalNetwork -> onClick()
+                localNetworkPrompt.exhausted -> context.startActivity(appSettingsIntent(context))
+                else -> askLocalNetwork.launch(LOCAL_NETWORK_PERMISSION)
             }
         },
         modifier = modifier.testTag(MOBILE_CAST_BUTTON_TAG),
@@ -340,9 +354,29 @@ internal fun MobileCastRetry(onRetry: () -> Unit, modifier: Modifier = Modifier)
     }
 }
 
+internal class LocalNetworkPrompt(context: Context, private val rationale: () -> Boolean) {
+    private val preferences by lazy {
+        context.getSharedPreferences(LOCAL_NETWORK_PREFERENCES, Context.MODE_PRIVATE)
+    }
+
+    val exhausted: Boolean get() = preferences.getBoolean(LOCAL_NETWORK_REFUSED, false) && !rationale()
+
+    fun answered(granted: Boolean) {
+        when {
+            granted -> preferences.edit { remove(LOCAL_NETWORK_REFUSED) }
+            rationale() -> preferences.edit { putBoolean(LOCAL_NETWORK_REFUSED, true) }
+        }
+    }
+}
+
+private fun appSettingsIntent(context: Context): Intent =
+    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))
+
 // Only asked for on Android 17 and later, where the platform defines it.
 @SuppressLint("InlinedApi")
 private const val LOCAL_NETWORK_PERMISSION = Manifest.permission.ACCESS_LOCAL_NETWORK
+private const val LOCAL_NETWORK_PREFERENCES = "io.putdotio.android.cast.local-network"
+private const val LOCAL_NETWORK_REFUSED = "refused"
 
 private val CAST_PICKER_MAX_WIDTH = 560.dp
 private const val CAST_PICKER_SCRIM_ALPHA = 0.55f
