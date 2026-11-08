@@ -100,7 +100,7 @@ internal class SignedInCastAccount(
         val loaded = repository.castMedia(target, source, castSubtitleKey(source, null, policy))
         return (loaded as? PlaybackRepositoryResult.Success)?.value?.let { media ->
             CastPrepared(
-                media = media.copy(playlistSubtitle = castPlaylistSubtitle(source, null, policy)),
+                media = media.copy(playlistSubtitle = castPlaylistSubtitle(source, target.mediaType, null, policy)),
                 item = playerFactory.reportableItem(
                     source.toMediaItem(target.name, target.mediaType, artist = appName),
                     ready.useStartFrom,
@@ -241,7 +241,8 @@ internal fun MobileCastPlayback(
         val load: suspend (PlaybackSource?) -> PlaybackRepositoryResult<PlaybackCastMedia> = { source ->
             val selection = preferences.subtitleSelection
             val loaded = castMedia(source, source?.let { castSubtitleKey(it, selection, currentPolicy) })
-            val playlistSubtitle = source?.let { castPlaylistSubtitle(it, selection, currentPolicy) }
+            val playlistSubtitle =
+                source?.let { castPlaylistSubtitle(it, state.target.mediaType, selection, currentPolicy) }
             if (loaded is PlaybackRepositoryResult.Success && playlistSubtitle != null) {
                 PlaybackRepositoryResult.Success(loaded.value.copy(playlistSubtitle = playlistSubtitle))
             } else {

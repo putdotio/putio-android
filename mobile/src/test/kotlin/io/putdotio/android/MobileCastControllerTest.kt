@@ -16,6 +16,7 @@ import io.putdotio.android.playback.MobileCastController
 import io.putdotio.android.playback.MobilePlayerFactory
 import io.putdotio.android.playback.PlaybackCastMedia
 import io.putdotio.android.playback.PlaybackCastPlaylistSubtitle
+import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackNextResult
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
@@ -469,14 +470,28 @@ class MobileCastControllerTest {
             subtitles = PlaybackSubtitles.Embedded,
         )
 
-        assertEquals(PlaybackCastPlaylistSubtitle(null), castPlaylistSubtitle(hls, null, Shown))
-        assertNull(castPlaylistSubtitle(hls, null, Shown.copy(autoSelectSubtitles = false)))
-        assertNull(castPlaylistSubtitle(hls, SubtitleSelection.Automatic, Shown.copy(showSubtitles = false)))
-        assertNull(castPlaylistSubtitle(hls, SubtitleSelection.Off, Shown))
+        val video = PlaybackMediaType.VIDEO
+        assertEquals(PlaybackCastPlaylistSubtitle(null), castPlaylistSubtitle(hls, video, null, Shown))
+        assertNull(castPlaylistSubtitle(hls, video, null, Shown.copy(autoSelectSubtitles = false)))
+        assertNull(castPlaylistSubtitle(hls, video, SubtitleSelection.Automatic, Shown.copy(showSubtitles = false)))
+        assertNull(castPlaylistSubtitle(hls, video, SubtitleSelection.Off, Shown))
         val english = SubtitleSelection.Track(identity("2:subs"))
-        assertEquals(PlaybackCastPlaylistSubtitle("eng"), castPlaylistSubtitle(hls, english, Shown))
-        // Sidecar subtitles go with the load itself.
-        assertNull(castPlaylistSubtitle(source(listOf("default")), SubtitleSelection.Automatic, Shown))
+        assertEquals(PlaybackCastPlaylistSubtitle("eng"), castPlaylistSubtitle(hls, video, english, Shown))
+    }
+
+    @Test
+    fun aVideoPlayingFromAFileKeepsItsSubtitleChoiceOnTheReceiversHls() {
+        val file = source(listOf("default"))
+        val video = PlaybackMediaType.VIDEO
+
+        assertEquals(
+            PlaybackCastPlaylistSubtitle(null),
+            castPlaylistSubtitle(file, video, SubtitleSelection.Automatic, Shown),
+        )
+        val english = SubtitleSelection.Track(identity("2:subs"))
+        assertEquals(PlaybackCastPlaylistSubtitle("eng"), castPlaylistSubtitle(file, video, english, Shown))
+        assertNull(castPlaylistSubtitle(file, video, SubtitleSelection.Off, Shown))
+        assertNull(castPlaylistSubtitle(file, PlaybackMediaType.AUDIO, SubtitleSelection.Automatic, Shown))
     }
 
     @Test
