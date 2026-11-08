@@ -115,10 +115,7 @@ internal fun MobileCastButton(
             when {
                 availability != CastAvailability.NeedsLocalNetwork -> onClick()
                 localNetworkPrompt.exhausted -> context.startActivity(appSettingsIntent(context))
-                else -> {
-                    localNetworkPrompt.asking()
-                    askLocalNetwork.launch(LOCAL_NETWORK_PERMISSION)
-                }
+                else -> askLocalNetwork.launch(LOCAL_NETWORK_PERMISSION)
             }
         },
         modifier = modifier.testTag(MOBILE_CAST_BUTTON_TAG),
@@ -362,18 +359,16 @@ internal class LocalNetworkPrompt(context: Context, private val rationale: () ->
         context.getSharedPreferences(LOCAL_NETWORK_PREFERENCES, Context.MODE_PRIVATE)
     }
 
-    private var rationaleBeforeAsking = false
-
-    val exhausted: Boolean get() = preferences.getBoolean(LOCAL_NETWORK_REFUSED, false) && !rationale()
-
-    fun asking() {
-        rationaleBeforeAsking = rationale()
-    }
+    val exhausted: Boolean
+        get() = preferences.getInt(LOCAL_NETWORK_REFUSALS, 0) >= PROMPTS_ANDROID_ALLOWS && !rationale()
 
     fun answered(granted: Boolean) {
-        when {
-            granted -> preferences.edit { remove(LOCAL_NETWORK_REFUSED) }
-            rationaleBeforeAsking || rationale() -> preferences.edit { putBoolean(LOCAL_NETWORK_REFUSED, true) }
+        preferences.edit {
+            if (granted) {
+                remove(LOCAL_NETWORK_REFUSALS)
+            } else {
+                putInt(LOCAL_NETWORK_REFUSALS, preferences.getInt(LOCAL_NETWORK_REFUSALS, 0) + 1)
+            }
         }
     }
 }
@@ -385,7 +380,8 @@ private fun appSettingsIntent(context: Context): Intent =
 @SuppressLint("InlinedApi")
 private const val LOCAL_NETWORK_PERMISSION = Manifest.permission.ACCESS_LOCAL_NETWORK
 private const val LOCAL_NETWORK_PREFERENCES = "io.putdotio.android.cast.local-network"
-private const val LOCAL_NETWORK_REFUSED = "refused"
+private const val LOCAL_NETWORK_REFUSALS = "refusals"
+private const val PROMPTS_ANDROID_ALLOWS = 2
 
 private val CAST_PICKER_MAX_WIDTH = 560.dp
 private const val CAST_PICKER_SCRIM_ALPHA = 0.55f

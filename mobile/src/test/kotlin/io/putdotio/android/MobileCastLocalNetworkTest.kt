@@ -74,27 +74,18 @@ class MobileCastLocalNetworkTest {
     }
 
     @Test
-    fun aDismissedFirstPromptAsksAgainInsteadOfOpeningTheAppSettings() {
+    fun deniedRequestsWithoutARationaleStillReachTheAppSettings() {
         answers += listOf(false, false)
         setButton()
 
         tapButton()
         tapButton()
-
         assertEquals(2, prompts)
         assertNull(shadowOf(app).nextStartedActivity)
-    }
-
-    @Test
-    fun aRefusalThatEndsThePromptsOpensTheAppSettingsOnTheNextTap() {
-        setRationale(true)
-        answers += false
-        setButton()
 
         tapButton()
-        tapButton()
 
-        assertEquals(1, prompts)
+        assertEquals(2, prompts)
         assertEquals(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, shadowOf(app).nextStartedActivity.action)
     }
 
