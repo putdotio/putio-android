@@ -88,8 +88,14 @@ internal object SentryBoundary {
     fun capture(failure: TelemetryFailure) {
         if (current == null) return
         val hint = Hint().apply { set(FAILURE_HINT, failure) }
-        executor.submit { Sentry.captureEvent(SentryEvent().apply { level = SentryLevel.ERROR }, hint) }
+        executor.submit { Sentry.captureEvent(SentryEvent().apply { level = failure.sentryLevel }, hint) }
     }
+
+    private val TelemetryFailure.sentryLevel: SentryLevel
+        get() = when (severity) {
+            TelemetrySeverity.Error -> SentryLevel.ERROR
+            TelemetrySeverity.Warning -> SentryLevel.WARNING
+        }
 
     fun configure(options: SentryOptions, configuration: SentryConfiguration, period: Period, files: DiagnosticsFiles) {
         options.dsn = configuration.dsn

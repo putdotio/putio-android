@@ -70,6 +70,32 @@ class SentryEnvelopesTest {
         assertTrue(received.single { "IOException" in it }.contains(files.installation.readText()))
     }
 
+    @Test
+    fun aRescueLeavesBelowErrorWithItsReasonCodeAndAFailureAsAnError() {
+        launch()
+        SentryBoundary.confirm()
+
+        PutioDiagnostics.capture(
+            TelemetryFailure(
+                "playback_failure",
+                listOf("fallback", "audio_unsupported"),
+                emptyMap(),
+                TelemetrySeverity.Warning,
+            ),
+        )
+        PutioDiagnostics.capture(TelemetryFailure("playback_failure", listOf("terminal_code"), emptyMap()))
+
+        val deadline = System.currentTimeMillis() + FLUSH_MILLIS
+        while (
+            (received.none { "audio_unsupported" in it } || received.none { "terminal_code" in it }) &&
+            System.currentTimeMillis() < deadline
+        ) {
+            Thread.sleep(POLL_MILLIS)
+        }
+        assertTrue(received.any { "audio_unsupported" in it && "\"level\":\"warning\"" in it })
+        assertTrue(received.any { "terminal_code" in it && "\"level\":\"error\"" in it })
+    }
+
     private fun launch() {
         val period = SentryBoundary.open(launch = true)
         SentryAndroid.init(ApplicationProvider.getApplicationContext<Application>()) { options ->

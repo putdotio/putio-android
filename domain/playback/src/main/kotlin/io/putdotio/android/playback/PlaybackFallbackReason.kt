@@ -15,7 +15,6 @@ import java.net.HttpURLConnection
 public enum class PlaybackFallbackReason(
     public val code: String,
 ) {
-    UserOff("user_off"),
     UserSwitched("user_switched"),
     PlaybackIssue("playback_issue"),
     NoMediaInfo("no_media_info"),

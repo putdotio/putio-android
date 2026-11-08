@@ -5,7 +5,17 @@ package io.putdotio.android.telemetry
  * not a code of lowercase letters, digits and `_` is sent as `unknown`. That rejects error text,
  * URLs, paths and filenames but not a one-word name, so callers pass codes and ids only.
  */
-public class TelemetryFailure(type: String, reasons: List<String>, tags: Map<String, String>) {
+public enum class TelemetrySeverity {
+    Error,
+    Warning,
+}
+
+public class TelemetryFailure(
+    type: String,
+    reasons: List<String>,
+    tags: Map<String, String>,
+    public val severity: TelemetrySeverity = TelemetrySeverity.Error,
+) {
     internal val type: String = code(type)
 
     /** Such as `network, io_network_connection_failed`; Sentry groups failures by type and code. */
