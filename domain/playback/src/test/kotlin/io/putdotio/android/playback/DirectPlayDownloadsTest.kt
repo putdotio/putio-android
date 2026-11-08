@@ -62,6 +62,20 @@ class DirectPlayDownloadsTest {
     }
 
     @Test
+    fun aDirectPlayChosenFromAFileMenuDownloadsASwitchedOriginalTheDeviceCanPlay() = runBlocking {
+        val downloads = downloads(OriginalVideoPolicy.Check, switched = setOf(H264_MP4, AV1_MKV))
+        val playable = file(H264_MP4, captured("h264-aac.mp4"))
+        val undecodable = file(AV1_MKV, captured("av1-4k-eac3.mkv"))
+
+        assertEquals(DirectPlayDownload(Original), downloads.resolve(playable, includeSubtitles = false, chosen = true))
+        assertEquals(Converted, downloads.source(playable))
+        assertEquals(
+            DirectPlayDownload(Converted),
+            downloads.resolve(undecodable, includeSubtitles = false, chosen = true),
+        )
+    }
+
+    @Test
     fun noConvertedCopyAndNoPlayableOriginalIsUnavailableWithoutSubtitles() = runBlocking {
         val downloads = downloads(OriginalVideoPolicy.Check)
 

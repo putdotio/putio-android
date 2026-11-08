@@ -2,6 +2,7 @@ package io.putdotio.android.playback
 
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.sdk.account.AccountDisk
 import io.putdotio.sdk.account.AccountDownloadToken
 import io.putdotio.sdk.account.AccountInfo
@@ -82,14 +83,7 @@ class SwitchedToConvertedTest {
     fun aSwitchedVideoNeverOpensItsOriginalWhileOtherVideosStillMay() = runBlocking {
         val switched = FakeSwitchedFiles(setOf(Switched.fileId.value))
         val requests = mutableListOf<PlaybackRequest>()
-        val repository = SdkPlaybackRepository(
-            playbackPreference = { PlaybackPreference.HLS },
-            loadAccount = { account() },
-            resolvePlayback = {
-                requests += it
-                io.putdotio.sdk.files.PlaybackResolution.Conversion(PlaybackConversionState.Queued)
-            },
-        )
+        val repository = repository(PlaybackPreference.HLS, requests, switched)
         repository.resolve(Switched)
         repository.resolve(Other)
         val decision = OriginalPlaybackDecision(FakeDecoderInventory(emptySet()))
@@ -103,9 +97,24 @@ class SwitchedToConvertedTest {
                 PlaybackCapabilities(originalVideoPlayable = true),
             ),
             requests.flatMap { request ->
-                OriginalVideoPolicy.entries.map { request.withOriginalVideo(it, decision, switched).capabilities }
+                OriginalVideoPolicy.entries.map { request.withOriginalVideo(it, decision).capabilities }
             },
         )
+    }
+
+    @Test
+    fun aDirectPlayChosenFromAFileMenuOpensASwitchedOriginalOnceAndKeepsTheSwitch() = runBlocking {
+        val switched = FakeSwitchedFiles(setOf(Switched.fileId.value))
+        val requests = mutableListOf<PlaybackRequest>()
+        val repository = repository(PlaybackPreference.MP4, requests, switched)
+
+        repository.resolve(Switched.copy(method = StreamingMethod.File))
+        repository.resolve(Switched)
+        repository.resolve(Switched.copy(method = StreamingMethod.File), convertedOnly = true)
+
+        assertEquals(listOf(true, false, false), requests.map { it.capabilities.originalVideoPlayable })
+        assertEquals(emptyList<Long>(), switched.added)
+        assertTrue(switched.contains(Switched.fileId.value))
     }
 
     @Test
@@ -170,6 +179,23 @@ class SwitchedToConvertedTest {
         }
         assertEquals(listOf(Switched.fileId), remembered)
     }
+
+    private fun repository(
+        preference: PlaybackPreference,
+        requests: MutableList<PlaybackRequest>,
+        switched: SwitchedToConvertedFiles,
+    ) = ConvertingPlaybackRepository(
+        delegate = SdkPlaybackRepository(
+            playbackPreference = { preference },
+            loadAccount = { account() },
+            resolvePlayback = {
+                requests += it
+                io.putdotio.sdk.files.PlaybackResolution.Conversion(PlaybackConversionState.Queued)
+            },
+        ),
+        startMp4Conversion = { true },
+        switchedToConverted = switched,
+    )
 
     private class FakeSwitchedFiles(private val switched: Set<Long>) : SwitchedToConvertedFiles {
         val added = mutableListOf<Long>()

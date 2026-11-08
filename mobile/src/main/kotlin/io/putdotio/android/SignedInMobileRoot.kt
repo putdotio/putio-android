@@ -202,7 +202,10 @@ internal fun SignedInMobileRoot(
         remember(downloadsViewModel, downloadsContext, appConfigController, account.userId, sessionId) {
             appConfigController?.let { config ->
                 val directPlay = mobileDirectPlayDownloads(downloadsContext, runtime.putioClient)
-                val sources = DownloadSources({ config.state.value.confirmedStreamingMethod() }, directPlay::resolve)
+                val sources = DownloadSources(
+                    setting = { config.state.value.confirmedStreamingMethod() },
+                    directPlay = { id, subtitles, chosen -> directPlay.resolve(id, subtitles, chosen = chosen) },
+                )
                 downloadsViewModel?.controllerFor(downloadsContext, account.userId, sessionId, sources)
             }
         }

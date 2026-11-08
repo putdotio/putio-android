@@ -56,11 +56,12 @@ public class DirectPlayDownloads internal constructor(
         fileId: FilesItemId,
         includeSubtitles: Boolean,
         budget: Duration = LOOKUP_TIMEOUT + SUBTITLES_TIMEOUT,
+        chosen: Boolean = false,
     ): DirectPlayDownload? =
         withContext(io) {
             var answer: DirectPlayDownload? = null
             withTimeoutOrNull(budget) {
-                val source = withTimeoutOrNull(LOOKUP_TIMEOUT) { sourceOrNull(fileId.value) }
+                val source = withTimeoutOrNull(LOOKUP_TIMEOUT) { sourceOrNull(fileId.value, chosen) }
                     ?: return@withTimeoutOrNull
                 answer = DirectPlayDownload(source)
                 if (includeSubtitles && source != DirectPlayDownloadSource.Unavailable) {
@@ -72,30 +73,30 @@ public class DirectPlayDownloads internal constructor(
         }
 
     @Suppress("TooGenericExceptionCaught")
-    private suspend fun sourceOrNull(fileId: Long): DirectPlayDownloadSource? =
+    private suspend fun sourceOrNull(fileId: Long, chosen: Boolean): DirectPlayDownloadSource? =
         try {
-            source(fileId)
+            source(fileId, chosen)
         } catch (error: CancellationException) {
             throw error
         } catch (_: Exception) {
             null
         }
 
-    private suspend fun source(fileId: Long): DirectPlayDownloadSource {
+    private suspend fun source(fileId: Long, chosen: Boolean): DirectPlayDownloadSource {
         val file = loadFile(fileId)
         return when {
             file.fileType != PutioFileType.VIDEO -> DirectPlayDownloadSource.Unavailable
-            acceptsOriginal(file) -> DirectPlayDownloadSource.Original
+            acceptsOriginal(file, chosen) -> DirectPlayDownloadSource.Original
             file.isMp4Available -> DirectPlayDownloadSource.Converted
             else -> DirectPlayDownloadSource.Unavailable
         }
     }
 
-    private suspend fun acceptsOriginal(file: PutioFile): Boolean {
+    private suspend fun acceptsOriginal(file: PutioFile, chosen: Boolean): Boolean {
         val policy = originalVideoPolicy()
         return policy != OriginalVideoPolicy.Never &&
             file.mediaInfo?.playbackIssues.isNullOrEmpty() &&
-            !switchedToConverted.contains(file.id) &&
+            (chosen || !switchedToConverted.contains(file.id)) &&
             policy.capabilities(decision).accept(file)
     }
 
