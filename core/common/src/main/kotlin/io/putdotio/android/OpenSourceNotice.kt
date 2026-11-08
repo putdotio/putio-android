@@ -9,12 +9,15 @@ public class OpenSourceNotice(
     public val licenseUrl: String,
 )
 
-public fun appSourceNotice(appVersion: String): OpenSourceNotice =
-    OpenSourceNotice(
+public fun appSourceNotice(appVersion: String): OpenSourceNotice {
+    val repository = "https://github.com/putdotio/putio-android"
+    val tag = "v${appVersion.substringBefore('-')}"
+    return OpenSourceNotice(
         name = "put.io",
         version = appVersion,
-        license = "GPL-3.0",
+        license = "MIT",
         copyright = "Copyright © put.io",
-        sourceUrl = "https://github.com/putdotio/putio-android/tree/v${appVersion.substringBefore('-')}",
-        licenseUrl = "https://www.gnu.org/licenses/gpl-3.0.html",
+        sourceUrl = "$repository/tree/$tag",
+        licenseUrl = "$repository/blob/$tag/LICENSE",
     )
+}

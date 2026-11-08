@@ -4,36 +4,30 @@ import io.putdotio.android.OpenSourceNotice
 
 public val playbackNotices: List<OpenSourceNotice> = listOf(
     OpenSourceNotice(
-        name = "nextlib",
-        version = "1.11.1-0.17.0",
-        license = "GPL-3.0",
-        copyright = "Copyright © Anil Kumar Beesetti",
-        sourceUrl = "https://github.com/anilbeesetti/nextlib/tree/v1.11.1-0.17.0",
-        licenseUrl = "https://www.gnu.org/licenses/gpl-3.0.html",
+        name = "media3-ffmpeg-decoder",
+        version = FFMPEG_DECODER_VERSION,
+        license = "Apache-2.0",
+        copyright = "Copyright © put.io and The Android Open Source Project",
+        sourceUrl = "$FFMPEG_DECODER/tree/$FFMPEG_DECODER_TAG",
+        licenseUrl = "$FFMPEG_DECODER/blob/$FFMPEG_DECODER_TAG/LICENSE",
     ),
     OpenSourceNotice(
         name = "FFmpeg",
-        version = "9.0.1",
-        license = "LGPL-3.0-or-later",
-        copyright = "Copyright © the FFmpeg developers",
-        sourceUrl = "https://ffmpeg.org/releases/ffmpeg-9.0.1.tar.xz",
-        licenseUrl = "https://www.gnu.org/licenses/lgpl-3.0.html",
+        version = FFMPEG_VERSION,
+        license = "LGPL-2.1-or-later",
+        copyright = "Copyright © 2000-2026 the FFmpeg developers. " +
+            "This software is based in part on the work of the Independent JPEG Group.",
+        sourceUrl = "https://repo1.maven.org/maven2/io/put/media3-ffmpeg-decoder/$FFMPEG_DECODER_VERSION/" +
+            "media3-ffmpeg-decoder-$FFMPEG_DECODER_VERSION-ffmpeg-source.tar.xz",
+        licenseUrl = "https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html",
     ),
     OpenSourceNotice(
-        name = "dav1d",
-        version = "1.5.4",
-        license = "BSD-2-Clause",
-        copyright = "Copyright © 2018-2025, VideoLAN and dav1d authors",
-        sourceUrl = "https://code.videolan.org/videolan/dav1d/-/tree/1.5.4",
-        licenseUrl = "https://code.videolan.org/videolan/dav1d/-/blob/1.5.4/COPYING",
-    ),
-    OpenSourceNotice(
-        name = "Mbed TLS",
-        version = "3.6.7",
-        license = "Apache-2.0",
-        copyright = "Copyright © The Mbed TLS Contributors",
-        sourceUrl = "https://github.com/Mbed-TLS/mbedtls/tree/mbedtls-3.6.7",
-        licenseUrl = "https://www.apache.org/licenses/LICENSE-2.0",
+        name = "FFmpeg third-party notices",
+        version = FFMPEG_VERSION,
+        license = "Zlib, MIT, ISC, IJG, BSL-1.0, BSD-3-Clause",
+        copyright = "Copyright notices of the third-party code compiled into FFmpeg",
+        sourceUrl = FFMPEG_DECODER_NOTICE,
+        licenseUrl = FFMPEG_DECODER_NOTICE,
     ),
     OpenSourceNotice(
         name = "ass-media",
@@ -103,5 +97,10 @@ public val playbackNotices: List<OpenSourceNotice> = listOf(
     ),
 )
 
+private const val FFMPEG_VERSION = "7.1.5"
+private const val FFMPEG_DECODER_VERSION = "1.11.1+1"
+private const val FFMPEG_DECODER_TAG = "v$FFMPEG_DECODER_VERSION"
+private const val FFMPEG_DECODER = "https://github.com/putdotio/media3-ffmpeg-decoder"
+private const val FFMPEG_DECODER_NOTICE = "$FFMPEG_DECODER/blob/$FFMPEG_DECODER_TAG/NOTICE"
 private const val FONTCONFIG = "https://gitlab.freedesktop.org/fontconfig/fontconfig/-"
 private const val FONTCONFIG_COMMIT = "daa175d234b8a362eedd4c18c33537cc2d19cd98"

@@ -3,10 +3,10 @@ plugins {
 }
 
 val media3Version = libs.versions.media3.get()
-val nextlibVersion = libs.versions.nextlib.get()
+val ffmpegDecoderVersion = libs.versions.media3FfmpegDecoder.get()
 val assMediaVersion = libs.versions.assMedia.get()
-check(nextlibVersion.startsWith("$media3Version-")) {
-    "nextlib $nextlibVersion is built for another Media3 than $media3Version; bump them together"
+check(ffmpegDecoderVersion.startsWith("$media3Version+")) {
+    "media3-ffmpeg-decoder $ffmpegDecoderVersion is built for another Media3 than $media3Version; bump them together"
 }
 
 android {
@@ -15,7 +15,7 @@ android {
     // State builders other modules' tests reuse.
     testFixtures.enable = true
     buildFeatures.buildConfig = true
-    defaultConfig.buildConfigField("String", "NEXTLIB_VERSION", "\"$nextlibVersion\"")
+    defaultConfig.buildConfigField("String", "FFMPEG_DECODER_VERSION", "\"$ffmpegDecoderVersion\"")
     defaultConfig.buildConfigField("String", "ASS_MEDIA_VERSION", "\"$assMediaVersion\"")
 }
 
@@ -38,7 +38,7 @@ dependencies {
     implementation(libs.androidx.media3.ui.compose)
     implementation(libs.ass.kt)
     implementation(libs.ass.media)
-    implementation(libs.nextlib.media3ext)
+    implementation(libs.media3.ffmpeg.decoder)
     implementation(libs.putio.sdk.kotlin)
     implementation(libs.kotlinx.coroutines.android)
     testFixturesImplementation(project(":core:common"))
