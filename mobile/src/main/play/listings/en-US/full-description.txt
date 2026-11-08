@@ -4,7 +4,7 @@ On phones and tablets:
 • Browse, search and manage your files, with layouts made for tablets
 • Stream video and audio with subtitles, track choice, picture-in-picture and resume
 • Download files to watch offline
-• Add transfers from magnet links, .torrent files and shared links
+• Add transfers to your put.io account from links and files, or share them from other apps
 • Play on Google Cast devices
 
 On Android TV:
