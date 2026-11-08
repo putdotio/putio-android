@@ -10,8 +10,8 @@ coroutines = "1.11.0"
 datastore = "1.3.0"
 lifecycle = "2.11.0"
 navigationCompose = "2.10.2"
-nextlib = "1.11.1-0.17.0"
 media3 = "1.11.1"
+media3FfmpegDecoder = "1.11.1+1"
 assMedia = "0.5.1"
 mediarouter = "1.8.1"
 okhttp = "5.5.1"
@@ -72,7 +72,7 @@ androidx-media3-ui-compose = { module = "androidx.media3:media3-ui-compose", ver
 androidx-media3-ui-compose-material3 = { module = "androidx.media3:media3-ui-compose-material3", version.ref = "media3" }
 ass-kt = { module = "io.github.peerless2012:ass-kt", version.ref = "assMedia" }
 ass-media = { module = "io.github.peerless2012:ass-media", version.ref = "assMedia" }
-nextlib-media3ext = { module = "io.github.anilbeesetti:nextlib-media3ext", version.ref = "nextlib" }
+media3-ffmpeg-decoder = { module = "io.put:media3-ffmpeg-decoder", version.ref = "media3FfmpegDecoder" }
 androidx-mediarouter = { module = "androidx.mediarouter:mediarouter", version.ref = "mediarouter" }
 androidx-test-core = { module = "androidx.test:core-ktx", version.ref = "androidxTestCore" }
 androidx-test-espresso-core = { module = "androidx.test.espresso:espresso-core", version.ref = "androidxTestEspresso" }

@@ -19,8 +19,8 @@ script headers and `--help` own the harness.
   `src/testFixtures`.
 - Report a failure as a `TelemetryFailure` of codes, never as a raw error or
   message.
-- A nextlib bump updates `playbackNotices` to the FFmpeg, dav1d and Mbed TLS
-  versions its `ffmpeg/setup.sh` pins; an ass-media bump updates them to the
+- A media3-ffmpeg-decoder bump updates `playbackNotices` to the FFmpeg version
+  its `ffmpeg` submodule pins; an ass-media bump updates them to the
   libraries its `libass-cmake` submodule pins; a Sentry bump updates
   `telemetryNotices` to the sentry-native its NDK module depends on.
 - Mobile and TV share data, domain, theme, and component foundations; their

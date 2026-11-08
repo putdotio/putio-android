@@ -5,11 +5,11 @@ import org.junit.Test
 
 class PlaybackNoticesTest {
     @Test
-    fun theNextlibNoticesFollowTheCatalog() {
+    fun theFfmpegDecoderNoticesFollowTheCatalog() {
         assertEquals(
-            "Set playbackNotices to the FFmpeg, dav1d and Mbed TLS nextlib ${BuildConfig.NEXTLIB_VERSION} pins",
-            BuildConfig.NEXTLIB_VERSION,
-            playbackNotices.single { it.name == "nextlib" }.version,
+            "Set playbackNotices to the FFmpeg media3-ffmpeg-decoder ${BuildConfig.FFMPEG_DECODER_VERSION} pins",
+            BuildConfig.FFMPEG_DECODER_VERSION,
+            playbackNotices.single { it.name == "media3-ffmpeg-decoder" }.version,
         )
     }
 
