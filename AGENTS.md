@@ -170,3 +170,5 @@ file in the same pull request.
 - Each upload needs a new `version_name`. Mobile and TV share the
   [putio-tv-native-legacy](https://github.com/putdotio/putio-tv-native-legacy)
   listing's version codes.
+- Google Play can't downgrade installs. Halt a bad rollout with the `halt`
+  input of Google Play Release, then ship the fix under a new `version_name`.
