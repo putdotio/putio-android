@@ -46,12 +46,18 @@ internal class OfflinePositionsResume(
     override suspend fun position(entry: DownloadEntry): Double = positions.resumePosition(userId, entry)
 }
 
+internal data class OfflineRequest(
+    val url: String,
+    val subtitles: List<DownloadSubtitle> = emptyList(),
+)
+
 /**
  * Serves a completed download without the network. The source URL is the same
- * token-free API URL the download used, read back through [requestedUrl], so the
- * cache data source resolves every playlist and segment from disk; a cache miss
- * still reaches the network with the session header. A row whose bytes turn out to
- * be gone is marked missing by [localCopyAvailable] and streams instead.
+ * token-free API URL the download used, read back through [requested], so the
+ * cache data source resolves every playlist, segment and file from disk; a cache miss
+ * still reaches the network with the session header. A Direct play download offers the
+ * subtitle files [requested] finds on disk as sidecars, under the same token-free URLs.
+ * A row whose bytes turn out to be gone is marked missing by [localCopyAvailable] and streams instead.
  */
 internal class OfflinePlaybackRepository(
     private val downloads: StateFlow<DownloadsState>,
@@ -59,7 +65,7 @@ internal class OfflinePlaybackRepository(
     private val credentialUrl: (String) -> PutioCredentialUrl,
     private val localCopyAvailable: suspend (FilesItemId) -> Boolean = { true },
     private val resume: OfflineResume = OfflineResume.Off,
-    private val requestedUrl: suspend (FilesItemId) -> String? = { null },
+    private val requested: suspend (FilesItemId) -> OfflineRequest? = { null },
 ) : PlaybackRepository {
     override suspend fun resolve(
         target: PlaybackTarget,
@@ -68,24 +74,26 @@ internal class OfflinePlaybackRepository(
         val state = downloads.value
         val entry = state.entry(target.fileId)
             ?.takeIf { state.isAvailableOffline(target.fileId) && localCopyAvailable(it.fileId) }
-            ?.takeUnless {
-                convertedOnly && it.artifact != DownloadArtifact.HLS && target.mediaType == PlaybackMediaType.VIDEO
-            }
+            ?.takeUnless { convertedOnly && it.artifact.isOriginal && target.mediaType == PlaybackMediaType.VIDEO }
             ?: return delegate.resolve(target, convertedOnly)
         val hls = entry.artifact.isHls
         // A download made for a hide_subtitles account holds no subtitle rendition, and a cold
         // offline start cannot read the setting, so the row's own copy of it hides the picker.
         val subtitlesHidden = entry.subtitlesHidden == true
         val resumeEnabled = resume.enabled()
+        val request = requested(entry.fileId)
+        val sidecars = if (hls || subtitlesHidden) emptyList() else request?.subtitles.orEmpty()
         val source = PlaybackSource(
             fileId = entry.fileId.value,
-            kind = if (entry.artifact == DownloadArtifact.HLS) PlaybackSourceKind.HLS else PlaybackSourceKind.ORIGINAL,
-            url = credentialUrl(
-                requestedUrl(entry.fileId) ?: entry.artifact.apiUrl(entry.fileId, subtitlesHidden),
-            ),
+            kind = entry.artifact.sourceKind,
+            url = credentialUrl(request?.url ?: entry.artifact.apiUrl(entry.fileId, subtitlesHidden)),
             startFromSeconds = if (resumeEnabled) resume.position(entry) else 0.0,
             // HLS subtitle renditions are inside the downloaded playlist set.
-            subtitles = if (hls && !subtitlesHidden) PlaybackSubtitles.Embedded else PlaybackSubtitles.None,
+            subtitles = when {
+                hls && !subtitlesHidden -> PlaybackSubtitles.Embedded
+                sidecars.isEmpty() -> PlaybackSubtitles.None
+                else -> PlaybackSubtitles.Sidecar(sidecars.map { it.toPlaybackSubtitle(credentialUrl) })
+            },
             format = if (hls) PlaybackStreamFormat.HLS else PlaybackStreamFormat.PROGRESSIVE,
         )
         return PlaybackRepositoryResult.Success(
@@ -119,3 +127,13 @@ internal class OfflinePlaybackRepository(
     override suspend fun findNeighbours(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackNeighbours> =
         delegate.findNeighbours(target)
 }
+
+private val DownloadArtifact.isOriginal: Boolean
+    get() = this == DownloadArtifact.ORIGINAL || this == DownloadArtifact.ORIGINAL_HLS
+
+private val DownloadArtifact.sourceKind: PlaybackSourceKind
+    get() = when (this) {
+        DownloadArtifact.HLS -> PlaybackSourceKind.HLS
+        DownloadArtifact.MP4 -> PlaybackSourceKind.MP4
+        DownloadArtifact.ORIGINAL, DownloadArtifact.ORIGINAL_HLS -> PlaybackSourceKind.ORIGINAL
+    }

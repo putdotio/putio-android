@@ -175,7 +175,7 @@ class MobileDownloadsQueueProofTest {
             val engine = MobileDownloadEngine(context, store, USER_ID, scope, manager)
             // Adds and removes go to this manager; the app's own service drives the real one.
             val local = object : DownloadEngine by engine {
-                override fun start(entry: DownloadEntry) =
+                override suspend fun start(entry: DownloadEntry) =
                     manager.addDownload(request(entry.fileId.value, sources.getValue(entry.fileId.value)))
 
                 override suspend fun remove(fileId: FilesItemId) =

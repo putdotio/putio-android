@@ -9,12 +9,16 @@ import io.putdotio.android.files.FilesItemId
  */
 internal interface DownloadEngine {
     /** Starts or resumes; a retry after failure or a missing copy is the same call. */
-    fun start(entry: DownloadEntry)
+    suspend fun start(entry: DownloadEntry)
+
+    fun notifyFailed(entry: DownloadEntry, reason: DownloadFailureReason) = Unit
 
     /** Removes cached bytes and any in-flight transfer; the index row goes when the engine confirms. */
     suspend fun remove(fileId: FilesItemId)
 
     fun isRemoving(fileId: FilesItemId): Boolean = false
+
+    suspend fun hasRecord(fileId: FilesItemId): Boolean = false
 
     /**
      * Holds a running or waiting transfer, keeping its bytes, until it is released again; a released

@@ -63,7 +63,7 @@ internal class MobileDownloadNotifications(
     }
 
     private fun fallBack(manager: DownloadManager, owner: Long, original: DownloadEntry) {
-        val converted = original.convertedFallback()
+        val converted = original.convertedFallback() ?: return
         stores(owner).updateStatusBlocking(converted.fileId) { converted }
         val parked = owner != signedInUser()
         val stopReason = if (parked) MobileDownloadEngine.STOP_REASON_OTHER_USER else Download.STOP_REASON_NONE
@@ -214,4 +214,5 @@ internal fun DownloadFailureReason.message(): Int =
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal fun Download.fallingBackToConverted(error: Exception?): Boolean =
     state == Download.STATE_FAILED && error != null &&
-        request.artifact.fallsBackToConverted(error.toFailureReason(), bytesDownloaded)
+        request.artifact.convertedFallback(request.fileType) != null &&
+        error.toFailureReason().fallsBackToConverted(bytesDownloaded)

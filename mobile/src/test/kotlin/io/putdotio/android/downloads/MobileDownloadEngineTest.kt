@@ -631,9 +631,9 @@ class MobileDownloadEngineTest {
         val earlier = "https://api.put.io/v2/files/10/hls/media.m3u8?subtitle_key=all"
         index.putDownload(download("$ALICE:10", Download.STATE_COMPLETED, bytes = TOTAL, uri = earlier))
 
-        assertEquals(earlier, index.requestedUrl(ALICE, FilesItemId(10L)))
-        assertNull(index.requestedUrl(BOB, FilesItemId(10L)))
-        assertNull(index.requestedUrl(ALICE, FilesItemId(11L)))
+        assertEquals(earlier, index.offlineRequest(ALICE, FilesItemId(10L))?.url)
+        assertNull(index.offlineRequest(BOB, FilesItemId(10L)))
+        assertNull(index.offlineRequest(ALICE, FilesItemId(11L)))
     }
 
     private fun originalUri(id: Long): Uri = Uri.parse(ORIGINAL_HLS.apiUrl(FilesItemId(id)))

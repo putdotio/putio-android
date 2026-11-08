@@ -14,6 +14,7 @@ import io.putdotio.android.auth.MobileOAuthRuntime
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.holdBroadcast
 import io.putdotio.android.parseMobileDeepLink
+import io.putdotio.android.playback.DirectPlayDownload
 import io.putdotio.android.toRouteUri
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineScope
@@ -110,13 +111,29 @@ internal class MobileDownloadActionReceiver : BroadcastReceiver() {
             }
         }
 
-        private fun production(context: Context): DownloadNotificationRetries =
-            DownloadNotificationRetries(
+        @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+        private fun production(context: Context): DownloadNotificationRetries {
+            val downloads = MobileDownloadCache.get(context)
+            val directPlay = mobileDirectPlayDownloads(context, MobileOAuthRuntime.get(context).putioClient)
+            return DownloadNotificationRetries(
                 signedIn = signedInAccount(context),
                 find = { userId, fileId -> MobileDownloadStore.peek(context, userId, fileId) },
-                start = { userId, entry -> sendDownloadRequest(context, userId, entry) },
+                start = { userId, entry ->
+                    downloads.dropReplacedBytes(downloads.downloadManager, userId, entry, Dispatchers.IO)
+                    sendDownloadRequest(context, userId, entry)
+                },
                 dismiss = { userId, fileId -> MobileDownloadNotifications.cancel(context, userId, fileId) },
+                decision = DownloadRetryDecision(
+                    directPlay = { fileId, subtitles -> directPlay.resolve(fileId, subtitles, RETRY_LOOKUP_BUDGET) },
+                    save = { userId, entry -> MobileDownloadStore.shared(context, userId).upsert(entry) },
+                    failed = { userId, entry ->
+                        MobileDownloadNotifications.post(
+                            context, userId, entry, DownloadOutcome.Failed(DownloadFailureReason.UNAVAILABLE),
+                        )
+                    },
+                ),
             )
+        }
 
         @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
         private fun productionControls(context: Context): DownloadNotificationControls {
@@ -204,14 +221,23 @@ internal enum class DownloadRetryOutcome {
 
     /** The session could not be confirmed in time, or the service could not start; the notification stays. */
     UNCONFIRMED,
+
+    UNAVAILABLE,
 }
+
+internal class DownloadRetryDecision(
+    val directPlay: suspend (FilesItemId, includeSubtitles: Boolean) -> DirectPlayDownload? = { _, _ -> null },
+    val save: suspend (userId: Long, entry: DownloadEntry) -> Unit = { _, _ -> },
+    val failed: (userId: Long, entry: DownloadEntry) -> Unit = { _, _ -> },
+)
 
 /** A notification's Retry, acting only for the account that owns the download and only while it is signed in. */
 internal class DownloadNotificationRetries(
     private val signedIn: suspend () -> SignedInAccount,
     private val find: (userId: Long, fileId: FilesItemId) -> DownloadEntry?,
-    private val start: (userId: Long, entry: DownloadEntry) -> Unit,
+    private val start: suspend (userId: Long, entry: DownloadEntry) -> Unit,
     private val dismiss: (userId: Long, fileId: FilesItemId) -> Unit,
+    private val decision: DownloadRetryDecision = DownloadRetryDecision(),
 ) {
     suspend fun retry(userId: Long, fileId: FilesItemId): DownloadRetryOutcome {
         val outcome = when (signedIn()) {
@@ -228,15 +254,39 @@ internal class DownloadNotificationRetries(
         return outcome
     }
 
-    private fun queue(userId: Long, entry: DownloadEntry): DownloadRetryOutcome =
-        try {
-            start(userId, entry)
+    private suspend fun queue(userId: Long, entry: DownloadEntry): DownloadRetryOutcome {
+        val retry = entry.retryStart()
+        val answer = if (retry.asksDirectPlay) {
+            decision.directPlay(entry.fileId, entry.subtitlesHidden != true)
+        } else {
+            null
+        }
+        return when {
+            retry.asksDirectPlay && signedIn() != SignedInAccount.User(userId) -> DownloadRetryOutcome.REFUSED
+            retry.asksDirectPlay && find(userId, entry.fileId) != entry -> DownloadRetryOutcome.NOT_RETRYABLE
+            answer.unavailable -> {
+                decision.failed(userId, entry)
+                DownloadRetryOutcome.UNAVAILABLE
+            }
+            else -> startDecided(userId, entry, retry.entry.decidedBy(answer))
+        }
+    }
+
+    private suspend fun startDecided(userId: Long, entry: DownloadEntry, chosen: DownloadEntry): DownloadRetryOutcome {
+        if (chosen.artifact != entry.artifact || chosen.subtitles != entry.subtitles) {
+            decision.save(userId, entry.copy(artifact = chosen.artifact, subtitles = chosen.subtitles))
+        }
+        return try {
+            start(userId, chosen)
             DownloadRetryOutcome.STARTED
         } catch (_: IllegalStateException) {
             // The system refused to start the download service from the background; Downloads still offers it.
             DownloadRetryOutcome.UNCONFIRMED
         }
+    }
 }
+
+private val RETRY_LOOKUP_BUDGET = 4.seconds
 
 /**
  * The running notification's Pause and Cancel. Each acts on every live download of the account the

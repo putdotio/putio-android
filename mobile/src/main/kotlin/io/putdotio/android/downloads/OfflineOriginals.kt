@@ -19,10 +19,10 @@ internal class OfflineOriginal(
 )
 
 /**
- * Finds a completed download that holds a file's original bytes. Audio downloads store the original; video
- * downloads store the HLS rendition the player streams, so they never qualify. The app's index must read the row
- * as completed, Media3's index must agree, and every byte must be in the cache under the owner's keys. Reads have
- * no upstream, so a span missing on disk fails instead of reaching the network.
+ * Finds a completed download that holds a file's original bytes. Audio downloads store the original, and so do
+ * Direct play video downloads of an accepted original; HLS and converted MP4 downloads never qualify. The app's
+ * index must read the row as completed, Media3's index must agree, and every byte must be in the cache under the
+ * owner's keys. Reads have no upstream, so a span missing on disk fails instead of reaching the network.
  */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal class OfflineOriginals(

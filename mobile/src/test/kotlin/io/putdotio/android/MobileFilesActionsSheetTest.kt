@@ -24,6 +24,7 @@ import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.files.MOBILE_FILES_COPY_ACTION_TAG
 import io.putdotio.android.files.MOBILE_FILES_DELETE_ACTION_TAG
+import io.putdotio.android.files.MOBILE_FILES_DOWNLOAD_WITH_ACTION_TAG
 import io.putdotio.android.files.MOBILE_FILES_MOVE_ACTION_TAG
 import io.putdotio.android.files.MOBILE_FILES_OPEN_ACTION_TAG
 import io.putdotio.android.files.MOBILE_FILES_OPEN_WITH_ACTION_TAG
@@ -49,6 +50,8 @@ import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
+import io.putdotio.android.downloads.DownloadFailureReason
+import io.putdotio.android.downloads.DownloadStatus
 import io.putdotio.android.downloads.DownloadsState
 import io.putdotio.android.files.MobileSearchResultActions
 import io.putdotio.android.files.MobileSearchResultActionsHost
@@ -142,6 +145,54 @@ class MobileFilesActionsSheetTest {
             item = other
             compose.onNodeWithText(other.name).assertIsDisplayed()
             compose.onNodeWithTag(MOBILE_FILES_PLAY_WITH_ACTION_TAG).assertDoesNotExist()
+        }
+    }
+
+    @Test
+    fun aVideoNotYetOnThisDeviceOffersADownloadWithTheOtherMethod() {
+        val downloads = mutableListOf<Pair<Long, StreamingMethod>>()
+        val song = started.copy(id = FilesItemId(10L), name = "song.mp3", type = PutioFileType.AUDIO, playback = null)
+        var item by mutableStateOf(started)
+        var setting by mutableStateOf(StreamingMethod.Hls)
+        var status by mutableStateOf<DownloadStatus?>(null)
+        compose.setContent {
+            PutioTheme {
+                key(item.id.value, setting, status) {
+                    MobileFilesActions(
+                        item = item,
+                        folderId = FilesFolder.Root.id,
+                        operation = FilesFolderOperation.Idle,
+                        renameCompletion = null,
+                        onEvent = {},
+                        onDismiss = {},
+                        downloadStatus = status,
+                        onDownloadItem = {},
+                        itemActions = MobileFilesItemActions().withDownloadWith(setting) { chosen, method ->
+                            downloads += chosen.id.value to method
+                        },
+                    )
+                }
+            }
+        }
+        compose.onNodeWithText("Download with Direct play").performScrollTo().performClick()
+        setting = StreamingMethod.File
+        compose.onNodeWithText("Download with Standard").performScrollTo().performClick()
+        status = DownloadStatus.Failed(DownloadFailureReason.NETWORK, 0L)
+        compose.onNodeWithTag(MOBILE_FILES_DOWNLOAD_WITH_ACTION_TAG).performScrollTo().assertIsDisplayed()
+        compose.runOnIdle {
+            assertEquals(listOf(7L to StreamingMethod.File, 7L to StreamingMethod.Hls), downloads)
+        }
+        listOf(DownloadStatus.Completed(1L), DownloadStatus.Queued, DownloadStatus.Downloading(1L, null)).forEach {
+            status = it
+            compose.onNodeWithText(started.name).assertIsDisplayed()
+            compose.onNodeWithTag(MOBILE_FILES_DOWNLOAD_WITH_ACTION_TAG).assertDoesNotExist()
+        }
+        status = null
+        item = song
+        compose.onNodeWithText(song.name).assertIsDisplayed()
+        compose.onNodeWithTag(MOBILE_FILES_DOWNLOAD_WITH_ACTION_TAG).assertDoesNotExist()
+        compose.runOnIdle {
+            assertNull(MobileFilesItemActions().withDownloadWith(StreamingMethod.Hls, null).downloadWith)
         }
     }
 

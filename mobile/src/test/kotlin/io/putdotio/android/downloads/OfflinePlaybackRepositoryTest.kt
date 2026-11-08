@@ -65,7 +65,8 @@ class OfflinePlaybackRepositoryTest {
         val downloads = downloadsOf(completed())
         // A download from before the URL gained max_subtitle_count is cached under its own URL.
         val earlier = "https://api.put.io/v2/files/7/hls/media.m3u8?subtitle_key=all"
-        val replayed = OfflinePlaybackRepository(downloads, delegate, PutioCredentialUrl::of) { earlier }
+        val replayed =
+            OfflinePlaybackRepository(downloads, delegate, PutioCredentialUrl::of) { OfflineRequest(earlier) }
         val unknown = OfflinePlaybackRepository(downloads, delegate, PutioCredentialUrl::of) { null }
 
         val ready = (replayed.resolve(target) as PlaybackRepositoryResult.Success).value as PlaybackResolution.Ready
@@ -160,6 +161,49 @@ class OfflinePlaybackRepositoryTest {
         assertTrue(delegateCalls.isEmpty())
         assertTrue(repository.resolve(target, convertedOnly = true) is PlaybackRepositoryResult.Failure)
         assertEquals(listOf(true), convertedOnlyCalls)
+    }
+
+    @Test
+    fun aDirectPlayDownloadPlaysItsFileFromTheCacheWithItsCachedSubtitleFiles() = runBlocking {
+        val english = DownloadSubtitle(
+            "en-key", "https://api.put.io/v2/files/7/subtitles/en-key", "srt", "English", "eng", "Sintel.en.srt",
+            "opensubtitles",
+        )
+        val converted = completed().copy(artifact = DownloadArtifact.MP4, subtitles = listOf(english))
+        val mp4Url = "https://api.put.io/v2/files/7/mp4/stream"
+        val repository = OfflinePlaybackRepository(downloadsOf(converted), delegate, PutioCredentialUrl::of) {
+            OfflineRequest(mp4Url, listOf(english))
+        }
+
+        val ready = (repository.resolve(target, convertedOnly = true) as PlaybackRepositoryResult.Success).value
+            as PlaybackResolution.Ready
+        assertEquals(PlaybackSourceKind.MP4, ready.source.kind)
+        assertEquals(PlaybackStreamFormat.PROGRESSIVE, ready.source.format)
+        assertEquals(mp4Url, ready.source.url.value)
+        val sidecar = (ready.source.subtitles as PlaybackSubtitles.Sidecar).tracks.single()
+        assertEquals(english.url, sidecar.url.value)
+        assertEquals(
+            listOf("en-key", "srt", "eng", "Sintel.en.srt"),
+            with(sidecar) { listOf(key, format, languageCode, name) },
+        )
+        assertTrue(ready.offline)
+
+        val original = OfflinePlaybackRepository(
+            downloadsOf(converted.copy(artifact = DownloadArtifact.ORIGINAL)), delegate, PutioCredentialUrl::of,
+        ) { OfflineRequest("https://api.put.io/v2/files/7/stream", listOf(english)) }
+        val originalSource = ((original.resolve(target) as PlaybackRepositoryResult.Success).value
+            as PlaybackResolution.Ready).source
+        assertEquals(PlaybackSourceKind.ORIGINAL, originalSource.kind)
+        assertEquals(PlaybackStreamFormat.PROGRESSIVE, originalSource.format)
+        assertEquals(listOf("en-key"), (originalSource.subtitles as PlaybackSubtitles.Sidecar).tracks.map { it.key })
+
+        val bare = OfflinePlaybackRepository(downloadsOf(converted), delegate, PutioCredentialUrl::of) {
+            OfflineRequest(mp4Url)
+        }
+        val bareSource = ((bare.resolve(target) as PlaybackRepositoryResult.Success).value
+            as PlaybackResolution.Ready).source
+        assertEquals(PlaybackSubtitles.None, bareSource.subtitles)
+        assertTrue(delegateCalls.isEmpty())
     }
 
     private fun completed() = DownloadEntry(

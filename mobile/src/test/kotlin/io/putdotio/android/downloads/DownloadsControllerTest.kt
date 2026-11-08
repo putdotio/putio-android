@@ -2,9 +2,6 @@ package io.putdotio.android.downloads
 
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.sdk.files.PutioFileType
-import kotlin.time.Duration.Companion.seconds
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
@@ -13,14 +10,11 @@ import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
-import kotlinx.coroutines.yield
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-
-private const val SETTLE_YIELDS = 10
 
 class DownloadsControllerTest {
     private val video = DownloadRequest(FilesItemId(7L), "Sintel.mkv", PutioFileType.VIDEO, 1_000L)
@@ -341,148 +335,6 @@ class DownloadsControllerTest {
         assertEquals(0L, controller.state.value.speeds[video.fileId])
     }
 
-    @Test
-    fun aVideoDownloadsTheOriginalOverHlsOnlyWhenTheOriginalDecisionAcceptsIt() = runBlocking {
-        val asked = mutableListOf<FilesItemId>()
-        val accepted = setOf(video.fileId)
-        val rejected = video.copy(fileId = FilesItemId(9L), name = "Tears.mkv")
-        val decision: suspend (FilesItemId) -> Boolean = { fileId ->
-            asked += fileId
-            fileId in accepted
-        }
-        DownloadsController(store, engine, this, acceptsOriginal = decision).use { controller ->
-            for (request in listOf(video, rejected, audio)) {
-                assertTrue(controller.dispatch(DownloadsEvent.Start(request)))
-            }
-            engine.await { it.started.size == 3 }
-
-            val started = engine.started.associate { it.fileId to it.artifact }
-            assertEquals(DownloadArtifact.ORIGINAL_HLS, started[video.fileId])
-            assertEquals(DownloadArtifact.HLS, started[rejected.fileId])
-            assertEquals(DownloadArtifact.ORIGINAL, started[audio.fileId])
-            assertEquals(started, store.entries.value.associate { it.fileId to it.artifact })
-            assertEquals(setOf(video.fileId, rejected.fileId), asked.toSet())
-        }
-    }
-
-    @Test
-    fun aVideoShowsQueuedWhileTheDecisionRunsAndACancelledOneNeverStarts() = runBlocking {
-        val decision = CompletableDeferred<Boolean>()
-        DownloadsController(store, engine, this, acceptsOriginal = { decision.await() }).use { controller ->
-            assertTrue(controller.dispatch(DownloadsEvent.Start(video)))
-            val waiting = controller.awaitState { it.entry(video.fileId) != null }.entry(video.fileId)
-            assertEquals(DownloadStatus.Queued, waiting?.status)
-            assertTrue(engine.started.isEmpty())
-
-            assertTrue(controller.dispatch(DownloadsEvent.Cancel(video.fileId)))
-            engine.await { it.removed == listOf(video.fileId) }
-            engine.finishRemoval(video.fileId, store)
-            decision.complete(true)
-            controller.awaitState { it.entries.isEmpty() && it.removing.isEmpty() }
-            repeat(SETTLE_YIELDS) { yield() }
-            assertTrue(engine.started.isEmpty())
-        }
-    }
-
-    @Test
-    fun aDecisionThatNeverAnswersDownloadsConverted() = runTest {
-        val controller = DownloadsController(store, engine, backgroundScope, acceptsOriginal = { awaitCancellation() })
-        assertTrue(controller.dispatch(DownloadsEvent.Start(video)))
-        advanceTimeBy(9.seconds)
-        runCurrent()
-        assertTrue(engine.started.isEmpty())
-
-        advanceTimeBy(2.seconds)
-        runCurrent()
-        assertEquals(DownloadArtifact.HLS, engine.started.single().artifact)
-        controller.close()
-    }
-
-    @Test
-    fun originalLookupsRunTogetherAndStartsKeepTapOrder() = runTest {
-        val episodes = (20L..22L).map { video.copy(fileId = FilesItemId(it), name = "Episode $it.mkv") }
-        val controller = DownloadsController(store, engine, backgroundScope, acceptsOriginal = { awaitCancellation() })
-        for (request in listOf(episodes[0], audio, episodes[1], episodes[2])) {
-            assertTrue(controller.dispatch(DownloadsEvent.Start(request)))
-        }
-        advanceTimeBy(9.seconds)
-        runCurrent()
-        assertTrue(engine.started.isEmpty())
-
-        advanceTimeBy(2.seconds)
-        runCurrent()
-        assertEquals(
-            listOf(episodes[0].fileId, audio.fileId, episodes[1].fileId, episodes[2].fileId),
-            engine.started.map { it.fileId },
-        )
-        controller.close()
-    }
-
-    @Test
-    fun aRetryOrRedownloadAsksTheDecisionAgainOnlyWhenNothingIsHeld() = runBlocking {
-        var original: Boolean? = false
-        val asked = mutableListOf<FilesItemId>()
-        val partial = video.copy(fileId = FilesItemId(9L), name = "Tears.mkv")
-        for ((request, bytes) in listOf(video to 0L, partial to 10L)) {
-            store.upsert(
-                DownloadEntry(
-                    request.fileId, request.name, PutioFileType.VIDEO, DownloadArtifact.ORIGINAL_HLS,
-                    DownloadStatus.Failed(DownloadFailureReason.NETWORK, bytes), createdAt = 1L, accepted = true,
-                ),
-            )
-        }
-        val decision: suspend (FilesItemId) -> Boolean? = { fileId ->
-            asked += fileId
-            original
-        }
-        DownloadsController(store, engine, this, acceptsOriginal = decision).use { controller ->
-            assertTrue(controller.dispatch(DownloadsEvent.Retry(video.fileId)))
-            assertTrue(controller.dispatch(DownloadsEvent.Retry(partial.fileId)))
-            engine.await { it.started.size == 2 }
-            assertEquals(
-                listOf(video.fileId to DownloadArtifact.HLS, partial.fileId to DownloadArtifact.ORIGINAL_HLS),
-                engine.started.map { it.fileId to it.artifact },
-            )
-            assertEquals(listOf(video.fileId), asked)
-
-            val rejected = DownloadStatus.Failed(DownloadFailureReason.UNAVAILABLE, 0L)
-            store.find(video.fileId)?.let {
-                store.upsert(it.copy(artifact = DownloadArtifact.ORIGINAL_HLS, status = rejected))
-            }
-            store.find(partial.fileId)?.let { store.upsert(it.copy(status = DownloadStatus.Missing)) }
-            original = null
-            assertTrue(controller.dispatch(DownloadsEvent.Start(video)))
-            assertTrue(controller.dispatch(DownloadsEvent.Start(partial)))
-            engine.await { it.started.size == 4 }
-            assertEquals(
-                listOf(video.fileId, partial.fileId).map { it to DownloadArtifact.ORIGINAL_HLS },
-                engine.started.drop(2).map { it.fileId to it.artifact },
-            )
-            assertEquals(listOf(video.fileId, video.fileId), asked)
-        }
-    }
-
-    @Test
-    fun aRetryStartsEvenWhenAReportRewritesItsRowWhileTheDecisionRuns() = runBlocking {
-        val decision = CompletableDeferred<Boolean>()
-        store.upsert(
-            DownloadEntry(
-                video.fileId, video.name, PutioFileType.VIDEO, DownloadArtifact.HLS,
-                DownloadStatus.Failed(DownloadFailureReason.NETWORK, 0L), createdAt = 1L, accepted = true,
-            ),
-        )
-        DownloadsController(store, engine, this, acceptsOriginal = { decision.await() }).use { controller ->
-            assertTrue(controller.dispatch(DownloadsEvent.Retry(video.fileId)))
-            val queued = store.await { rows -> rows.single().status == DownloadStatus.Queued }.single()
-            val reported = DownloadStatus.Failed(DownloadFailureReason.UNEXPECTED, 0L)
-            store.upsert(queued.copy(status = reported, queuedAt = 1L))
-
-            decision.complete(false)
-            engine.await { it.started.size == 1 }
-            assertEquals(video.fileId, engine.started.single().fileId)
-        }
-    }
-
     private suspend fun DownloadsController.awaitState(predicate: (DownloadsState) -> Boolean): DownloadsState =
         withTimeout(5_000L) { state.first(predicate) }
 }
@@ -522,6 +374,8 @@ internal class FakeDownloadEngine : DownloadEngine {
     val removed = mutableListOf<FilesItemId>()
     val paused = mutableListOf<FilesItemId>()
     val resumed = mutableListOf<FilesItemId>()
+    val failed = mutableListOf<Pair<DownloadEntry, DownloadFailureReason>>()
+    val recorded = mutableSetOf<FilesItemId>()
     override var concurrency: Int = DOWNLOAD_CONCURRENCY_DEFAULT
         private set
     var progressRefreshes = 0
@@ -529,8 +383,13 @@ internal class FakeDownloadEngine : DownloadEngine {
     private val removing = mutableSetOf<FilesItemId>()
     private val version = MutableStateFlow(0)
 
-    override fun start(entry: DownloadEntry) {
+    override suspend fun start(entry: DownloadEntry) {
         started += entry
+        version.value += 1
+    }
+
+    override fun notifyFailed(entry: DownloadEntry, reason: DownloadFailureReason) {
+        failed += entry to reason
         version.value += 1
     }
 
@@ -541,6 +400,8 @@ internal class FakeDownloadEngine : DownloadEngine {
     }
 
     override fun isRemoving(fileId: FilesItemId): Boolean = fileId in removing
+
+    override suspend fun hasRecord(fileId: FilesItemId): Boolean = fileId in recorded
 
     override suspend fun setPaused(fileId: FilesItemId, paused: Boolean) {
         if (paused) this.paused += fileId else resumed += fileId

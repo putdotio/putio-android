@@ -36,12 +36,11 @@ import io.putdotio.android.account.MobilePrivacyControlsScreen
 import io.putdotio.android.account.mobileAppDiagnostics
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
-import io.putdotio.android.downloads.DownloadRequest
 import io.putdotio.android.downloads.DownloadsController
-import io.putdotio.android.downloads.DownloadsEvent
 import io.putdotio.android.downloads.DownloadsState
 import io.putdotio.android.downloads.DownloadsSelection
 import io.putdotio.android.downloads.MobileDownloadsScreen
+import io.putdotio.android.downloads.MobileFileDownloads
 import io.putdotio.android.downloads.rememberFirstDownloadNotificationPrompt
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserState
@@ -201,12 +200,10 @@ internal fun MobileNavHost(
                 composable(MobileDestination.Files.route) {
                     val askForDownloadNotifications = rememberFirstDownloadNotificationPrompt()
                     val showSubtitles = accountSettingsState.confirmedShowSubtitles()
-                    val startDownload = downloadsController?.let { controller ->
-                        { item: FilesItem ->
-                            val start = DownloadsEvent.Start(item.toDownloadRequest(showSubtitles))
-                            if (controller.dispatch(start)) askForDownloadNotifications()
-                        }
+                    val fileDownloads = downloadsController?.let {
+                        MobileFileDownloads(it, showSubtitles, askForDownloadNotifications)
                     }
+                    val startDownload = fileDownloads?.bySetting
                     val filesItemActions = (
                         filesActions?.itemActions(
                             watchedToggle = accountSettingsState.confirmedResumePlayback() == true,
@@ -216,6 +213,7 @@ internal fun MobileNavHost(
                         .withPlayWith(appConfigState.confirmedStreamingMethod()) { item, method ->
                             navController.navigateToPlayback(item, method = method)
                         }
+                        .withDownloadWith(appConfigState.confirmedStreamingMethod(), fileDownloads?.withMethod)
                     val fileOpener = remember(account.userId) { MobileFileOpener(account.userId) }
                     val filesContext = LocalContext.current
                     MobileFilesTab(
@@ -660,14 +658,3 @@ private fun RecordOpenedVideos(controller: PlaybackController, continueWatching:
         }
     }
 }
-
-/** The confirmed subtitle setting travels with the download, which skips subtitles for it. */
-private fun FilesItem.toDownloadRequest(showSubtitles: Boolean?): DownloadRequest = DownloadRequest(
-    fileId = id,
-    name = name,
-    type = type,
-    sizeBytes = sizeBytes,
-    subtitlesHidden = showSubtitles?.not(),
-    startFromSeconds = playback?.startFromSeconds ?: 0.0,
-    durationSeconds = playback?.durationSeconds,
-)

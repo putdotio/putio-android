@@ -89,6 +89,7 @@ internal const val MOBILE_FILES_OPEN_ACTION_TAG = "mobile-files-open-action"
 internal const val MOBILE_FILES_OPEN_WITH_ACTION_TAG = "mobile-files-open-with-action"
 internal const val MOBILE_FILES_PLAY_WITH_ACTION_TAG = "mobile-files-play-with-action"
 internal const val MOBILE_FILES_DOWNLOAD_ACTION_TAG = "mobile-files-download-action"
+internal const val MOBILE_FILES_DOWNLOAD_WITH_ACTION_TAG = "mobile-files-download-with-action"
 internal const val MOBILE_FILES_SHARE_ACTION_TAG = "mobile-files-share-action"
 internal const val MOBILE_FILES_VLC_ACTION_TAG = "mobile-files-vlc-action"
 internal const val MOBILE_FILES_SELECT_ACTION_TAG = "mobile-files-select-action"
@@ -119,7 +120,8 @@ internal data class MobileFilesItemActions(
     val notices: Flow<MobileFilesNotice> = emptyFlow(),
     /** A link copied from the Exclusive access sheet, which closes so the snackbar can say so. */
     val onLinkCopied: (() -> Unit)? = null,
-    val playWith: MobilePlayWith? = null,
+    val playWith: MobileOtherMethod? = null,
+    val downloadWith: MobileOtherMethod? = null,
 ) {
     /** The resume setting [onSetWatched] needs is also what makes playback start from a saved position. */
     val resumes: Boolean get() = onSetWatched != null
@@ -133,13 +135,18 @@ internal data class MobileFilesItemActions(
         if (inViewer) copy(onOpen = null, onSelect = null) else this
 
     fun withPlayWith(setting: StreamingMethod, play: (FilesItem, StreamingMethod) -> Unit): MobileFilesItemActions =
-        copy(playWith = MobilePlayWith(setting.other(), play))
+        copy(playWith = MobileOtherMethod(setting.other(), play))
 
     fun playingWithVia(play: (FilesItem, StreamingMethod) -> Unit): MobileFilesItemActions =
-        copy(playWith = playWith?.let { MobilePlayWith(it.method, play) })
+        copy(playWith = playWith?.let { MobileOtherMethod(it.method, play) })
+
+    fun withDownloadWith(
+        setting: StreamingMethod,
+        download: ((FilesItem, StreamingMethod) -> Unit)?,
+    ): MobileFilesItemActions = copy(downloadWith = download?.let { MobileOtherMethod(setting.other(), it) })
 }
 
-internal class MobilePlayWith(val method: StreamingMethod, val play: (FilesItem, StreamingMethod) -> Unit)
+internal class MobileOtherMethod(val method: StreamingMethod, val start: (FilesItem, StreamingMethod) -> Unit)
 
 private fun StreamingMethod.other(): StreamingMethod = when (this) {
     StreamingMethod.Hls -> StreamingMethod.File
@@ -151,6 +158,15 @@ private val StreamingMethod.playWithLabel: Int
         StreamingMethod.Hls -> R.string.mobile_files_play_with_standard
         StreamingMethod.File -> R.string.mobile_files_play_with_direct_play
     }
+
+private val StreamingMethod.downloadWithLabel: Int
+    get() = when (this) {
+        StreamingMethod.Hls -> R.string.mobile_files_download_with_standard
+        StreamingMethod.File -> R.string.mobile_files_download_with_direct_play
+    }
+
+private val DownloadStatus?.startsDownload: Boolean
+    get() = this == null || this is DownloadStatus.Failed || this == DownloadStatus.Missing
 
 /**
  * Whether the row's sheet offers anything. Download and Share read the original, and Make a copy
@@ -271,6 +287,7 @@ internal fun MobileFilesActions(
         ) {
             MobileFilesActionRows(
                 item = item,
+                downloadStatus = downloadStatus,
                 operation = operation,
                 itemActions = itemActions,
                 canStartCopy = canStartCopy,
@@ -541,8 +558,7 @@ private fun RowScope.MobileFilesDownloadTile(
     onDownloadItem: (FilesItem) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val downloadable = downloadStatus == null || downloadStatus is DownloadStatus.Failed ||
-        downloadStatus == DownloadStatus.Missing
+    val downloadable = downloadStatus.startsDownload
     val (icon, label) = when (downloadStatus) {
         null, is DownloadStatus.Failed, DownloadStatus.Missing ->
             R.drawable.ic_ph_arrow_circle_down to R.string.mobile_files_download_action
@@ -604,6 +620,7 @@ private fun RowScope.MobileFilesActionTile(
 @Composable
 private fun MobileFilesActionRows(
     item: FilesItem,
+    downloadStatus: DownloadStatus?,
     operation: FilesFolderOperation,
     itemActions: MobileFilesItemActions,
     canStartCopy: Boolean,
@@ -627,9 +644,10 @@ private fun MobileFilesActionRows(
         MobileFilesActionRow(R.drawable.ic_ph_play_circle, playWith.method.playWithLabel,
             MOBILE_FILES_PLAY_WITH_ACTION_TAG) {
             onDismiss()
-            playWith.play(item, playWith.method)
+            playWith.start(item, playWith.method)
         }
     }
+    MobileFilesDownloadWithRow(item, downloadStatus, itemActions.downloadWith?.takeIf { listed }, onDismiss)
     itemActions.onOpenWith?.takeIf { listed && !item.isFolder }?.let {
         MobileFilesActionRow(R.drawable.ic_ph_arrow_square_out, R.string.mobile_files_open_with,
             MOBILE_FILES_OPEN_WITH_ACTION_TAG, onClick = then(it))
@@ -648,6 +666,21 @@ private fun MobileFilesActionRows(
     }
     itemActions.onSetWatched?.takeIf { owner }?.let { MobileFilesWatchedRow(item, it, onDismiss) }
     MobileFilesOwnerRows(item, operation, onRename.takeIf { listingActions }, onDismiss, onMoveItem, onPublicLinkItem)
+}
+
+@Composable
+private fun MobileFilesDownloadWithRow(
+    item: FilesItem,
+    downloadStatus: DownloadStatus?,
+    downloadWith: MobileOtherMethod?,
+    onDismiss: () -> Unit,
+) {
+    if (downloadWith == null || item.type != PutioFileType.VIDEO || !downloadStatus.startsDownload) return
+    MobileFilesActionRow(R.drawable.ic_ph_arrow_circle_down, downloadWith.method.downloadWithLabel,
+        MOBILE_FILES_DOWNLOAD_WITH_ACTION_TAG) {
+        downloadWith.start(item, downloadWith.method)
+        onDismiss()
+    }
 }
 
 /**

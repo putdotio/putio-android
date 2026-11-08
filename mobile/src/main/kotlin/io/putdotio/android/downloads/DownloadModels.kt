@@ -1,20 +1,24 @@
 package io.putdotio.android.downloads
 
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.sdk.files.PutioFileType
 
 /**
- * Which rendition the cache holds. Video downloads the converted HLS rendition, or the original over HLS when
- * the playback method is Direct play and the player's original decision accepts the file; audio downloads the
- * original file.
+ * Which rendition the cache holds. Standard downloads a video's converted HLS rendition; Direct play its original
+ * file when the player's original decision accepts it, else its converted [MP4] file. Audio downloads the
+ * original file. [ORIGINAL_HLS] rows, originals over HLS from earlier builds, still play but are no longer made.
  */
 internal enum class DownloadArtifact {
     HLS,
     ORIGINAL,
     ORIGINAL_HLS,
+    MP4,
     ;
 
-    val isHls: Boolean get() = this != ORIGINAL
+    val isHls: Boolean get() = this == HLS || this == ORIGINAL_HLS
+
+    val method: StreamingMethod get() = if (this == HLS) StreamingMethod.Hls else StreamingMethod.File
 }
 
 internal sealed interface DownloadStatus {
@@ -105,6 +109,7 @@ internal data class DownloadEntry(
      * overwritten by sign-out parking, so the engine holds Media3 to this.
      */
     val pauseRequested: Boolean = false,
+    val subtitles: List<DownloadSubtitle> = emptyList(),
 ) {
     val isCompleted: Boolean get() = status is DownloadStatus.Completed
     val canRetry: Boolean get() = status is DownloadStatus.Failed || status is DownloadStatus.Missing
@@ -121,12 +126,20 @@ internal data class DownloadEntry(
         get() = status == DownloadStatus.Missing || ((status as? DownloadStatus.Failed)?.bytesDownloaded ?: 0L) > 0L
 }
 
-internal fun DownloadArtifact.fallsBackToConverted(reason: DownloadFailureReason, bytesDownloaded: Long): Boolean =
-    this == DownloadArtifact.ORIGINAL_HLS && bytesDownloaded == 0L &&
-        (reason == DownloadFailureReason.UNAVAILABLE || reason == DownloadFailureReason.UNEXPECTED)
+internal fun DownloadArtifact.convertedFallback(type: PutioFileType): DownloadArtifact? =
+    when {
+        this == DownloadArtifact.ORIGINAL_HLS -> DownloadArtifact.HLS
+        this == DownloadArtifact.ORIGINAL && type == PutioFileType.VIDEO -> DownloadArtifact.MP4
+        else -> null
+    }
 
-internal fun DownloadEntry.convertedFallback(): DownloadEntry =
-    copy(artifact = DownloadArtifact.HLS, status = DownloadStatus.Queued, pauseRequested = false)
+internal fun DownloadFailureReason.fallsBackToConverted(bytesDownloaded: Long): Boolean =
+    bytesDownloaded == 0L && (this == DownloadFailureReason.UNAVAILABLE || this == DownloadFailureReason.UNEXPECTED)
+
+internal fun DownloadEntry.convertedFallback(): DownloadEntry? =
+    artifact.convertedFallback(type)?.let { converted ->
+        copy(artifact = converted, status = DownloadStatus.Queued, accepted = true, pauseRequested = false)
+    }
 
 /** Enough of a Files item to start a download without another API call. */
 internal data class DownloadRequest(
@@ -138,6 +151,7 @@ internal data class DownloadRequest(
     val subtitlesHidden: Boolean? = null,
     val startFromSeconds: Double = 0.0,
     val durationSeconds: Double? = null,
+    val method: StreamingMethod? = null,
 )
 
 /** How many transfers Media3 runs at once; iOS offers the same choices and default. */

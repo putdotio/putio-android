@@ -3,6 +3,8 @@ package io.putdotio.android.downloads
 import android.annotation.SuppressLint
 import android.content.Context
 import android.net.Uri
+import androidx.core.net.toUri
+import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.database.StandaloneDatabaseProvider
 import androidx.media3.datasource.DataSource
@@ -22,15 +24,24 @@ import androidx.media3.exoplayer.offline.DownloadManager
 import androidx.media3.exoplayer.offline.DownloadRequest
 import androidx.media3.exoplayer.offline.Downloader
 import androidx.media3.exoplayer.offline.DownloaderFactory
+import androidx.media3.exoplayer.offline.ProgressiveDownloader
 import androidx.media3.exoplayer.scheduler.Requirements
 import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.auth.MobileOAuthRuntime
 import io.putdotio.android.files.FilesItemId
 import java.io.File
+import java.io.IOException
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.resume
+import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
 
 private const val OAUTH_TOKEN_QUERY = "oauth_token"
@@ -96,6 +107,9 @@ internal class MobileDownloadCache private constructor(context: Context) {
             .setUpstreamDataSourceFactory(upstreamFactory)
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
 
+    internal val downloaderFactory: DownloaderFactory =
+        UserScopedDownloaderFactory(::cacheFactory, Executors.newFixedThreadPool(DOWNLOAD_THREADS))
+
     /**
      * Media3's DownloadService binds the first manager it sees for the whole
      * process, so there is exactly one. Request ids are `userId:fileId`; each
@@ -106,7 +120,7 @@ internal class MobileDownloadCache private constructor(context: Context) {
     val downloadManager: DownloadManager = DownloadManager(
         appContext,
         DefaultDownloadIndex(databaseProvider),
-        UserScopedDownloaderFactory(::cacheFactory, Executors.newFixedThreadPool(DOWNLOAD_THREADS)),
+        downloaderFactory,
     ).apply {
         maxParallelDownloads = MobileDownloadSettings(appContext).concurrency
         minRetryCount = MIN_RETRIES
@@ -123,7 +137,13 @@ internal class MobileDownloadCache private constructor(context: Context) {
      */
     fun holdsLocalCopy(download: Download): Boolean {
         val userId = download.request.ownerUserId() ?: return false
-        val key = UserScopedCacheKeys(userId).buildCacheKey(DataSpec(download.request.uri))
+        return holds(userId, download.request.uri)
+    }
+
+    fun holdsSubtitle(userId: Long, subtitle: DownloadSubtitle): Boolean = holds(userId, subtitle.url.toUri())
+
+    private fun holds(userId: Long, uri: Uri): Boolean {
+        val key = UserScopedCacheKeys(userId).buildCacheKey(DataSpec(uri))
         val length = ContentMetadata.getContentLength(cache.getContentMetadata(key))
         return if (length > 0L) cache.isCached(key, 0L, length) else cache.getCachedSpans(key).isNotEmpty()
     }
@@ -134,9 +154,36 @@ internal class MobileDownloadCache private constructor(context: Context) {
             ?.takeIf { it.state == Download.STATE_COMPLETED }
             ?.let(::holdsLocalCopy) == true
 
-    /** Blocking index read; see [DownloadIndex.requestedUrl]. */
-    fun requestedUrl(userId: Long, fileId: FilesItemId): String? =
-        downloadManager.downloadIndex.requestedUrl(userId, fileId)
+    /** Blocking index and cache read; see [DownloadIndex.offlineRequest]. Only subtitle files on disk are kept. */
+    fun offlineRequest(userId: Long, fileId: FilesItemId): OfflineRequest? =
+        downloadManager.downloadIndex.offlineRequest(userId, fileId)
+            ?.let { request -> request.copy(subtitles = request.subtitles.filter { holdsSubtitle(userId, it) }) }
+
+    private val replacingIds: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
+    val replacing: Set<String> get() = replacingIds
+
+    suspend fun dropReplacedBytes(manager: DownloadManager, userId: Long, entry: DownloadEntry, io: CoroutineContext) {
+        val contentId = downloadContentId(userId, entry.fileId)
+        val recorded = withContext(io) {
+            try {
+                manager.downloadIndex.getDownload(contentId)
+            } catch (_: IOException) {
+                null
+            }
+        }
+        if (recorded == null || recorded.request.fetchesSameAs(entry.downloadRequest(userId))) return
+        if (recorded.isTerminalState) {
+            withContext(io) { downloaderFactory.createDownloader(recorded.request).remove() }
+            return
+        }
+        replacingIds += contentId
+        try {
+            withTimeoutOrNull(REPLACE_TIMEOUT) { manager.removeAndAwait(contentId) }
+        } finally {
+            replacingIds -= contentId
+        }
+    }
 
     private fun authorize(spec: DataSpec): DataSpec {
         if (spec.uri.host != API_HOST) return spec
@@ -155,6 +202,7 @@ internal class MobileDownloadCache private constructor(context: Context) {
         private const val MIN_RETRIES = 3
         private val DOWNLOAD_REQUIREMENTS = Requirements(Requirements.NETWORK or Requirements.DEVICE_STORAGE_NOT_LOW)
         private const val SESSION_SETTLE_TIMEOUT_SECONDS = 30L
+        private val REPLACE_TIMEOUT = 10.seconds
 
         @Volatile
         private var instance: MobileDownloadCache? = null
@@ -173,12 +221,29 @@ internal fun downloadContentId(userId: Long, fileId: FilesItemId): String = "$us
 internal fun DownloadRequest.ownerUserId(): Long? = id.substringBefore(':', missingDelimiterValue = "").toLongOrNull()
 
 /**
- * The URL this user's download was requested with. The cache is keyed by it, so offline
- * playback replays it verbatim, including downloads made before [apiUrl] last changed.
+ * The URL this user's download was requested with, and the subtitle files it asked for. The cache is keyed by the
+ * URL, so offline playback replays it verbatim, including downloads made before [apiUrl] last changed.
  */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-internal fun DownloadIndex.requestedUrl(userId: Long, fileId: FilesItemId): String? =
-    getDownload(downloadContentId(userId, fileId))?.request?.uri?.toString()
+internal fun DownloadIndex.offlineRequest(userId: Long, fileId: FilesItemId): OfflineRequest? =
+    getDownload(downloadContentId(userId, fileId))?.request?.let { request ->
+        OfflineRequest(request.uri.toString(), request.data.toDownloadRequestData().subtitles)
+    }
+
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+private suspend fun DownloadManager.removeAndAwait(contentId: String) =
+    suspendCancellableCoroutine { continuation ->
+        val listener = object : DownloadManager.Listener {
+            override fun onDownloadRemoved(downloadManager: DownloadManager, download: Download) {
+                if (download.request.id != contentId) return
+                downloadManager.removeListener(this)
+                continuation.resume(Unit)
+            }
+        }
+        addListener(listener)
+        continuation.invokeOnCancellation { removeListener(listener) }
+        removeDownload(contentId)
+    }
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 private class UserScopedDownloaderFactory(
@@ -187,7 +252,12 @@ private class UserScopedDownloaderFactory(
 ) : DownloaderFactory {
     override fun createDownloader(request: DownloadRequest): Downloader {
         val userId = requireNotNull(request.ownerUserId()) { "Download request without an owner" }
-        return DefaultDownloaderFactory(cacheFactory(userId), executor).createDownloader(request)
+        val cache = cacheFactory(userId)
+        val download = DefaultDownloaderFactory(cache, executor).createDownloader(request)
+        val subtitles = request.data.toDownloadRequestData().subtitles.map { subtitle ->
+            ProgressiveDownloader(MediaItem.fromUri(subtitle.url), cache, executor)
+        }
+        return if (subtitles.isEmpty()) download else SubtitledDownloader(download, subtitles)
     }
 }
 

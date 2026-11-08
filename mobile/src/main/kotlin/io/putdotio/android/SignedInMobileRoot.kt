@@ -21,9 +21,11 @@ import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.auth.MobileOAuthRuntime
 import io.putdotio.android.auth.MobileSessionKey
 import io.putdotio.android.design.R as DesignR
+import io.putdotio.android.downloads.DownloadSources
 import io.putdotio.android.downloads.DownloadsController
 import io.putdotio.android.downloads.DownloadsEvent
 import io.putdotio.android.downloads.MobileDownloadCache
+import io.putdotio.android.downloads.mobileDirectPlayDownloads
 import io.putdotio.android.downloads.MobileDownloadsViewModel
 import io.putdotio.android.downloads.OfflinePlaybackRepository
 import io.putdotio.android.downloads.OfflinePositionsResume
@@ -50,7 +52,6 @@ import io.putdotio.android.history.authoritativeSessionFailure
 import io.putdotio.android.playback.ConvertingPlaybackRepository
 import io.putdotio.android.playback.DataStoreSwitchedToConvertedFiles
 import io.putdotio.android.playback.MediaCodecDecoderInventory
-import io.putdotio.android.playback.OriginalVideoDownloads
 import io.putdotio.android.playback.OriginalVideoPolicy
 import io.putdotio.android.playback.DefaultMobilePlayerFactory
 import io.putdotio.android.playback.MobileCast
@@ -59,7 +60,7 @@ import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.SignedInCastAccount
 import io.putdotio.android.playback.dispatch
 import io.putdotio.android.playback.playbackPreference
-import io.putdotio.android.playback.originalVideoPolicy
+import io.putdotio.android.playback.confirmedStreamingMethod
 import io.putdotio.android.search.ActiveSearchHistorySession
 import io.putdotio.android.search.MobileSearchHistoryViewModel
 import io.putdotio.android.search.SdkSearchRepository
@@ -200,13 +201,9 @@ internal fun SignedInMobileRoot(
     val downloadsController =
         remember(downloadsViewModel, downloadsContext, appConfigController, account.userId, sessionId) {
             appConfigController?.let { config ->
-                val originals = OriginalVideoDownloads(
-                    runtime.putioClient,
-                    originalVideoPolicy = config::originalVideoPolicy,
-                    decoders = MediaCodecDecoderInventory(downloadsContext),
-                    switchedToConverted = DataStoreSwitchedToConvertedFiles.get(downloadsContext),
-                )
-                downloadsViewModel?.controllerFor(downloadsContext, account.userId, sessionId, originals::accepts)
+                val directPlay = mobileDirectPlayDownloads(downloadsContext, runtime.putioClient)
+                val sources = DownloadSources({ config.state.value.confirmedStreamingMethod() }, directPlay::resolve)
+                downloadsViewModel?.controllerFor(downloadsContext, account.userId, sessionId, sources)
             }
         }
     val publicLinksRepository = remember(runtime.putioClient) { SdkPublicLinksRepository(runtime.putioClient) }
@@ -623,9 +620,6 @@ private class MobileSignOut(
     }
 }
 
-private fun AndroidAppConfigController.originalVideoPolicy(): OriginalVideoPolicy =
-    state.value.originalVideoPolicy(OriginalVideoPolicy.valueOf(BuildConfig.PUTIO_ORIGINAL_VIDEO))
-
 /** Offline playback falls back to the resume setting this device last confirmed. */
 @Composable
 private fun RememberResumeSettingEffect(
@@ -660,7 +654,7 @@ private fun DownloadsController.offlineFirstPlayback(
         resume = runtime.offlinePositions?.let { positions ->
             OfflinePositionsResume(positions, userId, accountSettingsController.state)
         } ?: OfflineResume.Off,
-        requestedUrl = { fileId -> withContext(Dispatchers.IO) { downloads.requestedUrl(userId, fileId) } },
+        requested = { fileId -> withContext(Dispatchers.IO) { downloads.offlineRequest(userId, fileId) } },
     )
 
 /**
