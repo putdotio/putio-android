@@ -34,6 +34,7 @@ import io.putdotio.android.R
 import io.putdotio.android.design.R as DesignR
 import io.putdotio.android.settings.AccountSettingsState
 import io.putdotio.android.settings.AndroidAppConfigState
+import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSourceKind
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -48,7 +49,7 @@ internal typealias MobileCastMediaLoader =
 
 /**
  * [MobileCastMediaLoader] for [target], resolving it again when no source is at hand, or when the
- * source is an original video: a receiver gets video only converted.
+ * source is a video that is not HLS: a receiver gets video only as Standard, whatever the setting.
  */
 internal suspend fun PlaybackRepository.castMediaFor(
     target: PlaybackTarget,
@@ -56,9 +57,9 @@ internal suspend fun PlaybackRepository.castMediaFor(
     subtitleKey: String?,
 ): PlaybackRepositoryResult<PlaybackCastMedia> {
     val video = target.mediaType == PlaybackMediaType.VIDEO
-    val resolved = source?.takeUnless { video && it.kind == PlaybackSourceKind.ORIGINAL }
+    val resolved = source?.takeUnless { video && it.kind != PlaybackSourceKind.HLS }
         ?.let { PlaybackRepositoryResult.Success(PlaybackResolution.Ready(it)) }
-        ?: resolve(target, convertedOnly = video)
+        ?: resolveForCast(target)
     val ready = (resolved as? PlaybackRepositoryResult.Success)?.value as? PlaybackResolution.Ready
     return when {
         ready != null -> castMedia(target, ready.source, subtitleKey)
@@ -66,6 +67,15 @@ internal suspend fun PlaybackRepository.castMediaFor(
         else -> PlaybackRepositoryResult.Failure(PlaybackFailure.MediaUnsupported(UncastableResolution()))
     }
 }
+
+private suspend fun PlaybackRepository.resolveForCast(
+    target: PlaybackTarget,
+): PlaybackRepositoryResult<PlaybackResolution> =
+    if (target.mediaType == PlaybackMediaType.VIDEO) {
+        resolve(target.copy(method = StreamingMethod.Hls), convertedOnly = true)
+    } else {
+        resolve(target)
+    }
 
 /** A file that resolved to a conversion or an unsupported type has nothing a receiver can play yet. */
 private class UncastableResolution : IllegalStateException("The file resolved to nothing a receiver plays")
@@ -83,8 +93,7 @@ internal class SignedInCastAccount(
         (repository.findNextVideo(target) as? PlaybackNextResult.Found)?.target
 
     override suspend fun prepare(target: PlaybackTarget): CastPrepared? {
-        val resolved = repository.resolve(target, convertedOnly = target.mediaType == PlaybackMediaType.VIDEO)
-            as? PlaybackRepositoryResult.Success
+        val resolved = repository.resolveForCast(target) as? PlaybackRepositoryResult.Success
         val ready = resolved?.value as? PlaybackResolution.Ready ?: return null
         val source = ready.source
         val policy = settings.value.subtitleStartupPolicy()

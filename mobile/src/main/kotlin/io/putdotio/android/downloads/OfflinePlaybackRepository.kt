@@ -10,6 +10,7 @@ import io.putdotio.android.playback.PlaybackRepositoryResult
 import io.putdotio.android.playback.PlaybackResolution
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.settings.AccountSettingsState
+import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.android.settings.confirmedResumePlayback
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSourceKind
@@ -51,6 +52,10 @@ internal data class OfflineRequest(
     val subtitles: List<DownloadSubtitle> = emptyList(),
 )
 
+private fun DownloadEntry.servesNoConvertedStreamFor(target: PlaybackTarget): Boolean =
+    target.mediaType == PlaybackMediaType.VIDEO &&
+        (artifact.isOriginal || target.method == StreamingMethod.Hls && !artifact.isHls)
+
 /**
  * Serves a completed download without the network. The source URL is the same
  * token-free API URL the download used, read back through [requested], so the
@@ -74,7 +79,7 @@ internal class OfflinePlaybackRepository(
         val state = downloads.value
         val entry = state.entry(target.fileId)
             ?.takeIf { state.isAvailableOffline(target.fileId) && localCopyAvailable(it.fileId) }
-            ?.takeUnless { convertedOnly && it.artifact.isOriginal && target.mediaType == PlaybackMediaType.VIDEO }
+            ?.takeUnless { convertedOnly && it.servesNoConvertedStreamFor(target) }
             ?: return delegate.resolve(target, convertedOnly)
         val hls = entry.artifact.isHls
         // A download made for a hide_subtitles account holds no subtitle rendition, and a cold
