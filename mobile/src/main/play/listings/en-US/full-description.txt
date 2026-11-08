@@ -13,3 +13,5 @@ On Android TV:
 • Continue watching from the Watch Next row and find files with system search
 
 Your watch positions sync with put.io on every device.
+
+Sintel © copyright Blender Foundation | durian.blender.org
