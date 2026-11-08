@@ -118,8 +118,8 @@ MediaCodec. Devices with the memory for it draw ASS/SSA subtitles with libass,
 styling included, unless the viewer picked a subtitle size; others show their text. An original that still
 fails before its first frame falls back to converted at the same position. The
 viewer can also switch an original to converted from the player; the device
-remembers the last 200 switched files and opens them converted. Cast always gets the
-converted stream. Where VLC is installed, a video the player
+remembers the last 200 switched files and opens them converted. Cast always plays
+Standard, whatever the setting. Where VLC is installed, a video the player
 can't play, or one still converting, offers Open in VLC; TV offers it on every
 video. Play positions sync to put.io, throttled and flushed on exit, never per
 progress tick.

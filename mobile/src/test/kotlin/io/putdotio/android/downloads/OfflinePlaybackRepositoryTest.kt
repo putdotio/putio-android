@@ -8,6 +8,7 @@ import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
 import io.putdotio.android.playback.PlaybackResolution
 import io.putdotio.android.playback.PlaybackTarget
+import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.sdk.files.PlaybackSourceKind
 import io.putdotio.sdk.files.PlaybackStreamFormat
 import io.putdotio.sdk.files.PlaybackSubtitles
@@ -204,6 +205,18 @@ class OfflinePlaybackRepositoryTest {
             as PlaybackResolution.Ready).source
         assertEquals(PlaybackSubtitles.None, bareSource.subtitles)
         assertTrue(delegateCalls.isEmpty())
+    }
+
+    @Test
+    fun castingADirectPlayDownloadStreamsStandardFromPutio() = runBlocking {
+        val converted = completed().copy(artifact = DownloadArtifact.MP4)
+        val repository = OfflinePlaybackRepository(downloadsOf(converted), delegate, PutioCredentialUrl::of)
+        val cast = target.copy(method = StreamingMethod.Hls)
+
+        repository.resolve(cast, convertedOnly = true)
+
+        assertEquals(listOf(cast), delegateCalls)
+        assertEquals(listOf(true), convertedOnlyCalls)
     }
 
     private fun completed() = DownloadEntry(

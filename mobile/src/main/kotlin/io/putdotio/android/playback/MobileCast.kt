@@ -597,15 +597,18 @@ internal fun castSubtitleKey(
 }
 
 /**
- * The playlist subtitle an HLS source shows on the receiver, by the same rules as [castSubtitleKey]:
- * the viewer's pick by its language, else the playlist's first when the account selects one.
+ * The playlist subtitle the receiver shows from HLS, by the same rules as [castSubtitleKey]: the
+ * viewer's pick by its language, else the playlist's first when the account selects one. A video is
+ * always HLS on the receiver, even when this device plays it from a file with sidecar subtitles.
  */
 internal fun castPlaylistSubtitle(
     source: PlaybackSource,
+    mediaType: PlaybackMediaType,
     selection: SubtitleSelection?,
     policy: SubtitleStartupPolicy?,
 ): PlaybackCastPlaylistSubtitle? {
-    if (source.subtitles != PlaybackSubtitles.Embedded || policy?.showSubtitles == false) return null
+    val onHls = mediaType == PlaybackMediaType.VIDEO || source.subtitles == PlaybackSubtitles.Embedded
+    if (!onHls || policy?.showSubtitles == false) return null
     return when (selection) {
         SubtitleSelection.Off -> null
         is SubtitleSelection.Track -> PlaybackCastPlaylistSubtitle(

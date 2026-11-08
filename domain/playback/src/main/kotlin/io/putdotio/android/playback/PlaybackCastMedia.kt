@@ -56,9 +56,9 @@ public data class PlaybackCastSubtitle(
 /**
  * The Cast form of this source, or null when it cannot go to a receiver: a URL that is not put.io's
  * HTTPS API, such as one only this device's cache can answer, or an original video, which the
- * default receiver cannot be trusted to decode. Video goes as the source the account's playback
- * setting chose, HLS or MP4; audio as the original. Sidecar subtitles, which MP4 and original
- * sources list, go as WebVTT tracks; HLS carries its own in the playlist.
+ * default receiver cannot be trusted to decode. Callers resolve video as Standard, so it goes as
+ * HLS; audio as the original. Sidecar subtitles, which MP4 and original sources list, go as WebVTT
+ * tracks; HLS carries its own in the playlist.
  */
 public fun PlaybackSource.toCastMedia(
     target: PlaybackTarget,
