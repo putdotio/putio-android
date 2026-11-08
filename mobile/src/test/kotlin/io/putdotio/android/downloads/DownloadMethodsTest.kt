@@ -132,7 +132,7 @@ class DownloadMethodsTest {
     fun directPlayLookupsRunTogetherAndStartsKeepTapOrder() = runBlocking {
         val episodes = (20L..22L).map { video.copy(fileId = FilesItemId(it), name = "Episode $it.mkv") }
         val answers = episodes.associate { it.fileId to CompletableDeferred<DirectPlayDownload?>() }
-        val sources = DownloadSources({ StreamingMethod.File }) { fileId, _ ->
+        val sources = DownloadSources({ StreamingMethod.File }) { fileId, _, _ ->
             asked += fileId to true
             answers.getValue(fileId).await()
         }
@@ -172,6 +172,22 @@ class DownloadMethodsTest {
     }
 
     @Test
+    fun onlyADirectPlayFromAFileMenuAsksPastARememberedSwitch() = runBlocking {
+        val chosen = mutableMapOf<FilesItemId, Boolean>()
+        val sources = DownloadSources({ StreamingMethod.File }) { fileId, _, fromMenu ->
+            chosen[fileId] = fromMenu
+            original()
+        }
+        DownloadsController(store, engine, this, sources = sources).use { controller ->
+            assertTrue(controller.dispatch(DownloadsEvent.Start(video.copy(method = StreamingMethod.File))))
+            assertTrue(controller.dispatch(DownloadsEvent.Start(tears)))
+            engine.await { it.started.size == 2 }
+
+            assertEquals(mapOf(video.fileId to true, tears.fileId to false), chosen)
+        }
+    }
+
+    @Test
     fun aVideoWhoseLookupTheProcessLostAsksAgainOnTheNextStart() = runBlocking {
         val lost = DownloadEntry(
             video.fileId, video.name, PutioFileType.VIDEO, DownloadArtifact.MP4, DownloadStatus.Queued, createdAt = 1L,
@@ -198,7 +214,7 @@ class DownloadMethodsTest {
         for (row in listOf(lost, finished, waiting)) store.upsert(row)
         engine.recorded += lost.fileId
         val answer = CompletableDeferred<DirectPlayDownload>()
-        val sources = DownloadSources({ StreamingMethod.Hls }) { fileId, _ ->
+        val sources = DownloadSources({ StreamingMethod.Hls }) { fileId, _, _ ->
             asked += fileId to true
             answer.await()
         }
@@ -233,7 +249,7 @@ class DownloadMethodsTest {
     @Test
     fun aVideoShowsQueuedWhileTheLookupRunsAndACancelledOneNeverStarts() = runBlocking {
         val answer = CompletableDeferred<DirectPlayDownload>()
-        val sources = DownloadSources({ StreamingMethod.File }) { _, _ -> answer.await() }
+        val sources = DownloadSources({ StreamingMethod.File }) { _, _, _ -> answer.await() }
         DownloadsController(store, engine, this, sources = sources).use { controller ->
             assertTrue(controller.dispatch(DownloadsEvent.Start(video)))
             val waiting = controller.awaitState { it.entry(video.fileId) != null }.entry(video.fileId)
@@ -303,7 +319,7 @@ class DownloadMethodsTest {
     fun aRetryStartsEvenWhenAReportRewritesItsRowWhileTheLookupRuns() = runBlocking {
         val answer = CompletableDeferred<DirectPlayDownload>()
         store.upsert(failed(DownloadArtifact.MP4, 0L))
-        val sources = DownloadSources({ StreamingMethod.File }) { _, _ -> answer.await() }
+        val sources = DownloadSources({ StreamingMethod.File }) { _, _, _ -> answer.await() }
         DownloadsController(store, engine, this, sources = sources).use { controller ->
             assertTrue(controller.dispatch(DownloadsEvent.Retry(video.fileId)))
             val queued = store.await { rows -> rows.single().status == DownloadStatus.Queued }.single()
@@ -321,7 +337,7 @@ class DownloadMethodsTest {
             store,
             engine,
             this,
-            sources = DownloadSources({ setting }) { fileId, includeSubtitles ->
+            sources = DownloadSources({ setting }) { fileId, includeSubtitles, _ ->
                 asked += fileId to includeSubtitles
                 answers[fileId]
             },

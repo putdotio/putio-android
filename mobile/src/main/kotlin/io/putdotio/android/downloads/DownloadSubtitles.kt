@@ -22,7 +22,8 @@ internal data class DownloadSubtitle(
 
 internal class DownloadSources(
     val setting: () -> StreamingMethod = { StreamingMethod.Hls },
-    val directPlay: suspend (FilesItemId, includeSubtitles: Boolean) -> DirectPlayDownload? = { _, _ -> null },
+    val directPlay: suspend (FilesItemId, includeSubtitles: Boolean, chosen: Boolean) -> DirectPlayDownload? =
+        { _, _, _ -> null },
 )
 
 internal fun FileSubtitle.toDownloadSubtitle(): DownloadSubtitle? {

@@ -110,7 +110,7 @@ internal fun TvPlaybackRoute(
         onOriginalRejected = { reason, positionMillis ->
             val telemetry = controller.state.value.originalFallbackTelemetry(reason)
             controller.dispatch(PlaybackEvent.OriginalRejected(reason, positionMillis)).also { consumed ->
-                if (consumed) PutioDiagnostics.capture(telemetry)
+                if (consumed) telemetry?.let(PutioDiagnostics::capture)
             }
         },
         onRefreshConversion = { controller.dispatch(PlaybackEvent.RefreshConversion) },

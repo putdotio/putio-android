@@ -558,9 +558,7 @@ private fun MobilePlaybackRoute(
 private fun PlaybackController.rejectOriginal(reason: PlaybackFallbackReason, positionMillis: Long): Boolean {
     val playing = state.value
     val consumed = dispatch(PlaybackEvent.OriginalRejected(reason, positionMillis))
-    if (consumed && reason != PlaybackFallbackReason.CastReceiver) {
-        PutioDiagnostics.capture(playing.originalFallbackTelemetry(reason))
-    }
+    if (consumed) playing.originalFallbackTelemetry(reason)?.let(PutioDiagnostics::capture)
     return consumed
 }
 

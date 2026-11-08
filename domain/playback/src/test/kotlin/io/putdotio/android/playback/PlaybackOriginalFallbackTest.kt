@@ -14,6 +14,8 @@ import androidx.media3.exoplayer.ExoPlaybackException
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.settings.StreamingMethod
+import io.putdotio.android.telemetry.TelemetrySeverity
 import io.putdotio.sdk.files.PlaybackConversionState
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSourceKind
@@ -241,11 +243,45 @@ class PlaybackOriginalFallbackTest {
     }
 
     @Test
+    fun aReceiverAlwaysGetsStandardWhateverThePlayAskedFor() {
+        listOf(null, StreamingMethod.File, StreamingMethod.Hls).forEach { method ->
+            val directPlay = PlaybackState(
+                target = Video.copy(method = method),
+                content = PlaybackContent.Ready(source(PlaybackSourceKind.ORIGINAL)),
+                nextRequestValue = 2L,
+            )
+
+            val rejected = PlaybackReducer.reduce(
+                directPlay,
+                PlaybackEvent.OriginalRejected(PlaybackFallbackReason.CastReceiver, 5_000L),
+            )
+
+            val standard = Video.copy(method = StreamingMethod.Hls)
+            assertEquals(PlaybackEffect.Resolve(standard, PlaybackRequestId(2L), convertedOnly = true), rejected.effect)
+            assertEquals(standard, rejected.state.target)
+        }
+    }
+
+    @Test
+    fun aViewersOwnSwitchAndCastsStandardReportNothingAndEveryRescueIsAWarningWithItsCode() {
+        val state = ready(source(PlaybackSourceKind.ORIGINAL))
+        val expected = setOf(PlaybackFallbackReason.UserSwitched, PlaybackFallbackReason.CastReceiver)
+
+        expected.forEach { assertNull(state.originalFallbackTelemetry(it)) }
+        (PlaybackFallbackReason.entries - expected).forEach { reason ->
+            val telemetry = checkNotNull(state.originalFallbackTelemetry(reason))
+            assertEquals(TelemetrySeverity.Warning, telemetry.severity)
+            assertEquals("fallback, ${reason.code}", telemetry.code)
+        }
+    }
+
+    @Test
     fun aFallbackReportsItsReasonAsANonTerminalOutcome() {
-        val telemetry = ready(source(PlaybackSourceKind.ORIGINAL))
-            .originalFallbackTelemetry(PlaybackFallbackReason.AudioUnsupported)
+        val state = ready(source(PlaybackSourceKind.ORIGINAL))
+        val telemetry = checkNotNull(state.originalFallbackTelemetry(PlaybackFallbackReason.AudioUnsupported))
 
         assertEquals("fallback, audio_unsupported", telemetry.code)
+        assertEquals(TelemetrySeverity.Warning, telemetry.severity)
         assertEquals(
             mapOf(
                 "telemetry_event" to "playback_failure",

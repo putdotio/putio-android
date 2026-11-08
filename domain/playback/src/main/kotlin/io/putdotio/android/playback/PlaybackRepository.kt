@@ -5,6 +5,7 @@ import io.putdotio.android.apiReason
 import io.putdotio.android.toPutioFailure
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.loadMediaAccount
+import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.account.AccountInfo
 import io.putdotio.sdk.errors.PutioApiException
@@ -177,7 +178,6 @@ internal class SdkPlaybackRepository internal constructor(
         playbackPreference: () -> PlaybackPreference,
         originalVideoPolicy: () -> OriginalVideoPolicy = { OriginalVideoPolicy.Never },
         decoders: DecoderInventory = DecoderInventory { false },
-        switchedToConverted: SwitchedToConvertedFiles = SwitchedToConvertedFiles.None,
     ) : this(
         playbackPreference = playbackPreference,
         loadAccount = client::loadMediaAccount,
@@ -186,8 +186,7 @@ internal class SdkPlaybackRepository internal constructor(
                 withContext(Dispatchers.IO) {
                     val directPlay = request.preference == PlaybackPreference.MP4
                     val policy = if (directPlay) originalVideoPolicy() else OriginalVideoPolicy.Never
-                    val resolved = request.withOriginalVideo(policy, decision, switchedToConverted)
-                    client.files.resolvePlayback(resolved)
+                    client.files.resolvePlayback(request.withOriginalVideo(policy, decision))
                 }
             }
         },
@@ -450,7 +449,6 @@ public class ConvertingPlaybackRepository internal constructor(
             playbackPreference,
             originalVideoPolicy,
             decoders,
-            switchedToConverted,
         ),
         startMp4Conversion = { fileId ->
             client.files.startMp4Conversion(fileId).status != FileMp4ConversionStatus.NOT_AVAILABLE
@@ -461,6 +459,16 @@ public class ConvertingPlaybackRepository internal constructor(
     override fun rememberSwitchedToConverted(target: PlaybackTarget) {
         if (target.mediaType == PlaybackMediaType.VIDEO) switchedToConverted.add(target.fileId.value)
     }
+
+    override suspend fun resolve(
+        target: PlaybackTarget,
+        convertedOnly: Boolean,
+    ): PlaybackRepositoryResult<PlaybackResolution> =
+        delegate.resolve(target, convertedOnly || target.followsRememberedSwitch())
+
+    private suspend fun PlaybackTarget.followsRememberedSwitch(): Boolean =
+        mediaType == PlaybackMediaType.VIDEO && method != StreamingMethod.File &&
+            switchedToConverted.contains(fileId.value)
 
     @Suppress("TooGenericExceptionCaught")
     override suspend fun startConversion(

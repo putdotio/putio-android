@@ -7,6 +7,7 @@ import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.ExoPlaybackException
+import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.sdk.files.PlaybackSourceKind
 import java.net.HttpURLConnection
 
@@ -14,7 +15,6 @@ import java.net.HttpURLConnection
 public enum class PlaybackFallbackReason(
     public val code: String,
 ) {
-    UserOff("user_off"),
     UserSwitched("user_switched"),
     PlaybackIssue("playback_issue"),
     NoMediaInfo("no_media_info"),
@@ -47,16 +47,21 @@ internal fun PlaybackState.originalRejected(event: PlaybackEvent.OriginalRejecte
         return PlaybackTransition(this, consumed = false)
     }
     val requestId = PlaybackRequestId(nextRequestValue)
+    val convertedTarget = target.convertedFor(event.reason)
     return PlaybackTransition(
         state = copy(
+            target = convertedTarget,
             content = PlaybackContent.Loading(requestId),
             nextRequestValue = nextRequestValue + 1,
             resumePositionMillis = event.positionMillis.coerceAtLeast(0L),
             convertedOnly = true,
         ),
-        effect = PlaybackEffect.Resolve(target, requestId, convertedOnly = true),
+        effect = PlaybackEffect.Resolve(convertedTarget, requestId, convertedOnly = true),
     )
 }
+
+private fun PlaybackTarget.convertedFor(reason: PlaybackFallbackReason): PlaybackTarget =
+    if (reason == PlaybackFallbackReason.CastReceiver) copy(method = StreamingMethod.Hls) else this
 
 private fun PlaybackContent.Ready?.streamsOriginalVideo(target: PlaybackTarget): Boolean =
     this != null && !offline && source.kind == PlaybackSourceKind.ORIGINAL &&

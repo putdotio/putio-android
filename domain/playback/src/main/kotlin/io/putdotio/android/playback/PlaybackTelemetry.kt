@@ -5,6 +5,7 @@ import androidx.media3.common.Player
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.telemetry.AnalyticsEvent
 import io.putdotio.android.telemetry.TelemetryFailure
+import io.putdotio.android.telemetry.TelemetrySeverity
 import io.putdotio.sdk.files.PlaybackSourceKind
 
 /**
@@ -28,9 +29,11 @@ public fun Player.playerFailureTelemetry(error: PlaybackException, mediaType: Pl
 
 /**
  * A rejected original as a non-terminal report in the same schema: the converted stream takes
- * over, so only the reason's code goes.
+ * over, so only the reason's code goes, as a warning. A viewer's own switch and Cast's Standard
+ * rescue nothing, so they report nothing.
  */
-public fun PlaybackState.originalFallbackTelemetry(reason: PlaybackFallbackReason): TelemetryFailure {
+public fun PlaybackState.originalFallbackTelemetry(reason: PlaybackFallbackReason): TelemetryFailure? {
+    if (reason == PlaybackFallbackReason.UserSwitched || reason == PlaybackFallbackReason.CastReceiver) return null
     val tags = mapOf(
         "telemetry_event" to EVENT,
         "schema_version" to "1",
@@ -42,7 +45,7 @@ public fun PlaybackState.originalFallbackTelemetry(reason: PlaybackFallbackReaso
         "media_type" to target.mediaType.name.lowercase(),
         "file_id" to "${target.fileId.value}",
     )
-    return TelemetryFailure(EVENT, listOf("fallback", reason.code), tags)
+    return TelemetryFailure(EVENT, listOf("fallback", reason.code), tags, TelemetrySeverity.Warning)
 }
 
 private fun playbackFailureTelemetry(

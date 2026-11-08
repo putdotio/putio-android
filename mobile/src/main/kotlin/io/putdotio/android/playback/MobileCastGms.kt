@@ -357,9 +357,10 @@ internal class GmsCastGateway @VisibleForTesting internal constructor(
     private val context: Context,
     private val routes: GmsCastRoutes,
     private val remote: GmsCastRemote,
+    private val localNetworkDenied: () -> Boolean = { context.localNetworkNotGranted() },
     private val loadCast: (Context) -> Task<CastContext>,
 ) : CastGateway, CastRoutes by routes, CastRemote by remote {
-    constructor(context: Context) : this(context, GmsCastRoutes(context), GmsCastRemote(), ::loadCastContext)
+    constructor(context: Context) : this(context, GmsCastRoutes(context), GmsCastRemote(), loadCast = ::loadCastContext)
 
     init {
         remote.onAttachedChanged = { updateAvailability() }
@@ -507,21 +508,24 @@ internal class GmsCastGateway @VisibleForTesting internal constructor(
      */
     fun shown(shown: Boolean) {
         this.shown = shown
-        if (shown) routes.watch() else routes.unwatch()
+        if (shown) {
+            routes.watch()
+            updateAvailability()
+        } else {
+            routes.unwatch()
+        }
     }
 
-    override fun localNetworkAnswered(granted: Boolean) {
-        if (!granted) localNetworkRefused = true
-        updateAvailability()
-    }
+    override fun localNetworkAnswered() = updateAvailability()
 
-    private var localNetworkRefused = false
-
-    private fun localNetworkBlocked(): Boolean =
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.CINNAMON_BUN && !localNetworkRefused &&
-            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_LOCAL_NETWORK) !=
-            PackageManager.PERMISSION_GRANTED
+    @VisibleForTesting
+    internal fun localNetworkBlocked(): Boolean = localNetworkDenied()
 }
+
+private fun Context.localNetworkNotGranted(): Boolean =
+    Build.VERSION.SDK_INT >= Build.VERSION_CODES.CINNAMON_BUN &&
+        ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_LOCAL_NETWORK) !=
+        PackageManager.PERMISSION_GRANTED
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 private fun loadCastContext(context: Context): Task<CastContext> =

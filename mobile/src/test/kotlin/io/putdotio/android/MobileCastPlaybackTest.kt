@@ -40,11 +40,13 @@ import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.playback.SubtitleStartupPolicy
 import io.putdotio.android.playback.castMediaFor
 import io.putdotio.android.playback.toCastMedia
+import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.sdk.files.PlaybackConversionState
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSourceKind
 import io.putdotio.sdk.files.PlaybackSubtitles
 import io.putdotio.sdk.files.PutioCredentialUrl
+import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -288,6 +290,37 @@ class MobileCastPlaybackTest {
         original.close()
     }
 
+    @Test
+    fun aDirectPlayOriginalWithNoConvertedCopyCastsAsStandard() {
+        val repository = OriginalWithoutConvertedCopy()
+        val original = PlaybackController(Mp4, repository, scope)
+        compose.setContent {
+            val state by original.state.collectAsState()
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = state,
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    onOriginalRejected = { reason, positionMillis ->
+                        original.dispatch(PlaybackEvent.OriginalRejected(reason, positionMillis))
+                    },
+                    playerFactory = MobilePlayerFactory { _, _ -> error("Casting plays nothing on the phone") },
+                    cast = cast,
+                    castMedia = { source, key -> repository.castMediaFor(Mp4, source, key) },
+                )
+            }
+        }
+
+        compose.waitUntil(5_000L) { gateway.loads.isNotEmpty() }
+        compose.runOnIdle {
+            assertEquals(PlaybackSourceKind.HLS, (original.state.value.content as PlaybackContent.Ready).source.kind)
+            assertEquals(listOf(Mp4.fileId.value), gateway.loads)
+            assertEquals("application/x-mpegurl", gateway.sent.single().contentType.lowercase())
+        }
+        original.close()
+    }
+
     private fun ReceiverGateway.report(fileId: Long, state: CastRemoteState) {
         compose.runOnIdle {
             status.value = CastRemoteStatus(
@@ -326,7 +359,7 @@ class MobileCastPlaybackTest {
 
         override fun endForSignOut() = Unit
 
-        override fun localNetworkAnswered(granted: Boolean) = Unit
+        override fun localNetworkAnswered() = Unit
 
         override fun play() = Unit
 
@@ -401,6 +434,33 @@ class MobileCastPlaybackTest {
         override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult = PlaybackNextResult.Ended
     }
 
+    private class OriginalWithoutConvertedCopy : PlaybackRepository {
+        override suspend fun resolve(
+            target: PlaybackTarget,
+            convertedOnly: Boolean,
+        ): PlaybackRepositoryResult<PlaybackResolution> =
+            PlaybackRepositoryResult.Success(
+                when {
+                    !convertedOnly -> PlaybackResolution.Ready(sourced(target, PlaybackSourceKind.ORIGINAL))
+                    target.method == StreamingMethod.Hls ->
+                        PlaybackResolution.Ready(sourced(target, PlaybackSourceKind.HLS))
+                    else -> PlaybackResolution.Unsupported(PutioFileType.VIDEO)
+                },
+            )
+
+        override suspend fun castMedia(
+            target: PlaybackTarget,
+            source: PlaybackSource,
+            activeSubtitleKey: String?,
+        ): PlaybackRepositoryResult<PlaybackCastMedia> =
+            PlaybackRepositoryResult.Success(requireNotNull(source.toCastMedia(target, TOKEN, activeSubtitleKey)))
+
+        override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult = PlaybackNextResult.Ended
+
+        private fun sourced(target: PlaybackTarget, kind: PlaybackSourceKind) =
+            source(target.fileId.value).copy(kind = kind)
+    }
+
     private class EpisodesAccount : CastAccount {
         override var autoplay = true
 
@@ -419,6 +479,7 @@ class MobileCastPlaybackTest {
         val Episode1 = PlaybackTarget(FilesItemId(1L), "Show S01E01.mp4")
         val Episode2 = PlaybackTarget(FilesItemId(2L), "Show S01E02.mp4")
         val Mkv = PlaybackTarget(FilesItemId(3L), "Show S01E03.mkv")
+        val Mp4 = PlaybackTarget(FilesItemId(4L), "Show S01E04.mp4")
 
         fun episode(fileId: Long) = listOf(Episode1, Episode2).single { it.fileId.value == fileId }
 

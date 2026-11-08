@@ -2,6 +2,7 @@ package io.putdotio.android.downloads
 
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.playback.DirectPlayDownload
+import io.putdotio.android.settings.StreamingMethod
 import java.io.Closeable
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
@@ -132,7 +133,12 @@ internal class DownloadsController(
                 fresh.copy(artifact = it.artifact, subtitles = it.subtitles, accepted = it.accepted)
             } ?: fresh
             store.upsert(entry)
-            queueStart(entry, decide = kept == null, replaced = replaced)
+            queueStart(
+                entry,
+                decide = kept == null,
+                replaced = replaced,
+                chosen = request.method == StreamingMethod.File,
+            )
         }
         return true
     }
@@ -142,10 +148,11 @@ internal class DownloadsController(
         decide: Boolean,
         replaced: DownloadEntry? = null,
         startup: Boolean = false,
+        chosen: Boolean = false,
     ) {
         val directPlay = if (decide && entry.resolvesDirectPlay) {
             scope.async {
-                lookups.withPermit { sources.directPlay(entry.fileId, entry.subtitlesHidden != true) }
+                lookups.withPermit { sources.directPlay(entry.fileId, entry.subtitlesHidden != true, chosen) }
             }
         } else {
             null
