@@ -85,6 +85,19 @@ class MobileCastLocalNetworkTest {
         assertNull(shadowOf(app).nextStartedActivity)
     }
 
+    @Test
+    fun aRefusalThatEndsThePromptsOpensTheAppSettingsOnTheNextTap() {
+        setRationale(true)
+        answers += false
+        setButton()
+
+        tapButton()
+        tapButton()
+
+        assertEquals(1, prompts)
+        assertEquals(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, shadowOf(app).nextStartedActivity.action)
+    }
+
     private fun setButton() {
         compose.setContent {
             CompositionLocalProvider(

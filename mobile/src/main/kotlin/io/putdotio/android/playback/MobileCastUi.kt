@@ -115,7 +115,10 @@ internal fun MobileCastButton(
             when {
                 availability != CastAvailability.NeedsLocalNetwork -> onClick()
                 localNetworkPrompt.exhausted -> context.startActivity(appSettingsIntent(context))
-                else -> askLocalNetwork.launch(LOCAL_NETWORK_PERMISSION)
+                else -> {
+                    localNetworkPrompt.asking()
+                    askLocalNetwork.launch(LOCAL_NETWORK_PERMISSION)
+                }
             }
         },
         modifier = modifier.testTag(MOBILE_CAST_BUTTON_TAG),
@@ -359,12 +362,18 @@ internal class LocalNetworkPrompt(context: Context, private val rationale: () ->
         context.getSharedPreferences(LOCAL_NETWORK_PREFERENCES, Context.MODE_PRIVATE)
     }
 
+    private var rationaleBeforeAsking = false
+
     val exhausted: Boolean get() = preferences.getBoolean(LOCAL_NETWORK_REFUSED, false) && !rationale()
+
+    fun asking() {
+        rationaleBeforeAsking = rationale()
+    }
 
     fun answered(granted: Boolean) {
         when {
             granted -> preferences.edit { remove(LOCAL_NETWORK_REFUSED) }
-            rationale() -> preferences.edit { putBoolean(LOCAL_NETWORK_REFUSED, true) }
+            rationaleBeforeAsking || rationale() -> preferences.edit { putBoolean(LOCAL_NETWORK_REFUSED, true) }
         }
     }
 }

@@ -123,7 +123,7 @@ internal interface CastGateway : CastRoutes, CastRemote {
      */
     fun endForSignOut()
 
-    /** The user answered the local network prompt; a refusal hides the button until the next launch. */
+    /** The user answered the local network prompt, so availability may have changed. */
     fun localNetworkAnswered()
 }
 

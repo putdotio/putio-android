@@ -1,15 +1,15 @@
 package io.putdotio.android.telemetry
 
-/**
- * A failure reported as one exception, [type] with [code] as its value, plus [tags]. A part that is
- * not a code of lowercase letters, digits and `_` is sent as `unknown`. That rejects error text,
- * URLs, paths and filenames but not a one-word name, so callers pass codes and ids only.
- */
 public enum class TelemetrySeverity {
     Error,
     Warning,
 }
 
+/**
+ * A failure reported as one exception, [type] with [code] as its value, plus [tags]. A part that is
+ * not a code of lowercase letters, digits and `_` is sent as `unknown`. That rejects error text,
+ * URLs, paths and filenames but not a one-word name, so callers pass codes and ids only.
+ */
 public class TelemetryFailure(
     type: String,
     reasons: List<String>,
