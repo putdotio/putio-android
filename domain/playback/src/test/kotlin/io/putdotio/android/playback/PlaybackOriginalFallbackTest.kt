@@ -14,6 +14,7 @@ import androidx.media3.exoplayer.ExoPlaybackException
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.sdk.files.PlaybackConversionState
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSourceKind
@@ -238,6 +239,26 @@ class PlaybackOriginalFallbackTest {
             HttpURLConnection.HTTP_INTERNAL_ERROR,
         ).forEach { assertNull("$it", statusReason(it)) }
         assertNull(reason(PlaybackException.ERROR_CODE_DECODING_RESOURCES_RECLAIMED))
+    }
+
+    @Test
+    fun aReceiverAlwaysGetsStandardWhateverThePlayAskedFor() {
+        listOf(null, StreamingMethod.File, StreamingMethod.Hls).forEach { method ->
+            val directPlay = PlaybackState(
+                target = Video.copy(method = method),
+                content = PlaybackContent.Ready(source(PlaybackSourceKind.ORIGINAL)),
+                nextRequestValue = 2L,
+            )
+
+            val rejected = PlaybackReducer.reduce(
+                directPlay,
+                PlaybackEvent.OriginalRejected(PlaybackFallbackReason.CastReceiver, 5_000L),
+            )
+
+            val standard = Video.copy(method = StreamingMethod.Hls)
+            assertEquals(PlaybackEffect.Resolve(standard, PlaybackRequestId(2L), convertedOnly = true), rejected.effect)
+            assertEquals(standard, rejected.state.target)
+        }
     }
 
     @Test
