@@ -18,6 +18,11 @@ on:
         required: true
         type: string
         default: "10"
+      halt:
+        description: Halt the production rollout instead of changing it; needs from_track production. Run again without it to resume at rollout_percent
+        required: false
+        type: boolean
+        default: false
       publish_listing:
         description: Also replace the Google Play listing with mobile/src/main/play/listings
         required: false
@@ -58,9 +63,15 @@ jobs:
         env:
           FROM_TRACK: ${{ inputs.from_track }}
           ROLLOUT_PERCENT: ${{ inputs.rollout_percent }}
+          HALT: ${{ inputs.halt }}
+          LISTING: ${{ inputs.publish_listing }}
         run: |
           if [ "$FROM_TRACK" != internal ] && [ "$FROM_TRACK" != production ]; then
             echo "from_track must be internal or production" >&2
+            exit 1
+          fi
+          if [ "$HALT" = true ] && { [ "$FROM_TRACK" != production ] || [ "$LISTING" = true ]; }; then
+            echo "halt needs from_track production and no publish_listing" >&2
             exit 1
           fi
           if ! [[ "$ROLLOUT_PERCENT" =~ ^[1-9][0-9]?$|^100$ ]]; then
@@ -85,8 +96,11 @@ jobs:
           ANDROID_PUBLISHER_CREDENTIALS: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
           FROM_TRACK: ${{ inputs.from_track }}
           ROLLOUT_PERCENT: ${{ inputs.rollout_percent }}
+          HALT: ${{ inputs.halt }}
         run: |
-          if [ "$ROLLOUT_PERCENT" = 100 ]; then
+          if [ "$HALT" = true ]; then
+            rollout=(--release-status halted)
+          elif [ "$ROLLOUT_PERCENT" = 100 ]; then
             rollout=(--release-status completed)
           else
             rollout=(--release-status inProgress --user-fraction "0.$(printf '%02d' "$ROLLOUT_PERCENT")")
@@ -105,7 +119,12 @@ jobs:
           ROLLOUT_PERCENT: ${{ inputs.rollout_percent }}
           SHA: ${{ needs.ref.outputs.sha }}
           LISTING: ${{ inputs.publish_listing }}
+          HALT: ${{ inputs.halt }}
         run: |
+          production="$ROLLOUT_PERCENT%"
+          if [ "$HALT" = true ]; then
+            production=halted
+          fi
           {
             echo "### Google Play release"
             echo
@@ -113,7 +132,7 @@ jobs:
             echo "| --- | --- |"
             echo "| Commit | \`$SHA\` |"
             echo "| From track | $FROM_TRACK |"
-            echo "| Production rollout | $ROLLOUT_PERCENT% |"
+            echo "| Production rollout | $production |"
             echo "| Listing replaced | $LISTING |"
             echo "| Run | [$GITHUB_RUN_ID]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID) |"
           } >> "$GITHUB_STEP_SUMMARY"
