@@ -306,7 +306,10 @@ internal class TvSession internal constructor(
                     continueWatching.removed(deletes)
                     deletes.filter { watchNextHandledDeletes.add(it.requestId) }
                         .flatMap { it.confirmedGone() }
-                        .forEach { watchNext.fileGone(it.value) }
+                        .forEach {
+                            watchNext.fileGone(it.value)
+                            homePins.itemRemoved(it)
+                        }
                 }
         }
         scope.launch {

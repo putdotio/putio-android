@@ -743,7 +743,7 @@ private fun TvSearchPane(
     TvSearchScreen(
         state = searchState,
         actions = remember(session) { tvSearchActions(session, onQueryEdited = onQueryEdited) },
-        results = remember(session) {
+        results = remember(session, actionContext.trashEnabled) {
             TvSearchResultActions(
                 onFilter = { session.search.filter = it },
                 onPlay = { item, start -> playStart.open(session, item, start) },
@@ -776,7 +776,7 @@ private fun TvSearchPane(
                         },
                     ),
                     edits = session.filesEdits,
-                    trashEnabled = settingsState.confirmedTrashEnabled(),
+                    trashEnabled = actionContext.trashEnabled,
                     trashUndo = session.trashUndoOffer,
                     onAuthenticationRequired = onSessionRejected,
                 ),

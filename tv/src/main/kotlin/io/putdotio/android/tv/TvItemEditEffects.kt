@@ -38,6 +38,7 @@ internal class TvItemEditEffects(
         }
         search.itemRemoved(item.id)
         historyFiles.forget(item.id)
+        homePins.itemRemoved(item.id)
         invalidateFiles()
         refreshTrash()
         onGone(item, outcome)
@@ -48,6 +49,7 @@ internal class TvItemEditEffects(
         outcome.intent.itemIds.forEach { id ->
             searchRemovals.remove(id)?.let { search.itemRestored(it.item, it.index, it.term, it.filter) }
             historyFiles.forget(id)
+            homePins.itemRestored(id)
         }
     }
 
