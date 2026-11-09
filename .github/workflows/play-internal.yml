@@ -111,7 +111,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
         with:
           validate-wrappers: true
-          cache-disabled: true
+          cache-read-only: true
       # Release bundles fail without every locked font.
       - name: Fetch brand fonts
         run: ./scripts/sync-brand-fonts.sh
