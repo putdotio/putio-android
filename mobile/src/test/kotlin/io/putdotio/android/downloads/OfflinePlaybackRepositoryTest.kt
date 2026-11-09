@@ -26,6 +26,13 @@ class OfflinePlaybackRepositoryTest {
     private val target = PlaybackTarget(FilesItemId(7L), "Sintel.mkv")
     private val delegateCalls = mutableListOf<PlaybackTarget>()
     private val convertedOnlyCalls = mutableListOf<Boolean>()
+    private val offline = PlaybackRepositoryResult.Failure(
+        PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IOException("offline"))),
+    )
+    private val streamed = PlaybackRepositoryResult.Failure(
+        PlaybackFailure.Putio(PutioFailure.Unexpected(IllegalStateException("streamed"))),
+    )
+    private var delegateResult: PlaybackRepositoryResult<PlaybackResolution> = offline
     private val delegate = object : PlaybackRepository {
         override suspend fun resolve(
             target: PlaybackTarget,
@@ -33,9 +40,7 @@ class OfflinePlaybackRepositoryTest {
         ): PlaybackRepositoryResult<PlaybackResolution> {
             convertedOnlyCalls += convertedOnly
             delegateCalls += target
-            return PlaybackRepositoryResult.Failure(
-                PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IOException("offline"))),
-            )
+            return delegateResult
         }
 
         override suspend fun startConversion(
@@ -218,6 +223,47 @@ class OfflinePlaybackRepositoryTest {
         assertEquals(listOf(cast), delegateCalls)
         assertEquals(listOf(true), convertedOnlyCalls)
     }
+
+    @Test
+    fun playWithTheOtherMethodStreamsInPlaceOfADownloadMadeWithTheFirst() = runBlocking {
+        delegateResult = streamed
+        val playWithDirect = target.copy(method = StreamingMethod.File)
+        val playWithStandard = target.copy(method = StreamingMethod.Hls)
+        val directArtifacts = listOf(DownloadArtifact.ORIGINAL, DownloadArtifact.ORIGINAL_HLS, DownloadArtifact.MP4)
+
+        assertEquals(streamed, repositoryOf(DownloadArtifact.HLS).resolve(playWithDirect))
+        directArtifacts.forEach { assertEquals(streamed, repositoryOf(it).resolve(playWithStandard)) }
+        assertEquals(listOf(playWithDirect) + directArtifacts.map { playWithStandard }, delegateCalls)
+
+        directArtifacts.forEach { assertTrue(offlineReady(repositoryOf(it).resolve(playWithDirect))) }
+        assertTrue(offlineReady(repositoryOf(DownloadArtifact.HLS).resolve(playWithStandard)))
+        assertEquals(4, delegateCalls.size)
+    }
+
+    @Test
+    fun playWithTheOtherMethodNeverFallsBackToTheDownload() = runBlocking {
+        val playWithDirect = target.copy(method = StreamingMethod.File)
+
+        assertEquals(offline, repositoryOf(DownloadArtifact.HLS).resolve(playWithDirect))
+        assertEquals(listOf(playWithDirect), delegateCalls)
+    }
+
+    @Test
+    fun aRejectedDirectPlayOriginalFallsBackToTheConvertedDownload() = runBlocking {
+        delegateResult = streamed
+        val playWithDirect = target.copy(method = StreamingMethod.File)
+
+        val result = repositoryOf(DownloadArtifact.HLS).resolve(playWithDirect, convertedOnly = true)
+
+        assertTrue(result is PlaybackRepositoryResult.Success)
+        assertTrue(delegateCalls.isEmpty())
+    }
+
+    private fun offlineReady(result: PlaybackRepositoryResult<PlaybackResolution>): Boolean =
+        ((result as? PlaybackRepositoryResult.Success)?.value as? PlaybackResolution.Ready)?.offline == true
+
+    private fun repositoryOf(artifact: DownloadArtifact) =
+        OfflinePlaybackRepository(downloadsOf(completed().copy(artifact = artifact)), delegate, PutioCredentialUrl::of)
 
     private fun completed() = DownloadEntry(
         target.fileId, target.name, PutioFileType.VIDEO, DownloadArtifact.HLS, DownloadStatus.Completed(1L), 0L,

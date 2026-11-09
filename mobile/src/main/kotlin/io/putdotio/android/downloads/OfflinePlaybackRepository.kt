@@ -56,6 +56,9 @@ private fun DownloadEntry.servesNoConvertedStreamFor(target: PlaybackTarget): Bo
     target.mediaType == PlaybackMediaType.VIDEO &&
         (artifact.isOriginal || target.method == StreamingMethod.Hls && !artifact.isHls)
 
+private fun DownloadEntry.servesAnotherMethodThan(target: PlaybackTarget): Boolean =
+    target.mediaType == PlaybackMediaType.VIDEO && target.method != null && target.method != artifact.method
+
 /**
  * Serves a completed download without the network. The source URL is the same
  * token-free API URL the download used, read back through [requested], so the
@@ -75,12 +78,19 @@ internal class OfflinePlaybackRepository(
     override suspend fun resolve(
         target: PlaybackTarget,
         convertedOnly: Boolean,
-    ): PlaybackRepositoryResult<PlaybackResolution> {
+    ): PlaybackRepositoryResult<PlaybackResolution> =
+        downloadFor(target, convertedOnly)?.let { serve(it) } ?: delegate.resolve(target, convertedOnly)
+
+    private suspend fun downloadFor(target: PlaybackTarget, convertedOnly: Boolean): DownloadEntry? {
         val state = downloads.value
-        val entry = state.entry(target.fileId)
+        return state.entry(target.fileId)
             ?.takeIf { state.isAvailableOffline(target.fileId) && localCopyAvailable(it.fileId) }
-            ?.takeUnless { convertedOnly && it.servesNoConvertedStreamFor(target) }
-            ?: return delegate.resolve(target, convertedOnly)
+            ?.takeUnless {
+                if (convertedOnly) it.servesNoConvertedStreamFor(target) else it.servesAnotherMethodThan(target)
+            }
+    }
+
+    private suspend fun serve(entry: DownloadEntry): PlaybackRepositoryResult<PlaybackResolution> {
         val hls = entry.artifact.isHls
         // A download made for a hide_subtitles account holds no subtitle rendition, and a cold
         // offline start cannot read the setting, so the row's own copy of it hides the picker.
