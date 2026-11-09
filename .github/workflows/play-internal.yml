@@ -147,7 +147,7 @@ jobs:
           done
           no_commit=()
           if [ "$DRY_RUN" = true ]; then no_commit=(--no-commit); fi
-          ./gradlew --no-daemon --no-configuration-cache -PputioVersionName="$VERSION_NAME" \
+          ./gradlew --no-daemon --no-configuration-cache --no-build-cache -PputioVersionName="$VERSION_NAME" \
             :mobile:publishProductionReleaseBundle --release-status completed "${no_commit[@]}"
 
   tag:
