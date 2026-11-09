@@ -6,6 +6,7 @@ import android.net.Uri
 import androidx.activity.result.ActivityResultLauncher
 import androidx.browser.auth.AuthTabIntent
 import androidx.browser.customtabs.CustomTabsClient
+import androidx.browser.customtabs.CustomTabsService
 import androidx.core.net.toUri
 
 internal sealed interface OAuthBrowserLaunchResult {
@@ -87,8 +88,13 @@ internal fun classifyAuthTabResult(
     }
 
 internal fun resolveAuthTabProvider(context: Context): String? {
-    val provider = CustomTabsClient.getPackageName(context, null) ?: return null
-    return provider.takeIf { CustomTabsClient.isAuthTabSupported(context, it) }
+    val defaultProvider = CustomTabsClient.getPackageName(context, null)
+    val installedProviders = context.packageManager
+        .queryIntentServices(Intent(CustomTabsService.ACTION_CUSTOM_TABS_CONNECTION), 0)
+        .map { it.serviceInfo.packageName }
+    return (listOfNotNull(defaultProvider) + installedProviders)
+        .distinct()
+        .firstOrNull { CustomTabsClient.isAuthTabSupported(context, it) }
 }
 
 private const val HTTPS_SCHEME = "https"

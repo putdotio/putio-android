@@ -660,28 +660,6 @@ private fun DownloadsController.offlineFirstPlayback(
         requested = { fileId -> withContext(Dispatchers.IO) { downloads.offlineRequest(userId, fileId) } },
     )
 
-/**
- * The playback service outlives the signed-in UI, so every way out of a session, sign-out
- * or an authoritative rejection, must end audio that streams with that session's credential.
- */
-@Composable
-internal fun PlaybackSessionBoundaryEffect(
-    sessionId: MobileAuthSessionId?,
-    onSessionLeft: () -> Unit,
-) {
-    var previous by remember { mutableStateOf<MobileAuthSessionId?>(null) }
-    LaunchedEffect(sessionId) {
-        if (playbackSessionLeft(previous, sessionId)) onSessionLeft()
-        previous = sessionId
-    }
-}
-
-// A cold start with no session yet is not a departure; a different session is.
-internal fun playbackSessionLeft(
-    previous: MobileAuthSessionId?,
-    current: MobileAuthSessionId?,
-): Boolean = previous != null && current != previous
-
 internal fun settingsRequireSessionRejection(
     accountSettingsState: AccountSettingsState,
     appConfigState: AndroidAppConfigState,

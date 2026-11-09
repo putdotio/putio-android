@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
 import io.putdotio.android.BuildConfig
+import io.putdotio.android.MobilePlaybackService
 import io.putdotio.android.playback.MobileCast
 import io.putdotio.android.playback.SdkPlaybackPositionRepository
 import io.putdotio.android.documents.MobileDocumentsProvider
@@ -271,6 +272,7 @@ internal class MobileOAuthRuntime(
             MobileWidgets.sessionLeft(context)
             // The receiver plays with the account's download token.
             MobileCast.sessionLeft(context, session)
+            if (session != null) MobilePlaybackService.stop(context)
         }
 
         private fun clearAccountLocalState(context: Context) {
