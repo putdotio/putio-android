@@ -56,6 +56,9 @@ private fun DownloadEntry.servesNoConvertedStreamFor(target: PlaybackTarget): Bo
     target.mediaType == PlaybackMediaType.VIDEO &&
         (artifact.isOriginal || target.method == StreamingMethod.Hls && !artifact.isHls)
 
+private fun DownloadEntry.servesAnotherMethodThan(target: PlaybackTarget): Boolean =
+    target.mediaType == PlaybackMediaType.VIDEO && target.method != null && target.method != artifact.method
+
 /**
  * Serves a completed download without the network. The source URL is the same
  * token-free API URL the download used, read back through [requested], so the
@@ -80,6 +83,7 @@ internal class OfflinePlaybackRepository(
         val entry = state.entry(target.fileId)
             ?.takeIf { state.isAvailableOffline(target.fileId) && localCopyAvailable(it.fileId) }
             ?.takeUnless { convertedOnly && it.servesNoConvertedStreamFor(target) }
+            ?.takeUnless { it.servesAnotherMethodThan(target) }
             ?: return delegate.resolve(target, convertedOnly)
         val hls = entry.artifact.isHls
         // A download made for a hide_subtitles account holds no subtitle rendition, and a cold

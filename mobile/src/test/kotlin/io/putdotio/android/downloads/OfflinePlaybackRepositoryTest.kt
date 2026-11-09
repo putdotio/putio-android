@@ -219,6 +219,24 @@ class OfflinePlaybackRepositoryTest {
         assertEquals(listOf(true), convertedOnlyCalls)
     }
 
+    @Test
+    fun playWithTheOtherMethodStreamsInPlaceOfADownloadMadeWithTheFirst() = runBlocking {
+        val standard = OfflinePlaybackRepository(downloadsOf(completed()), delegate, PutioCredentialUrl::of)
+        val direct = OfflinePlaybackRepository(
+            downloadsOf(completed().copy(artifact = DownloadArtifact.ORIGINAL)), delegate, PutioCredentialUrl::of,
+        )
+        val playWithDirect = target.copy(method = StreamingMethod.File)
+        val playWithStandard = target.copy(method = StreamingMethod.Hls)
+
+        assertTrue(standard.resolve(playWithDirect) is PlaybackRepositoryResult.Failure)
+        assertTrue(direct.resolve(playWithStandard) is PlaybackRepositoryResult.Failure)
+        assertEquals(listOf(playWithDirect, playWithStandard), delegateCalls)
+
+        assertTrue(standard.resolve(playWithStandard) is PlaybackRepositoryResult.Success)
+        assertTrue(direct.resolve(playWithDirect) is PlaybackRepositoryResult.Success)
+        assertEquals(2, delegateCalls.size)
+    }
+
     private fun completed() = DownloadEntry(
         target.fileId, target.name, PutioFileType.VIDEO, DownloadArtifact.HLS, DownloadStatus.Completed(1L), 0L,
     )
