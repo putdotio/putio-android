@@ -11,6 +11,11 @@ on:
         description: Full SHA of the main commit to deliver
         required: true
         type: string
+      require_ci:
+        description: Require a passed CI push run on the SHA
+        required: false
+        type: boolean
+        default: true
     outputs:
       sha:
         description: Validated commit to check out
@@ -37,6 +42,7 @@ jobs:
           EXPECTED_SHA: ${{ inputs.expected_sha }}
           RUN_REF: ${{ github.ref }}
           RUN_SHA: ${{ github.sha }}
+          REQUIRE_CI: ${{ inputs.require_ci }}
         run: |
           if [ "$RUN_REF" != "refs/heads/main" ]; then
             echo "Delivery runs only from main, not $RUN_REF" >&2
@@ -60,10 +66,12 @@ jobs:
           fi
 
           # Every push to main runs the full gate, so a passed push run is verify on this SHA.
-          passed="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$RUN_SHA&event=push&status=success" --jq .total_count)"
-          if [ "$passed" = 0 ]; then
-            echo "CI has not passed on $RUN_SHA; wait for its push run or rerun it" >&2
-            exit 1
+          if [ "$REQUIRE_CI" = true ]; then
+            passed="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$RUN_SHA&event=push&status=success" --jq .total_count)"
+            if [ "$passed" = 0 ]; then
+              echo "CI has not passed on $RUN_SHA; wait for its push run or rerun it" >&2
+              exit 1
+            fi
           fi
 
           echo "sha=$RUN_SHA" >> "$GITHUB_OUTPUT"

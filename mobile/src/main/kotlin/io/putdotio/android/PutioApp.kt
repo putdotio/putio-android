@@ -118,10 +118,6 @@ private fun MobileAuthRoot(
     LaunchedEffect(authController) {
         authController.restoreSession()
     }
-    PlaybackSessionBoundaryEffect(
-        sessionId = (authState as? MobileAuthState.SignedIn)?.sessionId,
-        onSessionLeft = { MobilePlaybackService.stop(context.applicationContext) },
-    )
     when (val state = authState) {
         MobileAuthState.Initializing,
         MobileAuthState.RestoringSession,

@@ -88,6 +88,22 @@ class AuthTabOAuthBrowserTest {
     }
 
     @Test
+    fun `installed Auth Tab provider is selected when the default browser lacks Auth Tab`() {
+        registerDefaultCustomTabsProvider(authTabSupported = false)
+        registerCustomTabsService(OTHER_BROWSER_PACKAGE, authTabSupported = true)
+
+        assertEquals(OTHER_BROWSER_PACKAGE, resolveAuthTabProvider(applicationContext))
+    }
+
+    @Test
+    fun `default Auth Tab provider wins over another installed one`() {
+        registerCustomTabsService(OTHER_BROWSER_PACKAGE, authTabSupported = true)
+        registerDefaultCustomTabsProvider(authTabSupported = true)
+
+        assertEquals(BROWSER_PACKAGE, resolveAuthTabProvider(applicationContext))
+    }
+
+    @Test
     fun `non HTTPS authorization URL fails before provider discovery`() {
         var providerResolved = false
         val browser = browser(
@@ -161,7 +177,12 @@ class AuthTabOAuthBrowserTest {
             },
         )
 
-        val customTabsService = ComponentName(BROWSER_PACKAGE, "$BROWSER_PACKAGE.CustomTabsService")
+        registerCustomTabsService(BROWSER_PACKAGE, authTabSupported)
+    }
+
+    private fun registerCustomTabsService(browserPackage: String, authTabSupported: Boolean) {
+        val packageManager = shadowOf(applicationContext.packageManager)
+        val customTabsService = ComponentName(browserPackage, "$browserPackage.CustomTabsService")
         packageManager.addOrUpdateService(
             ServiceInfo().apply {
                 packageName = customTabsService.packageName
@@ -185,5 +206,6 @@ class AuthTabOAuthBrowserTest {
         const val AUTHORIZATION_URL = "https://app.put.io/authenticate"
         const val AUTH_TAB_CATEGORY = "androidx.browser.auth.category.AuthTab"
         const val BROWSER_PACKAGE = "com.example.browser"
+        const val OTHER_BROWSER_PACKAGE = "com.example.otherbrowser"
     }
 }

@@ -49,6 +49,7 @@ jobs:
       contents: read
     with:
       expected_sha: ${{ inputs.expected_sha }}
+      require_ci: ${{ !inputs.halt }}
 
   release:
     name: Release to production
@@ -81,7 +82,24 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.ref.outputs.sha }}
+          fetch-depth: 0
           persist-credentials: false
+      - name: Require this commit's internal upload to be the newest
+        if: ${{ inputs.from_track == 'internal' }}
+        env:
+          SHA: ${{ needs.ref.outputs.sha }}
+        run: |
+          tagged="$(git tag --points-at "$SHA" --list 'v[0-9]*' --sort=-version:refname | head -n 1)"
+          newest="$(git tag --list 'v[0-9]*' --sort=-version:refname | head -n 1)"
+          if [ -z "$tagged" ]; then
+            echo "$SHA has no v<version> tag; upload it with Google Play Internal first" >&2
+            exit 1
+          fi
+          if [ "$tagged" != "$newest" ]; then
+            echo "$tagged is not the newest internal upload; $newest is" >&2
+            exit 1
+          fi
+          echo "- Promoting \`$tagged\`" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
         with:
           distribution: temurin
