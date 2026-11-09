@@ -66,7 +66,7 @@ private fun DownloadEntry.servesAnotherMethodThan(target: PlaybackTarget): Boole
  * still reaches the network with the session header. A Direct play download offers the
  * subtitle files [requested] finds on disk as sidecars, under the same token-free URLs.
  * A row whose bytes turn out to be gone is marked missing by [localCopyAvailable] and streams instead.
- * A play that names the other method streams that method, and plays the download when that stream fails.
+ * A play that names the other method streams it.
  */
 internal class OfflinePlaybackRepository(
     private val downloads: StateFlow<DownloadsState>,
@@ -79,17 +79,16 @@ internal class OfflinePlaybackRepository(
     override suspend fun resolve(
         target: PlaybackTarget,
         convertedOnly: Boolean,
-    ): PlaybackRepositoryResult<PlaybackResolution> {
+    ): PlaybackRepositoryResult<PlaybackResolution> =
+        downloadFor(target, convertedOnly)?.let { serve(it) } ?: delegate.resolve(target, convertedOnly)
+
+    private suspend fun downloadFor(target: PlaybackTarget, convertedOnly: Boolean): DownloadEntry? {
         val state = downloads.value
-        val candidate = state.entry(target.fileId)
+        return state.entry(target.fileId)
             ?.takeIf { state.isAvailableOffline(target.fileId) }
             ?.takeUnless { convertedOnly && it.servesNoConvertedStreamFor(target) }
-        val streamFirst = candidate == null || !convertedOnly && candidate.servesAnotherMethodThan(target)
-        val streamed = if (streamFirst) delegate.resolve(target, convertedOnly) else null
-        val local = candidate
-            ?.takeIf { streamed == null || streamed is PlaybackRepositoryResult.Failure }
+            ?.takeUnless { !convertedOnly && it.servesAnotherMethodThan(target) }
             ?.takeIf { localCopyAvailable(it.fileId) }
-        return local?.let { serve(it) } ?: streamed ?: delegate.resolve(target, convertedOnly)
     }
 
     private suspend fun serve(entry: DownloadEntry): PlaybackRepositoryResult<PlaybackResolution> {

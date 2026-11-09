@@ -242,17 +242,11 @@ class OfflinePlaybackRepositoryTest {
     }
 
     @Test
-    fun playWithTheOtherMethodPlaysTheDownloadWhenTheStreamFails() = runBlocking {
+    fun playWithTheOtherMethodNeverFallsBackToTheDownload() = runBlocking {
         val playWithDirect = target.copy(method = StreamingMethod.File)
 
-        listOf(offline, streamed).forEach { failure ->
-            delegateResult = failure
-            val ready = (repositoryOf(DownloadArtifact.HLS).resolve(playWithDirect) as PlaybackRepositoryResult.Success)
-                .value as PlaybackResolution.Ready
-            assertTrue(ready.offline)
-            assertEquals(PlaybackSourceKind.HLS, ready.source.kind)
-        }
-        assertEquals(2, delegateCalls.size)
+        assertEquals(offline, repositoryOf(DownloadArtifact.HLS).resolve(playWithDirect))
+        assertEquals(listOf(playWithDirect), delegateCalls)
     }
 
     @Test
