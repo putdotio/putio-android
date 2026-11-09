@@ -3,6 +3,8 @@ package io.putdotio.android.tv.history
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -43,6 +45,15 @@ import io.putdotio.android.history.HistoryFileId
 import io.putdotio.android.history.HistoryItem
 import io.putdotio.android.history.HistoryPaging
 import io.putdotio.android.history.HistoryState
+import io.putdotio.android.files.FilesItem
+import io.putdotio.android.history.navigableFileId
+import io.putdotio.android.tv.files.TvFilesAction
+import io.putdotio.android.tv.files.TvFilesActionHandlers
+import io.putdotio.android.tv.files.TvFilesEdits
+import io.putdotio.android.tv.files.TvItemEditLayer
+import io.putdotio.android.tv.files.TvItemEditTarget
+import io.putdotio.android.tv.files.TvItemThumbnails
+import io.putdotio.android.tv.files.run
 import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.TvConfirmDialog
 import io.putdotio.android.tv.TvDetailSkeleton
@@ -56,6 +67,11 @@ import io.putdotio.android.tv.TvNoticeDialog
 import io.putdotio.android.tv.TvPickedRow
 import io.putdotio.android.tv.LocalTvTabFocus
 import io.putdotio.android.tv.TvSectionLine
+import io.putdotio.android.tv.TvTrashUndoOffer
+import io.putdotio.android.tv.TvTrashUndoOffered
+import io.putdotio.android.tv.TvUndoSnackbar
+import io.putdotio.android.tv.TvUndoSnackbarHost
+import io.putdotio.android.tv.files.rememberBusy
 import io.putdotio.android.tv.files.tvLoadFailedMessage
 import io.putdotio.android.tv.files.tvMessageText
 import io.putdotio.android.tv.refocusAfterDialog
@@ -104,8 +120,12 @@ internal fun TvHistoryScreen(
     files: TvHistoryFiles = TvHistoryFiles.None,
     onOpenAccount: () -> Unit = {},
     onAuthenticationRequired: suspend () -> Unit = {},
+    itemActions: TvHistoryItemActions? = null,
 ) = key(sessionKey) {
-    LaunchedEffect(Unit) { onEvent(HistoryEvent.Refresh) }
+    LaunchedEffect(Unit) {
+        files.forgetAll()
+        onEvent(HistoryEvent.Refresh)
+    }
     val content = state.content
     val paneHasFocus = rememberTvPaneHasFocus()
     val listFocus = remember { FocusRequester() }
@@ -117,6 +137,7 @@ internal fun TvHistoryScreen(
         content.entryTarget(stateFocus, if (clearHadFocus.value) clearFocus else listFocus),
     )
     LaunchedEffect(content::class) { placeStateFocus(content, paneHasFocus, stateFocus, tabFocus) }
+    val snackbar = remember { TvUndoSnackbar(FocusRequester()) }
     val dialogOpen = state.clearing != HistoryClearing.Idle
     val dialogWasOpen = remember { mutableStateOf(false) }
     LaunchedEffect(dialogOpen) { refocusAfterDialog(dialogOpen, dialogWasOpen, paneHasFocus, entryTarget) }
@@ -183,6 +204,8 @@ internal fun TvHistoryScreen(
                     files = files,
                     focus = TvHistoryFocus(listFocus, clearFocus, clearHadFocus, paneHasFocus),
                     onAuthenticationRequired = onAuthenticationRequired,
+                    itemActions = itemActions,
+                    snackbar = snackbar,
                 )
         }
     }
@@ -190,13 +213,22 @@ internal fun TvHistoryScreen(
 }
 
 @Composable
+private fun TvHistoryFileGoneFocus(gone: Boolean, detailHadFocus: () -> Boolean, focus: TvHistoryFocus) {
+    LaunchedEffect(gone) {
+        if (gone && detailHadFocus() && focus.paneHasFocus.value) {
+            withFrameNanos {}
+            runCatching { focus.list.requestFocus() }
+        }
+    }
+}
+
+@Composable
 private fun TvHistoryLoading(skeletonFocus: FocusRequester) {
     Column(Modifier.fillMaxSize()) {
-        Spacer(Modifier.height(HISTORY_TOP_GAP))
         TvListDetail(
             modifier = Modifier.weight(1f),
+            header = { Spacer(Modifier.height(HISTORY_TOP_GAP)) },
             detailFocus = FocusRequester.Cancel,
-            detailTop = HISTORY_DETAIL_TOP,
             list = {
                 TvSectionLine {}
                 TvListSkeleton(
@@ -220,6 +252,8 @@ private fun TvHistoryListDetail(
     files: TvHistoryFiles,
     focus: TvHistoryFocus,
     onAuthenticationRequired: suspend () -> Unit,
+    itemActions: TvHistoryItemActions?,
+    snackbar: TvUndoSnackbar,
 ) {
     val restoreRowId = remember { pickedRow.id }
     val today = remember(content.items) { LocalDate.now(clock) }
@@ -227,13 +261,20 @@ private fun TvHistoryListDetail(
     var detailId by remember { mutableStateOf(restoreRowId) }
     val detailItem = content.items.firstOrNull { it.id.value == detailId } ?: content.items.first()
     val detailFileId = detailItem.kind.navigableFileId()
+    val lookup = rememberTvHistoryLookup(detailFileId, files, onAuthenticationRequired)
+    val detailActionable = lookup is TvHistoryLookup.Found || lookup == TvHistoryLookup.Unknown
+    var detailHadFocus by remember { mutableStateOf(false) }
+    val edit = remember { TvItemEditTarget() }
+    val editing = itemActions?.editing?.edits.rememberBusy()
+    TvHistoryFileGoneFocus(lookup == TvHistoryLookup.Gone, { detailHadFocus }, focus)
+    Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize()) {
-        Spacer(Modifier.height(HISTORY_TOP_GAP))
         TvListDetail(
             modifier = Modifier.weight(1f),
-            detailFocus = if (detailFileId != null) openFocus else FocusRequester.Cancel,
+            header = { Spacer(Modifier.height(HISTORY_TOP_GAP)) },
+            detailFocus = if (detailFileId != null && detailActionable) openFocus else FocusRequester.Cancel,
             listFocus = focus.list,
-            detailTop = HISTORY_DETAIL_TOP,
+            onDetailFocusChanged = { if (it) detailHadFocus = true },
             list = {
                 if (notice != null) TvHistoryNotice(notice)
                 TvHistoryList(
@@ -248,6 +289,7 @@ private fun TvHistoryListDetail(
                         onRowFocused = {
                             pickedRow.pick(it.id.value)
                             focus.clearHadFocus.value = false
+                            detailHadFocus = false
                             detailId = it.id.value
                         },
                         onClearFocused = {
@@ -263,17 +305,70 @@ private fun TvHistoryListDetail(
             detail = {
                 TvHistoryDetail(
                     item = detailItem,
-                    files = files,
+                    lookup = lookup,
                     today = today,
                     zone = clock.zone,
                     openFocus = openFocus,
-                    onOpenFolder = { onEvent(HistoryEvent.OpenFile(it)) },
-                    onAuthenticationRequired = onAuthenticationRequired,
+                    actions = TvHistoryDetailActions(
+                        editing = editing,
+                        playback = TvHistoryDetailPlayback(
+                            resumePlayback = itemActions?.resumePlayback ?: true,
+                            thumbnails = itemActions?.thumbnails ?: TvItemThumbnails.None,
+                            onPlay = { itemActions?.onPlay?.invoke(it) },
+                        ),
+                        onGoToFolder = { onEvent(HistoryEvent.OpenFile(it)) },
+                        secondaryOf = { file -> itemActions?.actionsOf?.invoke(file).orEmpty() },
+                        onSecondary = { file, action ->
+                            val handlers = itemActions?.handlers
+                            if (action is TvFilesAction.Delete || action == TvFilesAction.Rename) {
+                                edit.press(action, file)
+                            } else {
+                                handlers?.run(action, file)
+                            }
+                        },
+                    ),
                 )
             },
         )
     }
+    TvHistorySnackbarHost(snackbar, itemActions?.editing?.trashUndo, focus.list)
+    }
+    val edits = itemActions?.editing?.edits
+    if (edits != null) {
+        TvItemEditLayer(
+            target = edit,
+            edits = edits,
+            trashEnabled = itemActions?.editing?.trashEnabled,
+            snackbar = snackbar.state,
+            onAuthenticationRequired = onAuthenticationRequired,
+        )
+    }
 }
+
+@Composable
+private fun BoxScope.TvHistorySnackbarHost(
+    snackbar: TvUndoSnackbar,
+    trashUndo: TvTrashUndoOffer?,
+    list: FocusRequester,
+) {
+    TvTrashUndoOffered(trashUndo, snackbar.state)
+    TvUndoSnackbarHost(snackbar.state, snackbar.undoFocus, rememberUpdatedState(list))
+}
+
+internal class TvHistoryItemActions(
+    val resumePlayback: Boolean,
+    val thumbnails: TvItemThumbnails,
+    val onPlay: (FilesItem) -> Unit,
+    val actionsOf: (FilesItem) -> List<TvFilesAction>,
+    val handlers: TvFilesActionHandlers,
+    val editing: TvHistoryEditing? = null,
+)
+
+internal class TvHistoryEditing(
+    val edits: TvFilesEdits,
+    val trashEnabled: Boolean?,
+    val trashUndo: TvTrashUndoOffer? = null,
+)
 
 @Composable
 private fun TvHistoryNotice(notice: FilesFailure) {
@@ -371,6 +466,19 @@ internal class TvHistoryFocus(
 internal const val TV_HISTORY_CLEAR_PICK = Long.MIN_VALUE
 
 private val HISTORY_TOP_GAP = 4.dp
-private val HISTORY_DETAIL_TOP = 18.dp
 private val STATE_BOTTOM_GAP = 3.dp
 private val NOTICE_INSET = 12.dp
+
+internal class TvHistoryDetailPlayback(
+    val resumePlayback: Boolean,
+    val thumbnails: TvItemThumbnails,
+    val onPlay: (FilesItem) -> Unit,
+)
+
+internal class TvHistoryDetailActions(
+    val editing: Boolean,
+    val playback: TvHistoryDetailPlayback,
+    val onGoToFolder: (HistoryFileId) -> Unit,
+    val secondaryOf: (FilesItem) -> List<TvFilesAction>,
+    val onSecondary: (FilesItem, TvFilesAction) -> Unit,
+)

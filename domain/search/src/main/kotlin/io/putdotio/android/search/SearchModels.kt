@@ -235,3 +235,29 @@ internal fun SearchContent.Ready.withPosition(itemId: FilesItemId, seconds: Doub
             },
         )
     }
+
+internal fun SearchContent.Ready.withItem(updated: FilesItem): SearchContent.Ready? =
+    if (items.none { it.id == updated.id }) {
+        null
+    } else {
+        copy(items = items.map { if (it.id == updated.id) updated else it })
+    }
+
+internal fun SearchContent.Ready.withoutItem(itemId: FilesItemId): SearchContent? =
+    when {
+        items.none { it.id == itemId } -> null
+        items.size == 1 -> SearchContent.Empty(term, paging)
+        else -> copy(items = items.filterNot { it.id == itemId })
+    }
+
+internal fun SearchContent.withRestoredItem(item: FilesItem, index: Int, term: SearchTerm): SearchContent.Ready? =
+    when (this) {
+        is SearchContent.Ready -> if (this.term != term || items.any { it.id == item.id }) {
+            null
+        } else {
+            val before = items.take(index.coerceIn(0, items.size))
+            copy(items = before + item + items.drop(before.size))
+        }
+        is SearchContent.Empty -> if (this.term == term) SearchContent.Ready(term, listOf(item), paging) else null
+        else -> null
+    }

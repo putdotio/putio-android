@@ -95,6 +95,8 @@ import io.putdotio.android.tv.auth.TvAuthRuntime
 import io.putdotio.android.tv.auth.TvAuthState
 import io.putdotio.android.tv.files.TvFilesDetailSources
 import io.putdotio.android.tv.files.TvFilesScreen
+import io.putdotio.android.tv.history.TvHistoryEditing
+import io.putdotio.android.tv.history.TvHistoryItemActions
 import io.putdotio.android.tv.history.TvHistoryScreen
 import io.putdotio.android.tv.account.TvShowHome
 import io.putdotio.android.tv.home.TvDeviceShowHomeStore
@@ -441,6 +443,7 @@ internal fun TvSessionShell(
             historyPane = { paneFocus ->
                 TvHistoryPane(
                     session = session,
+                    settingsState = settingsState,
                     historyState = historyState,
                     openRejected = historyOpenRejected,
                     openFailure = historyOpenFailure,
@@ -557,10 +560,17 @@ private fun TvFilesPane(
         watchedToggleEnabled = settingsState.confirmedResumePlayback() == true,
         resumePlayback = settingsState.confirmedResumePlayback() != false,
         detailSources = remember(session) {
-            TvFilesDetailSources(session.folderCounts, session.subtitleLanguages, onSessionRejected)
+            TvFilesDetailSources(
+                session.folderCounts,
+                session.subtitleLanguages,
+                onSessionRejected,
+                session.itemThumbnails,
+            )
         },
         viewerUrl = session::originalStreamUrl,
         accountDefaultSort = accountDefaultSort,
+        edits = session.filesEdits,
+        onAuthenticationRequired = onSessionRejected,
         onOpenInVlc = { item ->
             streamScope.launch {
                 val stream = session.originalStreamUrl(item.id)
@@ -720,10 +730,12 @@ private fun TvSearchPane(
     val resumePlayback = settingsState.confirmedResumePlayback() != false
     val actionContext = TvFilesActionContext(
         watchedToggleEnabled = settingsState.confirmedResumePlayback() == true,
-        trashEnabled = null,
-        canDelete = false,
+        trashEnabled = settingsState.confirmedTrashEnabled(),
+        canDelete = true,
         resumePlayback = resumePlayback,
         playbackMethod = playbackMethod,
+        canRename = true,
+        canMove = true,
     )
     val currentPins by rememberUpdatedState(pins)
     val currentContext by rememberUpdatedState(actionContext)
@@ -731,7 +743,7 @@ private fun TvSearchPane(
     TvSearchScreen(
         state = searchState,
         actions = remember(session) { tvSearchActions(session, onQueryEdited = onQueryEdited) },
-        results = remember(session) {
+        results = remember(session, actionContext.trashEnabled) {
             TvSearchResultActions(
                 onFilter = { session.search.filter = it },
                 onPlay = { item, start -> playStart.open(session, item, start) },
@@ -763,6 +775,10 @@ private fun TvSearchPane(
                             if (pinned) session.pins.pin(item.id) else session.pins.unpin(item.id)
                         },
                     ),
+                    edits = session.filesEdits,
+                    trashEnabled = actionContext.trashEnabled,
+                    trashUndo = session.trashUndoOffer,
+                    onAuthenticationRequired = onSessionRejected,
                 ),
             )
         },
@@ -776,7 +792,12 @@ private fun TvSearchPane(
         detail = TvSearchDetail(
             folderNames = folderNames,
             sources = remember(session) {
-                TvFilesDetailSources(session.folderCounts, session.subtitleLanguages, onSessionRejected)
+                TvFilesDetailSources(
+                session.folderCounts,
+                session.subtitleLanguages,
+                onSessionRejected,
+                session.itemThumbnails,
+            )
             },
             resumePlayback = resumePlayback,
             viewerUrl = session::originalStreamUrl,
@@ -829,9 +850,12 @@ private fun TvHistoryPane(
     onClearOpenRejection: () -> Unit,
     onOpenAccount: () -> Unit,
     onSessionRejected: suspend () -> Unit,
+    settingsState: AccountSettingsState,
     sessionKey: Any,
     paneFocus: FocusRequester,
 ) {
+    val pins by session.pins.pins.collectAsStateWithLifecycle()
+    val trashEnabled = settingsState.confirmedTrashEnabled()
     // A stale explanation must not greet a visit to the pane: cleared on entry as well
     // as on leaving, since a slow resolution can settle after the user has left.
     DisposableEffect(session) {
@@ -858,6 +882,31 @@ private fun TvHistoryPane(
         files = session.historyFiles,
         onOpenAccount = onOpenAccount,
         onAuthenticationRequired = onSessionRejected,
+        itemActions = TvHistoryItemActions(
+            resumePlayback = settingsState.confirmedResumePlayback() != false,
+            thumbnails = session.itemThumbnails,
+            onPlay = { session.openExternal(it, FilesOpenOrigin.HISTORY) },
+            actionsOf = { item ->
+                item.tvActions(
+                    TvFilesActionContext(
+                        watchedToggleEnabled = false,
+                        trashEnabled = trashEnabled,
+                        canDelete = true,
+                        pinned = pins?.let { item.id in it },
+                    ),
+                )
+            },
+            handlers = TvFilesActionHandlers(
+                onPlay = { _, _ -> },
+                onPlayWith = { _, _ -> },
+                onOpenInVlc = {},
+                onSetWatched = { _, _ -> },
+                onSetPinned = { item, pinned ->
+                    if (pinned) session.pins.pin(item.id) else session.pins.unpin(item.id)
+                },
+            ),
+            editing = TvHistoryEditing(session.filesEdits, trashEnabled, session.trashUndoOffer),
+        ),
     )
 }
 

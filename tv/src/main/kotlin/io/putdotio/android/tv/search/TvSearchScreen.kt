@@ -13,8 +13,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -58,16 +60,25 @@ import io.putdotio.android.tv.TvPlayStart
 import io.putdotio.android.tv.paneSection
 import io.putdotio.android.tv.rememberTvPaneHasFocus
 import io.putdotio.android.tv.files.FILES_SHEET_SCRIM
+import io.putdotio.android.tv.files.TvFilesEdits
+import io.putdotio.android.tv.files.TvItemEditLayer
+import io.putdotio.android.tv.files.TvItemEditTarget
+import io.putdotio.android.tv.TvTrashUndoOffer
+import io.putdotio.android.tv.TvTrashUndoOffered
+import io.putdotio.android.tv.TvUndoSnackbar
+import io.putdotio.android.tv.TvUndoSnackbarHost
 import io.putdotio.android.tv.files.TvFilesAction
 import io.putdotio.android.tv.files.TvFilesActionHandlers
 import io.putdotio.android.tv.files.TvFilesActionsSheet
 import io.putdotio.android.tv.files.TvFilesDetail
 import io.putdotio.android.tv.files.TvFilesDetailActions
+import io.putdotio.android.tv.files.TvFilesDetailEnabled
 import io.putdotio.android.tv.files.TvFilesDetailFocus
 import io.putdotio.android.tv.files.TvFilesDetailSources
 import io.putdotio.android.tv.files.TvFileViewerLayer
 import io.putdotio.android.tv.files.TvFileViewerState
 import io.putdotio.android.tv.files.TvViewerUrl
+import io.putdotio.android.tv.files.rememberBusy
 import io.putdotio.android.tv.files.secondary
 import io.putdotio.android.tv.files.run
 import io.putdotio.android.tv.files.tvMessageText
@@ -96,6 +107,10 @@ internal class TvRecentSearchActions(
 internal class TvSearchItemActions(
     val actionsOf: (FilesItem) -> List<TvFilesAction>,
     val handlers: TvFilesActionHandlers,
+    val edits: TvFilesEdits? = null,
+    val trashEnabled: Boolean? = null,
+    val trashUndo: TvTrashUndoOffer? = null,
+    val onAuthenticationRequired: suspend () -> Unit = {},
 )
 
 internal class TvSearchDetail(
@@ -126,6 +141,7 @@ internal fun TvSearchScreen(
     dialogNotice: TvSearchDialogNotice? = null,
 ) = key(sessionKey) {
     var restoreRowId by remember { mutableStateOf(pickedRow.id) }
+    val undoSnackbar = remember { TvUndoSnackbar(FocusRequester()) }
     val resultsShown = state.content is SearchContent.Ready
     LaunchedEffect(resultsShown) { if (!resultsShown) restoreRowId = null }
     val fieldFocus = remember { FocusRequester() }
@@ -151,7 +167,7 @@ internal fun TvSearchScreen(
     val openSettings = historyEnabled?.let { { from: FocusRequester -> settingsFrom = from } }
     val overlayOpen = rememberUpdatedState(settingsFrom != null || dialogNotice != null)
     owner.RefocusAfterLeave(blocked = overlayOpen)
-    Column(
+    Box(
         modifier = modifier
             .fillMaxSize()
             .onFocusChanged { if (it.hasFocus) paneHasFocus.value = true }
@@ -164,6 +180,7 @@ internal fun TvSearchScreen(
             }
             .focusGroup(),
     ) {
+    Column(modifier = Modifier.fillMaxSize()) {
         TvSearchField(
             state = textState,
             rewrite = rewrite,
@@ -201,11 +218,15 @@ internal fun TvSearchScreen(
             restoreRowId = restoreRowId,
             pickedRow = pickedRow,
             detail = detail,
+            undoSnackbar = undoSnackbar,
             onRecentSearch = { term ->
                 textState.rewriteTo(term.value, rewrite)
                 actions.recent.onSearch(term)
             },
         )
+    }
+    TvTrashUndoOffered(results.itemActions.trashUndo, undoSnackbar.state)
+    TvUndoSnackbarHost(undoSnackbar.state, undoSnackbar.undoFocus, entryTarget)
     }
     val from = settingsFrom
     if (from != null && historyEnabled != null) {
@@ -244,6 +265,7 @@ private fun ColumnScope.TvSearchContent(
     restoreRowId: Long?,
     pickedRow: TvPickedRow,
     detail: TvSearchDetail,
+    undoSnackbar: TvUndoSnackbar,
     onRecentSearch: (SearchTerm) -> Unit,
 ) {
     val hadRecent = remember { mutableStateOf(false) }
@@ -280,7 +302,6 @@ private fun ColumnScope.TvSearchContent(
                 modifier = Modifier
                     .weight(1f)
                     .padding(top = CONTENT_TOP),
-                detailTop = DETAIL_TOP,
             )
         is SearchContent.Empty ->
             Box(
@@ -313,6 +334,7 @@ private fun ColumnScope.TvSearchContent(
                 restoreRowId = restoreRowId,
                 pickedRow = pickedRow,
                 detail = detail,
+                undoSnackbar = undoSnackbar,
                 modifier = Modifier
                     .weight(1f)
                     .padding(top = CONTENT_TOP),
@@ -348,6 +370,7 @@ private fun TvSearchReady(
     restoreRowId: Long?,
     pickedRow: TvPickedRow,
     detail: TvSearchDetail,
+    undoSnackbar: TvUndoSnackbar,
     modifier: Modifier = Modifier,
 ) {
     val groups = remember(content.items) { TvSearchGroups(content.items) }
@@ -358,7 +381,21 @@ private fun TvSearchReady(
     val listing = remember(content.items) { Any() }
     var actionsFor by remember { mutableStateOf<Long?>(null) }
     val itemActions = results.itemActions
-    val actionsOf = { item: FilesItem -> itemActions.actionsOf(item).filterNot { it is TvFilesAction.Delete } }
+    val edits = itemActions.edits
+    val actionsOf = { item: FilesItem ->
+        itemActions.actionsOf(item).filter { action ->
+            edits != null ||
+                (action !is TvFilesAction.Delete && action != TvFilesAction.Rename && action != TvFilesAction.Move)
+        }
+    }
+    val edit = remember { TvItemEditTarget() }
+    val editing = edits.rememberBusy()
+    val runAction = { item: FilesItem, action: TvFilesAction ->
+        when (action) {
+            TvFilesAction.Rename, TvFilesAction.Move, is TvFilesAction.Delete -> edit.press(action, item)
+            else -> itemActions.handlers.run(action, item)
+        }
+    }
     val openActions = { item: FilesItem -> if (actionsOf(item).isNotEmpty()) actionsFor = item.id.value }
     val viewer = remember { TvFileViewerState() }
     val openResult = { item: FilesItem, returnFocus: FocusRequester ->
@@ -373,15 +410,13 @@ private fun TvSearchReady(
             pickedRow.pick(it.id.value)
             detailFocus.onListFocusChanged(true)
         },
-        detailId = detailItem.id.value,
-        detailRow = detailRow,
+        detail = TvSearchRowDetail(detailItem.id.value, detailRow),
     )
     TvListDetail(
         modifier = modifier,
         detailFocus = detailFocus.primary,
         listFocus = resultsFocus,
         onDetailFocusChanged = detailFocus::onDetailFocusChanged,
-        detailTop = DETAIL_TOP,
         list = {
             TvSearchResultList(
                 groups = groups,
@@ -407,13 +442,24 @@ private fun TvSearchReady(
                     onPlay = results.onPlay,
                     onUnsupported = { openResult(it, detailFocus.primary) },
                     secondary = actionsOf(detailItem).secondary(),
-                    onSecondary = { item, action -> itemActions.handlers.run(action, item) },
+                    onSecondary = runAction,
+                    enabled = TvFilesDetailEnabled(delete = !editing, edits = !editing),
                 ),
                 place = rows.place(detailItem),
             )
         },
     )
     TvFileViewerLayer(viewer, groups.ordered, detail.viewerUrl, siblings = false)
+    if (edits != null) {
+        TvItemEditLayer(
+            target = edit,
+            edits = edits,
+            trashEnabled = itemActions.trashEnabled,
+            snackbar = undoSnackbar.state,
+            onAuthenticationRequired = itemActions.onAuthenticationRequired,
+        )
+        TvSearchEditFocus(detailId, groups, detailRow, detailFocus, owner, resultsFocus) { detailId = it }
+    }
     val open = actionsFor
     val openItem = open?.let { id -> groups.ordered.firstOrNull { it.id.value == id } }
     if (open != null && openItem != null) {
@@ -422,13 +468,44 @@ private fun TvSearchReady(
             actions = actionsOf(openItem),
             onAction = { action ->
                 actionsFor = null
-                itemActions.handlers.run(action, openItem)
+                runAction(openItem, action)
             },
             onDismiss = { actionsFor = null },
             returnFocus = detailRow,
         )
     } else if (open != null) {
         LaunchedEffect(Unit) { actionsFor = null }
+    }
+}
+
+@Composable
+private fun TvSearchEditFocus(
+    detailId: Long?,
+    groups: TvSearchGroups,
+    detailRow: FocusRequester,
+    detailFocus: TvFilesDetailFocus,
+    owner: TvPaneFocusOwner,
+    resultsFocus: FocusRequester,
+    onDetailId: (Long) -> Unit,
+) {
+    val ids = remember(groups) { groups.ordered.map { it.id.value } }
+    val lastIndex = remember { mutableIntStateOf(0) }
+    val landings = remember { mutableIntStateOf(0) }
+    SideEffect {
+        val index = detailId?.let(ids::indexOf) ?: -1
+        when {
+            index >= 0 -> lastIndex.intValue = index
+            detailId != null -> {
+                onDetailId(ids.getOrElse(lastIndex.intValue) { ids.last() })
+                landings.intValue++
+            }
+        }
+    }
+    LaunchedEffect(landings.intValue) {
+        if (landings.intValue > 0 && (detailFocus.owns.value || owner.owns(resultsFocus))) {
+            withFrameNanos {}
+            runCatching { detailRow.requestFocus() }
+        }
     }
 }
 
@@ -516,7 +593,6 @@ internal fun TvSearchPaging(
 private val PANE_TOP = 4.dp
 private val FILTERS_TOP = 10.dp
 private val CONTENT_TOP = 20.dp
-private val DETAIL_TOP = TV_SEARCH_LABEL_HEIGHT + TV_SEARCH_LABEL_GAP
 private val SHRUG_LIFT = 2.dp
 private val EMPTY_TOP = 16.dp
 private val EMPTY_BOTTOM = 3.dp

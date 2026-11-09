@@ -14,6 +14,12 @@ import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
 import io.putdotio.android.files.FilesFolderCounts
 import io.putdotio.android.files.FilesItem
+import io.putdotio.android.files.FilesMoveOutcome
+import io.putdotio.android.files.FilesMoveStatus
+import io.putdotio.android.tv.files.TvFilesEdits
+import io.putdotio.android.tv.files.isConfirmedTrash
+import io.putdotio.android.tv.files.TvItemChanges
+import io.putdotio.android.tv.files.TvItemThumbnails
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesItemResolver
 import io.putdotio.android.files.FilesOpenOrigin
@@ -182,6 +188,8 @@ internal class TvSession internal constructor(
     )
     private val fileActionFailures = TvActionFailure()
     private val watchedJobs = mutableMapOf<FilesItemId, Job>()
+    private val handledBrowserEdits = mutableSetOf<FilesRequestId>()
+
     private val watchNextHandledDeletes = mutableSetOf<FilesRequestId>()
     private val playbackRepository = dependencies.playbackRepository { appConfig.state.value }
     private val mutablePlayback = MutableStateFlow<PlaybackController?>(null)
@@ -196,7 +204,12 @@ internal class TvSession internal constructor(
     /** Pairs saved positions with the videos they belong to, for Watch Next. */
     internal val watchNextPlayback = TvWatchNextPlayback(watchNext, scope)
 
-    val trashUndo = TvTrashUndo(dependencies.trashRepository, files, scope, onUndone = trash::refreshIfLoaded)
+    val trashUndo: TvTrashUndo = TvTrashUndo(
+        dependencies.trashRepository,
+        files,
+        scope,
+        onUndone = { itemEditEffects.undone(it) },
+    )
 
     val trashUndoOffer = TvTrashUndoOffer(scope, trashUndo::undo)
 
@@ -233,6 +246,31 @@ internal class TvSession internal constructor(
 
     val historyFiles = TvHistoryFiles(dependencies.filesItemResolver)
 
+    private val itemEditEffects: TvItemEditEffects = TvItemEditEffects(
+        search,
+        files,
+        historyFiles,
+        homePins,
+        refreshTrash = { trash.refreshIfLoaded() },
+        onGone = { item, outcome ->
+            watchNext.fileGone(item.id.value)
+            continueWatching.removed(listOf(outcome))
+            if (outcome.isConfirmedTrash) trashUndoOffer.offer(outcome)
+        },
+    )
+
+    val itemThumbnails = TvItemThumbnails(::originalStreamUrl)
+
+    val filesEdits = TvFilesEdits(
+        repository = filesRepository,
+        scope = scope,
+        changes = TvItemChanges(
+            onUpdated = itemEditEffects::edited,
+            onRemoved = itemEditEffects::removed,
+            onSessionRejected = fileActionFailures::report,
+        ),
+    )
+
     val recentSearchFailure = recentSearches.failure
 
     /** A history event's file, resolved and ready for Files to open. */
@@ -268,7 +306,10 @@ internal class TvSession internal constructor(
                     continueWatching.removed(deletes)
                     deletes.filter { watchNextHandledDeletes.add(it.requestId) }
                         .flatMap { it.confirmedGone() }
-                        .forEach { watchNext.fileGone(it.value) }
+                        .forEach {
+                            watchNext.fileGone(it.value)
+                            homePins.itemRemoved(it)
+                        }
                 }
         }
         scope.launch {
@@ -276,6 +317,25 @@ internal class TvSession internal constructor(
                 .map { state -> state.stack.mapNotNull { it.deleteOutcome?.takeIf(::movesAnyToTrash) } }
                 .distinctUntilChanged()
                 .collect { moved -> if (moved.isNotEmpty()) trash.refreshIfLoaded() }
+        }
+        scope.launch {
+            files.state
+                .map { state -> state.stack.mapNotNull { it.renameCompletion } }
+                .distinctUntilChanged()
+                .collect { renames ->
+                    renames.filter { handledBrowserEdits.add(it.requestId) }
+                        .forEach { itemEditEffects.renamedInFiles(it.intent.itemId, it.intent.name) }
+                }
+        }
+        scope.launch {
+            files.state
+                .map { state -> state.stack.mapNotNull { it.moveOutcome?.takeIf { move -> move.moved } } }
+                .distinctUntilChanged()
+                .collect { moves ->
+                    moves.filter { handledBrowserEdits.add(it.requestId) }.forEach { move ->
+                        move.intent.itemIds.forEach { itemEditEffects.movedInFiles(it, move.intent.destinationId) }
+                    }
+                }
         }
         scope.launch {
             continueWatching.recheckAfterDeletes(filesItemResolver::resolveItem)?.let {
@@ -583,3 +643,5 @@ private fun TrashController.refreshIfLoaded() {
 
 private fun movesAnyToTrash(outcome: FilesDeleteOutcome): Boolean =
     outcome.intent.mode == FilesDeleteMode.TRASH && confirmsAnyGone(outcome)
+
+private val FilesMoveOutcome.moved: Boolean get() = status == FilesMoveStatus.MOVED

@@ -56,10 +56,10 @@ import io.putdotio.android.history.HistoryContent
 import io.putdotio.android.history.HistoryEvent
 import io.putdotio.android.history.HistoryEventKind
 import io.putdotio.android.history.HistoryNoticeType
-import io.putdotio.android.history.HistoryFileId
 import io.putdotio.android.history.HistoryItem
 import io.putdotio.android.history.HistoryPaging
 import io.putdotio.android.history.HistoryState
+import io.putdotio.android.history.navigableFileId
 import io.putdotio.android.parsePutioTimestamp
 import io.putdotio.android.neutralTextButtonColors
 import java.time.LocalDate
@@ -388,13 +388,6 @@ private fun HistoryEventKind.glyph(): Int =
             -> R.drawable.ic_ph_warning_circle
         }
         is HistoryEventKind.Other -> R.drawable.ic_ph_clock_counter_clockwise
-    }
-
-private fun HistoryEventKind.navigableFileId(): HistoryFileId? =
-    when (this) {
-        is HistoryEventKind.File -> id
-        is HistoryEventKind.Transfer -> fileId
-        is HistoryEventKind.Notice, is HistoryEventKind.Other -> null
     }
 
 private val HISTORY_GLYPH_SIZE = 24.dp

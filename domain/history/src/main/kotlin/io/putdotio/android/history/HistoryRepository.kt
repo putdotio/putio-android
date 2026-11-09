@@ -47,7 +47,7 @@ private fun HistoryEvent.toHistoryEventKind(): HistoryEventKind =
                 fileId = fileId?.let(::HistoryFileId),
                 name = transferName.nonBlank() ?: fileName.nonBlank(),
             )
-        HistoryEventType.UPLOAD -> notice(HistoryNoticeType.Upload, fileName)
+        HistoryEventType.UPLOAD -> notice(HistoryNoticeType.Upload, fileName, fileId?.let(::HistoryFileId))
         HistoryEventType.TRANSFER_ERROR -> notice(HistoryNoticeType.TransferError, transferName)
         HistoryEventType.FILE_FROM_RSS_DELETED_FOR_SPACE -> notice(HistoryNoticeType.RssFileDeleted, fileName)
         HistoryEventType.RSS_FILTER_PAUSED -> notice(HistoryNoticeType.RssFilterPaused, rssFilterTitle)
@@ -56,7 +56,11 @@ private fun HistoryEvent.toHistoryEventKind(): HistoryEventKind =
         else -> HistoryEventKind.Other(type.raw)
     }
 
-private fun HistoryEvent.notice(type: HistoryNoticeType, subject: String?): HistoryEventKind =
-    subject.nonBlank()?.let { HistoryEventKind.Notice(type, it) } ?: HistoryEventKind.Other(this.type.raw)
+private fun HistoryEvent.notice(
+    type: HistoryNoticeType,
+    subject: String?,
+    fileId: HistoryFileId? = null,
+): HistoryEventKind =
+    subject.nonBlank()?.let { HistoryEventKind.Notice(type, it, fileId) } ?: HistoryEventKind.Other(this.type.raw)
 
 private fun String?.nonBlank(): String? = this?.takeIf(String::isNotBlank)

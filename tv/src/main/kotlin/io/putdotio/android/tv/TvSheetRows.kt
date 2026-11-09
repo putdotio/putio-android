@@ -17,7 +17,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,11 +31,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Icon
+import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
+import io.putdotio.android.design.PutioMiddleCutText
 import io.putdotio.android.design.PutioRadius
 import io.putdotio.android.design.PutioTypeScale
 
@@ -68,9 +69,13 @@ internal fun TvSheetOption(
     enabled: Boolean = true,
     danger: Boolean = false,
     trailing: (@Composable (focused: Boolean) -> Unit)? = null,
+    leading: (@Composable (focused: Boolean) -> Unit)? = null,
+    styledLabel: AnnotatedString? = null,
+    labelIsName: Boolean = false,
+    showsFocus: Boolean = true,
 ) {
     val interactions = remember { MutableInteractionSource() }
-    val focused by interactions.collectIsFocusedAsState()
+    val focused = interactions.collectIsFocusedAsState().value && showsFocus
     val colors = MaterialTheme.colorScheme
     Surface(
         onClick = onClick,
@@ -83,16 +88,7 @@ internal fun TvSheetOption(
                 if (role == Role.RadioButton) this.selected = selected
             },
         shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(PutioRadius.medium)),
-        colors = ClickableSurfaceDefaults.colors(
-            containerColor = if (selected) PutioDesignTokens.componentBgActive else Color.Transparent,
-            contentColor = if (danger) PutioDesignTokens.redTextSecondary else colors.onSurface,
-            focusedContainerColor = TvFocus.container,
-            focusedContentColor = TvFocus.content,
-            pressedContainerColor = TvFocus.container,
-            pressedContentColor = TvFocus.content,
-            disabledContainerColor = Color.Transparent,
-            disabledContentColor = colors.onSurfaceVariant,
-        ),
+        colors = sheetOptionColors(selected, danger, showsFocus, focused),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1f, pressedScale = 1f),
         interactionSource = interactions,
     ) {
@@ -105,12 +101,18 @@ internal fun TvSheetOption(
         ) {
             Box(Modifier.size(LEADING_SLOT), contentAlignment = Alignment.Center) {
                 val icon = leadingIcon ?: R.drawable.ic_ph_check.takeIf { selected }
-                if (icon != null) {
-                    Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(18.dp))
+                when {
+                    leading != null -> leading(focused)
+                    icon != null ->
+                        Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(18.dp))
                 }
             }
             Column(Modifier.weight(1f)) {
-                Text(label, style = OPTION_LABEL)
+                if (labelIsName) {
+                    PutioMiddleCutText(text = label, style = OPTION_LABEL, color = LocalContentColor.current)
+                } else {
+                    Text(styledLabel ?: AnnotatedString(label), style = OPTION_LABEL)
+                }
                 if (detail != null) {
                     Text(
                         detail,
@@ -125,6 +127,22 @@ internal fun TvSheetOption(
         }
     }
 }
+
+@Composable
+private fun sheetOptionColors(selected: Boolean, danger: Boolean, showsFocus: Boolean, focused: Boolean) =
+    MaterialTheme.colorScheme.let { colors ->
+        val content = if (danger) PutioDesignTokens.redTextSecondary else colors.onSurface
+        ClickableSurfaceDefaults.colors(
+            containerColor = if (selected) PutioDesignTokens.componentBgActive else Color.Transparent,
+            contentColor = content,
+            focusedContainerColor = if (showsFocus) TvFocus.container else Color.Transparent,
+            focusedContentColor = if (showsFocus) TvFocus.content else content,
+            pressedContainerColor = TvFocus.container,
+            pressedContentColor = TvFocus.content,
+            disabledContainerColor = if (focused) TvFocus.container else Color.Transparent,
+            disabledContentColor = if (focused) TvFocus.content else colors.onSurfaceVariant,
+        )
+    }
 
 @Composable
 private fun RowScope.TrailingIcon(@DrawableRes icon: Int?, focused: Boolean) {

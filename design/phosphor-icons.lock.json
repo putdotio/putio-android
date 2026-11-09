@@ -1087,6 +1087,20 @@
       "asset": "assets/regular/books.svg",
       "sourceSha256": "38560cd9dec996bc3f79c10675ced1d2b3bd2e5ef497f3966733e5d787af5e11",
       "outputSha256": "566eccd2badad4fc23bcba78b1925b49320c938a594b99eca8ec3b02775c5284"
+    },
+    {
+      "resDir": "tv/src/main/res",
+      "resource": "ic_ph_pencil_simple",
+      "asset": "assets/regular/pencil-simple.svg",
+      "sourceSha256": "999530da442f44d8cf0054364373d16150f3e082c2ac294a4988a9c3a4295c28",
+      "outputSha256": "b1d07149d700401bd1fc85d6b19cb4b5f527512c2dddab6299616b1fe58ab2ee"
+    },
+    {
+      "resDir": "tv/src/main/res",
+      "resource": "ic_ph_folder_simple_dashed",
+      "asset": "assets/regular/folder-simple-dashed.svg",
+      "sourceSha256": "d5f23b371a146a920a81947bb77d1d4a62a1836f469ff83d037751b44b873957",
+      "outputSha256": "35b31d7158e2db816aab718a48d0ac512909f60c26ed0beb432a2b3f4c4604df"
     }
   ]
 }

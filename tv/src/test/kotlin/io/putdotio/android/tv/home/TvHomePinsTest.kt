@@ -66,6 +66,31 @@ class TvHomePinsTest {
     }
 
     @Test
+    fun editingAPinnedItemReadsItsCardAgainInsideTheMinute() = runTest(UnconfinedTestDispatcher()) {
+        val home = TvHomePins(pins, resolver, counts, backgroundScope, clock)
+        val before = reads.size
+
+        home.itemEdited(FilesItemId(999L))
+        assertEquals("An item that is not pinned reads nothing", before, reads.size)
+
+        home.itemEdited(FilesItemId(Clip.value))
+        assertEquals(before + 2, reads.size)
+    }
+
+    @Test
+    fun aRemovedPinHidesItsCardAndUndoBringsItBackStillPinned() = runTest(UnconfinedTestDispatcher()) {
+        val home = TvHomePins(pins, resolver, counts, backgroundScope, clock)
+        val clip = FilesItemId(Clip.value)
+
+        home.itemRemoved(clip)
+        assertEquals(listOf("Series"), (home.row.value as TvPinnedRow.Ready).cards.map { it.item.name })
+        assertEquals(listOf(Series, Clip), pins.pins.value)
+
+        home.itemRestored(clip)
+        assertEquals(listOf("Series", "clip.mp4"), (home.row.value as TvPinnedRow.Ready).cards.map { it.item.name })
+    }
+
+    @Test
     fun aFolderCardCountsItsFoldersAndTheSharedRootCountsOnlyFriends() = runTest(UnconfinedTestDispatcher()) {
         val shared = FilesItemId(4L)
         val folderReads = mutableListOf<FilesItemId>()

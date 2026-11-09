@@ -9,7 +9,6 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import io.putdotio.android.R
 import io.putdotio.android.history.HistoryEventKind
-import io.putdotio.android.history.HistoryFileId
 import io.putdotio.android.history.HistoryItem
 import io.putdotio.android.history.HistoryNoticeType
 import io.putdotio.android.parsePutioTimestamp
@@ -86,11 +85,4 @@ internal fun HistoryEventKind.glyph(): Int =
             -> R.drawable.ic_ph_warning_circle
         }
         is HistoryEventKind.Other -> R.drawable.ic_ph_clock_counter_clockwise
-    }
-
-internal fun HistoryEventKind.navigableFileId(): HistoryFileId? =
-    when (this) {
-        is HistoryEventKind.File -> id
-        is HistoryEventKind.Transfer -> fileId
-        is HistoryEventKind.Notice, is HistoryEventKind.Other -> null
     }

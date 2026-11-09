@@ -1,6 +1,5 @@
 package io.putdotio.android.files
 
-import io.putdotio.android.isNotFound
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
 
@@ -40,11 +39,8 @@ internal fun FilesBrowserState.deleteFinished(event: FilesBrowserEvent.DeleteFin
     val folder = stack.getOrNull(index)
     val outcome = folder?.deleteOutcome
     if (folder == null || outcome == null) return FilesBrowserTransition(this, consumed = false)
-    val failure = (event.result as? PutioResult.Failure)?.failure
-    val recorded = outcome.copy(
-        response = (event.result as? PutioResult.Success)?.value,
-        failure = failure,
-    )
+    val recorded = outcome.recording(event.result)
+    val failure = recorded.failure
     return if (failure is PutioFailure.AuthenticationRequired) {
         val updated = folder.copy(
             deleteOutcome = recorded.copy(status = FilesDeleteStatus.UNKNOWN),
@@ -74,26 +70,24 @@ private fun FilesBrowserState.deleteChecked(event: FilesBrowserEvent.DeleteCheck
     val folder = stack.getOrNull(index)
     val outcome = folder?.deleteOutcome
     if (folder == null || outcome == null) return FilesBrowserTransition(this, consumed = false)
-    val reads = outcome.intent.itemIds.zipReads(event.results)
-        .map { (id, result) -> id to result.deleteReadFailure(id) }
-    val remaining = reads.filterNot { (_, failure) -> failure.isNotFound }.mapTo(mutableSetOf()) { it.first }
-    val failure = reads.mapNotNull { (_, failure) -> failure?.takeUnless { it.isNotFound } }.verdict()
-    return if (failure != null) {
-        loadFailed(FilesBrowserEvent.LoadFailed(event.requestId, failure))
-    } else {
-        val requestId = FilesRequestId(nextRequestValue)
-        val updated = folder.copy(
-            deleteOutcome = outcome.copy(
-                status = outcome.checkedStatus(unavailable = remaining.isEmpty()),
-                remainingIds = remaining,
-            ),
-            operation = FilesFolderOperation.Loading(requestId, outcome.intent, FilesFolderOperationPhase.RELOADING),
-            needsReload = false,
-        )
-        FilesBrowserTransition(
-            state = copy(stack = stack.replaceAt(index, updated), nextRequestValue = nextRequestValue + 1),
-            effect = FilesBrowserEffect.LoadFolder(folder.folder.id, requestId),
-        )
+    return when (val check = outcome.checked(event.results)) {
+        is FilesEditCheck.Unconfirmed -> loadFailed(FilesBrowserEvent.LoadFailed(event.requestId, check.failure))
+        is FilesEditCheck.Settled -> {
+            val requestId = FilesRequestId(nextRequestValue)
+            val updated = folder.copy(
+                deleteOutcome = check.outcome,
+                operation = FilesFolderOperation.Loading(
+                    requestId,
+                    outcome.intent,
+                    FilesFolderOperationPhase.RELOADING,
+                ),
+                needsReload = false,
+            )
+            FilesBrowserTransition(
+                state = copy(stack = stack.replaceAt(index, updated), nextRequestValue = nextRequestValue + 1),
+                effect = FilesBrowserEffect.LoadFolder(folder.folder.id, requestId),
+            )
+        }
     }
 }
 
@@ -113,19 +107,6 @@ private fun FilesBrowserState.trashUndone(outcome: FilesDeleteOutcome): FilesBro
     if (index < 0 || outcome.intent.mode != FilesDeleteMode.TRASH) return FilesBrowserTransition(this, consumed = false)
     val undone = stack[index].copy(deleteOutcome = null, needsReload = true)
     return FilesBrowserTransition(copy(stack = stack.replaceAt(index, undone)))
-}
-
-private fun PutioResult<FilesItem>.deleteReadFailure(expectedId: FilesItemId): PutioFailure? = when (this) {
-    is PutioResult.Failure -> failure
-    is PutioResult.Success -> if (value.id == expectedId) null else
-        PutioFailure.Unexpected(IllegalStateException("File lookup returned a different ID"))
-}
-
-private fun FilesDeleteOutcome.checkedStatus(unavailable: Boolean): FilesDeleteStatus = when {
-    response?.let { it.skipped > 0 || it.cursor != null } == true -> FilesDeleteStatus.SKIPPED
-    unavailable -> FilesDeleteStatus.NO_LONGER_AVAILABLE
-    intent.mode == FilesDeleteMode.TRASH && failure.isTrashChildrenLimit -> FilesDeleteStatus.TOO_LARGE_FOR_TRASH
-    else -> FilesDeleteStatus.STILL_PRESENT
 }
 
 public val FilesFolderOperation.pendingDelete: FilesFolderOperationIntent.Delete?

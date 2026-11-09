@@ -43,6 +43,7 @@ internal class TvHomePins(
     private var lastRead = clock.markNow()
     private val cards = mutableMapOf<FilesItemId, TvPinnedCard>()
     private val gone = mutableSetOf<FilesItemId>()
+    private val removed = mutableSetOf<FilesItemId>()
     private val refreshes = MutableStateFlow(0)
     private var resolvedRefresh = 0
     private val mutableRow = MutableStateFlow<TvPinnedRow>(TvPinnedRow.Loading)
@@ -74,9 +75,22 @@ internal class TvHomePins(
     }
 
     fun retry() {
+        removed.clear()
         lastRead = clock.markNow()
         pins.reload()
         if (pins.pins.value != null) refreshes.update { it + 1 }
+    }
+
+    fun itemEdited(id: FilesItemId) {
+        if (pins.pins.value?.contains(id) == true) retry()
+    }
+
+    fun itemRemoved(id: FilesItemId) {
+        if (pins.pins.value?.contains(id) == true && removed.add(id)) refreshes.update { it + 1 }
+    }
+
+    fun itemRestored(id: FilesItemId) {
+        if (removed.remove(id)) refreshes.update { it + 1 }
     }
 
     private suspend fun rowFor(ids: List<FilesItemId>, fresh: Boolean): TvPinnedRow = coroutineScope {
@@ -87,6 +101,7 @@ internal class TvHomePins(
     }
 
     private suspend fun resolve(id: FilesItemId, fresh: Boolean): Resolved {
+        if (id in removed) return Resolved.Gone
         val known = cards[id]?.let(Resolved::Card) ?: Resolved.Gone.takeIf { id in gone }
         return if (fresh || known == null) read(id) else known
     }

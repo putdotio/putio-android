@@ -44,8 +44,7 @@ import kotlin.math.roundToInt
 /**
  * A name on one line, or up to [maxLines], cut in the middle when it does not fit: it keeps its
  * start and the last [MIDDLE_CUT_TAIL] characters, so the extension and what comes just before it
- * stay readable ("Blue.Lights.S04E01…ORGANiC.mkv"). With [breakAtDots], a dotted name may wrap
- * after any dot. Accessibility reads the full name.
+ * stay readable ("Blue.Lights.S04E01…ORGANiC.mkv"). Accessibility reads the full name.
  */
 @Composable
 public fun PutioMiddleCutText(
@@ -54,10 +53,9 @@ public fun PutioMiddleCutText(
     color: Color,
     modifier: Modifier = Modifier,
     maxLines: Int = 1,
-    breakAtDots: Boolean = false,
 ) {
     val measurer = rememberTextMeasurer()
-    Spacer(modifier.then(MiddleCutTextElement(text, style, color, maxLines, breakAtDots, measurer)))
+    Spacer(modifier.then(MiddleCutTextElement(text, style, color, maxLines, measurer)))
 }
 
 /** The text a cut name laid out, while accessibility reads the full name; for tests. */
@@ -81,7 +79,6 @@ private data class MiddleCutTextElement(
     val style: TextStyle,
     val color: Color,
     val maxLines: Int,
-    val breakAtDots: Boolean,
     val measurer: TextMeasurer,
 ) : ModifierNodeElement<MiddleCutTextNode>() {
     override fun create() = MiddleCutTextNode(this)
@@ -94,7 +91,6 @@ private data class MiddleCutTextElement(
         properties["style"] = style
         properties["color"] = color
         properties["maxLines"] = maxLines
-        properties["breakAtDots"] = breakAtDots
     }
 }
 
@@ -172,7 +168,7 @@ private class MiddleCutTextNode(
 
     private fun IntrinsicMeasureScope.layoutText(text: String, constraints: Constraints): TextLayoutResult =
         measurer.measure(
-            text = text.wrappable(element.breakAtDots),
+            text = text,
             style = style,
             overflow = TextOverflow.Ellipsis,
             softWrap = maxLines > 1,
@@ -233,12 +229,10 @@ private class MiddleCutTextNode(
 
 private fun MiddleCutTextElement.cutToFit(line: String, maxWidth: Int): String =
     if (maxLines == 1) {
-        middleCut(line, maxWidth) { measurer.width(it.wrappable(breakAtDots), style) }
+        middleCut(line, maxWidth) { measurer.width(it, style) }
     } else {
-        middleCutWhere(line, maxWidth) { measurer.fitsLines(it.wrappable(breakAtDots), style, maxWidth, maxLines) }
+        middleCutWhere(line, maxWidth) { measurer.fitsLines(it, style, maxWidth, maxLines) }
     }
-
-private fun String.wrappable(breakAtDots: Boolean): String = if (breakAtDots) breakableAtDots() else this
 
 /** [middleCut] for any room: the longest cut that [fits], or [text] itself when it fits. */
 private fun middleCutWhere(text: String, maxWidth: Int, fits: (String) -> Boolean): String {
@@ -284,9 +278,6 @@ private fun TextLayoutResult.shownText(): String {
 
 private fun String.oneLine(): String = replace(LINE_BREAKS, " ")
 
-private fun String.breakableAtDots(): String = replace(".", ".$ZERO_WIDTH_SPACE").removeSuffix(ZERO_WIDTH_SPACE)
-
 private const val ELLIPSIS = "…"
-private const val ZERO_WIDTH_SPACE = "​"
 private const val NO_CUT_WIDTH = -1
 private val LINE_BREAKS = Regex("\\R")

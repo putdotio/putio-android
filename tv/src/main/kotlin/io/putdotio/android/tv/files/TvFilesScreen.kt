@@ -57,6 +57,10 @@ import io.putdotio.android.files.FilesDeleteMode
 import io.putdotio.android.files.FilesDeleteOutcome
 import io.putdotio.android.files.FilesDeleteStatus
 import io.putdotio.android.files.FilesFolderState
+import io.putdotio.android.files.FilesMoveOutcome
+import io.putdotio.android.files.FilesMoveStatus
+import io.putdotio.android.files.canStartMove
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.files.pendingIntent
 import io.putdotio.android.files.FilesFolderOperation
 import io.putdotio.android.files.FilesFolderOperationIntent
@@ -95,7 +99,8 @@ import io.putdotio.android.tv.TvNoticeDialog
 import io.putdotio.android.tv.TvConfirmDialog
 import io.putdotio.android.tv.TvButtonSize
 import io.putdotio.android.tv.TvButtonStyle
-import io.putdotio.android.tv.TvSnackbarHost
+import io.putdotio.android.tv.TvTrashUndoOffered
+import io.putdotio.android.tv.TvUndoSnackbarHost
 import io.putdotio.android.tv.TvSnackbarMessage
 import io.putdotio.android.tv.TvSnackbarState
 import io.putdotio.android.tv.TvTrashUndoOffer
@@ -144,6 +149,8 @@ internal fun TvFilesScreen(
     /** Opens images, PDFs and text in the viewer; without it they land on the unsupported screen. */
     viewerUrl: TvViewerUrl? = null,
     accountDefaultSort: FilesSort? = null,
+    edits: TvFilesEdits? = null,
+    onAuthenticationRequired: suspend () -> Unit = {},
 ) {
     val current = state.current
     // Whether D-pad focus belongs to this pane. A content change while the user is on the
@@ -186,10 +193,18 @@ internal fun TvFilesScreen(
     val actionsItem = (current.content as? FilesContent.Ready)?.items?.firstOrNull { it.id.value == actions.itemId }
     val confirmationStale =
         actions.confirmingPermanentDelete && !current.permanentDeleteConfirmable(confirmedTrashEnabled)
+    val edit = rememberSaveable(sessionKey, current.folder.id.value, saver = TvFilesEditTarget.Saver) {
+        TvFilesEditTarget()
+    }
+    val listed = (current.content as? FilesContent.Ready)?.items.orEmpty()
+    val renamingItem = listed.firstOrNull { it.id.value == edit.renaming }
+    val movingItem = listed.firstOrNull { it.id.value == edit.moving }
+    SideEffect { edit.settle(renamingItem, movingItem) }
     SideEffect { actions.settle(orphaned = actions.itemId != null && actionsItem == null, confirmationStale) }
-    val dialogOpen = actionsItem != null || notice != null
+    val dialogOpen = listOfNotNull(actionsItem, notice, renamingItem, movingItem).isNotEmpty()
     val centredDialogOpen =
-        centredDialogOpen(notice, actionsItem, actions.confirmingPermanentDelete, confirmationStale)
+        centredDialogOpen(notice, actionsItem, actions.confirmingPermanentDelete, confirmationStale) ||
+            renamingItem != null
     val snackbar = remember(sessionKey) { TvSnackbarState() }
     val undoFocus = remember { FocusRequester() }
     val downToUndo = undoFocus.takeIf { snackbar.showing?.message?.actionLabel != null }
@@ -216,6 +231,8 @@ internal fun TvFilesScreen(
         canDelete = current.operation.canStartOperation,
         resumePlayback = resumePlayback,
         playbackMethod = playbackMethod,
+        canRename = edits != null,
+        canMove = edits != null,
     )
     val actionContextOf = { item: FilesItem -> actionContext.copy(pinned = item.pinnedIn(pinnedIds)) }
     val actionsOf = { item: FilesItem -> item.tvActions(actionContextOf(item)) }
@@ -228,6 +245,7 @@ internal fun TvFilesScreen(
         onOpenInVlc = onOpenInVlc,
         onSetWatched = onSetWatched,
         onSetPinned = onSetPinned,
+        onEdit = edit::start,
     )
     val dialogReturn = remember { mutableStateOf(FocusRequester.Default) }
     dialogReturn.value = detailFocus.dialogReturn(detailItem, detailActionsOf, entryTarget.value)
@@ -268,9 +286,9 @@ internal fun TvFilesScreen(
                     emptyFocus = emptyFocus,
                 )
             } else {
-                TvFilesFolderHeader(state)
                 TvListDetail(
                     modifier = Modifier.weight(1f),
+                    header = { TvFilesFolderHeader(state) },
                     detailFocus = detailFocus.primary,
                     listFocus = listEntry.value,
                     onDetailFocusChanged = detailFocus::onDetailFocusChanged,
@@ -289,6 +307,7 @@ internal fun TvFilesScreen(
                         )
                         TvFilesOperationStatus(current, onEvent, noticeFocus)
                         TvFilesDeleteStatus(current, onEvent, noticeFocus)
+                        TvFilesMoveStatus(current, onEvent, noticeFocus)
                         TvFilesRows(
                             current = current,
                             focusMemory = focusMemory,
@@ -322,16 +341,59 @@ internal fun TvFilesScreen(
                             onUnsupported = { openOther(it) { detailFocus.primary } },
                             secondaryOf = detailActionsOf,
                             onSecondary = runDetailAction,
-                            deleteEnabled = current.operation.canStartOperation,
+                            enabled = TvFilesDetailEnabled(current.operation.canStartOperation, state.canStartMove),
                         )
                     },
                 )
             }
         }
         TvFilesTrashSnackbar(current, snackbar, onEvent, trashUndo, undoFocus, refocus = entryTarget)
+        TvFilesMoveAnnouncement(current, snackbar, edits)
     }
 
     TvFileViewerLayer(viewer, (content as? FilesContent.Ready)?.items.orEmpty(), viewerUrl, siblings = true)
+    TvFilesOverlays(
+        notice = notice,
+        noticeMessage = noticeMessage,
+        onDismissNotice = onDismissNotice,
+        renamingItem = renamingItem,
+        movingItem = movingItem,
+        edits = edits,
+        canStartMove = state.canStartMove,
+        current = current,
+        edit = edit,
+        onEvent = onEvent,
+        onAuthenticationRequired = onAuthenticationRequired,
+        focusMemory = focusMemory,
+        listed = listed,
+        actionsItem = actionsItem,
+        actionContextOf = actionContextOf,
+        actions = actions,
+        handlers = handlers,
+    )
+}
+
+@Composable
+private fun TvFilesOverlays(
+    notice: String?,
+    noticeMessage: String?,
+    onDismissNotice: () -> Unit,
+    renamingItem: FilesItem?,
+    movingItem: FilesItem?,
+    edits: TvFilesEdits?,
+    canStartMove: Boolean,
+    current: FilesFolderState,
+    edit: TvFilesEditTarget,
+    onEvent: (FilesBrowserEvent) -> Boolean,
+    onAuthenticationRequired: suspend () -> Unit,
+    focusMemory: MutableMap<Long, Long>,
+    listed: List<FilesItem>,
+    actionsItem: FilesItem?,
+    actionContextOf: (FilesItem) -> TvFilesActionContext,
+    actions: TvFilesActionsTarget,
+    handlers: TvFilesActionHandlers,
+) {
+    val folderId = current.folder.id.value
     if (notice != null) {
         TvNoticeDialog(
             title = notice,
@@ -341,6 +403,27 @@ internal fun TvFilesScreen(
             balanceMessage = true,
             okHugsLabel = true,
             dimAmount = FILES_SHEET_SCRIM.alpha,
+        )
+    } else if (renamingItem != null) {
+        TvFilesListingRename(
+            item = renamingItem,
+            folder = current,
+            onEvent = onEvent,
+            onClose = { edit.renaming = null },
+        )
+    } else if (movingItem != null && edits != null) {
+        TvFilesMovePicker(
+            item = movingItem,
+            sourceFolderId = current.folder.id,
+            edits = edits,
+            canSubmit = canStartMove,
+            onAuthenticationRequired = onAuthenticationRequired,
+            onConfirm = { destination ->
+                val sent = onEvent(FilesBrowserEvent.Move(current.folder.id, listOf(movingItem.id), destination))
+                if (sent) focusMemory[folderId] = listed.neighbourOf(movingItem).id.value
+                sent
+            },
+            onDismiss = { edit.moving = null },
         )
     } else if (actionsItem != null) {
         TvFilesActionsMenu(
@@ -352,7 +435,13 @@ internal fun TvFilesScreen(
             onConfirmPermanentDelete = { actions.confirmingPermanentDelete = true },
             trashPressed = actions.trashPressed,
             onTrashPressedChange = { actions.trashPressed = it },
-            onEvent = onEvent,
+            onEvent = { event ->
+                onEvent(event).also { sent ->
+                    if (sent && event is FilesBrowserEvent.Delete) {
+                        focusMemory[folderId] = listed.neighbourOf(actionsItem).id.value
+                    }
+                }
+            },
             handlers = handlers,
             onClose = actions::close,
         )
@@ -361,13 +450,15 @@ internal fun TvFilesScreen(
 
 @Composable
 private fun TvFilesFolderHeader(state: FilesBrowserState) {
-    val folderName = state.current.folder.name
-    if (folderName != null) {
-        Box(modifier = Modifier.height(FOLDER_HEADER_HEIGHT)) {
-            TvFolderHeading(folderName, crumb = state.crumbLabel())
-        }
-    } else {
-        Spacer(Modifier.height(ROOT_TOP_GAP))
+    TvFilesNamedFolderHeader(state)
+    if (state.current.folder.name == null) Spacer(Modifier.height(ROOT_TOP_GAP))
+}
+
+@Composable
+private fun TvFilesNamedFolderHeader(state: FilesBrowserState) {
+    val folderName = state.current.folder.name ?: return
+    Box(modifier = Modifier.height(FOLDER_HEADER_HEIGHT)) {
+        TvFolderHeading(folderName, crumb = state.crumbLabel())
     }
 }
 
@@ -509,7 +600,7 @@ private fun ColumnScope.TvFilesDetailPane(
     onUnsupported: (FilesItem) -> Unit,
     secondaryOf: (FilesItem) -> List<TvFilesAction>,
     onSecondary: (FilesItem, TvFilesAction) -> Unit,
-    deleteEnabled: Boolean,
+    enabled: TvFilesDetailEnabled,
 ) {
     if (loading) TvDetailSkeleton()
     if (item == null) return
@@ -525,7 +616,7 @@ private fun ColumnScope.TvFilesDetailPane(
             onUnsupported = onUnsupported,
             secondary = secondaryOf(item),
             onSecondary = onSecondary,
-            deleteEnabled = deleteEnabled,
+            enabled = enabled,
         ),
     )
 }
@@ -572,6 +663,7 @@ private fun TvFilesStatePane(
             Column(modifier = Modifier.offset(x = -ROW_BLEED).width(TV_LIST_WIDTH)) {
                 TvFilesOperationStatus(current, onEvent, noticeFocus)
                 TvFilesDeleteStatus(current, onEvent, noticeFocus)
+                TvFilesMoveStatus(current, onEvent, noticeFocus)
             }
         }
         when (val content = current.content) {
@@ -670,7 +762,7 @@ private fun FilesFolderOperationPhase.tvDeleteProgress(mode: FilesDeleteMode): I
     }
 
 @StringRes
-private fun FilesDeleteStatus.tvOutcomeMessage(): Int? =
+internal fun FilesDeleteStatus.tvOutcomeMessage(): Int? =
     when (this) {
         FilesDeleteStatus.NO_LONGER_AVAILABLE -> R.string.tv_files_delete_unavailable
         FilesDeleteStatus.STILL_PRESENT -> R.string.tv_files_delete_still_present
@@ -720,7 +812,7 @@ private fun TvFilesTrashLimitStatus(
 
 /** A line above the rows, with an optional action in its own focus group so Up from a row reaches it. */
 @Composable
-private fun TvFilesNotice(
+internal fun TvFilesNotice(
     text: String,
     action: String? = null,
     onAction: () -> Unit = {},
@@ -833,7 +925,10 @@ private fun TvFilesOperationStatus(
         TvFilesNotice(text = stringResource(R.string.tv_state_loading))
     }
     val failed = (current.operation as? FilesFolderOperation.Failed)
-        ?.takeUnless { it.intent is FilesFolderOperationIntent.Delete }
+        ?.takeUnless { it.intent is FilesFolderOperationIntent.Delete || it.intent is FilesFolderOperationIntent.Move }
+        ?.takeUnless {
+            it.intent is FilesFolderOperationIntent.Rename && it.phase == FilesFolderOperationPhase.RENAMING
+        }
     if (failed != null) {
         TvFilesNotice(
             text = stringResource(failed.tvHeaderError()),
@@ -853,6 +948,7 @@ private fun FilesFolderOperation.reloadsListing(): Boolean =
 private fun FilesFolderOperation.Failed.tvHeaderError(): Int =
     when {
         intent == FilesFolderOperationIntent.Refresh -> R.string.tv_files_refresh_error
+        intent is FilesFolderOperationIntent.Rename -> R.string.tv_files_rename_reload_error
         phase == FilesFolderOperationPhase.PERSISTING_SORT -> R.string.tv_files_sort_error
         else -> R.string.tv_files_reload_error
     }
@@ -925,7 +1021,7 @@ private fun TvUnsupportedFileScreen(
     }
 }
 
-private val FilesDeleteOutcome.isConfirmedTrash: Boolean
+internal val FilesDeleteOutcome.isConfirmedTrash: Boolean
     get() = intent.mode == FilesDeleteMode.TRASH && failure == null &&
         status == FilesDeleteStatus.NO_LONGER_AVAILABLE
 
@@ -940,23 +1036,13 @@ private fun TvFilesTrashedAnnouncement(
         current.operation == FilesFolderOperation.Idle && it.isConfirmedTrash && !it.announced
     }
     val text = stringResource(R.string.tv_files_trashed)
-    val undo = stringResource(R.string.tv_files_undo)
     val currentOnEvent by rememberUpdatedState(onEvent)
     LaunchedEffect(trashed?.requestId) {
         val outcome = trashed ?: return@LaunchedEffect
         if (trashUndo != null) trashUndo.offer(outcome) else snackbar.show(TvSnackbarMessage(text = text))
         currentOnEvent(FilesBrowserEvent.DeleteOutcomeAnnounced(outcome))
     }
-    if (trashUndo == null) return
-    val offered by trashUndo.offered.collectAsState()
-    LaunchedEffect(offered) {
-        val outcome = offered
-        if (outcome == null) {
-            snackbar.dismiss()
-        } else {
-            snackbar.show(TvSnackbarMessage(text = text, actionLabel = undo, onAction = { trashUndo.undo(outcome) }))
-        }
-    }
+    TvTrashUndoOffered(trashUndo, snackbar)
 }
 
 @Composable
@@ -969,26 +1055,7 @@ private fun BoxScope.TvFilesTrashSnackbar(
     refocus: State<FocusRequester>,
 ) {
     TvFilesTrashedAnnouncement(current, snackbar, onEvent, trashUndo)
-    var undoFocused by remember { mutableStateOf(false) }
-    val showing = snackbar.showing
-    LaunchedEffect(showing) {
-        if (showing == null && undoFocused) {
-            undoFocused = false
-            withFrameNanos {}
-            refocus.value.requestFocus()
-        }
-    }
-    TvSnackbarHost(
-        state = snackbar,
-        modifier = Modifier
-            .align(Alignment.BottomStart)
-            .padding(bottom = SNACKBAR_BOTTOM),
-        actionSize = TvButtonSize.Snackbar,
-        raised = true,
-        actionModifier = Modifier
-            .focusRequester(undoFocus)
-            .onFocusChanged { if (snackbar.showing != null) undoFocused = it.isFocused },
-    )
+    TvUndoSnackbarHost(snackbar, undoFocus, refocus)
 }
 
 /**
@@ -1065,9 +1132,43 @@ private class TvFilesActionsTarget(itemId: Long? = null, sheet: Boolean = false,
     }
 }
 
-private fun FilesItem.pinnedIn(pinnedIds: List<FilesItemId>?): Boolean? = pinnedIds?.let { id in it }
+@Stable
+private class TvFilesEditTarget(renaming: Long? = null, moving: Long? = null) {
+    var renaming by mutableStateOf(renaming)
+    var moving by mutableStateOf(moving)
 
-private val SNACKBAR_BOTTOM = 3.dp
+    fun start(action: TvFilesAction, item: FilesItem) {
+        when (action) {
+            TvFilesAction.Rename -> renaming = item.id.value
+            TvFilesAction.Move -> moving = item.id.value
+            else -> Unit
+        }
+    }
+
+    fun settle(renamingItem: FilesItem?, movingItem: FilesItem?) {
+        if (renaming != null && renamingItem == null) renaming = null
+        if (moving != null && movingItem == null) moving = null
+    }
+
+    companion object {
+        val Saver: Saver<TvFilesEditTarget, Bundle> = Saver(
+            save = { target ->
+                Bundle().apply {
+                    target.renaming?.let { putLong("renaming", it) }
+                    target.moving?.let { putLong("moving", it) }
+                }
+            },
+            restore = { bundle ->
+                TvFilesEditTarget(
+                    renaming = bundle.getLong("renaming").takeIf { bundle.containsKey("renaming") },
+                    moving = bundle.getLong("moving").takeIf { bundle.containsKey("moving") },
+                )
+            },
+        )
+    }
+}
+
+private fun FilesItem.pinnedIn(pinnedIds: List<FilesItemId>?): Boolean? = pinnedIds?.let { id in it }
 
 private val FOLDER_HEADER_HEIGHT = 76.dp
 

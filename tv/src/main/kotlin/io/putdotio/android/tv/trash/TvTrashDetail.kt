@@ -16,18 +16,22 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import io.putdotio.android.R
+import io.putdotio.android.design.fileTypeIconRes
 import io.putdotio.android.files.formatFileSize
 import io.putdotio.android.parsePutioTimestamp
 import io.putdotio.android.trash.TrashItem
 import io.putdotio.android.trash.trashDaysLeft
 import io.putdotio.android.tv.TV_MONO_RUN
 import io.putdotio.android.tv.TvDetailBody
-import io.putdotio.android.tv.TvDetailButton
+import io.putdotio.android.tv.TvDetailDivider
+import io.putdotio.android.tv.TvSheetOption
+import io.putdotio.android.tv.TvDetailTile
 import io.putdotio.android.tv.TvDetailFact
 import io.putdotio.android.tv.monoNumber
 import java.time.LocalDate
@@ -59,26 +63,38 @@ internal fun ColumnScope.TvTrashDetail(
         }
         TvDetailFact(stringResource(R.string.tv_trash_expires), styled.text, styled = styled)
     }
-    TvDetailBody(title = item.name, meta = meta, facts = listOfNotNull(expires)) {
-        TvDetailButton(
-            label = AnnotatedString(stringResource(R.string.tv_trash_restore)),
-            icon = R.drawable.ic_ph_arrow_u_up_left,
-            onClick = actions.onRestore,
-            modifier = actions.restoreModifier,
-            enabled = actions.canRestore,
-            looksFocused = actions.rowHasFocus && actions.canRestore && actions.showsFocus,
-            showsFocus = actions.showsFocus,
-        )
-        TvDetailButton(
-            label = AnnotatedString(stringResource(R.string.tv_trash_delete)),
-            icon = R.drawable.ic_ph_trash,
-            onClick = actions.onDelete,
-            modifier = actions.deleteModifier,
-            enabled = actions.canDelete,
-            danger = true,
-            showsFocus = actions.showsFocus,
-        )
-    }
+    TvDetailBody(
+        tile = { TvDetailTile(glyph = fileTypeIconRes(item.type)) },
+        title = item.name,
+        meta = meta,
+        facts = listOfNotNull(expires),
+        rows = { firstRow ->
+            TvSheetOption(
+                label = stringResource(R.string.tv_trash_restore),
+                detail = null,
+                selected = false,
+                onClick = actions.onRestore,
+                leadingIcon = R.drawable.ic_ph_arrow_u_up_left,
+                role = Role.Button,
+                enabled = actions.canRestore,
+                showsFocus = actions.showsFocus,
+                modifier = firstRow.then(actions.restoreModifier),
+            )
+            TvDetailDivider()
+            TvSheetOption(
+                label = stringResource(R.string.tv_trash_delete),
+                detail = null,
+                selected = false,
+                onClick = actions.onDelete,
+                leadingIcon = R.drawable.ic_ph_trash,
+                role = Role.Button,
+                enabled = actions.canDelete,
+                danger = true,
+                showsFocus = actions.showsFocus,
+                modifier = actions.deleteModifier,
+            )
+        },
+    )
 }
 
 internal val LocalTrashToday = compositionLocalOf<LocalDate> { error("LocalTrashToday is not provided") }

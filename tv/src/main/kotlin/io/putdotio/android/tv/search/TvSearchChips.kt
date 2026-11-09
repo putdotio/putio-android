@@ -10,6 +10,7 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -121,34 +122,39 @@ internal fun TvSearchFilters(
     val selectedChip = remember { FocusRequester() }
     Row(
         modifier = modifier
+            .fillMaxWidth()
             .paneSection(owner, focus)
-            .focusRequester(focus)
-            .focusRestorer(selectedChip)
-            .focusGroup()
             .testTag(TV_SEARCH_FILTERS_TAG),
-        horizontalArrangement = Arrangement.spacedBy(CHIP_GAP),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        SearchFilter.entries.forEach { filter ->
-            val chosen = filter == selected
-            TvSearchChip(
-                label = stringResource(filter.tvLabel()),
-                onClick = { onSelect(filter) },
-                icon = R.drawable.ic_ph_check.takeIf { chosen },
-                selected = chosen,
-                modifier = Modifier
-                    .focusRequesterIf(chosen, selectedChip)
-                    .semantics { this.selected = chosen },
-            )
+        Row(
+            modifier = Modifier
+                .focusRequester(focus)
+                .focusRestorer(selectedChip)
+                .focusGroup(),
+            horizontalArrangement = Arrangement.spacedBy(CHIP_GAP),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SearchFilter.entries.forEach { filter ->
+                val chosen = filter == selected
+                TvSearchChip(
+                    label = stringResource(filter.tvLabel()),
+                    onClick = { onSelect(filter) },
+                    icon = R.drawable.ic_ph_check.takeIf { chosen },
+                    selected = chosen,
+                    modifier = Modifier
+                        .focusRequesterIf(chosen, selectedChip)
+                        .semantics { this.selected = chosen },
+                )
+            }
         }
         if (onSettings != null) {
+            Spacer(Modifier.weight(1f))
             TvSearchChip(
                 label = stringResource(R.string.tv_search_settings),
                 onClick = onSettings,
                 icon = R.drawable.ic_ph_gear_six,
-                modifier = Modifier
-                    .padding(start = SETTINGS_EXTRA_GAP)
-                    .focusRequester(settingsFocus),
+                modifier = Modifier.focusRequester(settingsFocus),
             )
         }
     }
@@ -232,6 +238,5 @@ private val CHIP_PADDING = CHIP_HORIZONTAL_INSET + CHIP_BORDER
 private val CHIP_ICON = 15.dp
 private val CHIP_ICON_GAP = 6.dp
 private val CHIP_GAP = 8.dp
-private val SETTINGS_EXTRA_GAP = 8.dp
 private val RECENT_LABEL_GAP = 8.dp
 private val CHIP_LABEL = PutioTypeScale.tvButton.copy(fontSize = 12.sp, lineHeight = 16.sp)

@@ -10,13 +10,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -64,18 +64,28 @@ internal fun TvListSkeleton(modifier: Modifier = Modifier) {
 @Composable
 internal fun TvDetailSkeleton(modifier: Modifier = Modifier) {
     Column(modifier.clearAndSetSemantics {}) {
-        SkeletonBlock(SKELETON_DETAIL_TITLE_WIDTH, SKELETON_DETAIL_TITLE_HEIGHT)
-        SkeletonBlock(
-            SKELETON_DETAIL_META_WIDTH,
-            SKELETON_DETAIL_META_HEIGHT,
-            modifier = Modifier.padding(top = SKELETON_DETAIL_META_GAP),
-        )
-        Row(
-            modifier = Modifier.padding(top = SKELETON_DETAIL_ACTIONS_GAP),
-            horizontalArrangement = Arrangement.spacedBy(SKELETON_DETAIL_ACTION_SPACING),
-        ) {
-            SkeletonBlock(SKELETON_DETAIL_PRIMARY_WIDTH, TvButtonSize.Detail.height, shape = CircleShape)
-            SkeletonBlock(SKELETON_DETAIL_SECONDARY_WIDTH, TvButtonSize.Detail.height, shape = CircleShape)
+        val onPanel = PutioDesignTokens.componentBgActive
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            SkeletonBlock(SKELETON_DETAIL_TILE_WIDTH, SKELETON_DETAIL_TILE_HEIGHT, color = onPanel)
+            Column(modifier = Modifier.padding(start = SKELETON_DETAIL_TILE_GAP)) {
+                SkeletonBlock(SKELETON_DETAIL_TITLE_WIDTH, SKELETON_DETAIL_TITLE_HEIGHT, color = onPanel)
+                SkeletonBlock(
+                    SKELETON_DETAIL_META_WIDTH,
+                    SKELETON_DETAIL_META_HEIGHT,
+                    modifier = Modifier.padding(top = SKELETON_DETAIL_META_GAP),
+                    color = onPanel,
+                )
+            }
+        }
+        repeat(SKELETON_DETAIL_ROWS) { index ->
+            SkeletonBlock(
+                SKELETON_DETAIL_ROW_WIDTH,
+                SKELETON_DETAIL_ROW_HEIGHT,
+                modifier = Modifier.padding(
+                    top = if (index == 0) SKELETON_DETAIL_ROWS_GAP else SKELETON_DETAIL_ROW_GAP,
+                ),
+                color = onPanel,
+            )
         }
     }
 }
@@ -113,8 +123,9 @@ private fun SkeletonBlock(
     height: Dp,
     modifier: Modifier = Modifier,
     shape: Shape = RoundedCornerShape(SKELETON_RADIUS),
+    color: Color = PutioDesignTokens.componentBgHover,
 ) {
-    Box(modifier.size(width, height).background(PutioDesignTokens.componentBgHover, shape))
+    Box(modifier.size(width, height).background(color, shape))
 }
 
 private val SKELETON_LIFT = 2.dp
@@ -129,11 +140,15 @@ private val SKELETON_META_WIDTH = 90.dp
 private val SKELETON_META_HEIGHT = 9.dp
 private val SKELETON_META_GAP = 5.dp
 private val SKELETON_DETAIL_TITLE_WIDTH = 210.dp
-private val SKELETON_DETAIL_TITLE_HEIGHT = 18.dp
+private val SKELETON_DETAIL_TITLE_HEIGHT = 16.dp
 private val SKELETON_DETAIL_META_WIDTH = 120.dp
 private val SKELETON_DETAIL_META_HEIGHT = 11.dp
-private val SKELETON_DETAIL_META_GAP = 8.dp
-private val SKELETON_DETAIL_ACTIONS_GAP = 16.dp
-private val SKELETON_DETAIL_ACTION_SPACING = 6.dp
-private val SKELETON_DETAIL_PRIMARY_WIDTH = 120.dp
-private val SKELETON_DETAIL_SECONDARY_WIDTH = 80.dp
+private val SKELETON_DETAIL_META_GAP = 6.dp
+private val SKELETON_DETAIL_TILE_WIDTH = 80.dp
+private val SKELETON_DETAIL_TILE_HEIGHT = 45.dp
+private val SKELETON_DETAIL_TILE_GAP = 12.dp
+private const val SKELETON_DETAIL_ROWS = 3
+private val SKELETON_DETAIL_ROW_WIDTH = 240.dp
+private val SKELETON_DETAIL_ROW_HEIGHT = 28.dp
+private val SKELETON_DETAIL_ROWS_GAP = 20.dp
+private val SKELETON_DETAIL_ROW_GAP = 12.dp

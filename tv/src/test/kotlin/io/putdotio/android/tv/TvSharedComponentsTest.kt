@@ -80,6 +80,7 @@ class TvSharedComponentsTest {
             CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, 2f)) {
                 Column {
                     TvDetailBody(
+                        tile = {},
                         title = ROW_TITLE,
                         meta = null,
                         facts = listOf(TvDetailFact(FACT_LABEL, FACT_VALUE)),

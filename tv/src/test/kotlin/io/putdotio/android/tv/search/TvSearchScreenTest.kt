@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import io.putdotio.android.tv.setTvContent
 import io.putdotio.android.tv.pressCenter
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.ExperimentalTestApi
@@ -502,7 +503,7 @@ class TvSearchScreenTest {
             pressKey(Key.DirectionRight)
         }
         compose.onNodeWithTag(TV_FILES_DETAIL_PRIMARY_TAG).assertIsFocused().performKeyInput { pressCenter() }
-        compose.onNodeWithText("10:34").assertIsDisplayed()
+        compose.onNodeWithText("10:34", substring = true).assertIsDisplayed()
         assertEquals(listOf("play:Big Buck Bunny.mp4:Resume"), log)
     }
 

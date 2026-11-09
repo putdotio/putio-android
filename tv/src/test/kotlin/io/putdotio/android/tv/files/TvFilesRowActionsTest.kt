@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.test.requestFocus
 import io.putdotio.android.tv.pressCenter
 import io.putdotio.android.tv.setTvContent
 import androidx.compose.runtime.mutableStateOf
@@ -201,7 +202,7 @@ class TvFilesRowActionsTest {
         compose.onNode(hasText("Pin to Home") and isFocused()).performKeyInput { pressCenter() }
         compose.runOnIdle { pins = listOf(FilesItemId(3)) }
         compose.onNodeWithContentDescription("notes.txt").assertIsFocused().performKeyInput { pressKey(Key.Menu) }
-        compose.onNode(hasText("Unpin") and isFocused()).performKeyInput { pressCenter() }
+        compose.onNode(hasText("Unpin from Home") and isFocused()).performKeyInput { pressCenter() }
         compose.runOnIdle { assertEquals(listOf(3L to true, 3L to false), pinned) }
     }
 
@@ -554,6 +555,32 @@ class TvFilesRowActionsTest {
         }
         compose.onNodeWithText("Renamed folder contains too many files. Delete it permanently?").assertIsDisplayed()
         compose.onAllNodesWithText("Sample folder").assertCountEquals(0)
+    }
+
+    @Test
+    fun trashingFromTheDetailKeepsThePlaceOnTheNextRow() {
+        val rows = (1L..6L).map { item(it, "row-$it.txt", PutioFileType.TEXT) }
+        var listed by mutableStateOf(rows)
+        compose.showFiles(
+            state = { ready(*listed.toTypedArray()) },
+            onEvent = { event ->
+                if (event is FilesBrowserEvent.Delete) listed = listed.filterNot { it.id in event.itemIds }
+                true
+            },
+            confirmedTrashEnabled = { true },
+        )
+
+        compose.onNodeWithContentDescription("row-3.txt").requestFocus()
+        compose.onNodeWithContentDescription("row-3.txt").performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNodeWithTag(TV_FILES_DETAIL_PRIMARY_TAG).assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionDown)
+        }
+        compose.onNode(hasText("Move to trash") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressCenter()
+        }
+
+        compose.onAllNodesWithText("row-3.txt", useUnmergedTree = true).assertCountEquals(0)
+        compose.onAllNodesWithText("row-4.txt", useUnmergedTree = true).assertCountEquals(2)
     }
 
     private fun setConfirmedTrashScreen(current: () -> FilesBrowserState, events: MutableList<FilesBrowserEvent>) {

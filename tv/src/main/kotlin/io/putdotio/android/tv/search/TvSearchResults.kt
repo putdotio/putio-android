@@ -55,8 +55,12 @@ internal class TvSearchRows(
     val onResult: (FilesItem) -> Unit,
     val onActions: ((FilesItem) -> Unit)?,
     val onFocused: (FilesItem) -> Unit,
-    val detailId: Long?,
-    val detailRow: FocusRequester,
+    val detail: TvSearchRowDetail,
+)
+
+internal class TvSearchRowDetail(
+    val id: Long?,
+    val row: FocusRequester,
 )
 
 internal fun TvSearchRows.place(item: FilesItem): TvFilesRowPlace.SearchResult =
@@ -193,7 +197,7 @@ private fun TvSearchResultRow(item: FilesItem, rows: TvSearchRows, requesters: T
             .focusRequesterIf(id == requesters.anchorId(), requesters.anchor)
             .focusRequesterIf(id == requesters.lastId, requesters.last)
             .focusRequesterIf(id == requesters.restoreId, requesters.restore)
-            .focusRequesterIf(id == rows.detailId, rows.detailRow),
+            .focusRequesterIf(id == rows.detail.id, rows.detail.row),
     )
 }
 

@@ -221,6 +221,27 @@ class SearchControllerTest {
         }
 
     @Test
+    fun anUndoneRemovalReturnsOnlyToTheSearchItCameFrom() =
+        runBlocking<Unit> {
+            val trashed = item(9L, "movie.mkv")
+            val controller = controller(repository { success(trashed, folder(8L, "movie")) })
+
+            controller.use {
+                controller.updateQuery("movie")
+                controller.awaitContent<SearchContent.Ready>()
+
+                assertTrue(controller.itemRemoved(FilesItemId(9L)))
+                assertFalse(controller.itemRestored(trashed, 0, SearchTerm("other"), SearchFilter.All))
+                assertFalse(controller.itemRestored(trashed, 0, SearchTerm("movie"), SearchFilter.Images))
+                assertTrue(controller.itemRestored(trashed, 0, SearchTerm("movie"), SearchFilter.All))
+                assertEquals(
+                    listOf(9L, 8L),
+                    (controller.state.value.content as SearchContent.Ready).items.map { it.id.value },
+                )
+            }
+        }
+
+    @Test
     fun mirrorsRecentTermsAndDelegatesRemoveAndClear() =
         runBlocking<Unit> {
             val store = FakeRecentSearchStore(listOf(SearchTerm("movie"), SearchTerm("shows")))
