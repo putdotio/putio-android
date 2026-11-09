@@ -14,6 +14,8 @@ import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
 import io.putdotio.android.files.FilesFolderCounts
 import io.putdotio.android.files.FilesItem
+import io.putdotio.android.files.FilesMoveOutcome
+import io.putdotio.android.files.FilesMoveStatus
 import io.putdotio.android.tv.files.TvFilesEdits
 import io.putdotio.android.tv.files.isConfirmedTrash
 import io.putdotio.android.tv.files.TvItemChanges
@@ -186,7 +188,7 @@ internal class TvSession internal constructor(
     )
     private val fileActionFailures = TvActionFailure()
     private val watchedJobs = mutableMapOf<FilesItemId, Job>()
-    private val handledRenames = mutableSetOf<FilesRequestId>()
+    private val handledBrowserEdits = mutableSetOf<FilesRequestId>()
 
     private val watchNextHandledDeletes = mutableSetOf<FilesRequestId>()
     private val playbackRepository = dependencies.playbackRepository { appConfig.state.value }
@@ -318,8 +320,18 @@ internal class TvSession internal constructor(
                 .map { state -> state.stack.mapNotNull { it.renameCompletion } }
                 .distinctUntilChanged()
                 .collect { renames ->
-                    renames.filter { handledRenames.add(it.requestId) }
-                        .forEach { homePins.itemEdited(it.intent.itemId) }
+                    renames.filter { handledBrowserEdits.add(it.requestId) }
+                        .forEach { itemEditEffects.renamedInFiles(it.intent.itemId, it.intent.name) }
+                }
+        }
+        scope.launch {
+            files.state
+                .map { state -> state.stack.mapNotNull { it.moveOutcome?.takeIf { move -> move.moved } } }
+                .distinctUntilChanged()
+                .collect { moves ->
+                    moves.filter { handledBrowserEdits.add(it.requestId) }.forEach { move ->
+                        move.intent.itemIds.forEach { itemEditEffects.movedInFiles(it, move.intent.destinationId) }
+                    }
                 }
         }
         scope.launch {
@@ -628,3 +640,5 @@ private fun TrashController.refreshIfLoaded() {
 
 private fun movesAnyToTrash(outcome: FilesDeleteOutcome): Boolean =
     outcome.intent.mode == FilesDeleteMode.TRASH && confirmsAnyGone(outcome)
+
+private val FilesMoveOutcome.moved: Boolean get() = status == FilesMoveStatus.MOVED

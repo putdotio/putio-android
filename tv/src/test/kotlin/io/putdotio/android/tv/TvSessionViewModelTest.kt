@@ -12,6 +12,8 @@ import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesItemResolver
 import io.putdotio.android.files.FilesOpenOrigin
 import io.putdotio.android.files.FilesPage
+import io.putdotio.android.search.SearchContent
+import io.putdotio.android.search.SearchFilter
 import io.putdotio.sdk.errors.PutioRequestData
 import io.putdotio.sdk.errors.PutioApiException
 import io.putdotio.sdk.errors.PutioApiErrorEnvelope
@@ -53,6 +55,7 @@ import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
 import io.putdotio.android.playback.PlaybackResolution
 import io.putdotio.android.playback.PlaybackTarget
+import io.putdotio.sdk.files.FileMoveError
 import io.putdotio.sdk.files.PlaybackPreference
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSourceKind
@@ -77,6 +80,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -765,6 +769,24 @@ class TvSessionViewModelTest {
     }
 
     @Test
+    fun `a rename and a move in Files reach the search result`() = runTest {
+        val clip = media(30, "clip.mp4", PutioFileType.VIDEO)
+        val session = checkNotNull(
+            TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies.findingOnly(clip)),
+        )
+        session.search.updateQuery("clip")
+        advanceUntilIdle()
+
+        session.files.dispatch(FilesBrowserEvent.Rename(FilesFolder.Root.id, clip.id, "new.mp4"))
+        advanceUntilIdle()
+        session.files.dispatch(FilesBrowserEvent.Move(FilesFolder.Root.id, listOf(clip.id), MOVED_TO))
+        advanceUntilIdle()
+
+        val result = (session.search.state.value.content as SearchContent.Ready).items.single()
+        assertEquals("new.mp4" to MOVED_TO, result.name to result.parentId)
+    }
+
+    @Test
     fun `moving a video to Trash from Files takes its Watch Next card away`() = runTest {
         val recorder = FakeWatchNextRecorder()
         rootPages = listOf(FilesPage(listOf(media(30, "clip.mp4", PutioFileType.VIDEO)), nextCursor = null))
@@ -879,34 +901,6 @@ class TvSessionViewModelTest {
             return verdict
         }
     }
-
-    private fun media(id: Long, name: String, type: PutioFileType) = FilesItem(
-        id = FilesItemId(id),
-        parentId = FilesItemId(0L),
-        name = name,
-        type = type,
-        sizeBytes = 1L,
-        createdAt = "2026-04-20T10:00:00Z",
-    )
-
-    private fun notFound(): PutioFailure = PutioFailure.ApiRejected(
-        statusCode = 404,
-        errorType = "NotFound",
-        cause = PutioApiException(
-            request = PutioRequestData("GET", "https://api.put.io/v2/files/9"),
-            resolvedStatusCode = 404,
-            httpStatusCode = 404,
-            resolvedErrorType = null,
-            envelope = PutioApiErrorEnvelope(statusCode = 404, errorType = null),
-            responseBody = "{}",
-            message = "Not found",
-        ),
-    )
-
-    private fun account(userId: Long = 42) =
-        TvAccount(userId = userId, username = "u", email = "u@example.com", historyEnabled = true)
-
-    private fun signedIn(session: Long) = TvAuthState.SignedIn(account(), TvAuthSessionId(session))
 
     private object StubTrashRepository : TrashRepository {
         override suspend fun load() = PutioResult.Success(TrashPage(emptyList(), nextCursor = null))
@@ -1024,3 +1018,51 @@ class TvSessionViewModelTest {
 
     private val streamItem = media(9, "clip.mp4", PutioFileType.VIDEO)
 }
+
+private val MOVED_TO = FilesItemId(77)
+
+private fun TvSessionDependencies.findingOnly(item: FilesItem) = copy(
+    filesRepository = object : StubFilesRepository() {
+        override suspend fun loadFolder(folderId: FilesItemId) =
+            PutioResult.Success(FilesPage(listOf(item), nextCursor = null))
+
+        override suspend fun rename(itemId: FilesItemId, name: String) = PutioResult.Success(Unit)
+
+        override suspend fun move(itemIds: List<FilesItemId>, destinationId: FilesItemId) =
+            PutioResult.Success(emptyList<FileMoveError>())
+
+        override suspend fun resolveItem(itemId: FilesItemId) = PutioResult.Success(item.copy(parentId = MOVED_TO))
+    },
+    searchRepository = object : SearchRepository by searchRepository {
+        override suspend fun search(term: SearchTerm, filter: SearchFilter) =
+            PutioResult.Success(SearchPage(listOf(item), nextCursor = null, total = 1))
+    },
+)
+
+private fun media(id: Long, name: String, type: PutioFileType) = FilesItem(
+    id = FilesItemId(id),
+    parentId = FilesItemId(0L),
+    name = name,
+    type = type,
+    sizeBytes = 1L,
+    createdAt = "2026-04-20T10:00:00Z",
+)
+
+private fun notFound(): PutioFailure = PutioFailure.ApiRejected(
+    statusCode = 404,
+    errorType = "NotFound",
+    cause = PutioApiException(
+        request = PutioRequestData("GET", "https://api.put.io/v2/files/9"),
+        resolvedStatusCode = 404,
+        httpStatusCode = 404,
+        resolvedErrorType = null,
+        envelope = PutioApiErrorEnvelope(statusCode = 404, errorType = null),
+        responseBody = "{}",
+        message = "Not found",
+    ),
+)
+
+private fun account(userId: Long = 42) =
+    TvAccount(userId = userId, username = "u", email = "u@example.com", historyEnabled = true)
+
+private fun signedIn(session: Long) = TvAuthState.SignedIn(account(), TvAuthSessionId(session))

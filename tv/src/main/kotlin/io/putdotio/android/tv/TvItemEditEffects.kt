@@ -51,6 +51,20 @@ internal class TvItemEditEffects(
         }
     }
 
+    fun renamedInFiles(itemId: FilesItemId, name: String) {
+        searchResult(itemId)?.let { search.itemUpdated(it.copy(name = name)) }
+        historyFiles.forget(itemId)
+        homePins.itemEdited(itemId)
+    }
+
+    fun movedInFiles(itemId: FilesItemId, destinationId: FilesItemId) {
+        searchResult(itemId)?.let { search.itemUpdated(it.copy(parentId = destinationId)) }
+        historyFiles.forget(itemId)
+    }
+
+    private fun searchResult(itemId: FilesItemId): FilesItem? =
+        (search.state.value.content as? SearchContent.Ready)?.items?.firstOrNull { it.id == itemId }
+
     private fun invalidateFiles() {
         files.dispatch(FilesBrowserEvent.InvalidateAllFolders)
         files.dispatch(FilesBrowserEvent.ReloadIfStale)
