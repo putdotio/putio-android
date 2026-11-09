@@ -66,7 +66,6 @@ private fun DownloadEntry.servesAnotherMethodThan(target: PlaybackTarget): Boole
  * still reaches the network with the session header. A Direct play download offers the
  * subtitle files [requested] finds on disk as sidecars, under the same token-free URLs.
  * A row whose bytes turn out to be gone is marked missing by [localCopyAvailable] and streams instead.
- * A play that names the other method streams it.
  */
 internal class OfflinePlaybackRepository(
     private val downloads: StateFlow<DownloadsState>,
@@ -85,10 +84,10 @@ internal class OfflinePlaybackRepository(
     private suspend fun downloadFor(target: PlaybackTarget, convertedOnly: Boolean): DownloadEntry? {
         val state = downloads.value
         return state.entry(target.fileId)
-            ?.takeIf { state.isAvailableOffline(target.fileId) }
-            ?.takeUnless { convertedOnly && it.servesNoConvertedStreamFor(target) }
-            ?.takeUnless { !convertedOnly && it.servesAnotherMethodThan(target) }
-            ?.takeIf { localCopyAvailable(it.fileId) }
+            ?.takeIf { state.isAvailableOffline(target.fileId) && localCopyAvailable(it.fileId) }
+            ?.takeUnless {
+                if (convertedOnly) it.servesNoConvertedStreamFor(target) else it.servesAnotherMethodThan(target)
+            }
     }
 
     private suspend fun serve(entry: DownloadEntry): PlaybackRepositoryResult<PlaybackResolution> {

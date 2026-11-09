@@ -226,18 +226,17 @@ class OfflinePlaybackRepositoryTest {
 
     @Test
     fun playWithTheOtherMethodStreamsInPlaceOfADownloadMadeWithTheFirst() = runBlocking {
-        val stream = PlaybackRepositoryResult.Success(streamedReady())
-        delegateResult = stream
+        delegateResult = streamed
         val playWithDirect = target.copy(method = StreamingMethod.File)
         val playWithStandard = target.copy(method = StreamingMethod.Hls)
-        val standard = repositoryOf(DownloadArtifact.HLS)
+        val directArtifacts = listOf(DownloadArtifact.ORIGINAL, DownloadArtifact.ORIGINAL_HLS, DownloadArtifact.MP4)
 
-        assertEquals(stream, standard.resolve(playWithDirect))
-        listOf(DownloadArtifact.ORIGINAL, DownloadArtifact.ORIGINAL_HLS, DownloadArtifact.MP4).forEach { artifact ->
-            assertEquals(stream, repositoryOf(artifact).resolve(playWithStandard))
-            assertTrue(offlineReady(repositoryOf(artifact).resolve(playWithDirect)))
-        }
-        assertTrue(offlineReady(standard.resolve(playWithStandard)))
+        assertEquals(streamed, repositoryOf(DownloadArtifact.HLS).resolve(playWithDirect))
+        directArtifacts.forEach { assertEquals(streamed, repositoryOf(it).resolve(playWithStandard)) }
+        assertEquals(listOf(playWithDirect) + directArtifacts.map { playWithStandard }, delegateCalls)
+
+        directArtifacts.forEach { assertTrue(offlineReady(repositoryOf(it).resolve(playWithDirect))) }
+        assertTrue(offlineReady(repositoryOf(DownloadArtifact.HLS).resolve(playWithStandard)))
         assertEquals(4, delegateCalls.size)
     }
 
@@ -259,10 +258,6 @@ class OfflinePlaybackRepositoryTest {
         assertTrue(result is PlaybackRepositoryResult.Success)
         assertTrue(delegateCalls.isEmpty())
     }
-
-    private suspend fun streamedReady(): PlaybackResolution.Ready =
-        ((repositoryOf(DownloadArtifact.ORIGINAL).resolve(target) as PlaybackRepositoryResult.Success).value
-            as PlaybackResolution.Ready).copy(offline = false)
 
     private fun offlineReady(result: PlaybackRepositoryResult<PlaybackResolution>): Boolean =
         ((result as? PlaybackRepositoryResult.Success)?.value as? PlaybackResolution.Ready)?.offline == true
