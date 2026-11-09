@@ -1,7 +1,9 @@
 package io.putdotio.android.downloads
 
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.playback.PlaybackCastMedia
+import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackNeighbours
 import io.putdotio.android.playback.PlaybackNextResult
@@ -56,6 +58,16 @@ private fun DownloadEntry.servesNoConvertedStreamFor(target: PlaybackTarget): Bo
     target.mediaType == PlaybackMediaType.VIDEO &&
         (artifact.isOriginal || target.method == StreamingMethod.Hls && !artifact.isHls)
 
+private sealed interface OfflinePick {
+    data class Local(val entry: DownloadEntry) : OfflinePick
+
+    data class Streamed(val result: PlaybackRepositoryResult<PlaybackResolution>) : OfflinePick
+}
+
+private fun PlaybackRepositoryResult<PlaybackResolution>.isNetworkUnavailable(): Boolean =
+    this is PlaybackRepositoryResult.Failure &&
+        (failure as? PlaybackFailure.Putio)?.failure is PutioFailure.NetworkUnavailable
+
 private fun DownloadEntry.servesAnotherMethodThan(target: PlaybackTarget): Boolean =
     target.mediaType == PlaybackMediaType.VIDEO && target.method != null && target.method != artifact.method
 
@@ -66,6 +78,7 @@ private fun DownloadEntry.servesAnotherMethodThan(target: PlaybackTarget): Boole
  * still reaches the network with the session header. A Direct play download offers the
  * subtitle files [requested] finds on disk as sidecars, under the same token-free URLs.
  * A row whose bytes turn out to be gone is marked missing by [localCopyAvailable] and streams instead.
+ * A play that names the other method streams that method, and falls back to the download only without a network.
  */
 internal class OfflinePlaybackRepository(
     private val downloads: StateFlow<DownloadsState>,
@@ -78,13 +91,29 @@ internal class OfflinePlaybackRepository(
     override suspend fun resolve(
         target: PlaybackTarget,
         convertedOnly: Boolean,
-    ): PlaybackRepositoryResult<PlaybackResolution> {
+    ): PlaybackRepositoryResult<PlaybackResolution> = when (val pick = pick(target, convertedOnly)) {
+        is OfflinePick.Local -> serve(pick.entry)
+        is OfflinePick.Streamed -> pick.result
+    }
+
+    private suspend fun pick(target: PlaybackTarget, convertedOnly: Boolean): OfflinePick {
         val state = downloads.value
-        val entry = state.entry(target.fileId)
-            ?.takeIf { state.isAvailableOffline(target.fileId) && localCopyAvailable(it.fileId) }
+        val candidate = state.entry(target.fileId)
+            ?.takeIf { state.isAvailableOffline(target.fileId) }
             ?.takeUnless { convertedOnly && it.servesNoConvertedStreamFor(target) }
-            ?.takeUnless { it.servesAnotherMethodThan(target) }
-            ?: return delegate.resolve(target, convertedOnly)
+        val streamFirst = candidate == null || !convertedOnly && candidate.servesAnotherMethodThan(target)
+        val streamed = if (streamFirst) delegate.resolve(target, convertedOnly) else null
+        val local = candidate
+            ?.takeIf { streamed == null || streamed.isNetworkUnavailable() }
+            ?.takeIf { localCopyAvailable(it.fileId) }
+        return when {
+            local != null -> OfflinePick.Local(local)
+            streamed != null -> OfflinePick.Streamed(streamed)
+            else -> OfflinePick.Streamed(delegate.resolve(target, convertedOnly))
+        }
+    }
+
+    private suspend fun serve(entry: DownloadEntry): PlaybackRepositoryResult<PlaybackResolution> {
         val hls = entry.artifact.isHls
         // A download made for a hide_subtitles account holds no subtitle rendition, and a cold
         // offline start cannot read the setting, so the row's own copy of it hides the picker.

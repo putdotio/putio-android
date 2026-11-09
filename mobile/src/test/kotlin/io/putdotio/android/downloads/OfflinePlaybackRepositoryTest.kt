@@ -26,6 +26,13 @@ class OfflinePlaybackRepositoryTest {
     private val target = PlaybackTarget(FilesItemId(7L), "Sintel.mkv")
     private val delegateCalls = mutableListOf<PlaybackTarget>()
     private val convertedOnlyCalls = mutableListOf<Boolean>()
+    private val offline = PlaybackRepositoryResult.Failure(
+        PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IOException("offline"))),
+    )
+    private val streamed = PlaybackRepositoryResult.Failure(
+        PlaybackFailure.Putio(PutioFailure.Unexpected(IllegalStateException("streamed"))),
+    )
+    private var delegateResult: PlaybackRepositoryResult<PlaybackResolution> = offline
     private val delegate = object : PlaybackRepository {
         override suspend fun resolve(
             target: PlaybackTarget,
@@ -33,9 +40,7 @@ class OfflinePlaybackRepositoryTest {
         ): PlaybackRepositoryResult<PlaybackResolution> {
             convertedOnlyCalls += convertedOnly
             delegateCalls += target
-            return PlaybackRepositoryResult.Failure(
-                PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IOException("offline"))),
-            )
+            return delegateResult
         }
 
         override suspend fun startConversion(
@@ -221,21 +226,45 @@ class OfflinePlaybackRepositoryTest {
 
     @Test
     fun playWithTheOtherMethodStreamsInPlaceOfADownloadMadeWithTheFirst() = runBlocking {
-        val standard = OfflinePlaybackRepository(downloadsOf(completed()), delegate, PutioCredentialUrl::of)
-        val direct = OfflinePlaybackRepository(
-            downloadsOf(completed().copy(artifact = DownloadArtifact.ORIGINAL)), delegate, PutioCredentialUrl::of,
-        )
+        delegateResult = streamed
         val playWithDirect = target.copy(method = StreamingMethod.File)
         val playWithStandard = target.copy(method = StreamingMethod.Hls)
+        val standard = repositoryOf(DownloadArtifact.HLS)
 
-        assertTrue(standard.resolve(playWithDirect) is PlaybackRepositoryResult.Failure)
-        assertTrue(direct.resolve(playWithStandard) is PlaybackRepositoryResult.Failure)
-        assertEquals(listOf(playWithDirect, playWithStandard), delegateCalls)
-
+        assertEquals(streamed, standard.resolve(playWithDirect))
+        DownloadArtifact.entries.filterNot { it == DownloadArtifact.HLS }.forEach { artifact ->
+            assertEquals(streamed, repositoryOf(artifact).resolve(playWithStandard))
+            assertTrue(repositoryOf(artifact).resolve(playWithDirect) is PlaybackRepositoryResult.Success)
+        }
         assertTrue(standard.resolve(playWithStandard) is PlaybackRepositoryResult.Success)
-        assertTrue(direct.resolve(playWithDirect) is PlaybackRepositoryResult.Success)
-        assertEquals(2, delegateCalls.size)
+        assertEquals(DownloadArtifact.entries.size, delegateCalls.size)
     }
+
+    @Test
+    fun playWithTheOtherMethodPlaysTheDownloadWithoutANetwork() = runBlocking {
+        val playWithDirect = target.copy(method = StreamingMethod.File)
+
+        val ready = (repositoryOf(DownloadArtifact.HLS).resolve(playWithDirect) as PlaybackRepositoryResult.Success)
+            .value as PlaybackResolution.Ready
+
+        assertTrue(ready.offline)
+        assertEquals(PlaybackSourceKind.HLS, ready.source.kind)
+        assertEquals(listOf(playWithDirect), delegateCalls)
+    }
+
+    @Test
+    fun aRejectedDirectPlayOriginalFallsBackToTheConvertedDownload() = runBlocking {
+        delegateResult = streamed
+        val playWithDirect = target.copy(method = StreamingMethod.File)
+
+        val result = repositoryOf(DownloadArtifact.HLS).resolve(playWithDirect, convertedOnly = true)
+
+        assertTrue(result is PlaybackRepositoryResult.Success)
+        assertTrue(delegateCalls.isEmpty())
+    }
+
+    private fun repositoryOf(artifact: DownloadArtifact) =
+        OfflinePlaybackRepository(downloadsOf(completed().copy(artifact = artifact)), delegate, PutioCredentialUrl::of)
 
     private fun completed() = DownloadEntry(
         target.fileId, target.name, PutioFileType.VIDEO, DownloadArtifact.HLS, DownloadStatus.Completed(1L), 0L,
