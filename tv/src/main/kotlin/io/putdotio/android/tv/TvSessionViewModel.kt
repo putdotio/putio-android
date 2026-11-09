@@ -186,6 +186,8 @@ internal class TvSession internal constructor(
     )
     private val fileActionFailures = TvActionFailure()
     private val watchedJobs = mutableMapOf<FilesItemId, Job>()
+    private val handledRenames = mutableSetOf<FilesRequestId>()
+
     private val watchNextHandledDeletes = mutableSetOf<FilesRequestId>()
     private val playbackRepository = dependencies.playbackRepository { appConfig.state.value }
     private val mutablePlayback = MutableStateFlow<PlaybackController?>(null)
@@ -246,7 +248,7 @@ internal class TvSession internal constructor(
         search,
         files,
         historyFiles,
-        pins,
+        homePins,
         refreshTrash = { trash.refreshIfLoaded() },
         onGone = { item, outcome ->
             watchNext.fileGone(item.id.value)
@@ -310,6 +312,15 @@ internal class TvSession internal constructor(
                 .map { state -> state.stack.mapNotNull { it.deleteOutcome?.takeIf(::movesAnyToTrash) } }
                 .distinctUntilChanged()
                 .collect { moved -> if (moved.isNotEmpty()) trash.refreshIfLoaded() }
+        }
+        scope.launch {
+            files.state
+                .map { state -> state.stack.mapNotNull { it.renameCompletion } }
+                .distinctUntilChanged()
+                .collect { renames ->
+                    renames.filter { handledRenames.add(it.requestId) }
+                        .forEach { homePins.itemEdited(it.intent.itemId) }
+                }
         }
         scope.launch {
             continueWatching.recheckAfterDeletes(filesItemResolver::resolveItem)?.let {

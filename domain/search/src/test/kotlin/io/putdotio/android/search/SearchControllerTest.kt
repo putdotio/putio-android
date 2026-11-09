@@ -231,8 +231,9 @@ class SearchControllerTest {
                 controller.awaitContent<SearchContent.Ready>()
 
                 assertTrue(controller.itemRemoved(FilesItemId(9L)))
-                assertFalse(controller.itemRestored(trashed, 0, SearchTerm("other")))
-                assertTrue(controller.itemRestored(trashed, 0, SearchTerm("movie")))
+                assertFalse(controller.itemRestored(trashed, 0, SearchTerm("other"), SearchFilter.All))
+                assertFalse(controller.itemRestored(trashed, 0, SearchTerm("movie"), SearchFilter.Images))
+                assertTrue(controller.itemRestored(trashed, 0, SearchTerm("movie"), SearchFilter.All))
                 assertEquals(
                     listOf(9L, 8L),
                     (controller.state.value.content as SearchContent.Ready).items.map { it.id.value },

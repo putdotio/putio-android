@@ -79,6 +79,10 @@ internal class TvHomePins(
         if (pins.pins.value != null) refreshes.update { it + 1 }
     }
 
+    fun itemEdited(id: FilesItemId) {
+        if (pins.pins.value?.contains(id) == true) retry()
+    }
+
     private suspend fun rowFor(ids: List<FilesItemId>, fresh: Boolean): TvPinnedRow = coroutineScope {
         val resolved = ids.map { id -> async { resolve(id, fresh) } }.awaitAll()
         val shown = resolved.filterIsInstance<Resolved.Card>().map { it.card }

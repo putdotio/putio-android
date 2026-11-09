@@ -235,8 +235,10 @@ public class SearchController internal constructor(
     public fun itemRemoved(itemId: FilesItemId): Boolean =
         replaceContent { (it as? SearchContent.Ready)?.withoutItem(itemId) }
 
-    public fun itemRestored(item: FilesItem, index: Int, term: SearchTerm): Boolean =
-        replaceContent { it.withRestoredItem(item, index, term) }
+    public fun itemRestored(item: FilesItem, index: Int, term: SearchTerm, filter: SearchFilter): Boolean =
+        replaceContent { content ->
+            content.takeIf { mutableState.value.filter == filter }?.withRestoredItem(item, index, term)
+        }
 
     private fun replaceContent(change: (SearchContent) -> SearchContent?): Boolean =
         synchronized(lock) {

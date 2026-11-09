@@ -5,18 +5,19 @@ import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesDeleteOutcome
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
-import io.putdotio.android.files.PinnedFiles
 import io.putdotio.android.search.SearchContent
 import io.putdotio.android.search.SearchController
+import io.putdotio.android.search.SearchFilter
 import io.putdotio.android.search.SearchTerm
 import io.putdotio.android.tv.files.isConfirmedTrash
 import io.putdotio.android.tv.history.TvHistoryFiles
+import io.putdotio.android.tv.home.TvHomePins
 
 internal class TvItemEditEffects(
     private val search: SearchController,
     private val files: FilesBrowserController,
     private val historyFiles: TvHistoryFiles,
-    private val pins: PinnedFiles,
+    private val homePins: TvHomePins,
     private val refreshTrash: () -> Unit,
     private val onGone: (FilesItem, FilesDeleteOutcome) -> Unit,
 ) {
@@ -26,14 +27,14 @@ internal class TvItemEditEffects(
         search.itemUpdated(item)
         historyFiles.forget(item.id)
         invalidateFiles()
-        pins.reload()
+        homePins.itemEdited(item.id)
     }
 
     fun removed(item: FilesItem, outcome: FilesDeleteOutcome) {
         val results = search.state.value.content as? SearchContent.Ready
         val index = results?.items?.indexOfFirst { it.id == item.id } ?: -1
         if (results != null && index >= 0 && outcome.isConfirmedTrash) {
-            searchRemovals[item.id] = SearchRemoval(item, index, results.term)
+            searchRemovals[item.id] = SearchRemoval(item, index, results.term, search.state.value.filter)
         }
         search.itemRemoved(item.id)
         historyFiles.forget(item.id)
@@ -45,7 +46,7 @@ internal class TvItemEditEffects(
     fun undone(outcome: FilesDeleteOutcome) {
         refreshTrash()
         outcome.intent.itemIds.forEach { id ->
-            searchRemovals.remove(id)?.let { search.itemRestored(it.item, it.index, it.term) }
+            searchRemovals.remove(id)?.let { search.itemRestored(it.item, it.index, it.term, it.filter) }
             historyFiles.forget(id)
         }
     }
@@ -56,4 +57,4 @@ internal class TvItemEditEffects(
     }
 }
 
-private class SearchRemoval(val item: FilesItem, val index: Int, val term: SearchTerm)
+private class SearchRemoval(val item: FilesItem, val index: Int, val term: SearchTerm, val filter: SearchFilter)
