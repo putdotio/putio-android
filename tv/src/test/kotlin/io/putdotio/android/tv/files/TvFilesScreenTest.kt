@@ -411,19 +411,17 @@ class TvFilesScreenTest {
         }
         compose.onNodeWithTag(TV_FILES_DETAIL_PRIMARY_TAG).assert(hasText("Open"))
         compose.onNodeWithContentDescription("notes.txt").performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithText("Length").assertIsDisplayed()
-        compose.onNodeWithText("49:49").assertIsDisplayed()
+        compose.onNodeWithText("49:49", substring = true).assertIsDisplayed()
         compose.onAllNodesWithText("Watched", substring = true).assertCountEquals(0)
         compose.onNodeWithContentDescription("Play Blue.Lights.S04E01.mkv").performKeyInput {
             pressKey(Key.DirectionRight)
         }
         compose.onNode(hasText("Resume from 18:42") and hasClickAction()).assertIsFocused().performKeyInput {
             pressCenter()
-            pressKey(Key.DirectionRight)
+            pressKey(Key.DirectionDown)
         }
         compose.onNode(hasText("Start over") and hasClickAction()).assertIsFocused().performKeyInput {
             pressCenter()
-            pressKey(Key.DirectionLeft)
             pressKey(Key.DirectionLeft)
         }
         compose.onNodeWithContentDescription("Play Blue.Lights.S04E01.mkv").assertIsFocused()
@@ -568,6 +566,9 @@ class TvFilesScreenTest {
         compose.onNodeWithTag(TV_FILES_DETAIL_PRIMARY_TAG).assertIsFocused().performKeyInput {
             pressKey(Key.DirectionDown)
         }
+        compose.onNode(hasText("Start over") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionDown)
+        }
         compose.onNode(hasText("Open in VLC") and hasClickAction()).assertIsFocused().performKeyInput {
             pressKey(Key.DirectionDown)
         }
@@ -583,6 +584,9 @@ class TvFilesScreenTest {
             pressKey(Key.DirectionUp)
         }
         compose.onNode(hasText("Open in VLC") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionUp)
+        }
+        compose.onNode(hasText("Start over") and hasClickAction()).assertIsFocused().performKeyInput {
             pressKey(Key.DirectionUp)
         }
         compose.onNodeWithTag(TV_FILES_DETAIL_PRIMARY_TAG).assertIsFocused()

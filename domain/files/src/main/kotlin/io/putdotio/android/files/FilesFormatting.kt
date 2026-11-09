@@ -56,3 +56,8 @@ private val SIZE_UNITS = listOf("B", "kB", "MB", "GB", "TB", "PB")
 private const val UNIT_STEP = 1_000.0
 private const val ONE_DECIMAL_BELOW = 100.0
 private const val TENTHS = 10.0
+
+public fun String.nameStemEnd(isFolder: Boolean): Int {
+    val extension = lastIndexOf('.')
+    return if (isFolder || extension <= 0) length else extension
+}

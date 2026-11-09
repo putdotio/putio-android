@@ -13,9 +13,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -39,9 +37,7 @@ import io.putdotio.android.files.FilesRequestId
 import io.putdotio.android.files.FilesSubtitleLanguages
 import io.putdotio.android.files.FilesSubtitles
 import io.putdotio.android.files.items
-import io.putdotio.android.files.toFullDate
 import io.putdotio.android.tv.TvDetailBody
-import io.putdotio.android.tv.TvDetailButton
 import io.putdotio.android.tv.TvDetailDivider
 import io.putdotio.android.tv.TvSheetOption
 import io.putdotio.android.tv.TvDetailFact
@@ -59,6 +55,7 @@ internal class TvFilesDetailSources(
     private val folderCounts: FilesFolderCounts? = null,
     private val subtitleLanguages: FilesSubtitleLanguages? = null,
     private val onAuthenticationRequired: suspend () -> Unit = {},
+    val thumbnails: TvItemThumbnails = TvItemThumbnails.None,
 ) {
     private val counts = mutableMapOf<Long, Int?>()
     private val subtitles = mutableMapOf<Long, FilesSubtitles>()
@@ -171,7 +168,8 @@ internal data class TvFilesDetailPress(val itemId: Long, val index: Int) {
     fun holds(item: FilesItem, secondaryCount: Int): Boolean = item.id.value == itemId && index < secondaryCount
 }
 
-internal fun List<TvFilesAction>.secondary(): List<TvFilesAction> = filterNot { it is TvFilesAction.Tile }
+internal fun List<TvFilesAction>.secondary(): List<TvFilesAction> =
+    filterNot { it is TvFilesAction.Tile && it != TvFilesAction.StartOver }
 
 internal class TvFilesDetailActions(
     val onOpenFolder: (FilesItem) -> Unit,
@@ -179,8 +177,10 @@ internal class TvFilesDetailActions(
     val onUnsupported: (FilesItem) -> Unit,
     val secondary: List<TvFilesAction> = emptyList(),
     val onSecondary: (FilesItem, TvFilesAction) -> Unit = { _, _ -> },
-    val deleteEnabled: Boolean = true,
+    val enabled: TvFilesDetailEnabled = TvFilesDetailEnabled(),
 )
+
+internal class TvFilesDetailEnabled(val delete: Boolean = true, val edits: Boolean = true)
 
 @Composable
 internal fun ColumnScope.TvFilesDetail(
@@ -209,48 +209,47 @@ internal fun ColumnScope.TvFilesDetail(
     val current by rememberUpdatedState(item)
     val secondary = actions.secondary
     TvDetailBody(
+        tile = { TvItemTile(item, sources.thumbnails) },
         key = item.id,
         title = item.name,
         meta = detailMeta(item, count),
-        facts = detailFacts(item, subtitles, place),
-        secondaryActions = if (secondary.isEmpty()) {
-            null
-        } else {
-            {
-                secondary.forEachIndexed { index, action ->
-                    val delete = action is TvFilesAction.Delete
-                    val pressed = focus.pressed == TvFilesDetailPress(item.id.value, index)
-                    if (delete && index > 0) TvDetailDivider()
-                    TvSheetOption(
-                        label = action.label(),
-                        detail = null,
-                        selected = false,
-                        onClick = {
-                            focus.pressed = TvFilesDetailPress(current.id.value, index)
-                            actions.onSecondary(current, action)
-                        },
-                        leadingIcon = action.icon(),
-                        role = Role.Button,
-                        enabled = !delete || actions.deleteEnabled,
-                        danger = delete,
-                        modifier = Modifier
-                            .focusRequesterIf(pressed, focus.secondary)
-                            .focusProperties { if (index == 0) up = focus.primary },
-                    )
-                }
+        facts = detailFacts(subtitles, place),
+        rows = { firstRow ->
+            TvFilesPrimaryRow(
+                item = item,
+                resumeAt = item.resumePosition(resumePlayback),
+                actions = actions,
+                current = { current },
+                modifier = firstRow
+                    .focusRequester(focus.primary)
+                    .testTag(TV_FILES_DETAIL_PRIMARY_TAG),
+            )
+            secondary.forEachIndexed { index, action ->
+                val delete = action is TvFilesAction.Delete
+                val edit = action == TvFilesAction.Rename || action == TvFilesAction.Move
+                val pressed = focus.pressed == TvFilesDetailPress(item.id.value, index)
+                if (delete) TvDetailDivider()
+                TvSheetOption(
+                    label = action.label(),
+                    detail = null,
+                    selected = false,
+                    onClick = {
+                        focus.pressed = TvFilesDetailPress(current.id.value, index)
+                        actions.onSecondary(current, action)
+                    },
+                    leadingIcon = action.icon(),
+                    role = Role.Button,
+                    enabled = when {
+                        delete -> actions.enabled.delete
+                        edit -> actions.enabled.edits
+                        else -> true
+                    },
+                    danger = delete,
+                    modifier = Modifier.focusRequesterIf(pressed, focus.secondary),
+                )
             }
         },
-    ) {
-        TvFilesPrimaryActions(
-            item = item,
-            resumeAt = item.resumePosition(resumePlayback),
-            actions = actions,
-            current = { current },
-            modifier = Modifier
-                .focusRequester(focus.primary)
-                .testTag(TV_FILES_DETAIL_PRIMARY_TAG),
-        )
-    }
+    )
 }
 
 @Composable
@@ -259,6 +258,7 @@ private fun detailMeta(item: FilesItem, count: Int?): AnnotatedString {
     val watched = stringResource(R.string.tv_files_watched)
     val itemCount = count?.let { pluralStringResource(R.plurals.tv_files_item_count, it, it.toString()) }
     val parts = buildList {
+        item.playback?.durationSeconds?.let { add(tvClock(it).asMonoRun()) }
         itemCount?.let { add(AnnotatedString(it)) }
         item.metaSize?.let { add(it.asMonoRun()) }
         date?.let { add(AnnotatedString(it)) }
@@ -273,11 +273,7 @@ private fun detailMeta(item: FilesItem, count: Int?): AnnotatedString {
 }
 
 @Composable
-private fun detailFacts(item: FilesItem, subtitles: FilesSubtitles?, place: TvFilesRowPlace): List<TvDetailFact> {
-    val context = LocalContext.current
-    val fullDate = remember(item.createdAt, context) { item.createdAt.toFullDate(context) }
-    val length = stringResource(R.string.tv_files_detail_length)
-    val added = stringResource(R.string.tv_files_detail_added)
+private fun detailFacts(subtitles: FilesSubtitles?, place: TvFilesRowPlace): List<TvDetailFact> {
     val folder = stringResource(R.string.tv_files_detail_folder)
     val subtitlesLabel = stringResource(R.string.tv_files_detail_subtitles)
     val unknownLanguage = stringResource(PlaybackR.string.playback_subtitle_unknown)
@@ -295,64 +291,82 @@ private fun detailFacts(item: FilesItem, subtitles: FilesSubtitles?, place: TvFi
         }
     }
     return listOfNotNull(
-        item.playback?.durationSeconds?.let { TvDetailFact(length, tvClock(it), mono = true) },
-        when (place) {
-            TvFilesRowPlace.Listing -> fullDate?.let { TvDetailFact(added, it) }
-            is TvFilesRowPlace.SearchResult -> place.folderName?.let { TvDetailFact(folder, it) }
-        },
+        (place as? TvFilesRowPlace.SearchResult)?.folderName?.let { TvDetailFact(folder, it) },
         subtitlesValue?.let { TvDetailFact(subtitlesLabel, it) },
     )
 }
 
 @Composable
-private fun TvFilesPrimaryActions(
+private fun TvFilesPrimaryRow(
     item: FilesItem,
     resumeAt: Double?,
     actions: TvFilesDetailActions,
     current: () -> FilesItem,
     modifier: Modifier = Modifier,
 ) {
-    val action = when {
-        item.isFolder -> PrimaryAction(
+    val action = tvPrimaryAction(
+        item = item,
+        resumeAt = resumeAt,
+        onOpenFolder = { actions.onOpenFolder(current()) },
+        onPlay = { actions.onPlay(current(), TvPlayStart.Resume) },
+        onOpenFile = { actions.onUnsupported(current()) },
+    )
+    TvPrimaryRow(action, modifier)
+}
+
+@Composable
+internal fun TvPrimaryRow(action: TvPrimaryAction, modifier: Modifier = Modifier) {
+    TvSheetOption(
+        label = action.label.text,
+        styledLabel = action.label,
+        detail = null,
+        selected = false,
+        onClick = action.onClick,
+        leadingIcon = action.icon,
+        role = Role.Button,
+        modifier = modifier,
+    )
+}
+
+@Composable
+internal fun tvPrimaryAction(
+    item: FilesItem,
+    resumeAt: Double?,
+    onOpenFolder: () -> Unit,
+    onPlay: () -> Unit,
+    onOpenFile: () -> Unit,
+): TvPrimaryAction =
+    when {
+        item.isFolder -> TvPrimaryAction(
             AnnotatedString(stringResource(R.string.tv_files_detail_open)),
             R.drawable.ic_ph_folder,
-            { actions.onOpenFolder(current()) },
+            onOpenFolder,
         )
         resumeAt != null -> {
             val time = tvClock(resumeAt)
-            PrimaryAction(
+            TvPrimaryAction(
                 resumeLabel(stringResource(R.string.tv_files_detail_resume, time), time),
                 DesignR.drawable.ic_ph_play_fill,
-                { actions.onPlay(current(), TvPlayStart.Resume) },
+                onPlay,
             )
         }
-        item.isPlayable -> PrimaryAction(
+        item.isPlayable -> TvPrimaryAction(
             AnnotatedString(stringResource(R.string.tv_files_detail_play)),
             DesignR.drawable.ic_ph_play_fill,
-            { actions.onPlay(current(), TvPlayStart.Resume) },
+            onPlay,
         )
-        else -> PrimaryAction(
+        else -> TvPrimaryAction(
             AnnotatedString(stringResource(R.string.tv_files_detail_open)),
             R.drawable.ic_ph_arrow_square_out,
-            { actions.onUnsupported(current()) },
+            onOpenFile,
         )
     }
-    TvDetailButton(
-        label = action.label,
-        icon = action.icon,
-        onClick = action.onClick,
-        modifier = modifier,
-    )
-    if (resumeAt != null) {
-        TvDetailButton(
-            label = AnnotatedString(stringResource(R.string.tv_files_detail_start_over)),
-            icon = R.drawable.ic_ph_arrow_counter_clockwise,
-            onClick = { actions.onPlay(current(), TvPlayStart.StartOver) },
-        )
-    }
-}
 
-private class PrimaryAction(val label: AnnotatedString, @param:DrawableRes val icon: Int, val onClick: () -> Unit)
+internal class TvPrimaryAction(
+    val label: AnnotatedString,
+    @param:DrawableRes val icon: Int,
+    val onClick: () -> Unit,
+)
 
 internal val FilesItem.showsWatched: Boolean
     get() = !isFolder && playback?.isWatched == true && resumePosition(resumePlayback = true) == null

@@ -112,12 +112,13 @@ internal fun TvFilesList(
     // The paging control that held focus is gone if the last page landed while the pane was
     // away; the row that replaced it is the last one.
     val focusTarget = content.mountFocusTarget(remembered)
-    // After the rows change under a mounted list, keep focus on the row that had it, or on
-    // the fallback target when that row is gone.
+    // After the rows change under a mounted list, keep the row that had focus composed, or the
+    // fallback target when that row is gone: the panel's Left and the pane's enter redirect
+    // land on it. Focus itself moves only if a row held it.
     LaunchedEffect(content.items) {
-        if (!rowOwnedFocus) return@LaunchedEffect
-        listState.revealFocusedRow(content.items, focusedRowId, focusTarget, liveRowFocus, rowFocus)
-            ?.requestFocusNextFrame(paneHasFocus, rowStillFocused)
+        withFrameNanos {}
+        val requester = listState.revealFocusedRow(content.items, focusedRowId, focusTarget, liveRowFocus, rowFocus)
+        if (rowOwnedFocus) requester?.requestFocusNextFrame(paneHasFocus, rowStillFocused)
     }
     LaunchedEffect(handOffToLastRow.value) {
         if (!handOffToLastRow.value) return@LaunchedEffect

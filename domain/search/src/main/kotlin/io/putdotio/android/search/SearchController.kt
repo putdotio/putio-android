@@ -229,6 +229,22 @@ public class SearchController internal constructor(
         }
     }
 
+    public fun itemUpdated(updated: FilesItem): Boolean =
+        replaceContent { (it as? SearchContent.Ready)?.withItem(updated) }
+
+    public fun itemRemoved(itemId: FilesItemId): Boolean =
+        replaceContent { (it as? SearchContent.Ready)?.withoutItem(itemId) }
+
+    public fun itemRestored(item: FilesItem, index: Int, term: SearchTerm): Boolean =
+        replaceContent { it.withRestoredItem(item, index, term) }
+
+    private fun replaceContent(change: (SearchContent) -> SearchContent?): Boolean =
+        synchronized(lock) {
+            val updated = mutableState.value.content.takeUnless { closed }?.let(change)
+            updated?.let { mutableState.value = mutableState.value.copy(content = it) }
+            updated != null
+        }
+
     public fun editRecentSearches(edit: RecentSearchEdit): Boolean {
         val canEdit =
             synchronized(lock) {

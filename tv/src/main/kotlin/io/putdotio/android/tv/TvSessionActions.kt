@@ -23,7 +23,7 @@ internal class TvTrashUndo(
     private val trash: TrashRepository,
     private val files: FilesBrowserController,
     private val scope: CoroutineScope,
-    private val onUndone: () -> Unit = {},
+    private val onUndone: (FilesDeleteOutcome) -> Unit = {},
 ) {
     private val mutableFailure = MutableStateFlow<TvUndoFailure?>(null)
 
@@ -34,7 +34,7 @@ internal class TvTrashUndo(
         scope.launch {
             when (val result = trash.undoTrashMove(outcome.intent.itemIds)) {
                 is PutioResult.Success -> {
-                    onUndone()
+                    onUndone(outcome)
                     if (!files.dispatch(FilesBrowserEvent.TrashUndone(outcome))) {
                         files.dispatch(FilesBrowserEvent.InvalidateAllFolders)
                     }

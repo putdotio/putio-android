@@ -1,5 +1,18 @@
 package io.putdotio.android.tv
 
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.runtime.State
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.res.stringResource
+import io.putdotio.android.R
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -115,3 +128,54 @@ private val RAISED_SHADOW = Shadow(
     color = Color.Black.copy(alpha = 0.5f),
     offset = DpOffset(0.dp, 6.dp),
 )
+
+@Composable
+internal fun TvTrashUndoOffered(trashUndo: TvTrashUndoOffer?, snackbar: TvSnackbarState) {
+    if (trashUndo == null) return
+    val text = stringResource(R.string.tv_files_trashed)
+    val undo = stringResource(R.string.tv_files_undo)
+    val offered by trashUndo.offered.collectAsState()
+    LaunchedEffect(offered) {
+        val outcome = offered
+        if (outcome == null) {
+            snackbar.dismiss()
+        } else {
+            snackbar.show(TvSnackbarMessage(text = text, actionLabel = undo, onAction = { trashUndo.undo(outcome) }))
+        }
+    }
+}
+
+@Composable
+internal fun BoxScope.TvUndoSnackbarHost(
+    snackbar: TvSnackbarState,
+    undoFocus: FocusRequester,
+    refocus: State<FocusRequester>,
+) {
+    var undoFocused by remember { mutableStateOf(false) }
+    val showing = snackbar.showing
+    LaunchedEffect(showing) {
+        if (showing == null && undoFocused) {
+            undoFocused = false
+            withFrameNanos {}
+            refocus.value.requestFocus()
+        }
+    }
+    TvSnackbarHost(
+        state = snackbar,
+        modifier = Modifier
+            .align(Alignment.BottomStart)
+            .padding(bottom = TV_SNACKBAR_BOTTOM),
+        actionSize = TvButtonSize.Snackbar,
+        raised = true,
+        actionModifier = Modifier
+            .focusRequester(undoFocus)
+            .onFocusChanged { if (snackbar.showing != null) undoFocused = it.isFocused },
+    )
+}
+
+@Stable
+internal class TvUndoSnackbar(val undoFocus: FocusRequester) {
+    val state = TvSnackbarState()
+}
+
+internal val TV_SNACKBAR_BOTTOM = 3.dp

@@ -2,6 +2,7 @@ package io.putdotio.android.tv.history
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.ExperimentalTestApi
@@ -20,10 +21,12 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.FilesFailure
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
+import io.putdotio.android.files.FilesDeleteMode
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesItemResolver
+import io.putdotio.android.files.StubFilesRepository
 import io.putdotio.android.history.HistoryClearing
 import io.putdotio.android.history.HistoryContent
 import io.putdotio.android.history.HistoryEvent
@@ -37,13 +40,22 @@ import io.putdotio.android.history.HistoryRequestId
 import io.putdotio.android.history.HistoryState
 import io.putdotio.android.history.HistoryTransferId
 import io.putdotio.android.history.historyState
+import io.putdotio.android.tv.files.TvFilesActionContext
+import io.putdotio.android.tv.files.TvFilesActionHandlers
+import io.putdotio.android.tv.files.TvFilesEdits
+import io.putdotio.android.tv.files.TvItemChanges
+import io.putdotio.android.tv.files.TvItemThumbnails
+import io.putdotio.android.tv.files.tvActions
 import io.putdotio.android.tv.pressCenter
 import io.putdotio.android.tv.setTvContent
 import io.putdotio.sdk.errors.PutioConfigurationException
+import io.putdotio.sdk.files.FileDeleteResult
 import io.putdotio.sdk.files.PutioFileType
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -84,9 +96,11 @@ class TvHistoryScreenTest {
     }
 
     @Test
-    fun theDetailShowsTheEventsFileAndOpenFolderOpensIt() {
+    fun theDetailPlaysTheEventsVideoAndGoToFolderOpensIt() {
+        val played = mutableListOf<FilesItemId>()
         show(
             files = TvHistoryFiles(resolver(FilesItemId(1) to file(1, "Big Buck Bunny", FilesFolder.Root.id))),
+            itemActions = historyActions(onPlay = { played += it.id }),
         ) { historyState(HistoryContent.Ready(items(), HistoryPaging.Complete)) }
 
         compose.waitUntil(5_000) { compose.onAllNodesWithText("Your files").fetchSemanticsNodes().isNotEmpty() }
@@ -95,12 +109,93 @@ class TvHistoryScreenTest {
         compose.onNodeWithContentDescription("Open Big Buck Bunny").assertIsFocused().performKeyInput {
             pressKey(Key.DirectionRight)
         }
-        compose.onNode(hasText("Open folder") and hasClickAction()).assertIsFocused().performKeyInput {
+        compose.onNode(hasText("Play") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressCenter()
+            pressKey(Key.DirectionDown)
+        }
+        compose.runOnIdle { assertEquals(listOf(FilesItemId(1)), played) }
+        compose.onNode(hasText("Go to folder") and hasClickAction()).assertIsFocused().performKeyInput {
             pressCenter()
             pressKey(Key.DirectionLeft)
         }
         compose.onNodeWithContentDescription("Open Big Buck Bunny").assertIsFocused()
         assertEquals(listOf<HistoryEvent>(HistoryEvent.OpenFile(HistoryFileId(1))), log)
+    }
+
+    @Test
+    fun anUploadedFileOffersThePanelActions() {
+        val played = mutableListOf<FilesItemId>()
+        val upload = HistoryItem(
+            HistoryEventId(1),
+            "2026-09-12T05:22:00",
+            HistoryEventKind.Notice(HistoryNoticeType.Upload, "clip.mp4", HistoryFileId(2)),
+        )
+        show(
+            files = TvHistoryFiles(resolver(FilesItemId(2) to file(2, "clip.mp4", FilesFolder.Root.id))),
+            itemActions = historyActions(onPlay = { played += it.id }),
+        ) { historyState(HistoryContent.Ready(listOf(upload), HistoryPaging.Complete)) }
+
+        compose.waitUntil(5_000) {
+            compose.onAllNodes(hasText("Play") and hasClickAction()).fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithContentDescription("Open clip.mp4").assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionRight)
+        }
+        compose.onNode(hasText("Play") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
+        compose.runOnIdle { assertEquals(listOf(FilesItemId(2)), played) }
+    }
+
+    @Test
+    fun anEventWhoseFileIsGoneShowsNoDeadActions() {
+        show(
+            files = TvHistoryFiles(goneResolver()),
+            itemActions = historyActions(),
+        ) { historyState(HistoryContent.Ready(items(), HistoryPaging.Complete)) }
+
+        compose.waitUntil(5_000) {
+            compose.onAllNodesWithText("No longer in your files").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithContentDescription("Open Big Buck Bunny").assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionRight)
+        }
+        compose.onNodeWithContentDescription("Open Big Buck Bunny").assertIsFocused()
+        compose.onNode(hasText("Play") and hasClickAction()).assertDoesNotExist()
+        compose.onNode(hasText("Go to folder") and hasClickAction()).assertDoesNotExist()
+        compose.onNode(hasText("Move to trash") and hasClickAction()).assertDoesNotExist()
+    }
+
+    @Test
+    fun moveToTrashFromTheHistoryPanelTrashesTheFileOnce() {
+        val repository = TrashingRepository()
+        val files = TvHistoryFiles(repository)
+        val edits = TvFilesEdits(
+            repository,
+            CoroutineScope(Dispatchers.Unconfined),
+            TvItemChanges(onRemoved = { item, _ -> files.forget(item.id) }),
+        )
+        show(
+            files = files,
+            itemActions = historyActions(edits = edits),
+        ) { historyState(HistoryContent.Ready(items(), HistoryPaging.Complete)) }
+
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Your files").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithContentDescription("Open Big Buck Bunny").assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionRight)
+        }
+        compose.onNode(hasText("Play") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionDown)
+            pressKey(Key.DirectionDown)
+        }
+        compose.onNode(hasText("Move to trash") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressCenter()
+        }
+
+        compose.waitUntil(5_000) { repository.deletes.isNotEmpty() }
+        assertEquals(listOf(listOf(FilesItemId(1)) to FilesDeleteMode.TRASH), repository.deletes)
+        compose.waitUntil(5_000) {
+            compose.onAllNodesWithText("No longer in your files").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithContentDescription("Open Big Buck Bunny").assertIsFocused()
     }
 
     @Test
@@ -270,10 +365,31 @@ class TvHistoryScreenTest {
 
     private fun show(state: HistoryState) = show { state }
 
+    private fun historyActions(
+        onPlay: (FilesItem) -> Unit = {},
+        edits: TvFilesEdits? = null,
+    ) = TvHistoryItemActions(
+        resumePlayback = true,
+        thumbnails = TvItemThumbnails.None,
+        onPlay = onPlay,
+        actionsOf = { item ->
+            item.tvActions(TvFilesActionContext(watchedToggleEnabled = false, trashEnabled = true, canDelete = true))
+        },
+        handlers = TvFilesActionHandlers(
+            onPlay = { _, _ -> },
+            onPlayWith = { _, _ -> },
+            onOpenInVlc = {},
+            onSetWatched = { _, _ -> },
+            onSetPinned = { _, _ -> },
+        ),
+        editing = edits?.let { TvHistoryEditing(it, trashEnabled = true) },
+    )
+
     private fun show(
         notice: () -> FilesFailure? = { null },
         files: TvHistoryFiles = TvHistoryFiles.None,
         onOpenAccount: () -> Unit = {},
+        itemActions: TvHistoryItemActions? = null,
         state: () -> HistoryState,
     ) {
         compose.setTvContent {
@@ -286,10 +402,34 @@ class TvHistoryScreenTest {
                 notice = notice(),
                 clock = clock,
                 files = files,
+                itemActions = itemActions,
                 onOpenAccount = onOpenAccount,
             )
         }
         compose.onNodeWithText("History").assertDoesNotExist()
+    }
+
+    private fun goneResolver() = object : FilesItemResolver {
+        override suspend fun resolveItem(itemId: FilesItemId) = PutioResult.Failure(notFound())
+    }
+
+    private fun notFound() = PutioFailure.ApiRejected(404, null, PutioConfigurationException("gone"), 404)
+
+    private inner class TrashingRepository : StubFilesRepository(), FilesItemResolver {
+        val deletes = mutableListOf<Pair<List<FilesItemId>, FilesDeleteMode>>()
+
+        override suspend fun loadFolder(folderId: FilesItemId) = error("not used")
+
+        override suspend fun delete(itemIds: List<FilesItemId>, mode: FilesDeleteMode) =
+            PutioResult.Success(FileDeleteResult(cursor = null, skipped = 0, status = "OK"))
+                .also { deletes += itemIds to mode }
+
+        override suspend fun resolveItem(itemId: FilesItemId): PutioResult<FilesItem> =
+            if (deletes.isEmpty()) {
+                PutioResult.Success(file(itemId.value, "Big Buck Bunny", FilesFolder.Root.id))
+            } else {
+                PutioResult.Failure(notFound())
+            }
     }
 
     private fun resolver(vararg known: Pair<FilesItemId, FilesItem>) = object : FilesItemResolver {

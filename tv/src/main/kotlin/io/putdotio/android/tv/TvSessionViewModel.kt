@@ -14,6 +14,10 @@ import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
 import io.putdotio.android.files.FilesFolderCounts
 import io.putdotio.android.files.FilesItem
+import io.putdotio.android.tv.files.TvFilesEdits
+import io.putdotio.android.tv.files.isConfirmedTrash
+import io.putdotio.android.tv.files.TvItemChanges
+import io.putdotio.android.tv.files.TvItemThumbnails
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesItemResolver
 import io.putdotio.android.files.FilesOpenOrigin
@@ -196,7 +200,12 @@ internal class TvSession internal constructor(
     /** Pairs saved positions with the videos they belong to, for Watch Next. */
     internal val watchNextPlayback = TvWatchNextPlayback(watchNext, scope)
 
-    val trashUndo = TvTrashUndo(dependencies.trashRepository, files, scope, onUndone = trash::refreshIfLoaded)
+    val trashUndo: TvTrashUndo = TvTrashUndo(
+        dependencies.trashRepository,
+        files,
+        scope,
+        onUndone = { itemEditEffects.undone(it) },
+    )
 
     val trashUndoOffer = TvTrashUndoOffer(scope, trashUndo::undo)
 
@@ -232,6 +241,31 @@ internal class TvSession internal constructor(
     val historyPickedRow = TvPickedRow()
 
     val historyFiles = TvHistoryFiles(dependencies.filesItemResolver)
+
+    private val itemEditEffects: TvItemEditEffects = TvItemEditEffects(
+        search,
+        files,
+        historyFiles,
+        pins,
+        refreshTrash = { trash.refreshIfLoaded() },
+        onGone = { item, outcome ->
+            watchNext.fileGone(item.id.value)
+            continueWatching.removed(listOf(outcome))
+            if (outcome.isConfirmedTrash) trashUndoOffer.offer(outcome)
+        },
+    )
+
+    val itemThumbnails = TvItemThumbnails(::originalStreamUrl)
+
+    val filesEdits = TvFilesEdits(
+        repository = filesRepository,
+        scope = scope,
+        changes = TvItemChanges(
+            onUpdated = itemEditEffects::edited,
+            onRemoved = itemEditEffects::removed,
+            onSessionRejected = fileActionFailures::report,
+        ),
+    )
 
     val recentSearchFailure = recentSearches.failure
 

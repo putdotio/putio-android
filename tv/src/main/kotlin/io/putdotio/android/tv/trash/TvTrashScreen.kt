@@ -31,6 +31,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
@@ -128,17 +129,24 @@ internal fun TvTrashScreen(
             }
             .focusGroup(),
     ) {
-        TvTrashHeader(
-            onRestoreAll = { onEvent(TrashEvent.SelectRestoreAll) },
-            onEmpty = { onEvent(TrashEvent.SelectEmpty) },
-            showsFocus = !dialogOpen,
-            showsActions = !knownEmpty,
-            restoreAllModifier = Modifier.keyedPaneSection("restoreAll", owner, focus.restoreAll),
-            emptyModifier = Modifier.keyedPaneSection("empty", owner, focus.empty),
-        )
+        val headerActions = Modifier.focusProperties {
+            enter = { direction -> focus.headerEntry(direction, entryTarget.value) }
+        }
+        val header: @Composable () -> Unit = {
+            TvTrashHeader(
+                onRestoreAll = { onEvent(TrashEvent.SelectRestoreAll) },
+                onEmpty = { onEvent(TrashEvent.SelectEmpty) },
+                showsFocus = !dialogOpen,
+                showsActions = !knownEmpty,
+                actionsModifier = headerActions,
+                restoreAllModifier = Modifier.keyedPaneSection("restoreAll", owner, focus.restoreAll),
+                emptyModifier = Modifier.keyedPaneSection("empty", owner, focus.empty),
+            )
+        }
         when {
             content is TrashContent.Error -> {
                 EntryTarget(entryTarget, focus.retry)
+                header()
                 TvTrashStateNotices(state, onEvent, owner)
                 TvLoadFailedState(
                     failure = content.failure,
@@ -155,6 +163,7 @@ internal fun TvTrashScreen(
             }
             loaded != null && !hasRows -> {
                 EntryTarget(entryTarget, focus.emptyState)
+                header()
                 TvTrashStateNotices(state, onEvent, owner)
                 TvEmptyState(
                     glyph = PutioEmptyGlyph.EmptyFolder,
@@ -179,6 +188,7 @@ internal fun TvTrashScreen(
                         listFocus = TvTrashListFocus(owner, focus.list, paneHasFocus, dialogShowing),
                         pickedRow = pickedRow,
                         restoreRowId = restoreRowId,
+                        header = header,
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -197,11 +207,11 @@ private fun TvTrashListDetail(
     listFocus: TvTrashListFocus,
     pickedRow: TvPickedRow,
     restoreRowId: Long?,
+    header: @Composable () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val loaded = state.content as? TrashContent.Loaded
     var detailId by rememberSaveable { mutableStateOf(pickedRow.id) }
-    var rowHasFocus by remember { mutableStateOf(false) }
     val items = loaded?.items.orEmpty()
     val detailItem = items.firstOrNull { it.id.value == detailId }
         ?: items.firstOrNull { it.id.value == pickedRow.id }
@@ -210,7 +220,7 @@ private fun TvTrashListDetail(
         modifier = modifier,
         detailFocus = focus.restore,
         listFocus = focus.list,
-        detailTop = DETAIL_TOP,
+        header = { header() },
         list = {
             TvTrashInfo()
             TvTrashNotices(state, onEvent, listFocus.owner)
@@ -222,7 +232,6 @@ private fun TvTrashListDetail(
                     restoreRowId = restoreRowId,
                     onChoose = { if (state.canRestore(it.id)) onEvent(TrashEvent.SelectRestore(it.id)) },
                     onRowFocusChanged = { item, focused ->
-                        rowHasFocus = focused
                         if (focused) {
                             pickedRow.pick(item.id.value)
                             detailId = item.id.value
@@ -243,7 +252,6 @@ private fun TvTrashListDetail(
                     actions = TvTrashDetailActions(
                         canRestore = state.canRestore(detailItem.id),
                         canDelete = state.canDelete(detailItem.id),
-                        rowHasFocus = rowHasFocus,
                         onRestore = { onEvent(TrashEvent.SelectRestore(detailItem.id)) },
                         onDelete = { onEvent(TrashEvent.SelectDelete(detailItem.id)) },
                         showsFocus = !listFocus.dialogShowing.value,
@@ -266,7 +274,6 @@ internal class TvTrashListFocus(
 internal data class TvTrashDetailActions(
     val canRestore: Boolean,
     val canDelete: Boolean,
-    val rowHasFocus: Boolean,
     val onRestore: () -> Unit,
     val onDelete: () -> Unit,
     val showsFocus: Boolean,
@@ -288,6 +295,13 @@ private class TvTrashFocus {
             rows -> list
             empty -> emptyState
             else -> restoreAll
+        }
+
+    fun headerEntry(direction: FocusDirection, entry: FocusRequester): FocusRequester =
+        if (direction == FocusDirection.Enter && entry !== restoreAll && entry !== this.empty) {
+            FocusRequester.Cancel
+        } else {
+            FocusRequester.Default
         }
 }
 
@@ -313,6 +327,7 @@ private fun TvTrashHeader(
     showsFocus: Boolean,
     showsActions: Boolean,
     modifier: Modifier = Modifier,
+    actionsModifier: Modifier = Modifier,
     restoreAllModifier: Modifier = Modifier,
     emptyModifier: Modifier = Modifier,
 ) {
@@ -328,6 +343,7 @@ private fun TvTrashHeader(
                     horizontalArrangement = Arrangement.spacedBy(HEADER_BUTTON_GAP),
                     modifier = Modifier
                         .padding(bottom = HEADER_BUTTON_LIFT)
+                        .then(actionsModifier)
                         .focusGroup(),
                 ) {
                     TvTrashHeaderButton(
@@ -402,5 +418,4 @@ private val HEADER_BUTTON_LIFT = 1.dp
 private val HEADER_BUTTON_LABEL = PutioTypeScale.tvButton.copy(fontSize = 12.sp)
 private val INFO_GAP = 4.dp
 private val INFO_LABEL = PutioTypeScale.tvLabel.withFullLineBox()
-private val DETAIL_TOP = 26.dp
 private val STATE_BOTTOM_GAP = 3.dp

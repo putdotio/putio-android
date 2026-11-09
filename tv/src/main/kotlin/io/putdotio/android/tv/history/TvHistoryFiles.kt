@@ -1,7 +1,11 @@
 package io.putdotio.android.tv.history
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.setValue
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
+import io.putdotio.android.isNotFound
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
@@ -15,12 +19,59 @@ internal sealed interface TvSavedTo {
     data class Folder(val name: String) : TvSavedTo
 }
 
-internal data class TvHistoryFile(val sizeBytes: Long, val savedTo: TvSavedTo?)
+internal data class TvHistoryFile(val item: FilesItem, val savedTo: TvSavedTo?) {
+    val sizeBytes: Long get() = item.sizeBytes
+}
+
+internal sealed interface TvHistoryLookup {
+    data object Pending : TvHistoryLookup
+
+    data class Found(val file: TvHistoryFile) : TvHistoryLookup
+
+    data object Gone : TvHistoryLookup
+
+    data object Unknown : TvHistoryLookup
+}
 
 internal class TvHistoryFiles(private val resolver: FilesItemResolver?) {
     private val files = mutableMapOf<FilesItemId, TvHistoryFile>()
+    private val gone = mutableSetOf<FilesItemId>()
+    private var changes by mutableLongStateOf(0L)
 
-    fun known(id: HistoryFileId): TvHistoryFile? = files[id.toFilesItemId()]
+    val changesRead: Long get() = changes
+
+    fun known(id: HistoryFileId): TvHistoryLookup? {
+        val itemId = id.toFilesItemId()
+        return when {
+            itemId in gone -> TvHistoryLookup.Gone
+            else -> files[itemId]?.let(TvHistoryLookup::Found)
+        }
+    }
+
+    fun forget(id: FilesItemId) {
+        files.remove(id)
+        gone.remove(id)
+        changes++
+    }
+
+    fun forgetAll() {
+        files.clear()
+        gone.clear()
+        changes++
+    }
+
+    suspend fun lookup(id: HistoryFileId, onRejected: suspend () -> Unit): TvHistoryLookup =
+        when (val result = load(id)) {
+            null -> TvHistoryLookup.Unknown
+            is PutioResult.Success -> TvHistoryLookup.Found(result.value)
+            is PutioResult.Failure -> if (result.failure.isNotFound) {
+                gone += id.toFilesItemId()
+                TvHistoryLookup.Gone
+            } else {
+                if (result.failure is PutioFailure.AuthenticationRequired) onRejected()
+                TvHistoryLookup.Unknown
+            }
+        }
 
     suspend fun load(id: HistoryFileId): PutioResult<TvHistoryFile>? {
         val itemId = id.toFilesItemId()
@@ -44,7 +95,7 @@ internal class TvHistoryFiles(private val resolver: FilesItemResolver?) {
             parent is PutioResult.Success -> TvSavedTo.Folder(parent.value.name)
             else -> null
         }
-        return PutioResult.Success(TvHistoryFile(item.sizeBytes, savedTo).also { files[item.id] = it })
+        return PutioResult.Success(TvHistoryFile(item, savedTo).also { files[item.id] = it })
     }
 
     companion object {

@@ -404,10 +404,10 @@ tokens, type, glyphs, rows, switch, empty-state voice and copy.
 - **Focus memory:** returning from the player, a sheet or another tab lands on
   what had focus before.
 - **Side sheets** from the right hold every secondary surface; dialogs carry
-  only confirms and notices.
+  confirms, notices and text entry.
 - **Back** closes the topmost layer first: a sheet, then seek mode, then the
   player controls, and only then the screen.
 - **Now Playing:** audio's controls never hide, so Back leaves it once no
   sheet or seek is open.
-- **Phone-only:** Transfers, Downloads, Cast, selection, rename, move, share
-  and exclusive links.
+- **Phone-only:** Transfers, Downloads, Cast, selection, share and exclusive
+  links.

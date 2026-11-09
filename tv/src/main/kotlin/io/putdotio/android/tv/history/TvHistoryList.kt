@@ -35,6 +35,7 @@ import io.putdotio.android.history.HistoryContent
 import io.putdotio.android.history.HistoryFileId
 import io.putdotio.android.history.HistoryItem
 import io.putdotio.android.history.HistoryPaging
+import io.putdotio.android.history.navigableFileId
 import io.putdotio.android.tv.ROW_BLEED
 import io.putdotio.android.tv.TV_LIST_ROW_META
 import io.putdotio.android.tv.TV_LIST_ROW_META_MONO

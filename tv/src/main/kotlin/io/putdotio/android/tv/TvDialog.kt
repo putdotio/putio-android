@@ -19,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
@@ -99,6 +100,42 @@ internal fun TvConfirmDialog(
                 enabled = confirmEnabled,
                 style = if (destructive) TvButtonStyle.Destructive else TvButtonStyle.Filled,
                 modifier = if (focusCancel) Modifier else Modifier.focusRequester(focus),
+            ) { Text(confirmLabel) }
+        }
+    }
+}
+
+@Composable
+internal fun TvFormDialog(
+    title: String,
+    confirmLabel: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+    confirmEnabled: Boolean,
+    confirmFocus: FocusRequester,
+    confirmTag: String,
+    dimAmount: Float? = null,
+    body: @Composable (focus: FocusRequester) -> Unit,
+) {
+    TvDialogFrame(
+        AnnotatedString(title),
+        message = null,
+        onDismiss,
+        focusesAction = true,
+        dimAmount = dimAmount,
+    ) { focus ->
+        Column(modifier = Modifier.padding(top = BODY_GAP)) { body(focus) }
+        TvDialogActions {
+            TvButton(onClick = onDismiss, style = TvButtonStyle.Text) {
+                Text(stringResource(R.string.tv_dialog_cancel))
+            }
+            TvButton(
+                onClick = onConfirm,
+                enabled = confirmEnabled,
+                style = TvButtonStyle.Filled,
+                modifier = Modifier
+                    .focusRequester(confirmFocus)
+                    .testTag(confirmTag),
             ) { Text(confirmLabel) }
         }
     }
@@ -203,5 +240,6 @@ private fun TvDialogFrame(
 private val BALANCED = LineBreak.Paragraph.copy(strategy = LineBreak.Strategy.Balanced)
 private val DIALOG_WIDTH = 380.dp
 private val ACTIONS_GAP = 20.dp
+private val BODY_GAP = 14.dp
 private val TITLE_SIZE = 20.sp
 private val TITLE_LINE = 24.sp

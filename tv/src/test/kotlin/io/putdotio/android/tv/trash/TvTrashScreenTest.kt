@@ -102,7 +102,7 @@ class TvTrashScreenTest {
             pressKey(Key.DirectionRight)
         }
         compose.onNode(hasText("Restore") and hasClickAction()).assertIsFocused().performKeyInput {
-            pressKey(Key.DirectionRight)
+            pressKey(Key.DirectionDown)
         }
         compose.onNode(hasText("Delete permanently") and hasClickAction()).assertIsFocused().performKeyInput {
             pressCenter()

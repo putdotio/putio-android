@@ -64,8 +64,8 @@ class SdkHistoryRepositoryTest {
     @Test
     fun eachEventTypeKeepsTheNameItsCopyStatesAndBlankNamesAreAbsent() = runBlocking {
         val events = listOf(
-            event(1, HistoryEventType.UPLOAD, fileName = "Harbor film.mp4"),
-            event(2, HistoryEventType.FILE_FROM_RSS_DELETED_FOR_SPACE, fileName = "Old episode.mkv"),
+            event(1, HistoryEventType.UPLOAD, fileName = "Harbor film.mp4", fileId = 501L),
+            event(2, HistoryEventType.FILE_FROM_RSS_DELETED_FOR_SPACE, fileName = "Old episode.mkv", fileId = 502L),
             event(3, HistoryEventType.TRANSFER_FROM_RSS_ERROR, transferName = "Feed item"),
             event(4, HistoryEventType.TRANSFER_CALLBACK_ERROR, transferName = "Callback transfer"),
             // The name its copy states is missing: nothing to say but its type.
@@ -83,7 +83,7 @@ class SdkHistoryRepositoryTest {
 
         assertEquals(
             listOf(
-                HistoryEventKind.Notice(HistoryNoticeType.Upload, "Harbor film.mp4"),
+                HistoryEventKind.Notice(HistoryNoticeType.Upload, "Harbor film.mp4", HistoryFileId(501L)),
                 HistoryEventKind.Notice(HistoryNoticeType.RssFileDeleted, "Old episode.mkv"),
                 HistoryEventKind.Notice(HistoryNoticeType.RssTransferError, "Feed item"),
                 HistoryEventKind.Notice(HistoryNoticeType.TransferCallbackError, "Callback transfer"),
@@ -163,6 +163,7 @@ class SdkHistoryRepositoryTest {
         type: HistoryEventType,
         fileName: String? = null,
         transferName: String? = null,
+        fileId: Long? = null,
     ) = HistoryEvent(
         id = id,
         userId = 7L,
@@ -170,5 +171,6 @@ class SdkHistoryRepositoryTest {
         type = type,
         fileName = fileName,
         transferName = transferName,
+        fileId = fileId,
     )
 }

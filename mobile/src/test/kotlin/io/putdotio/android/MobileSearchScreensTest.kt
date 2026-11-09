@@ -357,6 +357,24 @@ class MobileSearchScreensTest {
     }
 
     @Test
+    fun anUploadedFileOpensFromItsHistoryRow() {
+        val events = mutableListOf<HistoryEvent>()
+        val upload = HistoryItem(
+            HistoryEventId(1L),
+            "2026-09-09T15:25:32",
+            HistoryEventKind.Notice(HistoryNoticeType.Upload, "Harbor film.mp4", HistoryFileId(7L)),
+        )
+        setHistoryScreen(
+            history = historyState(HistoryContent.Ready(listOf(upload), HistoryPaging.Complete)),
+            actions = MobileSearchHistoryActions(onHistoryEvent = { if (it != HistoryEvent.Refresh) events += it }),
+        )
+
+        compose.onNodeWithText("Harbor film.mp4").performClick()
+
+        assertEquals(listOf<HistoryEvent>(HistoryEvent.OpenFile(HistoryFileId(7L))), events)
+    }
+
+    @Test
     fun eachEventNamesItsSubjectThenWhatHappenedAndWhen() {
         val previous = TimeZone.getDefault()
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"))

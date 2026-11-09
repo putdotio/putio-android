@@ -303,7 +303,7 @@ class TvHomeScreenTest {
         }
 
         compose.onNodeWithContentDescription("folder-2").performSemanticsAction(SemanticsActions.OnLongClick)
-        compose.onNodeWithText("Unpin").assertIsFocused().performKeyInput { pressCenter() }
+        compose.onNodeWithText("Unpin from Home").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf(FilesItemId(2L)), unpinned)
         compose.runOnIdle { pinned = TvPinnedRow.Ready(cards.filterNot { it.item.id == FilesItemId(2L) }) }
         compose.onNodeWithContentDescription("folder-3").assertIsFocused()
@@ -326,7 +326,7 @@ class TvHomeScreenTest {
         }
 
         compose.onNodeWithContentDescription("folder-2").performSemanticsAction(SemanticsActions.OnLongClick)
-        compose.onNodeWithText("Unpin").assertIsFocused().performKeyInput { pressCenter() }
+        compose.onNodeWithText("Unpin from Home").assertIsFocused().performKeyInput { pressCenter() }
         compose.onNodeWithContentDescription("folder-2").assertIsFocused().performKeyInput {
             pressKey(Key.DirectionUp)
         }

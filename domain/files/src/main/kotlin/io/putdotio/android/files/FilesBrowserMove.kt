@@ -50,11 +50,8 @@ internal fun FilesBrowserState.moveFinished(event: FilesBrowserEvent.MoveFinishe
     val folder = stack.getOrNull(index)
     val outcome = folder?.moveOutcome
     if (folder == null || outcome == null) return FilesBrowserTransition(this, consumed = false)
-    val failure = (event.result as? PutioResult.Failure)?.failure
-    val recorded = outcome.copy(
-        errors = (event.result as? PutioResult.Success)?.value,
-        failure = failure,
-    )
+    val recorded = outcome.recording(event.result)
+    val failure = recorded.failure
     return if (failure is PutioFailure.AuthenticationRequired) {
         val updated = folder.copy(
             moveOutcome = recorded.copy(status = FilesMoveStatus.UNKNOWN),
@@ -84,38 +81,24 @@ private fun FilesBrowserState.moveChecked(event: FilesBrowserEvent.MoveChecked):
     val folder = stack.getOrNull(index)
     val outcome = folder?.moveOutcome
     if (folder == null || outcome == null) return FilesBrowserTransition(this, consumed = false)
-    val reads = outcome.intent.itemIds.zipReads(event.results)
-    val failure = reads.mapNotNull { (id, result) -> result.moveReadFailure(id) }.verdict()
-    return if (failure != null) {
-        loadFailed(FilesBrowserEvent.LoadFailed(event.requestId, failure))
-    } else {
-        val notMoved = reads.filter { (_, result) ->
-            (result as? PutioResult.Success)?.value?.parentId != outcome.intent.destinationId
-        }.mapTo(mutableSetOf()) { it.first }
-        val status = when {
-            !outcome.errors.isNullOrEmpty() -> FilesMoveStatus.REJECTED
-            notMoved.isEmpty() -> FilesMoveStatus.MOVED
-            else -> FilesMoveStatus.STILL_PRESENT
+    return when (val check = outcome.checked(event.results)) {
+        is FilesEditCheck.Unconfirmed -> loadFailed(FilesBrowserEvent.LoadFailed(event.requestId, check.failure))
+        is FilesEditCheck.Settled -> {
+            val requestId = FilesRequestId(nextRequestValue)
+            val updated = folder.copy(
+                moveOutcome = check.outcome,
+                operation = FilesFolderOperation.Loading(
+                    requestId,
+                    outcome.intent,
+                    FilesFolderOperationPhase.RELOADING,
+                ),
+                needsReload = false,
+            )
+            FilesBrowserTransition(
+                copy(stack = stack.replaceAt(index, updated), nextRequestValue = nextRequestValue + 1),
+                FilesBrowserEffect.LoadFolder(folder.folder.id, requestId),
+            )
         }
-        val requestId = FilesRequestId(nextRequestValue)
-        val updated = folder.copy(
-            moveOutcome = outcome.copy(status = status, remainingIds = notMoved),
-            operation = FilesFolderOperation.Loading(requestId, outcome.intent, FilesFolderOperationPhase.RELOADING),
-            needsReload = false,
-        )
-        FilesBrowserTransition(
-            copy(stack = stack.replaceAt(index, updated), nextRequestValue = nextRequestValue + 1),
-            FilesBrowserEffect.LoadFolder(folder.folder.id, requestId),
-        )
-    }
-}
-
-private fun PutioResult<FilesItem>.moveReadFailure(expectedId: FilesItemId): PutioFailure? = when (this) {
-    is PutioResult.Failure -> failure
-    is PutioResult.Success -> if (value.id == expectedId && (value.parentId?.value ?: -1L) >= 0L) {
-        null
-    } else {
-        PutioFailure.Unexpected(IllegalStateException("Move lookup returned a different ID or no valid parent"))
     }
 }
 

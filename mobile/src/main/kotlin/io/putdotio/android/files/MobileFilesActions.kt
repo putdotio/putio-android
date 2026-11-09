@@ -412,11 +412,8 @@ private fun MobileFilesRenameDialog(
  * The name with its stem selected, so typing replaces the name and keeps the extension; a folder,
  * or a name whose only dot leads it, selects in full.
  */
-internal fun String.withNameSelected(isFolder: Boolean): TextFieldValue {
-    val extension = lastIndexOf('.')
-    val end = if (isFolder || extension <= 0) length else extension
-    return TextFieldValue(this, TextRange(0, end))
-}
+internal fun String.withNameSelected(isFolder: Boolean): TextFieldValue =
+    TextFieldValue(this, TextRange(0, nameStemEnd(isFolder)))
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -828,16 +825,6 @@ internal fun MobileFilesDestructiveAction(
     )
 }
 
-// The rename this sheet submitted finished in a request it has not seen before.
-private fun FilesRenameCompletion?.confirms(
-    itemId: FilesItemId,
-    submittedName: String?,
-    previousRequestValue: Long?,
-): Boolean =
-    submittedName != null &&
-        this?.intent == FilesFolderOperationIntent.Rename(itemId, submittedName) &&
-        requestId.value != previousRequestValue
-
 /**
  * The Delete key on a focused row, acting as the sheet's delete row would: Move to trash goes at once,
  * Delete permanently confirms first. [mode] is the setting when the key was pressed; if the account's
@@ -914,21 +901,6 @@ internal fun confirmedDeleteMode(trashEnabled: Boolean?): FilesDeleteMode? =
         false -> FilesDeleteMode.PERMANENT
         null -> null
     }
-
-private fun FilesFolderOperation.renameReloadStarted(): Boolean =
-    when (this) {
-        is FilesFolderOperation.Loading ->
-            intent is FilesFolderOperationIntent.Rename && phase == FilesFolderOperationPhase.RELOADING
-        is FilesFolderOperation.Failed ->
-            intent is FilesFolderOperationIntent.Rename && phase == FilesFolderOperationPhase.RELOADING
-        FilesFolderOperation.Idle -> false
-    }
-
-private fun FilesFolderOperation.renameFailureFor(itemId: FilesItemId): PutioFailure? =
-    (this as? FilesFolderOperation.Failed)?.takeIf {
-        (it.intent as? FilesFolderOperationIntent.Rename)?.itemId == itemId &&
-            it.phase == FilesFolderOperationPhase.RENAMING
-    }?.failure
 
 private const val FINISHED_WITHIN_SECONDS = 10.0
 private val HEADER_LEADING_SIZE = 40.dp
