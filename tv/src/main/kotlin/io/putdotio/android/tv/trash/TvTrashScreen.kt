@@ -200,6 +200,22 @@ internal fun TvTrashScreen(
 }
 
 @Composable
+private fun TvTrashDetailLeaves(
+    loaded: TrashContent.Loaded?,
+    detailId: Long?,
+    panelHeld: State<Boolean>,
+    listFocus: TvTrashListFocus,
+    rows: FocusRequester,
+) {
+    val gone = loaded != null && detailId != null && loaded.items.none { it.id.value == detailId }
+    LaunchedEffect(gone) {
+        if (!gone || !panelHeld.value) return@LaunchedEffect
+        withFrameNanos {}
+        if (panelHeld.value && listFocus.paneHasFocus.value) rows.requestFocus()
+    }
+}
+
+@Composable
 private fun TvTrashListDetail(
     state: TrashState,
     onEvent: (TrashEvent) -> Boolean,
@@ -216,10 +232,13 @@ private fun TvTrashListDetail(
     val detailItem = items.firstOrNull { it.id.value == detailId }
         ?: items.firstOrNull { it.id.value == pickedRow.id }
         ?: items.firstOrNull()
+    val panelHeld = remember { mutableStateOf(false) }
+    TvTrashDetailLeaves(loaded, detailId, panelHeld, listFocus, focus.list)
     TvListDetail(
         modifier = modifier,
         detailFocus = focus.restore,
         listFocus = focus.list,
+        onDetailFocusChanged = { if (it) panelHeld.value = true },
         header = { header() },
         list = {
             TvTrashInfo()
@@ -233,6 +252,7 @@ private fun TvTrashListDetail(
                     onChoose = { if (state.canRestore(it.id)) onEvent(TrashEvent.SelectRestore(it.id)) },
                     onRowFocusChanged = { item, focused ->
                         if (focused) {
+                            panelHeld.value = false
                             pickedRow.pick(item.id.value)
                             detailId = item.id.value
                         }

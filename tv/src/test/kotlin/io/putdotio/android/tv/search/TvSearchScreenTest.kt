@@ -32,6 +32,18 @@ import io.putdotio.android.FilesFailure
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.PutioResult
+import io.putdotio.android.files.FilesDeleteMode
+import io.putdotio.android.files.StubFilesRepository
+import io.putdotio.android.tv.files.TvFilesActionContext
+import io.putdotio.android.tv.files.TvFilesActionHandlers
+import io.putdotio.android.tv.files.TvFilesEdits
+import io.putdotio.android.tv.files.TvItemChanges
+import io.putdotio.android.tv.files.tvActions
+import io.putdotio.sdk.files.FileDeleteResult
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.search.SearchFilter
 import io.putdotio.android.tv.files.TV_FILES_DETAIL_PRIMARY_TAG
@@ -76,7 +88,7 @@ class TvSearchScreenTest {
             onRetry = { log += "recent-retry" },
         ),
     )
-    private val results = tvSearchResults(
+    private var results = tvSearchResults(
         onFilter = { log += "filter:$it" },
         onPlay = { item, start -> log += "play:${item.name}:$start" },
     )
@@ -506,6 +518,95 @@ class TvSearchScreenTest {
         compose.onNodeWithText("10:34", substring = true).assertIsDisplayed()
         assertEquals(listOf("play:Big Buck Bunny.mp4:Resume"), log)
     }
+
+    @Test
+    fun trashingAResultFromThePanelLandsOnTheNextResult() {
+        val gone = item(2, "two.txt", PutioFileType.TEXT)
+        var state by mutableStateOf(
+            searchState(
+                SearchContent.Ready(
+                    SearchTerm("t"),
+                    listOf(item(1, "one.txt", PutioFileType.TEXT), gone, item(3, "three.txt", PutioFileType.TEXT)),
+                    SearchPaging.Complete,
+                ),
+                query = "t",
+            ),
+        )
+        val response = CompletableDeferred<Unit>()
+        val repository = object : StubFilesRepository() {
+            override suspend fun loadFolder(folderId: FilesItemId) = error("not used")
+
+            override suspend fun delete(
+                itemIds: List<FilesItemId>,
+                mode: FilesDeleteMode,
+            ): PutioResult<FileDeleteResult> {
+                response.await()
+                return PutioResult.Success(FileDeleteResult(cursor = null, skipped = 0, status = "OK"))
+            }
+
+            override suspend fun resolveItem(itemId: FilesItemId): PutioResult<FilesItem> =
+                PutioResult.Failure(PutioFailure.ApiRejected(404, null, PutioConfigurationException("gone"), 404))
+        }
+        val edits = TvFilesEdits(
+            repository,
+            CoroutineScope(Dispatchers.Unconfined),
+            TvItemChanges(onRemoved = { item, _ ->
+                val content = state.content as SearchContent.Ready
+                state = searchState(content.copy(items = content.items.filterNot { it.id == item.id }), query = "t")
+            }),
+        )
+        results = editableResults(edits)
+        show(state = { state })
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput {
+            pressKey(Key.DirectionDown)
+            pressKey(Key.DirectionDown)
+        }
+        compose.onNodeWithContentDescription("Open one.txt").assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionDown)
+        }
+        compose.onNodeWithContentDescription("Open two.txt").assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionRight)
+        }
+        compose.onNodeWithTag(TV_FILES_DETAIL_PRIMARY_TAG).assertIsFocused().performKeyInput {
+            repeat(3) { pressKey(Key.DirectionDown) }
+        }
+        compose.onNode(hasText("Move to trash") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressCenter()
+        }
+
+        compose.runOnIdle { response.complete(Unit) }
+        compose.waitUntil(5_000) { (state.content as SearchContent.Ready).items.none { it.id == gone.id } }
+
+        compose.onNodeWithContentDescription("Open three.txt").assertIsFocused()
+    }
+
+    private fun editableResults(edits: TvFilesEdits) = TvSearchResultActions(
+        onFilter = {},
+        onPlay = { _, _ -> },
+        itemActions = TvSearchItemActions(
+            actionsOf = { item ->
+                item.tvActions(
+                    TvFilesActionContext(
+                        watchedToggleEnabled = false,
+                        trashEnabled = true,
+                        canDelete = true,
+                        canRename = true,
+                        canMove = true,
+                    ),
+                )
+            },
+            handlers = TvFilesActionHandlers(
+                onPlay = { _, _ -> },
+                onPlayWith = { _, _ -> },
+                onOpenInVlc = {},
+                onSetWatched = { _, _ -> },
+                onSetPinned = { _, _ -> },
+            ),
+            edits = edits,
+            trashEnabled = true,
+        ),
+    )
 
     private fun show(
         state: () -> SearchState,
