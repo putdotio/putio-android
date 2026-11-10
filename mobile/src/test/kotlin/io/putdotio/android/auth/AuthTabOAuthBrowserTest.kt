@@ -90,6 +90,20 @@ class AuthTabOAuthBrowserTest {
     @Test
     fun `installed Auth Tab provider is selected when the default browser lacks Auth Tab`() {
         registerDefaultCustomTabsProvider(authTabSupported = false)
+        registerBrowser(OTHER_BROWSER_PACKAGE)
+        registerCustomTabsService(OTHER_BROWSER_PACKAGE, authTabSupported = true)
+
+        assertEquals(OTHER_BROWSER_PACKAGE, resolveAuthTabProvider(applicationContext))
+    }
+
+    @Test
+    fun `an Auth Tab service outside a browser is never selected`() {
+        registerDefaultCustomTabsProvider(authTabSupported = false)
+        registerCustomTabsService(NON_BROWSER_PACKAGE, authTabSupported = true)
+
+        assertNull(resolveAuthTabProvider(applicationContext))
+
+        registerBrowser(OTHER_BROWSER_PACKAGE)
         registerCustomTabsService(OTHER_BROWSER_PACKAGE, authTabSupported = true)
 
         assertEquals(OTHER_BROWSER_PACKAGE, resolveAuthTabProvider(applicationContext))
@@ -97,6 +111,7 @@ class AuthTabOAuthBrowserTest {
 
     @Test
     fun `default Auth Tab provider wins over another installed one`() {
+        registerBrowser(OTHER_BROWSER_PACKAGE)
         registerCustomTabsService(OTHER_BROWSER_PACKAGE, authTabSupported = true)
         registerDefaultCustomTabsProvider(authTabSupported = true)
 
@@ -180,6 +195,24 @@ class AuthTabOAuthBrowserTest {
         registerCustomTabsService(BROWSER_PACKAGE, authTabSupported)
     }
 
+    private fun registerBrowser(browserPackage: String) {
+        val packageManager = shadowOf(applicationContext.packageManager)
+        val browserActivity = ComponentName(browserPackage, "$browserPackage.BrowserActivity")
+        packageManager.addOrUpdateActivity(
+            ActivityInfo().apply {
+                packageName = browserActivity.packageName
+                name = browserActivity.className
+            },
+        )
+        packageManager.addIntentFilterForActivity(
+            browserActivity,
+            IntentFilter(Intent.ACTION_VIEW).apply {
+                addCategory(Intent.CATEGORY_BROWSABLE)
+                addDataScheme("https")
+            },
+        )
+    }
+
     private fun registerCustomTabsService(browserPackage: String, authTabSupported: Boolean) {
         val packageManager = shadowOf(applicationContext.packageManager)
         val customTabsService = ComponentName(browserPackage, "$browserPackage.CustomTabsService")
@@ -207,5 +240,6 @@ class AuthTabOAuthBrowserTest {
         const val AUTH_TAB_CATEGORY = "androidx.browser.auth.category.AuthTab"
         const val BROWSER_PACKAGE = "com.example.browser"
         const val OTHER_BROWSER_PACKAGE = "com.example.otherbrowser"
+        const val NON_BROWSER_PACKAGE = "com.example.notabrowser"
     }
 }
