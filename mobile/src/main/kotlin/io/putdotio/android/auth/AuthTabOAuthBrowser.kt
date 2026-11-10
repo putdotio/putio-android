@@ -2,6 +2,7 @@ package io.putdotio.android.auth
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.activity.result.ActivityResultLauncher
 import androidx.browser.auth.AuthTabIntent
@@ -88,10 +89,19 @@ internal fun classifyAuthTabResult(
     }
 
 internal fun resolveAuthTabProvider(context: Context): String? {
+    val packageManager = context.packageManager
     val defaultProvider = CustomTabsClient.getPackageName(context, null)
-    val installedProviders = context.packageManager
+    // Any app may declare the Custom Tabs service; only a browser opens the pinned https sign-in page.
+    val browsers = packageManager
+        .queryIntentActivities(
+            Intent(Intent.ACTION_VIEW, "https://".toUri()).addCategory(Intent.CATEGORY_BROWSABLE),
+            PackageManager.MATCH_ALL,
+        )
+        .mapTo(HashSet()) { it.activityInfo.packageName }
+    val installedProviders = packageManager
         .queryIntentServices(Intent(CustomTabsService.ACTION_CUSTOM_TABS_CONNECTION), 0)
         .map { it.serviceInfo.packageName }
+        .filter { it in browsers }
     return (listOfNotNull(defaultProvider) + installedProviders)
         .distinct()
         .firstOrNull { CustomTabsClient.isAuthTabSupported(context, it) }
