@@ -140,12 +140,11 @@ internal fun TvSearchResultList(
             .focusRequester(listFocus)
             .focusRestorer {
                 val lastId = items.last().id.value
-                val lastComposed = listState.layoutInfo.visibleItemsInfo.any { it.key == lastId }
-                when {
-                    handOffToLastRow.value && lastComposed -> lastRow
-                    restoreComposed -> restoreRow
-                    else -> anchorRow
-                }
+                val visible = listState.layoutInfo.visibleItemsInfo
+                lastRow.takeIf { handOffToLastRow.value && visible.any { it.key == lastId } }
+                    ?: rows.detail.row.takeIf { visible.any { it.key == rows.detail.id } }
+                    ?: restoreRow.takeIf { restoreComposed }
+                    ?: anchorRow
             }
             .focusGroup()
             .testTag(TV_SEARCH_RESULTS_TAG),

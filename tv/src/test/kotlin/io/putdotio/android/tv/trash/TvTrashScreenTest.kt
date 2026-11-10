@@ -381,6 +381,30 @@ class TvTrashScreenTest {
         assertEquals(TrashEvent.SelectRestore(FilesItemId(9)), events.last())
     }
 
+    @Test
+    fun deletingTheLastRowFromThePanelHandsFocusBackToTheRows() {
+        var state by mutableStateOf(TrashState(content = loaded))
+        show { state }
+        compose.onNode(row).performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNode(hasText("Old downloads") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionRight)
+            pressKey(Key.DirectionDown)
+        }
+        compose.onNode(hasText("Delete permanently") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressCenter()
+        }
+        compose.runOnIdle {
+            state = state.copy(actionConfirmation = TrashAction.DeleteItem(folder), actionConfirmationId = 4L)
+        }
+        compose.onNode(focusedInDialog("Delete permanently")).performKeyInput { pressCenter() }
+        compose.runOnIdle { state = state.copy(actionConfirmation = null, actionConfirmationId = null) }
+        compose.onNode(hasText("Delete permanently") and hasClickAction()).assertIsFocused()
+
+        compose.runOnIdle { state = TrashState(content = loaded.copy(items = listOf(item), total = 1)) }
+
+        compose.onNode(row).assertIsFocused()
+    }
+
     private fun focusedInDialog(label: String) = hasText(label) and isFocused() and hasAnyAncestor(isDialog())
 
     private fun show(state: () -> TrashState) {
