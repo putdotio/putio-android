@@ -306,6 +306,9 @@
     <string name="mobile_welcome_browser_title">Almost there</string>
     <!-- "signing in in your browser" is the phrasal verb "sign in" followed by "in", not a repeated word. -->
     <string name="mobile_welcome_browser_lede" tools:ignore="Typos">Finish signing in in your browser, then come back here.</string>
+    <string name="mobile_auth_chrome_title">Sign-in needs an up-to-date Chrome</string>
+    <string name="mobile_auth_chrome_message">Install or update Chrome, then come back to sign in.</string>
+    <string name="mobile_auth_chrome_action">Get Chrome</string>
     <string name="mobile_auth_not_configured_title">Mobile sign-in isn’t configured</string>
     <string name="mobile_auth_not_configured_message">This build needs its own Android sign-in registration before it can open the browser.</string>
     <string name="mobile_auth_storage_title">Secure storage is unavailable</string>

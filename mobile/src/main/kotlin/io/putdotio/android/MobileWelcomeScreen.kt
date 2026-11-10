@@ -135,6 +135,14 @@ internal fun mobileWelcomeContent(
             action = MobileWelcomeAction(R.string.mobile_action_retry, MobileWelcomeActionStyle.Filled),
         )
 
+        MobileSignedOutReason.AuthTabBrowserMissing -> MobileWelcomeContent(
+            title = R.string.mobile_welcome_title,
+            lede = R.string.mobile_welcome_lede,
+            frames = listOf(FailedFrame),
+            notice = MobileWelcomeNotice(R.string.mobile_auth_chrome_title, R.string.mobile_auth_chrome_message),
+            action = MobileWelcomeAction(R.string.mobile_auth_chrome_action, MobileWelcomeActionStyle.Filled),
+        )
+
         MobileSignedOutReason.SecureStorageUnavailable -> MobileWelcomeContent(
             title = R.string.mobile_welcome_title,
             lede = R.string.mobile_welcome_lede,

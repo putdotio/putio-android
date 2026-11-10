@@ -68,6 +68,8 @@ internal sealed interface MobileSignedOutReason {
 
     data object SignInFailed : MobileSignedOutReason
 
+    data object AuthTabBrowserMissing : MobileSignedOutReason
+
     data object OAuthNotConfigured : MobileSignedOutReason
 
     data object SecureStorageUnavailable : MobileSignedOutReason
@@ -162,6 +164,17 @@ internal class MobileAuthController(
 
     suspend fun failSignIn(): Boolean = operationMutex.withLock {
         finishPendingSignIn(MobileSignedOutReason.SignInFailed)
+    }
+
+    suspend fun failSignInWithoutAuthTabBrowser(): Boolean = operationMutex.withLock {
+        finishPendingSignIn(MobileSignedOutReason.AuthTabBrowserMissing)
+    }
+
+    suspend fun dismissAuthTabBrowserMissing(): Boolean = operationMutex.withLock {
+        val signedOut = mutableState.value as? MobileAuthState.SignedOut
+        if (signedOut?.reason != MobileSignedOutReason.AuthTabBrowserMissing) return@withLock false
+        mutableState.value = MobileAuthState.SignedOut()
+        true
     }
 
     suspend fun handleOAuthCallback(rawCallbackUri: String?): OAuthCallbackHandlingResult =

@@ -1,6 +1,8 @@
 package io.putdotio.android
 
 import android.app.Application
+import android.content.ActivityNotFoundException
+import android.content.Context
 import android.content.Intent
 import androidx.activity.result.ActivityResultLauncher
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,6 +15,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.putdotio.android.account.MobileAccountSettingsViewModel
@@ -136,10 +139,14 @@ private fun MobileAuthRoot(
                 onSignIn = {
                     rootScope.launch {
                         when (val authorization = authController.beginSignIn()) {
-                            is OAuthLaunchResult.Ready -> {
-                                if (oauthBrowser?.launch(authorization) !is OAuthBrowserLaunchResult.Launched) {
-                                    authController.failSignIn()
-                                }
+                            is OAuthLaunchResult.Ready -> when (oauthBrowser?.launch(authorization)) {
+                                OAuthBrowserLaunchResult.Launched -> Unit
+                                OAuthBrowserLaunchResult.Unsupported ->
+                                    authController.failSignInWithoutAuthTabBrowser()
+
+                                is OAuthBrowserLaunchResult.Failed,
+                                null,
+                                -> authController.failSignIn()
                             }
 
                             OAuthLaunchResult.NotAllowed,
@@ -148,6 +155,10 @@ private fun MobileAuthRoot(
                             -> Unit
                         }
                     }
+                },
+                onGetChrome = {
+                    openChromeStoreListing(context)
+                    rootScope.launch { authController.dismissAuthTabBrowserMissing() }
                 },
             )
 
@@ -191,9 +202,26 @@ internal fun MobileSignedOutScreen(
     reason: MobileSignedOutReason?,
     canSignIn: Boolean,
     onSignIn: () -> Unit,
+    onGetChrome: () -> Unit = {},
 ) {
     MobileWelcomeScreen(
         content = mobileWelcomeContent(reason, canSignIn),
-        onAction = onSignIn,
+        onAction = if (canSignIn && reason == MobileSignedOutReason.AuthTabBrowserMissing) onGetChrome else onSignIn,
     )
 }
+
+private fun openChromeStoreListing(context: Context) {
+    listOf(
+        "market://details?id=$CHROME_PACKAGE",
+        "https://play.google.com/store/apps/details?id=$CHROME_PACKAGE",
+    ).firstOrNull { listing ->
+        try {
+            context.startActivity(Intent(Intent.ACTION_VIEW, listing.toUri()))
+            true
+        } catch (_: ActivityNotFoundException) {
+            false
+        }
+    }
+}
+
+private const val CHROME_PACKAGE = "com.android.chrome"

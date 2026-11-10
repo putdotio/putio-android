@@ -82,6 +82,31 @@ class MobileWelcomeScreenTest {
     }
 
     @Test
+    fun missingAuthTabBrowserOffersChromeInsteadOfRetry() {
+        var chromeRequests = 0
+        compose.setContent {
+            PutioTheme {
+                Surface {
+                    MobileSignedOutScreen(
+                        reason = MobileSignedOutReason.AuthTabBrowserMissing,
+                        canSignIn = true,
+                        onSignIn = { actions += 1 },
+                        onGetChrome = { chromeRequests += 1 },
+                    )
+                }
+            }
+        }
+
+        compose.onNodeWithText("Sign-in needs an up-to-date Chrome").assertIsDisplayed()
+        compose.onNodeWithText("Install or update Chrome, then come back to sign in.").assertIsDisplayed()
+        compose.onAllNodesWithText("Try again").assertCountEquals(0)
+        compose.onAllNodesWithText("Nothing was saved, so you can try again.").assertCountEquals(0)
+        compose.onNodeWithText("Get Chrome").performScrollTo().performClick()
+        assertEquals(1, chromeRequests)
+        assertEquals(0, actions)
+    }
+
+    @Test
     fun missingOAuthClientExplainsWithoutAnAction() {
         setSignedOut(canSignIn = false)
 
