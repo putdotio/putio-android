@@ -41,6 +41,23 @@ class MobileAuthControllerTest {
     }
 
     @Test
+    fun `missing Auth Tab browser exits the attempt with its own reason until dismissed`() = runBlocking {
+        val fixture = AuthControllerFixture()
+        fixture.controller.restoreSession()
+        fixture.controller.beginSignIn()
+
+        assertTrue(fixture.controller.failSignInWithoutAuthTabBrowser())
+        assertEquals(
+            MobileAuthState.SignedOut(MobileSignedOutReason.AuthTabBrowserMissing),
+            fixture.controller.state.value,
+        )
+
+        assertTrue(fixture.controller.dismissAuthTabBrowserMissing())
+        assertEquals(MobileAuthState.SignedOut(), fixture.controller.state.value)
+        assertFalse(fixture.controller.dismissAuthTabBrowserMissing())
+    }
+
+    @Test
     fun `Auth Tab cancellation after process recreation clears the persisted attempt`() = runBlocking {
         val pendingAttemptStore = FakePendingOAuthAttemptStore()
         val firstProcess = AuthControllerFixture(pendingAttemptStore = pendingAttemptStore)
