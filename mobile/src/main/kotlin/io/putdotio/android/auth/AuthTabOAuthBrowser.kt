@@ -91,7 +91,6 @@ internal fun classifyAuthTabResult(
 internal fun resolveAuthTabProvider(context: Context): String? {
     val packageManager = context.packageManager
     val defaultProvider = CustomTabsClient.getPackageName(context, null)
-    // Any app may declare the Custom Tabs service; only a browser opens the pinned https sign-in page.
     val browsers = packageManager
         .queryIntentActivities(
             Intent(Intent.ACTION_VIEW, "https://".toUri()).addCategory(Intent.CATEGORY_BROWSABLE),
