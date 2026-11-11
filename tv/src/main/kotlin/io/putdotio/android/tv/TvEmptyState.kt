@@ -66,8 +66,9 @@ internal fun TvEmptyState(
     val lead = actions.firstOrNull()
     var focusedLabel by remember { mutableStateOf<String?>(null) }
     val focusHeld = focusedLabel != null && actions.any { it.label == focusedLabel }
+    val claimsFocus = claimFocus && !focusHeld && lead?.enabled == true
     LaunchedEffect(lead?.label, secondaryAction != null, tertiaryAction != null, lead?.enabled, claimFocus) {
-        if (lead == null || !lead.enabled || !claimFocus || focusHeld) return@LaunchedEffect
+        if (!claimsFocus) return@LaunchedEffect
         withFrameNanos {}
         actionFocus.requestFocus()
     }
@@ -120,15 +121,15 @@ internal fun TvEmptyState(
                 modifier = Modifier.padding(top = ACTION_GAP),
                 horizontalArrangement = Arrangement.spacedBy(ACTIONS_SPACING),
             ) {
-                actions.forEachIndexed { index, it ->
-                    key(it.label) {
+                actions.forEachIndexed { index, item ->
+                    key(item.label) {
                         val focus = if (index == 0) Modifier.focusRequester(actionFocus) else Modifier
                         TvEmptyStateButton(
-                            it,
+                            item,
                             focus.onFocusChanged { state ->
                                 if (state.isFocused) {
-                                    focusedLabel = it.label
-                                } else if (focusedLabel == it.label) {
+                                    focusedLabel = item.label
+                                } else if (focusedLabel == item.label) {
                                     focusedLabel = null
                                 }
                             },
