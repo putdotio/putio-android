@@ -202,13 +202,19 @@ internal fun TvPlaybackFailureScreen(
     failure: PlaybackFailure,
     onRetry: () -> Unit,
     onOpenInVlc: (() -> Unit)?,
+    onBack: () -> Unit,
 ) {
     val cantPlay = failure is PlaybackFailure.MediaUnsupported
+    val linkExpired = failure is PlaybackFailure.MediaCredentialUnavailable
     TvPlayerStateFrame(target, dimmed = true) {
         TvEmptyState(
             glyph = if (cantPlay) PutioEmptyGlyph.NoResults else PutioEmptyGlyph.CouldNotLoad,
             headline = stringResource(
-                if (cantPlay) R.string.tv_player_cant_play_title else R.string.tv_player_error_title,
+                when {
+                    cantPlay -> R.string.tv_player_cant_play_title
+                    linkExpired -> R.string.tv_player_error_link_expired_title
+                    else -> R.string.tv_player_error_title
+                },
             ),
             message = if (cantPlay) {
                 stringResource(R.string.tv_player_cant_play_message)
@@ -229,6 +235,11 @@ internal fun TvPlaybackFailureScreen(
                     icon = R.drawable.ic_ph_traffic_cone,
                 )
                 else -> null
+            },
+            secondaryAction = if (linkExpired) {
+                TvEmptyStateAction(label = stringResource(R.string.tv_player_go_back), onClick = onBack)
+            } else {
+                null
             },
             glyphRunPerCharacter = !cantPlay,
             glyphModifier = if (cantPlay) Modifier.offset(y = -SHRUG_LIFT) else Modifier,

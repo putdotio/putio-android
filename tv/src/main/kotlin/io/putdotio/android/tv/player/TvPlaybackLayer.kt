@@ -105,7 +105,9 @@ internal fun TvPlaybackRoute(
         onRestart = { controller.dispatch(PlaybackEvent.Restart) },
         onPlayerFailure = { failure, positionMillis ->
             val telemetry = controller.state.value.playerFailureTelemetry(failure)
-            if (controller.dispatch(PlaybackEvent.PlayerFailed(failure, positionMillis))) {
+            if (controller.dispatch(PlaybackEvent.PlayerFailed(failure, positionMillis)) &&
+                controller.state.value.content is PlaybackContent.Failed
+            ) {
                 val id = PutioDiagnostics.capture(telemetry)
                 failure.putioFailure?.takeIf { it.isUnknown }?.let { TvFailureReports.record(it, id) }
             }

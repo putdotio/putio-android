@@ -53,6 +53,7 @@ class TvPlaybackStatesTest {
     private var refreshes = 0
     private var starts = 0
     private var retries = 0
+    private var backs = 0
     private var vlcOpens = 0
     private val lifecycleOwner = object : LifecycleOwner {
         val registry = LifecycleRegistry(this).apply { currentState = Lifecycle.State.RESUMED }
@@ -194,8 +195,11 @@ class TvPlaybackStatesTest {
         compose.runOnIdle { assertEquals(1, retries) }
 
         change(PlaybackContent.Failed(PlaybackFailure.MediaCredentialUnavailable(IOException())))
-        compose.onNodeWithText("The stream link expired. Try again to get a fresh one.").assertIsDisplayed()
-        compose.onNodeWithText("Try again").assertIsDisplayed()
+        compose.onNodeWithText("Playback link expired").assertIsDisplayed()
+        compose.onNodeWithText("Go back and try again.").assertIsDisplayed()
+        compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNodeWithText("Go back").assertIsFocused().performKeyInput { pressKey(Key.DirectionCenter) }
+        compose.runOnIdle { assertEquals(1, backs) }
 
         val cause = PutioConfigurationException("test")
         change(PlaybackContent.Failed(PlaybackFailure.Putio(PutioFailure.AuthenticationRequired(cause))))
@@ -262,7 +266,7 @@ class TvPlaybackStatesTest {
                             content = content,
                             nextRequestValue = 3L,
                         ),
-                        onBack = {},
+                        onBack = { backs += 1 },
                         onRetry = { retries += 1 },
                         onResume = {},
                         onRestart = {},

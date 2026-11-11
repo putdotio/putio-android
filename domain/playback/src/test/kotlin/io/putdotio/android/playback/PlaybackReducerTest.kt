@@ -67,7 +67,7 @@ class PlaybackReducerTest {
     fun liveSessionPlayerFailureUsesExistingRecoveryAndNextRequestId() {
         val audio = Target.copy(mediaType = PlaybackMediaType.AUDIO)
         val attached = PlaybackReducer.start(audio, PlaybackStartup.AttachAudioSession)
-        val failure = PlaybackFailure.MediaCredentialUnavailable(IllegalStateException("expired"))
+        val failure = PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IllegalStateException("offline")))
         val failed = PlaybackReducer.reduce(attached.state, PlaybackEvent.PlayerFailed(failure, 54_321L))
         val retry = PlaybackReducer.reduce(failed.state, PlaybackEvent.Retry)
 
@@ -524,6 +524,39 @@ class PlaybackReducerTest {
         )
         assertTrue(recovered.state.content is PlaybackContent.Ready)
         assertEquals(4_321L, recovered.state.resumePositionMillis)
+    }
+
+    @Test
+    fun anExpiredLinkResolvesOnceSilentlyAtItsPositionAndShowsTheSecondFailure() {
+        val expired = PlaybackFailure.MediaCredentialUnavailable(IllegalStateException("401"))
+        val refetch = PlaybackReducer.reduce(readyState(), PlaybackEvent.PlayerFailed(expired, 4_321L))
+        assertEquals(PlaybackContent.Loading(PlaybackRequestId(2L)), refetch.state.content)
+        assertEquals(PlaybackEffect.Resolve(Target, PlaybackRequestId(2L)), refetch.effect)
+        assertEquals(4_321L, refetch.state.resumePositionMillis)
+
+        val source = playbackSource()
+        val resumed = PlaybackReducer.reduce(
+            refetch.state,
+            PlaybackEvent.ResolveSucceeded(
+                PlaybackRequestId(2L),
+                PlaybackResolution.Ready(source, useStartFrom = true),
+            ),
+        )
+        assertEquals(PlaybackContent.Ready(source, useStartFrom = true), resumed.state.content)
+        assertEquals(4_321L, resumed.state.resumePositionMillis)
+
+        val failed = PlaybackReducer.reduce(resumed.state, PlaybackEvent.PlayerFailed(expired, 4_321L))
+        assertEquals(PlaybackContent.Failed(expired), failed.state.content)
+        assertNull(failed.effect)
+
+        val later = PlaybackReducer.reduce(resumed.state, PlaybackEvent.PlayerFailed(expired, 600_000L))
+        assertEquals(PlaybackContent.Loading(PlaybackRequestId(3L)), later.state.content)
+        assertEquals(600_000L, later.state.resumePositionMillis)
+
+        val network = PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IllegalStateException("offline")))
+        val notExpired = PlaybackReducer.reduce(readyState(), PlaybackEvent.PlayerFailed(network, 4_321L))
+        assertEquals(PlaybackContent.Failed(network), notExpired.state.content)
+        assertNull(notExpired.effect)
     }
 
     @Test

@@ -530,6 +530,7 @@ private fun MobilePlaybackRoute(
             val playing = controller.state.value
             // Audio plays on the session service's player, which reports its own failures.
             if (controller.dispatch(PlaybackEvent.PlayerFailed(failure, positionMillis)) &&
+                controller.state.value.content is PlaybackContent.Failed &&
                 playing.target.mediaType == PlaybackMediaType.VIDEO
             ) {
                 PutioDiagnostics.capture(playing.playerFailureTelemetry(failure))

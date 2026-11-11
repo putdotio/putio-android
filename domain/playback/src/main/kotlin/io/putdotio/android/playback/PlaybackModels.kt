@@ -107,6 +107,7 @@ public data class PlaybackState internal constructor(
      */
     internal val conversionStatusRead: Boolean = false,
     internal val convertedOnly: Boolean = false,
+    internal val linkRefetchedAtMillis: Long? = null,
 )
 
 public sealed interface PlaybackEvent {
@@ -259,17 +260,36 @@ private fun PlaybackState.sourceRequired(event: PlaybackEvent.SourceRequired): P
     )
 }
 
-private fun PlaybackState.playerFailed(event: PlaybackEvent.PlayerFailed): PlaybackTransition {
-    if (content !is PlaybackContent.Ready && content != PlaybackContent.Session) {
-        return PlaybackTransition(this, consumed = false)
+private fun PlaybackState.playerFailed(event: PlaybackEvent.PlayerFailed): PlaybackTransition =
+    when {
+        content !is PlaybackContent.Ready && content != PlaybackContent.Session ->
+            PlaybackTransition(this, consumed = false)
+
+        refetchesExpiredLink(event) -> {
+            val requestId = PlaybackRequestId(nextRequestValue)
+            PlaybackTransition(
+                state = copy(
+                    content = PlaybackContent.Loading(requestId),
+                    nextRequestValue = nextRequestValue + 1,
+                    resumePositionMillis = event.resumePositionMillis,
+                    linkRefetchedAtMillis = event.resumePositionMillis,
+                ),
+                effect = PlaybackEffect.Resolve(target, requestId, convertedOnly),
+            )
+        }
+
+        else ->
+            PlaybackTransition(
+                copy(
+                    content = PlaybackContent.Failed(event.failure),
+                    resumePositionMillis = event.resumePositionMillis,
+                ),
+            )
     }
-    return PlaybackTransition(
-        copy(
-            content = PlaybackContent.Failed(event.failure),
-            resumePositionMillis = event.resumePositionMillis,
-        ),
-    )
-}
+
+private fun PlaybackState.refetchesExpiredLink(event: PlaybackEvent.PlayerFailed): Boolean =
+    event.failure is PlaybackFailure.MediaCredentialUnavailable &&
+        linkRefetchedAtMillis.let { it == null || event.resumePositionMillis > it }
 
 private fun PlaybackState.retry(): PlaybackTransition {
     val requestId = PlaybackRequestId(nextRequestValue)
