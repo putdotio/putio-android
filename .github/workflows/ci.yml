@@ -117,6 +117,13 @@ jobs:
           read -ra tasks <<<"$TASKS"
           ./gradlew --stacktrace "${tasks[@]}"
 
+      - name: Test harness scripts
+        if: env.HARNESS_TESTS == 'true'
+        run: |
+          bash scripts/test-evidence.sh
+          bash scripts/test-emulator.sh
+          bash scripts/test-sign-in.sh
+
       - name: Upload failed unit test reports
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -149,6 +156,7 @@ jobs:
     env:
       TASKS: verifyScripts
       FFMPEG: 'true'
+      HARNESS_TESTS: 'true'
     steps: *lane
 
   libraries:
