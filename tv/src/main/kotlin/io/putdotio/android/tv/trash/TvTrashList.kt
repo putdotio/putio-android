@@ -32,6 +32,7 @@ import io.putdotio.android.design.fileTypeIconRes
 import io.putdotio.android.files.formatFileSize
 import io.putdotio.android.trash.TrashContent
 import io.putdotio.android.trash.TrashItem
+import io.putdotio.android.tv.KeepTopWhenRowsArriveAbove
 import io.putdotio.android.tv.TV_LIST_ROW_META
 import io.putdotio.android.tv.TV_LIST_ROW_META_MONO
 import io.putdotio.android.tv.TvAutoPaging
@@ -71,6 +72,7 @@ internal fun TvTrashList(
         handOffToLastRow.value = true
     }
     val listState = rememberLazyListState()
+    listState.KeepTopWhenRowsArriveAbove(items.firstOrNull()?.id?.value)
     val anchorIndex by remember(listState) { derivedStateOf { listState.firstVisibleItemIndex } }
     val restoreIndex = remember(items) { items.indexOfFirst { it.id.value == restoreRowId } }
     TvAutoPaging(

@@ -36,6 +36,7 @@ import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesViewportPosition
+import io.putdotio.android.tv.KeepTopWhenRowsArriveAbove
 import io.putdotio.android.tv.TvAutoPaging
 import io.putdotio.android.tv.focusRequesterIf
 import io.putdotio.android.tv.holdAtPendingEnd
@@ -66,6 +67,7 @@ internal fun TvFilesList(
     val listState = key(folderId) {
         rememberLazyListState(viewport.firstVisibleItemIndex, viewport.firstVisibleItemScrollOffset)
     }
+    listState.KeepTopWhenRowsArriveAbove(content.items.firstOrNull()?.id?.value)
     val currentOnEvent by rememberUpdatedState(onEvent)
     val remembered = focusMemory[folderId]
     val resumeOnPaging = remembered == PAGING_FOCUS_MARKER && content.paging is FilesPaging.Failed
