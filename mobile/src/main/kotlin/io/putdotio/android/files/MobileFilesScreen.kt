@@ -585,7 +585,7 @@ private fun MobileFilesMissingFolderAnnouncement(
     snackbarHostState: SnackbarHostState,
     onEvent: (FilesBrowserEvent) -> Unit,
 ) {
-    val missing = state.missingFolder
+    val missing = state.missingFolder.takeUnless { state.current.content is FilesContent.Loading }
     val message = stringResource(R.string.mobile_files_folder_not_found)
     val currentOnEvent by rememberUpdatedState(onEvent)
     val scope = rememberCoroutineScope()
