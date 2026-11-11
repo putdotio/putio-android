@@ -413,12 +413,12 @@ private fun PlaybackState.resolveFailed(event: PlaybackEvent.ResolveFailed): Pla
     }
     val conversion = (content as? PlaybackContent.Conversion)
         ?.takeIf { it.readsStatus && event.failure.lostConnection }
-    if (conversion != null) {
-        return PlaybackTransition(
-            copy(content = conversion.copy(refreshRequestId = null, statusCheckFailed = true)),
-        )
-    }
-    return PlaybackTransition(copy(content = PlaybackContent.Failed(event.failure)))
+    return PlaybackTransition(
+        copy(
+            content = conversion?.copy(refreshRequestId = null, statusCheckFailed = true)
+                ?: PlaybackContent.Failed(event.failure),
+        ),
+    )
 }
 
 private val PlaybackContent.Conversion.readsStatus: Boolean
