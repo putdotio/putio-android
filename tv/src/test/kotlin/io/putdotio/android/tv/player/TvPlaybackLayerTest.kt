@@ -4,6 +4,7 @@ import androidx.activity.ComponentActivity
 import io.putdotio.android.tv.setTvContent
 import io.putdotio.android.tv.pressCenter
 import androidx.activity.compose.BackHandler
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -78,8 +79,8 @@ class TvPlaybackLayerTest {
         )
         // Owned by the session in the app, so it outlives the shell while playback shows.
         val focusMemory = mutableMapOf<Long, Long>()
-        var playing by mutableStateOf<FilesItem?>(null)
-        setFilesWithPlayback(files, focusMemory, player, playing = { playing }, onPlaying = { playing = it })
+        val playing = mutableStateOf<FilesItem?>(null)
+        setFilesWithPlayback(files, focusMemory, player, playing)
         compose.openTab(TvDestination.Files)
         compose.onNodeWithContentDescription("notes.txt").assertIsFocused().performKeyInput {
             pressKey(Key.DirectionDown)
@@ -91,10 +92,10 @@ class TvPlaybackLayerTest {
 
         // The first Back hides the controls; the second leaves.
         compose.back()
-        assertTrue(playing != null)
+        assertTrue(playing.value != null)
         compose.back()
 
-        assertNull(playing)
+        assertNull(playing.value)
         assertTrue(player.released)
         compose.onNodeWithContentDescription("Play Sintel.mp4").assertIsFocused()
     }
@@ -114,8 +115,8 @@ class TvPlaybackLayerTest {
             ),
             nextRequestValue = 10L,
         )
-        var playing by mutableStateOf<FilesItem?>(null)
-        setFilesWithPlayback(files, mutableMapOf(), player, playing = { playing }, onPlaying = { playing = it })
+        val playing = mutableStateOf<FilesItem?>(null)
+        setFilesWithPlayback(files, mutableMapOf(), player, playing)
         compose.openTab(TvDestination.Files)
         compose.onNodeWithContentDescription("notes.txt").assertIsFocused().performKeyInput {
             pressKey(Key.DirectionDown)
@@ -125,7 +126,7 @@ class TvPlaybackLayerTest {
 
         compose.back()
 
-        assertNull(playing)
+        assertNull(playing.value)
         assertTrue(player.released)
         compose.onNodeWithContentDescription("Play song.mp3").assertIsFocused()
     }
@@ -142,7 +143,7 @@ class TvPlaybackLayerTest {
         compose.onNodeWithTag(TV_MINI_PLAYER_TAG).assertIsDisplayed()
         compose.runOnIdle {
             assertTrue(audio.background)
-            assertTrue(audio.playing != null)
+            assertTrue(audio.playing.value != null)
             assertFalse(player.released)
             assertTrue(player.playWhenReady)
         }
@@ -186,8 +187,7 @@ class TvPlaybackLayerTest {
             files,
             mutableMapOf(),
             player,
-            playing = { audio.playing },
-            onPlaying = { audio.playing = it },
+            audio.playing,
             background = audio,
         )
         compose.openTab(TvDestination.Files)
@@ -257,22 +257,21 @@ class TvPlaybackLayerTest {
         files: FilesBrowserState,
         focusMemory: MutableMap<Long, Long>,
         player: FakePlayer,
-        playing: () -> FilesItem?,
-        onPlaying: (FilesItem?) -> Unit,
+        playing: MutableState<FilesItem?>,
         background: BackgroundAudio? = null,
     ) {
         compose.setTvContent {
             TvPlaybackLayer(
-                playing = playing() != null,
+                playing = playing.value != null,
                 background = background?.background == true,
                 player = {
-                    val item = checkNotNull(playing())
+                    val item = checkNotNull(playing.value)
                     TvPlayerScreen(
                         state = readyState(
                             name = item.name,
                             mediaType = checkNotNull(PlaybackMediaType.fromFileType(item.type)),
                         ),
-                        onBack = { onPlaying(null) },
+                        onBack = { playing.value = null },
                         onRetry = {},
                         onResume = {},
                         onRestart = {},
@@ -291,13 +290,13 @@ class TvPlaybackLayerTest {
                         TvFilesScreen(
                             state = files,
                             onEvent = { true },
-                            onPlayMedia = { onPlaying(it) },
+                            onPlayMedia = { playing.value = it },
                             modifier = Modifier.focusRequester(paneFocus),
                             focusMemory = focusMemory,
                         )
                     },
                     trailing = {
-                        val item = playing()
+                        val item = playing.value
                         if (background != null && background.background && item != null) {
                             TvMiniPlayer(
                                 title = item.name,
@@ -312,7 +311,7 @@ class TvPlaybackLayerTest {
     }
 
     private class BackgroundAudio {
-        var playing by mutableStateOf<FilesItem?>(null)
+        val playing = mutableStateOf<FilesItem?>(null)
         var background by mutableStateOf(false)
         val miniPlayer = TvMiniPlayerState()
     }
