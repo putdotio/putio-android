@@ -180,7 +180,6 @@
     <string name="tv_files_undo">Undo</string>
     <string name="tv_files_undo_failed">Couldn’t restore %1$s from Trash. %2$s</string>
     <string name="tv_files_vlc_missing">VLC isn’t installed</string>
-    <string name="tv_files_vlc_missing_message">Install VLC from your TV’s app store, then try Open in VLC again.</string>
     <string name="tv_files_stream_unavailable">Couldn’t prepare the stream. Sign in again.</string>
     <string name="tv_files_stream_error">Couldn’t prepare the stream. %1$s</string>
     <string name="tv_files_watched_error">Couldn’t update the watched state. %1$s</string>

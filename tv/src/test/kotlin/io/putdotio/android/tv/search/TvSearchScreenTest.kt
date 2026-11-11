@@ -3,6 +3,8 @@ package io.putdotio.android.tv.search
 import androidx.compose.runtime.getValue
 import io.putdotio.android.tv.setTvContent
 import io.putdotio.android.tv.pressCenter
+import io.putdotio.android.tv.SNACKBAR_MILLIS
+import io.putdotio.android.tv.TvBrief
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -205,6 +207,28 @@ class TvSearchScreenTest {
 
         notice = FilesFailure.NavigationBlocked
         compose.onNodeWithText("This item can’t be opened right now. Check Files, then try again.").assertIsDisplayed()
+    }
+
+    @Test
+    fun aVlcNoticeShowsBrieflyInTheSnackbarWithoutAnOkDialog() {
+        var brief by mutableStateOf<TvBrief?>(null)
+        var shown = 0
+        show(state = { searchState(SearchContent.Idle) }, brief = { brief })
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
+
+        compose.runOnIdle {
+            brief = TvBrief("VLC isn’t installed") {
+                shown += 1
+                brief = null
+            }
+        }
+
+        compose.onNodeWithText("VLC isn’t installed").assertIsDisplayed()
+        compose.onAllNodesWithText("OK").assertCountEquals(0)
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assertIsFocused()
+        compose.runOnIdle { assertEquals(1, shown) }
+        compose.mainClock.advanceTimeBy(SNACKBAR_MILLIS + 500)
+        compose.onAllNodesWithText("VLC isn’t installed").assertCountEquals(0)
     }
 
     @Test
@@ -610,6 +634,7 @@ class TvSearchScreenTest {
         notice: () -> FilesFailure? = { null },
         sessionKey: () -> Any? = { null },
         folderNames: Map<FilesItemId, String> = emptyMap(),
+        brief: () -> TvBrief? = { null },
     ) {
         compose.setTvContent {
             TvSearchScreen(
@@ -619,6 +644,7 @@ class TvSearchScreenTest {
                 sessionKey = sessionKey(),
                 detail = tvSearchDetail(folderNames),
                 results = results,
+                brief = brief(),
             )
         }
     }

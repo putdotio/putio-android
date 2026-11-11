@@ -48,7 +48,6 @@ import io.putdotio.android.search.SearchPaging
 import io.putdotio.android.search.SearchState
 import io.putdotio.android.search.SearchTerm
 import io.putdotio.android.tv.TvButton
-import io.putdotio.android.tv.TvButtonStyle
 import io.putdotio.android.tv.TvDetailSkeleton
 import io.putdotio.android.tv.TvEmptyState
 import io.putdotio.android.tv.TvListDetail
@@ -56,13 +55,11 @@ import io.putdotio.android.tv.TvListSkeleton
 import io.putdotio.android.tv.TvAutoPaging
 import io.putdotio.android.tv.TvListPaging
 import io.putdotio.android.tv.TvLoadFailedState
-import io.putdotio.android.tv.TvNoticeDialog
 import io.putdotio.android.tv.TvPaneFocusOwner
 import io.putdotio.android.tv.TvPickedRow
 import io.putdotio.android.tv.TvPlayStart
 import io.putdotio.android.tv.paneSection
 import io.putdotio.android.tv.rememberTvPaneHasFocus
-import io.putdotio.android.tv.files.FILES_SHEET_SCRIM
 import io.putdotio.android.tv.files.TvFilesEdits
 import io.putdotio.android.tv.files.TvItemEditLayer
 import io.putdotio.android.tv.files.TvItemEditTarget
@@ -70,6 +67,8 @@ import io.putdotio.android.tv.TvTrashUndoOffer
 import io.putdotio.android.tv.TvTrashUndoOffered
 import io.putdotio.android.tv.TvUndoSnackbar
 import io.putdotio.android.tv.TvUndoSnackbarHost
+import io.putdotio.android.tv.TvBrief
+import io.putdotio.android.tv.TvBriefShown
 import io.putdotio.android.tv.files.TvFilesAction
 import io.putdotio.android.tv.files.TvFilesActionHandlers
 import io.putdotio.android.tv.files.TvFilesActionsSheet
@@ -123,12 +122,6 @@ internal class TvSearchDetail(
     val viewerUrl: TvViewerUrl? = null,
 )
 
-internal class TvSearchDialogNotice(
-    val title: String,
-    val message: String?,
-    val onDismiss: () -> Unit,
-)
-
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 internal fun TvSearchScreen(
@@ -140,7 +133,7 @@ internal fun TvSearchScreen(
     notice: FilesFailure? = null,
     sessionKey: Any? = null,
     pickedRow: TvPickedRow = remember(sessionKey) { TvPickedRow() },
-    dialogNotice: TvSearchDialogNotice? = null,
+    brief: TvBrief? = null,
 ) = key(sessionKey) {
     var restoreRowId by remember { mutableStateOf(pickedRow.id) }
     val undoSnackbar = remember { TvUndoSnackbar(FocusRequester()) }
@@ -167,7 +160,7 @@ internal fun TvSearchScreen(
     var settingsFrom by remember { mutableStateOf<FocusRequester?>(null) }
     val historyEnabled = state.recentSearchesEnabled
     val openSettings = historyEnabled?.let { { from: FocusRequester -> settingsFrom = from } }
-    val overlayOpen = rememberUpdatedState(settingsFrom != null || dialogNotice != null)
+    val overlayOpen = rememberUpdatedState(settingsFrom != null)
     owner.RefocusAfterLeave(blocked = overlayOpen)
     var focusInPane by remember { mutableStateOf(false) }
     var focusInField by remember { mutableStateOf(false) }
@@ -235,6 +228,7 @@ internal fun TvSearchScreen(
         )
     }
     TvTrashUndoOffered(results.itemActions.trashUndo, undoSnackbar.state)
+    TvBriefShown(brief, undoSnackbar.state)
     TvUndoSnackbarHost(undoSnackbar.state, undoSnackbar.undoFocus, entryTarget)
     }
     val from = settingsFrom
@@ -248,17 +242,6 @@ internal fun TvSearchScreen(
         )
     } else if (from != null) {
         LaunchedEffect(Unit) { settingsFrom = null }
-    }
-    if (dialogNotice != null) {
-        TvNoticeDialog(
-            title = dialogNotice.title,
-            message = dialogNotice.message,
-            onDismiss = dialogNotice.onDismiss,
-            okStyle = TvButtonStyle.Filled,
-            balanceMessage = true,
-            okHugsLabel = true,
-            dimAmount = FILES_SHEET_SCRIM.alpha,
-        )
     }
     LaunchedEffect(owner) { owner.restoreLastSection() }
 }

@@ -53,6 +53,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import io.putdotio.android.files.copyForTest
 import io.putdotio.android.tv.SNACKBAR_MILLIS
+import io.putdotio.android.tv.TvBrief
 import io.putdotio.android.tv.TvPlayStart
 import io.putdotio.android.tv.TvTrashUndoOffer
 
@@ -317,6 +318,33 @@ class TvFilesRowActionsTest {
         compose.onNode(hasText("Undo") and hasClickAction()).assertIsDisplayed()
         compose.mainClock.advanceTimeBy(SNACKBAR_MILLIS / 2 + 500)
         compose.onAllNodesWithText("Moved to Trash").assertCountEquals(0)
+    }
+
+    @Test
+    fun aFailedWatchedWriteShowsBrieflyInTheSnackbarWithoutAnOkDialog() {
+        var brief by mutableStateOf<TvBrief?>(null)
+        var shown = 0
+        compose.setTvContent {
+            TvFilesScreen(
+                state = ready(item(3, "notes.txt", PutioFileType.TEXT)),
+                onEvent = { true },
+                onPlayMedia = {},
+                brief = brief,
+            )
+        }
+
+        compose.runOnIdle {
+            brief = TvBrief("Couldn’t update the watched state. No connection.") {
+                shown += 1
+                brief = null
+            }
+        }
+
+        compose.onNodeWithText("Couldn’t update the watched state.", substring = true).assertIsDisplayed()
+        compose.onAllNodesWithText("OK").assertCountEquals(0)
+        compose.runOnIdle { assertEquals(1, shown) }
+        compose.mainClock.advanceTimeBy(SNACKBAR_MILLIS + 500)
+        compose.onAllNodesWithText("Couldn’t update the watched state.", substring = true).assertCountEquals(0)
     }
 
     private fun trashedOutcome(): FilesDeleteOutcome {

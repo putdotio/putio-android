@@ -3,6 +3,7 @@ package io.putdotio.android.tv
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.runtime.State
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -50,6 +51,8 @@ internal data class TvSnackbarMessage(
 )
 
 internal class TvSnackbarShowing(val message: TvSnackbarMessage)
+
+internal class TvBrief(val text: String, val onShown: () -> Unit)
 
 @Stable
 internal class TvSnackbarState {
@@ -143,6 +146,29 @@ internal fun TvTrashUndoOffered(trashUndo: TvTrashUndoOffer?, snackbar: TvSnackb
             snackbar.show(TvSnackbarMessage(text = text, actionLabel = undo, onAction = { trashUndo.undo(outcome) }))
         }
     }
+}
+
+@Composable
+internal fun TvBriefShown(brief: TvBrief?, snackbar: TvSnackbarState) {
+    val text = brief?.text
+    val onShown by rememberUpdatedState(brief?.onShown)
+    LaunchedEffect(text) {
+        if (text != null) {
+            snackbar.show(TvSnackbarMessage(text = text))
+            onShown?.invoke()
+        }
+    }
+}
+
+@Composable
+internal fun BoxScope.TvPaneSnackbarHost(snackbar: TvSnackbarState) {
+    TvSnackbarHost(
+        state = snackbar,
+        modifier = Modifier
+            .align(Alignment.BottomStart)
+            .padding(bottom = TV_SNACKBAR_BOTTOM),
+        raised = true,
+    )
 }
 
 @Composable
