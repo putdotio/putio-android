@@ -23,6 +23,7 @@ import androidx.compose.ui.test.isFocused
 import androidx.compose.ui.test.isNotEnabled
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
@@ -274,7 +275,7 @@ class TvTrashScreenTest {
     }
 
     @Test
-    fun aFailedReadFocusesTryNowAndPagingLoadsMore() {
+    fun aFailedReadFocusesTryNowAndRowsNearTheEndLoadTheNextPage() {
         var state by mutableStateOf(
             TrashState(content = TrashContent.Error(PutioFailure.NetworkUnavailable(PutioConfigurationException("x")))),
         )
@@ -285,25 +286,37 @@ class TvTrashScreenTest {
         assertEquals(listOf<TrashEvent>(TrashEvent.Retry), events)
 
         compose.runOnIdle { state = TrashState(content = loaded.copy(nextCursor = FilesCursor("c"))) }
-        compose.onNode(row).assertIsFocused().performKeyInput { repeat(2) { pressKey(Key.DirectionDown) } }
-        compose.onNodeWithText("Load more").assertIsFocused().performKeyInput { pressCenter() }
-        assertEquals(TrashEvent.LoadNextPage, events.last())
+        compose.onNode(row).assertIsFocused().performKeyInput { repeat(3) { pressKey(Key.DirectionDown) } }
+        compose.onNode(hasText("Old downloads") and hasClickAction()).assertIsFocused()
+        assertEquals(1, events.count { it == TrashEvent.LoadNextPage })
+
+        compose.runOnIdle {
+            state = TrashState(content = loaded.copy(nextCursor = FilesCursor("c"), isLoadingMore = true))
+        }
+        compose.onNodeWithContentDescription("Loading more items").assertIsDisplayed()
+        compose.runOnIdle {
+            state = TrashState(
+                content = loaded.copy(
+                    nextCursor = FilesCursor("c"),
+                    pageFailure = PutioFailure.NetworkUnavailable(PutioConfigurationException("x")),
+                ),
+            )
+        }
+        compose.onNodeWithText("Couldn’t load more items.").assertIsDisplayed()
+        compose.onNode(hasText("Old downloads") and hasClickAction()).assertIsFocused()
+        assertEquals(1, events.count { it == TrashEvent.LoadNextPage })
 
         compose.runOnIdle { state = TrashState(content = loaded) }
         compose.onNode(hasText("Old downloads") and hasClickAction()).assertIsFocused()
     }
 
     @Test
-    fun anEmptyPageWithACursorKeepsLoadMoreReachable() {
+    fun anEmptyPageWithACursorLoadsTheNextOnItsOwn() {
         show { TrashState(content = TrashContent.Loaded(emptyList(), FilesCursor("c"), total = 5, trashSizeBytes = 1)) }
 
         compose.onAllNodesWithText("Your trash is empty").assertCountEquals(0)
-        compose.onNodeWithText("Load more").assertIsFocused().performKeyInput {
-            pressCenter()
-            pressKey(Key.DirectionUp)
-        }
+        compose.onNodeWithContentDescription("Loading more items").assertIsDisplayed()
         assertEquals(listOf<TrashEvent>(TrashEvent.LoadNextPage), events)
-        compose.onNode(hasText("Restore all") and hasClickAction()).assertIsFocused()
     }
 
     @Test

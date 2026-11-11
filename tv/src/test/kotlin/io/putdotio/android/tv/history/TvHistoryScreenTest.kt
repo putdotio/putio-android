@@ -304,26 +304,25 @@ class TvHistoryScreenTest {
     }
 
     @Test
-    fun pagingLoadsMoreAndHandsFocusToTheLastRowWhenThePagesEnd() {
+    fun theNextPageLoadsNearTheEndAndAFailedPageRetriesOnlyFromTryAgain() {
         var state by mutableStateOf(
             historyState(HistoryContent.Ready(items(), HistoryPaging.Available(HistoryEventId(3)))),
         )
         show { state }
+        assertEquals(listOf<HistoryEvent>(HistoryEvent.LoadNextPage), log)
 
         compose.onNodeWithContentDescription("Open Big Buck Bunny").assertIsFocused().performKeyInput {
-            pressKey(Key.DirectionDown)
-            pressKey(Key.DirectionDown)
-            pressKey(Key.DirectionDown)
+            repeat(4) { pressKey(Key.DirectionDown) }
         }
-        compose.onNodeWithText("Load more").assertIsFocused().performKeyInput { pressCenter() }
-        assertEquals(listOf<HistoryEvent>(HistoryEvent.LoadNextPage), log)
+        compose.onNodeWithContentDescription("Open sintel.mp4").assertIsFocused()
 
         compose.runOnIdle {
             state = historyState(
                 HistoryContent.Ready(items(), HistoryPaging.Loading(HistoryEventId(3), HistoryRequestId(2))),
             )
         }
-        compose.onNodeWithText("Loading more history").assertIsFocused()
+        compose.onNodeWithContentDescription("Loading more history").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Open sintel.mp4").assertIsFocused()
 
         compose.runOnIdle {
             state = historyState(
@@ -337,13 +336,24 @@ class TvHistoryScreenTest {
             )
         }
         compose.onNodeWithText("Couldn’t load more history.").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Open sintel.mp4").assertIsDisplayed()
+        assertEquals(listOf<HistoryEvent>(HistoryEvent.LoadNextPage), log)
+        compose.onNodeWithContentDescription("Open sintel.mp4").performKeyInput { pressKey(Key.DirectionDown) }
         compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf<HistoryEvent>(HistoryEvent.LoadNextPage, HistoryEvent.Retry), log)
 
         compose.runOnIdle {
+            state = historyState(
+                HistoryContent.Ready(items(), HistoryPaging.Loading(HistoryEventId(3), HistoryRequestId(3))),
+            )
+        }
+        compose.onNodeWithContentDescription("Open sintel.mp4").assertIsFocused()
+
+        compose.runOnIdle {
             state = historyState(HistoryContent.Ready(items() + item(4, "older.mkv", 20), HistoryPaging.Complete))
         }
-        compose.onNodeWithContentDescription("Open older.mkv").assertIsFocused()
+        compose.onNodeWithContentDescription("Open sintel.mp4").assertIsFocused()
+        compose.onNodeWithContentDescription("Open older.mkv").assertIsDisplayed()
     }
 
     @Test

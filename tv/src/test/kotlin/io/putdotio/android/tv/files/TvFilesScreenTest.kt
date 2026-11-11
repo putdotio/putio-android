@@ -265,12 +265,8 @@ class TvFilesScreenTest {
             onEvent = { events += it; true },
         )
         compose.onNodeWithText("Couldn’t refresh files.").assertIsDisplayed()
-        compose.onNodeWithContentDescription("a.txt").performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithText("Load more").assertIsFocused().performKeyInput {
-            pressCenter()
-            pressKey(Key.DirectionUp)
-            pressKey(Key.DirectionUp)
-        }
+        assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.LoadNextPage), events)
+        compose.onNodeWithContentDescription("a.txt").performKeyInput { pressKey(Key.DirectionUp) }
         compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.LoadNextPage, FilesBrowserEvent.Retry), events)
     }

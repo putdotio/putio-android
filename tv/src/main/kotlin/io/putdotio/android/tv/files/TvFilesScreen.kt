@@ -91,6 +91,8 @@ import io.putdotio.android.tv.rememberTvPaneHasFocus
 import io.putdotio.android.tv.TvEmptyState
 import io.putdotio.android.tv.TvEmptyStateAction
 import io.putdotio.android.tv.TvListSkeleton
+import io.putdotio.android.tv.TvAutoPaging
+import io.putdotio.android.tv.TvListPaging
 import io.putdotio.android.tv.TvDetailSkeleton
 import io.putdotio.android.tv.TvLoadFailedState
 import io.putdotio.android.tv.TV_LIST_WIDTH
@@ -530,7 +532,7 @@ private fun FilesContent.paneEntryTarget(
     when (this) {
         is FilesContent.Loading -> skeleton
         is FilesContent.Failed -> retry
-        is FilesContent.Empty -> if (paging is FilesPaging.Complete) emptyState else pagingControl
+        is FilesContent.Empty -> if (paging is FilesPaging.Failed) pagingControl else emptyState
         is FilesContent.Ready -> listEntry.value
     }
 
@@ -677,7 +679,8 @@ private fun TvFilesStatePane(
                 claimFocus = paneHasFocus.value,
             )
             is FilesContent.Empty -> Column(modifier = stateModifier) {
-                val complete = content.paging is FilesPaging.Complete
+                val failed = content.paging is FilesPaging.Failed
+                val enabled = current.operation.canStartOperation
                 TvEmptyState(
                     glyph = PutioEmptyGlyph.EmptyFolder,
                     headline = stringResource(R.string.tv_files_empty_title),
@@ -685,7 +688,7 @@ private fun TvFilesStatePane(
                     modifier = Modifier
                         .weight(1f)
                         .then(
-                            if (complete) {
+                            if (!failed) {
                                 Modifier
                                     .focusRequester(emptyFocus)
                                     .semantics(mergeDescendants = true) {}
@@ -695,12 +698,16 @@ private fun TvFilesStatePane(
                             },
                         ),
                 )
-                LaunchedEffect(complete) {
-                    if (paneHasFocus.value) (if (complete) emptyFocus else pagingFocus).requestFocus()
+                LaunchedEffect(failed) {
+                    if (paneHasFocus.value) (if (failed) pagingFocus else emptyFocus).requestFocus()
                 }
+                TvAutoPaging(
+                    page = (content.paging as? FilesPaging.Available)?.takeIf { enabled },
+                    onLoadMore = { onEvent(FilesBrowserEvent.LoadNextPage) },
+                )
                 TvFilesPaging(
                     paging = content.paging,
-                    enabled = current.operation.canStartOperation,
+                    enabled = enabled,
                     onEvent = onEvent,
                     buttonModifier = Modifier.focusRequester(pagingFocus),
                 )
@@ -961,37 +968,16 @@ internal fun TvFilesPaging(
     modifier: Modifier = Modifier,
     buttonModifier: Modifier = Modifier,
 ) {
-    // One button across every paging phase, so the node that holds focus survives the
-    // transition from Load more to loading to a retry.
-    val label = when (paging) {
-        is FilesPaging.Available -> R.string.tv_files_load_more
-        is FilesPaging.Loading -> R.string.tv_files_loading_more
-        is FilesPaging.Failed -> R.string.tv_files_retry
-        FilesPaging.Complete -> null
-    } ?: return
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (paging is FilesPaging.Failed) {
-            Text(stringResource(R.string.tv_files_paging_error), color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        TvButton(
-            onClick = {
-                when (paging) {
-                    is FilesPaging.Available -> if (enabled) onEvent(FilesBrowserEvent.LoadNextPage)
-                    is FilesPaging.Failed -> if (enabled) onEvent(FilesBrowserEvent.Retry)
-                    is FilesPaging.Loading, FilesPaging.Complete -> Unit
-                }
-            },
-            modifier = buttonModifier,
-        ) {
-            Text(stringResource(label))
-        }
-    }
+    if (paging == FilesPaging.Complete) return
+    TvListPaging(
+        failed = paging is FilesPaging.Failed,
+        loadingMore = stringResource(R.string.tv_files_loading_more),
+        error = stringResource(R.string.tv_files_paging_error),
+        retry = stringResource(R.string.tv_files_retry),
+        onRetry = { if (enabled) onEvent(FilesBrowserEvent.Retry) },
+        modifier = modifier,
+        buttonModifier = buttonModifier,
+    )
 }
 
 @Composable

@@ -87,20 +87,23 @@ class TvFilesRestoreTest {
     }
 
     @Test
-    fun loadMoreFocusOutlivesThePaneWhenItIsRemounted() {
+    fun tryAgainFocusOutlivesThePaneWhenItIsRemounted() {
         val memory = mutableMapOf<Long, Long>()
         var shown by mutableStateOf(true)
-        val paged = ready(item(1, "first.txt", PutioFileType.TEXT), paging = FilesPaging.Available(FilesCursor("c")))
+        val paged = ready(
+            item(1, "first.txt", PutioFileType.TEXT),
+            paging = FilesPaging.Failed(FilesCursor("c"), networkFailure()),
+        )
         compose.setTvContent {
             if (shown) TvFilesScreen(state = paged, onEvent = { true }, onPlayMedia = {}, focusMemory = memory)
         }
         compose.onNodeWithContentDescription("first.txt").performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithText("Load more").assertIsFocused()
+        compose.onNodeWithText("Try again").assertIsFocused()
 
         shown = false
         compose.waitForIdle()
         shown = true
-        compose.onNodeWithText("Load more").assertIsFocused()
+        compose.onNodeWithText("Try again").assertIsFocused()
     }
 
     @Test
@@ -108,13 +111,16 @@ class TvFilesRestoreTest {
         val memory = mutableMapOf<Long, Long>()
         var shown by mutableStateOf(true)
         var state by mutableStateOf(
-            ready(item(1, "first.txt", PutioFileType.TEXT), paging = FilesPaging.Available(FilesCursor("c"))),
+            ready(
+                item(1, "first.txt", PutioFileType.TEXT),
+                paging = FilesPaging.Failed(FilesCursor("c"), networkFailure()),
+            ),
         )
         compose.setTvContent {
             if (shown) TvFilesScreen(state = state, onEvent = { true }, onPlayMedia = {}, focusMemory = memory)
         }
         compose.onNodeWithContentDescription("first.txt").performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithText("Load more").assertIsFocused()
+        compose.onNodeWithText("Try again").assertIsFocused()
 
         shown = false
         compose.waitForIdle()
