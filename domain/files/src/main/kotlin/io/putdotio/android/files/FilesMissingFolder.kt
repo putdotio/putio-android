@@ -26,9 +26,10 @@ internal fun FilesBrowserState.leaveMissingFolder(
     index: Int,
     event: FilesBrowserEvent.LoadFailed,
 ): FilesBrowserTransition? {
-    if (!isMissingFolder(index, event)) return null
     val missing = FilesMissingFolder(event.requestId, current.folder)
-    val back = navigateBack(toRoot = current.openedFrom != null).takeIf { it.consumed } ?: return null
+    val back = takeIf { isMissingFolder(index, event) }
+        ?.navigateBack(toRoot = current.openedFrom != null)
+        ?.takeIf { it.consumed } ?: return null
     val landed = back.state.copy(missingFolder = missing)
     return if (back.effect != null) {
         back.copy(state = landed)
