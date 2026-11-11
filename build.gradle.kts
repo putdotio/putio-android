@@ -139,13 +139,14 @@ tasks.register("updateDesignMdColors") {
     doLast { markdown.writeText(DesignTokenCodegen.withDesignMdColors(markdown.readText(), tokens.readText())) }
 }
 
-val nodeVersion = providers.exec { commandLine("node", "--version") }.standardOutput.asText
-
-val lintDesignMd = tasks.register<Exec>("lintDesignMd") {
-    description = "Lint DESIGN.md against the design.md format"
-    cacheableCheck("DESIGN.md", "package.json", ".node-version")
-    inputs.property("node", nodeVersion)
-    commandLine(bash, "scripts/lint-design-md.sh", pinnedNodeTool("@google/design.md").get())
+val lintDesignMd = tasks.register<LintDesignMdTask>("lintDesignMd") {
+    group = "verification"
+    description = "Lint DESIGN.md against the design.md format; warnings fail too"
+    designMd.set(designMdFile)
+    linterVersion.set(pinnedNodeTool("@google/design.md"))
+    npx.set(if (windows) "npx.cmd" else "npx")
+    nodeVersion.set(providers.exec { commandLine("node", "--version") }.standardOutput.asText.map { it.trim() })
+    stamp.set(layout.buildDirectory.file("verification/lintDesignMd.stamp"))
 }
 
 val markdownCheck = tasks.register<Exec>("markdownCheck") {
