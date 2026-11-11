@@ -6,7 +6,9 @@ internal const val TV_SKIP_HOLD_STEP_MILLIS = 250L
 
 internal const val TV_SKIP_HOLD_STAGE_MILLIS = 2_000L
 
-internal val TV_SKIP_HOLD_SPEEDS = listOf(2L, 4L, 8L)
+private const val TV_SKIP_HOLD_STAGES = 3
+
+internal val TV_SKIP_HOLD_SPEEDS = List(TV_SKIP_HOLD_STAGES) { stage -> 2L shl stage }
 
 internal enum class TvSkipDirection { Backward, Forward }
 
@@ -72,9 +74,9 @@ private fun holdTravelMillis(heldMillis: Long): Long {
     val held = heldMillis.coerceAtLeast(0L)
     return TV_SKIP_HOLD_SPEEDS.withIndex().sumOf { (stage, speed) ->
         val stageStart = stage * TV_SKIP_HOLD_STAGE_MILLIS
-        val last = stage == TV_SKIP_HOLD_SPEEDS.lastIndex
-        val inStage = if (last) held - stageStart else held.coerceAtMost(stageStart + TV_SKIP_HOLD_STAGE_MILLIS) - stageStart
-        inStage.coerceAtLeast(0L) * speed
+        val stageEnd = stageStart + TV_SKIP_HOLD_STAGE_MILLIS
+        val until = if (stage == TV_SKIP_HOLD_SPEEDS.lastIndex) held else held.coerceAtMost(stageEnd)
+        (until - stageStart).coerceAtLeast(0L) * speed
     }
 }
 
