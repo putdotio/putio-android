@@ -617,24 +617,34 @@ class TvPlayerProofTest {
         compose.onNodeWithText("Go back").assertIsFocused()
         screenshot("failure-02-connection-lost-go-back")
 
-        content = PlaybackContent.Failed(PlaybackFailure.Putio(PutioFailure.Unexpected(IllegalStateException("proof"))))
+        fun retryInto(next: PlaybackContent) {
+            content = PlaybackContent.Loading(PlaybackRequestId(2L))
+            compose.waitForIdle()
+            content = next
+        }
+
+        retryInto(PlaybackContent.Failed(PlaybackFailure.Putio(PutioFailure.Unexpected(IllegalStateException("proof")))))
         captureFocused("Playback error", "Try again", "failure-03-playback-error")
 
-        content = PlaybackContent.Failed(PlaybackFailure.MediaCredentialUnavailable(IOException()))
+        retryInto(PlaybackContent.Failed(PlaybackFailure.MediaCredentialUnavailable(IOException())))
         captureFocused("Couldn't play this file.", "Try again", "failure-04-link-expired")
 
         val cause = PutioConfigurationException("proof")
-        content = PlaybackContent.Failed(PlaybackFailure.Putio(PutioFailure.AccessDenied(cause)))
+        retryInto(PlaybackContent.Failed(PlaybackFailure.Putio(PutioFailure.AccessDenied(cause))))
         captureFocused("You don’t have access to this file.", "Go back", "failure-05-access-denied")
 
-        content = PlaybackContent.Failed(PlaybackFailure.MediaUnsupported(IOException()))
+        val cantPlay = PlaybackContent.Failed(PlaybackFailure.MediaUnsupported(IOException()))
+        retryInto(cantPlay)
         captureFocused("Can’t play this here", "Go back", "failure-06-cant-play-no-vlc")
         openInVlc = {}
+        retryInto(cantPlay)
         captureFocused("This format needs another player.", "Open in VLC", "failure-07-cant-play-vlc")
 
-        content = PlaybackContent.Unsupported(PutioFileType.VIDEO)
+        val unsupported = PlaybackContent.Unsupported(PutioFileType.VIDEO)
+        retryInto(unsupported)
         captureFocused("Can’t play this here", "Go back", "failure-08-no-converted-no-vlc")
         playInVlc = {}
+        retryInto(unsupported)
         captureFocused("Can’t play this here", "Open in VLC", "failure-09-no-converted-vlc")
     }
 
