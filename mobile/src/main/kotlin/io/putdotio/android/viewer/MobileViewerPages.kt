@@ -106,11 +106,12 @@ internal fun MobileImagePage(
 
 @Composable
 private fun SubcomposeAsyncImageScope.MobileImageContent(zoom: MobileViewerZoom?) {
+    val image = this
     val size = painter.intrinsicSize
     if (size.isSpecified && size.width > 0f && size.height > 0f) {
         val aspect = size.width / size.height
         Box(Modifier.fillMaxSize().viewerZoom(zoom, aspect), contentAlignment = Alignment.Center) {
-            SubcomposeAsyncImageContent(
+            image.SubcomposeAsyncImageContent(
                 Modifier
                     .aspectRatio(aspect)
                     .transparencyGrid(),
