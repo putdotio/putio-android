@@ -313,7 +313,7 @@ private fun ColumnScope.TvSearchContent(
                 TvEmptyState(
                     glyph = PutioEmptyGlyph.NoResults,
                     headline = stringResource(R.string.tv_search_no_results_title),
-                    message = stringResource(R.string.tv_search_no_results_message, content.term.value),
+                    message = stringResource(R.string.tv_search_no_results_message, content.term.shown),
                     modifier = Modifier.padding(top = EMPTY_TOP, bottom = EMPTY_BOTTOM),
                     glyphModifier = Modifier.offset(y = -SHRUG_LIFT),
                 )
