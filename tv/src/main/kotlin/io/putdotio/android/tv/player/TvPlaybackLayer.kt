@@ -132,9 +132,7 @@ internal fun TvPlaybackRoute(
             onRetry = { controller.dispatch(PlaybackEvent.Retry) },
             onPlayerFailure = { failure, positionMillis ->
                 val telemetry = controller.state.value.playerFailureTelemetry(failure)
-                if (controller.dispatch(PlaybackEvent.PlayerFailed(failure, positionMillis)) &&
-                    controller.state.value.content is PlaybackContent.Failed
-                ) {
+                if (controller.showsPlayerFailure(failure, positionMillis)) {
                     val id = PutioDiagnostics.capture(telemetry)
                     failure.putioFailure?.takeIf { it.isUnknown }?.let { TvFailureReports.record(it, id) }
                 }
@@ -203,3 +201,6 @@ private fun rememberManifestSubtitles(
 }
 
 private const val SHELL_STATE_KEY = "tv-shell"
+
+private fun PlaybackController.showsPlayerFailure(failure: PlaybackFailure, positionMillis: Long): Boolean =
+    dispatch(PlaybackEvent.PlayerFailed(failure, positionMillis)) && state.value.content is PlaybackContent.Failed
