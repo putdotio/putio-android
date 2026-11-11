@@ -149,10 +149,9 @@ DESIGN.md. Screen-level UI changes edit neither.
 Open pull requests against `main`. A merge runs only
 [CI](.github/workflows/ci.yml); nothing ships without a Google Play dispatch.
 
-- CI runs one job per lane whose
-  [path filter](.github/workflows/ci.yml) a pull request matches, and every
-  lane on `main`. A new module or build input outside those paths runs every
-  lane.
+- CI runs one job per lane. A pull request that touches only docs or files
+  no build reads skips the Gradle lanes; inside a lane, the build cache
+  skips what a change does not reach.
 
 ### Google Play delivery
 

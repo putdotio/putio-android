@@ -28,10 +28,7 @@ jobs:
     outputs:
       docs: ${{ github.event_name != 'pull_request' || steps.filter.outputs.docs == 'true' }}
       scripts: ${{ github.event_name != 'pull_request' || steps.filter.outputs.scripts == 'true' }}
-      libraries: ${{ github.event_name != 'pull_request' || steps.filter.outputs.libraries == 'true' }}
-      mobile: ${{ github.event_name != 'pull_request' || steps.filter.outputs.mobile == 'true' }}
-      tv: ${{ github.event_name != 'pull_request' || steps.filter.outputs.tv == 'true' }}
-      apps: ${{ github.event_name != 'pull_request' || steps.filter.outputs.apps == 'true' }}
+      android: ${{ github.event_name != 'pull_request' || steps.filter.outputs.android == 'true' }}
     steps:
       - name: Classify changed paths
         id: filter
@@ -48,10 +45,6 @@ jobs:
             built: &built
               - *unbuilt
               - '!**/*.md'
-            gradle: &gradle
-              - *built
-              - '!{package.json,.node-version,.oxfmtrc.json}'
-              - '!scripts/**'
             docs:
               - '**'
               - '!{.agents,.claude,docs,play,mobile,tv,baselineprofile,core,domain}/**/!(*.md)'
@@ -63,16 +56,7 @@ jobs:
               - *built
               - '!{mobile,tv,baselineprofile,core,domain}/**/src/*/{kotlin,java,generated}/**'
               - '!.oxfmtrc.json'
-            libraries:
-              - *gradle
-              - '!{mobile,tv,baselineprofile}/**'
-            mobile:
-              - *gradle
-              - '!{tv,baselineprofile}/**'
-            tv:
-              - *gradle
-              - '!mobile/**'
-            apps:
+            android:
               - *built
               - '!{package.json,.node-version,.oxfmtrc.json}'
               - '!scripts/!(sync-brand-fonts.sh|brand_fonts.py)'
@@ -171,7 +155,7 @@ jobs:
   libraries:
     name: Libraries
     needs: changes
-    if: ${{ !cancelled() && needs.changes.outputs.libraries == 'true' }}
+    if: ${{ !cancelled() && needs.changes.outputs.android == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
@@ -181,7 +165,7 @@ jobs:
   mobile:
     name: Mobile
     needs: changes
-    if: ${{ !cancelled() && needs.changes.outputs.mobile == 'true' }}
+    if: ${{ !cancelled() && needs.changes.outputs.android == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     env:
@@ -192,7 +176,7 @@ jobs:
   tv:
     name: TV
     needs: changes
-    if: ${{ !cancelled() && needs.changes.outputs.tv == 'true' }}
+    if: ${{ !cancelled() && needs.changes.outputs.android == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     env:
@@ -203,7 +187,7 @@ jobs:
   release:
     name: Release
     needs: changes
-    if: ${{ !cancelled() && needs.changes.outputs.apps == 'true' }}
+    if: ${{ !cancelled() && needs.changes.outputs.android == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     env:
@@ -214,7 +198,7 @@ jobs:
   nightly:
     name: Nightly debug
     needs: changes
-    if: ${{ !cancelled() && needs.changes.outputs.apps == 'true' }}
+    if: ${{ !cancelled() && needs.changes.outputs.android == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     env:
