@@ -228,7 +228,7 @@ internal fun TvSearchScreen(
         )
     }
     TvTrashUndoOffered(results.itemActions.trashUndo, undoSnackbar.state)
-    TvBriefShown(brief, undoSnackbar.state)
+    TvBriefShown(brief, undoSnackbar.state, held = settingsFrom != null)
     TvUndoSnackbarHost(undoSnackbar.state, undoSnackbar.undoFocus, entryTarget)
     }
     val from = settingsFrom

@@ -355,7 +355,11 @@ internal fun TvFilesScreen(
         }
         TvFilesTrashSnackbar(current, snackbar, onEvent, trashUndo, undoFocus, refocus = entryTarget)
         TvFilesMoveAnnouncement(current, snackbar, edits)
-        TvBriefShown(brief, snackbar, held = notice != null)
+        TvBriefShown(
+            brief,
+            snackbar,
+            held = notice != null || renamingItem != null || movingItem != null || actionsItem != null,
+        )
     }
 
     TvFileViewerLayer(viewer, (content as? FilesContent.Ready)?.items.orEmpty(), viewerUrl, siblings = true)

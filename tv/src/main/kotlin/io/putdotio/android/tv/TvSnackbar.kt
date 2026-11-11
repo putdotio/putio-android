@@ -162,7 +162,7 @@ internal fun TvBriefShown(brief: TvBrief?, snackbar: TvSnackbarState, held: Bool
     val onShown by rememberUpdatedState(brief?.onShown)
     val slotFree = snackbar.showing == null && !held
     LaunchedEffect(text, slotFree) {
-        if (text != null && slotFree) {
+        if (text != null && slotFree && snackbar.showing == null) {
             snackbar.show(TvSnackbarMessage(text = text))
             onShown?.invoke()
         }
