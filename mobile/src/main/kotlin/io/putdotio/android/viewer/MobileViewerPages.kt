@@ -1,7 +1,9 @@
 package io.putdotio.android.viewer
 
 import android.graphics.Bitmap
+import android.graphics.ImageDecoder
 import android.net.Uri
+import android.os.Build
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -28,7 +30,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -84,25 +85,28 @@ internal fun MobileImagePage(
     zoom: MobileViewerZoom?,
     onOpenWithAnotherApp: () -> Unit,
 ) {
-    var attempt by remember(uri) { mutableIntStateOf(0) }
-    key(attempt) {
-        SubcomposeAsyncImage(
-            model = uri,
-            contentDescription = file.name,
-            contentScale = ContentScale.Fit,
-            modifier = Modifier.fillMaxSize(),
-            loading = { MobileViewerLoading() },
-            error = { failure ->
-                if (failure.result.throwable is IOException) {
-                    MobileViewerLoadFailure(onRetry = { attempt++ }, onOpenWithAnotherApp = onOpenWithAnotherApp)
-                } else {
-                    MobileViewerFailure(onOpenWithAnotherApp)
-                }
-            },
-            success = { MobileImageContent(zoom) },
-        )
-    }
+    SubcomposeAsyncImage(
+        model = uri,
+        contentDescription = file.name,
+        contentScale = ContentScale.Fit,
+        modifier = Modifier.fillMaxSize(),
+        loading = { MobileViewerLoading() },
+        error = { failure ->
+            if (failure.result.throwable.isLoadFailure()) {
+                MobileViewerLoadFailure(onRetry = painter::restart, onOpenWithAnotherApp = onOpenWithAnotherApp)
+            } else {
+                MobileViewerFailure(onOpenWithAnotherApp)
+            }
+        },
+        success = { MobileImageContent(zoom) },
+    )
 }
+
+private fun Throwable.isLoadFailure(): Boolean =
+    this is IOException && this !is FilesPdfUnreadable && !isImageDecodeFailure()
+
+private fun Throwable.isImageDecodeFailure(): Boolean =
+    Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && this is ImageDecoder.DecodeException
 
 @Composable
 private fun SubcomposeAsyncImageScope.MobileImageContent(zoom: MobileViewerZoom?) {
@@ -172,10 +176,8 @@ internal fun MobilePdfPage(
             FilesPdfDocument.open(context, file.sizeBytes) { context.contentResolver.openInputStream(uri) }
                 .also { opened = it }
                 .let(PdfState::Ready)
-        } catch (_: FilesPdfUnreadable) {
-            PdfState.Failed
-        } catch (_: IOException) {
-            PdfState.LoadFailed
+        } catch (error: IOException) {
+            if (error.isLoadFailure()) PdfState.LoadFailed else PdfState.Failed
         } catch (_: SecurityException) {
             PdfState.Failed
         }
@@ -299,8 +301,8 @@ internal fun MobileTextPage(uri: Uri, onOpenWithAnotherApp: () -> Unit) {
                     TextState.Ready(input.readTextPreview { isActive })
                 }
                     ?: TextState.Failed
-            } catch (_: IOException) {
-                TextState.LoadFailed
+            } catch (error: IOException) {
+                if (error.isLoadFailure()) TextState.LoadFailed else TextState.Failed
             } catch (_: SecurityException) {
                 TextState.Failed
             }

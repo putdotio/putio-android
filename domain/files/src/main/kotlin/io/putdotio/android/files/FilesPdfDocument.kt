@@ -22,7 +22,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** A PDF whose bytes arrived but that the viewer can't show: too large, protected or malformed. */
+/** A PDF the viewer can't show however often it tries: absent, too large, protected or malformed. */
 public class FilesPdfUnreadable(message: String, cause: Throwable? = null) : IOException(message, cause)
 
 /**
@@ -71,7 +71,7 @@ public class FilesPdfDocument private constructor(
         /**
          * Copies the stream [openStream] returns into the viewer cache and opens it; throws an
          * [IOException] when the bytes don't arrive, and a [FilesPdfUnreadable] when the document is too
-         * large, protected or doesn't parse. [openStream] runs off the main thread; null means no bytes.
+         * large, protected, absent or doesn't parse. [openStream] runs off the main thread; null means no bytes.
          */
         public suspend fun open(context: Context, sizeBytes: Long, openStream: () -> InputStream?): FilesPdfDocument {
             if (sizeBytes > PDF_MAX_BYTES) throw FilesPdfUnreadable("Too large to view in the app")
@@ -103,7 +103,7 @@ public class FilesPdfDocument private constructor(
         }
 
         private suspend fun copyInto(openStream: () -> InputStream?, file: File) {
-            val input = openStream() ?: throw IOException("No stream")
+            val input = openStream() ?: throw FilesPdfUnreadable("No stream")
             input.use { source -> file.outputStream().use { source.copyCancellably(it) } }
         }
 

@@ -360,7 +360,6 @@ internal fun MobileViewerFailure(onOpenWithAnotherApp: () -> Unit, modifier: Mod
     }
 }
 
-/** The shared load-failure voice for a file whose bytes didn't arrive: Try again first, then another app. */
 @Composable
 internal fun MobileViewerLoadFailure(onRetry: () -> Unit, onOpenWithAnotherApp: () -> Unit) {
     MobileEmptyState(
