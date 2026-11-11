@@ -35,6 +35,7 @@ import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.media3.common.C
+import androidx.media3.common.DeviceInfo
 import androidx.media3.common.Format
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackParameters
@@ -126,6 +127,29 @@ class MobilePlaybackOptionsTest {
         compose.onNodeWithContentDescription("Playback speed", substring = false)
             .performSemanticsAction(SemanticsActions.SetProgress) { assertTrue(it(10f)) }
         compose.runOnIdle { assertEquals(4f, player.playbackParameters.speed) }
+        compose.onNodeWithContentDescription("Faster", substring = true).assertIsNotEnabled()
+    }
+
+    @Test
+    fun castSpeedSheetOffersOnlyTheSpeedsTheReceiverPlays() {
+        val player = OptionsPlayer(remote = true)
+        compose.setContent {
+            PutioTheme {
+                Column { MobileSpeedSheetContent(player, rememberPlayerOptionsSnapshot(player)) }
+            }
+        }
+
+        compose.onNodeWithText("0.5×").assertIsDisplayed()
+        compose.onNodeWithText("0.25×").assertDoesNotExist()
+        compose.onNodeWithText("4×").assertDoesNotExist()
+        listOf(0.75f, 0.5f).forEach { expected ->
+            compose.onNodeWithContentDescription("Slower", substring = true).performClick()
+            compose.runOnIdle { assertEquals(expected, player.playbackParameters.speed) }
+        }
+        compose.onNodeWithContentDescription("Slower", substring = true).assertIsNotEnabled()
+        compose.onNodeWithContentDescription("Playback speed", substring = false)
+            .performSemanticsAction(SemanticsActions.SetProgress) { assertTrue(it(10f)) }
+        compose.runOnIdle { assertEquals(2f, player.playbackParameters.speed) }
         compose.onNodeWithContentDescription("Faster", substring = true).assertIsNotEnabled()
     }
 
@@ -520,6 +544,7 @@ private class OptionsPlayer(
     canChangeOptions: Boolean = true,
     singleAudioTrack: Boolean = false,
     audioGroup: TrackGroup? = null,
+    remote: Boolean = false,
 ) : SimpleBasePlayer(Looper.getMainLooper()) {
     val audio = audioGroup ?: if (singleAudioTrack) {
         TrackGroup(Format.Builder().setId("en").setLabel("English").setSampleMimeType(MimeTypes.AUDIO_AAC).build())
@@ -530,6 +555,9 @@ private class OptionsPlayer(
     val text = TrackGroup(Format.Builder().setSampleMimeType(MimeTypes.TEXT_VTT).build())
     val subtitleOverride = TrackSelectionOverride(text, 0)
     private var state = State.Builder()
+        .setDeviceInfo(
+            DeviceInfo.Builder(if (remote) DeviceInfo.PLAYBACK_TYPE_REMOTE else DeviceInfo.PLAYBACK_TYPE_LOCAL).build(),
+        )
         .setAvailableCommands(
             Media3Player.Commands.Builder().addAllCommands().apply {
                 if (!canChangeOptions) {

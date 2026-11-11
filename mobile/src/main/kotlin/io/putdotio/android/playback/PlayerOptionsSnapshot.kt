@@ -7,6 +7,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.media3.common.DeviceInfo
 import androidx.media3.common.Player as Media3Player
 import androidx.media3.common.util.UnstableApi
 
@@ -17,6 +18,7 @@ internal class PlayerOptionsSnapshot(player: Media3Player) {
     var subtitleTracks by mutableStateOf(player.currentTracks.playbackSubtitleTracks())
     var parameters by mutableStateOf(player.trackSelectionParameters)
     var commands by mutableStateOf(player.availableCommands)
+    var speeds by mutableStateOf(player.playbackSpeeds())
 
     fun update(player: Media3Player) {
         speed = player.playbackParameters.speed
@@ -24,6 +26,7 @@ internal class PlayerOptionsSnapshot(player: Media3Player) {
         subtitleTracks = player.currentTracks.playbackSubtitleTracks()
         parameters = player.trackSelectionParameters
         commands = player.availableCommands
+        speeds = player.playbackSpeeds()
     }
 
     val canChangeSpeed: Boolean get() = commands.contains(Media3Player.COMMAND_SET_SPEED_AND_PITCH)
@@ -34,6 +37,10 @@ internal class PlayerOptionsSnapshot(player: Media3Player) {
             parameters.overrides[track.group]?.trackIndices?.contains(track.trackIndex) == true
         } ?: audioTracks.firstOrNull { it.selected }
 }
+
+/** A Cast receiver plays fewer presets than this device. */
+private fun Media3Player.playbackSpeeds(): List<Float> =
+    if (deviceInfo.playbackType == DeviceInfo.PLAYBACK_TYPE_REMOTE) CAST_PLAYBACK_SPEEDS else PLAYBACK_SPEEDS
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @Composable

@@ -854,7 +854,12 @@ internal class CastLoad {
     }
 }
 
-/** Cast takes 0.5x to 2x; the player's faster presets play at 2x there. */
+/** The presets a Cast receiver plays: it takes 0.5x to 2x. */
+internal val CAST_PLAYBACK_SPEEDS: List<Float> = PLAYBACK_SPEEDS.filter {
+    it.toDouble() in MediaLoadRequestData.PLAYBACK_RATE_MIN..MediaLoadRequestData.PLAYBACK_RATE_MAX
+}
+
+/** Cast takes 0.5x to 2x; a local speed outside that hands over at the nearest end. */
 private fun Float.castRate(): Double =
     toDouble().coerceIn(MediaLoadRequestData.PLAYBACK_RATE_MIN, MediaLoadRequestData.PLAYBACK_RATE_MAX)
 
