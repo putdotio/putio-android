@@ -60,24 +60,26 @@ val testSignInHarness = tasks.register<Exec>("testSignInHarness") {
     commandLine(bash, "scripts/test-sign-in.sh")
 }
 
-val checkIcons = tasks.register<Exec>("checkIcons") {
-    description = "Verify locked Phosphor drawables without network access"
-    cacheableCheck(
-        "design/phosphor-icons.lock.json",
-        // Every module's drawables: the check fails on stale generated icons anywhere.
-        fileTree(".") {
-            include("*/src/*/res/drawable/ic_ph_*.xml", "*/*/src/*/res/drawable/ic_ph_*.xml")
-            exclude("**/build/**", ".git/**", ".gradle/**")
-        },
-    )
-    commandLine(bash, "scripts/generate-icons.sh", "--check")
+val phosphorLock = layout.projectDirectory.file("design/phosphor-icons.lock.json")
+val phosphorDrawables = fileTree(".") {
+    include(PhosphorIcons.DRAWABLE_PATTERNS)
+    exclude("**/build/**", ".git/**", ".gradle/**")
 }
 
-val testIconPipeline = tasks.register<Exec>("testIconPipeline") {
-    description = "Test the Phosphor lock and drift contracts"
-    cacheableCheck()
-    environment("PYTHONDONTWRITEBYTECODE", "1")
-    commandLine("python3", "scripts/test_phosphor_icons.py")
+val checkIcons = tasks.register<CheckIconsTask>("checkIcons") {
+    group = "verification"
+    description = "Verify locked Phosphor drawables without network access"
+    lockFile.set(phosphorLock)
+    drawables.from(phosphorDrawables)
+    repositoryRoot.set(layout.projectDirectory)
+    report.set(layout.buildDirectory.file("verification/checkIcons.txt"))
+}
+
+tasks.register<GenerateIconsTask>("generateIcons") {
+    description = "Regenerate the locked Phosphor drawables from the npm registry"
+    lockFile.set(phosphorLock)
+    drawables.from(phosphorDrawables)
+    repositoryRoot.set(layout.projectDirectory)
 }
 
 val checkDesignAssets = tasks.register<Exec>("checkDesignAssets") {
@@ -175,7 +177,6 @@ val verifyScripts = verifyLane(
     testDesignAssetPipeline,
     testEmulatorHarness,
     testEvidence,
-    testIconPipeline,
     testSignInHarness,
     testTalkBackInput,
 )
