@@ -307,7 +307,7 @@ class TvTrashScreenTest {
         show { TrashState(content = loaded, actionConfirmation = TrashAction.Empty, actionConfirmationId = 9L) }
 
         compose.onNodeWithText("Empty trash?").assertIsDisplayed()
-        compose.onNode(focusedInDialog("Empty trash")).assertIsDisplayed()
+        compose.onNode(focusedInDialog("Cancel")).assertIsDisplayed()
     }
 
     @Test
