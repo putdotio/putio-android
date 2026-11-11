@@ -72,11 +72,11 @@ internal fun TvAutoPaging(page: Any?, onLoadMore: () -> Unit, nearEnd: () -> Boo
 }
 
 @Composable
-internal fun LazyListState.KeepTopWhenRowsArriveAbove(firstKey: Any?) {
+internal fun LazyListState.KeepTopWhenRowsArriveAbove(firstKey: Any?, rowsHoldFocus: () -> Boolean) {
     val seen = remember(this) { SeenFirstKey(firstKey) }
     if (seen.value == firstKey) return
     seen.value = firstKey
-    if (!Snapshot.withoutReadObservation { canScrollBackward }) requestScrollToItem(0)
+    if (!Snapshot.withoutReadObservation { canScrollBackward || rowsHoldFocus() }) requestScrollToItem(0)
 }
 
 private class SeenFirstKey(var value: Any?)

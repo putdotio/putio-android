@@ -877,7 +877,7 @@ private fun TvFilesSectionPills(
         )
         TvSectionPill(
             icon = R.drawable.ic_ph_arrows_clockwise,
-            label = stringResource(R.string.tv_files_refresh),
+            label = stringResource(R.string.tv_refresh),
             onClick = { if (idle) onRefresh() },
             showFocus = !sorting,
         )

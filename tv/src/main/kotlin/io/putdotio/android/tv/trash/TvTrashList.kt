@@ -72,7 +72,8 @@ internal fun TvTrashList(
         handOffToLastRow.value = true
     }
     val listState = rememberLazyListState()
-    listState.KeepTopWhenRowsArriveAbove(items.firstOrNull()?.id?.value)
+    val rowsHoldFocus = remember { mutableStateOf(false) }
+    listState.KeepTopWhenRowsArriveAbove(items.firstOrNull()?.id?.value) { rowsHoldFocus.value }
     val anchorIndex by remember(listState) { derivedStateOf { listState.firstVisibleItemIndex } }
     val restoreIndex = remember(items) { items.indexOfFirst { it.id.value == restoreRowId } }
     TvAutoPaging(
@@ -95,6 +96,7 @@ internal fun TvTrashList(
             .fillMaxWidth()
             .paneSection(focus.owner, focus.list)
             .focusRequester(focus.list)
+            .onFocusChanged { rowsHoldFocus.value = it.hasFocus }
             .focusRestorer {
                 val lastId = items.lastOrNull()?.id?.value
                     ?: return@focusRestorer if (content.pageFailure != null) pagingFocus else FocusRequester.Default
@@ -145,6 +147,7 @@ private fun TvTrashHeldRowLeaves(
         val gone = items.isNotEmpty() && items.none { it.id.value == held }
         if (!gone || !focus.owner.owns(focus.list)) return@LaunchedEffect
         heldRowId.value = null
+        if (!mayPlaceFocus(focus.paneHasFocus, focus.dialogShowing)) return@LaunchedEffect
         listState.scrollToItem(0)
         withFrameNanos {}
         if (mayPlaceFocus(focus.paneHasFocus, focus.dialogShowing) && focus.owner.owns(focus.list)) {

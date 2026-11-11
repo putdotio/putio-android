@@ -67,7 +67,8 @@ internal fun TvFilesList(
     val listState = key(folderId) {
         rememberLazyListState(viewport.firstVisibleItemIndex, viewport.firstVisibleItemScrollOffset)
     }
-    listState.KeepTopWhenRowsArriveAbove(content.items.firstOrNull()?.id?.value)
+    val rowsHoldFocus = remember(listState) { mutableStateOf(false) }
+    listState.KeepTopWhenRowsArriveAbove(content.items.firstOrNull()?.id?.value) { rowsHoldFocus.value }
     val currentOnEvent by rememberUpdatedState(onEvent)
     val remembered = focusMemory[folderId]
     val resumeOnPaging = remembered == PAGING_FOCUS_MARKER && content.paging is FilesPaging.Failed
@@ -166,6 +167,7 @@ internal fun TvFilesList(
             state = listState,
             modifier = modifier
                 .fillMaxWidth()
+                .onFocusChanged { rowsHoldFocus.value = it.hasFocus }
                 .focusRestorer(entryFocus)
                 .focusGroup()
                 .testTag(TV_FILES_LIST_TAG),
