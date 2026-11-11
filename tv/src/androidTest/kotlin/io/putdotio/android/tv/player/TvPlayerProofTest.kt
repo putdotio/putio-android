@@ -588,7 +588,7 @@ class TvPlayerProofTest {
         captureFocused("Playback error", "Try again", "failure-03-playback-error")
 
         retryInto(PlaybackContent.Failed(PlaybackFailure.MediaCredentialUnavailable(IOException())))
-        captureFocused("Couldn't play this file.", "Try again", "failure-04-link-expired")
+        captureFocused("Playback link expired", "Try again", "failure-04-link-expired")
 
         val cause = PutioConfigurationException("proof")
         retryInto(PlaybackContent.Failed(PlaybackFailure.Putio(PutioFailure.AccessDenied(cause))))

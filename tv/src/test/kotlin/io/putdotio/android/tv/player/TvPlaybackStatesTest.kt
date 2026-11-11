@@ -261,8 +261,8 @@ class TvPlaybackStatesTest {
     fun failuresExplainThemselvesAndAlwaysOfferAFocusedAction() {
         content = PlaybackContent.Failed(PlaybackFailure.MediaCredentialUnavailable(IOException()))
         show()
-        compose.onNodeWithText("Couldn't play this file.").assertIsDisplayed()
-        compose.onNodeWithText("The stream link expired. Try again to get a fresh one.").assertIsDisplayed()
+        compose.onNodeWithText("Playback link expired").assertIsDisplayed()
+        compose.onNodeWithText("Try again to get a fresh link.").assertIsDisplayed()
         compose.onNodeWithText("Try again").assertIsFocused()
         compose.onNodeWithText("Go back").assertIsDisplayed()
 

@@ -298,6 +298,7 @@ private fun tvGoBackAction(onBack: () -> Unit): TvEmptyStateAction =
 private fun PlaybackFailure.headlineResource(): Int =
     when {
         this is PlaybackFailure.MediaUnsupported -> R.string.tv_player_cant_play_title
+        this is PlaybackFailure.MediaCredentialUnavailable -> R.string.tv_player_error_link_expired_title
         putioFailure is PutioFailure.NetworkUnavailable -> R.string.tv_player_connection_lost
         putioFailure is PutioFailure.Unexpected -> R.string.tv_player_error_crash
         else -> R.string.tv_player_error_title

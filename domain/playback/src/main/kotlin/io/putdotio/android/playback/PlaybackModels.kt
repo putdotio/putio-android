@@ -7,6 +7,7 @@ import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.sdk.files.PlaybackConversionState
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PutioFileType
+import kotlin.math.abs
 
 public data class PlaybackTarget(
     val fileId: FilesItemId,
@@ -111,6 +112,7 @@ public data class PlaybackState internal constructor(
      */
     internal val conversionStatusRead: Boolean = false,
     internal val convertedOnly: Boolean = false,
+    internal val linkRefetchedAtMillis: Long? = null,
 )
 
 public sealed interface PlaybackEvent {
@@ -267,13 +269,33 @@ private fun PlaybackState.playerFailed(event: PlaybackEvent.PlayerFailed): Playb
     if (content !is PlaybackContent.Ready && content != PlaybackContent.Session) {
         return PlaybackTransition(this, consumed = false)
     }
-    return PlaybackTransition(
-        copy(
-            content = PlaybackContent.Failed(event.failure),
-            resumePositionMillis = event.resumePositionMillis,
-        ),
-    )
+    val positionMillis = event.resumePositionMillis.coerceAtLeast(0L)
+    val refetchesExpiredLink = content is PlaybackContent.Ready &&
+        target.mediaType == PlaybackMediaType.VIDEO &&
+        event.failure is PlaybackFailure.MediaCredentialUnavailable &&
+        linkRefetchedAtMillis.let { it == null || abs(positionMillis - it) > SAME_LINK_WINDOW_MILLIS }
+    return if (refetchesExpiredLink) {
+        val requestId = PlaybackRequestId(nextRequestValue)
+        PlaybackTransition(
+            state = copy(
+                content = PlaybackContent.Loading(requestId),
+                nextRequestValue = nextRequestValue + 1,
+                resumePositionMillis = positionMillis,
+                linkRefetchedAtMillis = positionMillis,
+            ),
+            effect = PlaybackEffect.Resolve(target, requestId, convertedOnly),
+        )
+    } else {
+        PlaybackTransition(
+            copy(
+                content = PlaybackContent.Failed(event.failure),
+                resumePositionMillis = positionMillis,
+            ),
+        )
+    }
 }
+
+private const val SAME_LINK_WINDOW_MILLIS = 5_000L
 
 private fun PlaybackState.retry(): PlaybackTransition {
     val requestId = PlaybackRequestId(nextRequestValue)
@@ -289,6 +311,7 @@ private fun PlaybackState.retry(): PlaybackTransition {
                 state = copy(
                     content = PlaybackContent.Loading(requestId),
                     nextRequestValue = nextRequestValue + 1,
+                    linkRefetchedAtMillis = null,
                 ),
                 effect = PlaybackEffect.Resolve(target, requestId, convertedOnly),
             )
