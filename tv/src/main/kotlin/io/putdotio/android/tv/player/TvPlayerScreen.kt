@@ -227,7 +227,7 @@ private fun TvReadyPlayer(
     val nowPlaying = target.mediaType == PlaybackMediaType.AUDIO
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     var stoppedAtMillis by rememberSaveable(source, key = "tv-player-stopped-at-$PROCESS_KEY-${target.fileId.value}") {
-        mutableStateOf<Long?>(null)
+        mutableStateOf(resumePositionMillis?.takeUnless { playIntent.value })
     }
     var options by optionsState
     val subtitleMemory = rememberSubtitleLanguageStore()
@@ -246,7 +246,7 @@ private fun TvReadyPlayer(
     val currentAnalytics by rememberUpdatedState(analytics)
     val currentUpNext by rememberUpdatedState(upNext)
     val currentNeighbours by rememberUpdatedState(neighbours)
-    val startsPlaying = startsPlaying(stoppedAtMillis, playIntent.value)
+    val startsPlaying = stoppedAtMillis == null
     var overlay by remember(player) { mutableStateOf(tvPlayerOverlay(nowPlaying, nowPlayingFocus.value)) }
     val apply: (TvPlayerTransition) -> Unit = remember(player) {
         { transition ->
@@ -694,6 +694,3 @@ private fun MediaItem.leasedBy(reporter: TvPlaybackReporter, fileId: Long, useSt
 
 private fun keepsScreenOn(playWhenReady: Boolean, playbackState: Int): Boolean =
     playWhenReady && playbackState != Player.STATE_ENDED && playbackState != Player.STATE_IDLE
-
-private fun startsPlaying(stoppedAtMillis: Long?, playIntent: Boolean): Boolean =
-    stoppedAtMillis == null && playIntent
