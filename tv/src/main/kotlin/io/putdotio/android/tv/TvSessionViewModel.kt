@@ -598,9 +598,11 @@ internal enum class TvPlayStart(val answer: PlaybackEvent) {
 }
 
 internal suspend fun PlaybackController.answerResumePrompts(opened: FilesItemId, answer: PlaybackEvent) {
+    var movedOn = false
     state.collect { playing ->
+        if (playing.target.fileId != opened) movedOn = true
         if (playing.content is PlaybackContent.AwaitingResume) {
-            dispatch(if (playing.target.fileId == opened) answer else PlaybackEvent.Resume)
+            dispatch(if (movedOn) PlaybackEvent.Resume else answer)
         }
     }
 }

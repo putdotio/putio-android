@@ -572,6 +572,12 @@ class TvSessionViewModelTest {
         assertEquals(FilesItemId(56), upNext.target.fileId)
         assertTrue(upNext.content is PlaybackContent.Ready)
         assertEquals(45_000L, upNext.resumePositionMillis)
+
+        assertTrue(playback.dispatch(PlaybackEvent.NextChosen(PlaybackTarget(FilesItemId(55), video.name, durationSeconds = 600.0))))
+        val back = playback.state.value
+        assertEquals(FilesItemId(55), back.target.fileId)
+        assertTrue(back.content is PlaybackContent.Ready)
+        assertEquals(45_000L, back.resumePositionMillis)
     }
 
     @Test
