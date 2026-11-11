@@ -10,8 +10,10 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -68,6 +70,16 @@ internal fun TvAutoPaging(page: Any?, onLoadMore: () -> Unit, nearEnd: () -> Boo
         load()
     }
 }
+
+@Composable
+internal fun LazyListState.KeepTopWhenRowsArriveAbove(firstKey: Any?, rowsHoldFocus: () -> Boolean) {
+    val seen = remember(this) { SeenFirstKey(firstKey) }
+    if (seen.value == firstKey) return
+    seen.value = firstKey
+    if (!Snapshot.withoutReadObservation { canScrollBackward || rowsHoldFocus() }) requestScrollToItem(0)
+}
+
+private class SeenFirstKey(var value: Any?)
 
 internal fun LazyListState.isNearEnd(lastContentIndex: Int): Boolean {
     val lastVisible = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: return false

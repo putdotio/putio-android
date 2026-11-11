@@ -76,6 +76,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.files.FilesSort
+import io.putdotio.android.tv.SECTION_LABEL_GAP
 import io.putdotio.android.tv.TV_MONO_RUN
 import io.putdotio.android.files.formatFileSize
 import io.putdotio.android.tv.LocalTvOffline
@@ -104,6 +105,9 @@ import io.putdotio.android.tv.TvButtonSize
 import io.putdotio.android.tv.TvButtonStyle
 import io.putdotio.android.tv.TvTrashUndoOffered
 import io.putdotio.android.tv.TvUndoSnackbarHost
+import io.putdotio.android.tv.TvBrief
+import io.putdotio.android.tv.TvBriefShown
+import io.putdotio.android.tv.TvSnackbarHeldWhile
 import io.putdotio.android.tv.TvSnackbarMessage
 import io.putdotio.android.tv.TvSnackbarState
 import io.putdotio.android.tv.TvTrashUndoOffer
@@ -134,10 +138,10 @@ internal fun TvFilesScreen(
     pinnedIds: List<FilesItemId>? = null,
     onSetPinned: (FilesItem, Boolean) -> Unit = { _, _ -> },
     trashUndo: TvTrashUndoOffer? = null,
-    /** An explanation from outside the browser (a failed watched write, no VLC); OK dismisses it. */
+    /** An explanation from outside the browser (a link that did not open, a failed undo); OK dismisses it. */
     notice: String? = null,
-    noticeMessage: String? = null,
     onDismissNotice: () -> Unit = {},
+    brief: TvBrief? = null,
     /**
      * Which row last held focus in each folder; owned by the session so it survives the pane
      * being disposed for another destination. A LazyColumn is remounted on every folder
@@ -352,12 +356,13 @@ internal fun TvFilesScreen(
         }
         TvFilesTrashSnackbar(current, snackbar, onEvent, trashUndo, undoFocus, refocus = entryTarget)
         TvFilesMoveAnnouncement(current, snackbar, edits)
+        TvSnackbarHeldWhile(snackbar, notice, renamingItem, movingItem, actionsItem, viewer.open, unsupported)
+        TvBriefShown(brief, snackbar)
     }
 
     TvFileViewerLayer(viewer, (content as? FilesContent.Ready)?.items.orEmpty(), viewerUrl, siblings = true)
     TvFilesOverlays(
         notice = notice,
-        noticeMessage = noticeMessage,
         onDismissNotice = onDismissNotice,
         renamingItem = renamingItem,
         movingItem = movingItem,
@@ -379,7 +384,6 @@ internal fun TvFilesScreen(
 @Composable
 private fun TvFilesOverlays(
     notice: String?,
-    noticeMessage: String?,
     onDismissNotice: () -> Unit,
     renamingItem: FilesItem?,
     movingItem: FilesItem?,
@@ -400,7 +404,6 @@ private fun TvFilesOverlays(
     if (notice != null) {
         TvNoticeDialog(
             title = notice,
-            message = noticeMessage,
             onDismiss = onDismissNotice,
             okStyle = TvButtonStyle.Filled,
             balanceMessage = true,
@@ -851,6 +854,38 @@ internal fun TvFilesNotice(
     }
 }
 
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+private fun TvFilesSectionPills(
+    sortLabel: String,
+    sortFocus: FocusRequester,
+    sorting: Boolean,
+    idle: Boolean,
+    onSort: () -> Unit,
+    onRefresh: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .focusProperties { enter = { sortFocus } }
+            .focusGroup(),
+        horizontalArrangement = Arrangement.spacedBy(SECTION_LABEL_GAP),
+    ) {
+        TvSectionPill(
+            icon = R.drawable.ic_ph_sort_ascending,
+            label = sortLabel,
+            onClick = { if (idle) onSort() },
+            modifier = Modifier.focusRequester(sortFocus),
+            showFocus = !sorting,
+        )
+        TvSectionPill(
+            icon = R.drawable.ic_ph_arrows_clockwise,
+            label = stringResource(R.string.tv_refresh),
+            onClick = { if (idle) onRefresh() },
+            showFocus = !sorting,
+        )
+    }
+}
+
 @Composable
 private fun TvFilesSectionLine(
     state: FilesBrowserState,
@@ -872,12 +907,13 @@ private fun TvFilesSectionLine(
         modifier = Modifier.onFocusChanged { onFocusChanged(it.hasFocus) },
         pill = if (showSort) {
             {
-                TvSectionPill(
-                    icon = R.drawable.ic_ph_sort_ascending,
-                    label = stringResource(sortInEffect?.tvLabel() ?: R.string.tv_files_sort_title),
-                    onClick = { if (idle) sorting = true },
-                    modifier = Modifier.focusRequester(sortFocus),
-                    showFocus = !sorting,
+                TvFilesSectionPills(
+                    sortLabel = stringResource(sortInEffect?.tvLabel() ?: R.string.tv_files_sort_title),
+                    sortFocus = sortFocus,
+                    sorting = sorting,
+                    idle = idle,
+                    onSort = { sorting = true },
+                    onRefresh = { onEvent(FilesBrowserEvent.Refresh) },
                 )
             }
         } else {

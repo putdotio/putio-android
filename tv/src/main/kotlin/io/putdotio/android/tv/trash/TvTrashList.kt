@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -31,6 +32,7 @@ import io.putdotio.android.design.fileTypeIconRes
 import io.putdotio.android.files.formatFileSize
 import io.putdotio.android.trash.TrashContent
 import io.putdotio.android.trash.TrashItem
+import io.putdotio.android.tv.KeepTopWhenRowsArriveAbove
 import io.putdotio.android.tv.TV_LIST_ROW_META
 import io.putdotio.android.tv.TV_LIST_ROW_META_MONO
 import io.putdotio.android.tv.TvAutoPaging
@@ -70,6 +72,8 @@ internal fun TvTrashList(
         handOffToLastRow.value = true
     }
     val listState = rememberLazyListState()
+    val rowsHoldFocus = remember { mutableStateOf(false) }
+    listState.KeepTopWhenRowsArriveAbove(items.firstOrNull()?.id?.value) { rowsHoldFocus.value }
     val anchorIndex by remember(listState) { derivedStateOf { listState.firstVisibleItemIndex } }
     val restoreIndex = remember(items) { items.indexOfFirst { it.id.value == restoreRowId } }
     TvAutoPaging(
@@ -83,20 +87,16 @@ internal fun TvTrashList(
         if (!mayPlaceFocus(focus.paneHasFocus, focus.dialogShowing)) return@LaunchedEffect
         if (restoreIndex >= 0) rows.restore.requestFocus() else focus.list.requestFocus()
     }
-    LaunchedEffect(handOffToLastRow.value) {
-        if (!handOffToLastRow.value) return@LaunchedEffect
-        val lastId = items.lastOrNull()?.id?.value ?: return@LaunchedEffect
-        listState.bringIntoComposition(lastId, items.lastIndex)
-        withFrameNanos {}
-        if (focus.owner.owns(focus.list)) rows.last.requestFocus()
-        handOffToLastRow.value = false
-    }
+    val heldRowId = remember { mutableStateOf<Long?>(null) }
+    TvTrashHeldRowLeaves(items, heldRowId, listState, focus, rows.first)
+    TvTrashLastRowHandOff(items, handOffToLastRow, listState, focus, rows.last)
     LazyColumn(
         state = listState,
         modifier = modifier
             .fillMaxWidth()
             .paneSection(focus.owner, focus.list)
             .focusRequester(focus.list)
+            .onFocusChanged { rowsHoldFocus.value = it.hasFocus }
             .focusRestorer {
                 val lastId = items.lastOrNull()?.id?.value
                     ?: return@focusRestorer if (content.pageFailure != null) pagingFocus else FocusRequester.Default
@@ -110,12 +110,14 @@ internal fun TvTrashList(
                 item = item,
                 onClick = { onChoose(item) },
                 showsFocus = !focus.dialogShowing.value,
-                modifier = Modifier
-                    .focusRequesterIf(index == anchorIndex, rows.anchor)
-                    .focusRequesterIf(index == items.lastIndex, rows.last)
-                    .holdAtPendingEnd(content.pagePending && index == items.lastIndex)
-                    .focusRequesterIf(index == restoreIndex, rows.restore)
-                    .onFocusChanged { onRowFocusChanged(item, it.isFocused) },
+                modifier = with(rows) {
+                    Modifier
+                        .requesters(index, items.lastIndex, anchorIndex, restoreIndex, content.pagePending)
+                        .onFocusChanged {
+                            if (it.isFocused) heldRowId.value = item.id.value
+                            onRowFocusChanged(item, it.isFocused)
+                        }
+                },
             )
         }
         if (pagingShown) {
@@ -132,13 +134,68 @@ internal fun TvTrashList(
     }
 }
 
+@Composable
+private fun TvTrashHeldRowLeaves(
+    items: List<TrashItem>,
+    heldRowId: MutableState<Long?>,
+    listState: LazyListState,
+    focus: TvTrashListFocus,
+    firstRow: FocusRequester,
+) {
+    LaunchedEffect(items) {
+        val held = heldRowId.value ?: return@LaunchedEffect
+        val gone = items.isNotEmpty() && items.none { it.id.value == held }
+        if (!gone || !focus.owner.owns(focus.list)) return@LaunchedEffect
+        heldRowId.value = null
+        if (!mayPlaceFocus(focus.paneHasFocus, focus.dialogShowing)) return@LaunchedEffect
+        listState.scrollToItem(0)
+        withFrameNanos {}
+        if (mayPlaceFocus(focus.paneHasFocus, focus.dialogShowing) && focus.owner.owns(focus.list)) {
+            firstRow.requestFocus()
+        }
+    }
+}
+
+@Composable
+private fun TvTrashLastRowHandOff(
+    items: List<TrashItem>,
+    handOffToLastRow: MutableState<Boolean>,
+    listState: LazyListState,
+    focus: TvTrashListFocus,
+    lastRow: FocusRequester,
+) {
+    LaunchedEffect(handOffToLastRow.value) {
+        if (!handOffToLastRow.value) return@LaunchedEffect
+        val lastId = items.lastOrNull()?.id?.value ?: return@LaunchedEffect
+        listState.bringIntoComposition(lastId, items.lastIndex)
+        withFrameNanos {}
+        if (focus.owner.owns(focus.list)) lastRow.requestFocus()
+        handOffToLastRow.value = false
+    }
+}
+
 internal fun mayPlaceFocus(paneHasFocus: State<Boolean>, dialogShowing: State<Boolean>): Boolean =
     paneHasFocus.value && !dialogShowing.value
 
 private class TrashRowFocus {
     val anchor = FocusRequester()
+    val first = FocusRequester()
     val last = FocusRequester()
     val restore = FocusRequester()
+
+    fun Modifier.requesters(
+        index: Int,
+        lastIndex: Int,
+        anchorIndex: Int,
+        restoreIndex: Int,
+        pagePending: Boolean,
+    ): Modifier =
+        this
+            .focusRequesterIf(index == anchorIndex, anchor)
+            .focusRequesterIf(index == 0, first)
+            .focusRequesterIf(index == lastIndex, last)
+            .holdAtPendingEnd(pagePending && index == lastIndex)
+            .focusRequesterIf(index == restoreIndex, restore)
 }
 
 private fun LazyListState.restoreTarget(

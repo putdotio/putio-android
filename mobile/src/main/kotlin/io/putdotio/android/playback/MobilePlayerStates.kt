@@ -95,26 +95,23 @@ internal fun MobilePlaybackFailureState(
 /**
  * Converting to MP4 over the player: a line that it keeps going, a bar with its percentage while it
  * runs, and the one action the state allows. Opening a video with no conversion requested starts
- * one; queued and running conversions poll. After a failure the viewer converts again, and checks
- * again where the status waits. With VLC on the phone, Play in VLC plays the original now, while
- * the conversion goes on for this player.
+ * one; queued and running conversions poll, and Cancel leaves them running on the server. After a
+ * failure the viewer converts again, and checks again where the status waits or a status read lost
+ * the network. With VLC on the phone, Play in VLC plays the original now, while the conversion goes
+ * on for this player.
  */
 @Composable
 internal fun MobileConversionState(
     conversion: PlaybackContent.Conversion,
     onRefresh: () -> Unit,
     onStart: () -> Unit,
+    onCancel: () -> Unit,
     onPlayInVlc: (() -> Unit)? = null,
 ) {
     PlaybackConversionPolling(conversion, onRefresh)
     val state = conversion.state
-    val running = conversion.starting || state == PlaybackConversionState.Queued ||
-        state is PlaybackConversionState.Converting
-    val action = when (conversion.action) {
-        PlaybackConversionAction.ConvertAgain -> R.string.mobile_playback_convert_again to onStart
-        PlaybackConversionAction.CheckAgain -> R.string.mobile_playback_check_again to onRefresh
-        null -> null
-    }
+    val polling = state == PlaybackConversionState.Queued || state is PlaybackConversionState.Converting
+    val running = !conversion.statusCheckFailed && (conversion.starting || polling)
     MobilePlayerStateBox {
         Column(
             Modifier.widthIn(max = CONVERSION_WIDTH).semantics(mergeDescendants = true) {
@@ -130,51 +127,95 @@ internal fun MobileConversionState(
                 modifier = Modifier.semantics { heading() },
             )
             Text(
-                if (running) stringResource(R.string.mobile_playback_conversion_message) else state.message(),
+                conversion.message(running),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
             )
-            if (running) {
-                val percent = (state as? PlaybackConversionState.Converting)?.percent
-                Spacer(Modifier.height(2.dp))
-                if (percent == null) {
-                    LinearProgressIndicator(
-                        modifier = Modifier.width(CONVERSION_BAR_WIDTH),
-                        trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                        strokeCap = StrokeCap.Round,
-                        gapSize = 0.dp,
-                    )
-                } else {
-                    LinearProgressIndicator(
-                        progress = { (percent / PERCENT).toFloat().coerceIn(0f, 1f) },
-                        modifier = Modifier.width(CONVERSION_BAR_WIDTH),
-                        trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                        strokeCap = StrokeCap.Round,
-                        gapSize = 0.dp,
-                        drawStopIndicator = {},
-                    )
-                    Text(
-                        "${percent.roundToInt()}%",
-                        style = MaterialTheme.typography.bodySmall.putioMono(),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-            if (action != null || onPlayInVlc != null) Spacer(Modifier.height(14.dp))
-            if (action != null) {
-                MobilePlayerStateAction(
-                    label = stringResource(action.first),
-                    enabled = conversion.refreshRequestId == null,
-                    onClick = action.second,
-                )
-            }
-            if (onPlayInVlc != null) {
-                MobilePlayerStateAction(stringResource(R.string.mobile_playback_play_in_vlc), onClick = onPlayInVlc)
-            }
+            if (running) MobileConversionProgress(state)
+            MobileConversionActions(
+                conversion = conversion,
+                onRefresh = onRefresh,
+                onStart = onStart,
+                onCancel = onCancel.takeIf { running || conversion.statusCheckFailed },
+                onPlayInVlc = onPlayInVlc,
+            )
         }
     }
 }
+
+@Composable
+private fun MobileConversionActions(
+    conversion: PlaybackContent.Conversion,
+    onRefresh: () -> Unit,
+    onStart: () -> Unit,
+    onCancel: (() -> Unit)?,
+    onPlayInVlc: (() -> Unit)?,
+) {
+    val action = when (conversion.action) {
+        PlaybackConversionAction.RetryStatusCheck -> R.string.mobile_action_retry to onRefresh
+        PlaybackConversionAction.ConvertAgain -> R.string.mobile_playback_convert_again to onStart
+        PlaybackConversionAction.CheckAgain -> R.string.mobile_playback_check_again to onRefresh
+        null -> null
+    }
+    if (action != null || onPlayInVlc != null || onCancel != null) Spacer(Modifier.height(14.dp))
+    if (action != null) {
+        MobilePlayerStateAction(
+            label = stringResource(action.first),
+            enabled = conversion.refreshRequestId == null || conversion.statusCheckFailed,
+            onClick = action.second,
+        )
+    }
+    if (onPlayInVlc != null) {
+        MobilePlayerStateAction(stringResource(R.string.mobile_playback_play_in_vlc), onClick = onPlayInVlc)
+    }
+    if (onCancel != null) {
+        MobilePlayerStateAction(stringResource(R.string.mobile_action_cancel), onClick = onCancel)
+    }
+}
+
+@Composable
+private fun MobileConversionProgress(state: PlaybackConversionState) {
+    val percent = (state as? PlaybackConversionState.Converting)?.percent
+    Spacer(Modifier.height(2.dp))
+    if (percent == null) {
+        LinearProgressIndicator(
+            modifier = Modifier.width(CONVERSION_BAR_WIDTH),
+            trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+            strokeCap = StrokeCap.Round,
+            gapSize = 0.dp,
+        )
+        if (state == PlaybackConversionState.Queued) {
+            Text(
+                stringResource(R.string.mobile_playback_conversion_queued),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    } else {
+        LinearProgressIndicator(
+            progress = { (percent / PERCENT).toFloat().coerceIn(0f, 1f) },
+            modifier = Modifier.width(CONVERSION_BAR_WIDTH),
+            trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+            strokeCap = StrokeCap.Round,
+            gapSize = 0.dp,
+            drawStopIndicator = {},
+        )
+        Text(
+            "${percent.roundToInt()}%",
+            style = MaterialTheme.typography.bodySmall.putioMono(),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun PlaybackContent.Conversion.message(running: Boolean): String =
+    when {
+        statusCheckFailed -> stringResource(R.string.mobile_playback_conversion_status_failed)
+        running -> stringResource(R.string.mobile_playback_conversion_message)
+        else -> state.message()
+    }
 
 /** Centred on the player, clear of its top bar, scrolling when the window is short. */
 @Composable
@@ -248,9 +289,9 @@ internal fun PlaybackMediaType.loadingMessage(): Int =
     }
 
 @StringRes
-internal fun PlaybackMediaType.errorTitle(): Int =
-    if (this == PlaybackMediaType.AUDIO) {
-        R.string.mobile_playback_error_title_audio
-    } else {
-        R.string.mobile_playback_error_title
+internal fun PlaybackFailure.errorTitle(mediaType: PlaybackMediaType): Int =
+    when {
+        putioFailure is PutioFailure.NetworkUnavailable -> R.string.mobile_playback_error_connection_lost
+        mediaType == PlaybackMediaType.AUDIO -> R.string.mobile_playback_error_title_audio
+        else -> R.string.mobile_playback_error_title
     }

@@ -24,6 +24,7 @@ import io.putdotio.android.PutioFailure
 import io.putdotio.android.files.ContinueWatchingEntry
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.tv.SNACKBAR_MILLIS
 import io.putdotio.android.tv.pressCenter
 import io.putdotio.android.tv.setTvContent
 import io.putdotio.sdk.errors.PutioConfigurationException
@@ -256,8 +257,9 @@ class TvHomeScreenTest {
     }
 
     @Test
-    fun aPinFailureExplainsWhyAndHandsFocusBack() {
+    fun aPinFailureShowsBrieflyInTheSnackbarAndFocusStaysOnTheCard() {
         var pinFailure by mutableStateOf<PutioFailure?>(null)
+        var dismissed = 0
         val paneFocus = FocusRequester()
         compose.setTvContent {
             TvHomeScreen(
@@ -267,16 +269,21 @@ class TvHomeScreenTest {
                 paneFocus,
                 onShown = {},
                 pinFailure = pinFailure,
-                onDismissPinFailure = { pinFailure = null },
+                onDismissPinFailure = {
+                    dismissed += 1
+                    pinFailure = null
+                },
             )
         }
         compose.runOnIdle { paneFocus.requestFocus() }
         compose.runOnIdle { pinFailure = PutioFailure.NetworkUnavailable(PutioConfigurationException("offline")) }
 
         compose.onNodeWithText("Couldn’t update your pins.", substring = true).assertIsDisplayed()
-        compose.onNodeWithText("OK").assertIsFocused().performKeyInput { pressCenter() }
         compose.onAllNodesWithText("OK").assertCountEquals(0)
         compose.onNodeWithContentDescription(resume(entry.name)).assertIsFocused()
+        compose.runOnIdle { assertEquals(1, dismissed) }
+        compose.mainClock.advanceTimeBy(SNACKBAR_MILLIS + 500)
+        compose.onAllNodesWithText("Couldn’t update your pins.", substring = true).assertCountEquals(0)
     }
 
     @Test

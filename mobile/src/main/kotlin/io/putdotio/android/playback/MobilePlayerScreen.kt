@@ -221,6 +221,7 @@ internal fun MobilePlayerScreen(
                         content,
                         onRefreshConversion,
                         onStartConversion,
+                        onCancel = onBack,
                         onPlayInVlc = onOpenInVlc?.takeIf { LocalContext.current.hasVlc() },
                     )
 
@@ -238,7 +239,7 @@ internal fun MobilePlayerScreen(
 
                 is PlaybackContent.Failed ->
                     MobilePlaybackFailureState(
-                        title = stringResource(state.target.mediaType.errorTitle()),
+                        title = stringResource(content.failure.errorTitle(state.target.mediaType)),
                         failure = content.failure,
                         onRetry = onRetry,
                         video = isVideo,

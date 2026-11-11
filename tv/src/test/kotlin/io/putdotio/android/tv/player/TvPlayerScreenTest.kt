@@ -145,57 +145,62 @@ class TvPlayerScreenTest {
         assertEquals(61_000L, position)
 
         state = state.copyForTest(content = PlaybackContent.Failed(failure))
-        compose.onNodeWithText("Couldn't play this file.").assertIsDisplayed()
+        compose.onNodeWithText("Playback error").assertIsDisplayed()
+        compose.onNodeWithText("Go back").assertIsDisplayed()
         compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressKey(Key.DirectionCenter) }
         compose.runOnIdle { assertEquals(1, retries) }
     }
 
     @Test
-    fun quickRightPressesScrubPausedAndCenterPlaysFromTheTarget() {
+    fun leftAndRightOnTheSeekBarSkipTenSecondsAtOnceAndKeepPlaying() {
         val player = FakePlayer()
         compose.showReady(player, resumePositionMillis = 42_000L)
 
         compose.onNodeWithTag(TV_PLAYER_TAG).performKeyInput {
             pressKey(Key.DirectionDown)
             pressKey(Key.DirectionRight)
-            advanceEventTime(TV_SCRUB_ACCUMULATE_MILLIS / 2)
             pressKey(Key.DirectionRight)
         }
         compose.settle()
-        compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("1:27")
+        compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("1:02")
         compose.runOnIdle {
-            assertFalse("Scrubbing pauses", player.playWhenReady)
-            assertEquals("Nothing seeks before the commit", 42_000L, player.currentPosition)
+            assertEquals(62_000L, player.currentPosition)
+            assertTrue("A skip never pauses", player.playWhenReady)
         }
-        compose.mainClock.advanceTimeBy(TV_PLAYER_CONTROLS_HIDE_DELAY_MILLIS * 2)
-        compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertIsDisplayed()
 
-        compose.onNodeWithTag(TV_PLAYER_TAG).performKeyInput { pressKey(Key.DirectionCenter) }
+        compose.onNodeWithTag(TV_PLAYER_TAG).performKeyInput { pressKey(Key.DirectionLeft) }
         compose.settle()
         compose.runOnIdle {
-            assertEquals(87_000L, player.currentPosition)
-            assertTrue("The commit resumes playback", player.playWhenReady)
+            assertEquals(52_000L, player.currentPosition)
+            assertTrue(player.playWhenReady)
         }
     }
 
     @Test
-    fun pressesAfterAPauseRestartTheStepFromThePendingTarget() {
+    fun aTapWithTheControlsHiddenSkipsAndRewindAndFastForwardFollowTheSameRule() {
         val player = FakePlayer()
         compose.showReady(player, resumePositionMillis = 42_000L)
+        compose.mainClock.advanceTimeBy(TV_PLAYER_CONTROLS_HIDE_DELAY_MILLIS * 2)
+        compose.settle()
+        compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertDoesNotExist()
+
+        compose.onNodeWithTag(TV_PLAYER_TAG).performKeyInput { pressKey(Key.DirectionLeft) }
+        compose.settle()
+        compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertIsDisplayed()
+        compose.runOnIdle { assertEquals(32_000L, player.currentPosition) }
 
         compose.onNodeWithTag(TV_PLAYER_TAG).performKeyInput {
             pressKey(Key.MediaFastForward)
-            advanceEventTime(TV_SCRUB_ACCUMULATE_MILLIS * 2)
             pressKey(Key.MediaFastForward)
-            advanceEventTime(TV_SCRUB_ACCUMULATE_MILLIS * 2)
             pressKey(Key.MediaRewind)
         }
         compose.settle()
-        compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("0:57")
+        compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("0:42")
+        compose.runOnIdle { assertTrue(player.playWhenReady) }
     }
 
     @Test
-    fun backDismissesSeekModeThenTheControlsKeepingTimeAndFocusThenExitsOnce() {
+    fun backAfterASkipDismissesTheControlsKeepingTimeAndFocusThenExitsOnce() {
         val player = FakePlayer()
         var backs = 0
         compose.showReady(player, resumePositionMillis = 42_000L, onBack = { backs += 1 })
@@ -205,22 +210,14 @@ class TvPlayerScreenTest {
             pressKey(Key.DirectionLeft)
         }
         compose.settle()
-        compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("0:27")
-        compose.runOnIdle { assertFalse(player.playWhenReady) }
-
-        compose.back()
-        compose.runOnIdle {
-            assertEquals(0, backs)
-            assertEquals("Dismissing seek mode never seeks", 42_000L, player.currentPosition)
-            assertTrue("It resumes the playback the scrub paused", player.playWhenReady)
-        }
-        compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("0:42")
+        compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("0:32")
 
         compose.back()
         compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertDoesNotExist()
         compose.onNodeWithTag(TV_PLAYER_TAG).assertIsFocused()
         compose.runOnIdle {
             assertEquals(0, backs)
+            assertEquals("Back has no seek to undo", 32_000L, player.currentPosition)
             assertTrue(player.playWhenReady)
         }
 

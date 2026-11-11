@@ -276,6 +276,35 @@ class TvFilesScreenTest {
     }
 
     @Test
+    fun refreshNextToSortReloadsTheFolderAndIsIgnoredWhileItReloads() {
+        var operation by mutableStateOf<FilesFolderOperation>(FilesFolderOperation.Idle)
+        val events = mutableListOf<FilesBrowserEvent>()
+        compose.showFiles(
+            state = {
+                state(
+                    FilesContent.Ready(listOf(item(1, "a.txt", PutioFileType.TEXT)), FilesPaging.Complete),
+                    operation = operation,
+                )
+            },
+            onEvent = { events += it; true },
+        )
+        compose.onNodeWithContentDescription("a.txt").performKeyInput { pressKey(Key.DirectionUp) }
+        compose.onNode(hasText("Sort") and hasClickAction()).assertIsFocused()
+            .performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
+        assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.Refresh), events)
+
+        operation = FilesFolderOperation.Loading(
+            FilesRequestId(3),
+            FilesFolderOperationIntent.Refresh,
+            FilesFolderOperationPhase.RELOADING,
+        )
+        compose.onNodeWithContentDescription("a.txt").assertIsDisplayed()
+        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
+        assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.Refresh), events)
+    }
+
+    @Test
     fun theSortPillOpensTheSortSheetAndItsGroupsDispatchTheChoice() {
         val events = mutableListOf<FilesBrowserEvent>()
         compose.showFiles(

@@ -396,6 +396,64 @@ class MobilePlayerScreenTest {
     }
 
     @Test
+    fun aQueuedConversionSaysItIsWaitingAndCancelGoesBack() {
+        var content by mutableStateOf(PlaybackContent.Conversion(PlaybackConversionState.Queued))
+        var backs = 0
+        compose.setContent {
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = state(content),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = { backs += 1 },
+                )
+            }
+        }
+
+        compose.onNodeWithText("Waiting to convert…").assertIsDisplayed()
+        compose.onNodeWithText("Cancel").performClick()
+        compose.runOnIdle { assertEquals(1, backs) }
+
+        content = PlaybackContent.Conversion(PlaybackConversionState.Converting(42.0))
+        compose.onNodeWithText("Waiting to convert…").assertDoesNotExist()
+        compose.onNodeWithText("Cancel").assertIsDisplayed()
+
+        content = PlaybackContent.Conversion(PlaybackConversionState.Failed)
+        compose.onNodeWithText("Cancel").assertDoesNotExist()
+    }
+
+    @Test
+    fun aStatusCheckThatLosesTheNetworkKeepsPollingAndOffersTryAgain() {
+        var refreshes = 0
+        var retries = 0
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = state(
+                        PlaybackContent.Conversion(PlaybackConversionState.Converting(42.0), statusCheckFailed = true),
+                    ),
+                    onRetry = { retries += 1 },
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    onRefreshConversion = { refreshes += 1 },
+                )
+            }
+        }
+
+        compose.onNodeWithText("Converting to MP4").assertIsDisplayed()
+        compose.onNodeWithText("Can’t check conversion status. Check your internet connection.").assertIsDisplayed()
+        compose.onNodeWithText("42%").assertDoesNotExist()
+        compose.mainClock.advanceTimeBy(PLAYBACK_CONVERSION_POLL_MILLIS * 3)
+        compose.runOnIdle { assertEquals(3, refreshes) }
+        compose.onNodeWithText("Try again").performClick()
+        compose.runOnIdle {
+            assertEquals(4, refreshes)
+            assertEquals(0, retries)
+        }
+    }
+
+    @Test
     fun aConversionSaysItHasStartedAndOnlyAFailedOneOffersConvertAgain() {
         var content by mutableStateOf(
             PlaybackContent.Conversion(PlaybackConversionState.NotAvailable, PlaybackRequestId(2L)),
@@ -432,34 +490,7 @@ class MobilePlayerScreenTest {
 
     @Test
     fun failureStatesShowTheirCopyAndOfferTryAgainOnlyWhenRetryable() {
-        val rows = listOf(
-            FailureRow(PlaybackContent.Unsupported(PutioFileType.TEXT), "Can’t play this file", retry = false),
-            FailureRow(
-                PlaybackContent.Failed(PlaybackFailure.MediaCredentialUnavailable(IllegalStateException("expired"))),
-                "Playback access expired. Retry to refresh it.",
-                retry = true,
-            ),
-            FailureRow(
-                PlaybackContent.Failed(PlaybackFailure.MediaUnsupported(IllegalStateException("codec"))),
-                "Can’t play this here",
-                retry = false,
-                checkBack = true,
-            ),
-            FailureRow(
-                PlaybackContent.NextFailed(
-                    PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IllegalStateException("offline"))),
-                ),
-                "Couldn’t find the next video",
-                retry = true,
-            ),
-            FailureRow(
-                PlaybackContent.NextFailed(
-                    PlaybackFailure.Putio(PutioFailure.AccessDenied(PutioConfigurationException("403"))),
-                ),
-                "Couldn’t find the next video",
-                retry = false,
-            ),
-        )
+        val rows = failureRows()
         var content by mutableStateOf(rows.first().content)
         var retries = 0
         var backs = 0
@@ -492,6 +523,41 @@ class MobilePlayerScreenTest {
         }
     }
 }
+
+private fun failureRows(): List<FailureRow> =
+    listOf(
+        FailureRow(PlaybackContent.Unsupported(PutioFileType.TEXT), "Can’t play this file", retry = false),
+        FailureRow(
+            PlaybackContent.Failed(PlaybackFailure.MediaCredentialUnavailable(IllegalStateException("expired"))),
+            "Playback access expired. Retry to refresh it.",
+            retry = true,
+        ),
+        FailureRow(
+            PlaybackContent.Failed(PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IOException("offline")))),
+            "Connection lost",
+            retry = true,
+        ),
+        FailureRow(
+            PlaybackContent.Failed(PlaybackFailure.MediaUnsupported(IllegalStateException("codec"))),
+            "Can’t play this here",
+            retry = false,
+            checkBack = true,
+        ),
+        FailureRow(
+            PlaybackContent.NextFailed(
+                PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IllegalStateException("offline"))),
+            ),
+            "Couldn’t find the next video",
+            retry = true,
+        ),
+        FailureRow(
+            PlaybackContent.NextFailed(
+                PlaybackFailure.Putio(PutioFailure.AccessDenied(PutioConfigurationException("403"))),
+            ),
+            "Couldn’t find the next video",
+            retry = false,
+        ),
+    )
 
 private data class FailureRow(
     val content: PlaybackContent,
@@ -2305,6 +2371,14 @@ class MobilePlayerAudioTest {
                 PlaybackContent.Failed(PlaybackFailure.Putio(PutioFailure.Unexpected(IllegalStateException("boom"))))
         }
         compose.onNodeWithText("Couldn’t play this audio").assertIsDisplayed()
+
+        compose.runOnIdle {
+            content =
+                PlaybackContent.Failed(PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IOException("offline"))))
+        }
+        compose.onNodeWithText("Connection lost").assertIsDisplayed()
+        compose.onNodeWithText("Check your connection and try again.").assertIsDisplayed()
+        compose.onNodeWithText("Try again").assertIsDisplayed()
     }
 }
 

@@ -442,6 +442,43 @@ class TvShellBackTest {
             )
         }
         var requested by mutableStateOf<TvDestination?>(null)
+        setTrashInAccount(items, { requested }, { requested = null })
+        compose.openTab(TvDestination.Account)
+        compose.onNode(hasText("Library") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionRight)
+        }
+        compose.onNodeWithText("Manage your trash").assertIsFocused().performKeyInput { pressCenter() }
+        compose.onNode(hasText("trashed-1.txt") and hasClickAction()).assertIsFocused().performKeyInput {
+            repeat(2) { pressKey(Key.DirectionDown) }
+        }
+        compose.onNode(hasText("trashed-3.txt") and hasClickAction()).assertIsFocused()
+
+        compose.runOnIdle { requested = TvDestination.History }
+        compose.waitForIdle()
+        compose.pressBack()
+        compose.onTab("History").assertIsFocused().performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onTab("Account").assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNode(hasText("trashed-3.txt") and hasClickAction()).assertIsFocused().performKeyInput {
+            repeat(3) { pressKey(Key.DirectionUp) }
+        }
+        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionUp)
+        }
+        compose.onNode(hasText("Empty trash") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionLeft)
+        }
+        compose.onNode(hasText("Restore all") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionUp)
+        }
+        visitNeighbourAndReturn("Account", TvDestination.History)
+        compose.onNode(hasText("Restore all") and hasClickAction()).assertIsFocused()
+    }
+
+    private fun setTrashInAccount(
+        items: List<TrashItem>,
+        requested: () -> TvDestination?,
+        onRequestHandled: () -> Unit,
+    ) {
         compose.setTvContent {
             TvShell(
                 account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
@@ -464,33 +501,10 @@ class TvShellBackTest {
                         },
                     )
                 },
-                requestedDestination = requested,
-                onDestinationRequestHandled = { requested = null },
+                requestedDestination = requested(),
+                onDestinationRequestHandled = onRequestHandled,
             )
         }
-        compose.openTab(TvDestination.Account)
-        compose.onNode(hasText("Library") and hasClickAction()).assertIsFocused().performKeyInput {
-            pressKey(Key.DirectionRight)
-        }
-        compose.onNodeWithText("Manage your trash").assertIsFocused().performKeyInput { pressCenter() }
-        compose.onNode(hasText("trashed-1.txt") and hasClickAction()).assertIsFocused().performKeyInput {
-            repeat(2) { pressKey(Key.DirectionDown) }
-        }
-        compose.onNode(hasText("trashed-3.txt") and hasClickAction()).assertIsFocused()
-
-        compose.runOnIdle { requested = TvDestination.History }
-        compose.waitForIdle()
-        compose.pressBack()
-        compose.onTab("History").assertIsFocused().performKeyInput { pressKey(Key.DirectionRight) }
-        compose.onTab("Account").assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNode(hasText("trashed-3.txt") and hasClickAction()).assertIsFocused().performKeyInput {
-            repeat(3) { pressKey(Key.DirectionUp) }
-        }
-        compose.onNode(hasText("Restore all") and hasClickAction()).assertIsFocused().performKeyInput {
-            pressKey(Key.DirectionUp)
-        }
-        visitNeighbourAndReturn("Account", TvDestination.History)
-        compose.onNode(hasText("Restore all") and hasClickAction()).assertIsFocused()
     }
 
     private fun visitNeighbourAndReturn(tab: String, neighbour: TvDestination) {

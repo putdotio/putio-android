@@ -31,7 +31,7 @@ script headers and `--help` own the harness.
 - A change to TV startup, sign-in or Home regenerates the TV baseline profile
   with `scripts/generate-baseline-profile.sh` on an emulator you booted.
 - Never hand-write design values or edit generated output.
-  `scripts/sync-design-assets.sh` (macOS only) and `scripts/generate-icons.sh`
+  `scripts/sync-design-assets.sh` (macOS only) and `./gradlew generateIcons`
   write them from the locks in `design/`.
 - To take a design release:
   1. Set the lock's version, tarball, and `integrity`
@@ -105,11 +105,12 @@ refreshes them. Don't edit their files.
 
 ```bash
 ./gradlew verify                                                  # canonical gate
+./gradlew verifyMobile                                            # one lane: verifyDocs, verifyScripts, verifyLibraries, verifyMobile, verifyTv, verifyRelease
 ./gradlew :mobile:assembleProductionDebug :tv:assembleProductionDebug
 ```
 
-The root [`verify` task](build.gradle.kts)'s `dependsOn` list is the gate's
-inventory. Its script checks need `bash` 3.2+, `python3`, `node`, `ffprobe`,
+The root [`verify` task](build.gradle.kts) is the union of its `verify*` lane
+tasks; the build cache skips the work a change does not reach. Its script checks need `bash` 3.2+, `python3`, `node`, `ffprobe`,
 and `ffmpeg` with the `freezedetect` filter and `libx264` encoder on PATH.
 `markdownCheck` runs oxfmt at the version [package.json](package.json) pins;
 `npx --yes oxfmt@<version> '**/*.md'` fixes its findings.
@@ -136,7 +137,7 @@ that matches. Report skipped or unavailable proof.
 | UI, navigation, playback, or launch | Mobile: the affected feature in [verify-putio-android](.agents/skills/verify-putio-android/SKILL.md); TV: `./scripts/prove.sh tv` or its opt-in `*ProofTest` lane   |
 | Google Play delivery                | `./gradlew -PputioVersionName=3.0.1 :mobile:bundleProductionRelease :tv:bundleProductionRelease`, then a `dry_run` of [Google Play delivery](#google-play-delivery) |
 | Live API behavior                   | Mobile: [verify-putio-android](.agents/skills/verify-putio-android/SKILL.md) with its fixture ledger; TV: the lane's `devs-auto` steps                              |
-| Design tokens or icons              | `./scripts/sync-design-assets.sh` or `./scripts/generate-icons.sh`, then `./gradlew verify`                                                                         |
+| Design tokens or icons              | `./scripts/sync-design-assets.sh` or `./gradlew generateIcons`, then `./gradlew verify`                                                                             |
 | Visible change                      | Reviewed captures from `.evidence/`, attached with `gh pr comment <n> --attach <file>`                                                                              |
 
 Docs stay high level: a new product area or module boundary updates
@@ -148,10 +149,9 @@ DESIGN.md. Screen-level UI changes edit neither.
 Open pull requests against `main`. A merge runs only
 [CI](.github/workflows/ci.yml); nothing ships without a Google Play dispatch.
 
-- `Build release` and `Verify Android app` split `verify` plus the four debug
-  assembles between them. When either command changes, compare their
-  `--dry-run` task lists with the full command's; together they must run
-  exactly the same tasks.
+- CI runs one job per lane. A pull request that touches only docs or files
+  no build reads skips the Gradle lanes; inside a lane, the build cache
+  skips what a change does not reach.
 
 ### Google Play delivery
 
