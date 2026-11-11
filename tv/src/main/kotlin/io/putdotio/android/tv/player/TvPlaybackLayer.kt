@@ -20,6 +20,7 @@ import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackController
 import io.putdotio.android.playback.PlaybackEvent
 import io.putdotio.android.playback.PlaybackFailure
+import io.putdotio.android.playback.PlaybackFindNeighbours
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackNextResult
 import io.putdotio.android.playback.PlaybackRepositoryResult
@@ -31,6 +32,7 @@ import io.putdotio.android.playback.playerFailureTelemetry
 import io.putdotio.android.playback.putioFailure
 import io.putdotio.android.playback.rememberFolderNeighbours
 import io.putdotio.android.playback.rememberNextEpisode
+import io.putdotio.android.playback.rememberUpNext
 import io.putdotio.android.telemetry.AnalyticsEvent
 import io.putdotio.android.telemetry.ProductAnalytics
 import io.putdotio.android.telemetry.PutioDiagnostics
@@ -82,7 +84,7 @@ internal fun TvPlaybackRoute(
     subtitleStartupPolicy: SubtitleStartupPolicy? = null,
     autoplayNextVideo: Boolean = false,
     findNextEpisode: (suspend (PlaybackTarget) -> PlaybackNextResult)? = null,
-    findUpNext: TvFindNeighbours? = null,
+    findUpNext: PlaybackFindNeighbours? = null,
     openInVlc: (suspend (PlaybackTarget) -> Int?)? = null,
     findSubtitles: TvFindSubtitles? = null,
 ) {
@@ -118,8 +120,6 @@ internal fun TvPlaybackRoute(
             state = state,
             onBack = onExit,
             onRetry = { controller.dispatch(PlaybackEvent.Retry) },
-            onResume = { controller.dispatch(PlaybackEvent.Resume) },
-            onRestart = { controller.dispatch(PlaybackEvent.Restart) },
             onPlayerFailure = { failure, positionMillis ->
                 val telemetry = controller.state.value.playerFailureTelemetry(failure)
                 if (controller.dispatch(PlaybackEvent.PlayerFailed(failure, positionMillis))) {
