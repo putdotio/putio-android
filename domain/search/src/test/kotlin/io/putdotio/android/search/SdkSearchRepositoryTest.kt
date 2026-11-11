@@ -21,19 +21,23 @@ class SdkSearchRepositoryTest {
     fun searchesAndContinuesThroughTypedSdkCalls() =
         runBlocking {
             var requestedKeyword: String? = null
+            var requestedFirstPageSize: Int? = null
             var requestedCursor: String? = null
+            var requestedNextPageSize: Int? = null
             val repository =
                 SdkSearchRepository(
                     searchFiles = { query ->
                         requestedKeyword = query.keyword
+                        requestedFirstPageSize = query.perPage
                         response(
                             files = listOf(file(7L, "  raw result.mkv  ")),
                             cursor = "next",
                             total = 2,
                         )
                     },
-                    continueSearch = { cursor ->
+                    continueSearch = { cursor, query ->
                         requestedCursor = cursor
+                        requestedNextPageSize = query.perPage
                         response(cursor = "  ", total = 2)
                     },
                 )
@@ -42,6 +46,8 @@ class SdkSearchRepositoryTest {
             val next = repository.loadNextPage(FilesCursor("next")) as PutioResult.Success
 
             assertEquals("result", requestedKeyword)
+            assertEquals(50, requestedFirstPageSize)
+            assertEquals(50, requestedNextPageSize)
             assertEquals("  raw result.mkv  ", first.value.items.single().name)
             assertEquals(FilesCursor("next"), first.value.nextCursor)
             assertEquals(2, first.value.total)
@@ -79,7 +85,7 @@ class SdkSearchRepositoryTest {
                         requested += query.type
                         response()
                     },
-                    continueSearch = { error("Unexpected continuation") },
+                    continueSearch = { _, _ -> error("Unexpected continuation") },
                 )
 
             SearchFilter.entries.forEach { repository.search(SearchTerm("movie"), it) }
@@ -102,7 +108,7 @@ class SdkSearchRepositoryTest {
     private fun repositoryThrowing(error: Throwable): SdkSearchRepository =
         SdkSearchRepository(
             searchFiles = { throw error },
-            continueSearch = { throw error },
+            continueSearch = { _, _ -> throw error },
         )
 
     private fun response(
