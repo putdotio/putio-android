@@ -685,7 +685,7 @@ private fun TvHomeAddFilesQr() {
         modifier = Modifier
             .padding(top = ADD_FILES_QR_GAP)
             .size(ADD_FILES_QR_SIZE)
-            .clip(RoundedCornerShape(ADD_FILES_QR_RADIUS))
+            .clip(RoundedCornerShape(PutioRadius.medium))
             .background(light),
     )
 }
@@ -712,7 +712,6 @@ private val INLINE_ACTION_GAP = 10.dp
 private const val ADD_FILES_URL = "https://app.put.io"
 private val ADD_FILES_QR_GAP = 8.dp
 private val ADD_FILES_QR_SIZE = 120.dp
-private val ADD_FILES_QR_RADIUS = 12.dp
 private val ADD_FILES_QR_QUIET_ZONE = 8.dp
 private val SECTION_LABEL = PutioTypeScale.tvLabel.withFullLineBox()
 private val CARD_NAME = PutioTypeScale.tvMeta.withFullLineBox()
