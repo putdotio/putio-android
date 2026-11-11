@@ -114,12 +114,6 @@ val testTalkBackInput =tasks.register<Exec>("testTalkBackInput") {
     commandLine("python3", "-B", "scripts/test_talkback_input.py")
 }
 
-val testCiLanes = tasks.register<Exec>("testCiLanes") {
-    description = "Test which verify lanes each kind of change selects"
-    cacheableCheck("build.gradle.kts")
-    commandLine("python3", "-B", "scripts/test_ci_lanes.py")
-}
-
 // package.json pins the Node tools so Renovate can bump them; they need Node on PATH.
 fun pinnedNodeTool(name: String) =
     providers.fileContents(layout.projectDirectory.file("package.json")).asText.map { text ->
@@ -177,7 +171,6 @@ val verifyScripts = verifyLane(
     checkDesignAssets,
     checkIcons,
     testBrandFontPipeline,
-    testCiLanes,
     testDesignAssetPipeline,
     testEmulatorHarness,
     testEvidence,

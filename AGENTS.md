@@ -105,13 +105,12 @@ refreshes them. Don't edit their files.
 
 ```bash
 ./gradlew verify                                                  # canonical gate
-./scripts/verify-changed.sh                                       # lanes your change affects
+./gradlew verifyMobile                                            # one lane: verifyDocs, verifyScripts, verifyLibraries, verifyMobile, verifyTv, verifyRelease
 ./gradlew :mobile:assembleProductionDebug :tv:assembleProductionDebug
 ```
 
 The root [`verify` task](build.gradle.kts) is the union of its `verify*` lane
-tasks; [`ci_lanes.py`](scripts/ci_lanes.py) picks the lanes a change affects
-for CI and `verify-changed.sh`. Its script checks need `bash` 3.2+, `python3`, `node`, `ffprobe`,
+tasks; the build cache skips the work a change does not reach. Its script checks need `bash` 3.2+, `python3`, `node`, `ffprobe`,
 and `ffmpeg` with the `freezedetect` filter and `libx264` encoder on PATH.
 `markdownCheck` runs oxfmt at the version [package.json](package.json) pins;
 `npx --yes oxfmt@<version> '**/*.md'` fixes its findings.
@@ -150,9 +149,10 @@ DESIGN.md. Screen-level UI changes edit neither.
 Open pull requests against `main`. A merge runs only
 [CI](.github/workflows/ci.yml); nothing ships without a Google Play dispatch.
 
-- CI runs one job per lane a pull request affects, and every lane on `main`.
-  A new module, check, or build input must belong to a lane that a change to
-  it selects; `testCiLanes` pins the mapping.
+- CI runs one job per lane whose
+  [path filter](.github/workflows/ci.yml) a pull request matches, and every
+  lane on `main`. A new module or build input outside those paths runs every
+  lane.
 
 ### Google Play delivery
 

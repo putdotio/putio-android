@@ -19,73 +19,91 @@ concurrency:
 
 jobs:
   changes:
-    name: Select lanes
+    name: Detect changes
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: read
       pull-requests: read
     outputs:
-      matrix: ${{ steps.lanes.outputs.matrix }}
-      any: ${{ steps.lanes.outputs.any }}
+      docs: ${{ github.event_name != 'pull_request' || steps.filter.outputs.docs == 'true' }}
+      scripts: ${{ github.event_name != 'pull_request' || steps.filter.outputs.scripts == 'true' }}
+      libraries: ${{ github.event_name != 'pull_request' || steps.filter.outputs.libraries == 'true' }}
+      mobile: ${{ github.event_name != 'pull_request' || steps.filter.outputs.mobile == 'true' }}
+      tv: ${{ github.event_name != 'pull_request' || steps.filter.outputs.tv == 'true' }}
+      apps: ${{ github.event_name != 'pull_request' || steps.filter.outputs.apps == 'true' }}
     steps:
+      - name: Classify changed paths
+        id: filter
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          predicate-quantifier: every
+          filters: |
+            unbuilt: &unbuilt
+              - '**'
+              - '!{.agents,.claude,docs,play,.github/ISSUE_TEMPLATE}/**'
+              - '!.github/workflows/{delivery-ref,emulator-smoke,play-data-safety,play-internal,play-release}.yml'
+              - '!{LICENSE,NOTICE,renovate.json,skills-lock.json,.worktreeinclude}'
+            built: &built
+              - *unbuilt
+              - '!**/*.md'
+            gradle: &gradle
+              - *built
+              - '!{package.json,.node-version,.oxfmtrc.json}'
+              - '!scripts/**'
+            docs:
+              - '**'
+              - '!{.agents,.claude,docs,play,mobile,tv,baselineprofile,core,domain,scripts}/**/!(*.md)'
+              - '!.github/ISSUE_TEMPLATE/**'
+              - '!.github/workflows/{delivery-ref,emulator-smoke,play-data-safety,play-internal,play-release}.yml'
+              - '!{LICENSE,NOTICE,renovate.json,skills-lock.json,.worktreeinclude}'
+            scripts:
+              - *built
+              - '!{mobile,tv,baselineprofile,core,domain}/**/src/*/{kotlin,java,generated}/**'
+              - '!.oxfmtrc.json'
+            libraries:
+              - *gradle
+              - '!{mobile,tv,baselineprofile}/**'
+            mobile:
+              - *gradle
+              - '!{tv,baselineprofile}/**'
+            tv:
+              - *gradle
+              - '!mobile/**'
+            apps:
+              - *built
+              - '!{package.json,.node-version,.oxfmtrc.json}'
+              - '!scripts/!(sync-brand-fonts.sh|brand_fonts.py)'
+
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - name: Select lanes
-        id: lanes
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files" \
-              --jq '.[] | .filename, (.previous_filename // empty)' > changed-paths.txt
-            matrix="$(python3 -B scripts/ci_lanes.py --matrix < changed-paths.txt)"
-          else
-            matrix="$(python3 -B scripts/ci_lanes.py --matrix --all < /dev/null)"
-          fi
-          any="$(jq -r '.include | length > 0' <<<"$matrix")"
-          printf 'matrix=%s\nany=%s\n' "$matrix" "$any" >> "$GITHUB_OUTPUT"
-          jq -r '"Lanes: " + ([.include[].name] | join(", ") | if . == "" then "none" else . end)' <<<"$matrix" \
-            | tee -a "$GITHUB_STEP_SUMMARY"
-
       - name: Check Markdown links
-        if: ${{ !cancelled() }}
         uses: putdotio/.github/.github/actions/links@e07dede03892f9b80fec82bf38afcd5f76b763b0 # v2.3.3
 
       - name: Scan secrets and workflows
         if: ${{ !cancelled() }}
         uses: putdotio/.github/.github/actions/scan@e07dede03892f9b80fec82bf38afcd5f76b763b0 # v2.3.3
 
-  lane:
-    name: ${{ matrix.name }}
+  docs:
+    name: Docs
     needs: changes
-    if: ${{ !cancelled() && needs.changes.outputs.any == 'true' }}
+    if: ${{ !cancelled() && needs.changes.outputs.docs == 'true' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON(needs.changes.outputs.matrix) }}
-
-    steps:
+    timeout-minutes: 10
+    env:
+      TASKS: verifyDocs
+    steps: &lane
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          path: putio-android
           persist-credentials: false
 
-      - name: Record source revisions
-        run: |
-          app_revision=$(git -C putio-android rev-parse HEAD)
-          app_parents=$(git -C putio-android log -1 --format=%P | tr ' ' '\n' | sed 's/^/App parent revision: /')
-          printf 'App revision: %s\n' "$app_revision" | tee -a "$GITHUB_STEP_SUMMARY"
-          printf '%s\n' "$app_parents" | tee -a "$GITHUB_STEP_SUMMARY"
-
       - name: Install evidence dependencies
-        if: matrix.ffmpeg
+        if: env.FFMPEG == 'true'
         run: |
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends ffmpeg
@@ -104,17 +122,13 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version-file: putio-android/.node-version
+          node-version-file: .node-version
 
       - name: Fetch brand fonts
-        if: matrix.brand_fonts
-        working-directory: putio-android
+        if: env.BRAND_FONTS == 'true'
         run: ./scripts/sync-brand-fonts.sh
 
-      - name: Run lane
-        working-directory: putio-android
-        env:
-          TASKS: ${{ matrix.tasks }}
+      - name: Run Gradle
         run: |
           read -ra tasks <<<"$TASKS"
           ./gradlew --stacktrace "${tasks[@]}"
@@ -123,21 +137,88 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: failed-unit-test-reports-${{ matrix.lane }}
-          if-no-files-found: warn
+          name: failed-unit-test-reports-${{ github.job }}
+          if-no-files-found: ignore
           path: |
-            putio-android/mobile/build/test-results/test*UnitTest/TEST-*.xml
-            putio-android/tv/build/test-results/test*UnitTest/TEST-*.xml
-            putio-android/core/*/build/test-results/test*UnitTest/TEST-*.xml
-            putio-android/domain/*/build/test-results/test*UnitTest/TEST-*.xml
-            putio-android/build-logic/build/test-results/test/TEST-*.xml
+            mobile/build/test-results/test*UnitTest/TEST-*.xml
+            tv/build/test-results/test*UnitTest/TEST-*.xml
+            core/*/build/test-results/test*UnitTest/TEST-*.xml
+            domain/*/build/test-results/test*UnitTest/TEST-*.xml
+            build-logic/build/test-results/test/TEST-*.xml
           retention-days: 3
 
       - name: Upload debug APKs
-        if: github.event_name == 'workflow_dispatch' && matrix.upload_apks != ''
+        if: github.event_name == 'workflow_dispatch' && env.APKS != ''
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: debug-apks-${{ matrix.lane }}
+          name: debug-apks-${{ github.job }}
           if-no-files-found: error
-          path: ${{ matrix.upload_apks }}
+          path: ${{ env.APKS }}
           retention-days: 1
+
+  scripts:
+    name: Scripts
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.scripts == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      TASKS: verifyScripts
+      FFMPEG: 'true'
+    steps: *lane
+
+  libraries:
+    name: Libraries
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.libraries == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      TASKS: verifyLibraries
+    steps: *lane
+
+  mobile:
+    name: Mobile
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.mobile == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      TASKS: verifyMobile :mobile:assembleProductionDebug
+      APKS: mobile/build/outputs/apk/production/debug/*.apk
+    steps: *lane
+
+  tv:
+    name: TV
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.tv == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      TASKS: verifyTv :tv:assembleProductionDebug
+      APKS: tv/build/outputs/apk/production/debug/*.apk
+    steps: *lane
+
+  release:
+    name: Release
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.apps == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      TASKS: verifyRelease
+      BRAND_FONTS: 'true'
+    steps: *lane
+
+  nightly:
+    name: Nightly debug
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.apps == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      TASKS: :mobile:assembleNightlyDebug :tv:assembleNightlyDebug
+      APKS: |
+        mobile/build/outputs/apk/nightly/debug/*.apk
+        tv/build/outputs/apk/nightly/debug/*.apk
+    steps: *lane
