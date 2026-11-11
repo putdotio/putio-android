@@ -76,6 +76,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.files.FilesSort
+import io.putdotio.android.tv.SECTION_LABEL_GAP
 import io.putdotio.android.tv.TV_MONO_RUN
 import io.putdotio.android.files.formatFileSize
 import io.putdotio.android.tv.LocalTvOffline
@@ -851,6 +852,38 @@ internal fun TvFilesNotice(
     }
 }
 
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+private fun TvFilesSectionPills(
+    sortLabel: String,
+    sortFocus: FocusRequester,
+    sorting: Boolean,
+    idle: Boolean,
+    onSort: () -> Unit,
+    onRefresh: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .focusProperties { enter = { sortFocus } }
+            .focusGroup(),
+        horizontalArrangement = Arrangement.spacedBy(SECTION_LABEL_GAP),
+    ) {
+        TvSectionPill(
+            icon = R.drawable.ic_ph_sort_ascending,
+            label = sortLabel,
+            onClick = { if (idle) onSort() },
+            modifier = Modifier.focusRequester(sortFocus),
+            showFocus = !sorting,
+        )
+        TvSectionPill(
+            icon = R.drawable.ic_ph_arrows_clockwise,
+            label = stringResource(R.string.tv_refresh),
+            onClick = { if (idle) onRefresh() },
+            showFocus = !sorting,
+        )
+    }
+}
+
 @Composable
 private fun TvFilesSectionLine(
     state: FilesBrowserState,
@@ -872,12 +905,13 @@ private fun TvFilesSectionLine(
         modifier = Modifier.onFocusChanged { onFocusChanged(it.hasFocus) },
         pill = if (showSort) {
             {
-                TvSectionPill(
-                    icon = R.drawable.ic_ph_sort_ascending,
-                    label = stringResource(sortInEffect?.tvLabel() ?: R.string.tv_files_sort_title),
-                    onClick = { if (idle) sorting = true },
-                    modifier = Modifier.focusRequester(sortFocus),
-                    showFocus = !sorting,
+                TvFilesSectionPills(
+                    sortLabel = stringResource(sortInEffect?.tvLabel() ?: R.string.tv_files_sort_title),
+                    sortFocus = sortFocus,
+                    sorting = sorting,
+                    idle = idle,
+                    onSort = { sorting = true },
+                    onRefresh = { onEvent(FilesBrowserEvent.Refresh) },
                 )
             }
         } else {

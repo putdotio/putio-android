@@ -2,12 +2,14 @@ package io.putdotio.android.playback
 
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PlaybackConversionState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.IOException
 
 class PlaybackConversionReducerTest {
     @Test
@@ -201,6 +203,50 @@ class PlaybackConversionReducerTest {
         )
         assertNull("One start per opening", reread.effect)
         assertFalse((reread.state.content as PlaybackContent.Conversion).starting)
+    }
+
+    @Test
+    fun aStatusReadThatLosesTheNetworkKeepsTheConversionAndOffersTryAgain() {
+        listOf(
+            PutioFailure.NetworkUnavailable(IOException("offline")),
+            PutioFailure.Timeout(PutioConfigurationException("timeout")),
+        ).forEach { lost ->
+            val reading = PlaybackReducer.reduce(
+                conversion(PlaybackConversionState.Converting(42.0)),
+                PlaybackEvent.RefreshConversion,
+            )
+            val dropped = PlaybackReducer.reduce(
+                reading.state,
+                PlaybackEvent.ResolveFailed(PlaybackRequestId(2L), PlaybackFailure.Putio(lost)),
+            )
+            val kept = dropped.state.content as PlaybackContent.Conversion
+            assertEquals("$lost", PlaybackConversionState.Converting(42.0), kept.state)
+            assertTrue("$lost", kept.statusCheckFailed)
+            assertNull("$lost", kept.refreshRequestId)
+            assertEquals("$lost", PlaybackConversionAction.RetryStatusCheck, kept.action)
+            assertFalse("$lost never reads as failed", kept.startable)
+
+            val retried = PlaybackReducer.reduce(dropped.state, PlaybackEvent.RefreshConversion)
+            assertEquals(PlaybackEffect.Resolve(Target, PlaybackRequestId(3L)), retried.effect)
+            val back = PlaybackReducer.reduce(
+                retried.state,
+                PlaybackEvent.ResolveSucceeded(
+                    PlaybackRequestId(3L),
+                    PlaybackResolution.Conversion(PlaybackConversionState.Converting(50.0)),
+                ),
+            )
+            assertEquals(PlaybackContent.Conversion(PlaybackConversionState.Converting(50.0)), back.state.content)
+        }
+    }
+
+    @Test
+    fun aStatusReadRefusedByTheServerStillFails() {
+        val failure = PlaybackFailure.Putio(PutioFailure.ServerUnavailable(503, PutioConfigurationException("down")))
+        val failed = PlaybackReducer.reduce(
+            PlaybackReducer.reduce(conversion(PlaybackConversionState.Queued), PlaybackEvent.RefreshConversion).state,
+            PlaybackEvent.ResolveFailed(PlaybackRequestId(2L), failure),
+        )
+        assertEquals(PlaybackContent.Failed(failure), failed.state.content)
     }
 
     private fun conversion(state: PlaybackConversionState): PlaybackState =

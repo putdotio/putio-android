@@ -303,7 +303,7 @@ class TvPlayerProofTest {
     }
 
     @Test
-    fun aVideoFinishedWithinTenSecondsOfItsEndOpensAgainWithoutAsking() {
+    fun aVideoPlayedToItsEndOpensAgainWithoutAsking() {
         val server = ProofPositionServer(startFromSeconds = NEAR_END_SAVED_SECONDS)
         val factory = mountFilesWithResume(server)
         compose.onNodeWithContentDescription("Open Documents").assertIsFocused()

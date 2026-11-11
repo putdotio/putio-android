@@ -31,7 +31,7 @@ script headers and `--help` own the harness.
 - A change to TV startup, sign-in or Home regenerates the TV baseline profile
   with `scripts/generate-baseline-profile.sh` on an emulator you booted.
 - Never hand-write design values or edit generated output.
-  `scripts/sync-design-assets.sh` (macOS only) and `scripts/generate-icons.sh`
+  `scripts/sync-design-assets.sh` (macOS only) and `./gradlew generateIcons`
   write them from the locks in `design/`.
 - To take a design release:
   1. Set the lock's version, tarball, and `integrity`
@@ -110,11 +110,8 @@ refreshes them. Don't edit their files.
 ```
 
 The root [`verify` task](build.gradle.kts) is the union of its `verify*` lane
-tasks; the build cache skips the work a change does not reach. It needs
-`bash` 3.2+, `python3` and `node` on PATH. The harness contract tests
-(`scripts/test-evidence.sh`, `test-emulator.sh`, `test-sign-in.sh`) run in
-CI's Scripts job; run them after changing `scripts/`. `test-evidence.sh` needs
-`ffprobe`, and `ffmpeg` with the `freezedetect` filter and `libx264` encoder.
+tasks; the build cache skips the work a change does not reach. Its script checks need `bash` 3.2+, `python3`, `node`, `ffprobe`,
+and `ffmpeg` with the `freezedetect` filter and `libx264` encoder on PATH.
 `markdownCheck` runs oxfmt at the version [package.json](package.json) pins;
 `npx --yes oxfmt@<version> '**/*.md'` fixes its findings.
 
@@ -140,7 +137,7 @@ that matches. Report skipped or unavailable proof.
 | UI, navigation, playback, or launch | Mobile: the affected feature in [verify-putio-android](.agents/skills/verify-putio-android/SKILL.md); TV: `./scripts/prove.sh tv` or its opt-in `*ProofTest` lane   |
 | Google Play delivery                | `./gradlew -PputioVersionName=3.0.1 :mobile:bundleProductionRelease :tv:bundleProductionRelease`, then a `dry_run` of [Google Play delivery](#google-play-delivery) |
 | Live API behavior                   | Mobile: [verify-putio-android](.agents/skills/verify-putio-android/SKILL.md) with its fixture ledger; TV: the lane's `devs-auto` steps                              |
-| Design tokens or icons              | `./scripts/sync-design-assets.sh` or `./scripts/generate-icons.sh`, then `./gradlew verify`                                                                         |
+| Design tokens or icons              | `./scripts/sync-design-assets.sh` or `./gradlew generateIcons`, then `./gradlew verify`                                                                             |
 | Visible change                      | Reviewed captures from `.evidence/`, attached with `gh pr comment <n> --attach <file>`                                                                              |
 
 Docs stay high level: a new product area or module boundary updates
