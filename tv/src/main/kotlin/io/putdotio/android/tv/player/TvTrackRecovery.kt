@@ -34,27 +34,19 @@ internal class TvTrackRecovery(
     private val manifestSubtitleUris: () -> Set<String> = { emptySet() },
 ) {
     private val failingSubtitles = mutableMapOf<String, Long>()
-    private var notified = false
+    private var droppedAtMillis: Long? = null
     private var audioSwitch: TvAudioSwitch? = null
     private var audioSwitchedAtMillis = 0L
 
-    fun loadFailed(trackType: Int, uri: String, gaveUp: Boolean, atMillis: Long): Boolean {
-        if (!isSubtitle(trackType, uri)) return false
+    fun loadFailed(trackType: Int, uri: String, gaveUp: Boolean, atMillis: Long): TvTrackRecoveryStep.DropSubtitles? {
+        if (!isSubtitle(trackType, uri)) return null
         forgetBefore(atMillis)
         failingSubtitles[uri] = atMillis
-        val notify = gaveUp && !notified
-        if (notify) notified = true
-        return notify
+        return if (gaveUp) drop(atMillis) else null
     }
 
     fun loadCompleted(uri: String) {
         failingSubtitles -= uri
-        if (failingSubtitles.isEmpty()) notified = false
-    }
-
-    private fun forgetBefore(atMillis: Long) {
-        failingSubtitles.values.removeAll { atMillis - it > TRACK_FAILURE_WINDOW_MILLIS }
-        if (failingSubtitles.isEmpty()) notified = false
     }
 
     fun audioSwitching(from: TvAudioSwitch, atMillis: Long) {
@@ -69,20 +61,30 @@ internal class TvTrackRecovery(
     fun recover(errorCode: Int, atMillis: Long): TvTrackRecoveryStep? {
         val switch = audioSwitch?.takeIf { atMillis - audioSwitchedAtMillis <= TRACK_FAILURE_WINDOW_MILLIS }
         forgetBefore(atMillis)
-        val subtitleFailing = failingSubtitles.isNotEmpty()
+        val justDropped = droppedAtMillis?.let { atMillis - it <= TRACK_FAILURE_WINDOW_MILLIS } == true
+        droppedAtMillis = null
         return when {
             switch != null && errorCode in AUDIO_FAILURES -> {
                 audioSwitch = null
                 TvTrackRecoveryStep.RestoreAudio(switch)
             }
-            subtitleFailing && errorCode in LOAD_FAILURES -> {
-                val step = TvTrackRecoveryStep.DropSubtitles(failingSubtitles.keys intersect sidecarUris, !notified)
-                failingSubtitles.clear()
-                notified = false
-                step
-            }
+            errorCode in LOAD_FAILURES && (failingSubtitles.isNotEmpty() || justDropped) -> drop(atMillis = null)
             else -> null
         }
+    }
+
+    private fun drop(atMillis: Long?): TvTrackRecoveryStep.DropSubtitles {
+        val step = TvTrackRecoveryStep.DropSubtitles(
+            uris = failingSubtitles.keys intersect sidecarUris,
+            notify = failingSubtitles.isNotEmpty(),
+        )
+        failingSubtitles.clear()
+        droppedAtMillis = atMillis
+        return step
+    }
+
+    private fun forgetBefore(atMillis: Long) {
+        failingSubtitles.values.removeAll { atMillis - it > TRACK_FAILURE_WINDOW_MILLIS }
     }
 
     private fun isSubtitle(trackType: Int, uri: String): Boolean =
@@ -105,7 +107,8 @@ internal fun Player.manifestSubtitleUris(): Set<String> =
 internal fun MediaItem.sidecarSubtitleUris(): Set<String> =
     localConfiguration?.subtitleConfigurations.orEmpty().map { it.uri.toString() }.toSet()
 
-internal fun Player.continueWithout(step: TvTrackRecoveryStep.DropSubtitles, positionMillis: Long) {
+internal fun Player.continueWithout(step: TvTrackRecoveryStep.DropSubtitles, notice: TvSnackbarState, message: String) {
+    val positionMillis = currentPosition.coerceAtLeast(0L)
     trackSelectionParameters = trackSelectionParameters.withSubtitleSelection(SubtitleSelection.Off, emptyList())
     val item = currentMediaItem
     if (step.uris.isNotEmpty() && item != null) {
@@ -114,6 +117,7 @@ internal fun Player.continueWithout(step: TvTrackRecoveryStep.DropSubtitles, pos
         setMediaItem(item.buildUpon().setSubtitleConfigurations(kept).build(), positionMillis)
     }
     prepare()
+    if (step.notify) notice.show(TvSnackbarMessage(message))
 }
 
 @Composable

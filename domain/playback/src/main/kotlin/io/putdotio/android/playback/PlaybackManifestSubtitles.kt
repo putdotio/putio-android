@@ -7,7 +7,8 @@ import java.util.Locale
 /**
  * This list keyed by the HLS manifest [tracks] it backs, so [putioSubtitle] finds each track's
  * source. The manifest lists put.io's subtitles in this order, numbered within each language;
- * empty unless every track finds its subtitle.
+ * empty unless every track finds its own subtitle. A track the manifest gives no id is keyed
+ * by its language and name.
  */
 public fun List<PlaybackSubtitle>.keyedToManifest(tracks: List<PlaybackSubtitleTrack>): List<PlaybackSubtitle> {
     val listedByLanguage = groupBy { it.languageCode.iso3Language() }
@@ -16,9 +17,11 @@ public fun List<PlaybackSubtitle>.keyedToManifest(tracks: List<PlaybackSubtitleT
         val language = track.identity.language.iso3Language()
         val ordinal = seen.getOrDefault(language, 0)
         seen[language] = ordinal + 1
-        track.identity.id?.let { id -> listedByLanguage[language]?.getOrNull(ordinal)?.copy(key = id) }
+        track.identity.trackKey()?.let { key -> listedByLanguage[language]?.getOrNull(ordinal)?.copy(key = key) }
     }
-    return if (size == tracks.size && keyed.all { it != null }) keyed.filterNotNull() else emptyList()
+    val complete = keyed.filterNotNull()
+    val unique = complete.map(PlaybackSubtitle::key).toSet().size == complete.size
+    return complete.takeIf { size == tracks.size && it.size == tracks.size && unique }.orEmpty()
 }
 
 private fun String?.iso3Language(): String? {
@@ -26,3 +29,7 @@ private fun String?.iso3Language(): String? {
         ?.takeUnless { it.isBlank() || it == C.LANGUAGE_UNDETERMINED } ?: return null
     return runCatching { Locale.forLanguageTag(tag).isO3Language }.getOrNull()?.takeUnless { it.isBlank() } ?: tag
 }
+
+
+internal fun SubtitleTrackIdentity.trackKey(): String? =
+    id ?: label?.let { "manifest:${language.orEmpty()}:$it" }

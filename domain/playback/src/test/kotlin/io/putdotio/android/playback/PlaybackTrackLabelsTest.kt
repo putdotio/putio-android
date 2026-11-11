@@ -124,6 +124,23 @@ class PlaybackTrackLabelsTest {
     }
 
     @Test
+    fun manifestTracksWithoutIdsAreKeyedByTheirNames() {
+        val tracks = tracks(unnamed("English", "en"), unnamed("English 2", "en"))
+        val listed = listOf(subtitle("en-in-file", "mkv"), subtitle("en-found", "opensubtitles_rest"))
+
+        val keyed = listed.keyedToManifest(tracks)
+
+        assertEquals(
+            listOf(SubtitleOrigin.File, SubtitleOrigin.OpenSubtitles),
+            tracks.map { it.putioSubtitle(keyed).origin() },
+        )
+        assertEquals(
+            emptyList<PlaybackSubtitle>(),
+            listed.keyedToManifest(tracks(unnamed("English", "en"), unnamed("English", "en"))),
+        )
+    }
+
+    @Test
     fun aManifestTrackWithoutAListedLanguageLeavesEveryOriginUnknown() {
         val tracks = tracks(manifest("subs0:English", "en"), manifest("subs0:Portuguese", "pt-BR"))
         val listed = listOf(
@@ -145,6 +162,14 @@ class PlaybackTrackLabelsTest {
             .setLanguage(language ?: C.LANGUAGE_UNDETERMINED)
             .setSampleMimeType(MimeTypes.APPLICATION_MEDIA3_CUES)
             .setCodecs(codecs)
+            .build()
+
+    private fun unnamed(label: String, language: String): Format =
+        Format.Builder()
+            .setLanguage(language)
+            .setLabel(label)
+            .setSampleMimeType(MimeTypes.APPLICATION_MEDIA3_CUES)
+            .setCodecs(MimeTypes.TEXT_VTT)
             .build()
 
     private fun manifest(id: String, language: String): Format =

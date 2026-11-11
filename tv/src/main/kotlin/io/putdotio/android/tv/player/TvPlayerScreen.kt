@@ -292,6 +292,11 @@ private fun TvReadyPlayer(
     var firstFrameShown by remember(player) { mutableStateOf(false) }
     val currentSubtitlePolicy by rememberUpdatedState(subtitleStartupPolicy)
     DisposableEffect(player) {
+        val dropSubtitles = { step: TvTrackRecoveryStep.DropSubtitles ->
+            options = options.copy(subtitles = SubtitleSelection.Off)
+            cueHistory.clear()
+            player.continueWithout(step, snackbar, subtitlesFailed)
+        }
         val listener = object : Player.Listener {
             override fun onPlayWhenReadyChanged(value: Boolean, reason: Int) {
                 playWhenReady = value
@@ -321,10 +326,7 @@ private fun TvReadyPlayer(
                 val position = player.currentPosition.coerceAtLeast(0L)
                 when (val step = recovery.recover(error.errorCode, SystemClock.elapsedRealtime())) {
                     is TvTrackRecoveryStep.DropSubtitles -> {
-                        options = options.copy(subtitles = SubtitleSelection.Off)
-                        cueHistory.clear()
-                        player.continueWithout(step, position)
-                        if (step.notify) snackbar.show(TvSnackbarMessage(subtitlesFailed))
+                        dropSubtitles(step)
                         return
                     }
                     is TvTrackRecoveryStep.RestoreAudio -> {
@@ -390,13 +392,12 @@ private fun TvReadyPlayer(
                 error: IOException,
                 wasCanceled: Boolean,
             ) {
-                val subtitle = recovery.loadFailed(
+                recovery.loadFailed(
                     trackType = mediaLoadData.trackType,
                     uri = loadEventInfo.dataSpec.uri.toString(),
                     gaveUp = wasCanceled,
                     atMillis = SystemClock.elapsedRealtime(),
-                )
-                if (subtitle) snackbar.show(TvSnackbarMessage(subtitlesFailed))
+                )?.let(dropSubtitles)
             }
 
             override fun onLoadCompleted(

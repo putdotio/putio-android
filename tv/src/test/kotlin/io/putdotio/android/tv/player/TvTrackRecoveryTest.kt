@@ -13,7 +13,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
-import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
@@ -22,19 +21,23 @@ import org.robolectric.annotation.Config
 @Config(sdk = [35])
 class TvTrackRecoveryTest {
     @Test
-    fun aSubtitleThatFailsToLoadIsDroppedSoPlaybackContinues() {
+    fun aSubtitleTheLoaderGivesUpOnIsDroppedSoPlaybackContinues() {
         val recovery = TvTrackRecovery(setOf(FOUND, FOLDER))
 
-        assertFalse(recovery.loadFailed(C.TRACK_TYPE_UNKNOWN, VIDEO, gaveUp = true, atMillis = 0L))
+        assertNull(recovery.loadFailed(C.TRACK_TYPE_UNKNOWN, VIDEO, gaveUp = true, atMillis = 0L))
         assertNull(recovery.recover(PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED, atMillis = 0L))
 
-        assertTrue(recovery.loadFailed(C.TRACK_TYPE_UNKNOWN, FOUND, gaveUp = true, atMillis = 1_000L))
         assertEquals(
-            TvTrackRecoveryStep.DropSubtitles(setOf(FOUND), notify = false),
-            recovery.recover(PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS, atMillis = 2_000L),
+            TvTrackRecoveryStep.DropSubtitles(setOf(FOUND), notify = true),
+            recovery.loadFailed(C.TRACK_TYPE_UNKNOWN, FOUND, gaveUp = true, atMillis = 1_000L),
+        )
+        assertEquals(
+            "The player error the dropped subtitle raises shows no second notice",
+            TvTrackRecoveryStep.DropSubtitles(emptySet(), notify = false),
+            recovery.recover(PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND, atMillis = 2_000L),
         )
         assertNull(
-            "A second failure is the video's own",
+            "A further failure is the video's own",
             recovery.recover(PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS, atMillis = 3_000L),
         )
     }
@@ -43,8 +46,8 @@ class TvTrackRecoveryTest {
     fun aSubtitleErrorThrownWhileTheLoaderStillRetriesIsDroppedWithANotice() {
         val recovery = TvTrackRecovery(setOf(FOUND))
 
-        assertFalse(recovery.loadFailed(C.TRACK_TYPE_UNKNOWN, FOUND, gaveUp = false, atMillis = 0L))
-        assertFalse(recovery.loadFailed(C.TRACK_TYPE_UNKNOWN, FOUND, gaveUp = false, atMillis = 1_000L))
+        assertNull(recovery.loadFailed(C.TRACK_TYPE_UNKNOWN, FOUND, gaveUp = false, atMillis = 0L))
+        assertNull(recovery.loadFailed(C.TRACK_TYPE_UNKNOWN, FOUND, gaveUp = false, atMillis = 1_000L))
         assertEquals(
             TvTrackRecoveryStep.DropSubtitles(setOf(FOUND), notify = true),
             recovery.recover(PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS, atMillis = 1_500L),
@@ -64,10 +67,9 @@ class TvTrackRecoveryTest {
     fun aManifestSubtitleThatFailsTurnsSubtitlesOffWithoutDroppingSidecars() {
         val recovery = TvTrackRecovery(setOf(FOUND))
 
-        assertTrue(recovery.loadFailed(C.TRACK_TYPE_TEXT, MANIFEST_SEGMENT, gaveUp = true, atMillis = 0L))
         assertEquals(
-            TvTrackRecoveryStep.DropSubtitles(emptySet(), notify = false),
-            recovery.recover(PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED, atMillis = 0L),
+            TvTrackRecoveryStep.DropSubtitles(emptySet(), notify = true),
+            recovery.loadFailed(C.TRACK_TYPE_TEXT, MANIFEST_SEGMENT, gaveUp = true, atMillis = 0L),
         )
     }
 
@@ -75,9 +77,9 @@ class TvTrackRecoveryTest {
     fun aManifestSubtitlePlaylistThatFailsCountsAsASubtitleFailure() {
         val recovery = TvTrackRecovery(emptySet()) { setOf(SUBTITLE_PLAYLIST) }
 
-        assertTrue(recovery.loadFailed(C.TRACK_TYPE_UNKNOWN, SUBTITLE_PLAYLIST, gaveUp = true, atMillis = 0L))
+        assertNull(recovery.loadFailed(C.TRACK_TYPE_UNKNOWN, SUBTITLE_PLAYLIST, gaveUp = false, atMillis = 0L))
         assertEquals(
-            TvTrackRecoveryStep.DropSubtitles(emptySet(), notify = false),
+            TvTrackRecoveryStep.DropSubtitles(emptySet(), notify = true),
             recovery.recover(PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS, atMillis = 0L),
         )
     }
@@ -86,12 +88,10 @@ class TvTrackRecoveryTest {
     fun aNetworkDropLongAfterASubtitleFailedIsNotBlamedOnTheSubtitle() {
         val recovery = TvTrackRecovery(emptySet())
 
-        recovery.loadFailed(C.TRACK_TYPE_TEXT, MANIFEST_SEGMENT, gaveUp = true, atMillis = 0L)
+        recovery.loadFailed(C.TRACK_TYPE_TEXT, MANIFEST_SEGMENT, gaveUp = false, atMillis = 0L)
         assertNull(recovery.recover(PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED, atMillis = 60_000L))
-        assertTrue(
-            "A later failure gets its own notice",
-            recovery.loadFailed(C.TRACK_TYPE_TEXT, MANIFEST_SEGMENT, gaveUp = true, atMillis = 61_000L),
-        )
+        recovery.loadFailed(C.TRACK_TYPE_TEXT, MANIFEST_SEGMENT, gaveUp = true, atMillis = 61_000L)
+        assertNull(recovery.recover(PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED, atMillis = 80_000L))
     }
 
     @Test
