@@ -1,5 +1,6 @@
 package io.putdotio.android.playback
 
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.playbackFinishedAt
 import io.putdotio.android.settings.StreamingMethod
@@ -84,6 +85,7 @@ public sealed interface PlaybackContent {
     public data class Conversion(
         val state: PlaybackConversionState,
         val refreshRequestId: PlaybackRequestId? = null,
+        val statusCheckFailed: Boolean = false,
     ) : PlaybackContent
 
     public data class Unsupported(
@@ -409,8 +411,21 @@ private fun PlaybackState.resolveFailed(event: PlaybackEvent.ResolveFailed): Pla
     if (!isLoading(event.requestId)) {
         return PlaybackTransition(this, consumed = false)
     }
+    val conversion = (content as? PlaybackContent.Conversion)
+        ?.takeIf { it.readsStatus && event.failure.lostConnection }
+    if (conversion != null) {
+        return PlaybackTransition(
+            copy(content = conversion.copy(refreshRequestId = null, statusCheckFailed = true)),
+        )
+    }
     return PlaybackTransition(copy(content = PlaybackContent.Failed(event.failure)))
 }
+
+private val PlaybackContent.Conversion.readsStatus: Boolean
+    get() = !starting && !startable
+
+private val PlaybackFailure.lostConnection: Boolean
+    get() = putioFailure.let { it is PutioFailure.NetworkUnavailable || it is PutioFailure.Timeout }
 
 internal fun PlaybackState.isLoading(requestId: PlaybackRequestId): Boolean =
     (content as? PlaybackContent.Loading)?.requestId == requestId ||
@@ -447,11 +462,14 @@ public enum class PlaybackConversionAction {
 
     /** [PlaybackEvent.RefreshConversion] for a status that does not poll on its own. */
     CheckAgain,
+
+    RetryStatusCheck,
 }
 
 /** Null while the conversion starts or polls on its own, and once the file cannot be converted. */
 public val PlaybackContent.Conversion.action: PlaybackConversionAction?
     get() = when {
+        statusCheckFailed -> PlaybackConversionAction.RetryStatusCheck
         startable -> PlaybackConversionAction.ConvertAgain
         state == PlaybackConversionState.NotAvailable || state.pollsAutomatically -> null
         else -> PlaybackConversionAction.CheckAgain

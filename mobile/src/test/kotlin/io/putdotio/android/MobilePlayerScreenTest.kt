@@ -396,6 +396,64 @@ class MobilePlayerScreenTest {
     }
 
     @Test
+    fun aQueuedConversionSaysItIsWaitingAndCancelGoesBack() {
+        var content by mutableStateOf(PlaybackContent.Conversion(PlaybackConversionState.Queued))
+        var backs = 0
+        compose.setContent {
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = state(content),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = { backs += 1 },
+                )
+            }
+        }
+
+        compose.onNodeWithText("Waiting to convert…").assertIsDisplayed()
+        compose.onNodeWithText("Cancel").performClick()
+        compose.runOnIdle { assertEquals(1, backs) }
+
+        content = PlaybackContent.Conversion(PlaybackConversionState.Converting(42.0))
+        compose.onNodeWithText("Waiting to convert…").assertDoesNotExist()
+        compose.onNodeWithText("Cancel").assertIsDisplayed()
+
+        content = PlaybackContent.Conversion(PlaybackConversionState.Failed)
+        compose.onNodeWithText("Cancel").assertDoesNotExist()
+    }
+
+    @Test
+    fun aStatusCheckThatLosesTheNetworkStaysOnTheConversionWithTryAgain() {
+        var refreshes = 0
+        var retries = 0
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = state(
+                        PlaybackContent.Conversion(PlaybackConversionState.Converting(42.0), statusCheckFailed = true),
+                    ),
+                    onRetry = { retries += 1 },
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    onRefreshConversion = { refreshes += 1 },
+                )
+            }
+        }
+
+        compose.onNodeWithText("Converting to MP4").assertIsDisplayed()
+        compose.onNodeWithText("Can’t check conversion status. Check your internet connection.").assertIsDisplayed()
+        compose.onNodeWithText("42%").assertDoesNotExist()
+        compose.mainClock.advanceTimeBy(PLAYBACK_CONVERSION_POLL_MILLIS * 3)
+        compose.runOnIdle { assertEquals(0, refreshes) }
+        compose.onNodeWithText("Try again").performClick()
+        compose.runOnIdle {
+            assertEquals(1, refreshes)
+            assertEquals(0, retries)
+        }
+    }
+
+    @Test
     fun aConversionSaysItHasStartedAndOnlyAFailedOneOffersConvertAgain() {
         var content by mutableStateOf(
             PlaybackContent.Conversion(PlaybackConversionState.NotAvailable, PlaybackRequestId(2L)),

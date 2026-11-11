@@ -49,6 +49,7 @@ internal fun TvEmptyState(
     modifier: Modifier = Modifier,
     action: TvEmptyStateAction? = null,
     secondaryAction: TvEmptyStateAction? = null,
+    tertiaryAction: TvEmptyStateAction? = null,
     actionFocus: FocusRequester = remember { FocusRequester() },
     claimFocus: Boolean = true,
     glyphRunPerCharacter: Boolean = false,
@@ -56,8 +57,9 @@ internal fun TvEmptyState(
     messageColor: Color = Color.Unspecified,
     glyphModifier: Modifier = Modifier,
 ) {
-    val lead = action ?: secondaryAction
-    LaunchedEffect(action != null, secondaryAction != null, lead?.enabled, claimFocus) {
+    val actions = listOfNotNull(action, secondaryAction, tertiaryAction)
+    val lead = actions.firstOrNull()
+    LaunchedEffect(action != null, secondaryAction != null, tertiaryAction != null, lead?.enabled, claimFocus) {
         if (lead == null || !lead.enabled || !claimFocus) return@LaunchedEffect
         withFrameNanos {}
         actionFocus.requestFocus()
@@ -112,7 +114,7 @@ internal fun TvEmptyState(
                 horizontalArrangement = Arrangement.spacedBy(ACTIONS_SPACING),
             ) {
                 TvEmptyStateButton(lead, Modifier.focusRequester(actionFocus))
-                if (action != null && secondaryAction != null) TvEmptyStateButton(secondaryAction)
+                actions.drop(1).forEach { TvEmptyStateButton(it) }
             }
         }
     }

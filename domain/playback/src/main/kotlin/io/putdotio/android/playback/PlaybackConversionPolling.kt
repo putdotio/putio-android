@@ -17,6 +17,7 @@ import kotlinx.coroutines.delay
 public fun PlaybackConversionPolling(conversion: PlaybackContent.Conversion, onRefresh: () -> Unit) {
     val foreground by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
     val polling = conversion.refreshRequestId == null &&
+        !conversion.statusCheckFailed &&
         conversion.state.pollsAutomatically &&
         foreground.isAtLeast(Lifecycle.State.STARTED)
     val refresh by rememberUpdatedState(onRefresh)

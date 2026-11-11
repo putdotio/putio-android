@@ -54,6 +54,7 @@ class TvPlaybackStatesTest {
     private var refreshes = 0
     private var starts = 0
     private var retries = 0
+    private var backs = 0
     private var vlcOpens = 0
     private var backs = 0
     private val lifecycleOwner = object : LifecycleOwner {
@@ -139,17 +140,50 @@ class TvPlaybackStatesTest {
     }
 
     @Test
-    fun aStartingConversionShowsItRunningAndOffersNothingToPress() {
+    fun aStartingConversionShowsItRunningAndOffersOnlyCancel() {
         content = PlaybackContent.Conversion(PlaybackConversionState.NotAvailable, PlaybackRequestId(2L))
         show()
         compose.onNodeWithText(RUNNING_MESSAGE).assertIsDisplayed()
         compose.onNodeWithTag(TV_CONVERSION_PROGRESS_TAG).assertIsDisplayed()
         compose.onNodeWithText("Convert again").assertDoesNotExist()
         compose.onNodeWithText("Check again").assertDoesNotExist()
+        compose.onNodeWithText("Cancel").assertIsFocused()
 
         change(PlaybackContent.Conversion(PlaybackConversionState.Queued))
         compose.onNodeWithText(RUNNING_MESSAGE).assertIsDisplayed()
         compose.onNodeWithTag(TV_CONVERSION_PROGRESS_TAG).assertIsDisplayed()
+    }
+
+    @Test
+    fun aQueuedConversionSaysItIsWaitingAndCancelLeavesThePlayer() {
+        show()
+        compose.onNodeWithTag(TV_CONVERSION_QUEUED_TAG).assertTextEquals("Waiting to convert…")
+        compose.onNodeWithText("Check again").assertIsFocused().performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNodeWithText("Cancel").assertIsFocused().performKeyInput { pressKey(Key.DirectionCenter) }
+        compose.runOnIdle { assertEquals(1, backs) }
+
+        change(PlaybackContent.Conversion(PlaybackConversionState.Converting(42.4)))
+        compose.onNodeWithTag(TV_CONVERSION_QUEUED_TAG).assertDoesNotExist()
+        compose.onNodeWithText("Cancel").assertIsDisplayed()
+    }
+
+    @Test
+    fun aStatusCheckThatLosesTheNetworkStaysOnTheConversionWithTryAgain() {
+        content = PlaybackContent.Conversion(PlaybackConversionState.Converting(42.4), statusCheckFailed = true)
+        show()
+        compose.onNodeWithText("Converting to MP4").assertIsDisplayed()
+        compose.onNodeWithText(STATUS_FAILED_MESSAGE).assertIsDisplayed()
+        compose.onNodeWithText("Conversion failed. Try again later.").assertDoesNotExist()
+        compose.onNodeWithTag(TV_CONVERSION_PROGRESS_TAG).assertDoesNotExist()
+        compose.mainClock.advanceTimeBy(PLAYBACK_CONVERSION_POLL_MILLIS * 3)
+        compose.runOnIdle { assertEquals(0, refreshes) }
+
+        compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressKey(Key.DirectionCenter) }
+        compose.runOnIdle {
+            assertEquals(1, refreshes)
+            assertEquals(0, retries)
+        }
+        compose.onNodeWithText("Cancel").assertIsDisplayed()
     }
 
     @Test
@@ -162,6 +196,7 @@ class TvPlaybackStatesTest {
         compose.onNodeWithText("Check again").assertDoesNotExist()
         compose.onNodeWithText("Convert again").assertDoesNotExist()
         compose.onNodeWithText("Play in VLC now").assertDoesNotExist()
+        compose.onNodeWithText("Cancel").assertDoesNotExist()
         compose.mainClock.advanceTimeBy(PLAYBACK_CONVERSION_POLL_MILLIS * 3)
         compose.runOnIdle { assertEquals(0, refreshes) }
     }
@@ -346,5 +381,6 @@ class TvPlaybackStatesTest {
     private companion object {
         const val TITLE = "Big Buck Bunny.avi"
         const val RUNNING_MESSAGE = "It keeps going if you leave, and playback starts when it’s done."
+        const val STATUS_FAILED_MESSAGE = "Can’t check conversion status. Check your internet connection."
     }
 }
