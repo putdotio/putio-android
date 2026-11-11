@@ -48,6 +48,7 @@ import io.putdotio.android.settings.AndroidAppConfigRepository
 import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.android.playback.playbackPreference
 import io.putdotio.android.playback.PlaybackContent
+import io.putdotio.android.playback.PlaybackController
 import io.putdotio.android.playback.PlaybackEvent
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackNextResult
@@ -524,38 +525,16 @@ class TvSessionViewModelTest {
         session.links.open(FilesItemId(55), continueWatching = true)
 
         assertEquals(TvExternalOpen.PLAYING, session.links.opens.first())
-        val continued = checkNotNull(session.playback.value).state.value
-        assertTrue(continued.content is PlaybackContent.Ready)
-        assertEquals(45_000L, continued.resumePositionMillis)
+        checkNotNull(session.playback.value).assertReadyAt(55, 45_000L)
 
         session.links.open(FilesItemId(55), continueWatching = false)
 
         assertEquals(TvExternalOpen.PLAYING, session.links.opens.first())
-        val searched = checkNotNull(session.playback.value).state.value
-        assertTrue(searched.content is PlaybackContent.Ready)
-        assertEquals(45_000L, searched.resumePositionMillis)
+        checkNotNull(session.playback.value).assertReadyAt(55, 45_000L)
     }
 
     @Test
-    fun `a row resumes without asking, and the detail's Start over restarts`() = runTest {
-        playbackRepository.savedSeconds = 45.0
-        val video = media(55, "Blue.Lights.mkv", PutioFileType.VIDEO)
-            .copy(playback = FilesPlaybackProgress(45.0, 600.0))
-        val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
-
-        session.play(video)
-        val resumed = checkNotNull(session.playback.value).state.value
-        assertTrue(resumed.content is PlaybackContent.Ready)
-        assertEquals(45_000L, resumed.resumePositionMillis)
-
-        session.play(video, TvPlayStart.StartOver)
-        val restarted = checkNotNull(session.playback.value).state.value
-        assertTrue(restarted.content is PlaybackContent.Ready)
-        assertEquals(0L, restarted.resumePositionMillis)
-    }
-
-    @Test
-    fun `Up next resumes its saved position without asking after the opened video started over`() = runTest {
+    fun `a row and Up next resume without asking, and only the detail's Start over restarts`() = runTest {
         playbackRepository.savedSeconds = 45.0
         playbackRepository.next[FilesItemId(55)] =
             PlaybackTarget(FilesItemId(56), "Blue.Lights.S01E02.mkv", durationSeconds = 600.0)
@@ -563,22 +542,16 @@ class TvSessionViewModelTest {
             .copy(playback = FilesPlaybackProgress(45.0, 600.0))
         val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
 
+        session.play(video)
+        checkNotNull(session.playback.value).assertReadyAt(55, 45_000L)
+
         session.play(video, TvPlayStart.StartOver)
         val playback = checkNotNull(session.playback.value)
-        assertEquals(0L, playback.state.value.resumePositionMillis)
-
+        playback.assertReadyAt(55, 0L)
         assertTrue(playback.dispatch(PlaybackEvent.PlayerEnded))
-        val upNext = playback.state.value
-        assertEquals(FilesItemId(56), upNext.target.fileId)
-        assertTrue(upNext.content is PlaybackContent.Ready)
-        assertEquals(45_000L, upNext.resumePositionMillis)
-
-        val opened = PlaybackTarget(FilesItemId(55), video.name, durationSeconds = 600.0)
-        assertTrue(playback.dispatch(PlaybackEvent.NextChosen(opened)))
-        val back = playback.state.value
-        assertEquals(FilesItemId(55), back.target.fileId)
-        assertTrue(back.content is PlaybackContent.Ready)
-        assertEquals(45_000L, back.resumePositionMillis)
+        playback.assertReadyAt(56, 45_000L)
+        assertTrue(playback.dispatch(PlaybackEvent.NextChosen(video.target())))
+        playback.assertReadyAt(55, 45_000L)
     }
 
     @Test
@@ -1065,6 +1038,15 @@ private fun TvSessionDependencies.findingOnly(item: FilesItem) = copy(
             PutioResult.Success(SearchPage(listOf(item), nextCursor = null, total = 1))
     },
 )
+
+private fun PlaybackController.assertReadyAt(fileId: Long, positionMillis: Long) {
+    val playing = state.value
+    assertEquals(FilesItemId(fileId), playing.target.fileId)
+    assertTrue(playing.content is PlaybackContent.Ready)
+    assertEquals(positionMillis, playing.resumePositionMillis)
+}
+
+private fun FilesItem.target() = PlaybackTarget(id, name, durationSeconds = playback?.durationSeconds)
 
 private fun media(id: Long, name: String, type: PutioFileType) = FilesItem(
     id = FilesItemId(id),
