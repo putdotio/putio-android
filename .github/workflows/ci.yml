@@ -47,8 +47,7 @@ jobs:
               - '!**/*.md'
             docs:
               - '**'
-              - '!{.agents,.claude,docs,play,mobile,tv,baselineprofile,core,domain}/**/!(*.md)'
-              - '!scripts/!(lint-design-md.sh|*.md)'
+              - '!{.agents,.claude,docs,play,mobile,tv,baselineprofile,core,domain,scripts}/**/!(*.md)'
               - '!.github/ISSUE_TEMPLATE/**/!(*.md)'
               - '!.github/workflows/{delivery-ref,emulator-smoke,play-data-safety,play-internal,play-release}.yml'
               - '!{LICENSE,NOTICE,renovate.json,skills-lock.json,.worktreeinclude}'
