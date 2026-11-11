@@ -11,6 +11,7 @@ class BrandFontsTest {
         val lock = BrandFonts.parseLock(File("../design/brand-fonts.lock.json").readText())
         assertEquals("core/design/brand-fonts", lock.directory)
         assertEquals(setOf("GT America", "Berkeley Mono"), lock.faces.map { it.family }.toSet())
+        assertTrue(lock.faces.all { it.url.startsWith("https://static.put.io/fonts/") })
     }
 
     @Test
@@ -20,7 +21,9 @@ class BrandFontsTest {
             lock(directory = "../fonts") to "directory",
             lock(name = "GT-America.ttf") to "resource name",
             lock(path = "fonts/../secrets/a.ttf") to "path",
+            lock(path = "//example.com/fonts/a.ttf") to "path",
             lock(path = "fonts/gt/a.otf") to "format",
+            lock(sha256 = "ABC") to "sha256",
             lock(weight = "\"weightRange\": [900, 100]") to "rise",
             lock(weight = "\"weight\": 400, \"weightRange\": [100, 900]") to "exactly one",
         ).forEach { (json, expected) ->
@@ -34,7 +37,7 @@ class BrandFontsTest {
         val dir = Files.createTempDirectory("brand-fonts").toFile()
         try {
             val font = "font".toByteArray()
-            val face = { name: String -> BrandFonts.Face(name, "GT America", sha256(font), weight = 400) }
+            val face = { name: String -> BrandFonts.Face(name, "GT America", sha256(font), weight = 400, url = "") }
             val lock = BrandFonts.Lock("fonts", listOf(face("gt_america_a.ttf"), face("gt_america_b.ttf")))
             assertEquals(emptySet<String>(), BrandFonts.installed(lock, dir.listFiles()!!.toList(), required = false))
             dir.resolve("gt_america_a.ttf").writeBytes(font)
@@ -56,9 +59,10 @@ class BrandFontsTest {
         name: String = "gt_america_regular.ttf",
         path: String = "fonts/gt-america/regular.ttf",
         weight: String = "\"weight\": 400",
+        sha256: String = "0".repeat(64),
     ) = """
         {"baseUrl": "$baseUrl", "directory": "$directory", "files": {"$name": {
-          "path": "$path", "sha256": "${"0".repeat(64)}", "family": "GT America", $weight}}}
+          "path": "$path", "sha256": "$sha256", "family": "GT America", $weight}}}
     """.trimIndent()
 
     private fun sha256(bytes: ByteArray): String =
