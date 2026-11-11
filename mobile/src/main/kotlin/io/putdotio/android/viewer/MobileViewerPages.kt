@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -41,6 +42,7 @@ import androidx.compose.ui.graphics.ShaderBrush
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -71,7 +73,12 @@ import kotlinx.coroutines.withContext
  * its own, so a 50-megapixel photo costs one screen of memory.
  */
 @Composable
-internal fun MobileImagePage(file: FilesItem, uri: Uri, onOpenWithAnotherApp: () -> Unit) {
+internal fun MobileImagePage(
+    file: FilesItem,
+    uri: Uri,
+    zoom: MobileViewerZoom?,
+    onOpenWithAnotherApp: () -> Unit,
+) {
     SubcomposeAsyncImage(
         model = uri,
         contentDescription = file.name,
@@ -83,15 +90,16 @@ internal fun MobileImagePage(file: FilesItem, uri: Uri, onOpenWithAnotherApp: ()
             val image = this
             val size = painter.intrinsicSize
             if (size.isSpecified && size.width > 0f && size.height > 0f) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Box(Modifier.fillMaxSize().viewerZoom(zoom), contentAlignment = Alignment.Center) {
                     image.SubcomposeAsyncImageContent(
                         Modifier
                             .aspectRatio(size.width / size.height)
+                            .onSizeChanged { zoom?.content = it }
                             .transparencyGrid(),
                     )
                 }
             } else {
-                SubcomposeAsyncImageContent()
+                SubcomposeAsyncImageContent(Modifier.viewerZoom(zoom))
             }
         },
     )
@@ -127,7 +135,12 @@ private sealed interface PdfState {
 
 /** The document's pages down one column at the frame's width, each rendered while it is on screen. */
 @Composable
-internal fun MobilePdfPage(file: FilesItem, uri: Uri, onOpenWithAnotherApp: () -> Unit) {
+internal fun MobilePdfPage(
+    file: FilesItem,
+    uri: Uri,
+    zoom: MobileViewerZoom?,
+    onOpenWithAnotherApp: () -> Unit,
+) {
     val context = LocalContext.current
     val state by produceState<PdfState>(PdfState.Loading, uri) {
         var opened: FilesPdfDocument? = null
@@ -145,19 +158,26 @@ internal fun MobilePdfPage(file: FilesItem, uri: Uri, onOpenWithAnotherApp: () -
     when (val current = state) {
         PdfState.Loading -> MobileViewerLoading()
         PdfState.Failed -> MobileViewerFailure(onOpenWithAnotherApp)
-        is PdfState.Ready -> MobilePdfPages(current.document, onOpenWithAnotherApp)
+        is PdfState.Ready -> MobilePdfPages(current.document, zoom, onOpenWithAnotherApp)
     }
 }
 
 @Composable
-private fun MobilePdfPages(document: FilesPdfDocument, onOpenWithAnotherApp: () -> Unit) {
+private fun MobilePdfPages(
+    document: FilesPdfDocument,
+    zoom: MobileViewerZoom?,
+    onOpenWithAnotherApp: () -> Unit,
+) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val widthPx = with(LocalDensity.current) { maxWidth.roundToPx() }
         // The pages are pictures, so readers get the way to an app that reads the document's text.
         val openElsewhere = stringResource(R.string.mobile_viewer_open_with)
+        val list = rememberLazyListState()
         LazyColumn(
+            state = list,
             modifier = Modifier
                 .fillMaxSize()
+                .viewerZoom(zoom) { overflow -> list.dispatchRawDelta(-overflow.y) }
                 .semantics {
                     customActions = listOf(
                         CustomAccessibilityAction(openElsewhere) {
