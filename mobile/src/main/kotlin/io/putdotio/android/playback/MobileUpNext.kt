@@ -14,6 +14,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -62,6 +63,7 @@ internal fun PlaybackUpNextLookup.stepAtEnd(pictureInPicture: Boolean): MobileUp
 internal class MobileUpNextEnd(private val onPlay: State<(PlaybackTarget) -> Unit>) {
     var ended by mutableStateOf(false)
     var cancelled by mutableStateOf(false)
+    var remainingMillis by mutableLongStateOf(PLAYBACK_UP_NEXT_MILLIS)
 
     fun play(target: PlaybackTarget) {
         if (cancelled) return
@@ -86,17 +88,28 @@ internal fun rememberMobileUpNextEnd(
         if (playbackState != Media3Player.STATE_ENDED) {
             end.ended = false
             end.cancelled = false
+            end.remainingMillis = PLAYBACK_UP_NEXT_MILLIS
         }
     }
     LaunchedEffect(end, end.ended, end.cancelled, lookup, pictureInPicture) {
         if (!end.ended || end.cancelled) return@LaunchedEffect
+        val found = (lookup as? PlaybackUpNextLookup.Found)?.upNext?.target
         when (lookup.stepAtEnd(pictureInPicture)) {
-            MobileUpNextStep.Wait, MobileUpNextStep.Count -> Unit
-            MobileUpNextStep.PlayNow -> (lookup as? PlaybackUpNextLookup.Found)?.let { end.play(it.upNext.target) }
+            MobileUpNextStep.Wait -> Unit
+            MobileUpNextStep.Count -> found?.let { end.countDownTo(it) }
+            MobileUpNextStep.PlayNow -> found?.let(end::play)
             MobileUpNextStep.Leave -> currentOnPlaybackEnded()
         }
     }
     return end
+}
+
+private suspend fun MobileUpNextEnd.countDownTo(target: PlaybackTarget) {
+    val start = withFrameMillis { it } - (PLAYBACK_UP_NEXT_MILLIS - remainingMillis)
+    while (remainingMillis > 0L) {
+        remainingMillis = withFrameMillis { now -> (PLAYBACK_UP_NEXT_MILLIS - (now - start)).coerceAtLeast(0L) }
+    }
+    play(target)
 }
 
 internal fun MobileUpNextEnd.counting(lookup: PlaybackUpNextLookup, pictureInPicture: Boolean): PlaybackUpNext? =
@@ -106,21 +119,13 @@ internal fun MobileUpNextEnd.counting(lookup: PlaybackUpNextLookup, pictureInPic
 @Composable
 internal fun MobileUpNextCard(
     upNext: PlaybackUpNext?,
+    remainingMillis: () -> Long,
     onPlayNow: (PlaybackTarget) -> Unit,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (upNext == null) return
-    val currentOnPlayNow by rememberUpdatedState(onPlayNow)
-    var remainingMillis by remember(upNext) { mutableLongStateOf(PLAYBACK_UP_NEXT_MILLIS) }
-    LaunchedEffect(upNext) {
-        val start = withFrameMillis { it }
-        while (remainingMillis > 0L) {
-            remainingMillis = withFrameMillis { now -> (PLAYBACK_UP_NEXT_MILLIS - (now - start)).coerceAtLeast(0L) }
-        }
-        currentOnPlayNow(upNext.target)
-    }
-    val seconds = ceil(remainingMillis / MILLIS_PER_SECOND).toLong().toString()
+    val seconds by remember { derivedStateOf { ceil(remainingMillis() / MILLIS_PER_SECOND).toLong().toString() } }
     val header = stringResource(R.string.mobile_playback_up_next_in, COUNTDOWN_SLOT)
     val mono = MaterialTheme.typography.bodySmall.putioMono()
     Row(

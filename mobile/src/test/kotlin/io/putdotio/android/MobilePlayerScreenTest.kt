@@ -794,6 +794,19 @@ class MobilePlayerLifecycleTest {
     }
 
     @Test
+    fun anOpenSettingsSheetDoesNotHoldTheCountdown() {
+        lateinit var player: RecordingPlayer
+        val chosen = mutableListOf<PlaybackTarget>()
+        showUpNext(onEnded = {}, onPlayUpNext = { chosen += it }) { player = it }
+
+        compose.onNodeWithContentDescription("Subtitles: Off").performClick()
+        compose.mainClock.advanceTimeBy(FRAME_STEP_MILLIS)
+        moveTo(player, Media3Player.STATE_ENDED)
+        compose.mainClock.advanceTimeBy(10_100L)
+        compose.runOnIdle { assertEquals(listOf(UpNextTarget), chosen) }
+    }
+
+    @Test
     fun playNowSkipsTheWaitAndCancelStaysOnTheFinishedVideo() {
         lateinit var player: RecordingPlayer
         var endedCalls = 0

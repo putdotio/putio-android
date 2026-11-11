@@ -644,6 +644,7 @@ private fun MobileReadyPlayer(
         nextEpisode = nextEpisode,
         onNextEpisode = onNextEpisode,
         upNextCard = upNextEnd.counting(upNext, pictureInPicture.value),
+        upNextRemainingMillis = { upNextEnd.remainingMillis },
         onPlayUpNext = upNextEnd::play,
         onCancelUpNext = { upNextEnd.cancelled = true },
         neighbours = neighbours,
@@ -1227,6 +1228,7 @@ private fun MobileReadyPlayerContent(
     nextEpisode: PlaybackTarget?,
     onNextEpisode: () -> Unit,
     upNextCard: PlaybackUpNext?,
+    upNextRemainingMillis: () -> Long,
     onPlayUpNext: (PlaybackTarget) -> Unit,
     onCancelUpNext: () -> Unit,
     neighbours: PlaybackNeighbours,
@@ -1372,6 +1374,7 @@ private fun MobileReadyPlayerContent(
             MobileSeekFeedbackLayer(pendingSeek.value, videoFold)
             MobileUpNextCard(
                 upNext = upNextCard,
+                remainingMillis = upNextRemainingMillis,
                 onPlayNow = onPlayUpNext,
                 onCancel = onCancelUpNext,
                 modifier = Modifier
