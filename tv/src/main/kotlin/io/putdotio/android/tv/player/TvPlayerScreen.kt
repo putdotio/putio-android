@@ -281,6 +281,7 @@ private fun TvReadyPlayer(
         val listener = object : Player.Listener {
             override fun onPlayWhenReadyChanged(value: Boolean, reason: Int) {
                 playWhenReady = value
+                playIntent.value = value
                 apply(overlay.playingChanged(value))
             }
 
@@ -305,7 +306,6 @@ private fun TvReadyPlayer(
 
             override fun onPlayerError(error: PlaybackException) {
                 val position = player.currentPosition.coerceAtLeast(0L)
-                playIntent.value = player.playWhenReady
                 val rejection = error.originalRejection().takeUnless { firstFrameShown }
                 if (rejection == null || !currentOnOriginalRejected(rejection, position)) {
                     currentOnPlayerFailure(error.toPlaybackFailure(), position)
