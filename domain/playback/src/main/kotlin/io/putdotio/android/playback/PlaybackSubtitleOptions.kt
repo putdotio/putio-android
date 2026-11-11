@@ -139,10 +139,10 @@ internal fun SubtitleSelection.preferringNamedTrack(
     return pick?.let { SubtitleSelection.Track(it.identity) } ?: this
 }
 
-private fun String.sameLanguageAs(tag: String): Boolean =
+internal fun String.sameLanguageAs(tag: String): Boolean =
     Locale.forLanguageTag(this).iso3OrLanguage() == Locale.forLanguageTag(tag).iso3OrLanguage()
 
 private fun Locale.iso3OrLanguage(): String = runCatching { isO3Language }.getOrDefault(language)
 
 private const val FORCED = C.SELECTION_FLAG_FORCED
-private const val ACCESSORY_ROLES = C.ROLE_FLAG_DESCRIBES_MUSIC_AND_SOUND or C.ROLE_FLAG_COMMENTARY
+internal const val ACCESSORY_ROLES = C.ROLE_FLAG_DESCRIBES_MUSIC_AND_SOUND or C.ROLE_FLAG_COMMENTARY

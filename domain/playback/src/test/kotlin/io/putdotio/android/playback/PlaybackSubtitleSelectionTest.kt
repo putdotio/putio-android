@@ -330,6 +330,59 @@ class PlaybackSubtitleSelectionTest {
     }
 
     @Test
+    fun theDevicesRememberedPickOutranksTheAccountDefaultsButNotHiddenSubtitles() {
+        val deviceDefaults = TrackSelectionParameters.Builder().setPreferredTextLanguages("tr").build()
+        val flagged = serverTracks(defaultId = "en")
+        val tracks = flagged.subtitleTracks()
+        fun arrived(
+            policy: SubtitleStartupPolicy,
+            remembered: RememberedSubtitle?,
+            retained: SubtitleSelection? = null,
+        ): TrackSelectionParameters =
+            restoreSubtitleSelection(deviceDefaults, retained, policy, remembered)
+                .withSubtitleTracks(retained, policy, tracks, deviceDefaults, remembered = remembered)
+        val turkish = RememberedSubtitle.Language("tr")
+
+        assertEquals("tr", selectedTextId(arrived(SubtitleStartupPolicy(true, true), turkish), flagged))
+        assertEquals("tr", selectedTextId(arrived(SubtitleStartupPolicy(true, false), turkish), flagged))
+        assertEquals(
+            "tr",
+            selectedTextId(arrived(SubtitleStartupPolicy(true, true), RememberedSubtitle.Language("tur")), flagged),
+        )
+        assertEquals(
+            "en",
+            selectedTextId(arrived(SubtitleStartupPolicy(true, true), RememberedSubtitle.Language("de")), flagged),
+        )
+        assertNull(selectedTextId(arrived(SubtitleStartupPolicy(true, true), RememberedSubtitle.Off), flagged))
+        assertNull(selectedTextId(arrived(SubtitleStartupPolicy(false, true), turkish), flagged))
+        val english = SubtitleSelection.Track(tracks.single { it.identity.id == "en" }.identity)
+        assertEquals("en", selectedTextId(arrived(SubtitleStartupPolicy(true, true), turkish, english), flagged))
+    }
+
+    @Test
+    fun aPickIsRememberedOnTheDeviceByLanguage() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val tracks = serverTracks(defaultId = null).subtitleTracks()
+        val english = SubtitleSelection.Track(tracks.single { it.identity.id == "en" }.identity)
+        val undetermined = SubtitleSelection.Track(
+            Format.Builder()
+                .setId("und")
+                .setSampleMimeType(MimeTypes.TEXT_VTT)
+                .setLanguage(C.LANGUAGE_UNDETERMINED)
+                .build()
+                .toSubtitleTrackIdentity(),
+        )
+
+        assertNull(SubtitleLanguageStore(context).remembered)
+        SubtitleLanguageStore(context).update(english)
+        assertEquals(RememberedSubtitle.Language("en"), SubtitleLanguageStore(context).remembered)
+        SubtitleLanguageStore(context).update(SubtitleSelection.Off)
+        assertEquals(RememberedSubtitle.Off, SubtitleLanguageStore(context).remembered)
+        SubtitleLanguageStore(context).update(undetermined)
+        assertNull(SubtitleLanguageStore(context).remembered)
+    }
+
+    @Test
     fun automaticSelectionRestoresExplicitAndSystemCaptionPreferences() {
         val defaults =
             TrackSelectionParameters.Builder()

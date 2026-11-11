@@ -170,11 +170,12 @@ internal val PlaybackSubtitleTrack.isServerDefault: Boolean
 
 /**
  * Reapplies the subtitle choice in effect to [tracks] as they arrive: off while the account hides
- * subtitles, whatever was picked, else the viewer's pick, else automatic selection when the
- * account auto-selects. Off and forced-only need no tracks. An original's [inFileLanguage], the
- * account's top-ranked language among the file's own tracks, outranks the device's caption language.
+ * subtitles, whatever was picked, else the viewer's pick, else the device's [remembered] pick when
+ * the file has it, else automatic selection when the account auto-selects. Off and forced-only
+ * need no tracks. An original's [inFileLanguage], the account's top-ranked language among the
+ * file's own tracks, outranks the device's caption language.
  */
-// Each parameter is a separate input: the pick, the account policy, the tracks and three language sources.
+// Each parameter is a separate input: the picks, the account policy, the tracks and three language sources.
 @Suppress("LongParameterList")
 public fun TrackSelectionParameters.withSubtitleTracks(
     retained: SubtitleSelection?,
@@ -183,10 +184,13 @@ public fun TrackSelectionParameters.withSubtitleTracks(
     textDefaults: TrackSelectionParameters,
     captionLanguages: List<String> = emptyList(),
     inFileLanguage: String? = null,
+    remembered: RememberedSubtitle? = null,
 ): TrackSelectionParameters {
     if (startupPolicy?.showSubtitles == false) return withSubtitleSelection(SubtitleSelection.Off, tracks)
     val autoSelects = startupPolicy?.showSubtitles == true && startupPolicy.autoSelectSubtitles
-    val selection = retained ?: SubtitleSelection.Automatic.takeIf { autoSelects }
+    val selection = retained
+        ?: remembered?.takeIf { startupPolicy?.showSubtitles == true }?.selectionFor(tracks)
+        ?: SubtitleSelection.Automatic.takeIf { autoSelects }
     return when (selection) {
         is SubtitleSelection.Track, SubtitleSelection.Automatic ->
             withSubtitleSelection(selection, tracks, textDefaults, captionLanguages, inFileLanguage)
@@ -202,11 +206,14 @@ public fun restoreSubtitleSelection(
     defaults: TrackSelectionParameters,
     retained: SubtitleSelection?,
     startupPolicy: SubtitleStartupPolicy?,
+    remembered: RememberedSubtitle? = null,
 ): TrackSelectionParameters =
     when {
         // hide_subtitles outranks any pick: its picker is gone, so nothing could turn one off.
         startupPolicy?.showSubtitles == false -> defaults.withSubtitleSelection(SubtitleSelection.Off, emptyList())
         retained != null -> defaults.withSubtitleSelection(retained, emptyList(), defaults)
+        startupPolicy != null && remembered == RememberedSubtitle.Off ->
+            defaults.withSubtitleSelection(SubtitleSelection.Off, emptyList())
         // No policy means account settings are loading or failed to load; until they say
         // otherwise a `hide_subtitles` account must not see subtitles.
         startupPolicy == null -> defaults.withSubtitleSelection(SubtitleSelection.Off, emptyList())
