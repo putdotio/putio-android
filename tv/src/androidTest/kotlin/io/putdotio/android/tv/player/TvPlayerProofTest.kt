@@ -627,9 +627,10 @@ class TvPlayerProofTest {
         compose.onNodeWithContentDescription("$SUBTITLES Off").assertIsSelected()
 
         press(KeyEvent.KEYCODE_DPAD_UP)
+        val wasPlaying = compose.runOnIdle { factory.current().playWhenReady }
         press(KeyEvent.KEYCODE_DPAD_RIGHT)
-        awaitPlayer(factory) { !it.playWhenReady }
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.runOnIdle { assertEquals("A skip keeps the play state", wasPlaying, factory.current().playWhenReady) }
+        if (!wasPlaying) press(KeyEvent.KEYCODE_DPAD_CENTER)
         awaitPlayer(factory) { it.isPlaying }
         elapse(STEP_PAUSE_MILLIS)
         compose.runOnIdle {
