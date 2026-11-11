@@ -42,6 +42,7 @@ internal class MobileFilesNotice(
     val name: String,
     val failure: PutioFailure? = null,
     val count: Int? = null,
+    val retry: (() -> Unit)? = null,
 ) {
     fun text(context: Context): String {
         val reason = failure?.let { it.apiReason ?: context.getString(it.mobileMessageResource()) }.orEmpty()
@@ -124,7 +125,9 @@ internal class MobileFilesActionsController(
                     ?.let { item to it }
             }
             val (item, failure) = refused.firstOrNull() ?: return@launch
-            report(watchedRefusal(watched, item, failure, refused.size))
+            val failed = refused.map { it.first }
+            val retry = { setWatched(failed, watched) }.takeIf { writes.size > 1 }
+            report(watchedRefusal(watched, item, failure, refused.size, retry))
         }
     }
 
@@ -223,11 +226,18 @@ internal class MobileFilesActionsController(
 }
 
 /** One refused watched write is named; several are counted. */
-private fun watchedRefusal(watched: Boolean, item: FilesItem, failure: PutioFailure, count: Int) = when {
-    count == 1 && watched -> MobileFilesNotice(R.string.mobile_files_mark_watched_failed, item.name, failure)
-    count == 1 -> MobileFilesNotice(R.string.mobile_files_mark_unwatched_failed, item.name, failure)
-    watched -> MobileFilesNotice(R.plurals.mobile_files_mark_watched_failed_many, "", failure, count)
-    else -> MobileFilesNotice(R.plurals.mobile_files_mark_unwatched_failed_many, "", failure, count)
+private fun watchedRefusal(
+    watched: Boolean,
+    item: FilesItem,
+    failure: PutioFailure,
+    count: Int,
+    retry: (() -> Unit)?,
+) = when {
+    count == 1 && watched ->
+        MobileFilesNotice(R.string.mobile_files_mark_watched_failed, item.name, failure, retry = retry)
+    count == 1 -> MobileFilesNotice(R.string.mobile_files_mark_unwatched_failed, item.name, failure, retry = retry)
+    watched -> MobileFilesNotice(R.plurals.mobile_files_mark_watched_failed_many, "", failure, count, retry)
+    else -> MobileFilesNotice(R.plurals.mobile_files_mark_unwatched_failed_many, "", failure, count, retry)
 }
 
 /** Opens a stream in VLC; false when VLC is not installed. */

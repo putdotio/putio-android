@@ -788,6 +788,10 @@
         <item quantity="one">%1$d item is still in Files. Select it to try again.</item>
         <item quantity="other">%1$d items are still in Files. Select them to try again.</item>
     </plurals>
+    <plurals name="mobile_files_delete_still_present_retry_many">
+        <item quantity="one">%1$d item is still in Files.</item>
+        <item quantity="other">%1$d items are still in Files.</item>
+    </plurals>
     <plurals name="mobile_files_delete_skipped_many">
         <item quantity="one">The request was incomplete. %1$d item was not confirmed removed.</item>
         <item quantity="other">The request was incomplete. %1$d items were not confirmed removed.</item>
@@ -799,6 +803,10 @@
     <plurals name="mobile_files_move_still_present_many">
         <item quantity="one">%1$d item is not in the selected folder. You can choose a destination again.</item>
         <item quantity="other">%1$d items are not in the selected folder. You can choose a destination again.</item>
+    </plurals>
+    <plurals name="mobile_files_move_still_present_retry_many">
+        <item quantity="one">%1$d item is not in the selected folder.</item>
+        <item quantity="other">%1$d items are not in the selected folder.</item>
     </plurals>
     <plurals name="mobile_files_move_rejected_many">
         <item quantity="one">Couldn’t move %1$d item. Choose another folder and try again.</item>
