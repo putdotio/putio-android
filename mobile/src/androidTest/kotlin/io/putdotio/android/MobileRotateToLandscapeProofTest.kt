@@ -5,6 +5,8 @@ import android.content.Context
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.net.Uri
+import android.os.Build
+import android.os.ParcelFileDescriptor
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.collectAsState
@@ -75,6 +77,8 @@ class MobileRotateToLandscapeProofTest {
         object : Statement() {
             override fun evaluate() {
                 assumeTrue("Rotate to landscape proof requires opt-in", arguments.getString(ENABLED) == "true")
+                require(Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) { "Rotate to landscape proof requires API 30" }
+                requireNotNull(arguments.getString(RUN_ID)) { "Missing $RUN_ID" }
                 base.evaluate()
             }
         }
@@ -89,10 +93,12 @@ class MobileRotateToLandscapeProofTest {
     )
     private var controller by mutableStateOf<AndroidAppConfigController?>(null)
     private var showingVideo by mutableStateOf(false)
+    private val savedRotation = listOf(ACCELEROMETER_ROTATION, USER_ROTATION).associateWith(::systemSetting)
 
     @After
     fun release() {
         automation.setRotation(UiAutomation.ROTATION_UNFREEZE)
+        savedRotation.forEach { (name, value) -> shell("settings put system $name $value") }
         compose.runOnUiThread { showingVideo = false }
         scope.cancel()
     }
@@ -222,8 +228,23 @@ class MobileRotateToLandscapeProofTest {
 
     private fun freeze(rotation: Int) {
         automation.setRotation(rotation)
-        compose.waitForIdle()
+        compose.waitUntil(15_000) {
+            compose.runOnIdle { displayRotation() == rotation && orientationMatchesDisplay() }
+        }
     }
+
+    private fun orientationMatchesDisplay(): Boolean {
+        val bounds = compose.activity.windowManager.currentWindowMetrics.bounds
+        val landscape = bounds.width() > bounds.height()
+        return landscape == (orientation() == Configuration.ORIENTATION_LANDSCAPE)
+    }
+
+    private fun systemSetting(name: String): String = shell("settings get system $name").trim()
+
+    private fun shell(command: String): String =
+        automation.executeShellCommand(command).use { descriptor ->
+            ParcelFileDescriptor.AutoCloseInputStream(descriptor).bufferedReader().readText()
+        }
 
     private fun landscapeVideoState(): PlaybackState {
         val file = proofFixture(FIXTURE)
@@ -263,6 +284,8 @@ class MobileRotateToLandscapeProofTest {
         const val ROTATE_KEY = "auto_rotate_video"
         const val ROTATE_TITLE = "Rotate to landscape"
         const val TABLET_SMALLEST_WIDTH_DP = 600
+        const val ACCELEROMETER_ROTATION = "accelerometer_rotation"
+        const val USER_ROTATION = "user_rotation"
         val Account = MobileAccount(userId = 640L, username = "rotate-proof", email = "rotate-proof@example.com")
     }
 }
