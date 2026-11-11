@@ -360,6 +360,23 @@ class PlaybackSubtitleSelectionTest {
     }
 
     @Test
+    fun aRememberedScriptOrRegionOutranksTheServerDefaultOfTheSameLanguage() {
+        fun track(id: String, language: String, flags: Int = 0): Format =
+            Format.Builder()
+                .setId(id)
+                .setLanguage(language)
+                .setSelectionFlags(flags)
+                .setSampleMimeType(MimeTypes.TEXT_VTT)
+                .build()
+        val group = TrackGroup(track("hans", "zh-Hans", C.SELECTION_FLAG_DEFAULT), track("hant", "zh-Hant"))
+        val tracks = (0 until group.length).map { PlaybackSubtitleTrack(group, it, label = null, selected = false) }
+
+        val picked = RememberedSubtitle.Language("zh-Hant").selectionFor(tracks)
+
+        assertEquals("hant", (picked as SubtitleSelection.Track).identity.id)
+    }
+
+    @Test
     fun aPickIsRememberedOnTheDeviceByLanguage() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val tracks = serverTracks(defaultId = null).subtitleTracks()

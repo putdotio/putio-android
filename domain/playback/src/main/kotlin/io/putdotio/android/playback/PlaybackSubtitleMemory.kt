@@ -10,6 +10,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.edit
 import androidx.media3.common.C
+import java.util.Locale
 
 public sealed interface RememberedSubtitle {
     public data object Off : RememberedSubtitle
@@ -34,11 +35,15 @@ public fun RememberedSubtitle.selectionFor(tracks: List<PlaybackSubtitleTrack>):
                 .sortedWith(
                     compareBy<PlaybackSubtitleTrack> { (it.identity.selectionFlags and C.SELECTION_FLAG_FORCED) != 0 }
                         .thenBy { (it.identity.roleFlags and ACCESSORY_ROLES) != 0 }
+                        .thenBy { it.identity.language?.sameTagAs(tag) != true }
                         .thenBy { !it.isServerDefault },
                 )
                 .firstOrNull()
                 ?.let { SubtitleSelection.Track(it.identity) }
     }
+
+private fun String.sameTagAs(tag: String): Boolean =
+    Locale.forLanguageTag(this).toLanguageTag().equals(Locale.forLanguageTag(tag).toLanguageTag(), ignoreCase = true)
 
 @Stable
 public class SubtitleLanguageStore(private val context: Context?) {
