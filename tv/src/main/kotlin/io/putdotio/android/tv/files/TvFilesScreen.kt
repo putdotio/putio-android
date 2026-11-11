@@ -105,6 +105,9 @@ import io.putdotio.android.tv.TvButtonSize
 import io.putdotio.android.tv.TvButtonStyle
 import io.putdotio.android.tv.TvTrashUndoOffered
 import io.putdotio.android.tv.TvUndoSnackbarHost
+import io.putdotio.android.tv.TvBrief
+import io.putdotio.android.tv.TvBriefShown
+import io.putdotio.android.tv.TvSnackbarHeldWhile
 import io.putdotio.android.tv.TvSnackbarMessage
 import io.putdotio.android.tv.TvSnackbarState
 import io.putdotio.android.tv.TvTrashUndoOffer
@@ -135,10 +138,10 @@ internal fun TvFilesScreen(
     pinnedIds: List<FilesItemId>? = null,
     onSetPinned: (FilesItem, Boolean) -> Unit = { _, _ -> },
     trashUndo: TvTrashUndoOffer? = null,
-    /** An explanation from outside the browser (a failed watched write, no VLC); OK dismisses it. */
+    /** An explanation from outside the browser (a link that did not open, a failed undo); OK dismisses it. */
     notice: String? = null,
-    noticeMessage: String? = null,
     onDismissNotice: () -> Unit = {},
+    brief: TvBrief? = null,
     /**
      * Which row last held focus in each folder; owned by the session so it survives the pane
      * being disposed for another destination. A LazyColumn is remounted on every folder
@@ -353,12 +356,13 @@ internal fun TvFilesScreen(
         }
         TvFilesTrashSnackbar(current, snackbar, onEvent, trashUndo, undoFocus, refocus = entryTarget)
         TvFilesMoveAnnouncement(current, snackbar, edits)
+        TvSnackbarHeldWhile(snackbar, notice, renamingItem, movingItem, actionsItem, viewer.open, unsupported)
+        TvBriefShown(brief, snackbar)
     }
 
     TvFileViewerLayer(viewer, (content as? FilesContent.Ready)?.items.orEmpty(), viewerUrl, siblings = true)
     TvFilesOverlays(
         notice = notice,
-        noticeMessage = noticeMessage,
         onDismissNotice = onDismissNotice,
         renamingItem = renamingItem,
         movingItem = movingItem,
@@ -380,7 +384,6 @@ internal fun TvFilesScreen(
 @Composable
 private fun TvFilesOverlays(
     notice: String?,
-    noticeMessage: String?,
     onDismissNotice: () -> Unit,
     renamingItem: FilesItem?,
     movingItem: FilesItem?,
@@ -401,7 +404,6 @@ private fun TvFilesOverlays(
     if (notice != null) {
         TvNoticeDialog(
             title = notice,
-            message = noticeMessage,
             onDismiss = onDismissNotice,
             okStyle = TvButtonStyle.Filled,
             balanceMessage = true,

@@ -1,8 +1,11 @@
 package io.putdotio.android.tv
 
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.State
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -51,10 +54,24 @@ internal data class TvSnackbarMessage(
 
 internal class TvSnackbarShowing(val message: TvSnackbarMessage)
 
+internal class TvBrief(val text: String, val onShown: () -> Unit)
+
 @Stable
 internal class TvSnackbarState {
     var showing: TvSnackbarShowing? by mutableStateOf(null)
         private set
+
+    private val holds = mutableStateListOf<Any>()
+
+    val held: Boolean get() = holds.isNotEmpty()
+
+    fun hold(key: Any) {
+        holds += key
+    }
+
+    fun release(key: Any) {
+        holds -= key
+    }
 
     fun show(message: TvSnackbarMessage) {
         showing = TvSnackbarShowing(message)
@@ -62,6 +79,10 @@ internal class TvSnackbarState {
 
     fun dismiss() {
         showing = null
+    }
+
+    fun dismiss(message: TvSnackbarMessage) {
+        if (showing?.message === message) showing = null
     }
 }
 
@@ -135,14 +156,52 @@ internal fun TvTrashUndoOffered(trashUndo: TvTrashUndoOffer?, snackbar: TvSnackb
     val text = stringResource(R.string.tv_files_trashed)
     val undo = stringResource(R.string.tv_files_undo)
     val offered by trashUndo.offered.collectAsState()
+    val shownOffer = remember { mutableStateOf<TvSnackbarMessage?>(null) }
     LaunchedEffect(offered) {
         val outcome = offered
         if (outcome == null) {
-            snackbar.dismiss()
+            shownOffer.value?.let(snackbar::dismiss)
+            shownOffer.value = null
         } else {
-            snackbar.show(TvSnackbarMessage(text = text, actionLabel = undo, onAction = { trashUndo.undo(outcome) }))
+            val message = TvSnackbarMessage(text = text, actionLabel = undo, onAction = { trashUndo.undo(outcome) })
+            shownOffer.value = message
+            snackbar.show(message)
         }
     }
+}
+
+@Composable
+internal fun TvBriefShown(brief: TvBrief?, snackbar: TvSnackbarState) {
+    val text = brief?.text
+    val onShown by rememberUpdatedState(brief?.onShown)
+    val slotFree = snackbar.showing == null && !snackbar.held
+    LaunchedEffect(text, slotFree) {
+        if (text != null && snackbar.showing == null && !snackbar.held) {
+            snackbar.show(TvSnackbarMessage(text = text))
+            onShown?.invoke()
+        }
+    }
+}
+
+@Composable
+internal fun TvSnackbarHeldWhile(snackbar: TvSnackbarState, vararg overlays: Any?) {
+    if (overlays.none { it != null && it != false }) return
+    DisposableEffect(snackbar) {
+        val key = Any()
+        snackbar.hold(key)
+        onDispose { snackbar.release(key) }
+    }
+}
+
+@Composable
+internal fun BoxScope.TvPaneSnackbarHost(snackbar: TvSnackbarState) {
+    TvSnackbarHost(
+        state = snackbar,
+        modifier = Modifier
+            .align(Alignment.BottomStart)
+            .padding(bottom = TV_SNACKBAR_BOTTOM),
+        raised = true,
+    )
 }
 
 @Composable
