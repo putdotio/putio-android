@@ -82,9 +82,9 @@ private fun TvPlayerStateFrame(
 }
 
 @Composable
-internal fun TvPlayerLoading(target: PlaybackTarget) {
+internal fun TvPlayerLoading(target: PlaybackTarget, @StringRes message: Int? = R.string.tv_player_loading) {
     TvPlayerStateFrame(target, dimmed = false) {
-        TvLoadingIndicator(stringResource(R.string.tv_player_loading))
+        TvLoadingIndicator(message?.let { stringResource(it) })
     }
 }
 
@@ -264,6 +264,31 @@ internal fun TvPlaybackFailureScreen(
 }
 
 @Composable
+internal fun TvPlaybackStalledScreen(
+    target: PlaybackTarget,
+    sheetOpen: Boolean,
+    onRetry: () -> Unit,
+    onBack: () -> Unit,
+) {
+    TvPlayerStateFrame(target, dimmed = true) {
+        TvEmptyState(
+            claimFocus = !sheetOpen,
+            glyph = PutioEmptyGlyph.CouldNotLoad,
+            headline = stringResource(R.string.tv_player_stalled),
+            message = stringResource(R.string.tv_error_network),
+            action = TvEmptyStateAction(
+                label = stringResource(R.string.tv_player_retry),
+                onClick = onRetry,
+                icon = R.drawable.ic_ph_arrows_clockwise,
+            ),
+            secondaryAction = tvGoBackAction(onBack),
+            glyphRunPerCharacter = true,
+            messageColor = MaterialTheme.colorScheme.onSurface,
+        )
+    }
+}
+
+@Composable
 internal fun TvUnsupportedScreen(
     target: PlaybackTarget,
     onPlayInVlc: (() -> Unit)?,
@@ -326,3 +351,5 @@ private val ACTION_EXTRA_GAP = 3.dp
 private val PERCENT_SIZE = 13.sp
 private val PERCENT_LINE = 17.sp
 private val SHRUG_LIFT = 2.dp
+
+internal fun Boolean.unless(other: Boolean): Boolean = this && !other

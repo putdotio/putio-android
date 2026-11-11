@@ -42,18 +42,20 @@ internal fun TvStartupScreen(
 }
 
 @Composable
-internal fun TvLoadingIndicator(message: String, modifier: Modifier = Modifier) {
+internal fun TvLoadingIndicator(message: String?, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(SPINNER_GAP, Alignment.CenterVertically),
     ) {
         TvSpinner(Modifier.size(SPINNER_SIZE))
-        Text(
-            text = message,
-            style = MaterialTheme.typography.bodySmall.withFullLineBox(),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        if (message != null) {
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodySmall.withFullLineBox(),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
