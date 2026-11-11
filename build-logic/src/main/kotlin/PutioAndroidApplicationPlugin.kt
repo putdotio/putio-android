@@ -6,8 +6,10 @@ import io.gitlab.arturbosch.detekt.extensions.DetektExtension
 import io.sentry.android.gradle.extensions.SentryPluginExtension
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.tasks.testing.Test
 import org.gradle.kotlin.dsl.configure
 import org.gradle.kotlin.dsl.register
+import org.gradle.kotlin.dsl.withType
 
 /**
  * Shared setup for the `mobile` and `tv` application modules: SDK levels, the
@@ -110,6 +112,9 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
         }
 
         useOfflineRobolectric()
+        tasks.withType<Test>().configureEach {
+            maxParallelForks = (Runtime.getRuntime().availableProcessors() / 2).coerceAtLeast(1)
+        }
         uploadMappingsToSentry()
 
         extensions.configure<DetektExtension> {
