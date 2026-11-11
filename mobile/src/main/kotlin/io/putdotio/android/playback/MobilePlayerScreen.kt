@@ -141,7 +141,11 @@ internal fun MobilePlayerScreen(
     val preferences = rememberRetainedPlayerPreferences(state.target.fileId.value)
     val pictureInPicture = rememberPictureInPictureMode()
     if (state.target.mediaType == PlaybackMediaType.VIDEO) {
-        MobileVideoWindow(fileId = state.target.fileId.value, landscape = landscapeVideo && rotateToLandscape)
+        MobileVideoWindow(
+            fileId = state.target.fileId.value,
+            landscape = landscapeVideo,
+            rotateToLandscape = rotateToLandscape,
+        )
         // A closed window stopped the video; the next visit finds it paused instead of playing on.
         PictureInPictureDismissalEffect { preferences.resumeAfterLifecyclePause = false }
     }
