@@ -2,10 +2,6 @@ package io.putdotio.android.files
 
 import io.putdotio.android.isNotFound
 
-/**
- * A folder put.io answered 404 for. The browser left it for its parent, or for the root when an
- * outside open pushed it, and reloaded that folder; the screen says "File not found" once.
- */
 public data class FilesMissingFolder(
     val requestId: FilesRequestId,
     val folder: FilesFolder,
@@ -22,20 +18,24 @@ private fun FilesBrowserState.isMissingFolder(index: Int, event: FilesBrowserEve
     return firstPage || reload
 }
 
+private fun FilesFolderState.without(itemId: FilesItemId): FilesFolderState {
+    val listed = content as? FilesContent.Ready ?: return this
+    val kept = listed.items.filterNot { it.id == itemId }
+    val updated = if (kept.isEmpty()) FilesContent.Empty(listed.paging, listed.viewport) else listed.copy(items = kept)
+    return copy(content = updated)
+}
+
 internal fun FilesBrowserState.leaveMissingFolder(
     index: Int,
     event: FilesBrowserEvent.LoadFailed,
 ): FilesBrowserTransition? {
+    if (!isMissingFolder(index, event)) return null
     val missing = FilesMissingFolder(event.requestId, current.folder)
-    val back = takeIf { isMissingFolder(index, event) }
-        ?.navigateBack(toRoot = current.openedFrom != null)
-        ?.takeIf { it.consumed } ?: return null
-    val landed = back.state.copy(missingFolder = missing)
-    return if (back.effect != null) {
-        back.copy(state = landed)
-    } else {
-        landed.copy(stack = landed.stack.replaceLast(landed.current.copy(needsReload = true))).reloadStaleFolder()
-    }
+    val below = stack.take(index).map { it.without(missing.folder.id).copy(needsReload = true) }
+    return copy(stack = below + current)
+        .navigateBack(toRoot = current.openedFrom != null)
+        .takeIf { it.consumed }
+        ?.let { it.copy(state = it.state.copy(missingFolder = missing)) }
 }
 
 internal fun FilesBrowserState.missingFolderAnnounced(notice: FilesMissingFolder): FilesBrowserTransition =

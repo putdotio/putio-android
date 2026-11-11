@@ -1,9 +1,9 @@
 package io.putdotio.android.files
 
 import io.putdotio.android.PutioFailure
-import io.putdotio.sdk.errors.PutioApiErrorEnvelope
-import io.putdotio.sdk.errors.PutioApiException
-import io.putdotio.sdk.errors.PutioRequestData
+import io.putdotio.android.putioErrorBody
+import io.putdotio.android.putioRefusal
+import io.putdotio.android.toPutioFailure
 import io.putdotio.sdk.files.PutioFileType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -25,6 +25,7 @@ class FilesMissingFolderReducerTest {
         assertTrue(missing.consumed)
         assertEquals(listOf(FilesFolder.Root.id), missing.state.path.map { it.id })
         assertEquals(FilesFolder(shows.id, "Shows"), missing.state.missingFolder?.folder)
+        assertTrue(missing.state.current.content.items().none { it.id == shows.id })
         val reload = missing.effect as FilesBrowserEffect.LoadFolder
         assertEquals(FilesFolder.Root.id, reload.folderId)
         val emptyRoot = FilesPage(emptyList(), null)
@@ -62,6 +63,23 @@ class FilesMissingFolderReducerTest {
         assertEquals(listOf(FilesFolder.Root.id), missing.state.path.map { it.id })
         assertEquals(FilesItemId(40L), missing.state.missingFolder?.folder?.id)
         assertEquals(FilesFolder.Root.id, (missing.effect as FilesBrowserEffect.LoadFolder).folderId)
+    }
+
+    @Test
+    fun aMissingNextPageStaysOnTheFolder() {
+        val opened = reduce(loadedRoot(shows), FilesBrowserEvent.OpenFolder(shows.id))
+        val firstPage = (opened.effect as FilesBrowserEffect.LoadFolder).requestId
+        val inShows = reduce(
+            opened.state,
+            FilesBrowserEvent.LoadSucceeded(firstPage, FilesPage(listOf(season), FilesCursor("next"))),
+        ).state
+        val paging = reduce(inShows, FilesBrowserEvent.LoadNextPage)
+        val request = (paging.effect as FilesBrowserEffect.LoadNextPage).requestId
+
+        val failed = reduce(paging.state, FilesBrowserEvent.LoadFailed(request, notFound()))
+
+        assertEquals(shows.id, failed.state.current.folder.id)
+        assertNull(failed.state.missingFolder)
     }
 
     @Test
@@ -106,10 +124,5 @@ class FilesMissingFolderReducerTest {
     private fun file(id: Long, parent: FilesItemId) =
         FilesItem(FilesItemId(id), parent, "episode-$id.mkv", PutioFileType.VIDEO, 1L, "2026-11-01T00:00:00Z")
 
-    private fun notFound(): PutioFailure = PutioFailure.ApiRejected(404, "NotFound", PutioApiException(
-        request = PutioRequestData("GET", "https://api.put.io/v2/files/list"), resolvedStatusCode = 404,
-        resolvedErrorType = "NotFound",
-        envelope = PutioApiErrorEnvelope(errorType = "NotFound", statusCode = 404),
-        responseBody = "{}", message = "Not found",
-    ))
+    private fun notFound(): PutioFailure = putioRefusal(404, putioErrorBody(404, "File not found")).toPutioFailure()
 }

@@ -325,14 +325,12 @@ public sealed interface FilesBrowserEvent {
 
     public data object Retry : FilesBrowserEvent
 
-    /** What the screen reports about what it shows; it never loads or navigates. */
     public sealed interface ScreenEvent : FilesBrowserEvent
 
     public data class ViewportChanged(
         val position: FilesViewportPosition,
     ) : ScreenEvent
 
-    /** The screen said "File not found" for this [FilesBrowserState.missingFolder]. */
     public data class MissingFolderAnnounced(
         val notice: FilesMissingFolder,
     ) : ScreenEvent
