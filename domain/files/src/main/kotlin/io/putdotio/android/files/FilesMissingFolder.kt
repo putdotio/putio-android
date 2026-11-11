@@ -11,7 +11,7 @@ public data class FilesMissingFolder(
     val folder: FilesFolder,
 )
 
-internal fun FilesBrowserState.isMissingFolder(index: Int, event: FilesBrowserEvent.LoadFailed): Boolean {
+private fun FilesBrowserState.isMissingFolder(index: Int, event: FilesBrowserEvent.LoadFailed): Boolean {
     if (index != stack.lastIndex || !event.failure.isNotFound) return false
     val folder = stack[index]
     val firstPage = (folder.content as? FilesContent.Loading)?.requestId == event.requestId &&
@@ -22,8 +22,12 @@ internal fun FilesBrowserState.isMissingFolder(index: Int, event: FilesBrowserEv
     return firstPage || reload
 }
 
-internal fun FilesBrowserState.leaveMissingFolder(requestId: FilesRequestId): FilesBrowserTransition? {
-    val missing = FilesMissingFolder(requestId, current.folder)
+internal fun FilesBrowserState.leaveMissingFolder(
+    index: Int,
+    event: FilesBrowserEvent.LoadFailed,
+): FilesBrowserTransition? {
+    if (!isMissingFolder(index, event)) return null
+    val missing = FilesMissingFolder(event.requestId, current.folder)
     val back = navigateBack(toRoot = current.openedFrom != null).takeIf { it.consumed } ?: return null
     val landed = back.state.copy(missingFolder = missing)
     return if (back.effect != null) {
