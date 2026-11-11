@@ -347,6 +347,29 @@ class TvFilesRowActionsTest {
         compose.onAllNodesWithText("Couldn’t update the watched state.", substring = true).assertCountEquals(0)
     }
 
+    @Test
+    fun aBriefWaitsForTheUndoOfferInsteadOfReplacingIt() {
+        var brief by mutableStateOf<TvBrief?>(null)
+        compose.setTvContent {
+            TvFilesScreen(
+                state = ready(item(3, "notes.txt", PutioFileType.TEXT)).withOutcome(trashedOutcome()),
+                onEvent = { true },
+                onPlayMedia = {},
+                trashUndo = rememberUndoOffer {},
+                brief = brief,
+            )
+        }
+        compose.onNodeWithText("Moved to Trash").assertIsDisplayed()
+
+        compose.runOnIdle { brief = TvBrief("Couldn’t update your pins. No connection.") { brief = null } }
+
+        compose.onNode(hasText("Undo") and hasClickAction()).assertIsDisplayed()
+        compose.onAllNodesWithText("Couldn’t update your pins.", substring = true).assertCountEquals(0)
+        compose.mainClock.advanceTimeBy(SNACKBAR_MILLIS + 500)
+        compose.onAllNodesWithText("Moved to Trash").assertCountEquals(0)
+        compose.onNodeWithText("Couldn’t update your pins.", substring = true).assertIsDisplayed()
+    }
+
     private fun trashedOutcome(): FilesDeleteOutcome {
         val gone = item(4, "old.mp4", PutioFileType.VIDEO)
         return FilesDeleteOutcome(

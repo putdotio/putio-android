@@ -213,7 +213,15 @@ class TvSearchScreenTest {
     fun aVlcNoticeShowsBrieflyInTheSnackbarWithoutAnOkDialog() {
         var brief by mutableStateOf<TvBrief?>(null)
         var shown = 0
-        show(state = { searchState(SearchContent.Idle) }, brief = { brief })
+        compose.setTvContent {
+            TvSearchScreen(
+                state = searchState(SearchContent.Idle),
+                actions = actions,
+                detail = tvSearchDetail(emptyMap()),
+                results = results,
+                brief = brief,
+            )
+        }
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
 
         compose.runOnIdle {
@@ -634,7 +642,6 @@ class TvSearchScreenTest {
         notice: () -> FilesFailure? = { null },
         sessionKey: () -> Any? = { null },
         folderNames: Map<FilesItemId, String> = emptyMap(),
-        brief: () -> TvBrief? = { null },
     ) {
         compose.setTvContent {
             TvSearchScreen(
@@ -644,7 +651,6 @@ class TvSearchScreenTest {
                 sessionKey = sessionKey(),
                 detail = tvSearchDetail(folderNames),
                 results = results,
-                brief = brief(),
             )
         }
     }

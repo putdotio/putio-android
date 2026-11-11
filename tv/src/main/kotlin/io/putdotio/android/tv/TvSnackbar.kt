@@ -66,6 +66,10 @@ internal class TvSnackbarState {
     fun dismiss() {
         showing = null
     }
+
+    fun dismiss(message: TvSnackbarMessage) {
+        if (showing?.message === message) showing = null
+    }
 }
 
 @Composable
@@ -138,22 +142,27 @@ internal fun TvTrashUndoOffered(trashUndo: TvTrashUndoOffer?, snackbar: TvSnackb
     val text = stringResource(R.string.tv_files_trashed)
     val undo = stringResource(R.string.tv_files_undo)
     val offered by trashUndo.offered.collectAsState()
+    val shownOffer = remember { mutableStateOf<TvSnackbarMessage?>(null) }
     LaunchedEffect(offered) {
         val outcome = offered
         if (outcome == null) {
-            snackbar.dismiss()
+            shownOffer.value?.let(snackbar::dismiss)
+            shownOffer.value = null
         } else {
-            snackbar.show(TvSnackbarMessage(text = text, actionLabel = undo, onAction = { trashUndo.undo(outcome) }))
+            val message = TvSnackbarMessage(text = text, actionLabel = undo, onAction = { trashUndo.undo(outcome) })
+            shownOffer.value = message
+            snackbar.show(message)
         }
     }
 }
 
 @Composable
-internal fun TvBriefShown(brief: TvBrief?, snackbar: TvSnackbarState) {
+internal fun TvBriefShown(brief: TvBrief?, snackbar: TvSnackbarState, held: Boolean = false) {
     val text = brief?.text
     val onShown by rememberUpdatedState(brief?.onShown)
-    LaunchedEffect(text) {
-        if (text != null) {
+    val slotFree = snackbar.showing == null && !held
+    LaunchedEffect(text, slotFree) {
+        if (text != null && slotFree) {
             snackbar.show(TvSnackbarMessage(text = text))
             onShown?.invoke()
         }
