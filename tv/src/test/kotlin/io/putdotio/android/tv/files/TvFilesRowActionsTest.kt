@@ -53,6 +53,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import io.putdotio.android.files.copyForTest
 import io.putdotio.android.tv.SNACKBAR_MILLIS
+import io.putdotio.android.tv.TvBrief
 import io.putdotio.android.tv.TvPlayStart
 import io.putdotio.android.tv.TvTrashUndoOffer
 
@@ -317,6 +318,78 @@ class TvFilesRowActionsTest {
         compose.onNode(hasText("Undo") and hasClickAction()).assertIsDisplayed()
         compose.mainClock.advanceTimeBy(SNACKBAR_MILLIS / 2 + 500)
         compose.onAllNodesWithText("Moved to Trash").assertCountEquals(0)
+    }
+
+    @Test
+    fun aFailedWatchedWriteShowsBrieflyInTheSnackbarWithoutAnOkDialog() {
+        var brief by mutableStateOf<TvBrief?>(null)
+        var shown = 0
+        compose.setTvContent {
+            TvFilesScreen(
+                state = ready(item(3, "notes.txt", PutioFileType.TEXT)),
+                onEvent = { true },
+                onPlayMedia = {},
+                brief = brief,
+            )
+        }
+
+        compose.runOnIdle {
+            brief = TvBrief("Couldn’t update the watched state. No connection.") {
+                shown += 1
+                brief = null
+            }
+        }
+
+        compose.onNodeWithText("Couldn’t update the watched state.", substring = true).assertIsDisplayed()
+        compose.onAllNodesWithText("OK").assertCountEquals(0)
+        compose.runOnIdle { assertEquals(1, shown) }
+        compose.mainClock.advanceTimeBy(SNACKBAR_MILLIS + 500)
+        compose.onAllNodesWithText("Couldn’t update the watched state.", substring = true).assertCountEquals(0)
+    }
+
+    @Test
+    fun aBriefWaitsForTheUndoOfferInsteadOfReplacingIt() {
+        var brief by mutableStateOf<TvBrief?>(null)
+        compose.setTvContent {
+            TvFilesScreen(
+                state = ready(item(3, "notes.txt", PutioFileType.TEXT)).withOutcome(trashedOutcome()),
+                onEvent = { true },
+                onPlayMedia = {},
+                trashUndo = rememberUndoOffer {},
+                brief = brief,
+            )
+        }
+        compose.onNodeWithText("Moved to Trash").assertIsDisplayed()
+
+        compose.runOnIdle { brief = TvBrief("Couldn’t update your pins. No connection.") { brief = null } }
+
+        compose.onNode(hasText("Undo") and hasClickAction()).assertIsDisplayed()
+        compose.onAllNodesWithText("Couldn’t update your pins.", substring = true).assertCountEquals(0)
+        compose.mainClock.advanceTimeBy(SNACKBAR_MILLIS + 500)
+        compose.onAllNodesWithText("Moved to Trash").assertCountEquals(0)
+        compose.onNodeWithText("Couldn’t update your pins.", substring = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun aBriefWaitsForTheActionsSheetToClose() {
+        var brief by mutableStateOf<TvBrief?>(null)
+        compose.setTvContent {
+            TvFilesScreen(
+                state = ready(item(3, "notes.txt", PutioFileType.TEXT)),
+                onEvent = { true },
+                onPlayMedia = {},
+                pinnedIds = emptyList(),
+                brief = brief,
+            )
+        }
+        compose.onNodeWithContentDescription("notes.txt").performKeyInput { pressKey(Key.Menu) }
+        compose.onNode(hasText("Pin to Home") and isFocused()).assertIsDisplayed()
+
+        compose.runOnIdle { brief = TvBrief("Couldn’t update your pins. No connection.") { brief = null } }
+        compose.onAllNodesWithText("Couldn’t update your pins.", substring = true).assertCountEquals(0)
+
+        compose.onNode(hasText("Pin to Home") and isFocused()).performKeyInput { pressCenter() }
+        compose.onNodeWithText("Couldn’t update your pins.", substring = true).assertIsDisplayed()
     }
 
     private fun trashedOutcome(): FilesDeleteOutcome {

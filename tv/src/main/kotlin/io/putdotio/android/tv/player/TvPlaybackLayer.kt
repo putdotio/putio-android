@@ -1,5 +1,7 @@
 package io.putdotio.android.tv.player
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -7,6 +9,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
@@ -28,7 +32,10 @@ import io.putdotio.android.telemetry.AnalyticsEvent
 import io.putdotio.android.telemetry.ProductAnalytics
 import io.putdotio.android.telemetry.PutioDiagnostics
 import io.putdotio.android.tv.TvFailureReports
-import io.putdotio.android.tv.TvNoticeDialog
+import io.putdotio.android.tv.TvBrief
+import io.putdotio.android.tv.TvBriefShown
+import io.putdotio.android.tv.TvSnackbarHost
+import io.putdotio.android.tv.TvSnackbarState
 import io.putdotio.android.tv.isUnknown
 import io.putdotio.android.tv.files.hasVlc
 import kotlinx.coroutines.Job
@@ -80,6 +87,8 @@ internal fun TvPlaybackRoute(
     val vlcScope = rememberCoroutineScope()
     var vlcNotice by remember { mutableStateOf<Int?>(null) }
     var vlcHandoff by remember { mutableStateOf<Job?>(null) }
+    val snackbar = remember { TvSnackbarState() }
+    TvBriefShown(vlcNotice?.let { TvBrief(stringResource(it)) { vlcNotice = null } }, snackbar)
     val failure = when (val content = state.content) {
         is PlaybackContent.Failed -> content.failure
         is PlaybackContent.NextFailed -> content.failure
@@ -97,44 +106,48 @@ internal fun TvPlaybackRoute(
             }
         }
     }
-    TvPlayerScreen(
-        state = state,
-        onBack = onExit,
-        onRetry = { controller.dispatch(PlaybackEvent.Retry) },
-        onResume = { controller.dispatch(PlaybackEvent.Resume) },
-        onRestart = { controller.dispatch(PlaybackEvent.Restart) },
-        onPlayerFailure = { failure, positionMillis ->
-            val telemetry = controller.state.value.playerFailureTelemetry(failure)
-            if (controller.dispatch(PlaybackEvent.PlayerFailed(failure, positionMillis)) &&
-                controller.state.value.content is PlaybackContent.Failed
-            ) {
-                val id = PutioDiagnostics.capture(telemetry)
-                failure.putioFailure?.takeIf { it.isUnknown }?.let { TvFailureReports.record(it, id) }
-            }
-        },
-        onOriginalRejected = { reason, positionMillis ->
-            val telemetry = controller.state.value.originalFallbackTelemetry(reason)
-            controller.dispatch(PlaybackEvent.OriginalRejected(reason, positionMillis)).also { consumed ->
-                if (consumed) telemetry?.let(PutioDiagnostics::capture)
-            }
-        },
-        onRefreshConversion = { controller.dispatch(PlaybackEvent.RefreshConversion) },
-        onStartConversion = { controller.dispatch(PlaybackEvent.StartConversion) },
-        playerFactory = playerFactory,
-        reporter = reporter,
-        subtitleStartupPolicy = subtitleStartupPolicy,
-        autoplayNextVideo = autoplayNextVideo,
-        onPlaybackEnded = { controller.dispatch(PlaybackEvent.PlayerEnded) },
-        nextEpisode = nextEpisode,
-        onNextEpisode = { nextEpisode?.let { controller.dispatch(PlaybackEvent.NextChosen(it)) } },
-        onUpNext = { controller.dispatch(PlaybackEvent.NextChosen(it)) },
-        analytics = controller.analyticsReporter,
-        upNext = upNext,
-        onOpenInVlc = handOffToVlc,
-        onPlayInVlc = handOffToVlc?.takeIf { vlcInstalled },
-        neighbours = neighbours,
-    )
-    vlcNotice?.let { notice -> TvNoticeDialog(title = stringResource(notice), onDismiss = { vlcNotice = null }) }
+    Box(modifier = Modifier.fillMaxSize()) {
+        TvPlayerScreen(
+            state = state,
+            onBack = onExit,
+            onRetry = { controller.dispatch(PlaybackEvent.Retry) },
+            onResume = { controller.dispatch(PlaybackEvent.Resume) },
+            onRestart = { controller.dispatch(PlaybackEvent.Restart) },
+            onPlayerFailure = { failure, positionMillis ->
+                val telemetry = controller.state.value.playerFailureTelemetry(failure)
+                if (controller.dispatch(PlaybackEvent.PlayerFailed(failure, positionMillis)) &&
+                    controller.state.value.content is PlaybackContent.Failed
+                ) {
+                    val id = PutioDiagnostics.capture(telemetry)
+                    failure.putioFailure?.takeIf { it.isUnknown }?.let { TvFailureReports.record(it, id) }
+                }
+            },
+            onOriginalRejected = { reason, positionMillis ->
+                val telemetry = controller.state.value.originalFallbackTelemetry(reason)
+                controller.dispatch(PlaybackEvent.OriginalRejected(reason, positionMillis)).also { consumed ->
+                    if (consumed) telemetry?.let(PutioDiagnostics::capture)
+                }
+            },
+            onRefreshConversion = { controller.dispatch(PlaybackEvent.RefreshConversion) },
+            onStartConversion = { controller.dispatch(PlaybackEvent.StartConversion) },
+            playerFactory = playerFactory,
+            reporter = reporter,
+            subtitleStartupPolicy = subtitleStartupPolicy,
+            autoplayNextVideo = autoplayNextVideo,
+            onPlaybackEnded = { controller.dispatch(PlaybackEvent.PlayerEnded) },
+            nextEpisode = nextEpisode,
+            onNextEpisode = { nextEpisode?.let { controller.dispatch(PlaybackEvent.NextChosen(it)) } },
+            onUpNext = { controller.dispatch(PlaybackEvent.NextChosen(it)) },
+            analytics = controller.analyticsReporter,
+            upNext = upNext,
+            onOpenInVlc = handOffToVlc,
+            onPlayInVlc = handOffToVlc?.takeIf { vlcInstalled },
+            neighbours = neighbours,
+        )
+        Box(modifier = Modifier.fillMaxSize().tvPlayerEdges()) {
+            TvSnackbarHost(snackbar, Modifier.align(Alignment.BottomStart), raised = true)
+        }
+    }
 }
 
 private const val SHELL_STATE_KEY = "tv-shell"

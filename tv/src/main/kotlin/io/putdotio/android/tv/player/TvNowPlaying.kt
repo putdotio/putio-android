@@ -46,9 +46,8 @@ internal const val TV_NOW_PLAYING_ARTWORK_TAG = "tv-now-playing-artwork"
 
 internal fun TvPlayerOverlay.skipTrack(forward: Boolean): TvPlayerTransition {
     if (exited || !nowPlaying) return TvPlayerTransition(this)
-    val resume = if (scrub?.wasPlaying == true) listOf(TvPlayerCommand.Play) else emptyList()
     val skip = if (forward) TvPlayerCommand.PlayFollowing else TvPlayerCommand.PlayPrevious
-    return TvPlayerTransition(copy(scrub = null, activity = activity + 1), resume + skip)
+    return TvPlayerTransition(copy(activity = activity + 1), listOf(skip))
 }
 
 internal fun TvPlayerOverlay.queueEnded(next: PlaybackTarget?): TvPlayerTransition =
@@ -56,7 +55,7 @@ internal fun TvPlayerOverlay.queueEnded(next: PlaybackTarget?): TvPlayerTransiti
         exited -> TvPlayerTransition(this)
         next == null -> exit()
         else -> TvPlayerTransition(
-            copy(exited = true, scrub = null, sheet = null),
+            copy(exited = true, sheet = null),
             listOf(TvPlayerCommand.PlayChosen(next)),
         )
     }
@@ -70,7 +69,7 @@ internal class TvNowPlayingState(
     val title: String,
     val neighbours: PlaybackNeighbours?,
     val paused: Boolean,
-    val scrubTargetMillis: Long?,
+    val seeking: Boolean,
     val startPositionMillis: Long,
     val listingDurationMillis: Long?,
 )
@@ -127,7 +126,7 @@ internal fun TvNowPlaying(
 @Composable
 private fun TvNowPlayingProgress(player: Player, state: TvNowPlayingState, seekBarFocused: Boolean) {
     val progress = rememberPlayerProgress(player, state.paused, state.startPositionMillis)
-    val shownMillis = state.scrubTargetMillis ?: progress.positionMillis
+    val shownMillis = progress.positionMillis
     val duration = knownDurationMillis(progress.durationMillis, state.listingDurationMillis)
     val elapsed = playerTime(shownMillis)
     TvSeekBar(
@@ -135,7 +134,7 @@ private fun TvNowPlayingProgress(player: Player, state: TvNowPlayingState, seekB
         description = duration?.let {
             stringResource(R.string.tv_player_seek_bar, elapsed, playerTime(it))
         } ?: elapsed,
-        scrubbing = state.scrubTargetMillis != null,
+        scrubbing = state.seeking,
         focused = seekBarFocused,
         modifier = Modifier.padding(top = SEEK_TOP),
     )
