@@ -433,7 +433,7 @@ private fun TvReadyPlayer(
             context.captionLanguages(),
         )
     }
-    BackHandler(enabled = !hidden) { apply(overlay.back(backgrounds = keepsPlaying && playWhenReady)) }
+    BackHandler(enabled = !hidden) { apply(overlay.back(backgrounds = backgroundAudio.backgroundsOnBack(target.mediaType, playWhenReady))) }
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { leaveForeground({ overlay }, apply, keepsPlaying) }
     BindMiniPlayer(backgroundAudio.miniPlayer.takeIf { nowPlaying }, player, paused = !playWhenReady) { play ->
         apply(overlay.setPlaying(play))

@@ -18,6 +18,8 @@ internal data class TvBackgroundAudio(
 ) {
     fun keepsPlaying(mediaType: PlaybackMediaType): Boolean =
         mediaType == PlaybackMediaType.AUDIO && onBackground != null
+
+    fun backgroundsOnBack(mediaType: PlaybackMediaType, playing: Boolean): Boolean = playing && keepsPlaying(mediaType)
 }
 
 @Composable
