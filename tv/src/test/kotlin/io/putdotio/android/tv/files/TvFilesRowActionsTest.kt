@@ -378,6 +378,7 @@ class TvFilesRowActionsTest {
                 state = ready(item(3, "notes.txt", PutioFileType.TEXT)),
                 onEvent = { true },
                 onPlayMedia = {},
+                pinnedIds = emptyList(),
                 brief = brief,
             )
         }
