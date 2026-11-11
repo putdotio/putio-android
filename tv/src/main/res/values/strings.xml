@@ -408,11 +408,13 @@
     <string name="tv_player_loading">Loading</string>
     <string name="tv_player_seek_bar">%1$s of %2$s</string>
     <string name="tv_player_error_title">Couldn\'t play this file.</string>
+    <string name="tv_player_error_crash">Playback error</string>
+    <string name="tv_player_connection_lost">Connection lost</string>
     <string name="tv_player_error_link_expired">The stream link expired. Try again to get a fresh one.</string>
     <string name="tv_player_error_forbidden">You don’t have access to this file.</string>
     <string name="tv_player_error_rejected">put.io couldn’t prepare this file for playback.</string>
-    <string name="tv_player_cant_play_title">This TV can\'t play this file.</string>
-    <string name="tv_player_cant_play_message">Its format isn\'t supported here. VLC can usually play it.</string>
+    <string name="tv_player_cant_play_title">Can’t play this here</string>
+    <string name="tv_player_cant_play_message">This format needs another player.</string>
     <string name="tv_player_open_in_vlc">Open in VLC</string>
     <string name="tv_player_play_in_vlc">Play in VLC now</string>
     <string name="tv_player_retry">Try again</string>
@@ -425,7 +427,7 @@
     <string name="tv_player_conversion_percent">%1$d%%</string>
     <string name="tv_player_convert_again">Convert again</string>
     <string name="tv_player_check_again">Check again</string>
-    <string name="tv_player_unsupported_title">This file can’t be played</string>
+    <string name="tv_player_unsupported_title">Can’t play this here</string>
     <string name="tv_player_unsupported_video_message">This TV can’t play the original file, and it has no converted version.</string>
     <string name="tv_player_up_next">Up next</string>
     <string name="tv_player_up_next_in">Up next in %1$s</string>
