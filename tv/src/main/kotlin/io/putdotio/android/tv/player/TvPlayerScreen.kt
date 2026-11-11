@@ -245,7 +245,7 @@ private fun TvReadyPlayer(
     val prepared = remember(player) {
         source.preparePlayback(target.name, target.mediaType, stoppedAtMillis ?: resumePositionMillis)
     }
-    val recovery = remember(player) { TvTrackRecovery(prepared.mediaItem.sidecarSubtitleUris()) }
+    val recovery = remember(player) { TvTrackRecovery(prepared.mediaItem.sidecarSubtitleUris(), player::manifestSubtitleUris) }
     val snackbar = remember(player) { TvSnackbarState() }
     val subtitlesFailed by rememberUpdatedState(stringResource(R.string.tv_player_subtitles_failed))
     val audioFailed by rememberUpdatedState(stringResource(R.string.tv_player_audio_failed))
@@ -322,12 +322,12 @@ private fun TvReadyPlayer(
                         options = options.copy(subtitles = SubtitleSelection.Off)
                         cueHistory.clear()
                         player.continueWithout(step, position)
-                        snackbar.show(TvSnackbarMessage(subtitlesFailed))
                         return
                     }
                     is TvTrackRecoveryStep.RestoreAudio -> {
                         options = options.copy(audio = step.switch.selection)
-                        player.trackSelectionParameters = step.switch.parameters
+                        player.trackSelectionParameters =
+                            player.trackSelectionParameters.withAudioOf(step.switch.parameters)
                         player.prepare()
                         snackbar.show(TvSnackbarMessage(audioFailed))
                         return
@@ -390,9 +390,10 @@ private fun TvReadyPlayer(
                 val subtitle = recovery.loadFailed(
                     trackType = mediaLoadData.trackType,
                     uri = loadEventInfo.dataSpec.uri.toString(),
+                    gaveUp = wasCanceled,
                     atMillis = SystemClock.elapsedRealtime(),
                 )
-                if (subtitle && wasCanceled) snackbar.show(TvSnackbarMessage(subtitlesFailed))
+                if (subtitle) snackbar.show(TvSnackbarMessage(subtitlesFailed))
             }
 
             override fun onAudioPositionAdvancing(
@@ -463,7 +464,9 @@ private fun TvReadyPlayer(
 
     val choices = TvTrackChoices(tracks, parameters, subtitleStartupPolicy)
     val subtitles = remember(source) { source.playerSubtitles() }
-    val subtitleSources = tvSubtitleSources(subtitles, manifestSubtitles, choices.subtitles)
+    val subtitleSources = remember(subtitles, manifestSubtitles, choices.subtitles) {
+        tvSubtitleSources(subtitles, manifestSubtitles, choices.subtitles)
+    }
     TvSubtitlesUnavailableNotice(source, target, snackbar)
     val subtitlesHidden = choices.subtitlesHidden
     val chips = choices.chips(
@@ -562,7 +565,10 @@ private fun TvReadyPlayer(
         offsetMillis = options.subtitleOffsetMillis,
         actions = TvPlayerSheetActions(
             onAudio = { track ->
-                recovery.audioSwitching(TvAudioSwitch(player.trackSelectionParameters, options.audio))
+                recovery.audioSwitching(
+                    TvAudioSwitch(player.trackSelectionParameters, options.audio),
+                    SystemClock.elapsedRealtime(),
+                )
                 options = options.copy(audio = AudioSelection.Track(track.identity))
                 player.trackSelectionParameters = player.trackSelectionParameters.withAudioTrack(track)
                 closeSheet()

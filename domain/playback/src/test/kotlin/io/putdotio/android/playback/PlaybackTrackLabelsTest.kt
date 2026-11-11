@@ -123,6 +123,17 @@ class PlaybackTrackLabelsTest {
         assertEquals(emptyList<PlaybackSubtitle>(), listed.drop(1).keyedToManifest(tracks))
     }
 
+    @Test
+    fun aManifestTrackWithoutAListedLanguageLeavesEveryOriginUnknown() {
+        val tracks = tracks(manifest("subs0:English", "en"), manifest("subs0:Portuguese", "pt-BR"))
+        val listed = listOf(
+            subtitle("en-found", "opensubtitles_rest"),
+            subtitle("pob-found", "opensubtitles_rest").copy(language = "Portuguese", languageCode = "pob"),
+        )
+
+        assertEquals(emptyList<PlaybackSubtitle>(), listed.keyedToManifest(tracks))
+    }
+
     private fun tracks(vararg formats: Format): List<PlaybackSubtitleTrack> {
         val group = TrackGroup("text", *formats)
         return formats.indices.map { PlaybackSubtitleTrack(group, it, label = null, selected = false) }

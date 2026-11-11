@@ -7,18 +7,18 @@ import java.util.Locale
 /**
  * This list keyed by the HLS manifest [tracks] it backs, so [putioSubtitle] finds each track's
  * source. The manifest lists put.io's subtitles in this order, numbered within each language;
- * empty when the two lists differ in size.
+ * empty unless every track finds its subtitle.
  */
 public fun List<PlaybackSubtitle>.keyedToManifest(tracks: List<PlaybackSubtitleTrack>): List<PlaybackSubtitle> {
     if (size != tracks.size) return emptyList()
     val listedByLanguage = groupBy { it.languageCode.iso3Language() }
     val seen = mutableMapOf<String?, Int>()
-    return tracks.mapNotNull { track ->
-        val id = track.identity.id ?: return@mapNotNull null
+    return tracks.map { track ->
+        val id = track.identity.id ?: return emptyList()
         val language = track.identity.language.iso3Language()
         val ordinal = seen.getOrDefault(language, 0)
         seen[language] = ordinal + 1
-        listedByLanguage[language]?.getOrNull(ordinal)?.copy(key = id)
+        listedByLanguage[language]?.getOrNull(ordinal)?.copy(key = id) ?: return emptyList()
     }
 }
 

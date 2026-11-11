@@ -4,7 +4,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -157,10 +156,10 @@ private fun rememberManifestSubtitles(
         content.source.kind == PlaybackSourceKind.HLS &&
         state.target.mediaType == PlaybackMediaType.VIDEO &&
         !content.subtitlesHidden
-    val listed by produceState<List<PlaybackSubtitle>?>(null, state.target.fileId, manifest, findSubtitles != null) {
-        value = null
-        val find = findSubtitles?.takeIf { manifest } ?: return@produceState
-        value = when (val found = find(state.target)) {
+    var listed by remember(state.target.fileId) { mutableStateOf<List<PlaybackSubtitle>?>(null) }
+    LaunchedEffect(state.target.fileId, manifest, findSubtitles) {
+        val find = findSubtitles?.takeIf { manifest && listed == null } ?: return@LaunchedEffect
+        listed = when (val found = find(state.target)) {
             is PlaybackRepositoryResult.Success -> found.value
             is PlaybackRepositoryResult.Failure -> {
                 if (found.failure.putioFailure is PutioFailure.AuthenticationRequired) onAuthenticationRequired()
@@ -168,7 +167,7 @@ private fun rememberManifestSubtitles(
             }
         }
     }
-    return listed
+    return listed.takeIf { manifest }
 }
 
 private const val SHELL_STATE_KEY = "tv-shell"

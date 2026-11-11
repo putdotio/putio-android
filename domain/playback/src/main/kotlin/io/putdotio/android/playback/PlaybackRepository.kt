@@ -439,8 +439,8 @@ private fun PutioFile.toPlaybackTarget(mediaType: PlaybackMediaType): PlaybackTa
     )
 
 /**
- * [delegate] plus the SDK's MP4 conversion start and subtitle listing. The player starts one when a video it opens
- * reads not available, and when the viewer converts again after a failure (see
+ * [delegate] plus the SDK's MP4 conversion start and subtitle listing. The player starts a conversion
+ * when a video it opens reads not available, and when the viewer converts again after a failure (see
  * [PlaybackContent.Conversion.starting]); the resolver itself never does (putio-sdk-kotlin
  * `docs/ARCHITECTURE.md`, conversion handling).
  */
