@@ -135,8 +135,9 @@ class TvPlayerOverlayTest {
         val nearEnd = tapped.overlay.skipForward(atMillis = 60_000L, repeat = true)
         val target = nearEnd.seekTarget()
         assertTrue("Held to $target ms of $DURATION", target in DURATION - 30_000L until DURATION)
-        val later = nearEnd.overlay.skipForward(atMillis = 61_000L, repeat = true)
-        assertEquals("No seek once the hold reaches the end", emptyList<TvPlayerCommand>(), later.commands)
+        val later = nearEnd.overlay.skipForward(atMillis = 61_000L, repeat = true, positionMillis = target + 900L)
+        assertEquals("A hold at the end keeps playback from finishing", target, later.seekTarget())
+        assertTrue(later.overlay.activity > nearEnd.overlay.activity)
     }
 
     @Test
@@ -158,9 +159,10 @@ class TvPlayerOverlayTest {
         assertEquals(listOf(TvPlayerCommand.SeekTo(0L)), atStart.commands)
         val pastStart = atStart.overlay.skip(
             TvSkipPress(TvSkipDirection.Backward, downAtMillis = 0L, atMillis = 61_000L, repeat = true),
-            positionMillis = 0L, durationMillis = DURATION,
+            positionMillis = 900L, durationMillis = DURATION,
         )
-        assertEquals("No seek once the hold hits the start", emptyList<TvPlayerCommand>(), pastStart.commands)
+        assertEquals("A hold at the start keeps playback there", listOf(TvPlayerCommand.SeekTo(0L)), pastStart.commands)
+        assertTrue("The controls stay up while held", pastStart.overlay.activity > atStart.overlay.activity)
     }
 
     @Test
