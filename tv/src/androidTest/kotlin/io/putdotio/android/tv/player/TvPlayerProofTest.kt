@@ -741,8 +741,6 @@ class TvPlayerProofTest {
                     ),
                     onBack = {},
                     onRetry = {},
-                    onResume = {},
-                    onRestart = {},
                     onPlayerFailure = { failure, _ -> error("Local playback failed: $failure") },
                     playerFactory = factory,
                     subtitleStartupPolicy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = false),
