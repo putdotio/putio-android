@@ -68,17 +68,13 @@ class AndroidAppConfigRepositoryTest {
     @Test
     fun rotateToLandscapeIsOnUnlessTheConfigSavedOff() {
         val rotates = { value: JsonPrimitive? ->
-            AppConfig(listOfNotNull(value?.let { "auto_rotate_video" to it }).toMap())
+            AppConfig(listOfNotNull(value?.let { ROTATE_TO_LANDSCAPE_KEY to it }).toMap())
                 .toAndroidPreferences()
                 .rotateToLandscape
         }
         assertTrue(rotates(null))
         assertTrue(rotates(JsonPrimitive("false")))
         assertEquals(false, rotates(JsonPrimitive(false)))
-        assertEquals(
-            AppConfigUpdate("auto_rotate_video", JsonPrimitive(false)),
-            AndroidAppConfigChange.RotateToLandscape(enabled = false).toUpdate(),
-        )
     }
 
     @Test
@@ -96,6 +92,10 @@ class AndroidAppConfigRepositoryTest {
 
     @Test
     fun createsOneExactPerKeyUpdate() {
+        assertEquals(
+            AppConfigUpdate("auto_rotate_video", JsonPrimitive(false)),
+            AndroidAppConfigChange.RotateToLandscape(enabled = false).toUpdate(),
+        )
         assertEquals(
             AppConfigUpdate("streaming_method", JsonPrimitive("file")),
             AndroidAppConfigChange.PlaybackMethod(StreamingMethod.File).toUpdate(),
