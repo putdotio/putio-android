@@ -200,6 +200,18 @@ class TvPlaybackStatesTest {
     }
 
     @Test
+    fun goBackKeepsFocusWhenAFailureLosesItsTryAgain() {
+        content = PlaybackContent.Failed(PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IOException("offline"))))
+        show()
+        compose.onNodeWithText("Try again").performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNodeWithText("Go back").assertIsFocused()
+
+        change(PlaybackContent.Failed(PlaybackFailure.Putio(PutioFailure.AccessDenied(PutioConfigurationException("test")))))
+        compose.onNodeWithText("Try again").assertDoesNotExist()
+        compose.onNodeWithText("Go back").assertIsFocused()
+    }
+
+    @Test
     fun aPlayerCrashReadsPlaybackErrorAndOffersTryAgainAndGoBack() {
         content = PlaybackContent.Failed(PlaybackFailure.Putio(PutioFailure.Unexpected(IllegalStateException("boom"))))
         show()
@@ -265,7 +277,7 @@ class TvPlaybackStatesTest {
     }
 
     @Test
-    fun aFileWithNoConvertedVersionOffersVlcWhenInstalledAndAlwaysGoBack() {
+    fun withoutVlcAFileWithNoConvertedVersionFocusesGoBack() {
         content = PlaybackContent.Unsupported(PutioFileType.VIDEO)
         show()
         compose.onNodeWithText("This TV can’t play the original file, and it has no converted version.")
