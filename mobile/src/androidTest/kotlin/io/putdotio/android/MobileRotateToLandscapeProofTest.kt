@@ -148,6 +148,7 @@ class MobileRotateToLandscapeProofTest {
         awaitVideo(factory)
         if (phone) {
             awaitOrientation(Configuration.ORIENTATION_LANDSCAPE)
+            compose.waitUntil(15_000) { compose.runOnIdle { displayRotation() % 2 == 1 } }
             compose.runOnIdle {
                 assertEquals(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE, compose.activity.requestedOrientation)
             }
@@ -216,6 +217,8 @@ class MobileRotateToLandscapeProofTest {
     }
 
     private fun orientation(): Int = compose.activity.resources.configuration.orientation
+
+    private fun displayRotation(): Int = checkNotNull(compose.activity.display).rotation
 
     private fun freeze(rotation: Int) {
         automation.setRotation(rotation)
