@@ -3,9 +3,7 @@ package io.putdotio.android.tv.player
 import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
-import android.view.KeyEvent
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onAllNodesWithText
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -14,6 +12,7 @@ import io.putdotio.android.design.PutioTvTheme
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackController
+import io.putdotio.android.playback.PlaybackEvent
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackNextResult
 import io.putdotio.android.playback.PlaybackRepository
@@ -22,6 +21,7 @@ import io.putdotio.android.playback.PlaybackResolution
 import io.putdotio.android.playback.PlaybackState
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.tv.TvProofActivity
+import io.putdotio.android.tv.answerResumePrompts
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSourceKind
 import io.putdotio.sdk.files.PlaybackSubtitles
@@ -86,6 +86,7 @@ class TvOriginalFallbackProofTest {
         val controller = compose.runOnUiThread {
             PlaybackController(Target, LocalFixtures(), scope).also { controller ->
                 scope.launch { controller.state.collect(states::add) }
+                scope.launch { controller.answerResumePrompts(Target.fileId, PlaybackEvent.Resume) }
             }
         }
         compose.setContent {
@@ -93,10 +94,6 @@ class TvOriginalFallbackProofTest {
                 TvPlaybackRoute(controller = controller, onExit = {}, onSessionRejected = {}, playerFactory = factory)
             }
         }
-        compose.waitUntil(10_000) { compose.onAllNodesWithText(RESUME_TITLE).fetchSemanticsNodes().isNotEmpty() }
-        screenshot("01-resume-original")
-        InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_CENTER)
-
         compose.waitUntil(60_000) {
             compose.runOnIdle {
                 val player = factory.players.lastOrNull()
@@ -177,7 +174,6 @@ class TvOriginalFallbackProofTest {
         val Target = PlaybackTarget(FilesItemId(9_340_101L), "hevc10.mkv", PlaybackMediaType.VIDEO, 90.0)
         const val SAVED_MILLIS = 30_000L
         const val DRIFT_MILLIS = 10_000L
-        const val RESUME_TITLE = "Resume from 0:30?"
     }
 }
 

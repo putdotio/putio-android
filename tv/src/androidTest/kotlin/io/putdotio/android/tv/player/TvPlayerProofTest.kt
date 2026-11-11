@@ -42,6 +42,7 @@ import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.filesBrowserState
 import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackController
+import io.putdotio.android.playback.PlaybackEvent
 import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
@@ -57,14 +58,18 @@ import io.putdotio.android.settings.AccountSettingsPreferences
 import io.putdotio.android.settings.AccountSettingsReducer
 import io.putdotio.android.settings.AccountSettingsRequestId
 import io.putdotio.android.settings.AccountSettingsState
+import io.putdotio.android.tv.answerResumePrompts
 import io.putdotio.android.tv.TvProofActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackTarget
+import io.putdotio.android.playback.PlaybackUpNext
+import io.putdotio.android.playback.PlaybackUpNextLookup
 import io.putdotio.android.tv.TvShell
 import io.putdotio.android.tv.openTvTab
 import io.putdotio.android.tv.auth.TvAccount
@@ -233,38 +238,17 @@ class TvPlayerProofTest {
     }
 
     @Test
-    fun resumeDialogBackLeavesThenResumeAndStartOverWithWriteBack() {
+    fun aSavedPositionResumesWithoutAskingAndWritesBack() {
         val server = ProofPositionServer(startFromSeconds = SAVED_SECONDS)
         val factory = mountFilesWithResume(server)
         compose.onNodeWithContentDescription("Open Documents").assertIsFocused()
         press(KeyEvent.KEYCODE_DPAD_DOWN)
 
         press(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.waitUntil(10_000) { compose.onAllNodesWithText(RESUME_TITLE).fetchSemanticsNodes().isNotEmpty() }
-        compose.onNodeWithText(RESUME_LABEL).assertIsFocused()
-        assertNull("No player before the choice", factory.player)
-        screenshot("20-resume-focused")
-        pause()
-        press(KeyEvent.KEYCODE_DPAD_LEFT)
-        compose.onNodeWithText(RESTART_LABEL).assertIsFocused()
-        screenshot("21-resume-restart-focused")
-        pause()
-
-        press(KeyEvent.KEYCODE_BACK)
-        compose.waitUntil(10_000) { compose.runOnIdle { controller == null } }
-        assertNull("No player after Back", factory.player)
-        compose.onNodeWithContentDescription("Play $FIXTURE_TITLE").assertIsFocused()
-        compose.runOnIdle { assertTrue("Back writes nothing", server.writes.isEmpty()) }
-        elapse(DIALOG_EXIT_MILLIS)
-        screenshot("22-back-left-playback")
-        pause()
-
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.waitUntil(10_000) { compose.onAllNodesWithText(RESUME_TITLE).fetchSemanticsNodes().isNotEmpty() }
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
         awaitPlayer(factory) { it.isPlaying && factory.renderedFrame && it.currentPosition >= SAVED_SECONDS * 1_000L }
+        compose.onAllNodesWithText(RESUME_PREFIX, substring = true).assertCountEquals(0)
         compose.onNodeWithTag(TV_PLAYER_TAG).assertIsFocused()
-        screenshot("22b-continued")
+        screenshot("20-resumed-without-asking")
 
         elapse(POSITION_INTERVAL_MILLIS + 1_000L)
         compose.runOnIdle { assertEquals(1, server.writes.size) }
@@ -274,32 +258,16 @@ class TvPlayerProofTest {
         assertTrue("Periodic write $periodic s", periodic >= SAVED_SECONDS + POSITION_INTERVAL_MILLIS / 1_000.0 - 1.0)
         assertTrue("Exit write $exit s after $periodic s", exit >= periodic)
         compose.onNodeWithContentDescription("Play $FIXTURE_TITLE").assertIsFocused()
+        screenshot("21-back-on-files-row")
         pause()
 
         press(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.waitUntil(10_000) { compose.onAllNodesWithText(RESTART_LABEL).fetchSemanticsNodes().isNotEmpty() }
-        press(KeyEvent.KEYCODE_DPAD_LEFT)
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
-        awaitPlayer(factory) { it.isPlaying && factory.renderedFrame }
-        compose.runOnIdle { assertTrue(factory.current().currentPosition < 10_000L) }
-        screenshot("23-started-over")
-        pause()
-        leavePlayback()
-        compose.waitUntil(10_000) { compose.runOnIdle { server.writes.size == 3 } }
-        assertTrue("Starting over writes its own position", server.writes.last() < 10.0)
-
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.waitUntil(10_000) {
-            compose.onAllNodesWithText(RESUME_PREFIX, substring = true).fetchSemanticsNodes().isNotEmpty()
-        }
-        screenshot("24-resume-after-start-over")
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
-        awaitPlayer(factory) { it.isPlaying && it.currentPosition >= (server.writes.last() * 1_000L).toLong() - 1_000L }
-        screenshot("25-continued")
+        awaitPlayer(factory) { it.isPlaying && it.currentPosition >= (exit * 1_000L).toLong() - 1_000L }
+        compose.onAllNodesWithText(RESUME_PREFIX, substring = true).assertCountEquals(0)
+        screenshot("22-resumed-from-the-exit-write")
         pause()
         leavePlayback()
         compose.onNodeWithContentDescription("Play $FIXTURE_TITLE").assertIsFocused()
-        screenshot("26-back-on-files-row")
     }
 
     @Test
@@ -309,10 +277,11 @@ class TvPlayerProofTest {
         compose.onNodeWithContentDescription("Open Documents").assertIsFocused()
         press(KeyEvent.KEYCODE_DPAD_DOWN)
         press(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.waitUntil(10_000) { compose.onAllNodesWithText(NEAR_END_LABEL).fetchSemanticsNodes().isNotEmpty() }
-        screenshot("90-near-end-prompt")
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
         awaitPlayer(factory) { it.isPlaying && factory.renderedFrame }
+        compose.onAllNodesWithText(RESUME_PREFIX, substring = true).assertCountEquals(0)
+        compose.runOnIdle {
+            assertTrue("Resumed near the end", factory.current().currentPosition >= NEAR_END_SAVED_SECONDS * 1_000L)
+        }
         screenshot("91-playing-to-the-end")
 
         compose.waitUntil(FIXTURE_SECONDS.toLong() * 1_000L) { compose.runOnIdle { controller == null } }
@@ -366,7 +335,7 @@ class TvPlayerProofTest {
             subtitles = PlaybackSubtitles.Sidecar(listOf(foundSubtitle(requireNotNull(found)))),
         )
         val factory = ProofPlayerFactory()
-        var content by mutableStateOf<PlaybackContent>(PlaybackContent.AwaitingResume(source))
+        val content = PlaybackContent.Ready(source)
         compose.setContent {
             PutioTvTheme {
                 TvPlayerScreen(
@@ -382,8 +351,6 @@ class TvPlayerProofTest {
                     ),
                     onBack = {},
                     onRetry = { error("Unexpected retry") },
-                    onResume = { content = PlaybackContent.Ready(source) },
-                    onRestart = { error("Unexpected restart") },
                     onPlayerFailure = { failure, _ -> error("Local playback failed: $failure") },
                     playerFactory = factory,
                     subtitleStartupPolicy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = true),
@@ -391,12 +358,6 @@ class TvPlayerProofTest {
                 )
             }
         }
-        compose.waitUntil(10_000) { compose.onAllNodesWithText(BOARD_RESUME_TITLE).fetchSemanticsNodes().isNotEmpty() }
-        compose.onNodeWithText(RESUME_LABEL).assertIsFocused()
-        elapse(DIALOG_EXIT_MILLIS)
-        screenshot("androidtv-rde2-07-resume")
-
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
         awaitPlayer(factory) {
             it.isPlaying && factory.renderedFrame && it.currentTracks.playbackAudioTracks().size == 2 &&
                 it.currentTracks.playbackSubtitleTracks().size == 3
@@ -521,15 +482,16 @@ class TvPlayerProofTest {
                     ),
                     onBack = {},
                     onRetry = {},
-                    onResume = {},
-                    onRestart = {},
                     onPlayerFailure = { failure, _ -> error("Local playback failed: $failure") },
                     playerFactory = factory,
                     autoplayNextVideo = true,
                     onPlaybackEnded = { true },
                     nextEpisode = PlaybackTarget(FilesItemId(FIXTURE_FILE_ID + 1), STATES_NEXT_TITLE),
-                    upNext = TvUpNextLookup.Found(
-                        TvUpNext(PlaybackTarget(FilesItemId(FIXTURE_FILE_ID + 1), STATES_NEXT_TITLE), STATES_FOLDER),
+                    upNext = PlaybackUpNextLookup.Found(
+                        PlaybackUpNext(
+                            PlaybackTarget(FilesItemId(FIXTURE_FILE_ID + 1), STATES_NEXT_TITLE),
+                            STATES_FOLDER,
+                        ),
                     ),
                     onOpenInVlc = {},
                     onPlayInVlc = playInVlc,
@@ -599,8 +561,6 @@ class TvPlayerProofTest {
                     ),
                     onBack = {},
                     onRetry = {},
-                    onResume = {},
-                    onRestart = {},
                     onPlayerFailure = { _, _ -> },
                     playerFactory = ProofPlayerFactory(),
                     autoplayNextVideo = false,
@@ -1126,7 +1086,9 @@ class TvPlayerProofTest {
                                         PlaybackTarget(item.id, item.name, mediaType, FIXTURE_SECONDS),
                                         repository,
                                         scope,
-                                    )
+                                    ).also { started ->
+                                        scope.launch { started.answerResumePrompts(item.id, PlaybackEvent.Resume) }
+                                    }
                                 },
                                 modifier = Modifier.focusRequester(paneFocus),
                                 focusMemory = focusMemory,
@@ -1192,8 +1154,6 @@ class TvPlayerProofTest {
                             ),
                             onBack = { playing = null },
                             onRetry = { error("Unexpected retry") },
-                            onResume = { error("Unexpected resume") },
-                            onRestart = { error("Unexpected restart") },
                             onPlayerFailure = { failure, _ -> error("Local playback failed: $failure") },
                             playerFactory = factory,
                             subtitleStartupPolicy = subtitleStartupPolicy,
@@ -1323,19 +1283,14 @@ class TvPlayerProofTest {
         const val FIXTURE_SECONDS = 90.0
         const val SAVED_SECONDS = 45.0
         const val NEAR_END_SAVED_SECONDS = 70.0
-        const val NEAR_END_LABEL = "Resume from 1:10?"
         const val AUDIO_TITLE = "Harbor tune.m4a"
         const val POSITION_INTERVAL_MILLIS = 10_000L
-        const val RESUME_TITLE = "Resume from 0:45?"
-        const val RESUME_LABEL = "Resume"
-        const val RESTART_LABEL = "Start over"
         const val RESUME_PREFIX = "Resume from"
         const val AUDIO = "Audio:"
         const val SUBTITLES = "Subtitles:"
         const val SPEED = "Playback speed"
         const val BOARD_TITLE = "TV player proof.mkv"
         const val BOARD_RESUME_SECONDS = 190.0
-        const val BOARD_RESUME_TITLE = "Resume from 3:10?"
         const val BOARD_NEXT_TITLE = "TV player proof 2.mkv"
         const val BOARD_OFFSET_STEPS = 5
         const val BOARD_PLAY_MILLIS = 1_500L

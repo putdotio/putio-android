@@ -132,6 +132,8 @@
     <string name="mobile_playback_loading_audio">Preparing audio</string>
     <string name="mobile_playback_finding_next">Finding next video</string>
     <string name="mobile_playback_next_error_title">Couldn’t find the next video</string>
+    <string name="mobile_playback_up_next_in">Up next in %1$s</string>
+    <string name="mobile_playback_play_now">Play now</string>
     <string name="mobile_playback_conversion_title">Converting to MP4</string>
     <string name="mobile_playback_play_in_vlc">Play in VLC now</string>
     <string name="mobile_playback_conversion_completed">Conversion finished. Check again to play.</string>

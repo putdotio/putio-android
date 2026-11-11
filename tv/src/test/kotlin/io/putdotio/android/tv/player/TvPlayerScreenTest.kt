@@ -59,8 +59,6 @@ class TvPlayerScreenTest {
                 state = failed,
                 onBack = {},
                 onRetry = {},
-                onResume = {},
-                onRestart = {},
                 onPlayerFailure = { _, _ -> },
                 playerFactory = { _, _ -> FakePlayer() },
                 background = true,
@@ -80,8 +78,6 @@ class TvPlayerScreenTest {
                 state = readyState(resumePositionMillis = 42_000L),
                 onBack = {},
                 onRetry = {},
-                onResume = {},
-                onRestart = {},
                 onPlayerFailure = { _, _ -> },
                 playerFactory = { _, _ -> player },
             )
@@ -127,8 +123,6 @@ class TvPlayerScreenTest {
                     state = readyState(resumePositionMillis = 42_000L),
                     onBack = {},
                     onRetry = {},
-                    onResume = {},
-                    onRestart = {},
                     onPlayerFailure = { _, _ -> },
                     playerFactory = { _, _ -> FakePlayer().also { players += it } },
                 )
@@ -161,8 +155,6 @@ class TvPlayerScreenTest {
                 state = state,
                 onBack = {},
                 onRetry = { retries += 1 },
-                onResume = {},
-                onRestart = {},
                 onPlayerFailure = { failure, position -> reported = failure to position },
                 playerFactory = { _, _ -> player },
             )
