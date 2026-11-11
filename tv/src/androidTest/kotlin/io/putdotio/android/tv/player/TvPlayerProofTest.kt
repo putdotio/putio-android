@@ -272,7 +272,7 @@ class TvPlayerProofTest {
         leavePlayback()
         compose.waitUntil(10_000) { compose.runOnIdle { server.writes.size == 2 } }
         val (periodic, exit) = server.writes
-        assertTrue("Periodic write $periodic s", periodic >= SAVED_SECONDS + 14.0)
+        assertTrue("Periodic write $periodic s", periodic >= SAVED_SECONDS + POSITION_INTERVAL_MILLIS / 1_000.0 - 1.0)
         assertTrue("Exit write $exit s after $periodic s", exit >= periodic)
         compose.onNodeWithContentDescription("Play $FIXTURE_TITLE").assertIsFocused()
         pause()

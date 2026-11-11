@@ -117,7 +117,7 @@ public class PlaybackPositionObserver(
                 while (isActive) {
                     delay(POSITION_REPORT_INTERVAL_MILLIS)
                     checkApplicationLooper()
-                    if (player.isPlaying) flush()
+                    if (player.isPlaying && seekSave == null) flush()
                 }
             }
         }
