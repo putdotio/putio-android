@@ -37,3 +37,4 @@ internal fun BroadcastReceiver.holdBroadcast(): BroadcastHold {
     val pending: BroadcastReceiver.PendingResult? = goAsync()
     return BroadcastHold({ pending?.finish() })
 }
+
