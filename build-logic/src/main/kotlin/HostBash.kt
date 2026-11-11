@@ -10,9 +10,10 @@ object HostBash {
         } else {
             System.getenv("PATH").orEmpty().split(File.pathSeparator)
                 .map { File(it, "git.exe") }
+                .filter { it.isFile }
+                .flatMap { git -> generateSequence(git.parentFile) { it.parentFile }.take(3).toList() }
+                .map { File(it, "bin/bash.exe") }
                 .firstOrNull { it.isFile }
-                ?.parentFile?.parentFile?.resolve("bin/bash.exe")
-                ?.takeIf { it.isFile }
                 ?.path
                 ?: error("Git for Windows must be on PATH: its bash runs the scripts")
         }
