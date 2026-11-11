@@ -72,11 +72,8 @@ internal fun TvTrashList(
     val listState = rememberLazyListState()
     val anchorIndex by remember(listState) { derivedStateOf { listState.firstVisibleItemIndex } }
     val restoreIndex = remember(items) { items.indexOfFirst { it.id.value == restoreRowId } }
-    val pagePending = content.nextCursor != null && content.pageFailure == null
     TvAutoPaging(
-        page = content.takeIf {
-            it.nextCursor != null && !it.isBusy && it.pageFailure == null && !focus.dialogShowing.value
-        },
+        page = content.takeIf { it.mayLoadNextPage && !focus.dialogShowing.value },
         onLoadMore = onNextPage,
         nearEnd = { listState.isNearEnd(items.lastIndex) },
     )
@@ -116,7 +113,7 @@ internal fun TvTrashList(
                 modifier = Modifier
                     .focusRequesterIf(index == anchorIndex, rows.anchor)
                     .focusRequesterIf(index == items.lastIndex, rows.last)
-                    .holdAtPendingEnd(pagePending && index == items.lastIndex)
+                    .holdAtPendingEnd(content.pagePending && index == items.lastIndex)
                     .focusRequesterIf(index == restoreIndex, rows.restore)
                     .onFocusChanged { onRowFocusChanged(item, it.isFocused) },
             )
@@ -171,6 +168,12 @@ private suspend fun LazyListState.awaitMountTarget(
     snapshotFlow { composes(targetKey) }.first { it }
     return true
 }
+
+private val TrashContent.Loaded.pagePending: Boolean
+    get() = nextCursor != null && pageFailure == null
+
+private val TrashContent.Loaded.mayLoadNextPage: Boolean
+    get() = pagePending && !isBusy
 
 private val TrashContent.Loaded.showsPaging: Boolean
     get() = nextCursor != null || isLoadingMore || pageFailure != null

@@ -34,6 +34,7 @@ import androidx.compose.ui.platform.testTag
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesItem
+import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesViewportPosition
 import io.putdotio.android.tv.TvAutoPaging
@@ -153,7 +154,7 @@ internal fun TvFilesList(
 
     val lastItemId = content.items.last().id
     val lastRowId = lastItemId.takeIf { content.paging !is FilesPaging.Failed }
-    val pagePending = content.paging is FilesPaging.Available || content.paging is FilesPaging.Loading
+    val pendingEndId = content.paging.pendingEndId(lastItemId, downFromLast)
     TvAutoPaging(
         page = (content.paging as? FilesPaging.Available)?.takeIf { pagingEnabled },
         onLoadMore = { currentOnEvent(FilesBrowserEvent.LoadNextPage) },
@@ -179,7 +180,7 @@ internal fun TvFilesList(
                     showsFocus = rowsShowFocus,
                     modifier = Modifier
                         .downTo(downFromLast.takeIf { item.id == lastRowId })
-                        .holdAtPendingEnd(pagePending && downFromLast == null && item.id == lastItemId)
+                        .holdAtPendingEnd(item.id == pendingEndId)
                         .focusRequesterIf(item.id.value == focusTarget, rowFocus)
                         .focusRequesterIf(holdsLiveFocus, liveRowFocus)
                         .onFocusChanged {
@@ -216,6 +217,9 @@ internal fun TvFilesList(
 
 private fun Modifier.downTo(target: FocusRequester?): Modifier =
     if (target == null) this else focusProperties { down = target }
+
+private fun FilesPaging.pendingEndId(lastId: FilesItemId, downFromLast: FocusRequester?): FilesItemId? =
+    lastId.takeIf { downFromLast == null && (this is FilesPaging.Available || this is FilesPaging.Loading) }
 
 private fun FilesPaging.listEntryFocus(
     pagingHeld: Boolean,

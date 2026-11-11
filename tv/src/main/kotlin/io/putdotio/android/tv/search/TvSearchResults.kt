@@ -161,11 +161,9 @@ internal fun TvSearchResultList(
         val requesters = TvSearchRowRequesters(
             { anchorId },
             anchorRow,
-            items.last().id.value,
-            lastRow,
-            restoreRowId,
-            restoreRow,
-            pendingEnd = paging is SearchPaging.Available || paging is SearchPaging.Loading,
+            last = TvSearchRowDetail(items.last().id.value, lastRow),
+            restore = TvSearchRowDetail(restoreRowId, restoreRow),
+            pendingEnd = paging.isPending,
         )
         val row: @Composable (FilesItem) -> Unit = { item -> TvSearchResultRow(item, rows, requesters) }
         resultGroup(R.string.tv_search_group_folders, "folders", groups.folders, first = true, row = row)
@@ -191,12 +189,13 @@ internal fun TvSearchResultList(
 private class TvSearchRowRequesters(
     val anchorId: () -> Long?,
     val anchor: FocusRequester,
-    val lastId: Long,
-    val last: FocusRequester,
-    val restoreId: Long?,
-    val restore: FocusRequester,
+    val last: TvSearchRowDetail,
+    val restore: TvSearchRowDetail,
     val pendingEnd: Boolean,
 )
+
+private val SearchPaging.isPending: Boolean
+    get() = this is SearchPaging.Available || this is SearchPaging.Loading
 
 @Composable
 private fun TvSearchResultRow(item: FilesItem, rows: TvSearchRows, requesters: TvSearchRowRequesters) {
@@ -210,9 +209,9 @@ private fun TvSearchResultRow(item: FilesItem, rows: TvSearchRows, requesters: T
         modifier = Modifier
             .onFocusChanged { if (it.isFocused) rows.onFocused(item) }
             .focusRequesterIf(id == requesters.anchorId(), requesters.anchor)
-            .focusRequesterIf(id == requesters.lastId, requesters.last)
-            .holdAtPendingEnd(requesters.pendingEnd && id == requesters.lastId)
-            .focusRequesterIf(id == requesters.restoreId, requesters.restore)
+            .focusRequesterIf(id == requesters.last.id, requesters.last.row)
+            .holdAtPendingEnd(requesters.pendingEnd && id == requesters.last.id)
+            .focusRequesterIf(id == requesters.restore.id, requesters.restore.row)
             .focusRequesterIf(id == rows.detail.id, rows.detail.row),
     )
 }
