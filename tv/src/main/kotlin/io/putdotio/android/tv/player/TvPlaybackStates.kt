@@ -256,7 +256,6 @@ private fun PlaybackFailure.messageResource(): Int =
         is PlaybackFailure.MediaUnsupported -> R.string.tv_player_cant_play_message
         is PlaybackFailure.Putio -> when {
             failure is PutioFailure.AccessDenied -> R.string.tv_player_error_forbidden
-            failure.isUnknown -> R.string.tv_error_unexpected
             else -> failure.tvCopy()?.line ?: R.string.tv_player_error_rejected
         }
     }

@@ -7,7 +7,9 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
+import java.io.IOException
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class TvHttpClientTest {
@@ -15,7 +17,7 @@ class TvHttpClientTest {
     private val answers = ArrayDeque<Pair<Int, String?>>()
     private var calls = 0
 
-    private val client: OkHttpClient = tvHttpClient { pauses += it }
+    private val client: OkHttpClient = tvHttpClient { millis, _ -> pauses += millis }
         .newBuilder()
         .addInterceptor(
             Interceptor { chain ->
@@ -70,6 +72,21 @@ class TvHttpClientTest {
         assertEquals(429, code)
         assertEquals(1, calls)
         assertEquals(emptyList<Long>(), pauses)
+    }
+
+    @Test
+    fun aCallCanceledDuringTheWaitIsNotRetried() {
+        answers += 429 to "1"
+        answers += 200 to null
+        var call: okhttp3.Call? = null
+        val canceling = tvHttpClient { _, _ -> call?.cancel() }.newBuilder()
+            .addInterceptor(client.interceptors.last())
+            .build()
+
+        call = canceling.newCall(Request.Builder().url(URL).build())
+
+        assertThrows(IOException::class.java) { call.execute() }
+        assertEquals(1, calls)
     }
 
     private companion object {
