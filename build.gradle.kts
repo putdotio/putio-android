@@ -114,6 +114,12 @@ val testTalkBackInput =tasks.register<Exec>("testTalkBackInput") {
     commandLine("python3", "-B", "scripts/test_talkback_input.py")
 }
 
+val testCiLanes = tasks.register<Exec>("testCiLanes") {
+    description = "Test which verify lanes each kind of change selects"
+    cacheableCheck("build.gradle.kts")
+    commandLine("python3", "-B", "scripts/test_ci_lanes.py")
+}
+
 // package.json pins the Node tools so Renovate can bump them; they need Node on PATH.
 fun pinnedNodeTool(name: String) =
     providers.fileContents(layout.projectDirectory.file("package.json")).asText.map { text ->
@@ -155,29 +161,65 @@ val markdownCheck = tasks.register<Exec>("markdownCheck") {
     commandLine(if (windows) "npx.cmd" else "npx", "--yes", "oxfmt@${pinnedNodeTool("oxfmt").get()}", "--check", "**/*.md")
 }
 
+val appProjects = setOf(":mobile", ":tv", ":baselineprofile:tv")
+
+fun verifyLane(name: String, summary: String, vararg checks: Any) = tasks.register(name) {
+    group = "verification"
+    description = summary
+    dependsOn(*checks)
+}
+
+val verifyDocs = verifyLane("verifyDocs", "Check Markdown and the DESIGN.md contract", markdownCheck)
+
+val verifyScripts = verifyLane(
+    "verifyScripts",
+    "Run the harness, design asset and icon script checks",
+    checkDesignAssets,
+    checkIcons,
+    testBrandFontPipeline,
+    testCiLanes,
+    testDesignAssetPipeline,
+    testEmulatorHarness,
+    testEvidence,
+    testIconPipeline,
+    testSignInHarness,
+    testTalkBackInput,
+)
+
+val verifyLibraries = verifyLane(
+    "verifyLibraries",
+    "Check the shared libraries and the build logic",
+    subprojects.filter { it.buildFile.isFile && it.path !in appProjects }.map { "${it.path}:check" },
+    ":domain:auth:assembleDebugAndroidTest",
+    ":domain:transfers:assembleDebugAndroidTest",
+    gradle.includedBuild("build-logic").task(":test"),
+)
+
+val verifyMobile = verifyLane(
+    "verifyMobile",
+    "Check the mobile app and assemble its instrumented tests",
+    ":mobile:check",
+    ":mobile:assembleProductionDebugAndroidTest",
+)
+
+val verifyTv = verifyLane(
+    "verifyTv",
+    "Check the TV app and assemble its instrumented tests",
+    ":tv:check",
+    ":baselineprofile:tv:check",
+    ":tv:assembleProductionDebugAndroidTest",
+)
+
+val verifyRelease = verifyLane(
+    "verifyRelease",
+    "Assemble the minified release builds",
+    ":mobile:assembleProductionRelease",
+    ":tv:assembleProductionRelease",
+    ":tv:assembleNightlyRelease",
+)
+
 tasks.register("verify") {
     group = "verification"
     description = "Run the canonical local checks"
-    dependsOn(
-        // Every app and library runs its own lint, detekt and unit tests.
-        subprojects.filter { it.buildFile.isFile }.map { "${it.path}:check" },
-        ":mobile:assembleProductionRelease",
-        ":tv:assembleProductionRelease",
-        ":tv:assembleNightlyRelease",
-        ":mobile:assembleProductionDebugAndroidTest",
-        ":tv:assembleProductionDebugAndroidTest",
-        ":domain:auth:assembleDebugAndroidTest",
-        ":domain:transfers:assembleDebugAndroidTest",
-        checkDesignAssets,
-        checkIcons,
-        markdownCheck,
-        testBrandFontPipeline,
-        testDesignAssetPipeline,
-        testEmulatorHarness,
-        testEvidence,
-        testIconPipeline,
-        testSignInHarness,
-        testTalkBackInput,
-        gradle.includedBuild("build-logic").task(":test"),
-    )
+    dependsOn(verifyDocs, verifyScripts, verifyLibraries, verifyMobile, verifyTv, verifyRelease)
 }
