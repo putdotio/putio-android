@@ -118,14 +118,14 @@ class MobilePlaybackOptionsTest {
         compose.onNode(hasText("2×") and isSelectable()).assertIsNotSelected().performClick()
         compose.runOnIdle { assertEquals(2f, player.playbackParameters.speed) }
         compose.onNode(hasText("2×") and isSelectable()).assertIsSelected()
-        listOf(1.5f, 1.25f, 1f, 0.75f, 0.5f).forEach { expected ->
+        listOf(1.5f, 1.25f, 1f, 0.75f, 0.5f, 0.25f).forEach { expected ->
             compose.onNodeWithContentDescription("Slower", substring = true).performClick()
             compose.runOnIdle { assertEquals(expected, player.playbackParameters.speed) }
         }
         compose.onNodeWithContentDescription("Slower", substring = true).assertIsNotEnabled()
         compose.onNodeWithContentDescription("Playback speed", substring = false)
-            .performSemanticsAction(SemanticsActions.SetProgress) { assertTrue(it(7f)) }
-        compose.runOnIdle { assertEquals(3f, player.playbackParameters.speed) }
+            .performSemanticsAction(SemanticsActions.SetProgress) { assertTrue(it(10f)) }
+        compose.runOnIdle { assertEquals(4f, player.playbackParameters.speed) }
         compose.onNodeWithContentDescription("Faster", substring = true).assertIsNotEnabled()
     }
 
@@ -167,9 +167,9 @@ class MobilePlaybackOptionsTest {
         compose.onNodeWithContentDescription("Faster, 1.25×").performClick()
         compose.runOnIdle { assertEquals(1.25f, player.playbackParameters.speed) }
         compose.onNodeWithContentDescription("Playback speed", substring = false)
-            .performSemanticsAction(SemanticsActions.SetProgress) { assertTrue(it(7f)) }
-        compose.runOnIdle { assertEquals(3f, player.playbackParameters.speed) }
-        compose.onNodeWithContentDescription("Playback speed 3×").assertExists()
+            .performSemanticsAction(SemanticsActions.SetProgress) { assertTrue(it(10f)) }
+        compose.runOnIdle { assertEquals(4f, player.playbackParameters.speed) }
+        compose.onNodeWithContentDescription("Playback speed 4×").assertExists()
     }
 
     @Test
@@ -494,6 +494,14 @@ class MobilePlaybackOptionsTest {
             assertEquals(listOf(1), restored.overrides.getValue(player.audio).trackIndices)
             assertEquals(player.subtitleOverride, restored.overrides[player.text])
             assertEquals(originalParameters, restored)
+        }
+    }
+
+    @Test
+    fun savedSpeedLoadsAcrossTheOldAndTheWiderRange() {
+        listOf(0.25f, 0.5f, 0.75f, 2.5f, 3f, 4f).forEach { saved ->
+            val preferences = Bundle().apply { putFloat("playbackSpeed", saved) }.toRetainedPlayerPreferences()
+            assertEquals(saved, preferences.playbackSpeed)
         }
     }
 
