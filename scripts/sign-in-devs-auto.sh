@@ -113,12 +113,12 @@ adb_ shell pm path "${package}" 2>/dev/null | grep -q '^package:' ||
 # Text and content descriptions of the app's own nodes, one per line, so another
 # app's text can never be approved. The dump gets at most $1 seconds.
 screen_texts() {
-  python3 -I - "${ADB}" "${serial}" "${package}" "$1" <<'PY'
+  python3 -I - "${BASH}" "${ADB}" "${serial}" "${package}" "$1" <<'PY'
 import re, subprocess, sys
 
-adb, serial, package, budget = sys.argv[1], sys.argv[2], sys.argv[3], max(float(sys.argv[4]), 1)
+bash, adb, serial, package, budget = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], max(float(sys.argv[5]), 1)
 try:
-    xml = subprocess.run([adb, "-s", serial, "exec-out", "uiautomator", "dump", "/dev/tty"],
+    xml = subprocess.run([bash, "-c", 'exec "$@"', "adb", adb, "-s", serial, "exec-out", "uiautomator", "dump", "/dev/tty"],
                          capture_output=True, text=True, timeout=budget).stdout
 except subprocess.TimeoutExpired:
     sys.exit(0)
