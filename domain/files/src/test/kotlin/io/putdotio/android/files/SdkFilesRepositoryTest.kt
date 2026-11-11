@@ -410,12 +410,10 @@ class SdkFilesRepositoryTest {
             startFrom = 90.0, videoMetadata = PutioVideoMetadata(duration = 360.0),
         ).toFilesItem().playback
         assertEquals(FilesPlaybackProgress(90.0, 360.0), watched)
-        assertEquals(0.25f, checkNotNull(watched).fraction)
-        assertTrue(watched.isWatched)
+        assertTrue(checkNotNull(watched).isWatched)
 
         val unknownDuration = sdkFile(2L, "b.mp3", PutioFileType.AUDIO).copy(startFrom = 5.0).toFilesItem().playback
         assertEquals(FilesPlaybackProgress(5.0, null), unknownDuration)
-        assertNull(checkNotNull(unknownDuration).fraction)
 
         val unwatched = sdkFile(3L, "c.mkv", PutioFileType.VIDEO).copy(startFrom = 0.0).toFilesItem().playback
         assertEquals(false, checkNotNull(unwatched).isWatched)
@@ -433,10 +431,6 @@ class SdkFilesRepositoryTest {
             assertNull("duration=$invalidDuration", malformed)
         }
         assertNull(sdkFile(9L, "i.mkv", PutioFileType.VIDEO).copy(startFrom = Double.NaN).toFilesItem().playback)
-        val clamped = sdkFile(8L, "h.mkv", PutioFileType.VIDEO).copy(
-            startFrom = 500.0, videoMetadata = PutioVideoMetadata(duration = 100.0),
-        ).toFilesItem().playback
-        assertEquals(1f, checkNotNull(clamped).fraction)
     }
 
     private fun sdkFile(

@@ -62,10 +62,6 @@ public data class FilesPlaybackProgress(
 
     val isWatched: Boolean
         get() = startFromSeconds > 0.0
-
-    /** Fraction in [0, 1] when duration is known; null otherwise. */
-    val fraction: Float?
-        get() = durationSeconds?.let { (startFromSeconds / it).coerceIn(0.0, 1.0).toFloat() }
 }
 
 public data class FilesPage(

@@ -400,9 +400,9 @@ class MobileFilesScreenTest {
         val items = listOf(partly, finished, unknown, fresh, plain)
         val state = browserState(FilesContent.Ready(items, FilesPaging.Complete))
         compose.setContent { PutioTheme { MobileFilesScreen(state, onEvent = {}, onPlayMedia = {}) } }
-        // Resumable reads as progress, never as the finished eye.
-        compose.onNode(hasText("partly.mkv") and hasText("128 B") and hasContentDescription("25% watched"))
-            .assertIsDisplayed()
+        // Resumable shows no mark of its own, and never the finished eye.
+        compose.onNode(hasText("partly.mkv") and hasText("128 B")).assertIsDisplayed()
+        compose.onNode(hasText("partly.mkv") and hasContentDescription("25% watched")).assertDoesNotExist()
         compose.onNode(hasText("partly.mkv") and hasContentDescription("Watched")).assertDoesNotExist()
         compose.onNode(hasText("finished.mkv") and hasContentDescription("Watched")).assertIsDisplayed()
         // Played with no known length can't resume to a place, so it reads as finished.

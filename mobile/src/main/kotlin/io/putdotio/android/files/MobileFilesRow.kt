@@ -1,19 +1,14 @@
 package io.putdotio.android.files
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
@@ -25,7 +20,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -34,7 +28,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
@@ -51,11 +44,9 @@ import io.putdotio.android.design.putioMono
 import io.putdotio.android.downloads.DownloadStatus
 import io.putdotio.android.playbackContainer
 import io.putdotio.sdk.files.PutioFolderType
-import kotlin.math.roundToInt
 import io.putdotio.android.MobileIconButton
 
 internal const val MOBILE_FILES_WATCHED_TAG = "mobile-files-watched"
-internal const val MOBILE_FILES_IN_PROGRESS_TAG = "mobile-files-in-progress"
 internal const val MOBILE_FILES_DOWNLOAD_TAG = "mobile-files-download"
 
 /**
@@ -191,9 +182,8 @@ internal sealed interface MobileFilesRowPlace {
 
 /**
  * Size with mono figures, then the date in a folder or the containing folder's name in search, then
- * a short bar while a video or song is part-way through or a grey eye once it is finished, and a
- * yellow mark when on this device. A folder dates itself by its last change, "3 days ago"; the
- * shared folders have no size of their own.
+ * a grey eye once a video or song is finished, and a yellow mark when on this device. A folder dates
+ * itself by its last change, "3 days ago"; the shared folders have no size of their own.
  */
 @Composable
 private fun MobileFilesMeta(item: FilesItem, onDevice: Boolean, place: MobileFilesRowPlace) {
@@ -205,7 +195,6 @@ private fun MobileFilesMeta(item: FilesItem, onDevice: Boolean, place: MobileFil
         is MobileFilesRowPlace.SearchResult -> place.folderName
     }
     val finished = item.watchedChoice() == false
-    val partly = item.playback?.takeIf { it.isWatched && !finished }?.fraction
     val style = MaterialTheme.typography.bodySmall
     val color = MaterialTheme.colorScheme.onSurfaceVariant
     val parts = buildList<@Composable RowScope.() -> Unit> {
@@ -225,7 +214,6 @@ private fun MobileFilesMeta(item: FilesItem, onDevice: Boolean, place: MobileFil
                 )
             }
         }
-        partly?.let { fraction -> add { MobileWatchProgress(fraction, color) } }
         if (finished) {
             add {
                 Icon(
@@ -255,21 +243,6 @@ private fun MobileFilesMeta(item: FilesItem, onDevice: Boolean, place: MobileFil
             if (index > 0) Text("·", style = style, color = color, modifier = Modifier.clearAndSetSemantics {})
             part()
         }
-    }
-}
-
-@Composable
-private fun MobileWatchProgress(fraction: Float, color: Color) {
-    val description = stringResource(R.string.mobile_files_in_progress, (fraction * PERCENT).roundToInt())
-    Box(
-        modifier = Modifier
-            .size(width = FILES_PROGRESS_WIDTH, height = FILES_PROGRESS_HEIGHT)
-            .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-            .semantics { contentDescription = description }
-            .testTag(MOBILE_FILES_IN_PROGRESS_TAG),
-    ) {
-        Box(Modifier.fillMaxHeight().fillMaxWidth(fraction).background(color))
     }
 }
 
@@ -307,7 +280,4 @@ private val FILES_ICON_SIZE = 26.dp
 private val FILES_CHEVRON_SIZE = 20.dp
 private val FILES_META_GAP = 6.dp
 private val FILES_META_ICON_SIZE = 14.dp
-private val FILES_PROGRESS_WIDTH = 20.dp
-private val FILES_PROGRESS_HEIGHT = 4.dp
-private const val PERCENT = 100
 private val FILES_FOCUS_OUTLINE = 2.dp
