@@ -143,8 +143,8 @@ class TvAccountProofTest {
         mount()
         openTrash()
         press(KeyEvent.KEYCODE_DPAD_UP)
-        compose.waitUntil(5_000) { isFocused(RESTORE_ALL) }
-        press(KeyEvent.KEYCODE_DPAD_RIGHT)
+        compose.waitUntil(5_000) { isFocused(REFRESH) }
+        press(KeyEvent.KEYCODE_DPAD_UP)
         compose.waitUntil(5_000) { isFocused(EMPTY_TRASH) }
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(5_000) { compose.onAllNodesWithText(EMPTY_TRASH_TITLE).fetchSemanticsNodes().isNotEmpty() }
@@ -265,7 +265,7 @@ class TvAccountProofTest {
         const val TOTAL_BYTES = 11_000_000_000_000L
         const val TRASH_BYTES = 3_700_000L
         const val TRASHED_VIDEO = "Night.of.the.Living.Dead.1968.mkv"
-        const val RESTORE_ALL = "Restore all"
+        const val REFRESH = "Refresh"
         const val EMPTY_TRASH = "Empty trash"
         const val EMPTY_TRASH_TITLE = "Empty trash?"
         const val TRY_AGAIN = "Try again"

@@ -486,6 +486,12 @@ class TvShellBackTest {
         compose.onNode(hasText("trashed-3.txt") and hasClickAction()).assertIsFocused().performKeyInput {
             repeat(3) { pressKey(Key.DirectionUp) }
         }
+        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionUp)
+        }
+        compose.onNode(hasText("Empty trash") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionLeft)
+        }
         compose.onNode(hasText("Restore all") and hasClickAction()).assertIsFocused().performKeyInput {
             pressKey(Key.DirectionUp)
         }

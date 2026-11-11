@@ -126,6 +126,12 @@ class TvTrashScreenTest {
         show { state }
 
         compose.onNode(row).performKeyInput { pressKey(Key.DirectionUp) }
+        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionUp)
+        }
+        compose.onNode(hasText("Empty trash") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionLeft)
+        }
         compose.onNode(hasText("Restore all") and hasClickAction()).assertIsFocused().performKeyInput {
             pressCenter()
             pressKey(Key.DirectionRight)
@@ -141,6 +147,36 @@ class TvTrashScreenTest {
         compose.runOnIdle { state = state.copy(actionConfirmation = null, actionConfirmationId = null) }
         // The button that opened the confirmation takes focus back, not the list.
         compose.onNode(hasText("Empty trash") and hasClickAction()).assertIsFocused()
+    }
+
+    @Test
+    fun refreshInTheListHeaderReloadsTrashAndIsIgnoredWhileItRuns() {
+        var state by mutableStateOf(TrashState(content = loaded))
+        show { state }
+
+        compose.onNode(row).assertIsFocused().performKeyInput { pressKey(Key.DirectionUp) }
+        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
+        assertEquals(listOf<TrashEvent>(TrashEvent.Refresh), events)
+
+        compose.runOnIdle { state = state.copy(content = loaded.copy(isRefreshing = true)) }
+        compose.onNode(row).assertIsDisplayed()
+        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
+        assertEquals(listOf<TrashEvent>(TrashEvent.Refresh), events)
+    }
+
+    @Test
+    fun aRefreshKeepsTheFocusedRowOrFallsBackToTheFirstRow() {
+        var state by mutableStateOf(TrashState(content = loaded))
+        show { state }
+        val oldDownloads = hasText("Old downloads") and hasClickAction()
+
+        compose.onNode(row).performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNode(oldDownloads).assertIsFocused()
+        compose.runOnIdle { state = TrashState(content = loaded.copy(items = listOf(folder, item))) }
+        compose.onNode(oldDownloads).assertIsFocused()
+
+        compose.runOnIdle { state = TrashState(content = loaded.copy(items = listOf(item), total = 1)) }
+        compose.onNode(row).assertIsFocused()
     }
 
     @Test

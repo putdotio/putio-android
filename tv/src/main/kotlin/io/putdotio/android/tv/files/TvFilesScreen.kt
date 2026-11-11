@@ -879,6 +879,12 @@ private fun TvFilesSectionLine(
                     modifier = Modifier.focusRequester(sortFocus),
                     showFocus = !sorting,
                 )
+                TvSectionPill(
+                    icon = R.drawable.ic_ph_arrows_clockwise,
+                    label = stringResource(R.string.tv_files_refresh),
+                    onClick = { if (idle) onEvent(FilesBrowserEvent.Refresh) },
+                    showFocus = !sorting,
+                )
             }
         } else {
             null

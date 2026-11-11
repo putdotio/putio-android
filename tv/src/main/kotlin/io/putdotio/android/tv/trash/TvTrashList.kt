@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -83,6 +84,8 @@ internal fun TvTrashList(
         if (!mayPlaceFocus(focus.paneHasFocus, focus.dialogShowing)) return@LaunchedEffect
         if (restoreIndex >= 0) rows.restore.requestFocus() else focus.list.requestFocus()
     }
+    val heldRowId = remember { mutableStateOf<Long?>(null) }
+    TvTrashHeldRowLeaves(items, heldRowId, listState, focus, rows.first)
     LaunchedEffect(handOffToLastRow.value) {
         if (!handOffToLastRow.value) return@LaunchedEffect
         val lastId = items.lastOrNull()?.id?.value ?: return@LaunchedEffect
@@ -112,10 +115,14 @@ internal fun TvTrashList(
                 showsFocus = !focus.dialogShowing.value,
                 modifier = Modifier
                     .focusRequesterIf(index == anchorIndex, rows.anchor)
+                    .focusRequesterIf(index == 0, rows.first)
                     .focusRequesterIf(index == items.lastIndex, rows.last)
                     .holdAtPendingEnd(content.pagePending && index == items.lastIndex)
                     .focusRequesterIf(index == restoreIndex, rows.restore)
-                    .onFocusChanged { onRowFocusChanged(item, it.isFocused) },
+                    .onFocusChanged {
+                        if (it.isFocused) heldRowId.value = item.id.value
+                        onRowFocusChanged(item, it.isFocused)
+                    },
             )
         }
         if (pagingShown) {
@@ -132,11 +139,33 @@ internal fun TvTrashList(
     }
 }
 
+@Composable
+private fun TvTrashHeldRowLeaves(
+    items: List<TrashItem>,
+    heldRowId: MutableState<Long?>,
+    listState: LazyListState,
+    focus: TvTrashListFocus,
+    firstRow: FocusRequester,
+) {
+    LaunchedEffect(items) {
+        val held = heldRowId.value ?: return@LaunchedEffect
+        val gone = items.isNotEmpty() && items.none { it.id.value == held }
+        if (!gone || !focus.owner.owns(focus.list)) return@LaunchedEffect
+        heldRowId.value = null
+        listState.scrollToItem(0)
+        withFrameNanos {}
+        if (mayPlaceFocus(focus.paneHasFocus, focus.dialogShowing) && focus.owner.owns(focus.list)) {
+            firstRow.requestFocus()
+        }
+    }
+}
+
 internal fun mayPlaceFocus(paneHasFocus: State<Boolean>, dialogShowing: State<Boolean>): Boolean =
     paneHasFocus.value && !dialogShowing.value
 
 private class TrashRowFocus {
     val anchor = FocusRequester()
+    val first = FocusRequester()
     val last = FocusRequester()
     val restore = FocusRequester()
 }
