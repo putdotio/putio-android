@@ -84,6 +84,7 @@ public class FilesBrowserController(
             FilesBrowserEvent.InvalidateSortOrder,
             is FilesBrowserEvent.SelectSort,
             is FilesBrowserEvent.ViewportChanged,
+            is FilesBrowserEvent.MissingFolderAnnounced,
             FilesBrowserEvent.NavigateBack,
             FilesBrowserEvent.PopToRoot,
             FilesBrowserEvent.Refresh,

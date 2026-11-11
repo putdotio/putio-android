@@ -879,6 +879,42 @@ class MobileFilesListTest {
         }
         compose.onNodeWithText("Couldn’t change sorting.").assertIsDisplayed()
     }
+
+    @Test
+    fun aMissingFolderOverALoadingRootSaysFileNotFoundOnceTheRootLoads() {
+        val start = FilesBrowserReducer.start()
+        val rootRequest = checkNotNull(start.effect).requestId
+        val opened = FilesBrowserReducer.reduce(start.state, FilesBrowserEvent.OpenExternalItem(
+            filesItem(40L, "Gone", PutioFileType.FOLDER), FilesOpenOrigin.SEARCH,
+        ))
+        var state by mutableStateOf(opened.state)
+        compose.setContent {
+            PutioTheme {
+                MobileFilesScreen(
+                    state = state,
+                    onEvent = { state = FilesBrowserReducer.reduce(state, it).state },
+                    onPlayMedia = {},
+                )
+            }
+        }
+
+        compose.runOnIdle {
+            state = FilesBrowserReducer.reduce(state, FilesBrowserEvent.LoadFailed(
+                checkNotNull(opened.effect).requestId,
+                putioRefusal(404, putioErrorBody(404, "File not found")).toPutioFailure(),
+            )).state
+        }
+        compose.waitForIdle()
+        compose.runOnIdle {
+            state = FilesBrowserReducer.reduce(state, FilesBrowserEvent.LoadSucceeded(
+                rootRequest,
+                FilesPage(listOf(filesItem(7L, "Shows", PutioFileType.FOLDER)), null),
+            )).state
+        }
+
+        compose.onNodeWithText("Shows").assertIsDisplayed()
+        compose.onNodeWithText("File not found").assertIsDisplayed()
+    }
 }
 
 private fun ComposeContentTestRule.setFilesContent(

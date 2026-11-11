@@ -358,6 +358,7 @@ internal fun TvFilesScreen(
         TvFilesMoveAnnouncement(current, snackbar, edits)
         TvSnackbarHeldWhile(snackbar, notice, renamingItem, movingItem, actionsItem, viewer.open, unsupported)
         TvBriefShown(brief, snackbar)
+        TvFilesMissingFolderAnnouncement(state, snackbar, onEvent)
     }
 
     TvFileViewerLayer(viewer, (content as? FilesContent.Ready)?.items.orEmpty(), viewerUrl, siblings = true)
@@ -1069,6 +1070,22 @@ private fun TvFilesTrashedAnnouncement(
         currentOnEvent(FilesBrowserEvent.DeleteOutcomeAnnounced(outcome))
     }
     TvTrashUndoOffered(trashUndo, snackbar)
+}
+
+@Composable
+private fun TvFilesMissingFolderAnnouncement(
+    state: FilesBrowserState,
+    snackbar: TvSnackbarState,
+    onEvent: (FilesBrowserEvent) -> Boolean,
+) {
+    val missing = state.missingFolder
+    val text = stringResource(R.string.tv_error_not_found_title)
+    val currentOnEvent by rememberUpdatedState(onEvent)
+    LaunchedEffect(missing) {
+        val notice = missing ?: return@LaunchedEffect
+        snackbar.show(TvSnackbarMessage(text = text))
+        currentOnEvent(FilesBrowserEvent.MissingFolderAnnounced(notice))
+    }
 }
 
 @Composable
