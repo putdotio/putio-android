@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -65,7 +66,7 @@ internal fun TvEmptyState(
     val lead = actions.firstOrNull()
     var focusedLabel by remember { mutableStateOf<String?>(null) }
     val focusHeld = focusedLabel != null && actions.any { it.label == focusedLabel }
-    LaunchedEffect(action != null, secondaryAction != null, tertiaryAction != null, lead?.enabled, claimFocus) {
+    LaunchedEffect(lead?.label, secondaryAction != null, tertiaryAction != null, lead?.enabled, claimFocus) {
         if (lead == null || !lead.enabled || !claimFocus || focusHeld) return@LaunchedEffect
         withFrameNanos {}
         actionFocus.requestFocus()
@@ -120,17 +121,19 @@ internal fun TvEmptyState(
                 horizontalArrangement = Arrangement.spacedBy(ACTIONS_SPACING),
             ) {
                 actions.forEachIndexed { index, it ->
-                    val focus = if (index == 0) Modifier.focusRequester(actionFocus) else Modifier
-                    TvEmptyStateButton(
-                        it,
-                        focus.onFocusChanged { state ->
-                            if (state.isFocused) {
-                                focusedLabel = it.label
-                            } else if (focusedLabel == it.label) {
-                                focusedLabel = null
-                            }
-                        },
-                    )
+                    key(it.label) {
+                        val focus = if (index == 0) Modifier.focusRequester(actionFocus) else Modifier
+                        TvEmptyStateButton(
+                            it,
+                            focus.onFocusChanged { state ->
+                                if (state.isFocused) {
+                                    focusedLabel = it.label
+                                } else if (focusedLabel == it.label) {
+                                    focusedLabel = null
+                                }
+                            },
+                        )
+                    }
                 }
             }
         }

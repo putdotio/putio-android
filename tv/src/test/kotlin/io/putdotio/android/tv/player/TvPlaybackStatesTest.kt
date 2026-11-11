@@ -54,8 +54,8 @@ class TvPlaybackStatesTest {
     private var refreshes = 0
     private var starts = 0
     private var retries = 0
-    private var backs = 0
     private var vlcOpens = 0
+    private var backs = 0
     private val lifecycleOwner = object : LifecycleOwner {
         val registry = LifecycleRegistry(this).apply { currentState = Lifecycle.State.RESUMED }
         override val lifecycle: Lifecycle get() = registry
@@ -150,6 +150,7 @@ class TvPlaybackStatesTest {
 
         change(PlaybackContent.Conversion(PlaybackConversionState.Queued))
         compose.onNodeWithText(RUNNING_MESSAGE).assertIsDisplayed()
+        compose.onNodeWithText("Cancel").assertIsFocused()
         compose.onNodeWithTag(TV_CONVERSION_PROGRESS_TAG).assertIsDisplayed()
     }
 
