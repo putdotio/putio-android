@@ -1,5 +1,6 @@
 package io.putdotio.android.tv.search
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -168,10 +169,16 @@ internal fun TvSearchScreen(
     val openSettings = historyEnabled?.let { { from: FocusRequester -> settingsFrom = from } }
     val overlayOpen = rememberUpdatedState(settingsFrom != null || dialogNotice != null)
     owner.RefocusAfterLeave(blocked = overlayOpen)
+    var focusInPane by remember { mutableStateOf(false) }
+    var focusInField by remember { mutableStateOf(false) }
+    BackHandler(enabled = focusInPane && !focusInField) { owner.focusHome() }
     Box(
         modifier = modifier
             .fillMaxSize()
-            .onFocusChanged { if (it.hasFocus) paneHasFocus.value = true }
+            .onFocusChanged {
+                if (it.hasFocus) paneHasFocus.value = true
+                focusInPane = it.hasFocus
+            }
             .focusProperties {
                 enter = { entryTarget.value }
                 exit = {
@@ -195,7 +202,8 @@ internal fun TvSearchScreen(
             focus = fieldFocus,
             modifier = Modifier
                 .padding(top = PANE_TOP)
-                .paneSection(owner, fieldFocus),
+                .paneSection(owner, fieldFocus)
+                .onFocusChanged { focusInField = it.hasFocus },
         )
         TvSearchFilters(
             selected = state.filter,
@@ -313,7 +321,7 @@ private fun ColumnScope.TvSearchContent(
                 TvEmptyState(
                     glyph = PutioEmptyGlyph.NoResults,
                     headline = stringResource(R.string.tv_search_no_results_title),
-                    message = stringResource(R.string.tv_search_no_results_message, content.term.value),
+                    message = stringResource(R.string.tv_search_no_results_message, content.term.shown),
                     modifier = Modifier.padding(top = EMPTY_TOP, bottom = EMPTY_BOTTOM),
                     glyphModifier = Modifier.offset(y = -SHRUG_LIFT),
                 )

@@ -78,6 +78,7 @@ import io.putdotio.android.playback.playbackSurfaceType
 import io.putdotio.android.playback.playerSubtitles
 import io.putdotio.android.playback.preparePlayback
 import io.putdotio.android.playback.rememberSubtitleAppearanceStore
+import io.putdotio.android.playback.rememberSubtitleLanguageStore
 import io.putdotio.android.playback.restoreSubtitleSelection
 import io.putdotio.android.playback.sameSubtitleChoice
 import io.putdotio.android.playback.setSubtitleLead
@@ -238,6 +239,7 @@ private fun TvReadyPlayer(
         stateSaver = TvPlaybackOptionsSaver,
         key = "tv-player-options-${target.fileId.value}",
     ) { mutableStateOf(TvPlaybackOptions()) }
+    val subtitleMemory = rememberSubtitleLanguageStore()
     val player = remember(source, playerFactory) { playerFactory.create(context, target.mediaType) }
     val defaultTrackSelection = remember(player) { player.trackSelectionParameters }
     val prepared = remember(player) {
@@ -346,6 +348,7 @@ private fun TvReadyPlayer(
                 player.keepChoices(
                     value,
                     options,
+                    subtitleMemory.remembered,
                     currentSubtitlePolicy,
                     defaultTrackSelection,
                     context.captionLanguages(),
@@ -405,6 +408,7 @@ private fun TvReadyPlayer(
                 defaults = defaultTrackSelection,
                 retained = options.subtitles,
                 startupPolicy = subtitleStartupPolicy,
+                remembered = subtitleMemory.remembered,
             ).withAudioSelection(options.audio, emptyList())
         player.setPlaybackSpeed(options.speed)
         player.setMediaItem(
@@ -438,6 +442,7 @@ private fun TvReadyPlayer(
         player.followSubtitlePolicy(
             subtitleStartupPolicy,
             options.subtitles,
+            subtitleMemory.remembered,
             defaultTrackSelection,
             context.captionLanguages(),
         )
@@ -564,6 +569,7 @@ private fun TvReadyPlayer(
             },
             onSubtitles = { selection ->
                 options = options.copy(subtitles = selection)
+                subtitleMemory.update(selection)
                 player.trackSelectionParameters = player.trackSelectionParameters.withSubtitleSelection(
                     selection = selection,
                     tracks = choices.subtitles,

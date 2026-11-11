@@ -18,7 +18,16 @@ public value class SearchTerm(
             "A search term must be trimmed and nonblank"
         }
     }
+
+    public val shown: String
+        get() {
+            if (value.codePointCount(0, value.length) <= SHOWN_TERM_LENGTH) return value
+            val end = value.offsetByCodePoints(0, SHOWN_TERM_LENGTH)
+            return value.substring(0, end).trimEnd() + "…"
+        }
 }
+
+private const val SHOWN_TERM_LENGTH = 50
 
 /**
  * A folder a search stays inside. put.io takes the scope in the query itself, as `in:<folderId>`,
