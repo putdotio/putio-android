@@ -27,11 +27,7 @@ internal val TvSkipHold.accelerating: Boolean
     get() = lastStepAtMillis > downAtMillis
 
 internal fun TvPlayerOverlay.skip(press: TvSkipPress, positionMillis: Long, durationMillis: Long): TvPlayerTransition {
-    if (exited || durationMillis <= 0L) return TvPlayerTransition(this)
-    val held = skipHold?.takeIf { press.repeat && it.holds(press) }
-    if (held != null && press.atMillis - held.lastStepAtMillis < TV_SKIP_HOLD_STEP_MILLIS) {
-        return TvPlayerTransition(this)
-    }
+    if (exited || durationMillis <= 0L || tooSoonToStep(press)) return TvPlayerTransition(this)
     val rate = if (press.repeat) holdRate(press.atMillis - press.downAtMillis) else 1L
     val stepMillis = TV_SKIP_MILLIS * rate
     return TvPlayerTransition(
@@ -65,6 +61,11 @@ internal fun TvPlayerOverlay.soughtElsewhere(): TvPlayerTransition =
     } else {
         TvPlayerTransition(this)
     }
+
+private fun TvPlayerOverlay.tooSoonToStep(press: TvSkipPress): Boolean {
+    val held = skipHold?.takeIf { press.repeat && it.holds(press) } ?: return false
+    return press.atMillis - held.lastStepAtMillis < TV_SKIP_HOLD_STEP_MILLIS
+}
 
 private fun TvSkipHold.holds(press: TvSkipPress): Boolean =
     direction == press.direction && downAtMillis == press.downAtMillis

@@ -1132,12 +1132,6 @@ class TvPlayerProofTest {
         return factory
     }
 
-    private fun shownElapsedSeconds(): Long {
-        val text = compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).fetchSemanticsNode()
-            .config[SemanticsProperties.Text].joinToString("") { it.text }
-        return text.split(":").fold(0L) { total, part -> total * 60L + part.toLong() }
-    }
-
     private fun press(keyCode: Int) {
         InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(keyCode)
         compose.waitForIdle()
