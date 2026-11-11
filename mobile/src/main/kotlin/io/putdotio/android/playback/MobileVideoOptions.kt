@@ -278,7 +278,7 @@ private fun SpeedStepButton(@DrawableRes icon: Int, description: String, enabled
     }
 }
 
-/** The eight presets as stops: passed ones and the track up to the current stop in yellow. */
+/** The presets as stops: passed ones and the track up to the current stop in yellow. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SpeedTrack(speed: Float, enabled: Boolean, value: String, onSpeed: (Float) -> Unit) {
