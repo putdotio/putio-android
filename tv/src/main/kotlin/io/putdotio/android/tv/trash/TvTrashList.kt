@@ -86,14 +86,7 @@ internal fun TvTrashList(
     }
     val heldRowId = remember { mutableStateOf<Long?>(null) }
     TvTrashHeldRowLeaves(items, heldRowId, listState, focus, rows.first)
-    LaunchedEffect(handOffToLastRow.value) {
-        if (!handOffToLastRow.value) return@LaunchedEffect
-        val lastId = items.lastOrNull()?.id?.value ?: return@LaunchedEffect
-        listState.bringIntoComposition(lastId, items.lastIndex)
-        withFrameNanos {}
-        if (focus.owner.owns(focus.list)) rows.last.requestFocus()
-        handOffToLastRow.value = false
-    }
+    TvTrashLastRowHandOff(items, handOffToLastRow, listState, focus, rows.last)
     LazyColumn(
         state = listState,
         modifier = modifier
@@ -158,6 +151,24 @@ private fun TvTrashHeldRowLeaves(
     }
 }
 
+@Composable
+private fun TvTrashLastRowHandOff(
+    items: List<TrashItem>,
+    handOffToLastRow: MutableState<Boolean>,
+    listState: LazyListState,
+    focus: TvTrashListFocus,
+    lastRow: FocusRequester,
+) {
+    LaunchedEffect(handOffToLastRow.value) {
+        if (!handOffToLastRow.value) return@LaunchedEffect
+        val lastId = items.lastOrNull()?.id?.value ?: return@LaunchedEffect
+        listState.bringIntoComposition(lastId, items.lastIndex)
+        withFrameNanos {}
+        if (focus.owner.owns(focus.list)) lastRow.requestFocus()
+        handOffToLastRow.value = false
+    }
+}
+
 internal fun mayPlaceFocus(paneHasFocus: State<Boolean>, dialogShowing: State<Boolean>): Boolean =
     paneHasFocus.value && !dialogShowing.value
 
@@ -167,7 +178,13 @@ private class TrashRowFocus {
     val last = FocusRequester()
     val restore = FocusRequester()
 
-    fun Modifier.requesters(index: Int, lastIndex: Int, anchorIndex: Int, restoreIndex: Int, pagePending: Boolean): Modifier =
+    fun Modifier.requesters(
+        index: Int,
+        lastIndex: Int,
+        anchorIndex: Int,
+        restoreIndex: Int,
+        pagePending: Boolean,
+    ): Modifier =
         this
             .focusRequesterIf(index == anchorIndex, anchor)
             .focusRequesterIf(index == 0, first)
