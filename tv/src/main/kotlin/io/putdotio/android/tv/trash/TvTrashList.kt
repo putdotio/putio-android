@@ -113,12 +113,14 @@ internal fun TvTrashList(
                 item = item,
                 onClick = { onChoose(item) },
                 showsFocus = !focus.dialogShowing.value,
-                modifier = rows
-                    .requesters(index, items.lastIndex, anchorIndex, restoreIndex, content.pagePending)
-                    .onFocusChanged {
-                        if (it.isFocused) heldRowId.value = item.id.value
-                        onRowFocusChanged(item, it.isFocused)
-                    },
+                modifier = with(rows) {
+                    Modifier
+                        .requesters(index, items.lastIndex, anchorIndex, restoreIndex, content.pagePending)
+                        .onFocusChanged {
+                            if (it.isFocused) heldRowId.value = item.id.value
+                            onRowFocusChanged(item, it.isFocused)
+                        }
+                },
             )
         }
         if (pagingShown) {
@@ -165,8 +167,8 @@ private class TrashRowFocus {
     val last = FocusRequester()
     val restore = FocusRequester()
 
-    fun requesters(index: Int, lastIndex: Int, anchorIndex: Int, restoreIndex: Int, pagePending: Boolean): Modifier =
-        Modifier
+    fun Modifier.requesters(index: Int, lastIndex: Int, anchorIndex: Int, restoreIndex: Int, pagePending: Boolean): Modifier =
+        this
             .focusRequesterIf(index == anchorIndex, anchor)
             .focusRequesterIf(index == 0, first)
             .focusRequesterIf(index == lastIndex, last)
