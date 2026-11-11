@@ -76,8 +76,9 @@
     <string name="mobile_files_open_folder">Open %1$s</string>
     <string name="mobile_files_play_media">Play %1$s</string>
     <string name="mobile_files_loading">Loading files</string>
-    <string name="mobile_files_empty_title">Empty folder</string>
-    <string name="mobile_files_empty_message">Move something in from elsewhere, or add a transfer that saves here.</string>
+    <string name="mobile_files_empty_title">No files whatsoever!</string>
+    <string name="mobile_files_empty_message">Maybe you’d like to create a new folder?</string>
+    <string name="mobile_files_empty_create_folder">Create folder</string>
     <string name="mobile_files_offline_title">put.io is out of reach</string>
     <string name="mobile_files_offline_message">Your connection dropped, or we did. Retrying on its own.</string>
     <string name="mobile_files_offline_banner">Offline. Showing what’s on this device.</string>

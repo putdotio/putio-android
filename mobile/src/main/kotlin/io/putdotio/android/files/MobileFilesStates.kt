@@ -488,7 +488,7 @@ internal fun MobileNewFolderButton(onClick: () -> Unit) {
             modifier = Modifier.size(ButtonDefaults.IconSize),
         )
         Spacer(Modifier.width(ButtonDefaults.IconSpacing))
-        Text(stringResource(R.string.mobile_files_new_folder))
+        Text(stringResource(R.string.mobile_files_empty_create_folder))
     }
 }
 
