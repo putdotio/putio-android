@@ -10,16 +10,15 @@ import java.util.Locale
  * empty unless every track finds its subtitle.
  */
 public fun List<PlaybackSubtitle>.keyedToManifest(tracks: List<PlaybackSubtitleTrack>): List<PlaybackSubtitle> {
-    if (size != tracks.size) return emptyList()
     val listedByLanguage = groupBy { it.languageCode.iso3Language() }
     val seen = mutableMapOf<String?, Int>()
-    return tracks.map { track ->
-        val id = track.identity.id ?: return emptyList()
+    val keyed = tracks.map { track ->
         val language = track.identity.language.iso3Language()
         val ordinal = seen.getOrDefault(language, 0)
         seen[language] = ordinal + 1
-        listedByLanguage[language]?.getOrNull(ordinal)?.copy(key = id) ?: return emptyList()
+        track.identity.id?.let { id -> listedByLanguage[language]?.getOrNull(ordinal)?.copy(key = id) }
     }
+    return if (size == tracks.size && keyed.all { it != null }) keyed.filterNotNull() else emptyList()
 }
 
 private fun String?.iso3Language(): String? {

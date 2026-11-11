@@ -245,7 +245,9 @@ private fun TvReadyPlayer(
     val prepared = remember(player) {
         source.preparePlayback(target.name, target.mediaType, stoppedAtMillis ?: resumePositionMillis)
     }
-    val recovery = remember(player) { TvTrackRecovery(prepared.mediaItem.sidecarSubtitleUris(), player::manifestSubtitleUris) }
+    val recovery = remember(player) {
+        TvTrackRecovery(prepared.mediaItem.sidecarSubtitleUris(), player::manifestSubtitleUris)
+    }
     val snackbar = remember(player) { TvSnackbarState() }
     val subtitlesFailed by rememberUpdatedState(stringResource(R.string.tv_player_subtitles_failed))
     val audioFailed by rememberUpdatedState(stringResource(R.string.tv_player_audio_failed))
