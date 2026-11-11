@@ -324,6 +324,7 @@ private fun TvReadyPlayer(
                         options = options.copy(subtitles = SubtitleSelection.Off)
                         cueHistory.clear()
                         player.continueWithout(step, position)
+                        if (step.notify) snackbar.show(TvSnackbarMessage(subtitlesFailed))
                         return
                     }
                     is TvTrackRecoveryStep.RestoreAudio -> {
@@ -396,6 +397,14 @@ private fun TvReadyPlayer(
                     atMillis = SystemClock.elapsedRealtime(),
                 )
                 if (subtitle) snackbar.show(TvSnackbarMessage(subtitlesFailed))
+            }
+
+            override fun onLoadCompleted(
+                eventTime: AnalyticsListener.EventTime,
+                loadEventInfo: LoadEventInfo,
+                mediaLoadData: MediaLoadData,
+            ) {
+                recovery.loadCompleted(loadEventInfo.dataSpec.uri.toString())
             }
 
             override fun onAudioPositionAdvancing(

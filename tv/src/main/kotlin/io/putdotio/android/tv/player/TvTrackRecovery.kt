@@ -22,7 +22,7 @@ import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSubtitles
 
 internal sealed interface TvTrackRecoveryStep {
-    data class DropSubtitles(val uris: Set<String>) : TvTrackRecoveryStep
+    data class DropSubtitles(val uris: Set<String>, val notify: Boolean) : TvTrackRecoveryStep
 
     data class RestoreAudio(val switch: TvAudioSwitch) : TvTrackRecoveryStep
 }
@@ -33,17 +33,28 @@ internal class TvTrackRecovery(
     private val sidecarUris: Set<String>,
     private val manifestSubtitleUris: () -> Set<String> = { emptySet() },
 ) {
-    private val failedSubtitles = mutableSetOf<String>()
-    private var subtitleFailedAtMillis: Long? = null
+    private val failingSubtitles = mutableMapOf<String, Long>()
+    private var notified = false
     private var audioSwitch: TvAudioSwitch? = null
     private var audioSwitchedAtMillis = 0L
 
     fun loadFailed(trackType: Int, uri: String, gaveUp: Boolean, atMillis: Long): Boolean {
-        val subtitle = trackType == C.TRACK_TYPE_TEXT || uri in sidecarUris || uri in manifestSubtitleUris()
-        if (!subtitle || !gaveUp) return false
-        subtitleFailedAtMillis = atMillis
-        if (uri in sidecarUris) failedSubtitles += uri
-        return true
+        if (!isSubtitle(trackType, uri)) return false
+        forgetBefore(atMillis)
+        failingSubtitles[uri] = atMillis
+        val notify = gaveUp && !notified
+        if (notify) notified = true
+        return notify
+    }
+
+    fun loadCompleted(uri: String) {
+        failingSubtitles -= uri
+        if (failingSubtitles.isEmpty()) notified = false
+    }
+
+    private fun forgetBefore(atMillis: Long) {
+        failingSubtitles.values.removeAll { atMillis - it > TRACK_FAILURE_WINDOW_MILLIS }
+        if (failingSubtitles.isEmpty()) notified = false
     }
 
     fun audioSwitching(from: TvAudioSwitch, atMillis: Long) {
@@ -57,20 +68,25 @@ internal class TvTrackRecovery(
 
     fun recover(errorCode: Int, atMillis: Long): TvTrackRecoveryStep? {
         val switch = audioSwitch?.takeIf { atMillis - audioSwitchedAtMillis <= TRACK_FAILURE_WINDOW_MILLIS }
-        val subtitleFailedAt = subtitleFailedAtMillis
+        forgetBefore(atMillis)
+        val subtitleFailing = failingSubtitles.isNotEmpty()
         return when {
             switch != null && errorCode in AUDIO_FAILURES -> {
                 audioSwitch = null
                 TvTrackRecoveryStep.RestoreAudio(switch)
             }
-            subtitleFailedAt != null && atMillis - subtitleFailedAt <= TRACK_FAILURE_WINDOW_MILLIS &&
-                errorCode in LOAD_FAILURES -> {
-                subtitleFailedAtMillis = null
-                TvTrackRecoveryStep.DropSubtitles(failedSubtitles.toSet()).also { failedSubtitles.clear() }
+            subtitleFailing && errorCode in LOAD_FAILURES -> {
+                val step = TvTrackRecoveryStep.DropSubtitles(failingSubtitles.keys intersect sidecarUris, !notified)
+                failingSubtitles.clear()
+                notified = false
+                step
             }
             else -> null
         }
     }
+
+    private fun isSubtitle(trackType: Int, uri: String): Boolean =
+        trackType == C.TRACK_TYPE_TEXT || uri in sidecarUris || uri in manifestSubtitleUris()
 }
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
