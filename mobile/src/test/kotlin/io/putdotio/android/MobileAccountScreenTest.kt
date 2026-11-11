@@ -468,7 +468,7 @@ class MobileAccountPlaybackSettingsTest {
     val compose = createComposeRule()
 
     @Test
-    fun playbackSettingsChooseMethodAndToggleAutoplay() {
+    fun playbackSettingsChooseMethodAndToggleAutoplayAndRotation() {
         val appConfigEvents = mutableListOf<AndroidAppConfigEvent>()
         compose.setAccountContent(
             options = AccountScreenOptions(onAppConfigEvent = appConfigEvents::add),
@@ -492,6 +492,8 @@ class MobileAccountPlaybackSettingsTest {
         compose.onNodeWithTag(MOBILE_CHOICE_SAVE_TAG).performClick()
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Autoplay next video"))
         compose.onNodeWithText("Autoplay next video").performClick()
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Rotate to landscape"))
+        compose.onNodeWithText("Rotate to landscape").assertIsOn().performClick()
 
         assertEquals(
             listOf(
@@ -500,6 +502,9 @@ class MobileAccountPlaybackSettingsTest {
                 ),
                 AndroidAppConfigEvent.ChangeRequested(
                     AndroidAppConfigChange.AutoplayNextVideo(enabled = true),
+                ),
+                AndroidAppConfigEvent.ChangeRequested(
+                    AndroidAppConfigChange.RotateToLandscape(enabled = false),
                 ),
             ),
             appConfigEvents,

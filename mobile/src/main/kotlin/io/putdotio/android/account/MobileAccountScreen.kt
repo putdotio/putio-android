@@ -268,6 +268,7 @@ private fun LazyListScope.playbackItems(
                 }
             },
             config?.let { preferences -> SettingsRow { rows.AutoplayNext(it, preferences) } },
+            config?.let { preferences -> SettingsRow { rows.RotateToLandscape(it, preferences) } },
             config?.let { preferences -> SettingsRow { rows.PlaybackMethod(it, preferences) } },
             settings?.let { preferences -> SettingsRow { rows.Proxy(it, preferences) } },
         ),
@@ -512,6 +513,26 @@ private class AccountRows(
             saving = change((mutation as? AndroidAppConfigMutation.Saving)?.change),
             onToggle = {
                 onAppConfigEvent(AndroidAppConfigEvent.ChangeRequested(AndroidAppConfigChange.AutoplayNextVideo(it)))
+            },
+            failure = (mutation as? AndroidAppConfigMutation.Failed)?.takeIf { change(it.change) }?.let { failed ->
+                { MobileAppConfigMutationError(failed.failure, failed.operation) { onRetryConfig() } }
+            },
+        )
+    }
+
+    @Composable
+    fun RotateToLandscape(segment: SettingsSegment, preferences: AndroidAppConfigPreferences) {
+        val mutation = appConfigState.mutation
+        val change = { candidate: AndroidAppConfigChange? -> candidate is AndroidAppConfigChange.RotateToLandscape }
+        SwitchSegment(
+            segment = segment,
+            title = R.string.mobile_settings_rotate_to_landscape,
+            icon = R.drawable.ic_ph_device_rotate,
+            checked = preferences.rotateToLandscape,
+            enabled = configEnabled,
+            saving = change((mutation as? AndroidAppConfigMutation.Saving)?.change),
+            onToggle = {
+                onAppConfigEvent(AndroidAppConfigEvent.ChangeRequested(AndroidAppConfigChange.RotateToLandscape(it)))
             },
             failure = (mutation as? AndroidAppConfigMutation.Failed)?.takeIf { change(it.change) }?.let { failed ->
                 { MobileAppConfigMutationError(failed.failure, failed.operation) { onRetryConfig() } }

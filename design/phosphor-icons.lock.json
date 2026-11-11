@@ -555,6 +555,13 @@
     },
     {
       "resDir": "mobile/src/main/res",
+      "resource": "ic_ph_device_rotate",
+      "asset": "assets/regular/device-rotate.svg",
+      "sourceSha256": "5f106d3bc0521fbb1dbfeb266382a7553174b88c1443d7d933d4332845210b33",
+      "outputSha256": "a6f3dbffd5c226cd7fe39c1b6b20f06892e40bebed2df4e721f470a748e2a4e1"
+    },
+    {
+      "resDir": "mobile/src/main/res",
       "resource": "ic_ph_text_aa",
       "asset": "assets/regular/text-aa.svg",
       "sourceSha256": "e964560ce335191f6bfc660ee8be894d6459561516152f9fceaddb0b8d00b0d2",

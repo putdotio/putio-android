@@ -66,6 +66,22 @@ class AndroidAppConfigRepositoryTest {
     }
 
     @Test
+    fun rotateToLandscapeIsOnUnlessTheConfigSavedOff() {
+        val rotates = { value: JsonPrimitive? ->
+            AppConfig(listOfNotNull(value?.let { "auto_rotate_video" to it }).toMap())
+                .toAndroidPreferences()
+                .rotateToLandscape
+        }
+        assertTrue(rotates(null))
+        assertTrue(rotates(JsonPrimitive("false")))
+        assertEquals(false, rotates(JsonPrimitive(false)))
+        assertEquals(
+            AppConfigUpdate("auto_rotate_video", JsonPrimitive(false)),
+            AndroidAppConfigChange.RotateToLandscape(enabled = false).toUpdate(),
+        )
+    }
+
+    @Test
     fun ignoresLegacyPlaybackKeys() {
         assertEquals(
             AndroidAppConfigPreferences(streamingMethod = StreamingMethod.Hls),

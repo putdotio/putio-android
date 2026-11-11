@@ -943,7 +943,9 @@ private class TvAccountRowsScope(
         val rowKey = when (failed.change) {
             is AndroidAppConfigChange.PlaybackMethod -> RowKey.PLAYBACK_METHOD
             is AndroidAppConfigChange.AutoplayNextVideo -> RowKey.AUTOPLAY
-            AndroidAppConfigChange.ProductAnalyticsPromptAnswered -> return
+            is AndroidAppConfigChange.RotateToLandscape,
+            AndroidAppConfigChange.ProductAnalyticsPromptAnswered,
+            -> return
         }
         val message = when (failed.operation) {
             AndroidAppConfigMutation.Operation.Save -> R.string.tv_account_save_error
