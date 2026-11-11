@@ -28,7 +28,7 @@ abstract class SyncBrandFontsTask : DefaultTask() {
     @TaskAction
     fun sync() {
         val lock = BrandFonts.parseLock(brandFontsLock.get().asFile.readText())
-        BrandFontSync.sync(lock, rootDirectory.get().asFile) { logger.lifecycle(it) }
+        BrandFontSync.sync(lock, rootDirectory.get().asFile, log = { logger.lifecycle(it) })
     }
 }
 
