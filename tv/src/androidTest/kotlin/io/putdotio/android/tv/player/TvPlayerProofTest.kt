@@ -5,6 +5,7 @@ import androidx.compose.runtime.setValue
 import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
+import android.os.SystemClock
 import android.view.KeyEvent
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
@@ -188,6 +189,15 @@ class TvPlayerProofTest {
         assertTrue("Rewind skips back 10 s", rewound <= beforeRewind - 10_000L + 1_000L)
         awaitPlayer(factory) { it.isPlaying }
         screenshot("12-skipped-back")
+        pause()
+
+        val beforeHold = compose.runOnIdle { factory.current().currentPosition }
+        hold(KeyEvent.KEYCODE_DPAD_RIGHT, HOLD_MILLIS)
+        val held = compose.runOnIdle { factory.current().currentPosition } - beforeHold
+        assertTrue("A held right moves at 2x or more, $held ms", held >= TV_SKIP_MILLIS + 2L * HOLD_MILLIS - 1_000L)
+        assertTrue("A held right stays at 8x or less, $held ms", held <= TV_SKIP_MILLIS + 9L * HOLD_MILLIS)
+        awaitPlayer(factory) { it.isPlaying }
+        screenshot("13-held-forward")
         pause()
 
         press(KeyEvent.KEYCODE_BACK)
@@ -1137,6 +1147,22 @@ class TvPlayerProofTest {
         compose.waitForIdle()
     }
 
+    private fun hold(keyCode: Int, millis: Long) {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val downAt = SystemClock.uptimeMillis()
+        instrumentation.sendKeySync(KeyEvent(downAt, downAt, KeyEvent.ACTION_DOWN, keyCode, 0))
+        var repeats = 0
+        while (SystemClock.uptimeMillis() - downAt < millis) {
+            SystemClock.sleep(KEY_REPEAT_MILLIS)
+            repeats += 1
+            instrumentation.sendKeySync(
+                KeyEvent(downAt, SystemClock.uptimeMillis(), KeyEvent.ACTION_DOWN, keyCode, repeats),
+            )
+        }
+        instrumentation.sendKeySync(KeyEvent(downAt, SystemClock.uptimeMillis(), KeyEvent.ACTION_UP, keyCode, 0))
+        compose.waitForIdle()
+    }
+
     private fun pause() = elapse(STEP_PAUSE_MILLIS)
 
     private fun elapse(millis: Long) {
@@ -1213,6 +1239,8 @@ class TvPlayerProofTest {
         const val OFFLINE_TITLE = "Offline first.mp4"
         const val OFFLINE_FILE_ID = 9_340_002L
         const val STEP_PAUSE_MILLIS = 1_500L
+        const val HOLD_MILLIS = 3_000L
+        const val KEY_REPEAT_MILLIS = 50L
         const val ELAPSE_STEP_MILLIS = 100L
         const val FIXTURE_SECONDS = 90.0
         const val SAVED_SECONDS = 45.0

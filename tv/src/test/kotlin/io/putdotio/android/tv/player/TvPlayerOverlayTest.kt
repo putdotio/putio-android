@@ -98,29 +98,59 @@ class TvPlayerOverlayTest {
     }
 
     @Test
-    fun holdingSpeedsTheSkipUpTwoFourThenEightTimes() {
-        val first = TvPlayerOverlay().skipForward(atMillis = 0L).overlay
-        val tooSoon = first.skipForward(atMillis = 50L, repeat = true)
-        assertEquals("A 50 ms key repeat is not a step", first, tooSoon.overlay)
+    fun holdingSeeksAtTwoThenFourThenEightTimesSpeed() {
+        val tapped = TvPlayerOverlay().skipForward(atMillis = 0L)
+        assertEquals(listOf(TvPlayerCommand.SeekTo(POSITION + 10_000L)), tapped.commands)
+        assertFalse(checkNotNull(tapped.overlay.skipHold).accelerating)
+        val tooSoon = tapped.overlay.skipForward(atMillis = 50L, repeat = true)
+        assertEquals("A 50 ms key repeat is not a step", tapped.overlay, tooSoon.overlay)
         assertEquals(emptyList<TvPlayerCommand>(), tooSoon.commands)
 
-        val twice = first.skipForward(atMillis = 500L, repeat = true)
-        assertEquals(listOf(TvPlayerCommand.SeekTo(POSITION + 20_000L)), twice.commands)
-        assertTrue(checkNotNull(twice.overlay.skipHold).accelerating)
-        val fourTimes = twice.overlay.skipForward(atMillis = TV_SKIP_HOLD_STAGE_MILLIS + 500L, repeat = true)
-        assertEquals(listOf(TvPlayerCommand.SeekTo(POSITION + 40_000L)), fourTimes.commands)
-        val eightTimes = fourTimes.overlay.skipForward(atMillis = TV_SKIP_HOLD_STAGE_MILLIS * 5, repeat = true)
-        assertEquals(listOf(TvPlayerCommand.SeekTo(POSITION + 80_000L)), eightTimes.commands)
+        var overlay = tapped.overlay
+        val speeds = (0..2).map { stage ->
+            val from = stage * TV_SKIP_HOLD_STAGE_MILLIS + TV_SKIP_HOLD_STEP_MILLIS
+            val until = from + 1_000L
+            val start = overlay.skipForward(atMillis = from, repeat = true)
+            val end = start.overlay.skipForward(atMillis = until, repeat = true)
+            overlay = end.overlay
+            assertTrue(checkNotNull(overlay.skipHold).accelerating)
+            (end.seekTarget() - start.seekTarget()) / (until - from).toDouble()
+        }
+        assertEquals("Held position moves at 2x, then 4x, then 8x", listOf(2.0, 4.0, 8.0), speeds)
 
-        val released = checkNotNull(eightTimes.overlay.skipReleased()).overlay
+        val released = checkNotNull(overlay.skipReleased()).overlay
         assertNull(released.skipHold)
         assertNull("Nothing to release twice", released.skipReleased())
-        val retapped = eightTimes.overlay.skipForward(atMillis = 20_000L, downAtMillis = 20_000L)
+        val retapped = released.skipForward(atMillis = 20_000L, downAtMillis = 20_000L)
         assertEquals(
             "A new press starts at 10 s",
             listOf(TvPlayerCommand.SeekTo(POSITION + 10_000L)),
             retapped.commands,
         )
+    }
+
+    @Test
+    fun holdingBackwardRewindsAtTheSameSpeedsAndStopsAtTheStart() {
+        val tapped = TvPlayerOverlay().skip(
+            TvSkipPress(TvSkipDirection.Backward, downAtMillis = 0L, atMillis = 0L, repeat = false),
+            positionMillis = POSITION, durationMillis = DURATION,
+        )
+        assertEquals(listOf(TvPlayerCommand.SeekTo(POSITION - 10_000L)), tapped.commands)
+        val held = tapped.overlay.skip(
+            TvSkipPress(TvSkipDirection.Backward, downAtMillis = 0L, atMillis = 1_000L, repeat = true),
+            positionMillis = POSITION - 10_000L, durationMillis = DURATION,
+        )
+        assertEquals(listOf(TvPlayerCommand.SeekTo(POSITION - 10_000L - 2_000L)), held.commands)
+        val atStart = held.overlay.skip(
+            TvSkipPress(TvSkipDirection.Backward, downAtMillis = 0L, atMillis = 60_000L, repeat = true),
+            positionMillis = 0L, durationMillis = DURATION,
+        )
+        assertEquals(listOf(TvPlayerCommand.SeekTo(0L)), atStart.commands)
+        val pastStart = atStart.overlay.skip(
+            TvSkipPress(TvSkipDirection.Backward, downAtMillis = 0L, atMillis = 61_000L, repeat = true),
+            positionMillis = 0L, durationMillis = DURATION,
+        )
+        assertEquals("No seek once the hold hits the start", emptyList<TvPlayerCommand>(), pastStart.commands)
     }
 
     @Test
@@ -236,6 +266,12 @@ class TvPlayerOverlayTest {
         downAtMillis: Long = 0L,
         positionMillis: Long = POSITION,
     ) = skip(TvSkipPress(TvSkipDirection.Forward, downAtMillis, atMillis, repeat), positionMillis, DURATION)
+
+    private fun TvPlayerTransition.seekTarget(): Long {
+        val seek = commands.single()
+        check(seek is TvPlayerCommand.SeekTo)
+        return seek.positionMillis
+    }
 
     private companion object {
         const val POSITION = 60_000L
