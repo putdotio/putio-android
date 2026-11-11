@@ -1101,6 +1101,13 @@
       "asset": "assets/regular/folder-simple-dashed.svg",
       "sourceSha256": "d5f23b371a146a920a81947bb77d1d4a62a1836f469ff83d037751b44b873957",
       "outputSha256": "35b31d7158e2db816aab718a48d0ac512909f60c26ed0beb432a2b3f4c4604df"
+    },
+    {
+      "resDir": "tv/src/main/res",
+      "resource": "ic_ph_wifi_slash",
+      "asset": "assets/regular/wifi-slash.svg",
+      "sourceSha256": "39ed62ae822a3917ac70239bbaa2144152049783451f4687456aae8f044152fc",
+      "outputSha256": "0841a22c73a0ecff2691105de092524d45492ef003529f4f55ba99add1785e46"
     }
   ]
 }

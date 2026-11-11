@@ -173,6 +173,29 @@ class TvShellTest {
     }
 
     @Test
+    fun noConnectionBannerShowsUnderTheTabBarOnEveryPaneWithoutTakingFocus() {
+        var offline by mutableStateOf(true)
+        compose.setTvContent {
+            TvShell(
+                account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                onSignOut = {},
+                offline = offline,
+            )
+        }
+        compose.onNodeWithText("No connection").assertIsDisplayed()
+
+        compose.openTab(TvDestination.Files)
+        compose.onNodeWithText("Your files will show up here.").assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionUp)
+        }
+        compose.onTab("Files").assertIsFocused()
+        compose.onNodeWithText("No connection").assertIsDisplayed()
+
+        offline = false
+        compose.onNodeWithText("No connection").assertDoesNotExist()
+    }
+
+    @Test
     fun shellOpensOnHomeAndATabSelectsWhenItTakesFocus() {
         compose.setTvContent {
             TvShell(account = TvAccount(userId = 1, username = "user", email = "user@example.com"), onSignOut = {})

@@ -203,6 +203,7 @@
     </plurals>
     <string name="tv_state_offline_title">Can’t connect to put.io</string>
     <string name="tv_state_try_now">Try now</string>
+    <string name="tv_offline_banner">No connection</string>
     <string name="tv_state_try_again">Try again</string>
     <string name="tv_error_navigation_blocked">This item can’t be opened right now. Check Files, then try again.</string>
     <string name="tv_error_network">Check your internet connection.</string>
