@@ -132,7 +132,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     env:
-      TASKS: verifyMobile verifyLibraries :mobile:assembleProductionDebug :mobile:assembleNightlyDebug
+      TASKS: verifyMobile :mobile:assembleProductionDebug :mobile:assembleNightlyDebug
       APKS: mobile/build/outputs/apk/*/debug/*.apk
     steps: *lane
 
@@ -149,12 +149,12 @@ jobs:
     steps: *lane
 
   release:
-    name: Release
+    name: Release and libraries
     needs: changes
     if: ${{ !cancelled() && needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     env:
-      TASKS: verifyRelease
+      TASKS: verifyRelease verifyLibraries
       BRAND_FONTS: 'true'
     steps: *lane
