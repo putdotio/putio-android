@@ -521,7 +521,8 @@ class TvPlayerOptionsTest {
             val next = players.last()
             assertEquals(4, players.size)
             assertEquals("Speed starts over with each file", 1f, next.playbackParameters.speed)
-            assertEquals(0, next.selectedTextIndex())
+            assertTrue(C.TRACK_TYPE_TEXT in next.trackSelectionParameters.disabledTrackTypes)
+            assertNull(next.selectedTextIndex())
         }
     }
 
