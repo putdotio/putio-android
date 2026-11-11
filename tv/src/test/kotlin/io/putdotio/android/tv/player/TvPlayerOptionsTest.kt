@@ -422,6 +422,34 @@ class TvPlayerOptionsTest {
 
     @Test
     fun aRememberedLanguageWinsWhenTheAccountSettingsLoadAfterTheTracks() {
+        val (selected, picks) = rememberedGermanWithLatePolicy(
+            SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = true),
+        )
+
+        assertEquals(1, selected)
+        assertFalse("English never shows before the remembered German", 0 in picks)
+    }
+
+    @Test
+    fun aRememberedLanguageOutranksALateDontAutoselectSubtitles() {
+        val (selected, _) = rememberedGermanWithLatePolicy(
+            SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = false),
+        )
+
+        assertEquals(1, selected)
+    }
+
+    @Test
+    fun aLateHideSubtitlesOutranksARememberedLanguage() {
+        val (selected, picks) = rememberedGermanWithLatePolicy(
+            SubtitleStartupPolicy(showSubtitles = false, autoSelectSubtitles = true),
+        )
+
+        assertNull(selected)
+        assertTrue("No subtitle ever shows: $picks", picks.all { it == null })
+    }
+
+    private fun rememberedGermanWithLatePolicy(late: SubtitleStartupPolicy): Pair<Int?, List<Int?>> {
         val context = ApplicationProvider.getApplicationContext<Context>()
         SubtitleLanguageStore(context).update(
             SubtitleSelection.Track(textFormat("t-de", "de", null).toSubtitleTrackIdentity()),
@@ -443,12 +471,9 @@ class TvPlayerOptionsTest {
             )
         }
 
-        policy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = true)
+        policy = late
         settle()
-        compose.runOnIdle {
-            assertEquals(1, player.selectedTextIndex())
-            assertFalse("English never shows before the remembered German", 0 in picks)
-        }
+        return compose.runOnIdle { player.selectedTextIndex() } to picks.toList()
     }
 
     @Test
