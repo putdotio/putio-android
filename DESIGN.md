@@ -407,8 +407,8 @@ tokens, type, glyphs, rows, switch, empty-state voice and copy.
   confirms, notices and text entry.
 - **Back** closes the topmost layer first: a sheet, then the player controls,
   and only then the screen.
-- **Seeking:** left, right, rewind and fast-forward skip 10 s at once and keep
-  the play state; holding one speeds up to 2x, 4x, then 8x.
+- **Seeking:** left, right, rewind and fast-forward seek at once and keep the
+  play state; holding one speeds up.
 - **Now Playing:** audio's controls never hide, so Back leaves it once no
   sheet is open.
 - **Phone-only:** Transfers, Downloads, Cast, selection, share and exclusive

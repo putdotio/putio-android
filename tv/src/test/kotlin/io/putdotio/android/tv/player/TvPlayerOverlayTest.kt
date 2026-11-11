@@ -130,6 +130,16 @@ class TvPlayerOverlayTest {
     }
 
     @Test
+    fun aForwardHoldStopsShortOfTheEndSoPlaybackDoesNotFinishWhileHeld() {
+        val tapped = TvPlayerOverlay().skipForward(atMillis = 0L, positionMillis = DURATION - 30_000L)
+        val nearEnd = tapped.overlay.skipForward(atMillis = 60_000L, repeat = true)
+        val target = nearEnd.seekTarget()
+        assertTrue("Held to $target ms of $DURATION", target in DURATION - 30_000L until DURATION)
+        val later = nearEnd.overlay.skipForward(atMillis = 61_000L, repeat = true)
+        assertEquals("No seek once the hold reaches the end", emptyList<TvPlayerCommand>(), later.commands)
+    }
+
+    @Test
     fun holdingBackwardRewindsAtTheSameSpeedsAndStopsAtTheStart() {
         val tapped = TvPlayerOverlay().skip(
             TvSkipPress(TvSkipDirection.Backward, downAtMillis = 0L, atMillis = 0L, repeat = false),

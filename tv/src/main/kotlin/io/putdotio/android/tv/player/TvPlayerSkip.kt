@@ -6,6 +6,8 @@ internal const val TV_SKIP_HOLD_STEP_MILLIS = 250L
 
 internal const val TV_SKIP_HOLD_STAGE_MILLIS = 2_000L
 
+internal const val TV_SKIP_HOLD_END_GAP_MILLIS = 1_000L
+
 private const val TV_SKIP_HOLD_STAGES = 3
 
 internal val TV_SKIP_HOLD_SPEEDS = List(TV_SKIP_HOLD_STAGES) { stage -> 2L shl stage }
@@ -100,7 +102,8 @@ private fun TvSkipHold.step(atMillis: Long, durationMillis: Long): TvSkipHold? =
     }
 
 private fun TvSkipHold.positionAt(atMillis: Long, durationMillis: Long): Long =
-    direction.step(originMillis, holdTravelMillis(atMillis - startAtMillis)).coerceIn(0L, durationMillis)
+    direction.step(originMillis, holdTravelMillis(atMillis - startAtMillis))
+        .coerceIn(0L, maxOf(originMillis, durationMillis - TV_SKIP_HOLD_END_GAP_MILLIS).coerceAtMost(durationMillis))
 
 private fun TvSkipDirection.step(fromMillis: Long, byMillis: Long): Long =
     when (this) {

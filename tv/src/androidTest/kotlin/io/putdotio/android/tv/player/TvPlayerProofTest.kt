@@ -626,7 +626,6 @@ class TvPlayerProofTest {
         compose.onNodeWithTag(SUBTITLE_CUES_TAG).assertDoesNotExist()
         compose.onNodeWithContentDescription("$SUBTITLES Off").assertIsSelected()
 
-        // Up to the seek bar, skip and play: subtitles stay off.
         press(KeyEvent.KEYCODE_DPAD_UP)
         press(KeyEvent.KEYCODE_DPAD_RIGHT)
         awaitPlayer(factory) { !it.playWhenReady }
