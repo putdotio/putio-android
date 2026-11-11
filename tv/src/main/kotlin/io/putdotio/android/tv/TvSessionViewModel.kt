@@ -54,6 +54,7 @@ import io.putdotio.android.playback.PlaybackNextResult
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
 import io.putdotio.android.playback.PlaybackTarget
+import io.putdotio.sdk.files.PlaybackSubtitle
 import io.putdotio.android.search.RecentSearchStoreOwner
 import io.putdotio.android.search.SearchController
 import io.putdotio.android.search.SearchFolderNames
@@ -365,6 +366,9 @@ internal class TvSession internal constructor(
 
     val findNeighbours: suspend (PlaybackTarget) -> PlaybackRepositoryResult<PlaybackNeighbours> =
         playbackRepository::findNeighbours
+
+    val findSubtitles: suspend (PlaybackTarget) -> PlaybackRepositoryResult<List<PlaybackSubtitle>> =
+        playbackRepository::listSubtitles
 
     fun play(item: FilesItem, start: TvPlayStart = TvPlayStart.Resume, method: StreamingMethod? = null) {
         durationLookup?.cancel()

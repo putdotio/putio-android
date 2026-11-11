@@ -97,6 +97,32 @@ class PlaybackTrackLabelsTest {
         assertEquals(PlaybackSubtitles.None, source(PlaybackSourceKind.ORIGINAL, copiesOnly).playerSubtitles())
     }
 
+    @Test
+    fun manifestTracksTakeTheSourcesPutioListsInOrderWithinEachLanguage() {
+        val tracks = tracks(
+            manifest("subs0:English 1", "en"),
+            manifest("subs0:English 2", "en"),
+            manifest("subs0:Turkish", "tr"),
+        )
+        val listed = listOf(
+            subtitle("en-in-file", "mkv"),
+            subtitle("en-found", "opensubtitles_rest"),
+            subtitle("tr-found", "opensubtitles_rest").copy(language = "Turkish", languageCode = "tur"),
+        )
+
+        val keyed = listed.keyedToManifest(tracks)
+
+        assertEquals(
+            listOf(SubtitleOrigin.File, SubtitleOrigin.OpenSubtitles, SubtitleOrigin.OpenSubtitles),
+            tracks.map { it.putioSubtitle(keyed).origin() },
+        )
+        assertEquals(
+            listOf("SRT", "OpenSubtitles", "OpenSubtitles"),
+            tracks.map { resources.subtitleTrackDetails(it, it.putioSubtitle(keyed), inFile = true) },
+        )
+        assertEquals(emptyList<PlaybackSubtitle>(), listed.drop(1).keyedToManifest(tracks))
+    }
+
     private fun tracks(vararg formats: Format): List<PlaybackSubtitleTrack> {
         val group = TrackGroup("text", *formats)
         return formats.indices.map { PlaybackSubtitleTrack(group, it, label = null, selected = false) }
@@ -108,6 +134,15 @@ class PlaybackTrackLabelsTest {
             .setLanguage(language ?: C.LANGUAGE_UNDETERMINED)
             .setSampleMimeType(MimeTypes.APPLICATION_MEDIA3_CUES)
             .setCodecs(codecs)
+            .build()
+
+    private fun manifest(id: String, language: String): Format =
+        Format.Builder()
+            .setId(id)
+            .setLanguage(language)
+            .setLabel(id.substringAfter(':'))
+            .setSampleMimeType(MimeTypes.APPLICATION_MEDIA3_CUES)
+            .setCodecs(MimeTypes.TEXT_VTT)
             .build()
 
     private fun source(kind: PlaybackSourceKind, subtitles: PlaybackSubtitles) =

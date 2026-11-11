@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -16,7 +17,10 @@ import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackController
 import io.putdotio.android.playback.PlaybackEvent
 import io.putdotio.android.playback.PlaybackFailure
+import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackNextResult
+import io.putdotio.android.playback.PlaybackRepositoryResult
+import io.putdotio.android.playback.PlaybackState
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.playback.SubtitleStartupPolicy
 import io.putdotio.android.playback.originalFallbackTelemetry
@@ -31,6 +35,8 @@ import io.putdotio.android.tv.TvFailureReports
 import io.putdotio.android.tv.TvNoticeDialog
 import io.putdotio.android.tv.isUnknown
 import io.putdotio.android.tv.files.hasVlc
+import io.putdotio.sdk.files.PlaybackSourceKind
+import io.putdotio.sdk.files.PlaybackSubtitle
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
@@ -72,8 +78,10 @@ internal fun TvPlaybackRoute(
     findNextEpisode: (suspend (PlaybackTarget) -> PlaybackNextResult)? = null,
     findUpNext: TvFindNeighbours? = null,
     openInVlc: (suspend (PlaybackTarget) -> Int?)? = null,
+    findSubtitles: TvFindSubtitles? = null,
 ) {
     val state by controller.state.collectAsStateWithLifecycle()
+    val manifestSubtitles = rememberManifestSubtitles(state, findSubtitles, onSessionRejected)
     val nextEpisode = rememberNextEpisode(state, findNextEpisode, onSessionRejected)
     val upNext = rememberUpNext(state, findUpNext.takeIf { autoplayNextVideo }, onSessionRejected)
     val neighbours = rememberFolderNeighbours(state, findUpNext, onSessionRejected)
@@ -131,8 +139,36 @@ internal fun TvPlaybackRoute(
         onOpenInVlc = handOffToVlc,
         onPlayInVlc = handOffToVlc?.takeIf { vlcInstalled },
         neighbours = neighbours,
+        manifestSubtitles = manifestSubtitles,
     )
     vlcNotice?.let { notice -> TvNoticeDialog(title = stringResource(notice), onDismiss = { vlcNotice = null }) }
+}
+
+internal typealias TvFindSubtitles = suspend (PlaybackTarget) -> PlaybackRepositoryResult<List<PlaybackSubtitle>>
+
+@Composable
+private fun rememberManifestSubtitles(
+    state: PlaybackState,
+    findSubtitles: TvFindSubtitles?,
+    onAuthenticationRequired: suspend () -> Unit,
+): List<PlaybackSubtitle>? {
+    val content = state.content as? PlaybackContent.Ready
+    val manifest = content != null &&
+        content.source.kind == PlaybackSourceKind.HLS &&
+        state.target.mediaType == PlaybackMediaType.VIDEO &&
+        !content.subtitlesHidden
+    val listed by produceState<List<PlaybackSubtitle>?>(null, state.target.fileId, manifest, findSubtitles != null) {
+        value = null
+        val find = findSubtitles?.takeIf { manifest } ?: return@produceState
+        value = when (val found = find(state.target)) {
+            is PlaybackRepositoryResult.Success -> found.value
+            is PlaybackRepositoryResult.Failure -> {
+                if (found.failure.putioFailure is PutioFailure.AuthenticationRequired) onAuthenticationRequired()
+                null
+            }
+        }
+    }
+    return listed
 }
 
 private const val SHELL_STATE_KEY = "tv-shell"

@@ -3,6 +3,7 @@ package io.putdotio.android.tv.player
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import android.os.Build
+import android.os.SystemClock
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -29,6 +31,7 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -46,6 +49,10 @@ import androidx.media3.common.VideoSize
 import androidx.media3.common.text.Cue
 import androidx.media3.common.text.CueGroup
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.analytics.AnalyticsListener
+import androidx.media3.exoplayer.source.LoadEventInfo
+import androidx.media3.exoplayer.source.MediaLoadData
 import androidx.media3.ui.SubtitleView
 import androidx.media3.ui.compose.ContentFrame
 import io.putdotio.android.playback.AudioSelection
@@ -60,6 +67,7 @@ import io.putdotio.android.playback.previousAt
 import io.putdotio.android.playback.PlaybackState
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.playback.SubtitleCueOverlay
+import io.putdotio.android.playback.SubtitleSelection
 import io.putdotio.android.playback.SubtitleStartupPolicy
 import io.putdotio.android.playback.directPlayVerdict
 import io.putdotio.android.playback.displayAspectRatioOrNull
@@ -83,6 +91,12 @@ import io.putdotio.android.playback.inFileSubtitleLanguage
 import io.putdotio.android.playback.withSubtitleSelection
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSourceKind
+import io.putdotio.sdk.files.PlaybackSubtitle
+import io.putdotio.android.R
+import io.putdotio.android.tv.TvSnackbarHost
+import io.putdotio.android.tv.TvSnackbarMessage
+import io.putdotio.android.tv.TvSnackbarState
+import java.io.IOException
 import java.util.UUID
 import kotlinx.coroutines.delay
 
@@ -115,6 +129,7 @@ internal fun TvPlayerScreen(
     onOpenInVlc: (() -> Unit)? = null,
     onPlayInVlc: (() -> Unit)? = null,
     neighbours: PlaybackNeighbours? = PlaybackNeighbours(),
+    manifestSubtitles: List<PlaybackSubtitle>? = null,
 ) {
     BackHandler(enabled = state.content !is PlaybackContent.Ready, onBack = onBack)
     val nowPlayingFocus = remember { mutableStateOf(TvPlayerControl.SeekBar) }
@@ -142,6 +157,7 @@ internal fun TvPlayerScreen(
                         ?: TvUpNextLookup.Off,
                     neighbours = neighbours,
                     nowPlayingFocus = nowPlayingFocus,
+                    manifestSubtitles = manifestSubtitles,
                 )
 
             is PlaybackContent.AwaitingResume -> {
@@ -209,6 +225,7 @@ private fun TvReadyPlayer(
     upNext: TvUpNextLookup,
     neighbours: PlaybackNeighbours?,
     nowPlayingFocus: MutableState<TvPlayerControl>,
+    manifestSubtitles: List<PlaybackSubtitle>?,
 ) {
     val context = LocalContext.current
     val nowPlaying = target.mediaType == PlaybackMediaType.AUDIO
@@ -226,6 +243,10 @@ private fun TvReadyPlayer(
     val prepared = remember(player) {
         source.preparePlayback(target.name, target.mediaType, stoppedAtMillis ?: resumePositionMillis)
     }
+    val recovery = remember(player) { TvTrackRecovery(prepared.mediaItem.sidecarSubtitleUris()) }
+    val snackbar = remember(player) { TvSnackbarState() }
+    val subtitlesFailed by rememberUpdatedState(stringResource(R.string.tv_player_subtitles_failed))
+    val audioFailed by rememberUpdatedState(stringResource(R.string.tv_player_audio_failed))
     val currentOnPlayerFailure by rememberUpdatedState(onPlayerFailure)
     val currentOnOriginalRejected by rememberUpdatedState(onOriginalRejected)
     val currentOnExit by rememberUpdatedState(onExit)
@@ -294,6 +315,23 @@ private fun TvReadyPlayer(
 
             override fun onPlayerError(error: PlaybackException) {
                 val position = player.currentPosition.coerceAtLeast(0L)
+                when (val step = recovery.recover(error.errorCode, SystemClock.elapsedRealtime())) {
+                    is TvTrackRecoveryStep.DropSubtitles -> {
+                        options = options.copy(subtitles = SubtitleSelection.Off)
+                        cueHistory.clear()
+                        player.continueWithout(step, position)
+                        snackbar.show(TvSnackbarMessage(subtitlesFailed))
+                        return
+                    }
+                    is TvTrackRecoveryStep.RestoreAudio -> {
+                        options = options.copy(audio = step.switch.selection)
+                        player.trackSelectionParameters = step.switch.parameters
+                        player.prepare()
+                        snackbar.show(TvSnackbarMessage(audioFailed))
+                        return
+                    }
+                    null -> Unit
+                }
                 val rejection = error.originalRejection().takeUnless { firstFrameShown }
                 if (rejection == null || !currentOnOriginalRejected(rejection, position)) {
                     currentOnPlayerFailure(error.toPlaybackFailure(), position)
@@ -338,6 +376,30 @@ private fun TvReadyPlayer(
             }
         }
         player.addListener(listener)
+        val loads = object : AnalyticsListener {
+            override fun onLoadError(
+                eventTime: AnalyticsListener.EventTime,
+                loadEventInfo: LoadEventInfo,
+                mediaLoadData: MediaLoadData,
+                error: IOException,
+                wasCanceled: Boolean,
+            ) {
+                val subtitle = recovery.loadFailed(
+                    trackType = mediaLoadData.trackType,
+                    uri = loadEventInfo.dataSpec.uri.toString(),
+                    atMillis = SystemClock.elapsedRealtime(),
+                )
+                if (subtitle && wasCanceled) snackbar.show(TvSnackbarMessage(subtitlesFailed))
+            }
+
+            override fun onAudioPositionAdvancing(
+                eventTime: AnalyticsListener.EventTime,
+                playoutStartSystemTimeMs: Long,
+            ) {
+                recovery.audioPlaying()
+            }
+        }
+        (player as? ExoPlayer)?.addAnalyticsListener(loads)
         player.trackSelectionParameters =
             restoreSubtitleSelection(
                 defaults = defaultTrackSelection,
@@ -368,6 +430,7 @@ private fun TvReadyPlayer(
             positions.close()
             session.close()
             player.removeListener(listener)
+            (player as? ExoPlayer)?.removeAnalyticsListener(loads)
             player.release()
         }
     }
@@ -395,6 +458,8 @@ private fun TvReadyPlayer(
 
     val choices = TvTrackChoices(tracks, parameters, subtitleStartupPolicy)
     val subtitles = remember(source) { source.playerSubtitles() }
+    val subtitleSources = tvSubtitleSources(subtitles, manifestSubtitles, choices.subtitles)
+    TvSubtitlesUnavailableNotice(source, target, snackbar)
     val subtitlesHidden = choices.subtitlesHidden
     val chips = choices.chips(
         nextEpisode = nextEpisode,
@@ -454,7 +519,7 @@ private fun TvReadyPlayer(
                     listingDurationMillis = target.durationSeconds?.toPlaybackMillis(),
                 ),
                 chips = chips,
-                chipLabels = tvPlayerChipLabels(choices, subtitles, speed),
+                chipLabels = tvPlayerChipLabels(choices, subtitleSources, speed),
                 focused = overlay.shownFocus(chips, nextTrack),
             )
         } else {
@@ -469,12 +534,13 @@ private fun TvReadyPlayer(
                     startPositionMillis = prepared.startPositionMillis,
                     listingDurationMillis = target.durationSeconds?.toPlaybackMillis(),
                     chips = chips,
-                    chipLabels = tvPlayerChipLabels(choices, subtitles, speed),
+                    chipLabels = tvPlayerChipLabels(choices, subtitleSources, speed),
                     focused = overlay.shownFocus(chips),
                     circles = !overlay.upNext,
                 )
             }
         }
+        TvSnackbarHost(snackbar, Modifier.align(Alignment.TopEnd).padding(PLAYER_NOTICE_INSET))
     }
     TvUpNextOverlay(overlay, upNext) { step -> apply(step(overlay)) }
     TvQueueEndEffect(overlay, playbackState, playWhenReady, neighbours) { next -> apply(overlay.queueEnded(next)) }
@@ -485,12 +551,13 @@ private fun TvReadyPlayer(
         backFromSizeAndTiming = overlay.backFromSizeAndTiming,
         returnFocus = focus,
         choices = choices,
-        subtitles = subtitles,
+        subtitles = subtitleSources,
         speed = speed,
         textSize = appearance.textSize,
         offsetMillis = options.subtitleOffsetMillis,
         actions = TvPlayerSheetActions(
             onAudio = { track ->
+                recovery.audioSwitching(TvAudioSwitch(player.trackSelectionParameters, options.audio))
                 options = options.copy(audio = AudioSelection.Track(track.identity))
                 player.trackSelectionParameters = player.trackSelectionParameters.withAudioTrack(track)
                 closeSheet()
@@ -603,6 +670,7 @@ private const val DELAYED_CUE_TICK_MILLIS = 50L
 private const val SUBTITLES_ABOVE_CONTROLS = 117f / 540f
 private const val TV_SUBTITLE_TEXT_FRACTION = 22f / 540f
 private val SUBTITLES_BESIDE_SHEET = 180.dp
+private val PLAYER_NOTICE_INSET = 24.dp
 
 private fun TvPlayerOverlay.previewsTiming(playing: Boolean): Boolean =
     sheet == TvPlayerSheet.SizeAndTiming && !playing
