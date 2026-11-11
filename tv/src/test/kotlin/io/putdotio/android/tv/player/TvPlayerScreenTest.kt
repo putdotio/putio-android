@@ -50,7 +50,9 @@ class TvPlayerScreenTest {
     fun aFailureBehindTheShellBringsThePlayerBackToShowIt() {
         var shown = 0
         val failed = readyState(name = "song.mp3", mediaType = PlaybackMediaType.AUDIO).copyForTest(
-            content = PlaybackContent.Failed(PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IOException("offline")))),
+            content = PlaybackContent.Failed(
+                PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IOException("offline"))),
+            ),
         )
         compose.setTvContent {
             TvPlayerScreen(

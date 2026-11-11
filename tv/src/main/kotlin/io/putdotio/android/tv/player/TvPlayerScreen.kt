@@ -151,7 +151,8 @@ internal fun TvPlayerScreen(
                     backgroundAudio = TvBackgroundAudio(background, onBackground, miniPlayer),
                 )
 
-            background -> TvBackgroundInterstitial(content, onResume = onResume, onEnded = onBack, onShow = onForeground)
+            background ->
+                TvBackgroundInterstitial(content, onResume = onResume, onEnded = onBack, onShow = onForeground)
 
             else ->
                 TvPlaybackInterstitial(
@@ -311,7 +312,7 @@ private fun TvReadyPlayer(
                     command,
                     TvPlayerHandlers(
                         exit = { currentOnExit() },
-                        background = { currentOnBackground.let { if (it != null) it() else currentOnExit() } },
+                        background = { (currentOnBackground ?: currentOnExit)() },
                         playNext = { currentOnPlaybackEnded() },
                         chooseNext = { currentOnNextEpisode() },
                         playChosen = { currentOnUpNext(it) },
