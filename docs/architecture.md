@@ -146,3 +146,4 @@ flowchart LR
 - Neither sends filenames, titles, URLs, search text or tokens.
 - Tokened stream and download URLs go only to the player, VLC or the open-with
   chooser, never to a browser, whose history would keep the token.
+
