@@ -216,6 +216,7 @@ internal fun MobilePlayerScreen(
                         content,
                         onRefreshConversion,
                         onStartConversion,
+                        onCancel = onBack,
                         onPlayInVlc = onOpenInVlc?.takeIf { LocalContext.current.hasVlc() },
                     )
 

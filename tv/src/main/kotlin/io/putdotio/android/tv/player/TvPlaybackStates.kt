@@ -57,6 +57,7 @@ import kotlin.math.roundToInt
 
 internal const val TV_CONVERSION_PERCENT_TAG = "tv-player-conversion-percent"
 internal const val TV_CONVERSION_PROGRESS_TAG = "tv-player-conversion-progress"
+internal const val TV_CONVERSION_QUEUED_TAG = "tv-player-conversion-queued"
 
 @Composable
 private fun TvPlayerStateFrame(
@@ -93,13 +94,15 @@ internal fun TvConversionScreen(
     conversion: PlaybackContent.Conversion,
     onRefresh: () -> Unit,
     onStartConversion: () -> Unit,
+    onCancel: () -> Unit,
     onPlayInVlc: (() -> Unit)? = null,
 ) {
     PlaybackConversionPolling(conversion, onRefresh)
     val state = conversion.state
     val polling = state == PlaybackConversionState.Queued || state is PlaybackConversionState.Converting
-    val running = conversion.starting || polling
+    val running = !conversion.statusCheckFailed && (conversion.starting || polling)
     val action = when (conversion.action) {
+        PlaybackConversionAction.RetryStatusCheck -> R.string.tv_player_retry to onRefresh
         PlaybackConversionAction.ConvertAgain -> R.string.tv_player_convert_again to onStartConversion
         PlaybackConversionAction.CheckAgain -> R.string.tv_player_check_again to onRefresh
         null -> (R.string.tv_player_check_again to onRefresh).takeIf { polling }
@@ -108,13 +111,13 @@ internal fun TvConversionScreen(
         TvEmptyState(
             glyph = null,
             headline = stringResource(R.string.tv_player_conversion_title),
-            message = if (running) stringResource(R.string.tv_player_conversion_message) else state.message(),
+            message = conversion.message(running),
             action = action?.let { (label, onClick) ->
                 TvEmptyStateAction(
                     label = stringResource(label),
                     onClick = onClick,
                     icon = R.drawable.ic_ph_arrows_clockwise,
-                    enabled = polling || conversion.refreshRequestId == null,
+                    enabled = polling || conversion.statusCheckFailed || conversion.refreshRequestId == null,
                 )
             },
             secondaryAction = onPlayInVlc?.let { onClick ->
@@ -124,8 +127,18 @@ internal fun TvConversionScreen(
                     icon = R.drawable.ic_ph_traffic_cone,
                 )
             },
+            tertiaryAction = TvEmptyStateAction(
+                label = stringResource(R.string.tv_dialog_cancel),
+                onClick = onCancel,
+                icon = R.drawable.ic_ph_x,
+            ).takeIf { running || conversion.statusCheckFailed },
             supporting = if (running) {
-                { TvConversionProgress((state as? PlaybackConversionState.Converting)?.percent) }
+                {
+                    TvConversionProgress(
+                        percent = (state as? PlaybackConversionState.Converting)?.percent,
+                        queued = state == PlaybackConversionState.Queued,
+                    )
+                }
             } else {
                 null
             },
@@ -135,7 +148,7 @@ internal fun TvConversionScreen(
 }
 
 @Composable
-private fun TvConversionProgress(percent: Double?) {
+private fun TvConversionProgress(percent: Double?, queued: Boolean) {
     Column(
         modifier = Modifier.padding(bottom = ACTION_EXTRA_GAP),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -165,11 +178,19 @@ private fun TvConversionProgress(percent: Double?) {
                 gapSize = 0.dp,
                 drawStopIndicator = {},
             )
+        }
+        val line = when {
+            percent != null -> stringResource(R.string.tv_player_conversion_percent, percent.roundToInt())
+            queued -> stringResource(R.string.tv_player_conversion_queued)
+            else -> null
+        }
+        if (line != null) {
+            val lineStyle = MaterialTheme.typography.bodySmall
             Text(
-                text = stringResource(R.string.tv_player_conversion_percent, percent.roundToInt()),
-                style = MaterialTheme.typography.bodySmall
+                text = line,
+                style = lineStyle
                     .copy(
-                        fontFamily = PutioTypeScale.tvMono.fontFamily,
+                        fontFamily = if (percent != null) PutioTypeScale.tvMono.fontFamily else lineStyle.fontFamily,
                         fontSize = PERCENT_SIZE,
                         lineHeight = PERCENT_LINE,
                     )
@@ -177,12 +198,20 @@ private fun TvConversionProgress(percent: Double?) {
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier
                     .padding(top = PERCENT_GAP)
-                    .testTag(TV_CONVERSION_PERCENT_TAG)
+                    .testTag(if (percent != null) TV_CONVERSION_PERCENT_TAG else TV_CONVERSION_QUEUED_TAG)
                     .semantics { liveRegion = LiveRegionMode.Polite },
             )
         }
     }
 }
+
+@Composable
+private fun PlaybackContent.Conversion.message(running: Boolean): String =
+    when {
+        statusCheckFailed -> stringResource(R.string.tv_player_conversion_status_failed)
+        running -> stringResource(R.string.tv_player_conversion_message)
+        else -> state.message()
+    }
 
 @Composable
 private fun PlaybackConversionState.message(): String =
