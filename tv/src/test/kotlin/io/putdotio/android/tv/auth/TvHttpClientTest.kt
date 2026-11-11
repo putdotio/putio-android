@@ -1,5 +1,6 @@
 package io.putdotio.android.tv.auth
 
+import okhttp3.Call
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Protocol
@@ -78,8 +79,8 @@ class TvHttpClientTest {
     fun aCallCanceledDuringTheWaitIsNotRetried() {
         answers += 429 to "1"
         answers += 200 to null
-        var call: okhttp3.Call? = null
-        val canceling = tvHttpClient { _, _ -> call?.cancel() }.newBuilder()
+        lateinit var call: Call
+        val canceling = tvHttpClient { _, _ -> call.cancel() }.newBuilder()
             .addInterceptor(client.interceptors.last())
             .build()
 
