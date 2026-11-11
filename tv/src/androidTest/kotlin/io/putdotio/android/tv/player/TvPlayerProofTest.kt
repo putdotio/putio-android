@@ -1236,7 +1236,7 @@ class TvPlayerProofTest {
         const val NEAR_END_SAVED_SECONDS = 70.0
         const val NEAR_END_LABEL = "Resume from 1:10?"
         const val AUDIO_TITLE = "Harbor tune.m4a"
-        const val POSITION_INTERVAL_MILLIS = 15_000L
+        const val POSITION_INTERVAL_MILLIS = 10_000L
         const val RESUME_TITLE = "Resume from 0:45?"
         const val RESUME_LABEL = "Resume"
         const val RESTART_LABEL = "Start over"
