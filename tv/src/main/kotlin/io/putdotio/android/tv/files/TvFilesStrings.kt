@@ -9,7 +9,10 @@ import io.putdotio.android.R
 import io.putdotio.android.apiReason
 import io.putdotio.android.files.FilesSort
 import io.putdotio.android.tv.TvFailureCopy
+import io.putdotio.android.tv.isUnknown
 import io.putdotio.android.tv.tvCopy
+import io.putdotio.android.tv.tvLine
+import io.putdotio.android.tv.tvUnknownLine
 
 @StringRes
 internal fun FilesSort.tvLabel(): Int =
@@ -30,7 +33,10 @@ internal fun FilesSort.tvLabel(): Int =
 
 /** put.io's reason for a refused request, else this failure's copy. */
 @Composable
-internal fun FilesFailure.tvMessageText(): String = (this as? PutioFailure)?.apiReason ?: stringResource(tvMessage())
+internal fun FilesFailure.tvMessageText(): String {
+    val failure = this as? PutioFailure
+    return failure?.apiReason ?: failure?.takeIf { it.isUnknown }?.tvUnknownLine() ?: stringResource(tvMessage())
+}
 
 internal fun FilesFailure.tvStateCopy(): TvFailureCopy? =
     (this as? PutioFailure)?.takeIf { it.apiReason == null }?.tvCopy()
@@ -40,5 +46,5 @@ internal fun FilesFailure.tvMessage(): Int =
     when (this) {
         FilesFailure.NavigationBlocked -> R.string.tv_error_navigation_blocked
         is PutioFailure.AccessDenied -> R.string.tv_error_forbidden
-        is PutioFailure -> (tvCopy() ?: TvFailureCopy.Server).line
+        is PutioFailure -> tvLine()
     }

@@ -154,7 +154,7 @@ class TvFoundationsProofTest {
     @Test
     fun error() {
         mount(listings = emptyMap())
-        waitForText("Something went wrong on our end")
+        waitForText("Something unexpected happened")
         compose.onNode(hasText("Try again") and hasClickAction()).assertIsFocused()
         screenshot("androidtv-st-s3-error")
     }

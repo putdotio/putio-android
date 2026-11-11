@@ -221,6 +221,10 @@
     <string name="tv_error_not_found">File not found. This file may have been deleted.</string>
     <string name="tv_error_server_title">Something went wrong on our end</string>
     <string name="tv_error_server_recovery">Try again in a few minutes, then contact support.</string>
+    <string name="tv_error_unexpected_title">Something unexpected happened</string>
+    <string name="tv_error_id">Error id: %1$s</string>
+    <string name="tv_error_unexpected">Something unexpected happened.</string>
+    <string name="tv_error_unexpected_with_id">Something unexpected happened. Error id: %1$s</string>
     <string name="tv_error_unavailable">Something went wrong on our end. Try again in a few minutes, then contact support.</string>
     <string name="tv_global_search_description">Files in your put.io account</string>
     <string name="tv_search_placeholder">Search your files</string>

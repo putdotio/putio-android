@@ -24,6 +24,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.FilesFailure
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioEmptyGlyph
@@ -101,11 +102,20 @@ internal fun TvLoadFailedState(
     claimFocus: Boolean = true,
 ) {
     val copy = failure.tvStateCopy()
+    val unknown = (failure as? PutioFailure)?.takeIf { it.isUnknown }
     val offline = copy == TvFailureCopy.Network
     TvEmptyState(
         glyph = if (offline) PutioEmptyGlyph.Offline else PutioEmptyGlyph.CouldNotLoad,
-        headline = copy?.let { stringResource(it.headline) } ?: headline,
-        message = copy?.let { stringResource(it.recovery) } ?: failure.tvMessageText(),
+        headline = when {
+            copy != null -> stringResource(copy.headline)
+            unknown != null -> stringResource(R.string.tv_error_unexpected_title)
+            else -> headline
+        },
+        message = when {
+            copy != null -> stringResource(copy.recovery)
+            unknown != null -> unknown.tvErrorId()?.let { stringResource(R.string.tv_error_id, it) }
+            else -> failure.tvMessageText()
+        },
         action = TvEmptyStateAction(
             label = stringResource(if (offline) R.string.tv_state_try_now else R.string.tv_state_try_again),
             onClick = onRetry,

@@ -29,11 +29,14 @@ internal fun PutioFailure.tvCopy(): TvFailureCopy? =
         is PutioFailure.Timeout -> TvFailureCopy.Timeout
         is PutioFailure.RateLimited -> TvFailureCopy.RateLimited
         is PutioFailure.ApiRejected -> TvFailureCopy.NotFound.takeIf { isNotFound }
-        is PutioFailure.ServerUnavailable,
-        is PutioFailure.InvalidResponse,
-        is PutioFailure.Unexpected,
-        -> TvFailureCopy.Server
+        is PutioFailure.ServerUnavailable -> TvFailureCopy.Server
         is PutioFailure.AccessDenied,
         is PutioFailure.Misconfigured,
+        is PutioFailure.InvalidResponse,
+        is PutioFailure.Unexpected,
         -> null
     }
+
+@StringRes
+internal fun PutioFailure.tvLine(): Int =
+    tvCopy()?.line ?: if (isUnknown) R.string.tv_error_unexpected else TvFailureCopy.Server.line

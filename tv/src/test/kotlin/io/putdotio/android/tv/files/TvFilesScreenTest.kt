@@ -38,6 +38,7 @@ import io.putdotio.android.files.FilesRequestId
 import io.putdotio.android.files.FilesSort
 import io.putdotio.android.files.FilesSubtitleLanguages
 import io.putdotio.android.files.FilesSubtitles
+import io.putdotio.android.tv.TvFailureReports
 import io.putdotio.android.tv.TvPlayStart
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
@@ -235,6 +236,22 @@ class TvFilesScreenTest {
             FilesFolderOperationPhase.RELOADING,
         )
         compose.onAllNodesWithText("Sort by").assertCountEquals(0)
+    }
+
+    @Test
+    fun anUnknownFailureShowsItsErrorIdOnlyWhenOneWasReported() {
+        val reported = PutioFailure.Unexpected(IllegalStateException("reported"))
+        TvFailureReports.record(reported, ERROR_ID)
+        var failure by mutableStateOf<PutioFailure>(reported)
+        compose.showFiles(state = { state(FilesContent.Failed(failure)) })
+        compose.onNodeWithText("Something unexpected happened").assertIsDisplayed()
+        compose.onNodeWithText("Error id: $ERROR_ID").assertIsDisplayed()
+
+        compose.runOnIdle {
+            failure = PutioFailure.InvalidResponse(PutioConfigurationException("diagnostics off"))
+        }
+        compose.onNodeWithText("Something unexpected happened").assertIsDisplayed()
+        compose.onNodeWithText("Error id:", substring = true).assertDoesNotExist()
     }
 
     @Test
@@ -701,5 +718,9 @@ class TvFilesScreenTest {
 
     private fun pressSystemBack() {
         compose.activity.onBackPressedDispatcher.onBackPressed()
+    }
+
+    private companion object {
+        const val ERROR_ID = "0f8fad5bd9cb469fa165708677289ba1"
     }
 }
