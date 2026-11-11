@@ -35,6 +35,7 @@ import io.putdotio.android.putioErrorBody
 import io.putdotio.android.putioRefusal
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PlaybackConversionState
+import io.putdotio.sdk.files.PutioFileType
 import java.io.IOException
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -53,8 +54,8 @@ class TvPlaybackStatesTest {
     private var refreshes = 0
     private var starts = 0
     private var retries = 0
-    private var backs = 0
     private var vlcOpens = 0
+    private var backs = 0
     private val lifecycleOwner = object : LifecycleOwner {
         val registry = LifecycleRegistry(this).apply { currentState = Lifecycle.State.RESUMED }
         override val lifecycle: Lifecycle get() = registry
@@ -185,34 +186,67 @@ class TvPlaybackStatesTest {
     }
 
     @Test
-    fun failuresExplainThemselvesAndOfferTryAgainOnlyWhereItCanWork() {
+    fun aNetworkFailureReadsConnectionLostAndOffersTryAgainThenGoBack() {
         content = PlaybackContent.Failed(PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IOException("offline"))))
         show()
         compose.onNodeWithText(TITLE).assertIsDisplayed()
-        compose.onNodeWithText("Couldn't play this file.").assertIsDisplayed()
+        compose.onNodeWithText("Connection lost").assertIsDisplayed()
         compose.onNodeWithText("Check your internet connection.").assertIsDisplayed()
         compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressKey(Key.DirectionCenter) }
         compose.runOnIdle { assertEquals(1, retries) }
-
-        change(PlaybackContent.Failed(PlaybackFailure.MediaCredentialUnavailable(IOException())))
-        compose.onNodeWithText("Playback link expired").assertIsDisplayed()
-        compose.onNodeWithText("The fresh link didn’t work either.").assertIsDisplayed()
-        compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNodeWithText("Try again").performKeyInput { pressKey(Key.DirectionRight) }
         compose.onNodeWithText("Go back").assertIsFocused().performKeyInput { pressKey(Key.DirectionCenter) }
         compose.runOnIdle { assertEquals(1, backs) }
+    }
+
+    @Test
+    fun goBackKeepsFocusWhenAFailureLosesItsTryAgain() {
+        content = PlaybackContent.Failed(PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IOException("offline"))))
+        show()
+        compose.onNodeWithText("Try again").performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNodeWithText("Go back").assertIsFocused()
+
+        val denied = PutioFailure.AccessDenied(PutioConfigurationException("test"))
+        change(PlaybackContent.Failed(PlaybackFailure.Putio(denied)))
+        compose.onNodeWithText("Try again").assertDoesNotExist()
+        compose.onNodeWithText("Go back").assertIsFocused()
+    }
+
+    @Test
+    fun aPlayerCrashReadsPlaybackErrorAndOffersTryAgainAndGoBack() {
+        content = PlaybackContent.Failed(PlaybackFailure.Putio(PutioFailure.Unexpected(IllegalStateException("boom"))))
+        show()
+        compose.onNodeWithText("Playback error").assertIsDisplayed()
+        compose.onNodeWithText("Something unexpected happened.", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("Try again").assertIsFocused()
+        compose.onNodeWithText("Go back").assertIsDisplayed()
+    }
+
+    @Test
+    fun failuresExplainThemselvesAndAlwaysOfferAFocusedAction() {
+        content = PlaybackContent.Failed(PlaybackFailure.MediaCredentialUnavailable(IOException()))
+        show()
+        compose.onNodeWithText("Playback link expired").assertIsDisplayed()
+        compose.onNodeWithText("The fresh link didn’t work either.").assertIsDisplayed()
+        compose.onNodeWithText("Try again").assertIsFocused()
+        compose.onNodeWithText("Go back").assertIsDisplayed()
 
         val cause = PutioConfigurationException("test")
         change(PlaybackContent.Failed(PlaybackFailure.Putio(PutioFailure.AuthenticationRequired(cause))))
         compose.onNodeWithText("Session expired. Please sign in again.").assertIsDisplayed()
         compose.onNodeWithText("Try again").assertDoesNotExist()
+        compose.onNodeWithText("Go back").assertIsFocused()
 
         change(PlaybackContent.Failed(PlaybackFailure.Putio(PutioFailure.AccessDenied(cause))))
         compose.onNodeWithText("You don’t have access to this file.").assertIsDisplayed()
         compose.onNodeWithText("Try again").assertDoesNotExist()
+        compose.onNodeWithText("Go back").assertIsFocused().performKeyInput { pressKey(Key.DirectionCenter) }
+        compose.runOnIdle { assertEquals(1, backs) }
 
         // A refused request shows put.io's own reason; a bare error code keeps the app's copy.
         change(PlaybackContent.Failed(putioRefusal(400, putioErrorBody(400, "not a video")).toPlaybackFailure()))
         compose.onNodeWithText("not a video").assertIsDisplayed()
+        compose.onNodeWithText("Go back").assertIsFocused()
         change(PlaybackContent.Failed(putioRefusal(400, putioErrorBody(400, "NOT_A_VIDEO")).toPlaybackFailure()))
         compose.onNodeWithText("put.io couldn’t prepare this file for playback.").assertIsDisplayed()
         change(PlaybackContent.Failed(putioRefusal(404, putioErrorBody(404, "NOT_FOUND")).toPlaybackFailure()))
@@ -220,23 +254,48 @@ class TvPlaybackStatesTest {
     }
 
     @Test
-    fun aFormatThisTvCannotPlayOffersVlcWhereItIsWired() {
+    fun aFormatThisTvCannotPlayOffersVlcWhereItIsWiredThenGoBack() {
         content = PlaybackContent.Failed(PlaybackFailure.MediaUnsupported(IOException()))
         show(openInVlc = { vlcOpens += 1 })
-        compose.onNodeWithText("This TV can't play this file.").assertIsDisplayed()
-        compose.onNodeWithText("Its format isn't supported here. VLC can usually play it.").assertIsDisplayed()
+        compose.onNodeWithText("Can’t play this here").assertIsDisplayed()
+        compose.onNodeWithText("This format needs another player.").assertIsDisplayed()
         compose.onNodeWithText("Try again").assertDoesNotExist()
         compose.onNodeWithText("Open in VLC").assertIsFocused().performKeyInput { pressKey(Key.DirectionCenter) }
         compose.runOnIdle { assertEquals(1, vlcOpens) }
+        compose.onNodeWithText("Open in VLC").performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNodeWithText("Go back").assertIsFocused()
     }
 
     @Test
-    fun withoutVlcACantPlayStateOffersNothingButBack() {
+    fun withoutVlcACantPlayStateFocusesGoBack() {
         content = PlaybackContent.Failed(PlaybackFailure.MediaUnsupported(IOException()))
         show()
-        compose.onNodeWithText("This TV can't play this file.").assertIsDisplayed()
+        compose.onNodeWithText("Can’t play this here").assertIsDisplayed()
         compose.onNodeWithText("Open in VLC").assertDoesNotExist()
         compose.onNodeWithText("Try again").assertDoesNotExist()
+        compose.onNodeWithText("Go back").assertIsFocused().performKeyInput { pressKey(Key.DirectionCenter) }
+        compose.runOnIdle { assertEquals(1, backs) }
+    }
+
+    @Test
+    fun withoutVlcAFileWithNoConvertedVersionFocusesGoBack() {
+        content = PlaybackContent.Unsupported(PutioFileType.VIDEO)
+        show()
+        compose.onNodeWithText("This TV can’t play the original file, and it has no converted version.")
+            .assertIsDisplayed()
+        compose.onNodeWithText("Open in VLC").assertDoesNotExist()
+        compose.onNodeWithText("Go back").assertIsFocused().performKeyInput { pressKey(Key.DirectionCenter) }
+        compose.runOnIdle { assertEquals(1, backs) }
+    }
+
+    @Test
+    fun withVlcInstalledAFileWithNoConvertedVersionFocusesOpenInVlc() {
+        content = PlaybackContent.Unsupported(PutioFileType.VIDEO)
+        show(playInVlc = { vlcOpens += 1 })
+        compose.onNodeWithText("Open in VLC").assertIsFocused().performKeyInput { pressKey(Key.DirectionCenter) }
+        compose.runOnIdle { assertEquals(1, vlcOpens) }
+        compose.onNodeWithText("Open in VLC").performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNodeWithText("Go back").assertIsFocused()
     }
 
     private fun change(next: PlaybackContent) {

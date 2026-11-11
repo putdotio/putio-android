@@ -205,17 +205,19 @@ internal fun TvPlaybackFailureScreen(
     onBack: () -> Unit,
 ) {
     val cantPlay = failure is PlaybackFailure.MediaUnsupported
-    val linkExpired = failure is PlaybackFailure.MediaCredentialUnavailable
+    val lead = when {
+        failure.retryable -> TvEmptyStateAction(
+            label = stringResource(R.string.tv_player_retry),
+            onClick = onRetry,
+            icon = R.drawable.ic_ph_arrows_clockwise,
+        )
+        cantPlay && onOpenInVlc != null -> tvOpenInVlcAction(onOpenInVlc)
+        else -> null
+    }
     TvPlayerStateFrame(target, dimmed = true) {
         TvEmptyState(
             glyph = if (cantPlay) PutioEmptyGlyph.NoResults else PutioEmptyGlyph.CouldNotLoad,
-            headline = stringResource(
-                when {
-                    cantPlay -> R.string.tv_player_cant_play_title
-                    linkExpired -> R.string.tv_player_error_link_expired_title
-                    else -> R.string.tv_player_error_title
-                },
-            ),
+            headline = stringResource(failure.headlineResource()),
             message = if (cantPlay) {
                 stringResource(R.string.tv_player_cant_play_message)
             } else {
@@ -223,24 +225,8 @@ internal fun TvPlaybackFailureScreen(
                     ?: failure.putioFailure?.takeIf { it.isUnknown }?.tvUnknownLine()
                     ?: stringResource(failure.messageResource())
             },
-            action = when {
-                failure.retryable -> TvEmptyStateAction(
-                    label = stringResource(R.string.tv_player_retry),
-                    onClick = onRetry,
-                    icon = R.drawable.ic_ph_arrows_clockwise,
-                )
-                cantPlay && onOpenInVlc != null -> TvEmptyStateAction(
-                    label = stringResource(R.string.tv_player_open_in_vlc),
-                    onClick = onOpenInVlc,
-                    icon = R.drawable.ic_ph_traffic_cone,
-                )
-                else -> null
-            },
-            secondaryAction = if (linkExpired) {
-                TvEmptyStateAction(label = stringResource(R.string.tv_files_go_back), onClick = onBack)
-            } else {
-                null
-            },
+            action = lead ?: tvGoBackAction(onBack),
+            secondaryAction = lead?.let { tvGoBackAction(onBack) },
             glyphRunPerCharacter = !cantPlay,
             glyphModifier = if (cantPlay) Modifier.offset(y = -SHRUG_LIFT) else Modifier,
             messageColor = MaterialTheme.colorScheme.onSurface,
@@ -249,16 +235,45 @@ internal fun TvPlaybackFailureScreen(
 }
 
 @Composable
-internal fun TvUnsupportedScreen(target: PlaybackTarget) {
+internal fun TvUnsupportedScreen(
+    target: PlaybackTarget,
+    onPlayInVlc: (() -> Unit)?,
+    onBack: () -> Unit,
+) {
+    val vlc = onPlayInVlc?.let { tvOpenInVlcAction(it) }
     TvPlayerStateFrame(target, dimmed = true) {
         TvEmptyState(
             glyph = PutioEmptyGlyph.NoResults,
             headline = stringResource(R.string.tv_player_unsupported_title),
             message = stringResource(R.string.tv_player_unsupported_video_message)
                 .takeIf { target.mediaType == PlaybackMediaType.VIDEO },
+            action = vlc ?: tvGoBackAction(onBack),
+            secondaryAction = vlc?.let { tvGoBackAction(onBack) },
         )
     }
 }
+
+@Composable
+private fun tvOpenInVlcAction(onClick: () -> Unit): TvEmptyStateAction =
+    TvEmptyStateAction(
+        label = stringResource(R.string.tv_player_open_in_vlc),
+        onClick = onClick,
+        icon = R.drawable.ic_ph_traffic_cone,
+    )
+
+@Composable
+private fun tvGoBackAction(onBack: () -> Unit): TvEmptyStateAction =
+    TvEmptyStateAction(label = stringResource(R.string.tv_files_go_back), onClick = onBack)
+
+@StringRes
+private fun PlaybackFailure.headlineResource(): Int =
+    when {
+        this is PlaybackFailure.MediaUnsupported -> R.string.tv_player_cant_play_title
+        this is PlaybackFailure.MediaCredentialUnavailable -> R.string.tv_player_error_link_expired_title
+        putioFailure is PutioFailure.NetworkUnavailable -> R.string.tv_player_connection_lost
+        putioFailure is PutioFailure.Unexpected -> R.string.tv_player_error_crash
+        else -> R.string.tv_player_error_title
+    }
 
 @StringRes
 private fun PlaybackFailure.messageResource(): Int =

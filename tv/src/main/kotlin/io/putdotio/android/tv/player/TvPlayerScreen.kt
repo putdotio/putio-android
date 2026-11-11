@@ -181,7 +181,7 @@ internal fun TvPlayerScreen(
                     onPlayInVlc = onPlayInVlc,
                 )
 
-            is PlaybackContent.Unsupported -> TvUnsupportedScreen(state.target)
+            is PlaybackContent.Unsupported -> TvUnsupportedScreen(state.target, onPlayInVlc, onBack)
 
             is PlaybackContent.Failed ->
                 TvPlaybackFailureScreen(state.target, content.failure, onRetry, onOpenInVlc, onBack)

@@ -437,8 +437,7 @@ internal fun PlaybackState.isLoading(requestId: PlaybackRequestId): Boolean =
 
 private const val INITIAL_REQUEST_VALUE = 1L
 
-/** How often a queued or running conversion is read again (tv-native `useConversionStatus`: 3 s). */
-public const val PLAYBACK_CONVERSION_POLL_MILLIS: Long = 3_000L
+public const val PLAYBACK_CONVERSION_POLL_MILLIS: Long = 5_000L
 
 /**
  * Queued and running conversions are read again on their own; the others wait for the viewer

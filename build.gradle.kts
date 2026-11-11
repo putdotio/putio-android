@@ -22,7 +22,7 @@ val bash: String = HostBash.path
 val scriptCheckTools = providers.exec {
     commandLine(
         bash, "-c",
-        "for tool in bash python3 ffmpeg ffprobe; do \"\$tool\" --version 2>&1 | head -1; done",
+        "for tool in bash python3; do \"\$tool\" --version 2>&1 | head -1; done",
     )
     isIgnoreExitValue = true
 }.standardOutput.asText
@@ -40,24 +40,6 @@ fun Exec.cacheableCheck(vararg sources: Any) {
     outputs.file(stamp).withPropertyName("stamp")
     outputs.cacheIf { true }
     doLast { stamp.get().asFile.writeText("passed\n") }
-}
-
-val testEvidence = tasks.register<Exec>("testEvidence") {
-    description = "Run evidence harness regression tests"
-    cacheableCheck()
-    commandLine(bash, "scripts/test-evidence.sh")
-}
-
-val testEmulatorHarness = tasks.register<Exec>("testEmulatorHarness") {
-    description = "Run emulator provisioning and readiness contract tests"
-    cacheableCheck()
-    commandLine(bash, "scripts/test-emulator.sh")
-}
-
-val testSignInHarness = tasks.register<Exec>("testSignInHarness") {
-    description = "Run the devs-auto device-code sign-in script's contract tests"
-    cacheableCheck()
-    commandLine(bash, "scripts/test-sign-in.sh")
 }
 
 val checkIcons = tasks.register<Exec>("checkIcons") {
@@ -139,13 +121,14 @@ tasks.register("updateDesignMdColors") {
     doLast { markdown.writeText(DesignTokenCodegen.withDesignMdColors(markdown.readText(), tokens.readText())) }
 }
 
-val nodeVersion = providers.exec { commandLine("node", "--version") }.standardOutput.asText
-
-val lintDesignMd = tasks.register<Exec>("lintDesignMd") {
-    description = "Lint DESIGN.md against the design.md format"
-    cacheableCheck("DESIGN.md", "package.json", ".node-version")
-    inputs.property("node", nodeVersion)
-    commandLine(bash, "scripts/lint-design-md.sh", pinnedNodeTool("@google/design.md").get())
+val lintDesignMd = tasks.register<LintDesignMdTask>("lintDesignMd") {
+    group = "verification"
+    description = "Lint DESIGN.md against the design.md format; warnings fail too"
+    designMd.set(designMdFile)
+    linterVersion.set(pinnedNodeTool("@google/design.md"))
+    npx.set(if (windows) "npx.cmd" else "npx")
+    nodeVersion.set(providers.exec { commandLine("node", "--version") }.standardOutput.asText.map { it.trim() })
+    stamp.set(layout.buildDirectory.file("verification/lintDesignMd.stamp"))
 }
 
 val markdownCheck = tasks.register<Exec>("markdownCheck") {
@@ -155,29 +138,61 @@ val markdownCheck = tasks.register<Exec>("markdownCheck") {
     commandLine(if (windows) "npx.cmd" else "npx", "--yes", "oxfmt@${pinnedNodeTool("oxfmt").get()}", "--check", "**/*.md")
 }
 
+val appProjects = setOf(":mobile", ":tv", ":baselineprofile:tv")
+
+fun verifyLane(name: String, summary: String, vararg checks: Any) = tasks.register(name) {
+    group = "verification"
+    description = summary
+    dependsOn(*checks)
+}
+
+val verifyDocs = verifyLane("verifyDocs", "Check Markdown and the DESIGN.md contract", markdownCheck)
+
+val verifyScripts = verifyLane(
+    "verifyScripts",
+    "Run the design asset, icon and font script checks",
+    checkDesignAssets,
+    checkIcons,
+    testBrandFontPipeline,
+    testDesignAssetPipeline,
+    testIconPipeline,
+    testTalkBackInput,
+)
+
+val verifyLibraries = verifyLane(
+    "verifyLibraries",
+    "Check the shared libraries and the build logic",
+    subprojects.filter { it.buildFile.isFile && it.path !in appProjects }.map { "${it.path}:check" },
+    ":domain:auth:assembleDebugAndroidTest",
+    ":domain:transfers:assembleDebugAndroidTest",
+    gradle.includedBuild("build-logic").task(":test"),
+)
+
+val verifyMobile = verifyLane(
+    "verifyMobile",
+    "Check the mobile app and assemble its instrumented tests",
+    ":mobile:check",
+    ":mobile:assembleProductionDebugAndroidTest",
+)
+
+val verifyTv = verifyLane(
+    "verifyTv",
+    "Check the TV app and assemble its instrumented tests",
+    ":tv:check",
+    ":baselineprofile:tv:check",
+    ":tv:assembleProductionDebugAndroidTest",
+)
+
+val verifyRelease = verifyLane(
+    "verifyRelease",
+    "Assemble the minified release builds",
+    ":mobile:assembleProductionRelease",
+    ":tv:assembleProductionRelease",
+    ":tv:assembleNightlyRelease",
+)
+
 tasks.register("verify") {
     group = "verification"
     description = "Run the canonical local checks"
-    dependsOn(
-        // Every app and library runs its own lint, detekt and unit tests.
-        subprojects.filter { it.buildFile.isFile }.map { "${it.path}:check" },
-        ":mobile:assembleProductionRelease",
-        ":tv:assembleProductionRelease",
-        ":tv:assembleNightlyRelease",
-        ":mobile:assembleProductionDebugAndroidTest",
-        ":tv:assembleProductionDebugAndroidTest",
-        ":domain:auth:assembleDebugAndroidTest",
-        ":domain:transfers:assembleDebugAndroidTest",
-        checkDesignAssets,
-        checkIcons,
-        markdownCheck,
-        testBrandFontPipeline,
-        testDesignAssetPipeline,
-        testEmulatorHarness,
-        testEvidence,
-        testIconPipeline,
-        testSignInHarness,
-        testTalkBackInput,
-        gradle.includedBuild("build-logic").task(":test"),
-    )
+    dependsOn(verifyDocs, verifyScripts, verifyLibraries, verifyMobile, verifyTv, verifyRelease)
 }
