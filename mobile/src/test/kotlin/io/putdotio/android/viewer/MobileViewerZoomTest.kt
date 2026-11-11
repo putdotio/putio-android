@@ -122,6 +122,16 @@ class MobileViewerZoomTest {
     }
 
     @Test
+    fun zoomingOutAtAnEdgeOverflowsNothing() {
+        val zoom = MobileViewerZoom().apply { measure(IntSize(1000, 2000), contentAspect = null) }
+        zoom.transform(zoomChange = 3f, centroid = Offset(500f, 1000f), pan = Offset(0f, 5000f))
+
+        val overflow = zoom.transform(zoomChange = 0.5f, centroid = Offset(500f, 1000f), pan = Offset.Zero)
+
+        assertEquals(Offset.Zero, overflow)
+    }
+
+    @Test
     fun zoomStaysBetweenFitAndTheMaximum() {
         val zoom = MobileViewerZoom().apply { measure(IntSize(1000, 1000), contentAspect = null) }
 

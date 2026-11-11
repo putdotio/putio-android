@@ -40,8 +40,9 @@ internal class MobileViewerZoom {
     fun transform(zoomChange: Float, centroid: Offset, pan: Offset): Offset {
         val next = (scale * zoomChange).coerceIn(1f, VIEWER_ZOOM_MAX)
         val fromCenter = centroid - center()
-        val wanted = fromCenter - (fromCenter - offset) * (next / scale) + pan
+        val anchored = fromCenter - (fromCenter - offset) * (next / scale)
         scale = next
+        val wanted = clamp(anchored) + pan
         offset = clamp(wanted)
         return wanted - offset
     }
