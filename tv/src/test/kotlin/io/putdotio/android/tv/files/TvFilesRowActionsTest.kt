@@ -370,6 +370,27 @@ class TvFilesRowActionsTest {
         compose.onNodeWithText("Couldn’t update your pins.", substring = true).assertIsDisplayed()
     }
 
+    @Test
+    fun aBriefWaitsForTheActionsSheetToClose() {
+        var brief by mutableStateOf<TvBrief?>(null)
+        compose.setTvContent {
+            TvFilesScreen(
+                state = ready(item(3, "notes.txt", PutioFileType.TEXT)),
+                onEvent = { true },
+                onPlayMedia = {},
+                brief = brief,
+            )
+        }
+        compose.onNodeWithContentDescription("notes.txt").performKeyInput { pressKey(Key.Menu) }
+        compose.onNode(hasText("Pin to Home") and isFocused()).assertIsDisplayed()
+
+        compose.runOnIdle { brief = TvBrief("Couldn’t update your pins. No connection.") { brief = null } }
+        compose.onAllNodesWithText("Couldn’t update your pins.", substring = true).assertCountEquals(0)
+
+        compose.onNode(hasText("Pin to Home") and isFocused()).performKeyInput { pressCenter() }
+        compose.onNodeWithText("Couldn’t update your pins.", substring = true).assertIsDisplayed()
+    }
+
     private fun trashedOutcome(): FilesDeleteOutcome {
         val gone = item(4, "old.mp4", PutioFileType.VIDEO)
         return FilesDeleteOutcome(

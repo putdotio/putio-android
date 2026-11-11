@@ -89,6 +89,7 @@ import io.putdotio.android.tv.TvBrief
 import io.putdotio.android.tv.TvBriefShown
 import io.putdotio.android.tv.TvPaneSnackbarHost
 import io.putdotio.android.tv.TvQrCode
+import io.putdotio.android.tv.TvSnackbarHeldWhile
 import io.putdotio.android.tv.TvSnackbarState
 import io.putdotio.android.shown
 import io.putdotio.android.tv.asMonoRun
@@ -135,7 +136,7 @@ internal fun TvHomeScreen(
     }
     TvBriefShown(pinBrief, snackbar)
     Box(modifier = Modifier.fillMaxSize()) {
-        TvHomeContent(continueWatching, pinned, actions, paneFocus, onShown, modifier, returnTo, onReturned)
+        TvHomeContent(continueWatching, pinned, actions, paneFocus, onShown, snackbar, modifier, returnTo, onReturned)
         TvPaneSnackbarHost(snackbar)
     }
 }
@@ -147,6 +148,7 @@ private fun TvHomeContent(
     actions: TvHomeActions,
     paneFocus: FocusRequester,
     onShown: () -> Unit,
+    snackbar: TvSnackbarState,
     modifier: Modifier = Modifier,
     returnTo: FilesItemId? = null,
     onReturned: () -> Unit = {},
@@ -175,6 +177,7 @@ private fun TvHomeContent(
     val retry = rememberTvPinnedRetry(pinned, paneFocus)
     val pinSheet = remember { TvHomeCardSheet() }
     val continueSheet = remember { TvHomeCardSheet() }
+    TvSnackbarHeldWhile(open = pinSheet.item != null || continueSheet.item != null, snackbar = snackbar)
     TvHomeSheets(
         pinSheet = pinSheet,
         continueSheet = continueSheet,

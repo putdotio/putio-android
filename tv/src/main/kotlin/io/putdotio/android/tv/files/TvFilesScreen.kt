@@ -107,6 +107,7 @@ import io.putdotio.android.tv.TvTrashUndoOffered
 import io.putdotio.android.tv.TvUndoSnackbarHost
 import io.putdotio.android.tv.TvBrief
 import io.putdotio.android.tv.TvBriefShown
+import io.putdotio.android.tv.TvSnackbarHeldWhile
 import io.putdotio.android.tv.TvSnackbarMessage
 import io.putdotio.android.tv.TvSnackbarState
 import io.putdotio.android.tv.TvTrashUndoOffer
@@ -355,11 +356,12 @@ internal fun TvFilesScreen(
         }
         TvFilesTrashSnackbar(current, snackbar, onEvent, trashUndo, undoFocus, refocus = entryTarget)
         TvFilesMoveAnnouncement(current, snackbar, edits)
-        TvBriefShown(
-            brief,
-            snackbar,
-            held = notice != null || renamingItem != null || movingItem != null || actionsItem != null,
+        TvSnackbarHeldWhile(
+            open = notice != null || renamingItem != null || movingItem != null || actionsItem != null ||
+                viewer.open != null || unsupported != null,
+            snackbar = snackbar,
         )
+        TvBriefShown(brief, snackbar)
     }
 
     TvFileViewerLayer(viewer, (content as? FilesContent.Ready)?.items.orEmpty(), viewerUrl, siblings = true)

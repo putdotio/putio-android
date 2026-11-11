@@ -69,6 +69,7 @@ import io.putdotio.android.tv.TvUndoSnackbar
 import io.putdotio.android.tv.TvUndoSnackbarHost
 import io.putdotio.android.tv.TvBrief
 import io.putdotio.android.tv.TvBriefShown
+import io.putdotio.android.tv.TvSnackbarHeldWhile
 import io.putdotio.android.tv.files.TvFilesAction
 import io.putdotio.android.tv.files.TvFilesActionHandlers
 import io.putdotio.android.tv.files.TvFilesActionsSheet
@@ -228,7 +229,8 @@ internal fun TvSearchScreen(
         )
     }
     TvTrashUndoOffered(results.itemActions.trashUndo, undoSnackbar.state)
-    TvBriefShown(brief, undoSnackbar.state, held = settingsFrom != null)
+    TvSnackbarHeldWhile(open = settingsFrom != null, snackbar = undoSnackbar.state)
+    TvBriefShown(brief, undoSnackbar.state)
     TvUndoSnackbarHost(undoSnackbar.state, undoSnackbar.undoFocus, entryTarget)
     }
     val from = settingsFrom
@@ -444,6 +446,7 @@ private fun TvSearchReady(
         },
     )
     TvFileViewerLayer(viewer, groups.ordered, detail.viewerUrl, siblings = false)
+    TvSnackbarHeldWhile(open = actionsFor != null || edit.open || viewer.open != null, snackbar = undoSnackbar.state)
     if (edits != null) {
         TvItemEditLayer(
             target = edit,
