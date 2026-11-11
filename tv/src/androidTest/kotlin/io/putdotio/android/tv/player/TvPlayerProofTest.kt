@@ -1365,7 +1365,7 @@ class TvPlayerProofTest {
         const val CHIP_ROW_MAX = 4
         const val NO_CAPTIONS = "No captions available"
         const val SUBTITLES_FAILED = "Couldn’t load subtitles"
-        const val CAPTION_FOOTNOTE = "Text size follows your TV’s caption settings."
+        const val CAPTION_FOOTNOTE = "Font and colours follow your TV’s caption settings."
         const val STATES_NEXT_TITLE = "Big Buck Bunny.part2.mp4"
         const val STATES_FOLDER = "Big Buck Bunny"
     }

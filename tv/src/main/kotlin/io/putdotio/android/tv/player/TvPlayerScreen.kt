@@ -324,7 +324,7 @@ private fun TvReadyPlayer(
 
             override fun onPlayerError(error: PlaybackException) {
                 val position = player.currentPosition.coerceAtLeast(0L)
-                when (val step = recovery.recover(error.errorCode, SystemClock.elapsedRealtime())) {
+                when (val step = recovery.recover(error.toTvPlayerFailure(), SystemClock.elapsedRealtime())) {
                     is TvTrackRecoveryStep.DropSubtitles -> {
                         dropSubtitles(step)
                         return

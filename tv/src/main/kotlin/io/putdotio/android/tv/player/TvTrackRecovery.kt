@@ -5,10 +5,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.res.stringResource
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.HttpDataSource
+import androidx.media3.exoplayer.ExoPlaybackException
 import androidx.media3.exoplayer.hls.HlsManifest
 import io.putdotio.android.R
 import io.putdotio.android.playback.AudioSelection
@@ -26,6 +29,18 @@ internal sealed interface TvTrackRecoveryStep {
 
     data class RestoreAudio(val switch: TvAudioSwitch) : TvTrackRecoveryStep
 }
+
+internal class TvPlayerFailure(val code: Int, val uri: String? = null, val audioRenderer: Boolean? = null)
+
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+internal fun PlaybackException.toTvPlayerFailure(): TvPlayerFailure =
+    TvPlayerFailure(
+        code = errorCode,
+        uri = (cause as? HttpDataSource.HttpDataSourceException)?.dataSpec?.uri?.toString(),
+        audioRenderer = (this as? ExoPlaybackException)
+            ?.takeIf { it.type == ExoPlaybackException.TYPE_RENDERER }
+            ?.rendererFormat?.sampleMimeType?.let(MimeTypes::isAudio),
+    )
 
 internal class TvAudioSwitch(val parameters: TrackSelectionParameters, val selection: AudioSelection)
 
@@ -58,17 +73,19 @@ internal class TvTrackRecovery(
         audioSwitch = null
     }
 
-    fun recover(errorCode: Int, atMillis: Long): TvTrackRecoveryStep? {
+    fun recover(failure: TvPlayerFailure, atMillis: Long): TvTrackRecoveryStep? {
         val switch = audioSwitch?.takeIf { atMillis - audioSwitchedAtMillis <= TRACK_FAILURE_WINDOW_MILLIS }
         forgetBefore(atMillis)
         val justDropped = droppedAtMillis?.let { atMillis - it <= TRACK_FAILURE_WINDOW_MILLIS } == true
         droppedAtMillis = null
+        val subtitleLoad = failure.uri?.let { it in failingSubtitles || isSubtitle(C.TRACK_TYPE_UNKNOWN, it) } != false
         return when {
-            switch != null && errorCode in AUDIO_FAILURES -> {
+            switch != null && failure.code in AUDIO_FAILURES && failure.audioRenderer != false -> {
                 audioSwitch = null
                 TvTrackRecoveryStep.RestoreAudio(switch)
             }
-            errorCode in LOAD_FAILURES && (failingSubtitles.isNotEmpty() || justDropped) -> drop(atMillis = null)
+            failure.code in LOAD_FAILURES && subtitleLoad && (failingSubtitles.isNotEmpty() || justDropped) ->
+                drop(atMillis = null)
             else -> null
         }
     }

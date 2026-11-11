@@ -5,7 +5,7 @@ import io.putdotio.sdk.files.PlaybackSubtitle
 import java.util.Locale
 
 /**
- * This list keyed by the HLS manifest [tracks] it backs, so [putioSubtitle] finds each track's
+ * Keys this list to the HLS manifest [tracks] it backs, so [putioSubtitle] finds each track's
  * source. The manifest lists put.io's subtitles in this order, numbered within each language;
  * empty unless every track finds its own subtitle. A track the manifest gives no id is keyed
  * by its language and name.

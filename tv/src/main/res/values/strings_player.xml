@@ -7,7 +7,7 @@
     <string name="tv_player_previous_track">Previous file</string>
     <string name="tv_player_next_track">Next file</string>
     <string name="tv_player_audio">Audio</string>
-    <string name="tv_player_caption_settings">Text size follows your TV’s caption settings.</string>
+    <string name="tv_player_caption_settings">Font and colours follow your TV’s caption settings.</string>
     <string name="tv_player_no_captions">No captions available</string>
     <string name="tv_player_subtitles_failed">Couldn’t load subtitles</string>
     <string name="tv_player_audio_failed">Couldn’t switch audio track</string>
