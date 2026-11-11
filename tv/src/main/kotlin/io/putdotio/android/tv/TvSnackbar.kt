@@ -184,8 +184,8 @@ internal fun TvBriefShown(brief: TvBrief?, snackbar: TvSnackbarState) {
 }
 
 @Composable
-internal fun TvSnackbarHeldWhile(open: Boolean, snackbar: TvSnackbarState) {
-    if (!open) return
+internal fun TvSnackbarHeldWhile(snackbar: TvSnackbarState, vararg overlays: Any?) {
+    if (overlays.none { it != null && it != false }) return
     DisposableEffect(snackbar) {
         val key = Any()
         snackbar.hold(key)

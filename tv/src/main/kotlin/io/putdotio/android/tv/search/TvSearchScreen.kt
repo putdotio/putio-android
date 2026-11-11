@@ -229,7 +229,7 @@ internal fun TvSearchScreen(
         )
     }
     TvTrashUndoOffered(results.itemActions.trashUndo, undoSnackbar.state)
-    TvSnackbarHeldWhile(open = settingsFrom != null, snackbar = undoSnackbar.state)
+    TvSnackbarHeldWhile(undoSnackbar.state, settingsFrom)
     TvBriefShown(brief, undoSnackbar.state)
     TvUndoSnackbarHost(undoSnackbar.state, undoSnackbar.undoFocus, entryTarget)
     }
@@ -446,7 +446,7 @@ private fun TvSearchReady(
         },
     )
     TvFileViewerLayer(viewer, groups.ordered, detail.viewerUrl, siblings = false)
-    TvSnackbarHeldWhile(open = actionsFor != null || edit.open || viewer.open != null, snackbar = undoSnackbar.state)
+    TvSnackbarHeldWhile(undoSnackbar.state, actionsFor, edit.open, viewer.open)
     if (edits != null) {
         TvItemEditLayer(
             target = edit,

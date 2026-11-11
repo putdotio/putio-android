@@ -356,11 +356,7 @@ internal fun TvFilesScreen(
         }
         TvFilesTrashSnackbar(current, snackbar, onEvent, trashUndo, undoFocus, refocus = entryTarget)
         TvFilesMoveAnnouncement(current, snackbar, edits)
-        TvSnackbarHeldWhile(
-            open = notice != null || renamingItem != null || movingItem != null || actionsItem != null ||
-                viewer.open != null || unsupported != null,
-            snackbar = snackbar,
-        )
+        TvSnackbarHeldWhile(snackbar, notice, renamingItem, movingItem, actionsItem, viewer.open, unsupported)
         TvBriefShown(brief, snackbar)
     }
 

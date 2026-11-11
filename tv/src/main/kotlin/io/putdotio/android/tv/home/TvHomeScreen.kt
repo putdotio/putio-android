@@ -177,7 +177,7 @@ private fun TvHomeContent(
     val retry = rememberTvPinnedRetry(pinned, paneFocus)
     val pinSheet = remember { TvHomeCardSheet() }
     val continueSheet = remember { TvHomeCardSheet() }
-    TvSnackbarHeldWhile(open = pinSheet.item != null || continueSheet.item != null, snackbar = snackbar)
+    TvSnackbarHeldWhile(snackbar, pinSheet.item, continueSheet.item)
     TvHomeSheets(
         pinSheet = pinSheet,
         continueSheet = continueSheet,
