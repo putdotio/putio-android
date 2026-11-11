@@ -37,11 +37,11 @@ class TvWatchNextRulesTest {
     }
 
     @Test
-    fun `a short video within ten seconds of its end is finished, as opening it would start over`() {
-        val clip = video.copy(durationSeconds = 120.0)
+    fun `a two hour film is finished from 1h54m`() {
+        val film = video.copy(durationSeconds = 7_200.0)
 
-        assertEquals(TvWatchNextChange.Publish::class, watchNextChange(clip, 109.9)::class)
-        assertEquals(TvWatchNextChange.Remove(7L), watchNextChange(clip, 110.0))
+        assertEquals(TvWatchNextChange.Publish::class, watchNextChange(film, 6_839.0)::class)
+        assertEquals(TvWatchNextChange.Remove(7L), watchNextChange(film, 6_840.0))
     }
 
     @Test

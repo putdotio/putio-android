@@ -67,7 +67,7 @@ abstract class GenerateDesignTokensTask : DefaultTask() {
         if (installed.size < lock.faces.size) {
             logger.lifecycle(
                 "Brand fonts: ${installed.size} of ${lock.faces.size} installed; missing families use the system " +
-                    "face. Run ./scripts/sync-brand-fonts.sh to embed them.",
+                    "face. Run ./gradlew syncBrandFonts to embed them.",
             )
         }
 

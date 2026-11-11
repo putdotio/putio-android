@@ -133,6 +133,7 @@
     <string name="tv_viewer_position">%1$d of %2$d</string>
     <string name="tv_viewer_page">Page %1$d of %2$d</string>
     <string name="tv_viewer_text_truncated">Showing the first %1$s.</string>
+    <string name="tv_refresh">Refresh</string>
     <string name="tv_files_refresh_error">Couldn’t refresh files.</string>
     <string name="tv_files_sort_error">Couldn’t change sorting.</string>
     <string name="tv_files_reload_error">Couldn’t reload files.</string>
@@ -426,6 +427,8 @@
     <string name="tv_player_conversion_unavailable">This video cannot be converted.</string>
     <string name="tv_player_conversion_unknown">Conversion status is unavailable.</string>
     <string name="tv_player_conversion_percent">%1$d%%</string>
+    <string name="tv_player_conversion_queued">Waiting to convert…</string>
+    <string name="tv_player_conversion_status_failed">Can’t check conversion status. Check your internet connection.</string>
     <string name="tv_player_convert_again">Convert again</string>
     <string name="tv_player_check_again">Check again</string>
     <string name="tv_player_unsupported_title">Can’t play this here</string>

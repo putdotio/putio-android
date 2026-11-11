@@ -180,6 +180,7 @@ internal fun TvPlayerScreen(
                     conversion = content,
                     onRefresh = onRefreshConversion,
                     onStartConversion = onStartConversion,
+                    onCancel = onBack,
                     onPlayInVlc = onPlayInVlc,
                 )
 
