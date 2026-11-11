@@ -100,7 +100,8 @@ internal fun Modifier.viewerZoom(
                         panned += pan
                         pastSlop = panned.getDistance() > viewConfiguration.touchSlop
                     }
-                    if (pressed > 1 || (pressed == 1 && pastSlop && zoom.zoomed)) {
+                    val panning = pressed == 1 && pastSlop
+                    if (pressed > 1 || (panning && zoom.zoomed)) {
                         zoom.measure(size, contentAspect)
                         val overflow = zoom.transform(
                             zoomChange = event.calculateZoom(),
