@@ -2,6 +2,7 @@ package io.putdotio.android.tv.player
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import android.content.Context
 import android.os.Looper
 import io.putdotio.android.design.PutioTvTheme
 import io.putdotio.android.tv.setTvContent
@@ -48,6 +49,7 @@ import androidx.media3.common.VideoSize
 import androidx.media3.common.text.Cue
 import androidx.media3.common.text.CueGroup
 import androidx.media3.common.util.UnstableApi
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
@@ -56,8 +58,11 @@ import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.playback.SUBTITLE_CUES_TAG
+import io.putdotio.android.playback.SubtitleLanguageStore
+import io.putdotio.android.playback.SubtitleSelection
 import io.putdotio.android.playback.SubtitleStartupPolicy
 import io.putdotio.android.playback.playbackState
+import io.putdotio.android.playback.toSubtitleTrackIdentity
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSourceKind
 import io.putdotio.sdk.files.PlaybackSubtitles
@@ -413,6 +418,37 @@ class TvPlayerOptionsTest {
         policy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = false)
         settle()
         compose.runOnIdle { assertTrue(C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes) }
+    }
+
+    @Test
+    fun aRememberedLanguageWinsWhenTheAccountSettingsLoadAfterTheTracks() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        SubtitleLanguageStore(context).update(
+            SubtitleSelection.Track(textFormat("t-de", "de", null).toSubtitleTrackIdentity()),
+        )
+        val player = TrackPlayer()
+        var policy by mutableStateOf<SubtitleStartupPolicy?>(null)
+        show(player, policyProvider = { policy })
+        compose.runOnIdle { assertNull(player.selectedTextIndex()) }
+        val picks = mutableListOf<Int?>()
+        compose.runOnUiThread {
+            player.addListener(
+                object : Player.Listener {
+                    override fun onTracksChanged(tracks: Tracks) {
+                        picks += tracks.groups.singleOrNull { it.type == C.TRACK_TYPE_TEXT }?.let { group ->
+                            (0 until group.length).singleOrNull(group::isTrackSelected)
+                        }
+                    }
+                },
+            )
+        }
+
+        policy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = true)
+        settle()
+        compose.runOnIdle {
+            assertEquals(1, player.selectedTextIndex())
+            assertFalse("English never shows before the remembered German", 0 in picks)
+        }
     }
 
     @Test

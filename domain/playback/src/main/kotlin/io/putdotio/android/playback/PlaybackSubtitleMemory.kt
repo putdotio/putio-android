@@ -18,7 +18,7 @@ public sealed interface RememberedSubtitle {
     public data class Language(val tag: String) : RememberedSubtitle
 }
 
-public fun SubtitleSelection.toRememberedSubtitle(): RememberedSubtitle? =
+internal fun SubtitleSelection.toRememberedSubtitle(): RememberedSubtitle? =
     when (this) {
         SubtitleSelection.Off -> RememberedSubtitle.Off
         SubtitleSelection.Automatic -> null
@@ -53,7 +53,7 @@ public class SubtitleLanguageStore(private val context: Context?) {
     public fun update(selection: SubtitleSelection) {
         val next = selection.toRememberedSubtitle()
         remembered = next
-        context?.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)?.edit {
+        context?.getSharedPreferences(PLAYER_PREFERENCES_NAME, Context.MODE_PRIVATE)?.edit {
             when (next) {
                 null -> remove(LANGUAGE_KEY)
                 RememberedSubtitle.Off -> putString(LANGUAGE_KEY, OFF_VALUE)
@@ -63,13 +63,12 @@ public class SubtitleLanguageStore(private val context: Context?) {
     }
 
     private companion object {
-        const val PREFERENCES_NAME = "io.put.player"
         const val LANGUAGE_KEY = "subtitle_language"
         const val OFF_VALUE = "off"
 
         fun storedSubtitle(context: Context): RememberedSubtitle? =
             when (
-                val stored = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
+                val stored = context.getSharedPreferences(PLAYER_PREFERENCES_NAME, Context.MODE_PRIVATE)
                     .getString(LANGUAGE_KEY, null)
             ) {
                 null -> null
