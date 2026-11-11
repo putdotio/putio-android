@@ -267,12 +267,13 @@ private fun PlaybackState.playerFailed(event: PlaybackEvent.PlayerFailed): Playb
 
         refetchesExpiredLink(event) -> {
             val requestId = PlaybackRequestId(nextRequestValue)
+            val positionMillis = event.resumePositionMillis.coerceAtLeast(0L)
             PlaybackTransition(
                 state = copy(
                     content = PlaybackContent.Loading(requestId),
                     nextRequestValue = nextRequestValue + 1,
-                    resumePositionMillis = event.resumePositionMillis,
-                    linkRefetchedAtMillis = event.resumePositionMillis,
+                    resumePositionMillis = positionMillis,
+                    linkRefetchedAtMillis = positionMillis,
                 ),
                 effect = PlaybackEffect.Resolve(target, requestId, convertedOnly),
             )
@@ -288,7 +289,9 @@ private fun PlaybackState.playerFailed(event: PlaybackEvent.PlayerFailed): Playb
     }
 
 private fun PlaybackState.refetchesExpiredLink(event: PlaybackEvent.PlayerFailed): Boolean =
-    event.failure is PlaybackFailure.MediaCredentialUnavailable &&
+    content is PlaybackContent.Ready &&
+        target.mediaType == PlaybackMediaType.VIDEO &&
+        event.failure is PlaybackFailure.MediaCredentialUnavailable &&
         linkRefetchedAtMillis.let { it == null || event.resumePositionMillis > it }
 
 private fun PlaybackState.retry(): PlaybackTransition {
@@ -305,6 +308,7 @@ private fun PlaybackState.retry(): PlaybackTransition {
                 state = copy(
                     content = PlaybackContent.Loading(requestId),
                     nextRequestValue = nextRequestValue + 1,
+                    linkRefetchedAtMillis = null,
                 ),
                 effect = PlaybackEffect.Resolve(target, requestId, convertedOnly),
             )

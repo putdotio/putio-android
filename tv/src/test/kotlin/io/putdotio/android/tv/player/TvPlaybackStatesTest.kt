@@ -196,7 +196,7 @@ class TvPlaybackStatesTest {
 
         change(PlaybackContent.Failed(PlaybackFailure.MediaCredentialUnavailable(IOException())))
         compose.onNodeWithText("Playback link expired").assertIsDisplayed()
-        compose.onNodeWithText("Go back and try again.").assertIsDisplayed()
+        compose.onNodeWithText("The fresh link didn’t work either.").assertIsDisplayed()
         compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressKey(Key.DirectionRight) }
         compose.onNodeWithText("Go back").assertIsFocused().performKeyInput { pressKey(Key.DirectionCenter) }
         compose.runOnIdle { assertEquals(1, backs) }

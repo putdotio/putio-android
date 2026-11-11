@@ -237,7 +237,7 @@ internal fun TvPlaybackFailureScreen(
                 else -> null
             },
             secondaryAction = if (linkExpired) {
-                TvEmptyStateAction(label = stringResource(R.string.tv_player_go_back), onClick = onBack)
+                TvEmptyStateAction(label = stringResource(R.string.tv_files_go_back), onClick = onBack)
             } else {
                 null
             },
