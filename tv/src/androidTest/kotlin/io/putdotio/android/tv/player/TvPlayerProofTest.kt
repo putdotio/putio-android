@@ -563,8 +563,6 @@ class TvPlayerProofTest {
                     ),
                     onBack = {},
                     onRetry = {},
-                    onResume = {},
-                    onRestart = {},
                     onPlayerFailure = { _, _ -> },
                     playerFactory = ProofPlayerFactory(),
                     autoplayNextVideo = false,
