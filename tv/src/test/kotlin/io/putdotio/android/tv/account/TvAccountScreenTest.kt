@@ -246,13 +246,14 @@ class TvAccountScreenTest {
     }
 
     @Test
-    fun turningTrashOffConfirmsInRed() {
+    fun turningTrashOffConfirmsInRedWithCancelFocused() {
         show(settingsState = { ready(preferences) })
 
         group("Library").performKeyInput { pressKey(Key.DirectionRight) }
         compose.onNodeWithText("Manage your trash").performKeyInput { pressKey(Key.DirectionDown) }
         compose.onNodeWithText("Move deleted files to Trash").assertIsFocused().performKeyInput { pressCenter() }
         compose.onNodeWithText("Turn off Trash?").assertIsDisplayed()
+        compose.onNode(hasText("Cancel") and isFocused()).performKeyInput { pressKey(Key.DirectionRight) }
         compose.onNode(hasText("Turn off") and isFocused() and hasAnyAncestor(isDialog())).performKeyInput {
             pressCenter()
         }

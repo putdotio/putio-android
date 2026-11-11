@@ -113,10 +113,7 @@ class TvTrashScreenTest {
             state = state.copy(actionConfirmation = TrashAction.DeleteItem(folder), actionConfirmationId = 4L)
         }
         compose.onNodeWithText("Delete permanently?").assertIsDisplayed()
-        compose.onNode(focusedInDialog("Delete permanently")).performKeyInput {
-            pressKey(Key.DirectionLeft)
-        }
-        compose.onNodeWithText("Cancel").assertIsFocused().performKeyInput { pressCenter() }
+        compose.onNode(focusedInDialog("Cancel")).performKeyInput { pressCenter() }
         assertEquals(TrashEvent.CancelAction, events.last())
         compose.runOnIdle { state = state.copy(actionConfirmation = null, actionConfirmationId = null) }
         compose.onNode(hasText("Delete permanently") and hasClickAction()).assertIsFocused()
@@ -138,8 +135,7 @@ class TvTrashScreenTest {
         compose.runOnIdle { state = state.copy(actionConfirmation = TrashAction.Empty, actionConfirmationId = 5L) }
         compose.onNodeWithText("Empty trash?").assertIsDisplayed()
         compose.onNodeWithText("2 items are deleted permanently. This can't be undone.").assertIsDisplayed()
-        compose.onNode(focusedInDialog("Empty trash")).performKeyInput { pressKey(Key.DirectionLeft) }
-        compose.onNodeWithText("Cancel").assertIsFocused().performKeyInput { pressCenter() }
+        compose.onNode(focusedInDialog("Cancel")).performKeyInput { pressCenter() }
         assertEquals(TrashEvent.CancelAction, events.last())
         compose.runOnIdle { state = state.copy(actionConfirmation = null, actionConfirmationId = null) }
         // The button that opened the confirmation takes focus back, not the list.
@@ -311,7 +307,7 @@ class TvTrashScreenTest {
         show { TrashState(content = loaded, actionConfirmation = TrashAction.Empty, actionConfirmationId = 9L) }
 
         compose.onNodeWithText("Empty trash?").assertIsDisplayed()
-        compose.onNode(focusedInDialog("Empty trash")).assertIsDisplayed()
+        compose.onNode(focusedInDialog("Cancel")).assertIsDisplayed()
     }
 
     @Test
@@ -396,6 +392,7 @@ class TvTrashScreenTest {
         compose.runOnIdle {
             state = state.copy(actionConfirmation = TrashAction.DeleteItem(folder), actionConfirmationId = 4L)
         }
+        compose.onNode(focusedInDialog("Cancel")).performKeyInput { pressKey(Key.DirectionRight) }
         compose.onNode(focusedInDialog("Delete permanently")).performKeyInput { pressCenter() }
         compose.runOnIdle { state = state.copy(actionConfirmation = null, actionConfirmationId = null) }
         compose.onNode(hasText("Delete permanently") and hasClickAction()).assertIsFocused()

@@ -148,6 +148,7 @@ class TvAccountProofTest {
         compose.waitUntil(5_000) { isFocused(EMPTY_TRASH) }
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(5_000) { compose.onAllNodesWithText(EMPTY_TRASH_TITLE).fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(5_000) { isFocused("Cancel") }
         screenshot("androidtv-st-t2-empty-trash")
     }
 

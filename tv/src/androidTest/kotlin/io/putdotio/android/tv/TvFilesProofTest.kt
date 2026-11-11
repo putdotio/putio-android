@@ -238,8 +238,8 @@ class TvFilesProofTest {
         waitForText("Delete permanently")
         chooseInSheet("Delete permanently")
         waitForText("Delete permanently?")
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Cancel").fetchSemanticsNodes().any(::focused) }
         screenshot("androidtv-st-t4-delete")
-        press(KeyEvent.KEYCODE_DPAD_LEFT)
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(5_000) { isFocused("Play $BBB_VIDEO") }
     }

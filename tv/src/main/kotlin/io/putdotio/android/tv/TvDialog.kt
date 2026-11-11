@@ -78,7 +78,6 @@ internal fun TvConfirmDialog(
     balanceMessage: Boolean = false,
     dimAmount: Float? = null,
     confirmEnabled: Boolean = true,
-    focusCancel: Boolean = false,
 ) {
     TvDialogFrame(
         AnnotatedString(title),
@@ -93,13 +92,13 @@ internal fun TvConfirmDialog(
             TvButton(
                 onClick = onDismiss,
                 style = TvButtonStyle.Text,
-                modifier = if (focusCancel) Modifier.focusRequester(focus) else Modifier,
+                modifier = if (destructive) Modifier.focusRequester(focus) else Modifier,
             ) { Text(stringResource(R.string.tv_dialog_cancel)) }
             TvButton(
                 onClick = onConfirm,
                 enabled = confirmEnabled,
                 style = if (destructive) TvButtonStyle.Destructive else TvButtonStyle.Filled,
-                modifier = if (focusCancel) Modifier else Modifier.focusRequester(focus),
+                modifier = if (destructive) Modifier else Modifier.focusRequester(focus),
             ) { Text(confirmLabel) }
         }
     }
