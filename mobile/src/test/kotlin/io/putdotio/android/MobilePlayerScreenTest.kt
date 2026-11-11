@@ -830,6 +830,43 @@ class MobilePlayerLifecycleTest {
         }
     }
 
+    @Test
+    fun aLookupThatSettlesAfterTheEndLeavesOnce() {
+        lateinit var player: RecordingPlayer
+        var endedCalls = 0
+        var lookup by mutableStateOf<PlaybackUpNextLookup>(PlaybackUpNextLookup.Pending)
+        showUpNext(onEnded = { endedCalls += 1 }, onPlayUpNext = {}, lookup = { lookup }) { player = it }
+
+        moveTo(player, Media3Player.STATE_ENDED)
+        compose.runOnIdle { assertEquals("Nothing leaves while the lookup runs", 0, endedCalls) }
+        compose.runOnIdle { lookup = PlaybackUpNextLookup.Failed }
+        compose.mainClock.advanceTimeBy(FRAME_STEP_MILLIS)
+        compose.runOnIdle { lookup = PlaybackUpNextLookup.FolderEnd }
+        compose.mainClock.advanceTimeBy(FRAME_STEP_MILLIS)
+        compose.runOnIdle { assertEquals(1, endedCalls) }
+    }
+
+    @Test
+    fun turningAutoplayOffDuringTheCountdownStaysOnTheFinishedVideo() {
+        lateinit var player: RecordingPlayer
+        var endedCalls = 0
+        val chosen = mutableListOf<PlaybackTarget>()
+        var autoplay by mutableStateOf(true)
+        showUpNext(onEnded = { endedCalls += 1 }, onPlayUpNext = { chosen += it }, autoplay = { autoplay }) {
+            player = it
+        }
+
+        moveTo(player, Media3Player.STATE_ENDED)
+        compose.onNodeWithTag(MOBILE_UP_NEXT_TAG).assertIsDisplayed()
+        compose.runOnIdle { autoplay = false }
+        compose.mainClock.advanceTimeBy(20_000L)
+        compose.onNodeWithTag(MOBILE_UP_NEXT_TAG).assertDoesNotExist()
+        compose.runOnIdle {
+            assertEquals(0, endedCalls)
+            assertTrue(chosen.isEmpty())
+        }
+    }
+
     private fun moveTo(player: RecordingPlayer, playbackState: Int) {
         compose.runOnIdle { player.updatePlaybackState(playbackState) }
         shadowOf(Looper.getMainLooper()).idle()
@@ -839,6 +876,8 @@ class MobilePlayerLifecycleTest {
     private fun showUpNext(
         onEnded: () -> Unit,
         onPlayUpNext: (PlaybackTarget) -> Unit,
+        lookup: () -> PlaybackUpNextLookup = { PlaybackUpNextLookup.Found(PlaybackUpNext(UpNextTarget, "Blue Lights")) },
+        autoplay: () -> Boolean = { true },
         onPlayer: (RecordingPlayer) -> Unit,
     ) {
         compose.setContent {
@@ -848,9 +887,9 @@ class MobilePlayerLifecycleTest {
                     onRetry = {},
                     onPlayerFailure = { _, _ -> },
                     onBack = {},
-                    autoplayNextVideo = true,
+                    autoplayNextVideo = autoplay(),
                     onPlaybackEnded = onEnded,
-                    upNext = PlaybackUpNextLookup.Found(PlaybackUpNext(UpNextTarget, "Blue Lights")),
+                    upNext = lookup(),
                     onPlayUpNext = onPlayUpNext,
                     playerFactory = MobilePlayerFactory { _, _ -> RecordingPlayer().also(onPlayer) },
                 )
