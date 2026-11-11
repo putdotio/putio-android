@@ -251,6 +251,7 @@ private fun PlaybackFailure.messageResource(): Int =
         is PlaybackFailure.Putio -> when (failure) {
             is PutioFailure.AuthenticationRequired -> R.string.tv_error_session
             is PutioFailure.NetworkUnavailable -> R.string.tv_error_network
+            is PutioFailure.Timeout -> R.string.tv_error_timeout
             is PutioFailure.RateLimited -> R.string.tv_error_rate_limited
             is PutioFailure.AccessDenied -> R.string.tv_player_error_forbidden
             is PutioFailure.ApiRejected,

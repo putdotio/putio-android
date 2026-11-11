@@ -68,6 +68,7 @@ import io.putdotio.android.LoadNextPageNearEnd
 import io.putdotio.android.LoadNextPageNow
 import io.putdotio.android.MobileInlineError
 import io.putdotio.android.RetryWhenOnline
+import io.putdotio.android.isUnreachable
 import io.putdotio.android.MobileErrorState
 import io.putdotio.android.MobileKeyCommand
 import io.putdotio.android.MobileShortcutScope
@@ -128,7 +129,7 @@ internal fun MobileFilesScreen(
     val content = current.content
     LaunchedEffect(content) {
         if (content !is FilesContent.Loading) {
-            offline = (content as? FilesContent.Failed)?.failure is PutioFailure.NetworkUnavailable
+            offline = (content as? FilesContent.Failed)?.failure.isUnreachable
         }
     }
     when (content) {
@@ -145,7 +146,7 @@ internal fun MobileFilesScreen(
         }
 
         is FilesContent.Failed -> MobileFilesStateWithCopy(state, onEvent, itemActions.notices, modifier) {
-            if (content.failure is PutioFailure.NetworkUnavailable) {
+            if (content.failure.isUnreachable) {
                 MobileFilesOfflineWithActions(
                     onDevice = if (atRoot) downloads.onDeviceItems() else emptyList(),
                     onRetry = { onEvent(FilesBrowserEvent.Retry) },
@@ -727,7 +728,7 @@ private fun MobileFilesOperationStatus(operation: FilesFolderOperation) {
 private fun MobileFilesOperationFailure(operation: FilesFolderOperation, autoRetry: Boolean, onRetry: () -> Unit) {
     val failed = operation as? FilesFolderOperation.Failed ?: return
     val offlineReread = failed.phase == FilesFolderOperationPhase.RELOADING &&
-        failed.failure is PutioFailure.NetworkUnavailable
+        failed.failure.isUnreachable
     if (autoRetry && offlineReread) RetryWhenOnline(failed, onRetry)
     MobileInlineError(
         message = stringResource(failed.failureMessage()),
@@ -1188,7 +1189,9 @@ internal fun FilesFailure.mobileMessageResource(): Int =
         is PutioFailure.AccessDenied -> R.string.mobile_state_error_forbidden
         is PutioFailure.RateLimited -> R.string.mobile_state_error_rate_limited
         is PutioFailure.ServerUnavailable -> R.string.mobile_state_error_unavailable
-        is PutioFailure.NetworkUnavailable -> R.string.mobile_state_error_message
+        is PutioFailure.NetworkUnavailable,
+        is PutioFailure.Timeout,
+        -> R.string.mobile_state_error_message
         is PutioFailure.ApiRejected,
         is PutioFailure.InvalidResponse,
         is PutioFailure.Misconfigured,

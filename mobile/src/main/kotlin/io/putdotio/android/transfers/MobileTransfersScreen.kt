@@ -61,6 +61,7 @@ import io.putdotio.android.MobileEmptyState
 import io.putdotio.android.MobileErrorState
 import io.putdotio.android.MobileInlineError
 import io.putdotio.android.RetryWhenOnline
+import io.putdotio.android.isUnreachable
 import io.putdotio.android.MobileLoadingState
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
@@ -394,7 +395,7 @@ private fun MobileTransfersContent(
                 }
             }
         is TransfersContent.Failed -> {
-            val offline = content.failure is PutioFailure.NetworkUnavailable
+            val offline = content.failure.isUnreachable
             if (offline && enabled.rows) RetryWhenOnline(content.failure) { onEvent(TransfersEvent.RetryLoad) }
             MobileErrorState(
                 title = stringResource(R.string.mobile_transfers_error_title),
@@ -547,7 +548,7 @@ private fun MobileTransfersRefreshFailure(
 ) {
     if (refresh is TransfersRefresh.Failed) {
         val retry = { onEvent(TransfersEvent.Refresh) }
-        if (interactionsEnabled && refresh.failure is PutioFailure.NetworkUnavailable) RetryWhenOnline(refresh, retry)
+        if (interactionsEnabled && refresh.failure.isUnreachable) RetryWhenOnline(refresh, retry)
         MobileInlineError(
             message = stringResource(R.string.mobile_transfers_refresh_error),
             onRetry = retry,

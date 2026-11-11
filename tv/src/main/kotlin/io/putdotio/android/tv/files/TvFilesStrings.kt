@@ -48,6 +48,7 @@ internal fun FilesFailure.tvMessage(): Int =
         is PutioFailure.AccessDenied -> R.string.tv_error_forbidden
         is PutioFailure.RateLimited -> R.string.tv_error_rate_limited
         is PutioFailure.NetworkUnavailable -> R.string.tv_error_network
+        is PutioFailure.Timeout -> R.string.tv_error_timeout
         FilesFailure.NavigationBlocked -> R.string.tv_error_navigation_blocked
         is PutioFailure.ServerUnavailable,
         is PutioFailure.ApiRejected,

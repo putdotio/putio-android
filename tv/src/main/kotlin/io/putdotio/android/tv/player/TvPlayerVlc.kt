@@ -15,6 +15,7 @@ internal fun FilesStreamUrlResult.openPlaybackInVlc(context: Context, target: Pl
         when (failure) {
             is PutioFailure.AuthenticationRequired -> null
             is PutioFailure.NetworkUnavailable -> R.string.tv_error_network
+            is PutioFailure.Timeout -> R.string.tv_error_timeout
             else -> R.string.tv_error_unavailable
         }
     }

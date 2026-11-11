@@ -77,6 +77,7 @@ internal class TvAuthRuntime(
             val oauthClient = TvOAuthClient.forDevice(context)
             val putioClient = PutioClient(
                 PutioConfig(clientId = oauthClient.clientId, clientName = oauthClient.clientName),
+                okHttpClient = tvHttpClient(),
             )
             val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
             val tokenStore = KeystoreAuthTokenStore(context)

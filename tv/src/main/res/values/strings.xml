@@ -207,6 +207,7 @@
     <string name="tv_state_try_again">Try again</string>
     <string name="tv_error_navigation_blocked">This item can’t be opened right now. Check Files, then try again.</string>
     <string name="tv_error_network">Check the network and try again.</string>
+    <string name="tv_error_timeout">Request timed out. Check your connection and try again.</string>
     <string name="tv_error_session">Your session expired. Sign in again.</string>
     <string name="tv_error_forbidden">You don’t have access to this folder.</string>
     <string name="tv_error_rate_limited">put.io is receiving too many requests. Try again shortly.</string>

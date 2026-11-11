@@ -34,6 +34,7 @@ internal fun PutioFailure.tvAppConfigMessage(): Int =
         is PutioFailure.AccessDenied -> R.string.tv_account_error_access_denied
         is PutioFailure.RateLimited -> R.string.tv_error_rate_limited
         is PutioFailure.NetworkUnavailable -> R.string.tv_error_network
+        is PutioFailure.Timeout -> R.string.tv_error_timeout
         is PutioFailure.ServerUnavailable,
         is PutioFailure.ApiRejected,
         is PutioFailure.InvalidResponse,

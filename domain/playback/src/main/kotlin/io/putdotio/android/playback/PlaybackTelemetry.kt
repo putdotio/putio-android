@@ -98,7 +98,8 @@ private fun failureMode(failure: PlaybackFailure, code: Int?, status: Int?): Str
         status == 429 -> "throttled"
         status != null && (status == 408 || status >= 500) -> "server_transient"
         failure is PlaybackFailure.MediaUnsupported -> "unsupported_source"
-        failure.putioFailure is PutioFailure.NetworkUnavailable -> "network"
+        failure.putioFailure is PutioFailure.NetworkUnavailable ||
+            failure.putioFailure is PutioFailure.Timeout -> "network"
         code == null -> "unknown"
         code / 1000 == 2 -> "load"
         code / 1000 == 3 || code / 1000 == 4 -> "decode"

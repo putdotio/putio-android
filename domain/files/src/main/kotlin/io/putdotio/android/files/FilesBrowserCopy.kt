@@ -42,8 +42,9 @@ private fun FilesBrowserState.copyStarted(event: FilesBrowserEvent.CopyStarted):
 
 /** A lost or unreadable answer, or a server fault, leaves open whether put.io accepted the copy. */
 private val PutioFailure.mayHaveStartedCopy: Boolean
-    get() = this is PutioFailure.NetworkUnavailable || this is PutioFailure.InvalidResponse ||
-        this is PutioFailure.ServerUnavailable || this is PutioFailure.Unexpected
+    get() = this is PutioFailure.NetworkUnavailable || this is PutioFailure.Timeout ||
+        this is PutioFailure.InvalidResponse || this is PutioFailure.ServerUnavailable ||
+        this is PutioFailure.Unexpected
 
 private fun FilesBrowserState.copyChecked(event: FilesBrowserEvent.CopyChecked): FilesBrowserTransition {
     val outcome = copyOutcome?.takeIf { it.status == FilesCopyStatus.COPYING && it.requestId == event.requestId }

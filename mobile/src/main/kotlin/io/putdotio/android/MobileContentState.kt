@@ -169,6 +169,9 @@ internal fun MobileInlineError(
  * still restarts the clock; each return to the foreground restarts it too, and retries at once
  * when the network is validated by then.
  */
+internal val FilesFailure?.isUnreachable: Boolean
+    get() = this is PutioFailure.NetworkUnavailable || this is PutioFailure.Timeout
+
 @Composable
 internal fun RetryWhenOnline(failure: Any?, onRetry: () -> Unit) {
     val context = LocalContext.current

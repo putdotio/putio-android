@@ -227,7 +227,9 @@ private fun PlaybackFailure.messageResource(): Int =
             is PutioFailure.AuthenticationRequired -> R.string.mobile_state_error_session
             is PutioFailure.AccessDenied -> R.string.mobile_playback_error_forbidden
             is PutioFailure.RateLimited -> R.string.mobile_state_error_rate_limited
-            is PutioFailure.NetworkUnavailable -> R.string.mobile_state_error_message
+            is PutioFailure.NetworkUnavailable,
+            is PutioFailure.Timeout,
+            -> R.string.mobile_state_error_message
             is PutioFailure.ApiRejected,
             is PutioFailure.InvalidResponse,
             is PutioFailure.Misconfigured,

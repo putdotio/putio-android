@@ -3,6 +3,8 @@ package io.putdotio.android
 import io.putdotio.sdk.errors.PutioRequestData
 import io.putdotio.sdk.errors.PutioTransportException
 import java.io.IOException
+import java.io.InterruptedIOException
+import java.net.SocketTimeoutException
 import java.util.concurrent.CancellationException
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -34,6 +36,12 @@ class PutioRequestTest {
             PutioTransportException(PutioRequestData("GET", "https://api.put.io/v2/files/list"), IOException("reset"))
         val offline = putioRequest<Unit> { throw transport } as PutioResult.Failure
         assertTrue(offline.failure is PutioFailure.NetworkUnavailable)
+
+        listOf(InterruptedIOException("timeout"), SocketTimeoutException("read timed out")).forEach { cause ->
+            val slow = PutioTransportException(PutioRequestData("GET", "https://api.put.io/v2/files/list"), cause)
+            val timedOut = putioRequest<Unit> { throw slow } as PutioResult.Failure
+            assertTrue(timedOut.failure is PutioFailure.Timeout)
+        }
 
         val unexpected = IllegalStateException("broken mapper")
         assertEquals(

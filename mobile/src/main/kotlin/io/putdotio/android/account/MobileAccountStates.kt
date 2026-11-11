@@ -226,7 +226,9 @@ private fun PutioFailure.appConfigMessageResource(): Int =
         is PutioFailure.AccessDenied -> R.string.mobile_settings_playback_error_access_denied
         is PutioFailure.RateLimited -> R.string.mobile_state_error_rate_limited
         is PutioFailure.ServerUnavailable -> R.string.mobile_state_error_unavailable
-        is PutioFailure.NetworkUnavailable -> R.string.mobile_state_error_message
+        is PutioFailure.NetworkUnavailable,
+        is PutioFailure.Timeout,
+        -> R.string.mobile_state_error_message
         is PutioFailure.ApiRejected,
         is PutioFailure.InvalidResponse,
         is PutioFailure.Misconfigured,
@@ -246,7 +248,9 @@ private fun AccountSettingsFailure.messageResource(): Int =
             is PutioFailure.AccessDenied -> R.string.mobile_settings_error_access_denied
             is PutioFailure.RateLimited -> R.string.mobile_state_error_rate_limited
             is PutioFailure.ServerUnavailable -> R.string.mobile_state_error_unavailable
-            is PutioFailure.NetworkUnavailable -> R.string.mobile_state_error_message
+            is PutioFailure.NetworkUnavailable,
+            is PutioFailure.Timeout,
+            -> R.string.mobile_state_error_message
             is PutioFailure.ApiRejected,
             is PutioFailure.InvalidResponse,
             is PutioFailure.Misconfigured,
