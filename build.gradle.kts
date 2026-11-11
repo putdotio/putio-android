@@ -22,7 +22,7 @@ val bash: String = HostBash.path
 val scriptCheckTools = providers.exec {
     commandLine(
         bash, "-c",
-        "for tool in bash python3; do \"\$tool\" --version 2>&1 | head -1; done",
+        "for tool in bash python3 ffmpeg ffprobe; do \"\$tool\" --version 2>&1 | head -1; done",
     )
     isIgnoreExitValue = true
 }.standardOutput.asText
@@ -40,6 +40,24 @@ fun Exec.cacheableCheck(vararg sources: Any) {
     outputs.file(stamp).withPropertyName("stamp")
     outputs.cacheIf { true }
     doLast { stamp.get().asFile.writeText("passed\n") }
+}
+
+val testEvidence = tasks.register<Exec>("testEvidence") {
+    description = "Run evidence harness regression tests"
+    cacheableCheck()
+    commandLine(bash, "scripts/test-evidence.sh")
+}
+
+val testEmulatorHarness = tasks.register<Exec>("testEmulatorHarness") {
+    description = "Run emulator provisioning and readiness contract tests"
+    cacheableCheck()
+    commandLine(bash, "scripts/test-emulator.sh")
+}
+
+val testSignInHarness = tasks.register<Exec>("testSignInHarness") {
+    description = "Run the devs-auto device-code sign-in script's contract tests"
+    cacheableCheck()
+    commandLine(bash, "scripts/test-sign-in.sh")
 }
 
 val checkIcons = tasks.register<Exec>("checkIcons") {
@@ -150,12 +168,15 @@ val verifyDocs = verifyLane("verifyDocs", "Check Markdown and the DESIGN.md cont
 
 val verifyScripts = verifyLane(
     "verifyScripts",
-    "Run the design asset, icon and font script checks",
+    "Run the harness, design asset and icon script checks",
     checkDesignAssets,
     checkIcons,
     testBrandFontPipeline,
     testDesignAssetPipeline,
+    testEmulatorHarness,
+    testEvidence,
     testIconPipeline,
+    testSignInHarness,
     testTalkBackInput,
 )
 
