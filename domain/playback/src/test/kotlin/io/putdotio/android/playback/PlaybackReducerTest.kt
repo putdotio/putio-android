@@ -383,17 +383,18 @@ class PlaybackReducerTest {
     }
 
     @Test
-    fun aPositionSavedWithinTenSecondsOfTheEndStartsOverWithoutAPrompt() {
+    fun aPositionSavedPast95PercentStartsOverWithoutAPrompt() {
+        val finishedSource = playbackSource().copy(startFromSeconds = 570.0)
         for (mediaType in PlaybackMediaType.entries) {
-            val start = PlaybackReducer.start(Target.copy(mediaType = mediaType, durationSeconds = 22.0))
+            val start = PlaybackReducer.start(Target.copy(mediaType = mediaType, durationSeconds = 600.0))
             val finished = PlaybackReducer.reduce(
                 start.state,
                 PlaybackEvent.ResolveSucceeded(
                     PlaybackRequestId(1L),
-                    PlaybackResolution.Ready(playbackSource(), useStartFrom = true),
+                    PlaybackResolution.Ready(finishedSource, useStartFrom = true),
                 ),
             )
-            assertEquals(PlaybackContent.Ready(playbackSource(), useStartFrom = true), finished.state.content)
+            assertEquals(PlaybackContent.Ready(finishedSource, useStartFrom = true), finished.state.content)
             assertEquals(0L, finished.state.resumePositionMillis)
         }
         // The resolution's duration serves a target that came without one.
@@ -401,16 +402,15 @@ class PlaybackReducerTest {
             PlaybackReducer.start(Target).state,
             PlaybackEvent.ResolveSucceeded(
                 PlaybackRequestId(1L),
-                PlaybackResolution.Ready(playbackSource(), useStartFrom = true, durationSeconds = 20.0),
+                PlaybackResolution.Ready(finishedSource, useStartFrom = true, durationSeconds = 600.0),
             ),
         )
         assertEquals(0L, looked.state.resumePositionMillis)
-        // Just over 10 s from the end still asks.
         val asks = PlaybackReducer.reduce(
-            PlaybackReducer.start(Target.copy(durationSeconds = 22.01)).state,
+            PlaybackReducer.start(Target.copy(durationSeconds = 600.0)).state,
             PlaybackEvent.ResolveSucceeded(
                 PlaybackRequestId(1L),
-                PlaybackResolution.Ready(playbackSource(), useStartFrom = true),
+                PlaybackResolution.Ready(playbackSource().copy(startFromSeconds = 569.0), useStartFrom = true),
             ),
         )
         assertTrue(asks.state.content is PlaybackContent.AwaitingResume)

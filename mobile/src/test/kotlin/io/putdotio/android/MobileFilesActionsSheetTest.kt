@@ -306,8 +306,8 @@ class MobileFilesActionsSheetTest {
     }
 
     @Test
-    fun aVideoWithinTenSecondsOfItsEndReadsAsFinished() {
-        var progress by mutableStateOf(FilesPlaybackProgress(startFromSeconds = 2_900.0, durationSeconds = 3_000.0))
+    fun aVideoPast95PercentReadsAsFinished() {
+        var progress by mutableStateOf(FilesPlaybackProgress(startFromSeconds = 2_849.0, durationSeconds = 3_000.0))
         compose.setContent {
             PutioTheme {
                 MobileFilesActions(
@@ -323,10 +323,9 @@ class MobileFilesActionsSheetTest {
                 )
             }
         }
-        // The player still offers to resume 100 s before the end, so the sheet does too.
-        compose.onNodeWithText("Resume from 48:20").assertIsDisplayed()
+        compose.onNodeWithText("Resume from 47:29").assertIsDisplayed()
         compose.onNodeWithText("Mark as watched").performScrollTo().assertIsDisplayed()
-        compose.runOnIdle { progress = FilesPlaybackProgress(startFromSeconds = 2_995.0, durationSeconds = 3_000.0) }
+        compose.runOnIdle { progress = FilesPlaybackProgress(startFromSeconds = 2_850.0, durationSeconds = 3_000.0) }
         compose.onNodeWithText("Play").assertIsDisplayed()
         compose.onNodeWithText("Mark as unwatched").performScrollTo().assertIsDisplayed()
         // Played with no known length still clears.

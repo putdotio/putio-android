@@ -35,10 +35,10 @@ internal interface TvPlaybackReporter {
 }
 
 /**
- * The session's start-from write-back, on the same writer and observer mobile uses: a sample
- * every 15 s of playback plus pause, stop, end, error and exit, one request in flight and one
- * latest snapshot pending, never a write per progress tick. Writes need the session to still be
- * the signed-in one and the account's resume setting confirmed on; anything else discards them.
+ * The session's start-from write-back, on the same writer and observer mobile uses: one request
+ * in flight and one latest snapshot pending, never a write per progress tick. Writes need the
+ * session to still be the signed-in one and the account's resume setting confirmed on; anything
+ * else discards them.
  */
 @MainThread
 internal class TvPlaybackReporting(

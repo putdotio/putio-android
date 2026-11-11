@@ -12,12 +12,17 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.platform.LocalDensity
@@ -49,6 +54,7 @@ internal fun TvEmptyState(
     modifier: Modifier = Modifier,
     action: TvEmptyStateAction? = null,
     secondaryAction: TvEmptyStateAction? = null,
+    tertiaryAction: TvEmptyStateAction? = null,
     actionFocus: FocusRequester = remember { FocusRequester() },
     claimFocus: Boolean = true,
     glyphRunPerCharacter: Boolean = false,
@@ -56,9 +62,13 @@ internal fun TvEmptyState(
     messageColor: Color = Color.Unspecified,
     glyphModifier: Modifier = Modifier,
 ) {
-    val lead = action ?: secondaryAction
-    LaunchedEffect(action != null, lead != null, lead?.enabled, claimFocus) {
-        if (lead == null || !lead.enabled || !claimFocus) return@LaunchedEffect
+    val actions = listOfNotNull(action, secondaryAction, tertiaryAction)
+    val lead = actions.firstOrNull()
+    var focusedLabel by remember { mutableStateOf<String?>(null) }
+    val focusHeld = focusedLabel != null && actions.any { it.label == focusedLabel }
+    val claimsFocus = claimFocus && !focusHeld && lead?.enabled == true
+    LaunchedEffect(lead?.label, secondaryAction != null, tertiaryAction != null, lead?.enabled, claimFocus) {
+        if (!claimsFocus) return@LaunchedEffect
         withFrameNanos {}
         actionFocus.requestFocus()
     }
@@ -111,8 +121,21 @@ internal fun TvEmptyState(
                 modifier = Modifier.padding(top = ACTION_GAP),
                 horizontalArrangement = Arrangement.spacedBy(ACTIONS_SPACING),
             ) {
-                TvEmptyStateButton(lead, Modifier.focusRequester(actionFocus))
-                if (action != null && secondaryAction != null) TvEmptyStateButton(secondaryAction)
+                actions.forEachIndexed { index, item ->
+                    key(item.label) {
+                        val focus = if (index == 0) Modifier.focusRequester(actionFocus) else Modifier
+                        TvEmptyStateButton(
+                            item,
+                            focus.onFocusChanged { state ->
+                                if (state.isFocused) {
+                                    focusedLabel = item.label
+                                } else if (focusedLabel == item.label) {
+                                    focusedLabel = null
+                                }
+                            },
+                        )
+                    }
+                }
             }
         }
     }

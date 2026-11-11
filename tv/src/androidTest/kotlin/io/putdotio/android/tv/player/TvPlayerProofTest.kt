@@ -73,6 +73,7 @@ import io.putdotio.android.tv.TvShell
 import io.putdotio.android.tv.openTvTab
 import io.putdotio.android.tv.auth.TvAccount
 import io.putdotio.android.tv.files.TvFilesScreen
+import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PlaybackConversionState
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSourceKind
@@ -256,7 +257,7 @@ class TvPlayerProofTest {
         leavePlayback()
         compose.waitUntil(10_000) { compose.runOnIdle { server.writes.size == 2 } }
         val (periodic, exit) = server.writes
-        assertTrue("Periodic write $periodic s", periodic >= SAVED_SECONDS + 14.0)
+        assertTrue("Periodic write $periodic s", periodic >= SAVED_SECONDS + POSITION_INTERVAL_MILLIS / 1_000.0 - 1.0)
         assertTrue("Exit write $exit s after $periodic s", exit >= periodic)
         compose.onNodeWithContentDescription("Play $FIXTURE_TITLE").assertIsFocused()
         screenshot("21-back-on-files-row")
@@ -272,7 +273,7 @@ class TvPlayerProofTest {
     }
 
     @Test
-    fun aVideoFinishedWithinTenSecondsOfItsEndOpensAgainWithoutAsking() {
+    fun aVideoPlayedToItsEndOpensAgainWithoutAsking() {
         val server = ProofPositionServer(startFromSeconds = NEAR_END_SAVED_SECONDS)
         val factory = mountFilesWithResume(server)
         compose.onNodeWithContentDescription("Open Documents").assertIsFocused()
@@ -543,6 +544,83 @@ class TvPlayerProofTest {
         compose.mainClock.advanceTimeBy(UP_NEXT_STEP_MILLIS * 2)
         compose.onNodeWithText("Play now").assertIsFocused()
         screenshot("androidtv-st-p8-upnext")
+    }
+
+    @Test
+    fun failureScreensAlwaysFocusAnAction() {
+        var content by mutableStateOf<PlaybackContent>(
+            PlaybackContent.Failed(PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IOException("proof")))),
+        )
+        var openInVlc by mutableStateOf<(() -> Unit)?>(null)
+        var playInVlc by mutableStateOf<(() -> Unit)?>(null)
+        compose.setContent {
+            PutioTvTheme {
+                TvPlayerScreen(
+                    state = playbackState(
+                        target = PlaybackTarget(FilesItemId(FIXTURE_FILE_ID), STATES_TITLE, PlaybackMediaType.VIDEO),
+                        content = content,
+                        nextRequestValue = 2L,
+                    ),
+                    onBack = {},
+                    onRetry = {},
+                    onResume = {},
+                    onRestart = {},
+                    onPlayerFailure = { _, _ -> },
+                    playerFactory = ProofPlayerFactory(),
+                    autoplayNextVideo = false,
+                    onPlaybackEnded = { true },
+                    onOpenInVlc = openInVlc,
+                    onPlayInVlc = playInVlc,
+                )
+            }
+        }
+        captureFocused("Connection lost", "Try again", "failure-01-connection-lost")
+        press(KeyEvent.KEYCODE_DPAD_RIGHT)
+        compose.onNodeWithText("Go back").assertIsFocused()
+        screenshot("failure-02-connection-lost-go-back")
+
+        fun retryInto(next: PlaybackContent) {
+            content = PlaybackContent.Loading(PlaybackRequestId(2L))
+            compose.waitForIdle()
+            content = next
+        }
+
+        val crash = PutioFailure.Unexpected(IllegalStateException("proof"))
+        retryInto(PlaybackContent.Failed(PlaybackFailure.Putio(crash)))
+        captureFocused("Playback error", "Try again", "failure-03-playback-error")
+
+        retryInto(PlaybackContent.Failed(PlaybackFailure.MediaCredentialUnavailable(IOException())))
+        captureFocused("Couldn't play this file.", "Try again", "failure-04-link-expired")
+
+        val cause = PutioConfigurationException("proof")
+        retryInto(PlaybackContent.Failed(PlaybackFailure.Putio(PutioFailure.AccessDenied(cause))))
+        captureFocused("You don’t have access to this file.", "Go back", "failure-05-access-denied")
+
+        val cantPlay = PlaybackContent.Failed(PlaybackFailure.MediaUnsupported(IOException()))
+        retryInto(cantPlay)
+        captureFocused("Can’t play this here", "Go back", "failure-06-cant-play-no-vlc")
+        openInVlc = {}
+        retryInto(cantPlay)
+        captureFocused("This format needs another player.", "Open in VLC", "failure-07-cant-play-vlc")
+
+        val unsupported = PlaybackContent.Unsupported(PutioFileType.VIDEO)
+        retryInto(unsupported)
+        captureFocused("Can’t play this here", "Go back", "failure-08-no-converted-no-vlc")
+        playInVlc = {}
+        retryInto(unsupported)
+        captureFocused("Can’t play this here", "Open in VLC", "failure-09-no-converted-vlc")
+    }
+
+    private fun captureFocused(text: String, focused: String, label: String) {
+        compose.waitUntil(10_000) { compose.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(10_000) {
+            compose.onAllNodesWithText(focused).fetchSemanticsNodes().any {
+                it.config.getOrNull(SemanticsProperties.Focused) == true
+            }
+        }
+        compose.onNodeWithText(focused).assertIsFocused()
+        elapse(POSTER_MILLIS)
+        screenshot(label)
     }
 
     /**
@@ -1197,7 +1275,7 @@ class TvPlayerProofTest {
         const val SAVED_SECONDS = 45.0
         const val NEAR_END_SAVED_SECONDS = 70.0
         const val AUDIO_TITLE = "Harbor tune.m4a"
-        const val POSITION_INTERVAL_MILLIS = 15_000L
+        const val POSITION_INTERVAL_MILLIS = 10_000L
         const val RESUME_PREFIX = "Resume from"
         const val AUDIO = "Audio:"
         const val SUBTITLES = "Subtitles:"

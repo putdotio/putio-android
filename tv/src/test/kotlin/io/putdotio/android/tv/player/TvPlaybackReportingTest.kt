@@ -39,28 +39,28 @@ import org.robolectric.annotation.Config
 @OptIn(ExperimentalCoroutinesApi::class)
 class TvPlaybackReportingTest {
     @Test
-    fun playbackWritesEveryFifteenSecondsAndOnExitButNeverPerTick() = runTest {
+    fun playbackWritesEveryTenSecondsAndOnExitButNeverPerTick() = runTest {
         val fixture = Fixture(backgroundScope)
         val player = fixture.play(positionMillis = 10_000L)
         val positions = fixture.reporting.observe(player)
         runCurrent()
 
         // The screen's position poll ticks every 500 ms; none of those writes.
-        repeat(29) { tick ->
+        repeat(19) { tick ->
             player.position(10_000L + (tick + 1) * 500L)
             advanceTimeBy(500L)
             runCurrent()
         }
         assertEquals(emptyList<Pair<Long, Double>>(), fixture.writes)
-        player.position(25_000L)
+        player.position(20_000L)
         advanceTimeBy(500L)
         runCurrent()
-        assertEquals(listOf(FILE_ID to 25.0), fixture.writes)
+        assertEquals(listOf(FILE_ID to 20.0), fixture.writes)
 
-        player.position(31_000L)
+        player.position(26_000L)
         positions.close()
         runCurrent()
-        assertEquals("Leaving writes the exit position", listOf(FILE_ID to 25.0, FILE_ID to 31.0), fixture.writes)
+        assertEquals("Leaving writes the exit position", listOf(FILE_ID to 20.0, FILE_ID to 26.0), fixture.writes)
         assertEquals("The Files row follows each save", fixture.writes, fixture.saved)
         fixture.reporting.close()
     }

@@ -1,6 +1,8 @@
 package io.putdotio.android.playback
 
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.files.playbackFinishedAt
 import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.sdk.files.PlaybackConversionState
 import io.putdotio.sdk.files.PlaybackSource
@@ -79,10 +81,12 @@ public sealed interface PlaybackContent {
     /**
      * The file needs MP4 conversion first. A [refreshRequestId] is a resolution or conversion
      * start in flight; the interstitial stays up meanwhile instead of flashing a loading screen.
+     * [statusCheckFailed] marks a status read that lost the network; polling goes on.
      */
     public data class Conversion(
         val state: PlaybackConversionState,
         val refreshRequestId: PlaybackRequestId? = null,
+        val statusCheckFailed: Boolean = false,
     ) : PlaybackContent
 
     public data class Unsupported(
@@ -329,7 +333,7 @@ private fun PlaybackState.ready(resolution: PlaybackResolution.Ready): PlaybackT
             content = PlaybackContent.AwaitingResume(resolution.source, resolution.subtitlesHidden, resolution.offline),
         )
         // A finished video starts over without asking.
-        if (finishedAt(resolution.source.startFromSeconds, target.durationSeconds)) {
+        if (playbackFinishedAt(resolution.source.startFromSeconds, target.durationSeconds)) {
             awaiting.chooseResume(restart = true)
         } else if (target.mediaType == PlaybackMediaType.AUDIO) {
             // Audio continues from its saved position without asking, as iOS does.
@@ -408,8 +412,21 @@ private fun PlaybackState.resolveFailed(event: PlaybackEvent.ResolveFailed): Pla
     if (!isLoading(event.requestId)) {
         return PlaybackTransition(this, consumed = false)
     }
-    return PlaybackTransition(copy(content = PlaybackContent.Failed(event.failure)))
+    val conversion = (content as? PlaybackContent.Conversion)
+        ?.takeIf { it.readsStatus && event.failure.lostConnection }
+    return PlaybackTransition(
+        copy(
+            content = conversion?.copy(refreshRequestId = null, statusCheckFailed = true)
+                ?: PlaybackContent.Failed(event.failure),
+        ),
+    )
 }
+
+private val PlaybackContent.Conversion.readsStatus: Boolean
+    get() = !starting && !startable
+
+private val PlaybackFailure.lostConnection: Boolean
+    get() = putioFailure.let { it is PutioFailure.NetworkUnavailable || it is PutioFailure.Timeout }
 
 internal fun PlaybackState.isLoading(requestId: PlaybackRequestId): Boolean =
     (content as? PlaybackContent.Loading)?.requestId == requestId ||
@@ -417,8 +434,7 @@ internal fun PlaybackState.isLoading(requestId: PlaybackRequestId): Boolean =
 
 private const val INITIAL_REQUEST_VALUE = 1L
 
-/** How often a queued or running conversion is read again (tv-native `useConversionStatus`: 3 s). */
-public const val PLAYBACK_CONVERSION_POLL_MILLIS: Long = 3_000L
+public const val PLAYBACK_CONVERSION_POLL_MILLIS: Long = 5_000L
 
 /**
  * Queued and running conversions are read again on their own; the others wait for the viewer
@@ -447,11 +463,18 @@ public enum class PlaybackConversionAction {
 
     /** [PlaybackEvent.RefreshConversion] for a status that does not poll on its own. */
     CheckAgain,
+
+    /** [PlaybackEvent.RefreshConversion] after a status read lost the network. */
+    RetryStatusCheck,
 }
 
-/** Null while the conversion starts or polls on its own, and once the file cannot be converted. */
+/**
+ * Null while the conversion starts or polls on its own with no failed status read, and once the
+ * file cannot be converted.
+ */
 public val PlaybackContent.Conversion.action: PlaybackConversionAction?
     get() = when {
+        statusCheckFailed -> PlaybackConversionAction.RetryStatusCheck
         startable -> PlaybackConversionAction.ConvertAgain
         state == PlaybackConversionState.NotAvailable || state.pollsAutomatically -> null
         else -> PlaybackConversionAction.CheckAgain
