@@ -63,8 +63,8 @@ class TvHomeScreenTest {
         pinned = TvPinnedRow.Ready(emptyList())
 
         compose.onNodeWithText("Nothing here yet.").assertIsDisplayed()
-        compose.onNodeWithText("Videos you start come back here. Press Menu on a folder or file to pin it.")
-            .assertIsDisplayed()
+        compose.onNodeWithText("Add files at put.io").assertIsDisplayed()
+        compose.onNodeWithContentDescription("QR code that opens put.io").assertIsDisplayed()
         compose.onNodeWithText("Browse your files").performSemanticsAction(SemanticsActions.OnClick)
         assertEquals(1, browsed)
     }
