@@ -12,6 +12,7 @@ public enum class StreamingMethod(
 public data class AndroidAppConfigPreferences(
     val streamingMethod: StreamingMethod = StreamingMethod.Hls,
     val autoplayNextVideo: Boolean = false,
+    val rotateToLandscape: Boolean = true,
     // Whether this app recorded an answer to the product analytics prompt.
     val productAnalyticsPromptAnswered: Boolean = false,
 )
@@ -22,6 +23,7 @@ internal fun AndroidAppConfigPreferences.applying(
     when (change) {
         is AndroidAppConfigChange.PlaybackMethod -> copy(streamingMethod = change.value)
         is AndroidAppConfigChange.AutoplayNextVideo -> copy(autoplayNextVideo = change.enabled)
+        is AndroidAppConfigChange.RotateToLandscape -> copy(rotateToLandscape = change.enabled)
         AndroidAppConfigChange.ProductAnalyticsPromptAnswered -> copy(productAnalyticsPromptAnswered = true)
     }
 
@@ -31,6 +33,10 @@ public sealed interface AndroidAppConfigChange {
     ) : AndroidAppConfigChange
 
     public data class AutoplayNextVideo(
+        val enabled: Boolean,
+    ) : AndroidAppConfigChange
+
+    public data class RotateToLandscape(
         val enabled: Boolean,
     ) : AndroidAppConfigChange
 

@@ -83,6 +83,26 @@ class MobileVideoWindowTest {
         assertEquals(original, videoWindowOrientation(original, false, 411, false))
     }
 
+    @Test
+    fun rotationOffLeavesTheWindowFollowingTheDevice() {
+        val controller = Robolectric.buildActivity(UnrotatedVideoWindowHostActivity::class.java).setup()
+        try {
+            compose.waitForIdle()
+            compose.runOnIdle {
+                assertEquals(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED, controller.get().requestedOrientation)
+            }
+        } finally {
+            controller.close()
+        }
+    }
+
+    class UnrotatedVideoWindowHostActivity : ComponentActivity() {
+        override fun onCreate(savedInstanceState: Bundle?) {
+            super.onCreate(savedInstanceState)
+            setContent { MobileVideoWindow(fileId = 42L, landscape = true, rotateToLandscape = false) }
+        }
+    }
+
     class VideoWindowHostActivity : ComponentActivity() {
         var showVideo by mutableStateOf(true)
         var originalBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
@@ -93,7 +113,7 @@ class MobileVideoWindowTest {
             if (savedInstanceState == null) requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
             originalBarsBehavior = WindowCompat.getInsetsController(window, window.decorView).systemBarsBehavior
             setContent {
-                if (showVideo) MobileVideoWindow(fileId = 42L, landscape = true)
+                if (showVideo) MobileVideoWindow(fileId = 42L, landscape = true, rotateToLandscape = true)
             }
         }
     }

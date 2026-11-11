@@ -3,6 +3,7 @@ package io.putdotio.android.tv.player
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import androidx.media3.common.C
 import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -26,6 +27,8 @@ internal fun interface TvPlayerFactory {
      * unpublishes the player, which the screen releases afterwards.
      */
     fun publish(context: Context, player: Player): Closeable = Closeable {}
+
+    fun publishInBackground(context: Context, player: Player): Closeable = publish(context, player)
 }
 
 /**
@@ -39,14 +42,23 @@ internal object DefaultTvPlayerFactory : TvPlayerFactory {
             setLoadControl(tvLoadControl(context))
                 .setAudioAttributes(mediaType.audioAttributes(), true)
                 .setHandleAudioBecomingNoisy(true)
+                .setWakeMode(if (mediaType == PlaybackMediaType.AUDIO) C.WAKE_MODE_NETWORK else C.WAKE_MODE_NONE)
         }
 
     override fun publish(context: Context, player: Player): Closeable {
+        val session = launchingSession(context, player)
+        return Closeable { session.release() }
+    }
+
+    override fun publishInBackground(context: Context, player: Player): Closeable =
+        TvBackgroundSessions.host(context, launchingSession(context, player))
+
+    private fun launchingSession(context: Context, player: Player): MediaSession {
         val launch = (
             context.packageManager.getLeanbackLaunchIntentForPackage(context.packageName)
                 ?: Intent(context, context.javaClass)
             ).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-        val session = tvMediaSession(context, player)
+        return tvMediaSession(context, player)
             .setSessionActivity(
                 PendingIntent.getActivity(
                     context,
@@ -56,7 +68,6 @@ internal object DefaultTvPlayerFactory : TvPlayerFactory {
                 ),
             )
             .build()
-        return Closeable { session.release() }
     }
 }
 
