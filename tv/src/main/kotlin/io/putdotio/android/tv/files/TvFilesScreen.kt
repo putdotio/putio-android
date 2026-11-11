@@ -76,6 +76,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.files.FilesSort
+import io.putdotio.android.tv.SECTION_LABEL_GAP
 import io.putdotio.android.tv.TV_MONO_RUN
 import io.putdotio.android.files.formatFileSize
 import io.putdotio.android.tv.LocalTvOffline
@@ -851,6 +852,7 @@ internal fun TvFilesNotice(
     }
 }
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 private fun TvFilesSectionPills(
     sortLabel: String,
@@ -860,19 +862,26 @@ private fun TvFilesSectionPills(
     onSort: () -> Unit,
     onRefresh: () -> Unit,
 ) {
-    TvSectionPill(
-        icon = R.drawable.ic_ph_sort_ascending,
-        label = sortLabel,
-        onClick = { if (idle) onSort() },
-        modifier = Modifier.focusRequester(sortFocus),
-        showFocus = !sorting,
-    )
-    TvSectionPill(
-        icon = R.drawable.ic_ph_arrows_clockwise,
-        label = stringResource(R.string.tv_files_refresh),
-        onClick = { if (idle) onRefresh() },
-        showFocus = !sorting,
-    )
+    Row(
+        modifier = Modifier
+            .focusProperties { enter = { sortFocus } }
+            .focusGroup(),
+        horizontalArrangement = Arrangement.spacedBy(SECTION_LABEL_GAP),
+    ) {
+        TvSectionPill(
+            icon = R.drawable.ic_ph_sort_ascending,
+            label = sortLabel,
+            onClick = { if (idle) onSort() },
+            modifier = Modifier.focusRequester(sortFocus),
+            showFocus = !sorting,
+        )
+        TvSectionPill(
+            icon = R.drawable.ic_ph_arrows_clockwise,
+            label = stringResource(R.string.tv_files_refresh),
+            onClick = { if (idle) onRefresh() },
+            showFocus = !sorting,
+        )
+    }
 }
 
 @Composable
