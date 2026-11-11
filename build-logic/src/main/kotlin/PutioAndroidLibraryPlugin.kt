@@ -3,8 +3,10 @@ import io.gitlab.arturbosch.detekt.extensions.DetektExtension
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.artifacts.VersionCatalogsExtension
+import org.gradle.api.tasks.testing.Test
 import org.gradle.kotlin.dsl.configure
 import org.gradle.kotlin.dsl.getByType
+import org.gradle.kotlin.dsl.withType
 import org.jetbrains.kotlin.gradle.dsl.KotlinAndroidExtension
 
 /** Android SDK levels shared by the application and every library module. */
@@ -47,6 +49,9 @@ class PutioAndroidLibraryPlugin : Plugin<Project> {
         }
 
         useOfflineRobolectric()
+        tasks.withType<Test>().configureEach {
+            maxParallelForks = (Runtime.getRuntime().availableProcessors() / 2).coerceAtLeast(1)
+        }
 
         extensions.configure<DetektExtension> {
             config.setFrom(rootProject.file("detekt.yml"))
