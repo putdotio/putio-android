@@ -856,20 +856,21 @@ private fun TvFilesSectionPills(
     sortLabel: String,
     sortFocus: FocusRequester,
     sorting: Boolean,
+    idle: Boolean,
     onSort: () -> Unit,
     onRefresh: () -> Unit,
 ) {
     TvSectionPill(
         icon = R.drawable.ic_ph_sort_ascending,
         label = sortLabel,
-        onClick = onSort,
+        onClick = { if (idle) onSort() },
         modifier = Modifier.focusRequester(sortFocus),
         showFocus = !sorting,
     )
     TvSectionPill(
         icon = R.drawable.ic_ph_arrows_clockwise,
         label = stringResource(R.string.tv_files_refresh),
-        onClick = onRefresh,
+        onClick = { if (idle) onRefresh() },
         showFocus = !sorting,
     )
 }
@@ -899,8 +900,9 @@ private fun TvFilesSectionLine(
                     sortLabel = stringResource(sortInEffect?.tvLabel() ?: R.string.tv_files_sort_title),
                     sortFocus = sortFocus,
                     sorting = sorting,
-                    onSort = { if (idle) sorting = true },
-                    onRefresh = { if (idle) onEvent(FilesBrowserEvent.Refresh) },
+                    idle = idle,
+                    onSort = { sorting = true },
+                    onRefresh = { onEvent(FilesBrowserEvent.Refresh) },
                 )
             }
         } else {
