@@ -14,6 +14,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.playback.PLAYBACK_REPORTING_LEASE_KEY
 import io.putdotio.android.playback.PlaybackContent
+import io.putdotio.android.playback.PlaybackMediaType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
