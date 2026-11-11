@@ -1,5 +1,8 @@
 package io.putdotio.android.tv.files
 
+import io.putdotio.android.tv.setTvContent
+import androidx.compose.runtime.CompositionLocalProvider
+import io.putdotio.android.tv.LocalTvOffline
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -122,19 +125,19 @@ class TvFilesFailureTest {
 
     @Test
     fun aFailedRefreshWhileOfflineLeavesTheRowsToTheNoConnectionBanner() {
-        compose.showFiles(
-            state = {
-                state(
-                    FilesContent.Ready(listOf(item(1, "a.txt", PutioFileType.TEXT)), FilesPaging.Complete),
-                    operation = FilesFolderOperation.Failed(
-                        networkFailure(),
-                        FilesFolderOperationIntent.Refresh,
-                        FilesFolderOperationPhase.RELOADING,
-                    ),
-                )
-            },
-            offline = true,
+        val failedRefresh = state(
+            FilesContent.Ready(listOf(item(1, "a.txt", PutioFileType.TEXT)), FilesPaging.Complete),
+            operation = FilesFolderOperation.Failed(
+                networkFailure(),
+                FilesFolderOperationIntent.Refresh,
+                FilesFolderOperationPhase.RELOADING,
+            ),
         )
+        compose.setTvContent {
+            CompositionLocalProvider(LocalTvOffline provides true) {
+                TvFilesScreen(state = failedRefresh, onEvent = { true }, onPlayMedia = {})
+            }
+        }
         compose.onNodeWithContentDescription("a.txt").assertIsDisplayed()
         compose.onAllNodesWithText("Couldn’t refresh files.").assertCountEquals(0)
         compose.onAllNodesWithText("Try again").assertCountEquals(0)

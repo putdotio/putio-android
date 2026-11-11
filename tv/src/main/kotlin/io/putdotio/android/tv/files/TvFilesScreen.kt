@@ -937,7 +937,9 @@ private fun TvFilesOperationStatus(
         ?.takeUnless {
             it.intent is FilesFolderOperationIntent.Rename && it.phase == FilesFolderOperationPhase.RENAMING
         }
-        ?.takeUnless { offline && it.isOfflineRefresh() }
+        ?.takeUnless {
+            offline && it.intent == FilesFolderOperationIntent.Refresh && it.failure is PutioFailure.NetworkUnavailable
+        }
     if (failed != null) {
         TvFilesNotice(
             text = stringResource(failed.tvHeaderError()),
@@ -948,9 +950,6 @@ private fun TvFilesOperationStatus(
         )
     }
 }
-
-private fun FilesFolderOperation.Failed.isOfflineRefresh(): Boolean =
-    intent == FilesFolderOperationIntent.Refresh && failure is PutioFailure.NetworkUnavailable
 
 private fun FilesFolderOperation.reloadsListing(): Boolean =
     this is FilesFolderOperation.Loading &&

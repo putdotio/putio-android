@@ -99,11 +99,8 @@ private fun FilesFolderState.hasFailedRead(): Boolean =
         }
     }
 
-private fun ConnectivityManager?.defaultNetworkOnline(): Boolean {
-    val manager = this ?: return true
-    val network = manager.activeNetwork ?: return false
-    return manager.getNetworkCapabilities(network)?.reachesInternet() == true
-}
+private fun ConnectivityManager?.defaultNetworkOnline(): Boolean =
+    this == null || activeNetwork?.let { getNetworkCapabilities(it) }?.reachesInternet() == true
 
 private fun NetworkCapabilities.reachesInternet(): Boolean =
     hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) ||

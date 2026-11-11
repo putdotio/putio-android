@@ -813,7 +813,7 @@ class TvSessionViewModelTest {
         session.search.submit()
         session.trash.dispatch(TrashEvent.Open)
         val online = MutableStateFlow(true)
-        backgroundScope.launch { session.retryFailedLoadsOnReturn(online) }
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { session.retryFailedLoadsOnReturn(online) }
         advanceUntilIdle()
         val failed = loads.toMap()
         assertTrue(failed.values.all { it > 0 })
