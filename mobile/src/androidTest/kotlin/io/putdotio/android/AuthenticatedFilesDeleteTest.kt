@@ -96,7 +96,7 @@ class AuthenticatedFilesDeleteTest {
         requireSession(runtime, session)
         openContainer(fixture)
         compose.onNode(row(MOBILE_FILES_LIST_TAG, fixture.actionName)).performClick()
-        waitFor(hasText("Empty folder"))
+        waitFor(hasText("No files whatsoever!"))
         deleteProofScreenshot("empty")
         compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
         row(MOBILE_FILES_LIST_TAG, fixture.actionName)
