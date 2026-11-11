@@ -3,8 +3,10 @@ package io.putdotio.android.share
 import android.Manifest
 import android.app.Activity
 import android.app.NotificationManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.Looper
 import androidx.core.net.toUri
@@ -46,6 +48,7 @@ import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.xmlpull.v1.XmlPullParser
 
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
@@ -61,17 +64,15 @@ class MobileFileShareServiceTest {
 
     @Test
     fun chooserCarriesOnlyAContentStreamWithAReadGrant() {
-        val service = Robolectric.buildService(MobileFileShareService::class.java).create().get()
-        val file = File(MobileFileShareService.shareRoot(service), "9/Sintel.mp4").apply {
-            parentFile?.mkdirs()
-            writeText("bytes")
-        }
-        val chooser = service.chooserForTest(file)
+        val authority = "${ApplicationProvider.getApplicationContext<Context>().packageName}.share"
+        val uri = "content://$authority/shares/9/Sintel.mp4".toUri()
+        val chooser = shareChooserFor(uri, "video/mp4")
         val send = requireNotNull(chooser.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java))
         assertEquals(Intent.ACTION_SEND, send.action)
+        assertEquals("video/mp4", send.type)
         val stream = requireNotNull(send.getParcelableExtra(Intent.EXTRA_STREAM, android.net.Uri::class.java))
         assertEquals("content", stream.scheme)
-        assertEquals("${service.packageName}.share", stream.authority)
+        assertEquals(authority, stream.authority)
         assertNull(send.getStringExtra(Intent.EXTRA_TEXT))
         assertNull(send.getStringExtra(Intent.EXTRA_SUBJECT))
         assertTrue(send.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION != 0)
@@ -84,6 +85,33 @@ class MobileFileShareServiceTest {
         // createChooser migrates the grant onto the wrapper; the launched intent is what carries it.
         assertEquals(stream, chooser.clipData?.getItemAt(0)?.uri)
         assertTrue(chooser.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION != 0)
+        val untyped = shareChooserFor(uri, null).getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
+        assertEquals("application/octet-stream", untyped?.type)
+    }
+
+    @Test
+    fun theFileProviderSharesOnlyTheExportDirectoryAndNeverWritesOrExports() {
+        val service = Robolectric.buildService(MobileFileShareService::class.java).create().get()
+        val provider = service.packageManager.getProviderInfo(
+            ComponentName(service, "androidx.core.content.FileProvider"),
+            PackageManager.GET_META_DATA,
+        )
+        assertEquals("${service.packageName}.share", provider.authority)
+        assertFalse(provider.exported)
+        assertTrue(provider.grantUriPermissions)
+        val paths = service.resources.getXml(
+            provider.metaData.getInt("android.support.FILE_PROVIDER_PATHS"),
+        )
+        val roots = buildList {
+            while (paths.next() != XmlPullParser.END_DOCUMENT) {
+                if (paths.eventType == XmlPullParser.START_TAG && paths.name != "paths") {
+                    add(Triple(paths.name, paths.getAttributeValue(null, "name"), paths.getAttributeValue(null, "path")))
+                }
+            }
+        }
+        assertEquals(listOf(Triple("files-path", "shares", "shares/")), roots)
+        assertEquals("shares", MobileFileShareService.shareRoot(service).name)
+        assertEquals(service.filesDir, MobileFileShareService.shareRoot(service).parentFile)
     }
 
     @Test

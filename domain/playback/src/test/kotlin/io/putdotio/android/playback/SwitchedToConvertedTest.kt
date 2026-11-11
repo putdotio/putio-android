@@ -1,6 +1,8 @@
 package io.putdotio.android.playback
 
-import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.emptyPreferences
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.sdk.account.AccountDisk
@@ -19,6 +21,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.job
 import kotlinx.coroutines.joinAll
@@ -27,15 +31,18 @@ import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
-import org.junit.Rule
 import org.junit.Test
-import org.junit.rules.TemporaryFolder
-import java.io.File
+
+private class InMemoryPreferences : DataStore<Preferences> {
+    private val state = MutableStateFlow(emptyPreferences())
+
+    override val data: Flow<Preferences> = state
+
+    override suspend fun updateData(transform: suspend (Preferences) -> Preferences): Preferences =
+        transform(state.value).also { state.value = it }
+}
 
 class SwitchedToConvertedTest {
-    @get:Rule
-    val folder = TemporaryFolder()
-
     @Test
     fun theListKeepsTheNewestSwitchesAndMovesASwitchedFileToTheEnd() {
         val full = (1L..SWITCHED_TO_CONVERTED_LIMIT.toLong()).toList()
@@ -51,12 +58,9 @@ class SwitchedToConvertedTest {
     @Test
     fun theStoreRemembersSwitchesWithinItsBoundUntilSignOutClearsIt() = runBlocking {
         val writes = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-        val dataStore = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         try {
             val store = DataStoreSwitchedToConvertedFiles(
-                PreferenceDataStoreFactory.create(scope = dataStore) {
-                    File(folder.root, "switched.preferences_pb")
-                },
+                InMemoryPreferences(),
                 writes,
                 limit = 3,
             )
@@ -75,7 +79,6 @@ class SwitchedToConvertedTest {
             assertEquals(emptyList<Long>(), store.read())
         } finally {
             writes.cancel()
-            dataStore.cancel()
         }
     }
 
