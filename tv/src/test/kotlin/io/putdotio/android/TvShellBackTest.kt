@@ -161,7 +161,7 @@ class TvShellBackTest {
             },
         )
         compose.openTab(TvDestination.Files)
-        compose.onNodeWithText("Empty folder.").assertIsFocused()
+        compose.onNodeWithText("No files whatsoever!").assertIsFocused()
 
         compose.pressBack()
         assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.NavigateBack), events)

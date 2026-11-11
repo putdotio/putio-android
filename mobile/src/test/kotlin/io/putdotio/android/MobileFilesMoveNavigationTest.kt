@@ -107,7 +107,7 @@ class MobileFilesMoveNavigationTest {
         compose.onNodeWithTag(MOBILE_FILES_OPERATION_RETRY_TAG).assertIsDisplayed()
         compose.onNodeWithTag(MOBILE_FILES_OPERATION_RETRY_TAG).performClick()
         compose.runOnIdle { preview.finishReadback() }
-        compose.onNodeWithText("Empty folder").assertIsDisplayed()
+        compose.onNodeWithText("No files whatsoever!").assertIsDisplayed()
         compose.onNodeWithTag(MOBILE_FILES_OPERATION_RETRY_TAG).assertDoesNotExist()
         compose.runOnIdle {
             assertEquals(FilesFolderOperation.Idle, preview.files.current.operation)
