@@ -26,9 +26,8 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
-      docs: ${{ github.event_name != 'pull_request' || steps.filter.outputs.docs == 'true' }}
-      scripts: ${{ github.event_name != 'pull_request' || steps.filter.outputs.scripts == 'true' }}
-      android: ${{ github.event_name != 'pull_request' || steps.filter.outputs.android == 'true' }}
+      docs: ${{ github.event_name != 'pull_request' || steps.filter.outputs.code == 'true' || steps.filter.outputs.markdown == 'true' }}
+      code: ${{ github.event_name != 'pull_request' || steps.filter.outputs.code == 'true' }}
     steps:
       - name: Classify changed paths
         id: filter
@@ -37,28 +36,14 @@ jobs:
         with:
           predicate-quantifier: every
           filters: |
-            unbuilt: &unbuilt
+            code:
               - '**'
+              - '!**/*.md'
               - '!{.agents,.claude,docs,play,.github/ISSUE_TEMPLATE}/**'
               - '!.github/workflows/{delivery-ref,emulator-smoke,play-data-safety,play-internal,play-release}.yml'
               - '!{LICENSE,NOTICE,renovate.json,skills-lock.json,.worktreeinclude}'
-            built: &built
-              - *unbuilt
-              - '!**/*.md'
-            docs:
-              - '**'
-              - '!{.agents,.claude,docs,play,mobile,tv,baselineprofile,core,domain,scripts}/**/!(*.md)'
-              - '!.github/ISSUE_TEMPLATE/**/!(*.md)'
-              - '!.github/workflows/{delivery-ref,emulator-smoke,play-data-safety,play-internal,play-release}.yml'
-              - '!{LICENSE,NOTICE,renovate.json,skills-lock.json,.worktreeinclude}'
-            scripts:
-              - *built
-              - '!{mobile,tv,baselineprofile,core,domain}/**/src/*/{kotlin,java,generated}/**'
-              - '!.oxfmtrc.json'
-            android:
-              - *built
-              - '!{package.json,.node-version,.oxfmtrc.json}'
-              - '!scripts/!(sync-brand-fonts.sh|brand_fonts.py)'
+            markdown:
+              - '**/*.md'
 
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -143,7 +128,7 @@ jobs:
   scripts:
     name: Scripts
     needs: changes
-    if: ${{ !cancelled() && needs.changes.outputs.scripts == 'true' }}
+    if: ${{ !cancelled() && needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
@@ -154,7 +139,7 @@ jobs:
   libraries:
     name: Libraries
     needs: changes
-    if: ${{ !cancelled() && needs.changes.outputs.android == 'true' }}
+    if: ${{ !cancelled() && needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
@@ -164,7 +149,7 @@ jobs:
   mobile:
     name: Mobile
     needs: changes
-    if: ${{ !cancelled() && needs.changes.outputs.android == 'true' }}
+    if: ${{ !cancelled() && needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     env:
@@ -175,7 +160,7 @@ jobs:
   tv:
     name: TV
     needs: changes
-    if: ${{ !cancelled() && needs.changes.outputs.android == 'true' }}
+    if: ${{ !cancelled() && needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     env:
@@ -186,7 +171,7 @@ jobs:
   release:
     name: Release
     needs: changes
-    if: ${{ !cancelled() && needs.changes.outputs.android == 'true' }}
+    if: ${{ !cancelled() && needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     env:
@@ -197,7 +182,7 @@ jobs:
   nightly:
     name: Nightly debug
     needs: changes
-    if: ${{ !cancelled() && needs.changes.outputs.android == 'true' }}
+    if: ${{ !cancelled() && needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     env:
