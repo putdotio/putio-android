@@ -887,13 +887,11 @@ internal fun resumeLabel(seconds: Double, style: TextStyle): AnnotatedString = m
 )
 
 /**
- * Whether opening the file offers to resume: a saved position more than [FINISHED_WITHIN_SECONDS]
- * before the end, the player's own rule; with no known length, any saved position.
+ * Whether opening the file offers to resume: a saved position short of the player's finished
+ * threshold; with no known length, any saved position.
  */
-private fun FilesPlaybackProgress.resumesPlayback(): Boolean {
-    val duration = durationSeconds
-    return startFromSeconds > 0.0 && (duration == null || startFromSeconds < duration - FINISHED_WITHIN_SECONDS)
-}
+private fun FilesPlaybackProgress.resumesPlayback(): Boolean =
+    startFromSeconds > 0.0 && !playbackFinishedAt(startFromSeconds, durationSeconds)
 
 internal fun confirmedDeleteMode(trashEnabled: Boolean?): FilesDeleteMode? =
     when (trashEnabled) {
@@ -902,7 +900,6 @@ internal fun confirmedDeleteMode(trashEnabled: Boolean?): FilesDeleteMode? =
         null -> null
     }
 
-private const val FINISHED_WITHIN_SECONDS = 10.0
 private val HEADER_LEADING_SIZE = 40.dp
 private val HEADER_ICON_SIZE = 26.dp
 private val META_GAP = 6.dp

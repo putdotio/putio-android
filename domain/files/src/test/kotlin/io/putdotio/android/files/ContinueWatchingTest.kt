@@ -31,8 +31,8 @@ class ContinueWatchingTest {
         assertEquals(252L, row.entries.value.last().remainingSeconds)
         assertEquals(row.entries.value, store.saved)
 
-        // Within 10 s of the end counts as finished, as the player's start-over rule does.
-        row.positionSaved(Tears, 725.0)
+        // Past 95 % counts as finished, as the player's start-over rule does.
+        row.positionSaved(Tears, 698.0)
         assertEquals(listOf(Sintel), row.entries.value.map { it.fileId })
         // An unwatched reset leaves too.
         row.positionSaved(Sintel, 0.0)
