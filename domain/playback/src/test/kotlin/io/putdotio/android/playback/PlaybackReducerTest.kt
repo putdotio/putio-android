@@ -406,7 +406,6 @@ class PlaybackReducerTest {
             ),
         )
         assertEquals(0L, looked.state.resumePositionMillis)
-        // Just short of 95 % still asks, though more than 10 s remain either way.
         val asks = PlaybackReducer.reduce(
             PlaybackReducer.start(Target.copy(durationSeconds = 600.0)).state,
             PlaybackEvent.ResolveSucceeded(

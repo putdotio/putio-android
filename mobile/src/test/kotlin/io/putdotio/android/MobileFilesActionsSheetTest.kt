@@ -323,7 +323,6 @@ class MobileFilesActionsSheetTest {
                 )
             }
         }
-        // The player still offers to resume just short of 95 %, so the sheet does too.
         compose.onNodeWithText("Resume from 47:29").assertIsDisplayed()
         compose.onNodeWithText("Mark as watched").performScrollTo().assertIsDisplayed()
         compose.runOnIdle { progress = FilesPlaybackProgress(startFromSeconds = 2_850.0, durationSeconds = 3_000.0) }
