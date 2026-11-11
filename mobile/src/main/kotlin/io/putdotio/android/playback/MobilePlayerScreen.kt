@@ -40,6 +40,7 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.State
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
@@ -56,7 +57,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusTarget
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -412,7 +412,7 @@ private fun PlaybackState.showsSeparateBack(shown: PlaybackContent): Boolean =
  * conversion, a failure. It sits where the player's own top bar does.
  */
 @Composable
-private fun MobilePlayerFrameBar(title: String, onBack: () -> Unit, modifier: Modifier = Modifier) {
+internal fun MobilePlayerFrameBar(title: String, onBack: () -> Unit, modifier: Modifier = Modifier) {
     Row(
         modifier
             .fillMaxWidth()
@@ -703,6 +703,7 @@ private class ReadyPlayerState(
     var videoSize by mutableStateOf(player.videoSize)
     var playbackState by mutableIntStateOf(player.playbackState)
     var keepScreenOn by mutableStateOf(keepScreenOn)
+    var stalled by mutableStateOf(false)
     var playerWantsToPlay by mutableStateOf(player.playWhenReady)
     var retainedPlayIntent by mutableStateOf(resumeAfterLifecyclePause)
     var failurePositionMillis by mutableStateOf<Long?>(null)
@@ -713,6 +714,10 @@ private class ReadyPlayerState(
 
     /** The video frame's full-screen bounds in the window, which picture-in-picture animates from. */
     var videoFrame by mutableStateOf<Rect?>(null)
+
+    fun refreshKeepScreenOn(isAudio: Boolean) {
+        keepScreenOn = !stalled && player.keepsVideoScreenOn(isAudio)
+    }
 }
 
 @UnstableApi
@@ -1136,7 +1141,7 @@ private fun PlayerListenerEffect(
                 override fun onPlaybackStateChanged(newPlaybackState: Int) {
                     playerState.playbackState = newPlaybackState
                     controlsVisible.value = controlsVisibleForPlaybackState(controlsVisible.value, newPlaybackState)
-                    playerState.keepScreenOn = !isAudio && player.shouldKeepScreenOn()
+                    playerState.refreshKeepScreenOn(isAudio)
                     if (newPlaybackState == Media3Player.STATE_ENDED) {
                         if (!playerState.endedReported) {
                             playerState.endedReported = true
@@ -1163,7 +1168,7 @@ private fun PlayerListenerEffect(
                 }
 
                 override fun onPlaybackSuppressionReasonChanged(playbackSuppressionReason: Int) {
-                    playerState.keepScreenOn = !isAudio && player.shouldKeepScreenOn()
+                    playerState.refreshKeepScreenOn(isAudio)
                 }
 
                 override fun onPlayWhenReadyChanged(
@@ -1171,7 +1176,7 @@ private fun PlayerListenerEffect(
                     reason: Int,
                 ) {
                     playerState.playerWantsToPlay = playWhenReady
-                    playerState.keepScreenOn = !isAudio && player.shouldKeepScreenOn()
+                    playerState.refreshKeepScreenOn(isAudio)
                     val update = playerRetentionUpdate(
                         event = PlayerRetentionEvent.PlayIntentChanged,
                         lifecycleState = lifecycleState(),
@@ -1246,6 +1251,8 @@ private fun MobileReadyPlayerContent(
     onSwitchToConverted: (() -> Unit)?,
 ) {
     val player = playerState.player
+    val stallWatch = rememberPlaybackStallWatch(player)
+    val stall by stallWatch.stall.collectAsState()
     fun seek(direction: SeekDirection) {
         val currentWindow = player.currentSeekWindow()
         pendingSeek.value =
@@ -1289,13 +1296,27 @@ private fun MobileReadyPlayerContent(
     val fold = tabletopFoldIn(contentInWindow, enabled = !pictureInPicture)
     var chromeFitsFold by remember(fold, contentInWindow.size) { mutableStateOf(true) }
     val videoFold = fold?.takeIf { chromeFitsFold }
+    val stalled = stall.coversPlayer(pictureInPicture)
+    MobileStallEffect(
+        stalled = stalled,
+        playerFocus = keyFocus,
+        onStalled = {
+            sheet = null
+            playerState.stalled = true
+            playerState.refreshKeepScreenOn(isAudio)
+        },
+        onRecovered = {
+            playerState.stalled = false
+            playerState.refreshKeepScreenOn(isAudio)
+        },
+    )
     val shownFooterHeight = footerHeight.takeIf { controlsVisible.value && sheet == null } ?: 0.dp
 
     Box(
         Modifier
             .fillMaxSize()
             .onGloballyPositioned { contentInWindow = it.boundsInWindow() }
-            .onKeyEvent { event ->
+            .onPlayerKeyEvent(enabled = !stalled) { event ->
                 videoKeyCommand(event.nativeKeyEvent, sheet, { sheet = sheet.parentSheet() }) { command ->
                     player.runKeyCommand(command, ::seek, onBack)
                 }
@@ -1333,7 +1354,7 @@ private fun MobileReadyPlayerContent(
                 fold = videoFold,
             )
         }
-        if (isAudio) {
+        if (isAudio.unless(stalled)) {
             MobileNowPlayingScreen(
                 player = player,
                 title = title,
@@ -1347,7 +1368,7 @@ private fun MobileReadyPlayerContent(
                 modifier = Modifier.zIndex(2f).observeControlNavigation(onPointerNavigation, onKeyboardNavigation),
             )
             MobileSeekFeedbackLayer(pendingSeek.value)
-        } else if (!pictureInPicture && sheet == null) {
+        } else if (stall.allowsChrome(pictureInPicture) && sheet == null) {
             // The window shows only the video and its subtitles; its own menu carries the controls.
             MobilePlayerChrome(
                 player = player,
@@ -1407,6 +1428,18 @@ private fun MobileReadyPlayerContent(
                 panelModifier = optionModifier,
             )
         }
+        MobilePlaybackStallLayer(
+            stall = stall,
+            pictureInPicture = pictureInPicture,
+            title = title,
+            video = !isAudio,
+            controlsShown = controlsVisible.value,
+            sheetOpen = sheet != null,
+            fold = videoFold,
+            onRetry = stallWatch::retry,
+            onBack = onBack,
+            modifier = Modifier.zIndex(4f),
+        )
     }
 }
 

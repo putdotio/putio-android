@@ -406,6 +406,8 @@
     <string name="tv_trash_delete_still_present">%1$s is still in trash.</string>
     <string name="tv_trash_empty_still_present">Trash still has items. Refresh in a moment and try again.</string>
     <string name="tv_player_loading">Loading</string>
+    <string name="tv_player_buffering">Buffering…</string>
+    <string name="tv_player_stalled">Playback stalled</string>
     <string name="tv_player_seek_bar">%1$s of %2$s</string>
     <string name="tv_player_error_title">Couldn\'t play this file.</string>
     <string name="tv_player_error_crash">Playback error</string>

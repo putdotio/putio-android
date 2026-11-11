@@ -81,6 +81,8 @@ internal fun lifecycleAllowsAutoplay(
     resumeAfterLifecyclePause: Boolean = true,
 ): Boolean = resumeAfterLifecyclePause && state.isAtLeast(Lifecycle.State.RESUMED)
 
+internal fun Media3Player.keepsVideoScreenOn(isAudio: Boolean): Boolean = !isAudio && shouldKeepScreenOn()
+
 internal fun Media3Player.shouldKeepScreenOn(): Boolean =
     playbackKeepsScreenOn(playWhenReady, playbackState, playbackSuppressionReason)
 

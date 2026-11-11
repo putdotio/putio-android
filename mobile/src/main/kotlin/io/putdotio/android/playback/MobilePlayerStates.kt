@@ -1,6 +1,10 @@
 package io.putdotio.android.playback
 
 import androidx.annotation.StringRes
+import androidx.compose.foundation.background
+import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -8,24 +12,41 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.input.InputMode
+import androidx.compose.ui.input.key.KeyEvent
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -217,6 +238,114 @@ private fun PlaybackContent.Conversion.message(running: Boolean): String =
         else -> state.message()
     }
 
+@Composable
+internal fun MobilePlaybackStallLayer(
+    stall: PlaybackStall,
+    pictureInPicture: Boolean,
+    title: String,
+    video: Boolean,
+    controlsShown: Boolean,
+    sheetOpen: Boolean,
+    fold: TabletopFold?,
+    onRetry: () -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (pictureInPicture) return
+    when (stall) {
+        PlaybackStall.Stalled -> MobilePlaybackStalledState(title, video, onRetry, onBack, modifier)
+        PlaybackStall.Buffering -> if (video) {
+            MobileBufferingNotice(ringShown = controlsShown && !sheetOpen, modifier = modifier.videoArea(fold))
+        }
+        PlaybackStall.None, PlaybackStall.Waiting -> Unit
+    }
+}
+
+@Composable
+internal fun MobileStallEffect(
+    stalled: Boolean,
+    playerFocus: FocusRequester,
+    onStalled: () -> Unit,
+    onRecovered: () -> Unit,
+) {
+    var wasStalled by remember { mutableStateOf(false) }
+    LaunchedEffect(stalled) {
+        if (stalled) onStalled() else onRecovered()
+        if (wasStalled && !stalled) playerFocus.requestFocus()
+        wasStalled = stalled
+    }
+}
+
+internal fun Boolean.unless(other: Boolean): Boolean = this && !other
+
+internal fun PlaybackStall.coversPlayer(pictureInPicture: Boolean): Boolean =
+    this == PlaybackStall.Stalled && !pictureInPicture
+
+internal fun PlaybackStall.allowsChrome(pictureInPicture: Boolean): Boolean =
+    this != PlaybackStall.Stalled && !pictureInPicture
+
+internal fun Modifier.onPlayerKeyEvent(enabled: Boolean, onEvent: (KeyEvent) -> Boolean): Modifier =
+    onKeyEvent { event -> enabled && onEvent(event) }
+
+@Composable
+private fun MobileBufferingNotice(ringShown: Boolean, modifier: Modifier) {
+    Box(modifier, contentAlignment = Alignment.Center) {
+        if (!ringShown) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(MOBILE_TRANSPORT_RING).clearAndSetSemantics {},
+                strokeWidth = 2.dp,
+            )
+        }
+        Text(
+            stringResource(R.string.mobile_playback_buffering),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier
+                .offset(y = BUFFERING_LABEL_OFFSET)
+                .semantics { liveRegion = LiveRegionMode.Polite },
+        )
+    }
+}
+
+@Composable
+private fun MobilePlaybackStalledState(
+    title: String,
+    video: Boolean,
+    onRetry: () -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier,
+) {
+    val retryFocus = remember { FocusRequester() }
+    val keyboard = LocalInputModeManager.current.inputMode == InputMode.Keyboard
+    LaunchedEffect(keyboard) { if (keyboard) retryFocus.requestFocus() }
+    Box(
+        modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .pointerInput(Unit) { awaitEachGesture { awaitFirstDown().consume() } }
+            .focusProperties { onExit = { cancelFocusChange() } }
+            .focusGroup(),
+    ) {
+        MobilePlayerStateBox {
+            PutioEmptyState(
+                glyph = PutioEmptyGlyph.CantPlay,
+                headline = stringResource(R.string.mobile_playback_stalled),
+                message = stringResource(R.string.mobile_state_error_message),
+                action = {
+                    MobilePlayerStateAction(
+                        stringResource(R.string.mobile_action_retry),
+                        onClick = onRetry,
+                        modifier = Modifier.focusRequester(retryFocus),
+                    )
+                },
+            )
+        }
+        if (video) MobilePlayerFrameBar(title = title, onBack = onBack, modifier = Modifier.align(Alignment.TopStart))
+    }
+}
+
+private val BUFFERING_LABEL_OFFSET = MOBILE_TRANSPORT_RING / 2 + 24.dp
+
 /** Centred on the player, clear of its top bar, scrolling when the window is short. */
 @Composable
 private fun MobilePlayerStateBox(content: @Composable () -> Unit) {
@@ -232,9 +361,15 @@ private fun MobilePlayerStateBox(content: @Composable () -> Unit) {
 
 /** The state's one tonal action. */
 @Composable
-private fun MobilePlayerStateAction(label: String, onClick: () -> Unit, enabled: Boolean = true) {
+private fun MobilePlayerStateAction(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) {
     FilledTonalButton(
         onClick = onClick,
+        modifier = modifier,
         enabled = enabled,
         colors = ButtonDefaults.filledTonalButtonColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,

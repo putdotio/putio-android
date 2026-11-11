@@ -5,6 +5,7 @@ import androidx.compose.runtime.setValue
 import android.os.Build
 import android.os.SystemClock
 import androidx.activity.compose.BackHandler
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
@@ -15,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -62,6 +64,7 @@ import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackFallbackReason
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackNeighbours
+import io.putdotio.android.playback.PlaybackStall
 import io.putdotio.android.playback.previousAt
 import io.putdotio.android.playback.PlaybackState
 import io.putdotio.android.playback.PlaybackTarget
@@ -78,6 +81,7 @@ import io.putdotio.android.playback.redrawAss
 import io.putdotio.android.playback.playbackSurfaceType
 import io.putdotio.android.playback.playerSubtitles
 import io.putdotio.android.playback.preparePlayback
+import io.putdotio.android.playback.rememberPlaybackStallWatch
 import io.putdotio.android.playback.rememberSubtitleAppearanceStore
 import io.putdotio.android.playback.rememberSubtitleLanguageStore
 import io.putdotio.android.playback.restoreSubtitleSelection
@@ -526,13 +530,16 @@ private fun TvReadyPlayer(
     BackHandler(enabled = !hidden) {
         apply(overlay.back(backgrounds = backgroundAudio.backgroundsOnBack(target.mediaType, playWhenReady)))
     }
+    val stallWatch = rememberPlaybackStallWatch(player)
+    val stall by stallWatch.stall.collectAsState()
+    val stalled = stall == PlaybackStall.Stalled
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { leaveForeground({ overlay }, apply, keepsPlaying) }
     BindMiniPlayer(backgroundAudio.miniPlayer.takeIf { nowPlaying }, player, paused = !playWhenReady) { play ->
         apply(overlay.setPlaying(play))
     }
     LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) { stoppedAtMillis = player.currentPosition.coerceAtLeast(0L) }
     val view = LocalView.current
-    val keepScreenOn = keepsScreenOn(playWhenReady, playbackState, hidden)
+    val keepScreenOn = keepsScreenOn(playWhenReady, playbackState, hidden).unless(stalled)
     DisposableEffect(view, keepScreenOn) {
         view.keepScreenOn = keepScreenOn
         onDispose { view.keepScreenOn = false }
@@ -581,7 +588,7 @@ private fun TvReadyPlayer(
     }
     val nextTrack = overlay.focusesNextTrack(neighbours)
     val focus = remember { FocusRequester() }
-    val playerHoldsFocus = overlay.holdsFocusWhenShown(hidden)
+    val playerHoldsFocus = overlay.holdsFocusWhenShown(hidden).unless(stalled)
     LaunchedEffect(focus, playerHoldsFocus) { if (playerHoldsFocus) focus.requestFocus() }
     if (!hidden) Box(
         modifier = Modifier
@@ -607,9 +614,9 @@ private fun TvReadyPlayer(
                 focused = overlay.shownFocus(chips, nextTrack),
             )
         } else {
-            TvPlayerStage(player, target, TvStageState(firstFrameShown, playbackState, overlay.controlsVisible))
+            TvPlayerStage(player, target, TvStageState(firstFrameShown, playbackState, overlay.controlsVisible, stall))
             cueLayer.takeUnless { overlay.sheet == TvPlayerSheet.SizeAndTiming }?.invoke(this)
-            if (overlay.controlsVisible) {
+            if (overlay.controlsVisible.unless(stalled)) {
                 TvPlayerControls(
                     player = player,
                     title = target.name,
@@ -625,7 +632,16 @@ private fun TvReadyPlayer(
             }
         }
     }
-    TvUpNextOverlay(overlay, upNext) { step -> apply(step(overlay)) }
+    TvStalledOr(
+        stalled = stalled.unless(hidden),
+        target = target,
+        sheetOpen = overlay.sheet != null,
+        onCloseSheet = { apply(overlay.closeSheet()) },
+        onRetry = stallWatch::retry,
+        onBack = { currentOnExit() },
+    ) {
+        TvUpNextOverlay(overlay, upNext) { step -> apply(step(overlay)) }
+    }
     TvQueueEndEffect(overlay, playbackState, playWhenReady, neighbours) { next -> apply(overlay.queueEnded(next)) }
 
     val closeSheet = { apply(overlay.closeSheet()) }
@@ -681,11 +697,46 @@ private fun TvReadyPlayer(
     )
 }
 
+@Composable
+private fun TvStalledOr(
+    stalled: Boolean,
+    target: PlaybackTarget,
+    sheetOpen: Boolean,
+    onCloseSheet: () -> Unit,
+    onRetry: () -> Unit,
+    onBack: () -> Unit,
+    otherwise: @Composable () -> Unit,
+) {
+    if (!stalled) {
+        otherwise()
+        return
+    }
+    BackHandler(onBack = onBack)
+    LaunchedEffect(sheetOpen) { if (sheetOpen) onCloseSheet() }
+    Box(Modifier.fillMaxSize().background(Color.Black)) {
+        TvPlaybackStalledScreen(target, sheetOpen = sheetOpen, onRetry = onRetry, onBack = onBack)
+    }
+}
+
 private fun PlaybackSource.streamsOriginalVideo(target: PlaybackTarget): Boolean =
     kind == PlaybackSourceKind.ORIGINAL && target.mediaType == PlaybackMediaType.VIDEO
 
-private class TvStageState(firstFrameShown: Boolean, playbackState: Int, val controlsVisible: Boolean) {
-    val waiting = !firstFrameShown && playbackState != Player.STATE_READY && playbackState != Player.STATE_ENDED
+private class TvStageState(
+    firstFrameShown: Boolean,
+    playbackState: Int,
+    val controlsVisible: Boolean,
+    stall: PlaybackStall,
+) {
+    private val starting =
+        !firstFrameShown && playbackState != Player.STATE_READY && playbackState != Player.STATE_ENDED
+    val waiting = starting || stall == PlaybackStall.Waiting || stall == PlaybackStall.Buffering
+
+    @get:StringRes
+    val message: Int? = when {
+        stall == PlaybackStall.Buffering -> R.string.tv_player_buffering
+        starting -> R.string.tv_player_loading
+        else -> null
+    }
 }
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
@@ -696,7 +747,7 @@ private fun TvPlayerStage(player: Player, target: PlaybackTarget, stage: TvStage
         modifier = Modifier.fillMaxSize(),
         surfaceType = playbackSurfaceType(Build.VERSION.SDK_INT, Build.HARDWARE),
     )
-    if (stage.waiting && !stage.controlsVisible) TvPlayerLoading(target)
+    if (stage.waiting && !stage.controlsVisible) TvPlayerLoading(target, stage.message)
 }
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])

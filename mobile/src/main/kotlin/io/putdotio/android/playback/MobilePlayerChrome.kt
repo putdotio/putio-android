@@ -234,6 +234,7 @@ internal fun videoShade(scrim: Color): Brush =
         1f to scrim.copy(alpha = SHADE_BOTTOM_ALPHA),
     )
 
+internal val MOBILE_TRANSPORT_RING = 80.dp
 private const val SHADE_TOP_ALPHA = 0.6f
 private const val SHADE_CLEAR_FROM = 0.3f
 private const val SHADE_CLEAR_TO = 0.6f
@@ -296,11 +297,11 @@ private fun MobileVideoTransport(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         MobileSeekButton(SeekDirection.Backward, seekEnabled, { onSeek(SeekDirection.Backward) }, onVideo = true)
-        Box(Modifier.size(80.dp), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(MOBILE_TRANSPORT_RING), contentAlignment = Alignment.Center) {
             if (buffering) {
                 val loading = stringResource(R.string.mobile_state_loading)
                 CircularProgressIndicator(
-                    modifier = Modifier.size(80.dp).semantics { contentDescription = loading },
+                    modifier = Modifier.size(MOBILE_TRANSPORT_RING).semantics { contentDescription = loading },
                     strokeWidth = 2.dp,
                 )
             }
