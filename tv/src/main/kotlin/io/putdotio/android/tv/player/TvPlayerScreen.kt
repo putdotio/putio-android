@@ -246,7 +246,7 @@ private fun TvReadyPlayer(
     val currentAnalytics by rememberUpdatedState(analytics)
     val currentUpNext by rememberUpdatedState(upNext)
     val currentNeighbours by rememberUpdatedState(neighbours)
-    val startsPlaying = stoppedAtMillis == null && playIntent.value
+    val startsPlaying = startsPlaying(stoppedAtMillis, playIntent.value)
     var overlay by remember(player) { mutableStateOf(tvPlayerOverlay(nowPlaying, nowPlayingFocus.value)) }
     val apply: (TvPlayerTransition) -> Unit = remember(player) {
         { transition ->
@@ -694,3 +694,6 @@ private fun MediaItem.leasedBy(reporter: TvPlaybackReporter, fileId: Long, useSt
 
 private fun keepsScreenOn(playWhenReady: Boolean, playbackState: Int): Boolean =
     playWhenReady && playbackState != Player.STATE_ENDED && playbackState != Player.STATE_IDLE
+
+private fun startsPlaying(stoppedAtMillis: Long?, playIntent: Boolean): Boolean =
+    stoppedAtMillis == null && playIntent
