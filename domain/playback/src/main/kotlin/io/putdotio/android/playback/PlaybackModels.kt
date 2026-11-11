@@ -292,7 +292,7 @@ private fun PlaybackState.refetchesExpiredLink(event: PlaybackEvent.PlayerFailed
     content is PlaybackContent.Ready &&
         target.mediaType == PlaybackMediaType.VIDEO &&
         event.failure is PlaybackFailure.MediaCredentialUnavailable &&
-        linkRefetchedAtMillis.let { it == null || event.resumePositionMillis > it }
+        linkRefetchedAtMillis != event.resumePositionMillis.coerceAtLeast(0L)
 
 private fun PlaybackState.retry(): PlaybackTransition {
     val requestId = PlaybackRequestId(nextRequestValue)

@@ -119,6 +119,11 @@ internal fun TvPlayerScreen(
 ) {
     BackHandler(enabled = state.content !is PlaybackContent.Ready, onBack = onBack)
     val nowPlayingFocus = remember { mutableStateOf(TvPlayerControl.SeekBar) }
+    val options = rememberSaveable(
+        state.target.fileId.value,
+        stateSaver = TvPlaybackOptionsSaver,
+        key = "tv-player-options-${state.target.fileId.value}",
+    ) { mutableStateOf(TvPlaybackOptions()) }
     Box(modifier = modifier.fillMaxSize().background(Color.Black)) {
         when (val content = state.content) {
             is PlaybackContent.Ready ->
@@ -143,6 +148,7 @@ internal fun TvPlayerScreen(
                         ?: TvUpNextLookup.Off,
                     neighbours = neighbours,
                     nowPlayingFocus = nowPlayingFocus,
+                    optionsState = options,
                 )
 
             is PlaybackContent.AwaitingResume -> {
@@ -210,6 +216,7 @@ private fun TvReadyPlayer(
     upNext: TvUpNextLookup,
     neighbours: PlaybackNeighbours?,
     nowPlayingFocus: MutableState<TvPlayerControl>,
+    optionsState: MutableState<TvPlaybackOptions>,
 ) {
     val context = LocalContext.current
     val nowPlaying = target.mediaType == PlaybackMediaType.AUDIO
@@ -217,11 +224,7 @@ private fun TvReadyPlayer(
     var stoppedAtMillis by rememberSaveable(source, key = "tv-player-stopped-at-$PROCESS_KEY-${target.fileId.value}") {
         mutableStateOf<Long?>(null)
     }
-    var options by rememberSaveable(
-        source,
-        stateSaver = TvPlaybackOptionsSaver,
-        key = "tv-player-options-${target.fileId.value}",
-    ) { mutableStateOf(TvPlaybackOptions()) }
+    var options by optionsState
     val subtitleMemory = rememberSubtitleLanguageStore()
     val player = remember(source, playerFactory) { playerFactory.create(context, target.mediaType) }
     val defaultTrackSelection = remember(player) { player.trackSelectionParameters }

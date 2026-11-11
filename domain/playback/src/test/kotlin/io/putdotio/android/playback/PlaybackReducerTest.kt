@@ -553,12 +553,15 @@ class PlaybackReducerTest {
         assertEquals(PlaybackContent.Loading(PlaybackRequestId(3L)), later.state.content)
         assertEquals(600_000L, later.state.resumePositionMillis)
 
+        val rewound = PlaybackReducer.reduce(resumed.state, PlaybackEvent.PlayerFailed(expired, 1_000L))
+        assertEquals(PlaybackContent.Loading(PlaybackRequestId(3L)), rewound.state.content)
+
         val retried = PlaybackReducer.reduce(failed.state, PlaybackEvent.Retry)
         val retriedReady = PlaybackReducer.reduce(
             retried.state,
             PlaybackEvent.ResolveSucceeded(PlaybackRequestId(3L), PlaybackResolution.Ready(source, useStartFrom = true)),
         )
-        val afterRetry = PlaybackReducer.reduce(retriedReady.state, PlaybackEvent.PlayerFailed(expired, 1_000L))
+        val afterRetry = PlaybackReducer.reduce(retriedReady.state, PlaybackEvent.PlayerFailed(expired, 4_321L))
         assertEquals(PlaybackContent.Loading(PlaybackRequestId(4L)), afterRetry.state.content)
 
         val unknownPosition = PlaybackReducer.reduce(readyState(), PlaybackEvent.PlayerFailed(expired, -1L))
