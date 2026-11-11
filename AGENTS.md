@@ -110,8 +110,11 @@ refreshes them. Don't edit their files.
 ```
 
 The root [`verify` task](build.gradle.kts) is the union of its `verify*` lane
-tasks; the build cache skips the work a change does not reach. Its script checks need `bash` 3.2+, `python3`, `node`, `ffprobe`,
-and `ffmpeg` with the `freezedetect` filter and `libx264` encoder on PATH.
+tasks; the build cache skips the work a change does not reach. It needs
+`bash` 3.2+, `python3` and `node` on PATH. The harness contract tests
+(`scripts/test-evidence.sh`, `test-emulator.sh`, `test-sign-in.sh`) run in
+CI's Scripts job; run them after changing `scripts/`. `test-evidence.sh` needs
+`ffprobe`, and `ffmpeg` with the `freezedetect` filter and `libx264` encoder.
 `markdownCheck` runs oxfmt at the version [package.json](package.json) pins;
 `npx --yes oxfmt@<version> '**/*.md'` fixes its findings.
 

@@ -47,8 +47,7 @@ jobs:
               - '!**/*.md'
             docs:
               - '**'
-              - '!{.agents,.claude,docs,play,mobile,tv,baselineprofile,core,domain}/**/!(*.md)'
-              - '!scripts/!(lint-design-md.sh|*.md)'
+              - '!{.agents,.claude,docs,play,mobile,tv,baselineprofile,core,domain,scripts}/**/!(*.md)'
               - '!.github/ISSUE_TEMPLATE/**/!(*.md)'
               - '!.github/workflows/{delivery-ref,emulator-smoke,play-data-safety,play-internal,play-release}.yml'
               - '!{LICENSE,NOTICE,renovate.json,skills-lock.json,.worktreeinclude}'
@@ -118,6 +117,13 @@ jobs:
           read -ra tasks <<<"$TASKS"
           ./gradlew --stacktrace "${tasks[@]}"
 
+      - name: Test harness scripts
+        if: env.HARNESS_TESTS == 'true'
+        run: |
+          bash scripts/test-evidence.sh
+          bash scripts/test-emulator.sh
+          bash scripts/test-sign-in.sh
+
       - name: Upload failed unit test reports
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -150,6 +156,7 @@ jobs:
     env:
       TASKS: verifyScripts
       FFMPEG: 'true'
+      HARNESS_TESTS: 'true'
     steps: *lane
 
   libraries:

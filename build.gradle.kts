@@ -22,7 +22,7 @@ val bash: String = HostBash.path
 val scriptCheckTools = providers.exec {
     commandLine(
         bash, "-c",
-        "for tool in bash python3 ffmpeg ffprobe; do \"\$tool\" --version 2>&1 | head -1; done",
+        "for tool in bash python3; do \"\$tool\" --version 2>&1 | head -1; done",
     )
     isIgnoreExitValue = true
 }.standardOutput.asText
@@ -40,24 +40,6 @@ fun Exec.cacheableCheck(vararg sources: Any) {
     outputs.file(stamp).withPropertyName("stamp")
     outputs.cacheIf { true }
     doLast { stamp.get().asFile.writeText("passed\n") }
-}
-
-val testEvidence = tasks.register<Exec>("testEvidence") {
-    description = "Run evidence harness regression tests"
-    cacheableCheck()
-    commandLine(bash, "scripts/test-evidence.sh")
-}
-
-val testEmulatorHarness = tasks.register<Exec>("testEmulatorHarness") {
-    description = "Run emulator provisioning and readiness contract tests"
-    cacheableCheck()
-    commandLine(bash, "scripts/test-emulator.sh")
-}
-
-val testSignInHarness = tasks.register<Exec>("testSignInHarness") {
-    description = "Run the devs-auto device-code sign-in script's contract tests"
-    cacheableCheck()
-    commandLine(bash, "scripts/test-sign-in.sh")
 }
 
 val checkIcons = tasks.register<Exec>("checkIcons") {
@@ -139,13 +121,14 @@ tasks.register("updateDesignMdColors") {
     doLast { markdown.writeText(DesignTokenCodegen.withDesignMdColors(markdown.readText(), tokens.readText())) }
 }
 
-val nodeVersion = providers.exec { commandLine("node", "--version") }.standardOutput.asText
-
-val lintDesignMd = tasks.register<Exec>("lintDesignMd") {
-    description = "Lint DESIGN.md against the design.md format"
-    cacheableCheck("DESIGN.md", "package.json", ".node-version")
-    inputs.property("node", nodeVersion)
-    commandLine(bash, "scripts/lint-design-md.sh", pinnedNodeTool("@google/design.md").get())
+val lintDesignMd = tasks.register<LintDesignMdTask>("lintDesignMd") {
+    group = "verification"
+    description = "Lint DESIGN.md against the design.md format; warnings fail too"
+    designMd.set(designMdFile)
+    linterVersion.set(pinnedNodeTool("@google/design.md"))
+    npx.set(if (windows) "npx.cmd" else "npx")
+    nodeVersion.set(providers.exec { commandLine("node", "--version") }.standardOutput.asText.map { it.trim() })
+    stamp.set(layout.buildDirectory.file("verification/lintDesignMd.stamp"))
 }
 
 val markdownCheck = tasks.register<Exec>("markdownCheck") {
@@ -167,15 +150,12 @@ val verifyDocs = verifyLane("verifyDocs", "Check Markdown and the DESIGN.md cont
 
 val verifyScripts = verifyLane(
     "verifyScripts",
-    "Run the harness, design asset and icon script checks",
+    "Run the design asset, icon and font script checks",
     checkDesignAssets,
     checkIcons,
     testBrandFontPipeline,
     testDesignAssetPipeline,
-    testEmulatorHarness,
-    testEvidence,
     testIconPipeline,
-    testSignInHarness,
     testTalkBackInput,
 )
 
