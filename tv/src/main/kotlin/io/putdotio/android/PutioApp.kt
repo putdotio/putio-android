@@ -81,6 +81,7 @@ import io.putdotio.android.tv.returnDestination
 import io.putdotio.android.tv.TvExternalOpen
 import io.putdotio.android.tv.TvLaunchRequest
 import io.putdotio.android.tv.TvLaunchRequests
+import io.putdotio.android.tv.TvConnectivity
 import io.putdotio.android.tv.TvLinkScreen
 import io.putdotio.android.tv.TvOfflineScreen
 import io.putdotio.android.tv.TvSession
@@ -102,7 +103,9 @@ import io.putdotio.android.tv.account.TvShowHome
 import io.putdotio.android.tv.home.TvDeviceShowHomeStore
 import io.putdotio.android.tv.home.TvHomeActions
 import io.putdotio.android.tv.home.TvHomeScreen
+import io.putdotio.android.tv.rememberTvConnectivity
 import io.putdotio.android.tv.removeFromContinueWatching
+import io.putdotio.android.tv.retryFailedLoadsOnReturn
 import io.putdotio.android.tv.trash.TvTrashScreen
 import io.putdotio.android.trash.SdkTrashRepository
 import io.putdotio.android.trash.TrashEvent
@@ -241,7 +244,10 @@ internal fun TvSessionShell(
     /** A file or search the system asked for; it is handled once the shell exists. */
     pendingLaunch: TvLaunchRequest? = null,
     onLaunchHandled: (TvLaunchRequest) -> Unit = {},
+    connectivity: TvConnectivity = rememberTvConnectivity(),
 ) {
+    val online by connectivity.online.collectAsStateWithLifecycle()
+    LaunchedEffect(session, connectivity) { session.retryFailedLoadsOnReturn(connectivity.online) }
     val filesState by session.files.state.collectAsStateWithLifecycle()
     val searchState by session.search.state.collectAsStateWithLifecycle()
     val searchFolderNamesRejected by session.searchFolderNames.authenticationFailure.collectAsStateWithLifecycle()
@@ -366,6 +372,7 @@ internal fun TvSessionShell(
             onSignOut = onSignOut,
             showHome = showHome,
             focusHomePane = homeReturn != null,
+            offline = !online,
             homePane = { paneFocus ->
                 val pinFailure by session.pins.editFailure.collectAsStateWithLifecycle()
                 TvHomeScreen(

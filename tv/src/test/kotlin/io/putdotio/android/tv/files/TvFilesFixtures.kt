@@ -1,5 +1,6 @@
 package io.putdotio.android.tv.files
 
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.junit4.ComposeContentTestRule
 import androidx.compose.ui.test.onAllNodesWithText
 import io.putdotio.android.files.FilesBrowserEvent
@@ -17,6 +18,7 @@ import io.putdotio.android.files.FilesSort
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
 import io.putdotio.android.files.filesBrowserState
+import io.putdotio.android.tv.LocalTvOffline
 import io.putdotio.android.tv.setTvContent
 
 internal fun ready(
@@ -70,14 +72,17 @@ internal fun ComposeContentTestRule.showFiles(
     onPlayMedia: (FilesItem) -> Unit = {},
     confirmedTrashEnabled: () -> Boolean? = { null },
     watchedToggleEnabled: Boolean = false,
+    offline: Boolean = false,
 ) {
     setTvContent {
-        TvFilesScreen(
-            state = state(),
-            onEvent = onEvent,
-            onPlayMedia = onPlayMedia,
-            confirmedTrashEnabled = confirmedTrashEnabled(),
-            watchedToggleEnabled = watchedToggleEnabled,
-        )
+        CompositionLocalProvider(LocalTvOffline provides offline) {
+            TvFilesScreen(
+                state = state(),
+                onEvent = onEvent,
+                onPlayMedia = onPlayMedia,
+                confirmedTrashEnabled = confirmedTrashEnabled(),
+                watchedToggleEnabled = watchedToggleEnabled,
+            )
+        }
     }
 }

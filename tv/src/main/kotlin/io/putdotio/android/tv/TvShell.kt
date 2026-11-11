@@ -54,6 +54,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import io.putdotio.android.R
+import io.putdotio.android.account.InactiveAccountNotice
 import io.putdotio.android.design.R as DesignR
 import io.putdotio.android.telemetry.AnalyticsEvent
 import io.putdotio.android.telemetry.ProductAnalytics
@@ -83,6 +84,7 @@ internal fun TvShell(
     onFilesBack: (() -> Unit)? = null,
     showHome: Boolean = true,
     focusHomePane: Boolean = false,
+    offline: Boolean = false,
 ) {
     val start = if (showHome) TvDestination.Home else TvDestination.Files
     var destination by rememberSaveable { mutableStateOf(start) }
@@ -136,18 +138,18 @@ internal fun TvShell(
                 .focusProperties { enter = { tabBarEntry(it, tabFocus.getValue(destination)) } },
             paneFocus = paneFocus,
         )
-        val notice = account.inactiveNotice
-        if (notice != null) TvInactiveAccountNotice(notice, Modifier.padding(top = NOTICE_TOP_GAP))
+        TvShellNotices(account.inactiveNotice, offline)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
-                .padding(top = if (notice != null) NOTICE_PANE_GAP else TAB_BAR_GAP)
+                .padding(top = paneGap(noticeShown = account.inactiveNotice != null || offline))
                 .onFocusChanged { if (it.hasFocus) paneReleased.value = false },
         ) {
             CompositionLocalProvider(
                 LocalTvPaneReleased provides paneReleased,
                 LocalTvTabFocus provides tabFocus.getValue(destination),
+                LocalTvOffline provides offline,
             ) {
                 paneStates.SaveableStateProvider(destination.name) { panes.Pane(destination, paneFocus) }
             }
@@ -170,6 +172,14 @@ internal fun TvShell(
         }
     }
 }
+
+@Composable
+private fun TvShellNotices(notice: InactiveAccountNotice?, offline: Boolean) {
+    if (notice != null) TvInactiveAccountNotice(notice, Modifier.padding(top = NOTICE_TOP_GAP))
+    if (offline) TvOfflineBanner(Modifier.padding(top = if (notice != null) NOTICE_STACK_GAP else NOTICE_TOP_GAP))
+}
+
+private fun paneGap(noticeShown: Boolean) = if (noticeShown) NOTICE_PANE_GAP else TAB_BAR_GAP
 
 private fun TvDestination.within(tabs: List<TvDestination>, start: TvDestination): TvDestination =
     if (this in tabs) this else start
@@ -353,6 +363,7 @@ private val TAB_BAR_HEIGHT = 40.dp
 private val TAB_BAR_GAP = 20.dp
 private val NOTICE_TOP_GAP = 24.dp
 private val NOTICE_PANE_GAP = 6.dp
+private val NOTICE_STACK_GAP = 8.dp
 private val TAB_HEIGHT = 28.dp
 private val TAB_PADDING = PaddingValues(horizontal = 12.dp)
 private val TAB_ICON = 14.dp

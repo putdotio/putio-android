@@ -16,6 +16,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.trash.TrashAction
 import io.putdotio.android.trash.TrashActionCheck
@@ -27,6 +28,7 @@ import io.putdotio.android.trash.TrashRestoreCheck
 import io.putdotio.android.trash.TrashRestoreOutcome
 import io.putdotio.android.trash.TrashRestoreSubmission
 import io.putdotio.android.trash.TrashState
+import io.putdotio.android.tv.LocalTvOffline
 import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.ROW_BLEED
 import io.putdotio.android.tv.TvPaneFocusOwner
@@ -42,14 +44,17 @@ internal fun TvTrashNotices(
     val enabled = state.authenticationFailure == null
     state.restoreOutcome?.let { TvTrashRestoreOutcome(it, enabled, onEvent, owner) }
     state.actionOutcome?.let { TvTrashActionOutcome(it, enabled, onEvent, owner) }
-    (state.content as? TrashContent.Loaded)?.refreshFailure?.let { failure ->
-        TvTrashNotice(
-            text = stringResource(R.string.tv_trash_refresh_error, failure.tvMessageText()),
-            action = stringResource(R.string.tv_files_retry),
-            onAction = { onEvent(TrashEvent.Refresh) },
-            owner = owner,
-        )
-    }
+    val offline = LocalTvOffline.current
+    (state.content as? TrashContent.Loaded)?.refreshFailure
+        ?.takeUnless { offline && it is PutioFailure.NetworkUnavailable }
+        ?.let { failure ->
+            TvTrashNotice(
+                text = stringResource(R.string.tv_trash_refresh_error, failure.tvMessageText()),
+                action = stringResource(R.string.tv_files_retry),
+                onAction = { onEvent(TrashEvent.Refresh) },
+                owner = owner,
+            )
+        }
 }
 
 @Composable

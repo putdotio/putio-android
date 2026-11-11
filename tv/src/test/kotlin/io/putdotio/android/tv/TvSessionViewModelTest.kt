@@ -80,6 +80,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -766,6 +767,70 @@ class TvSessionViewModelTest {
         session.files.dispatch(FilesBrowserEvent.Delete(FilesFolder.Root.id, FilesItemId(30), FilesDeleteMode.TRASH))
 
         assertEquals(2, trashLoads)
+    }
+
+    @Test
+    fun `each return of the network retries every failed load once`() = runTest {
+        val offline = PutioFailure.NetworkUnavailable(java.io.IOException("offline"))
+        val loads = mutableMapOf("files" to 0, "search" to 0, "history" to 0, "trash" to 0)
+        val session = checkNotNull(
+            TvSessionViewModel(auth).sessionFor(
+                account(),
+                TvAuthSessionId(1),
+                dependencies.copy(
+                    filesRepository = object : StubFilesRepository() {
+                        override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> {
+                            loads.merge("files", 1, Int::plus)
+                            return PutioResult.Failure(offline)
+                        }
+                    },
+                    searchRepository = object : SearchRepository {
+                        override suspend fun search(term: SearchTerm): PutioResult<SearchPage> {
+                            loads.merge("search", 1, Int::plus)
+                            return PutioResult.Failure(offline)
+                        }
+
+                        override suspend fun loadNextPage(cursor: FilesCursor) = error("No continuation expected")
+                    },
+                    historyRepository = object : HistoryRepository {
+                        override suspend fun load(before: HistoryEventId?): PutioResult<HistoryPage> {
+                            loads.merge("history", 1, Int::plus)
+                            return PutioResult.Failure(offline)
+                        }
+
+                        override suspend fun clear() = PutioResult.Success(Unit)
+                    },
+                    trashRepository = object : TrashRepository by StubTrashRepository {
+                        override suspend fun load(): PutioResult<TrashPage> {
+                            loads.merge("trash", 1, Int::plus)
+                            return PutioResult.Failure(offline)
+                        }
+                    },
+                ),
+            ),
+        )
+        session.search.updateQuery("clip")
+        session.search.submit()
+        session.trash.dispatch(TrashEvent.Open)
+        val online = MutableStateFlow(true)
+        backgroundScope.launch { session.retryFailedLoadsOnReturn(online) }
+        advanceUntilIdle()
+        val failed = loads.toMap()
+        assertTrue(failed.values.all { it > 0 })
+
+        online.value = false
+        advanceUntilIdle()
+        online.value = true
+        advanceUntilIdle()
+
+        assertEquals(failed.mapValues { it.value + 1 }, loads.toMap())
+
+        online.value = false
+        advanceUntilIdle()
+        online.value = true
+        advanceUntilIdle()
+
+        assertEquals(failed.mapValues { it.value + 2 }, loads.toMap())
     }
 
     @Test

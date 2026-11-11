@@ -78,6 +78,7 @@ import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.files.FilesSort
 import io.putdotio.android.tv.TV_MONO_RUN
 import io.putdotio.android.files.formatFileSize
+import io.putdotio.android.tv.LocalTvOffline
 import io.putdotio.android.tv.ROW_BLEED
 import io.putdotio.android.tv.TvListDetail
 import io.putdotio.android.tv.TvPlayStart
@@ -930,11 +931,13 @@ private fun TvFilesOperationStatus(
     if (current.operation.reloadsListing()) {
         TvFilesNotice(text = stringResource(R.string.tv_state_loading))
     }
+    val offline = LocalTvOffline.current
     val failed = (current.operation as? FilesFolderOperation.Failed)
         ?.takeUnless { it.intent is FilesFolderOperationIntent.Delete || it.intent is FilesFolderOperationIntent.Move }
         ?.takeUnless {
             it.intent is FilesFolderOperationIntent.Rename && it.phase == FilesFolderOperationPhase.RENAMING
         }
+        ?.takeUnless { offline && it.isOfflineRefresh() }
     if (failed != null) {
         TvFilesNotice(
             text = stringResource(failed.tvHeaderError()),
@@ -945,6 +948,9 @@ private fun TvFilesOperationStatus(
         )
     }
 }
+
+private fun FilesFolderOperation.Failed.isOfflineRefresh(): Boolean =
+    intent == FilesFolderOperationIntent.Refresh && failure is PutioFailure.NetworkUnavailable
 
 private fun FilesFolderOperation.reloadsListing(): Boolean =
     this is FilesFolderOperation.Loading &&
