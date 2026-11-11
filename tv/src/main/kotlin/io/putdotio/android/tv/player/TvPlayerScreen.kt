@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -115,12 +116,16 @@ internal fun TvPlayerScreen(
     onOpenInVlc: (() -> Unit)? = null,
     onPlayInVlc: (() -> Unit)? = null,
     neighbours: PlaybackNeighbours? = PlaybackNeighbours(),
+    background: Boolean = false,
+    onBackground: (() -> Unit)? = null,
+    miniPlayer: TvMiniPlayerState? = null,
 ) {
-    BackHandler(enabled = state.content !is PlaybackContent.Ready, onBack = onBack)
+    BackHandler(enabled = !background && state.content !is PlaybackContent.Ready, onBack = onBack)
     val nowPlayingFocus = remember { mutableStateOf(TvPlayerControl.SeekBar) }
-    Box(modifier = modifier.fillMaxSize().background(Color.Black)) {
-        when (val content = state.content) {
-            is PlaybackContent.Ready ->
+    Box(modifier = modifier.fillMaxSize().then(if (background) Modifier else Modifier.background(Color.Black))) {
+        val content = state.content
+        when {
+            content is PlaybackContent.Ready ->
                 TvReadyPlayer(
                     source = content.source,
                     useStartFrom = content.useStartFrom,
@@ -142,48 +147,90 @@ internal fun TvPlayerScreen(
                         ?: TvUpNextLookup.Off,
                     neighbours = neighbours,
                     nowPlayingFocus = nowPlayingFocus,
+                    backgroundAudio = TvBackgroundAudio(background, onBackground, miniPlayer),
                 )
 
-            is PlaybackContent.AwaitingResume -> {
-                if (content.source.startFromSeconds > 0.0) {
-                    TvResumePlaybackDialog(
-                        title = state.target.name,
-                        posterUrl = state.target.posterUrl.takeIf { state.target.mediaType == PlaybackMediaType.VIDEO },
-                        startFromSeconds = content.source.startFromSeconds,
-                        onResume = onResume,
-                        onRestart = onRestart,
-                        onDismiss = onBack,
-                    )
-                } else {
-                    LaunchedEffect(content) { onResume() }
-                    TvPlayerLoading(state.target)
-                }
-            }
+            background -> TvBackgroundInterstitial(content, onResume = onResume, onEnded = onBack)
 
-            is PlaybackContent.Loading,
-            is PlaybackContent.FindingNext,
-            PlaybackContent.Session,
-            -> TvPlayerLoading(state.target)
-
-            is PlaybackContent.Conversion ->
-                TvConversionScreen(
-                    target = state.target,
-                    conversion = content,
-                    onRefresh = onRefreshConversion,
+            else ->
+                TvPlaybackInterstitial(
+                    state = state,
+                    onBack = onBack,
+                    onRetry = onRetry,
+                    onResume = onResume,
+                    onRestart = onRestart,
+                    onRefreshConversion = onRefreshConversion,
                     onStartConversion = onStartConversion,
+                    onOpenInVlc = onOpenInVlc,
                     onPlayInVlc = onPlayInVlc,
                 )
-
-            is PlaybackContent.Unsupported -> TvUnsupportedScreen(state.target)
-
-            is PlaybackContent.Failed ->
-                TvPlaybackFailureScreen(state.target, content.failure, onRetry, onOpenInVlc)
-
-            is PlaybackContent.NextFailed ->
-                TvPlaybackFailureScreen(state.target, content.failure, onRetry, onOpenInVlc)
-
-            PlaybackContent.Ended -> LaunchedEffect(Unit) { onBack() }
         }
+    }
+}
+
+@Composable
+private fun TvBackgroundInterstitial(content: PlaybackContent, onResume: () -> Unit, onEnded: () -> Unit) {
+    when (content) {
+        is PlaybackContent.AwaitingResume -> LaunchedEffect(content) { onResume() }
+        PlaybackContent.Ended -> LaunchedEffect(Unit) { onEnded() }
+        else -> Unit
+    }
+}
+
+@Composable
+private fun TvPlaybackInterstitial(
+    state: PlaybackState,
+    onBack: () -> Unit,
+    onRetry: () -> Unit,
+    onResume: () -> Unit,
+    onRestart: () -> Unit,
+    onRefreshConversion: () -> Unit,
+    onStartConversion: () -> Unit,
+    onOpenInVlc: (() -> Unit)?,
+    onPlayInVlc: (() -> Unit)?,
+) {
+    when (val content = state.content) {
+        is PlaybackContent.Ready -> Unit
+
+        is PlaybackContent.AwaitingResume -> {
+            if (content.source.startFromSeconds > 0.0) {
+                TvResumePlaybackDialog(
+                    title = state.target.name,
+                    posterUrl = state.target.posterUrl.takeIf { state.target.mediaType == PlaybackMediaType.VIDEO },
+                    startFromSeconds = content.source.startFromSeconds,
+                    onResume = onResume,
+                    onRestart = onRestart,
+                    onDismiss = onBack,
+                )
+            } else {
+                LaunchedEffect(content) { onResume() }
+                TvPlayerLoading(state.target)
+            }
+        }
+
+        is PlaybackContent.Loading,
+        is PlaybackContent.FindingNext,
+        PlaybackContent.Session,
+        -> TvPlayerLoading(state.target)
+
+        is PlaybackContent.Conversion ->
+            TvConversionScreen(
+                target = state.target,
+                conversion = content,
+                onRefresh = onRefreshConversion,
+                onStartConversion = onStartConversion,
+                onPlayInVlc = onPlayInVlc,
+            )
+
+        is PlaybackContent.Unsupported -> TvUnsupportedScreen(state.target)
+
+        is PlaybackContent.Failed ->
+            TvPlaybackFailureScreen(state.target, content.failure, onRetry, onOpenInVlc)
+
+        is PlaybackContent.NextFailed ->
+            TvPlaybackFailureScreen(state.target, content.failure, onRetry, onOpenInVlc)
+
+        PlaybackContent.Ended -> LaunchedEffect(Unit) { onBack() }
     }
 }
 
@@ -209,9 +256,12 @@ private fun TvReadyPlayer(
     upNext: TvUpNextLookup,
     neighbours: PlaybackNeighbours?,
     nowPlayingFocus: MutableState<TvPlayerControl>,
+    backgroundAudio: TvBackgroundAudio,
 ) {
     val context = LocalContext.current
     val nowPlaying = target.mediaType == PlaybackMediaType.AUDIO
+    val keepsPlaying = nowPlaying && backgroundAudio.onBackground != null
+    val hidden = backgroundAudio.hidden
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     var stoppedAtMillis by rememberSaveable(source, key = "tv-player-stopped-at-$PROCESS_KEY-${target.fileId.value}") {
         mutableStateOf<Long?>(null)
@@ -236,6 +286,7 @@ private fun TvReadyPlayer(
     val currentAnalytics by rememberUpdatedState(analytics)
     val currentUpNext by rememberUpdatedState(upNext)
     val currentNeighbours by rememberUpdatedState(neighbours)
+    val currentOnBackground by rememberUpdatedState(backgroundAudio.onBackground)
     val startsPlaying = stoppedAtMillis == null
     var overlay by remember(player) { mutableStateOf(tvPlayerOverlay(nowPlaying, nowPlayingFocus.value)) }
     val apply: (TvPlayerTransition) -> Unit = remember(player) {
@@ -247,6 +298,7 @@ private fun TvReadyPlayer(
                     command,
                     TvPlayerHandlers(
                         exit = { currentOnExit() },
+                        background = { currentOnBackground?.invoke() ?: currentOnExit() },
                         playNext = { currentOnPlaybackEnded() },
                         chooseNext = { currentOnNextEpisode() },
                         playChosen = { currentOnUpNext(it) },
@@ -352,18 +404,20 @@ private fun TvReadyPlayer(
         player.playWhenReady = startsPlaying
         player.prepare()
         val positions = reporter.observe(player)
-        val session = playerFactory.publish(
-            context,
-            tvSessionPlayer(
-                player,
-                onSkipRequested = lifecycle.whileStarted { forward -> apply(overlay.skipTrack(forward)) }
-                    .takeIf { nowPlaying },
-            ) { play ->
-                if (!play || lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
-                    apply(overlay.sessionPlaying(play))
-                }
-            },
-        )
+        val sessionPlayer = tvSessionPlayer(
+            player,
+            onSkipRequested = lifecycle.whileStarted { forward -> apply(overlay.skipTrack(forward)) }
+                .takeIf { nowPlaying },
+        ) { play ->
+            if (!play || keepsPlaying || lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+                apply(overlay.sessionPlaying(play))
+            }
+        }
+        val session = if (keepsPlaying) {
+            playerFactory.publishInBackground(context, sessionPlayer)
+        } else {
+            playerFactory.publish(context, sessionPlayer)
+        }
         onDispose {
             positions.close()
             session.close()
@@ -379,15 +433,23 @@ private fun TvReadyPlayer(
             context.captionLanguages(),
         )
     }
-    BackHandler { apply(overlay.back()) }
+    BackHandler(enabled = !hidden) { apply(overlay.back(backgrounds = keepsPlaying)) }
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
         apply(overlay.cancelUpNext())
-        apply(overlay.setPlaying(play = false))
+        if (!keepsPlaying) apply(overlay.setPlaying(play = false))
         apply(overlay.reveal())
+    }
+    backgroundAudio.miniPlayer?.takeIf { nowPlaying }?.let { mini ->
+        SideEffect { mini.show(paused = !playWhenReady) }
+        DisposableEffect(mini, player) {
+            val control: (Boolean) -> Unit = { play -> apply(overlay.setPlaying(play)) }
+            mini.bind(control)
+            onDispose { mini.unbind(control) }
+        }
     }
     LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) { stoppedAtMillis = player.currentPosition.coerceAtLeast(0L) }
     val view = LocalView.current
-    val keepScreenOn = keepsScreenOn(playWhenReady, playbackState)
+    val keepScreenOn = !hidden && keepsScreenOn(playWhenReady, playbackState)
     DisposableEffect(view, keepScreenOn) {
         view.keepScreenOn = keepScreenOn
         onDispose { view.keepScreenOn = false }
@@ -433,8 +495,8 @@ private fun TvReadyPlayer(
     val nextTrack = overlay.focusesNextTrack(neighbours)
     val focus = remember { FocusRequester() }
     val playerHoldsFocus = overlay.holdsPlayerFocus
-    LaunchedEffect(focus, playerHoldsFocus) { if (playerHoldsFocus) focus.requestFocus() }
-    Box(
+    LaunchedEffect(focus, playerHoldsFocus, hidden) { if (playerHoldsFocus && !hidden) focus.requestFocus() }
+    if (!hidden) Box(
         modifier = Modifier
             .fillMaxSize()
             .testTag(TV_PLAYER_TAG)
@@ -481,7 +543,7 @@ private fun TvReadyPlayer(
 
     val closeSheet = { apply(overlay.closeSheet()) }
     TvPlayerSheets(
-        sheet = overlay.sheet,
+        sheet = overlay.sheet.takeUnless { hidden },
         backFromSizeAndTiming = overlay.backFromSizeAndTiming,
         returnFocus = focus,
         choices = choices,
@@ -615,6 +677,7 @@ private fun subtitleBottomPadding(controlsVisible: Boolean): Float =
 
 private class TvPlayerHandlers(
     val exit: () -> Unit,
+    val background: () -> Unit,
     val playNext: () -> Boolean,
     val chooseNext: () -> Unit,
     val playChosen: (PlaybackTarget) -> Boolean,
@@ -627,6 +690,7 @@ private fun Player.perform(command: TvPlayerCommand, handlers: TvPlayerHandlers)
         TvPlayerCommand.Pause -> pause()
         is TvPlayerCommand.SeekTo -> seekTo(command.positionMillis)
         TvPlayerCommand.Exit -> handlers.exit()
+        TvPlayerCommand.Background -> handlers.background()
         TvPlayerCommand.PlayNext -> if (!handlers.playNext()) handlers.exit()
         TvPlayerCommand.ChooseNext -> handlers.chooseNext()
         is TvPlayerCommand.PlayChosen -> if (!handlers.playChosen(command.target)) handlers.exit()
@@ -676,6 +740,12 @@ private fun MediaItem.leasedBy(reporter: TvPlaybackReporter, fileId: Long, useSt
     val lease = if (useStartFrom) reporter.lease(fileId) else null
     return lease?.let(this::withReportingLease) ?: this
 }
+
+private class TvBackgroundAudio(
+    val hidden: Boolean,
+    val onBackground: (() -> Unit)?,
+    val miniPlayer: TvMiniPlayerState?,
+)
 
 private fun keepsScreenOn(playWhenReady: Boolean, playbackState: Int): Boolean =
     playWhenReady && playbackState != Player.STATE_ENDED && playbackState != Player.STATE_IDLE

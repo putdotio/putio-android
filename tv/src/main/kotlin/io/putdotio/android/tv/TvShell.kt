@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -85,6 +86,7 @@ internal fun TvShell(
     showHome: Boolean = true,
     focusHomePane: Boolean = false,
     offline: Boolean = false,
+    trailing: @Composable () -> Unit = {},
 ) {
     val start = if (showHome) TvDestination.Home else TvDestination.Files
     var destination by rememberSaveable { mutableStateOf(start) }
@@ -137,6 +139,7 @@ internal fun TvShell(
                 .onFocusChanged { tabBarHasFocus = it.hasFocus }
                 .focusProperties { enter = { tabBarEntry(it, tabFocus.getValue(destination)) } },
             paneFocus = paneFocus,
+            trailing = trailing,
         )
         TvShellNotices(account.inactiveNotice, offline)
         Box(
@@ -220,9 +223,10 @@ private fun TvTabBar(
     onSelect: (TvDestination) -> Unit,
     paneFocus: FocusRequester,
     modifier: Modifier = Modifier,
+    trailing: @Composable () -> Unit = {},
 ) {
     Row(
-        modifier = Modifier.height(TAB_BAR_HEIGHT),
+        modifier = Modifier.fillMaxWidth().height(TAB_BAR_HEIGHT),
         horizontalArrangement = Arrangement.spacedBy(20.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -247,6 +251,8 @@ private fun TvTabBar(
                 )
             }
         }
+        Spacer(Modifier.weight(1f))
+        trailing()
     }
 }
 

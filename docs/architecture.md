@@ -101,7 +101,7 @@ stateDiagram-v2
 | Trash     | Restore and delete                                     | The same                                     |
 | Transfers | Add, watch and manage                                  | Not on TV                                    |
 | Downloads | Offline copies, which never touch the file on put.io   | Not on TV                                    |
-| Playback  | Video and background audio, Cast                       | Full-screen video, foreground Now Playing    |
+| Playback  | Video and background audio, Cast                       | Full-screen video, background audio          |
 | Account   | Settings, privacy controls, exclusive links            | Settings and privacy controls                |
 | Platform  | Widget, shortcuts, file picker, share targets          | Watch Next, system search, launcher banner   |
 

@@ -193,6 +193,7 @@ internal class TvSession internal constructor(
     private val watchNextHandledDeletes = mutableSetOf<FilesRequestId>()
     private val playbackRepository = dependencies.playbackRepository { appConfig.state.value }
     private val mutablePlayback = MutableStateFlow<PlaybackController?>(null)
+    private val mutablePlaybackInBackground = MutableStateFlow(false)
     /** The item that started playback; autoplay stays within its folder. */
     private var playbackStart: FilesItem? = null
     private var durationLookup: Job? = null
@@ -355,10 +356,12 @@ internal class TvSession internal constructor(
     fun retryRecentSearches() = recentSearches.retry()
 
     /**
-     * The file playing full-screen, or null while the shell shows. It lives here so playback
-     * survives configuration changes and ends with the session.
+     * The file playing, or null while nothing plays. It lives here so playback survives
+     * configuration changes and ends with the session.
      */
     val playback: StateFlow<PlaybackController?> = mutablePlayback.asStateFlow()
+
+    val playbackInBackground: StateFlow<Boolean> = mutablePlaybackInBackground.asStateFlow()
 
     /** The video after a target in its folder, by autoplay's walk; Next episode offers it. */
     val findNextVideo: suspend (PlaybackTarget) -> PlaybackNextResult = playbackRepository::findNextVideo
@@ -423,6 +426,7 @@ internal class TvSession internal constructor(
         )
         val controller = PlaybackController(target, playbackRepository, scope, analytics = true)
         playbackReporting.startPlayback()
+        mutablePlaybackInBackground.value = false
         mutablePlayback.getAndUpdate { controller }?.close()
         playbackStart = item
         watchNextPlayback.follow(controller)
@@ -449,16 +453,37 @@ internal class TvSession internal constructor(
         watchNextPlayback.stopFollowing()
         continueWatchingFollow?.cancel()
         val stopped = mutablePlayback.value ?: return
-        val last = stopped.state.value.target.fileId
+        val shellShown = mutablePlaybackInBackground.value
+        mutablePlaybackInBackground.value = false
+        if (shellShown) {
+            mutablePlayback.value = null
+        } else {
+            returnToShell(stopped)
+        }
+        stopped.close()
+    }
+
+    fun backgroundPlayback() {
+        val playing = mutablePlayback.value ?: return
+        if (mutablePlaybackInBackground.value) return
+        mutablePlaybackInBackground.value = true
+        returnToShell(playing, keepPlaying = true)
+    }
+
+    fun foregroundPlayback() {
+        if (mutablePlayback.value != null) mutablePlaybackInBackground.value = false
+    }
+
+    private fun returnToShell(playing: PlaybackController, keepPlaying: Boolean = false) {
+        val last = playing.state.value.target.fileId
         if (playingFromHome) homeReturn.played(last)
-        mutablePlayback.value = null
+        if (!keepPlaying) mutablePlayback.value = null
         val start = playbackStart
         val folder = start?.parentId
         if (folder != null && last != start.id) {
             filesFocusMemory[folder.value] = last.value
             files.dispatch(FilesBrowserEvent.RevealItem(folder, last))
         }
-        stopped.close()
     }
 
     fun setWatched(item: FilesItem, watched: Boolean) {

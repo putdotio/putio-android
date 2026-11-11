@@ -301,6 +301,43 @@ class TvNowPlayingTest {
     }
 
     @Test
+    fun backSendsAPlayingTrackToTheBackgroundWithoutStoppingIt() {
+        var backgrounds = 0
+        showFolder(start = SECOND, onBackground = { backgrounds += 1 })
+
+        compose.back()
+
+        compose.runOnIdle {
+            assertEquals(1, backgrounds)
+            assertEquals(0, exits)
+            assertFalse(players.single().released)
+            assertTrue(players.single().playWhenReady)
+        }
+    }
+
+    @Test
+    fun backgroundAudioKeepsPlayingWhileTheAppIsStoppedAndTheSystemStillControlsIt() {
+        val owner = object : LifecycleOwner {
+            val registry = LifecycleRegistry(this).apply { currentState = Lifecycle.State.RESUMED }
+            override val lifecycle: Lifecycle get() = registry
+        }
+        showFolder(start = SECOND, lifecycleOwner = owner, onBackground = {})
+        val session = connect(sessions.last())
+
+        compose.runOnIdle { owner.registry.currentState = Lifecycle.State.CREATED }
+        compose.waitForIdle()
+        compose.runOnIdle { assertTrue(players.single().playWhenReady) }
+
+        session.pause()
+        idleSession()
+        compose.runOnIdle { assertFalse(players.single().playWhenReady) }
+        session.play()
+        idleSession()
+        compose.runOnIdle { assertTrue(players.single().playWhenReady) }
+        session.release()
+    }
+
+    @Test
     fun theSystemsSkipControlsMoveThroughTheFolder() {
         val controller = showFolder(start = SECOND)
         val session = connect(sessions.last())
@@ -323,6 +360,7 @@ class TvNowPlayingTest {
         folder: FolderRepository = repository,
         lifecycleOwner: LifecycleOwner? = null,
         findUpNext: Boolean = true,
+        onBackground: (() -> Unit)? = null,
     ): PlaybackController {
         val controller = PlaybackController(
             start,
@@ -337,6 +375,7 @@ class TvNowPlayingTest {
                     onSessionRejected = {},
                     playerFactory = playerFactory,
                     findUpNext = if (findUpNext) folder::findNeighbours else null,
+                    onBackground = onBackground,
                 )
             }
         }

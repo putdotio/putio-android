@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
@@ -21,6 +22,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.pressKey
 import androidx.media3.common.util.UnstableApi
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -40,6 +42,7 @@ import io.putdotio.android.tv.auth.TvAccount
 import io.putdotio.android.tv.files.TvFilesScreen
 import io.putdotio.sdk.files.PutioFileType
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -125,6 +128,96 @@ class TvPlaybackLayerTest {
         assertNull(playing)
         assertTrue(player.released)
         compose.onNodeWithContentDescription("Play song.mp3").assertIsFocused()
+    }
+
+    @Test
+    fun backFromBackgroundAudioKeepsItPlayingUnderAMiniPlayerThatReopensIt() {
+        val player = FakePlayer()
+        val files = filesBrowserState(
+            stack = listOf(
+                FilesFolderState(
+                    FilesFolder.Root,
+                    FilesContent.Ready(
+                        listOf(row(1, "notes.txt", PutioFileType.TEXT), row(9, "song.mp3", PutioFileType.AUDIO)),
+                        FilesPaging.Complete,
+                    ),
+                ),
+            ),
+            nextRequestValue = 10L,
+        )
+        var playing by mutableStateOf<FilesItem?>(null)
+        var background by mutableStateOf(false)
+        val miniPlayer = TvMiniPlayerState()
+        val song = readyState(name = "song.mp3", mediaType = PlaybackMediaType.AUDIO)
+        val factory = TvPlayerFactory { _, _ -> player }
+        compose.setTvContent {
+            TvPlaybackLayer(
+                playing = playing != null,
+                background = background,
+                player = {
+                    TvPlayerScreen(
+                        state = song,
+                        onBack = { playing = null },
+                        onRetry = {},
+                        onResume = {},
+                        onRestart = {},
+                        onPlayerFailure = { _, _ -> },
+                        playerFactory = factory,
+                        background = background,
+                        onBackground = { background = true },
+                        miniPlayer = miniPlayer,
+                    )
+                },
+            ) {
+                TvShell(
+                    account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                    onSignOut = {},
+                    filesPane = { paneFocus ->
+                        TvFilesScreen(
+                            state = files,
+                            onEvent = { true },
+                            onPlayMedia = { playing = it },
+                            modifier = Modifier.focusRequester(paneFocus),
+                            focusMemory = mutableMapOf(),
+                        )
+                    },
+                    trailing = {
+                        playing?.takeIf { background }?.let { item ->
+                            TvMiniPlayer(title = item.name, state = miniPlayer, onOpen = { background = false })
+                        }
+                    },
+                )
+            }
+        }
+        compose.openTab(TvDestination.Files)
+        compose.onNodeWithContentDescription("notes.txt").assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionDown)
+        }
+        compose.onNodeWithContentDescription("Play song.mp3").assertIsFocused().performKeyInput { pressCenter() }
+        compose.onNodeWithTag(TV_NOW_PLAYING_TAG).assertIsDisplayed()
+
+        compose.back()
+
+        compose.onNodeWithContentDescription("Play song.mp3").assertIsFocused()
+        compose.onNodeWithTag(TV_NOW_PLAYING_TAG).assertDoesNotExist()
+        compose.onNodeWithTag(TV_MINI_PLAYER_TAG).assertIsDisplayed()
+        compose.runOnIdle {
+            assertFalse(player.released)
+            assertTrue(player.playWhenReady)
+        }
+
+        compose.onNodeWithContentDescription("Pause").performSemanticsAction(SemanticsActions.OnClick)
+        compose.runOnIdle { assertFalse(player.playWhenReady) }
+        compose.onNodeWithContentDescription("Play").assertIsDisplayed()
+
+        compose.onNodeWithContentDescription("Open player").performSemanticsAction(SemanticsActions.OnClick)
+        compose.onNodeWithTag(TV_NOW_PLAYING_TAG).assertIsDisplayed()
+        compose.onNodeWithTag(TV_MINI_PLAYER_TAG).assertDoesNotExist()
+        compose.onNodeWithTag(TV_PLAYER_TAG).assertIsFocused()
+        compose.runOnIdle {
+            assertFalse(player.released)
+            assertTrue(playing != null)
+        }
     }
 
     @Test

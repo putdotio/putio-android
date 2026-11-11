@@ -1,5 +1,7 @@
 package io.putdotio.android.tv.player
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -7,6 +9,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
@@ -38,19 +41,25 @@ import kotlinx.coroutines.launch
  * Playback replaces the signed-in shell rather than covering it, so no shell control can
  * take D-pad focus behind the video. The shell's saved state (destination, drawer) is kept
  * while it is away; on return the Files pane puts focus back on the row that was playing.
+ * In the [background], the shell shows again while the player stays composed behind it,
+ * drawing nothing and taking neither focus nor Back.
  */
 @Composable
 internal fun TvPlaybackLayer(
     playing: Boolean,
     player: @Composable () -> Unit,
+    background: Boolean = false,
     shell: @Composable () -> Unit,
 ) {
     val saveableState = rememberSaveableStateHolder()
-    if (playing) {
-        LaunchedEffect(Unit) { ProductAnalytics.capture(AnalyticsEvent.ScreenViewed(AnalyticsEvent.Screen.Player)) }
-        player()
-    } else {
-        saveableState.SaveableStateProvider(SHELL_STATE_KEY, shell)
+    Box(Modifier.fillMaxSize()) {
+        if (!playing || background) saveableState.SaveableStateProvider(SHELL_STATE_KEY, shell)
+        if (playing) {
+            LaunchedEffect(background) {
+                if (!background) ProductAnalytics.capture(AnalyticsEvent.ScreenViewed(AnalyticsEvent.Screen.Player))
+            }
+            player()
+        }
     }
 }
 
@@ -72,6 +81,9 @@ internal fun TvPlaybackRoute(
     findNextEpisode: (suspend (PlaybackTarget) -> PlaybackNextResult)? = null,
     findUpNext: TvFindNeighbours? = null,
     openInVlc: (suspend (PlaybackTarget) -> Int?)? = null,
+    background: Boolean = false,
+    onBackground: (() -> Unit)? = null,
+    miniPlayer: TvMiniPlayerState? = null,
 ) {
     val state by controller.state.collectAsStateWithLifecycle()
     val nextEpisode = rememberNextEpisode(state, findNextEpisode, onSessionRejected)
@@ -131,6 +143,9 @@ internal fun TvPlaybackRoute(
         onOpenInVlc = handOffToVlc,
         onPlayInVlc = handOffToVlc?.takeIf { vlcInstalled },
         neighbours = neighbours,
+        background = background,
+        onBackground = onBackground,
+        miniPlayer = miniPlayer,
     )
     vlcNotice?.let { notice -> TvNoticeDialog(title = stringResource(notice), onDismiss = { vlcNotice = null }) }
 }
