@@ -427,7 +427,8 @@ class AuthenticatedRenameProcessTest {
 
     private fun runner(fixture: File): GradleRunner {
         val environment = System.getenv().toMutableMap().apply {
-            put("PATH", File(fixture, "bin").path + File.pathSeparator + getValue("PATH"))
+            val pathKey = keys.firstOrNull { it.equals("PATH", ignoreCase = true) } ?: "PATH"
+            put(pathKey, File(fixture, "bin").path + File.pathSeparator + this[pathKey].orEmpty())
             put("FAKE_PROOF_DIR", fixture.path)
             put("PUTIO_CLI_TOKEN", "synthetic-token-must-be-removed")
         }

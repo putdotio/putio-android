@@ -105,7 +105,8 @@ class MobileFileShareServiceTest {
         val roots = buildList {
             while (paths.next() != XmlPullParser.END_DOCUMENT) {
                 if (paths.eventType == XmlPullParser.START_TAG && paths.name != "paths") {
-                    add(Triple(paths.name, paths.getAttributeValue(null, "name"), paths.getAttributeValue(null, "path")))
+                    val (name, path) = listOf("name", "path").map { paths.getAttributeValue(null, it) }
+                    add(Triple(paths.name, name, path))
                 }
             }
         }
