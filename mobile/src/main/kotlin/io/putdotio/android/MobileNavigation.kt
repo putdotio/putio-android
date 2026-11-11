@@ -76,6 +76,7 @@ import io.putdotio.android.playback.PlaybackNextResult
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
 import io.putdotio.android.playback.rememberNextEpisode
+import io.putdotio.android.playback.rememberUpNext
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.playback.rememberFolderNeighbours
 import io.putdotio.android.playback.SubtitleStartupPolicy
@@ -505,6 +506,9 @@ private fun MobilePlaybackRoute(
     val nextEpisode = rememberNextEpisode(state, findNextEpisode) { currentOnAuthenticationRequired() }
     val neighbours = rememberFolderNeighbours(state, findNeighbours) { currentOnAuthenticationRequired() }
         ?: PlaybackNeighbours()
+    val upNext = rememberUpNext(state, findNeighbours.takeIf { autoplayNextVideo }) {
+        currentOnAuthenticationRequired()
+    }
     val authenticationFailure =
         when (val content = state.content) {
             is PlaybackContent.Failed -> content.failure
@@ -548,6 +552,8 @@ private fun MobilePlaybackRoute(
         onRestart = { controller.dispatch(PlaybackEvent.Restart) },
         nextEpisode = nextEpisode,
         onNextEpisode = { nextEpisode?.let { controller.dispatch(PlaybackEvent.NextChosen(it)) } },
+        upNext = upNext,
+        onPlayUpNext = { controller.dispatch(PlaybackEvent.NextChosen(it)) },
         neighbours = neighbours,
         onPlay = onPlay,
         onOpenInVlc = onOpenInVlc?.let { open -> { open(state.target) } },

@@ -360,6 +360,7 @@ internal fun TvSessionShell(
                     autoplayNextVideo = appConfigState.confirmedAutoplayNextVideo(),
                     findNextEpisode = session.findNextVideo.takeIf { settingsState.nextEpisodeEnabled() },
                     findUpNext = session.findNeighbours,
+                    findSubtitles = session.findSubtitles,
                     openInVlc = { target ->
                         session.originalStreamUrl(target.fileId).openPlaybackInVlc(context, target)
                     },

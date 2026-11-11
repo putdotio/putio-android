@@ -141,8 +141,6 @@ class TvPlaybackLayerTest {
                         state = readyState(),
                         onBack = { playing = false },
                         onRetry = {},
-                        onResume = {},
-                        onRestart = {},
                         onPlayerFailure = { _, _ -> },
                         playerFactory = { _, _ -> FakePlayer() },
                     )
@@ -200,8 +198,6 @@ class TvPlaybackLayerTest {
                         ),
                         onBack = { onPlaying(null) },
                         onRetry = {},
-                        onResume = {},
-                        onRestart = {},
                         onPlayerFailure = { _, _ -> },
                         playerFactory = { _, _ -> player },
                     )

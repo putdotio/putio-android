@@ -14,7 +14,9 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isSelected
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsFocused
@@ -42,6 +44,7 @@ import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.filesBrowserState
 import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackController
+import io.putdotio.android.playback.PlaybackEvent
 import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
@@ -57,14 +60,18 @@ import io.putdotio.android.settings.AccountSettingsPreferences
 import io.putdotio.android.settings.AccountSettingsReducer
 import io.putdotio.android.settings.AccountSettingsRequestId
 import io.putdotio.android.settings.AccountSettingsState
+import io.putdotio.android.tv.answerResumePrompts
 import io.putdotio.android.tv.TvProofActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackTarget
+import io.putdotio.android.playback.PlaybackUpNext
+import io.putdotio.android.playback.PlaybackUpNextLookup
 import io.putdotio.android.tv.TvShell
 import io.putdotio.android.tv.openTvTab
 import io.putdotio.android.tv.auth.TvAccount
@@ -233,38 +240,17 @@ class TvPlayerProofTest {
     }
 
     @Test
-    fun resumeDialogBackLeavesThenResumeAndStartOverWithWriteBack() {
+    fun aSavedPositionResumesWithoutAskingAndWritesBack() {
         val server = ProofPositionServer(startFromSeconds = SAVED_SECONDS)
         val factory = mountFilesWithResume(server)
         compose.onNodeWithContentDescription("Open Documents").assertIsFocused()
         press(KeyEvent.KEYCODE_DPAD_DOWN)
 
         press(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.waitUntil(10_000) { compose.onAllNodesWithText(RESUME_TITLE).fetchSemanticsNodes().isNotEmpty() }
-        compose.onNodeWithText(RESUME_LABEL).assertIsFocused()
-        assertNull("No player before the choice", factory.player)
-        screenshot("20-resume-focused")
-        pause()
-        press(KeyEvent.KEYCODE_DPAD_LEFT)
-        compose.onNodeWithText(RESTART_LABEL).assertIsFocused()
-        screenshot("21-resume-restart-focused")
-        pause()
-
-        press(KeyEvent.KEYCODE_BACK)
-        compose.waitUntil(10_000) { compose.runOnIdle { controller == null } }
-        assertNull("No player after Back", factory.player)
-        compose.onNodeWithContentDescription("Play $FIXTURE_TITLE").assertIsFocused()
-        compose.runOnIdle { assertTrue("Back writes nothing", server.writes.isEmpty()) }
-        elapse(DIALOG_EXIT_MILLIS)
-        screenshot("22-back-left-playback")
-        pause()
-
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.waitUntil(10_000) { compose.onAllNodesWithText(RESUME_TITLE).fetchSemanticsNodes().isNotEmpty() }
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
         awaitPlayer(factory) { it.isPlaying && factory.renderedFrame && it.currentPosition >= SAVED_SECONDS * 1_000L }
+        compose.onAllNodesWithText(RESUME_PREFIX, substring = true).assertCountEquals(0)
         compose.onNodeWithTag(TV_PLAYER_TAG).assertIsFocused()
-        screenshot("22b-continued")
+        screenshot("20-resumed-without-asking")
 
         elapse(POSITION_INTERVAL_MILLIS + 1_000L)
         compose.runOnIdle { assertEquals(1, server.writes.size) }
@@ -274,32 +260,16 @@ class TvPlayerProofTest {
         assertTrue("Periodic write $periodic s", periodic >= SAVED_SECONDS + POSITION_INTERVAL_MILLIS / 1_000.0 - 1.0)
         assertTrue("Exit write $exit s after $periodic s", exit >= periodic)
         compose.onNodeWithContentDescription("Play $FIXTURE_TITLE").assertIsFocused()
+        screenshot("21-back-on-files-row")
         pause()
 
         press(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.waitUntil(10_000) { compose.onAllNodesWithText(RESTART_LABEL).fetchSemanticsNodes().isNotEmpty() }
-        press(KeyEvent.KEYCODE_DPAD_LEFT)
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
-        awaitPlayer(factory) { it.isPlaying && factory.renderedFrame }
-        compose.runOnIdle { assertTrue(factory.current().currentPosition < 10_000L) }
-        screenshot("23-started-over")
-        pause()
-        leavePlayback()
-        compose.waitUntil(10_000) { compose.runOnIdle { server.writes.size == 3 } }
-        assertTrue("Starting over writes its own position", server.writes.last() < 10.0)
-
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.waitUntil(10_000) {
-            compose.onAllNodesWithText(RESUME_PREFIX, substring = true).fetchSemanticsNodes().isNotEmpty()
-        }
-        screenshot("24-resume-after-start-over")
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
-        awaitPlayer(factory) { it.isPlaying && it.currentPosition >= (server.writes.last() * 1_000L).toLong() - 1_000L }
-        screenshot("25-continued")
+        awaitPlayer(factory) { it.isPlaying && it.currentPosition >= (exit * 1_000L).toLong() - 1_000L }
+        compose.onAllNodesWithText(RESUME_PREFIX, substring = true).assertCountEquals(0)
+        screenshot("22-resumed-from-the-exit-write")
         pause()
         leavePlayback()
         compose.onNodeWithContentDescription("Play $FIXTURE_TITLE").assertIsFocused()
-        screenshot("26-back-on-files-row")
     }
 
     @Test
@@ -309,10 +279,11 @@ class TvPlayerProofTest {
         compose.onNodeWithContentDescription("Open Documents").assertIsFocused()
         press(KeyEvent.KEYCODE_DPAD_DOWN)
         press(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.waitUntil(10_000) { compose.onAllNodesWithText(NEAR_END_LABEL).fetchSemanticsNodes().isNotEmpty() }
-        screenshot("90-near-end-prompt")
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
         awaitPlayer(factory) { it.isPlaying && factory.renderedFrame }
+        compose.onAllNodesWithText(RESUME_PREFIX, substring = true).assertCountEquals(0)
+        compose.runOnIdle {
+            assertTrue("Resumed near the end", factory.current().currentPosition >= NEAR_END_SAVED_SECONDS * 1_000L)
+        }
         screenshot("91-playing-to-the-end")
 
         compose.waitUntil(FIXTURE_SECONDS.toLong() * 1_000L) { compose.runOnIdle { controller == null } }
@@ -366,7 +337,7 @@ class TvPlayerProofTest {
             subtitles = PlaybackSubtitles.Sidecar(listOf(foundSubtitle(requireNotNull(found)))),
         )
         val factory = ProofPlayerFactory()
-        var content by mutableStateOf<PlaybackContent>(PlaybackContent.AwaitingResume(source))
+        val content = PlaybackContent.Ready(source)
         compose.setContent {
             PutioTvTheme {
                 TvPlayerScreen(
@@ -382,8 +353,6 @@ class TvPlayerProofTest {
                     ),
                     onBack = {},
                     onRetry = { error("Unexpected retry") },
-                    onResume = { content = PlaybackContent.Ready(source) },
-                    onRestart = { error("Unexpected restart") },
                     onPlayerFailure = { failure, _ -> error("Local playback failed: $failure") },
                     playerFactory = factory,
                     subtitleStartupPolicy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = true),
@@ -391,12 +360,6 @@ class TvPlayerProofTest {
                 )
             }
         }
-        compose.waitUntil(10_000) { compose.onAllNodesWithText(BOARD_RESUME_TITLE).fetchSemanticsNodes().isNotEmpty() }
-        compose.onNodeWithText(RESUME_LABEL).assertIsFocused()
-        elapse(DIALOG_EXIT_MILLIS)
-        screenshot("androidtv-rde2-07-resume")
-
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
         awaitPlayer(factory) {
             it.isPlaying && factory.renderedFrame && it.currentTracks.playbackAudioTracks().size == 2 &&
                 it.currentTracks.playbackSubtitleTracks().size == 3
@@ -521,15 +484,16 @@ class TvPlayerProofTest {
                     ),
                     onBack = {},
                     onRetry = {},
-                    onResume = {},
-                    onRestart = {},
                     onPlayerFailure = { failure, _ -> error("Local playback failed: $failure") },
                     playerFactory = factory,
                     autoplayNextVideo = true,
                     onPlaybackEnded = { true },
                     nextEpisode = PlaybackTarget(FilesItemId(FIXTURE_FILE_ID + 1), STATES_NEXT_TITLE),
-                    upNext = TvUpNextLookup.Found(
-                        TvUpNext(PlaybackTarget(FilesItemId(FIXTURE_FILE_ID + 1), STATES_NEXT_TITLE), STATES_FOLDER),
+                    upNext = PlaybackUpNextLookup.Found(
+                        PlaybackUpNext(
+                            PlaybackTarget(FilesItemId(FIXTURE_FILE_ID + 1), STATES_NEXT_TITLE),
+                            STATES_FOLDER,
+                        ),
                     ),
                     onOpenInVlc = {},
                     onPlayInVlc = playInVlc,
@@ -599,8 +563,6 @@ class TvPlayerProofTest {
                     ),
                     onBack = {},
                     onRetry = {},
-                    onResume = {},
-                    onRestart = {},
                     onPlayerFailure = { _, _ -> },
                     playerFactory = ProofPlayerFactory(),
                     autoplayNextVideo = false,
@@ -749,6 +711,107 @@ class TvPlayerProofTest {
         compose.waitUntil(10_000) { compose.runOnIdle { playing == null } }
         compose.onNodeWithContentDescription("Play $FIXTURE_TITLE").assertIsFocused()
     }
+
+    @Test
+    fun subtitleSheetNamesSourcesAndShowsEmptyAndFailedStates() {
+        val plain = arguments.getString("putio.tv.player.noSubtitlesFixture")
+        val hls = arguments.getString("putio.tv.player.hlsSubtitlesFixture")
+        assumeTrue("Needs the no-subtitles and HLS subtitles fixtures", plain != null && hls != null)
+        val empty = localSource(requireNotNull(plain))
+        val missingSidecar = empty.copy(
+            subtitles = PlaybackSubtitles.Sidecar(
+                listOf(foundSubtitle(File(File(requireNotNull(plain)).parentFile, "missing.srt").path)),
+            ),
+        )
+        val standard = localSource(requireNotNull(hls)).copy(subtitles = PlaybackSubtitles.Embedded)
+        val listed = listOf(
+            listedSubtitle(key = "in-file-en", source = "mkv", name = "episode.mkv"),
+            listedSubtitle(key = "found-en", source = "opensubtitles_rest", name = "episode.en.srt"),
+        )
+        val factory = ProofPlayerFactory()
+        var content by mutableStateOf<PlaybackContent>(PlaybackContent.Ready(empty))
+        var manifest by mutableStateOf<List<PlaybackSubtitle>?>(null)
+        compose.setContent {
+            PutioTvTheme {
+                TvPlayerScreen(
+                    state = playbackState(
+                        target = PlaybackTarget(FilesItemId(FIXTURE_FILE_ID), SHEET_TITLE, PlaybackMediaType.VIDEO),
+                        content = content,
+                        nextRequestValue = 2L,
+                    ),
+                    onBack = {},
+                    onRetry = {},
+                    onPlayerFailure = { failure, _ -> error("Local playback failed: $failure") },
+                    playerFactory = factory,
+                    subtitleStartupPolicy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = false),
+                    manifestSubtitles = manifest,
+                )
+            }
+        }
+
+        awaitPlayer(factory) { it.isPlaying && factory.renderedFrame }
+        openSubtitlesSheet()
+        compose.waitUntil(10_000) { compose.onAllNodesWithText(NO_CAPTIONS).fetchSemanticsNodes().isNotEmpty() }
+        elapse(DIALOG_EXIT_MILLIS)
+        screenshot("androidtv-650-no-captions")
+        press(KeyEvent.KEYCODE_BACK)
+
+        compose.runOnIdle { content = PlaybackContent.Ready(missingSidecar) }
+        awaitPlayer(factory) {
+            it.isPlaying && factory.renderedFrame && it.currentTracks.playbackSubtitleTracks().size == 1
+        }
+        openSubtitlesSheet()
+        compose.waitUntil(10_000) {
+            compose.onAllNodesWithText("Türkçe", substring = true).fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNode(hasText("Türkçe", substring = true) and hasClickAction())
+            .performSemanticsAction(SemanticsActions.OnClick)
+        compose.waitUntil(15_000) { compose.onAllNodesWithText(SUBTITLES_FAILED).fetchSemanticsNodes().isNotEmpty() }
+        awaitPlayer(factory) { it.playbackState == Player.STATE_READY && selectedSubtitle(it) == null }
+        elapse(DIALOG_EXIT_MILLIS)
+        screenshot("androidtv-650-subtitles-failed")
+
+        compose.runOnIdle {
+            manifest = listed
+            content = PlaybackContent.Ready(standard)
+        }
+        awaitPlayer(factory) { it.isPlaying && it.currentTracks.playbackSubtitleTracks().size == 2 }
+        openSubtitlesSheet()
+        compose.waitUntil(10_000) { compose.onAllNodesWithText("In this file").fetchSemanticsNodes().isNotEmpty() }
+        elapse(DIALOG_EXIT_MILLIS)
+        screenshot("androidtv-650-standard-sources")
+        assertTrue(compose.onAllNodesWithText("OpenSubtitles", substring = true).fetchSemanticsNodes().isNotEmpty())
+        compose.onNode(hasText("Size and timing") and hasClickAction()).performSemanticsAction(SemanticsActions.OnClick)
+        compose.waitUntil(10_000) { compose.onAllNodesWithText(CAPTION_FOOTNOTE).fetchSemanticsNodes().isNotEmpty() }
+        elapse(DIALOG_EXIT_MILLIS)
+        screenshot("androidtv-650-size-and-timing")
+    }
+
+    private fun openSubtitlesSheet() {
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitUntil(10_000) {
+            compose.onAllNodes(hasContentDescription(SUBTITLES, substring = true)).fetchSemanticsNodes().isNotEmpty()
+        }
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        val subtitlesChip = hasContentDescription(SUBTITLES, substring = true) and isSelected()
+        repeat(CHIP_ROW_MAX) {
+            if (compose.onAllNodes(subtitlesChip).fetchSemanticsNodes().isEmpty()) press(KeyEvent.KEYCODE_DPAD_RIGHT)
+        }
+        compose.onNode(subtitlesChip).assertExists()
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+    }
+
+    private fun listedSubtitle(key: String, source: String, name: String) = PlaybackSubtitle(
+        format = "srt",
+        key = key,
+        language = "English",
+        languageCode = "eng",
+        name = name,
+        source = source,
+        url = PutioCredentialUrl::class.java.getDeclaredConstructor(String::class.java)
+            .newInstance("https://api.put.io/v2/files/$FIXTURE_FILE_ID/subtitles/$key"),
+    )
 
     private fun foundSubtitle(path: String): PlaybackSubtitle {
         val file = File(path).canonicalFile
@@ -1126,7 +1189,9 @@ class TvPlayerProofTest {
                                         PlaybackTarget(item.id, item.name, mediaType, FIXTURE_SECONDS),
                                         repository,
                                         scope,
-                                    )
+                                    ).also { started ->
+                                        scope.launch { started.answerResumePrompts(item.id, PlaybackEvent.Resume) }
+                                    }
                                 },
                                 modifier = Modifier.focusRequester(paneFocus),
                                 focusMemory = focusMemory,
@@ -1192,8 +1257,6 @@ class TvPlayerProofTest {
                             ),
                             onBack = { playing = null },
                             onRetry = { error("Unexpected retry") },
-                            onResume = { error("Unexpected resume") },
-                            onRestart = { error("Unexpected restart") },
                             onPlayerFailure = { failure, _ -> error("Local playback failed: $failure") },
                             playerFactory = factory,
                             subtitleStartupPolicy = subtitleStartupPolicy,
@@ -1323,19 +1386,14 @@ class TvPlayerProofTest {
         const val FIXTURE_SECONDS = 90.0
         const val SAVED_SECONDS = 45.0
         const val NEAR_END_SAVED_SECONDS = 70.0
-        const val NEAR_END_LABEL = "Resume from 1:10?"
         const val AUDIO_TITLE = "Harbor tune.m4a"
         const val POSITION_INTERVAL_MILLIS = 10_000L
-        const val RESUME_TITLE = "Resume from 0:45?"
-        const val RESUME_LABEL = "Resume"
-        const val RESTART_LABEL = "Start over"
         const val RESUME_PREFIX = "Resume from"
         const val AUDIO = "Audio:"
         const val SUBTITLES = "Subtitles:"
         const val SPEED = "Playback speed"
         const val BOARD_TITLE = "TV player proof.mkv"
         const val BOARD_RESUME_SECONDS = 190.0
-        const val BOARD_RESUME_TITLE = "Resume from 3:10?"
         const val BOARD_NEXT_TITLE = "TV player proof 2.mkv"
         const val BOARD_OFFSET_STEPS = 5
         const val BOARD_PLAY_MILLIS = 1_500L
@@ -1345,6 +1403,11 @@ class TvPlayerProofTest {
         const val UP_NEXT_STEP_MILLIS = 100L
         const val BOARD_CONVERSION_PERCENT = 42.0
         const val STATES_TITLE = "Big Buck Bunny.mp4"
+        const val SHEET_TITLE = "Subtitle sheet proof.mp4"
+        const val CHIP_ROW_MAX = 4
+        const val NO_CAPTIONS = "No captions available"
+        const val SUBTITLES_FAILED = "Couldn’t load subtitles"
+        const val CAPTION_FOOTNOTE = "Font and colours follow your TV’s caption settings."
         const val STATES_NEXT_TITLE = "Big Buck Bunny.part2.mp4"
         const val STATES_FOLDER = "Big Buck Bunny"
     }

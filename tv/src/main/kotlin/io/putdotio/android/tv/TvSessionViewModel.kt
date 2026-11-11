@@ -54,6 +54,7 @@ import io.putdotio.android.playback.PlaybackNextResult
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
 import io.putdotio.android.playback.PlaybackTarget
+import io.putdotio.sdk.files.PlaybackSubtitle
 import io.putdotio.android.search.RecentSearchStoreOwner
 import io.putdotio.android.search.SearchController
 import io.putdotio.android.search.SearchFolderNames
@@ -93,7 +94,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.getAndUpdate
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -366,6 +366,9 @@ internal class TvSession internal constructor(
     val findNeighbours: suspend (PlaybackTarget) -> PlaybackRepositoryResult<PlaybackNeighbours> =
         playbackRepository::findNeighbours
 
+    val findSubtitles: suspend (PlaybackTarget) -> PlaybackRepositoryResult<List<PlaybackSubtitle>> =
+        playbackRepository::listSubtitles
+
     fun play(item: FilesItem, start: TvPlayStart = TvPlayStart.Resume, method: StreamingMethod? = null) {
         durationLookup?.cancel()
         startPlayback(item, start, fromHome = false, method)
@@ -435,7 +438,7 @@ internal class TvSession internal constructor(
             }
         }
         continueSaved?.cancel()
-        continueSaved = scope.launch { controller.answerResumePrompt(start.answer) }
+        continueSaved = scope.launch { controller.answerResumePrompts(item.id, start.answer) }
     }
 
     /**
@@ -598,10 +601,14 @@ internal enum class TvPlayStart(val answer: PlaybackEvent) {
     StartOver(PlaybackEvent.Restart),
 }
 
-private suspend fun PlaybackController.answerResumePrompt(answer: PlaybackEvent) {
-    val settled = state.map { it.content }
-        .first { it !is PlaybackContent.Loading && it !is PlaybackContent.Conversion }
-    if (settled is PlaybackContent.AwaitingResume) dispatch(answer)
+internal suspend fun PlaybackController.answerResumePrompts(opened: FilesItemId, answer: PlaybackEvent) {
+    var movedOn = false
+    state.collect { playing ->
+        if (playing.target.fileId != opened) movedOn = true
+        if (playing.content is PlaybackContent.AwaitingResume) {
+            dispatch(if (movedOn) PlaybackEvent.Resume else answer)
+        }
+    }
 }
 
 // A position past 95 % starts over, which needs the duration that search results
