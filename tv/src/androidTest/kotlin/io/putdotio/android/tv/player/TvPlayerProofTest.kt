@@ -623,7 +623,8 @@ class TvPlayerProofTest {
             content = next
         }
 
-        retryInto(PlaybackContent.Failed(PlaybackFailure.Putio(PutioFailure.Unexpected(IllegalStateException("proof")))))
+        val crash = PutioFailure.Unexpected(IllegalStateException("proof"))
+        retryInto(PlaybackContent.Failed(PlaybackFailure.Putio(crash)))
         captureFocused("Playback error", "Try again", "failure-03-playback-error")
 
         retryInto(PlaybackContent.Failed(PlaybackFailure.MediaCredentialUnavailable(IOException())))
