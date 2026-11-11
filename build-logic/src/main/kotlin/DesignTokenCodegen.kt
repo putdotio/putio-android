@@ -285,7 +285,7 @@ object DesignTokenCodegen {
             appendLine()
             appendLine("/**")
             appendLine(" * DESIGN.md's font families. A family this build lacks the licensed files for falls back to")
-            appendLine(" * the system face; scripts/sync-brand-fonts.sh fetches them.")
+            appendLine(" * the system face; ./gradlew syncBrandFonts fetches them.")
             appendLine(" */")
             appendLine("internal object PutioFontFamily {")
             for (family in families) {

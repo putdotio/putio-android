@@ -22,7 +22,7 @@ val bash: String = HostBash.path
 val scriptCheckTools = providers.exec {
     commandLine(
         bash, "-c",
-        "for tool in bash python3; do \"\$tool\" --version 2>&1 | head -1; done",
+        "for tool in bash python3 ffmpeg ffprobe; do \"\$tool\" --version 2>&1 | head -1; done",
     )
     isIgnoreExitValue = true
 }.standardOutput.asText
@@ -42,24 +42,44 @@ fun Exec.cacheableCheck(vararg sources: Any) {
     doLast { stamp.get().asFile.writeText("passed\n") }
 }
 
-val checkIcons = tasks.register<Exec>("checkIcons") {
-    description = "Verify locked Phosphor drawables without network access"
-    cacheableCheck(
-        "design/phosphor-icons.lock.json",
-        // Every module's drawables: the check fails on stale generated icons anywhere.
-        fileTree(".") {
-            include("*/src/*/res/drawable/ic_ph_*.xml", "*/*/src/*/res/drawable/ic_ph_*.xml")
-            exclude("**/build/**", ".git/**", ".gradle/**")
-        },
-    )
-    commandLine(bash, "scripts/generate-icons.sh", "--check")
+val testEvidence = tasks.register<Exec>("testEvidence") {
+    description = "Run evidence harness regression tests"
+    cacheableCheck()
+    commandLine(bash, "scripts/test-evidence.sh")
 }
 
-val testIconPipeline = tasks.register<Exec>("testIconPipeline") {
-    description = "Test the Phosphor lock and drift contracts"
+val testEmulatorHarness = tasks.register<Exec>("testEmulatorHarness") {
+    description = "Run emulator provisioning and readiness contract tests"
     cacheableCheck()
-    environment("PYTHONDONTWRITEBYTECODE", "1")
-    commandLine("python3", "scripts/test_phosphor_icons.py")
+    commandLine(bash, "scripts/test-emulator.sh")
+}
+
+val testSignInHarness = tasks.register<Exec>("testSignInHarness") {
+    description = "Run the devs-auto device-code sign-in script's contract tests"
+    cacheableCheck()
+    commandLine(bash, "scripts/test-sign-in.sh")
+}
+
+val phosphorLock = layout.projectDirectory.file("design/phosphor-icons.lock.json")
+val phosphorDrawables = fileTree(".") {
+    include(PhosphorIcons.DRAWABLE_PATTERNS)
+    exclude("**/build/**", ".git/**", ".gradle/**")
+}
+
+val checkIcons = tasks.register<CheckIconsTask>("checkIcons") {
+    group = "verification"
+    description = "Verify locked Phosphor drawables without network access"
+    lockFile.set(phosphorLock)
+    drawables.from(phosphorDrawables)
+    repositoryRoot.set(layout.projectDirectory)
+    report.set(layout.buildDirectory.file("verification/checkIcons.txt"))
+}
+
+tasks.register<GenerateIconsTask>("generateIcons") {
+    description = "Regenerate the locked Phosphor drawables from the npm registry"
+    lockFile.set(phosphorLock)
+    drawables.from(phosphorDrawables)
+    repositoryRoot.set(layout.projectDirectory)
 }
 
 val checkDesignAssets = tasks.register<Exec>("checkDesignAssets") {
@@ -84,10 +104,10 @@ val testDesignAssetPipeline = tasks.register<Exec>("testDesignAssetPipeline") {
     commandLine("python3", "scripts/test_design_assets.py")
 }
 
-val testBrandFontPipeline = tasks.register<Exec>("testBrandFontPipeline") {
-    description = "Test the brand font lock and sync"
-    cacheableCheck("design/brand-fonts.lock.json")
-    commandLine("python3", "-B", "scripts/test_brand_fonts.py")
+tasks.register<SyncBrandFontsTask>("syncBrandFonts") {
+    description = "Fetch the licensed brand fonts design/brand-fonts.lock.json pins"
+    brandFontsLock.set(layout.projectDirectory.file("design/brand-fonts.lock.json"))
+    rootDirectory.set(layout.projectDirectory)
 }
 
 val testTalkBackInput =tasks.register<Exec>("testTalkBackInput") {
@@ -150,12 +170,13 @@ val verifyDocs = verifyLane("verifyDocs", "Check Markdown and the DESIGN.md cont
 
 val verifyScripts = verifyLane(
     "verifyScripts",
-    "Run the design asset, icon and font script checks",
+    "Run the harness, design asset and icon script checks",
     checkDesignAssets,
     checkIcons,
-    testBrandFontPipeline,
     testDesignAssetPipeline,
-    testIconPipeline,
+    testEmulatorHarness,
+    testEvidence,
+    testSignInHarness,
     testTalkBackInput,
 )
 
