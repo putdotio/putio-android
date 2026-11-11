@@ -110,6 +110,39 @@ class MobileViewerZoomTest {
     }
 
     @Test
+    fun aPinchKeepsTheContentUnderAStillFinger() {
+        val zoom = MobileViewerZoom()
+        compose.setContent { Box(Modifier.fillMaxSize().viewerZoom(zoom).testTag(PAGE)) }
+        val node = compose.onNodeWithTag(PAGE)
+        val viewport = node.fetchSemanticsNode().size
+        var still = Offset.Zero
+
+        node.performTouchInput {
+            still = center - Offset(100f, 0f)
+            down(0, still)
+            down(1, center + Offset(100f, 0f))
+            repeat(10) { moveBy(1, Offset(30f, 0f)) }
+            up(1)
+            up(0)
+        }
+
+        compose.runOnIdle {
+            assertEquals(2.5f, zoom.scale, 0.01f)
+            assertEquals(still.x, contentAt(zoom, viewport, still).x, 0.5f)
+        }
+    }
+
+    @Test
+    fun aSmallerFrameKeepsTheZoomedContentEdgeAtItsBorder() {
+        val zoom = MobileViewerZoom().apply { measure(IntSize(2000, 1000), contentAspect = 2f) }
+        zoom.transform(zoomChange = 2.5f, centroid = Offset(1000f, 500f), pan = Offset(5000f, 0f))
+
+        zoom.measure(IntSize(1000, 2000), contentAspect = 2f)
+
+        assertEquals((1000f * 2.5f - 1000f) / 2f, zoom.offset.x, 0.01f)
+    }
+
+    @Test
     fun aPanNeverMovesTheContentEdgeInsideTheFrame() {
         val zoom = MobileViewerZoom().apply { measure(IntSize(1000, 2000), contentAspect = 1000f / 600f) }
         zoom.transform(zoomChange = 3f, centroid = Offset(500f, 1000f), pan = Offset.Zero)

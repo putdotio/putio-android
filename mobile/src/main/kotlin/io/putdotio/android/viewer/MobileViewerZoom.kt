@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntSize
 
 @Stable
@@ -35,6 +36,7 @@ internal class MobileViewerZoom {
     fun measure(viewport: IntSize, contentAspect: Float?) {
         this.viewport = viewport
         this.contentAspect = contentAspect
+        offset = clamp(offset)
     }
 
     fun transform(zoomChange: Float, centroid: Offset, pan: Offset): Offset {
@@ -80,6 +82,7 @@ internal fun Modifier.viewerZoom(
 ): Modifier {
     if (zoom == null) return this
     return clipToBounds()
+        .onSizeChanged { zoom.measure(it, contentAspect) }
         .pointerInput(zoom, contentAspect) {
             detectTapGestures(
                 onDoubleTap = {
@@ -106,7 +109,7 @@ internal fun Modifier.viewerZoom(
                         zoom.measure(size, contentAspect)
                         val overflow = zoom.transform(
                             zoomChange = event.calculateZoom(),
-                            centroid = event.calculateCentroid(useCurrent = true),
+                            centroid = event.calculateCentroid(useCurrent = false),
                             pan = pan,
                         )
                         if (overflow != Offset.Zero) onOverflow(overflow / zoom.scale)
