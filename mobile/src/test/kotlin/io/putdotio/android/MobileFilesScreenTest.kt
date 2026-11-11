@@ -74,9 +74,13 @@ import io.putdotio.android.files.MOBILE_FILES_RENAME_FIELD_TAG
 import io.putdotio.android.files.MOBILE_FILES_SHARE_ACTION_TAG
 import io.putdotio.android.files.MOBILE_FILES_WATCHED_TAG
 import io.putdotio.android.files.MOBILE_FILES_DOWNLOAD_TAG
+import io.putdotio.android.files.MOBILE_FILES_DOWNLOAD_FAILED_TAG
+import io.putdotio.android.files.MOBILE_FILES_DOWNLOAD_RING_TAG
 import io.putdotio.android.files.MobileFilesActions
 import io.putdotio.android.files.MobileFilesRow
 import io.putdotio.android.files.MobileFilesScreen
+import io.putdotio.android.downloads.DownloadFailureReason
+import io.putdotio.android.downloads.DownloadPauseReason
 import io.putdotio.android.downloads.DownloadStatus
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.Modifier
@@ -427,7 +431,44 @@ class MobileFilesScreenTest {
     }
 
     @Test
-    fun onlyAFinishedDownloadMarksTheRowAndALongNameKeepsItsFullNameForReaders() {
+    fun aRowMarksARunningWaitingOrFailedDownloadAndItsTapStillOpensTheFile() {
+        val opened = mutableListOf<String>()
+        val rows = listOf(
+            "running.mkv" to DownloadStatus.Downloading(64L, percent = 50f),
+            "queued.mkv" to DownloadStatus.Queued,
+            "offline.mkv" to DownloadStatus.Paused(DownloadPauseReason.NETWORK, 32L, percent = 25f),
+            "failed.mkv" to DownloadStatus.Failed(DownloadFailureReason.NETWORK, 0L),
+            "done.mkv" to DownloadStatus.Completed(128L),
+            "gone.mkv" to DownloadStatus.Missing,
+        )
+        compose.setContent {
+            PutioTheme {
+                androidx.compose.foundation.layout.Column {
+                    rows.forEachIndexed { index, (name, status) ->
+                        MobileFilesRow(
+                            filesItem(index + 1L, name, PutioFileType.VIDEO),
+                            onClick = { opened += name },
+                            downloadStatus = status,
+                        )
+                    }
+                }
+            }
+        }
+        compose.onAllNodesWithTag(MOBILE_FILES_DOWNLOAD_RING_TAG, useUnmergedTree = true).assertCountEquals(3)
+        compose.onAllNodesWithTag(MOBILE_FILES_DOWNLOAD_FAILED_TAG, useUnmergedTree = true).assertCountEquals(1)
+        compose.onAllNodesWithTag(MOBILE_FILES_DOWNLOAD_TAG, useUnmergedTree = true).assertCountEquals(1)
+        compose.onNode(hasText("running.mkv") and hasContentDescription("Downloading")).assertIsDisplayed()
+        compose.onNode(hasText("queued.mkv") and hasContentDescription("Waiting to download")).assertIsDisplayed()
+        compose.onNode(hasText("offline.mkv") and hasContentDescription("Waiting for network")).assertIsDisplayed()
+        compose.onNode(hasText("failed.mkv") and hasContentDescription("Failed")).assertIsDisplayed()
+        compose.onNode(hasText("done.mkv") and hasContentDescription("On this device")).assertIsDisplayed()
+        compose.onNode(hasText("gone.mkv") and hasContentDescription("Downloading")).assertDoesNotExist()
+        compose.onNodeWithText("running.mkv").performClick()
+        assertEquals(listOf("running.mkv"), opened)
+    }
+
+    @Test
+    fun aLongNameKeepsItsFullNameForReaders() {
         val name = "Blue.Lights.S04E01.1080p.HDTV.H264-ORGANiC.Extended.Cut.Remastered.mkv"
         val file = filesItem(1L, name, PutioFileType.VIDEO)
         compose.setContent {
@@ -441,7 +482,6 @@ class MobileFilesScreenTest {
                 }
             }
         }
-        compose.onAllNodesWithTag(MOBILE_FILES_DOWNLOAD_TAG, useUnmergedTree = true).assertCountEquals(1)
         compose.onAllNodes(hasText(name)).assertCountEquals(2)
         // Readers get the full name, never the cut line.
         compose.onAllNodesWithText("…", substring = true).assertCountEquals(0)

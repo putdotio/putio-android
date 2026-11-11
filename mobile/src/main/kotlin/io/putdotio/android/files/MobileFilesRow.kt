@@ -1,5 +1,6 @@
 package io.putdotio.android.files
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -28,6 +29,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
@@ -41,6 +43,8 @@ import io.putdotio.android.R
 import io.putdotio.android.design.FileTypeIcon
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.putioMono
+import io.putdotio.android.downloads.DownloadPauseReason
+import io.putdotio.android.downloads.DownloadRingTrack
 import io.putdotio.android.downloads.DownloadStatus
 import io.putdotio.android.playbackContainer
 import io.putdotio.sdk.files.PutioFolderType
@@ -48,10 +52,12 @@ import io.putdotio.android.MobileIconButton
 
 internal const val MOBILE_FILES_WATCHED_TAG = "mobile-files-watched"
 internal const val MOBILE_FILES_DOWNLOAD_TAG = "mobile-files-download"
+internal const val MOBILE_FILES_DOWNLOAD_RING_TAG = "mobile-files-download-ring"
+internal const val MOBILE_FILES_DOWNLOAD_FAILED_TAG = "mobile-files-download-failed"
 
 /**
  * A file row: a fixed 64dp line with the type glyph, the name cut in the middle on one line, and
- * meta (size in mono, date, then the played eye and the on-device mark when true). A row with
+ * meta (size in mono, date, then the played eye and the download's mark). A row with
  * actions ends in an overflow button, and a folder without them in a chevron. Long-press runs
  * [onLongClick], which starts selection where the list has one, else opens the actions. In
  * selection a checkbox takes the glyph's place, the trailing slot empties, and a tap toggles the row.
@@ -124,7 +130,7 @@ internal fun MobileFilesRow(
     MobileRow(
         leading = { FileTypeIcon(type = item.type, modifier = Modifier.size(FILES_ICON_SIZE)) },
         headline = { MobileMiddleCutText(text = item.name) },
-        meta = { MobileFilesMeta(item, onDevice = downloadStatus is DownloadStatus.Completed, place = place) },
+        meta = { MobileFilesMeta(item, downloadStatus = downloadStatus, place = place) },
         trailing = trailing,
         containerColor = when {
             highlighted -> MaterialTheme.colorScheme.secondaryContainer
@@ -159,7 +165,7 @@ private fun MobileFilesSelectableRow(
     MobileRow(
         leading = { MobileSelectionCheckbox(checked) },
         headline = { MobileMiddleCutText(text = item.name) },
-        meta = { MobileFilesMeta(item, onDevice = downloadStatus is DownloadStatus.Completed, place = place) },
+        meta = { MobileFilesMeta(item, downloadStatus = downloadStatus, place = place) },
         containerColor = if (checked) MobileSelectedRowTint else Color.Transparent,
         modifier = modifier
             .playbackContainer(item.id.value, playable = item.isPlayable)
@@ -182,11 +188,12 @@ internal sealed interface MobileFilesRowPlace {
 
 /**
  * Size with mono figures, then the date in a folder or the containing folder's name in search, then
- * a grey eye once a video or song is finished, and a yellow mark when on this device. A folder dates
+ * a grey eye once a video or song is finished, then the download: a ring while it runs or waits, a red
+ * mark once it failed, and a yellow mark when on this device. A folder dates
  * itself by its last change, "3 days ago"; the shared folders have no size of their own.
  */
 @Composable
-private fun MobileFilesMeta(item: FilesItem, onDevice: Boolean, place: MobileFilesRowPlace) {
+private fun MobileFilesMeta(item: FilesItem, downloadStatus: DownloadStatus?, place: MobileFilesRowPlace) {
     val context = LocalContext.current
     val size = formatFileSize(item.sizeBytes).takeIf { item.folderType == PutioFolderType.REGULAR }
     val date = when (place) {
@@ -224,15 +231,8 @@ private fun MobileFilesMeta(item: FilesItem, onDevice: Boolean, place: MobileFil
                 )
             }
         }
-        if (onDevice) {
-            add {
-                Icon(
-                    painter = painterResource(R.drawable.ic_ph_arrow_circle_down_fill),
-                    contentDescription = stringResource(R.string.mobile_files_downloaded),
-                    tint = PutioDesignTokens.yellowSolid,
-                    modifier = Modifier.size(FILES_META_ICON_SIZE).testTag(MOBILE_FILES_DOWNLOAD_TAG),
-                )
-            }
+        downloadStatus?.takeIf { it != DownloadStatus.Missing }?.let { status ->
+            add { MobileFilesDownloadMark(status) }
         }
     }
     Row(
@@ -245,6 +245,45 @@ private fun MobileFilesMeta(item: FilesItem, onDevice: Boolean, place: MobileFil
         }
     }
 }
+
+@Composable
+private fun MobileFilesDownloadMark(status: DownloadStatus) {
+    when (status) {
+        is DownloadStatus.Completed -> Icon(
+            painter = painterResource(R.drawable.ic_ph_arrow_circle_down_fill),
+            contentDescription = stringResource(R.string.mobile_files_downloaded),
+            tint = PutioDesignTokens.yellowSolid,
+            modifier = Modifier.size(FILES_META_ICON_SIZE).testTag(MOBILE_FILES_DOWNLOAD_TAG),
+        )
+        is DownloadStatus.Failed -> Icon(
+            painter = painterResource(R.drawable.ic_ph_warning_circle),
+            contentDescription = stringResource(R.string.mobile_downloads_meta_failed),
+            tint = PutioDesignTokens.redTextSecondary,
+            modifier = Modifier.size(FILES_META_ICON_SIZE).testTag(MOBILE_FILES_DOWNLOAD_FAILED_TAG),
+        )
+        DownloadStatus.Queued, is DownloadStatus.Downloading, is DownloadStatus.Paused -> {
+            val label = stringResource(status.ringLabel())
+            DownloadRingTrack(
+                status,
+                FILES_META_ICON_SIZE,
+                Modifier.semantics { contentDescription = label }.testTag(MOBILE_FILES_DOWNLOAD_RING_TAG),
+            )
+        }
+        DownloadStatus.Missing -> Unit
+    }
+}
+
+@StringRes
+private fun DownloadStatus.ringLabel(): Int =
+    when (this) {
+        is DownloadStatus.Paused -> when (reason) {
+            DownloadPauseReason.NETWORK -> R.string.mobile_files_download_waiting
+            DownloadPauseReason.STORAGE -> R.string.mobile_files_download_waiting_storage
+            DownloadPauseReason.USER -> R.string.mobile_downloads_meta_paused
+        }
+        DownloadStatus.Queued -> R.string.mobile_downloads_status_queued
+        else -> R.string.mobile_files_downloading
+    }
 
 /**
  * Tap runs [onClick], or opens the actions when there is nothing else to do; long-press runs
