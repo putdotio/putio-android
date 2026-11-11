@@ -198,9 +198,9 @@ class DesignTokenCodegenTest {
     fun theLockHoldsExactlyTheFacesDesignMdSets() {
         val doc = "---\ntypography:\n  body:\n    fontFamily: GT America\n    fontSize: 16px\n" +
             "    fontWeight: 400\n    lineHeight: 22px\nrounded:\n  small: 8px\n---\n"
-        val regular = BrandFonts.Face("gt_america_regular.ttf", "GT America", "0".repeat(64), weight = 400)
-        val bold = BrandFonts.Face("gt_america_bold.ttf", "GT America", "0".repeat(64), weight = 700)
-        val variable = BrandFonts.Face("gt_america_variable.ttf", "GT America", "0".repeat(64), weightRange = 100..900)
+        val regular = BrandFonts.Face("gt_america_regular.ttf", "GT America", "0".repeat(64), weight = 400, url = "")
+        val bold = BrandFonts.Face("gt_america_bold.ttf", "GT America", "0".repeat(64), weight = 700, url = "")
+        val variable = BrandFonts.Face("gt_america_variable.ttf", "GT America", "0".repeat(64), weightRange = 100..900, url = "")
         assertTrue(DesignTokenCodegen.generateScales(doc, BrandFonts.Lock("fonts", listOf(regular)), emptySet()).isNotEmpty())
         assertTrue(DesignTokenCodegen.generateScales(doc, BrandFonts.Lock("fonts", listOf(variable)), emptySet()).isNotEmpty())
         listOf(
@@ -219,7 +219,7 @@ class DesignTokenCodegenTest {
             "    fontWeight: 400\n    lineHeight: 22px\nrounded:\n  small: 8px\n---\n"
         val lock = BrandFonts.Lock(
             "fonts",
-            listOf(BrandFonts.Face("gt_america_regular.ttf", "GT America", "0".repeat(64), weight = 400)),
+            listOf(BrandFonts.Face("gt_america_regular.ttf", "GT America", "0".repeat(64), weight = 400, url = "")),
         )
         assertTrue(DesignTokenCodegen.generateScales(base, lock, emptySet()).contains("public val small: Dp = 8.dp"))
         listOf(

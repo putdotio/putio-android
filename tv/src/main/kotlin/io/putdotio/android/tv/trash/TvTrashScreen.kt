@@ -62,6 +62,8 @@ import io.putdotio.android.tv.TvListSkeleton
 import io.putdotio.android.tv.TvLoadFailedState
 import io.putdotio.android.tv.TvPaneFocusOwner
 import io.putdotio.android.tv.TvPickedRow
+import io.putdotio.android.tv.TvSectionLine
+import io.putdotio.android.tv.TvSectionPill
 import io.putdotio.android.tv.files.TvFolderHeading
 import io.putdotio.android.tv.monoNumber
 import io.putdotio.android.tv.paneSection
@@ -239,7 +241,13 @@ private fun TvTrashListDetail(
         onDetailFocusChanged = { if (it) panelHeld.value = true },
         header = { header() },
         list = {
-            TvTrashInfo()
+            TvTrashInfo(
+                showsRefresh = loaded != null,
+                onRefresh = { if (loaded?.isRefreshing == false) onEvent(TrashEvent.Refresh) },
+                refreshShowsFocus = !listFocus.dialogShowing.value,
+                owner = listFocus.owner,
+                refreshFocus = focus.refresh,
+            )
             TvTrashNotices(state, onEvent, listFocus.owner)
             if (loaded == null) {
                 TvListSkeleton()
@@ -304,6 +312,7 @@ private class TvTrashFocus {
     val restoreAll = FocusRequester()
     val empty = FocusRequester()
     val list = FocusRequester()
+    val refresh = FocusRequester()
     val retry = FocusRequester()
     val restore = FocusRequester()
     val delete = FocusRequester()
@@ -408,14 +417,35 @@ private fun TvTrashHeaderButton(
 }
 
 @Composable
-private fun TvTrashInfo() {
+private fun TvTrashInfo(
+    showsRefresh: Boolean,
+    onRefresh: () -> Unit,
+    refreshShowsFocus: Boolean,
+    owner: TvPaneFocusOwner,
+    refreshFocus: FocusRequester,
+) {
     val info = stringResource(R.string.tv_trash_info)
-    Text(
-        text = remember(info) { monoNumber(info, RETENTION_DAYS) },
-        style = INFO_LABEL,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(start = ROW_BLEED, end = ROW_BLEED, bottom = INFO_GAP),
-    )
+    TvSectionLine(
+        pill = if (showsRefresh) {
+            {
+                TvSectionPill(
+                    icon = R.drawable.ic_ph_arrows_clockwise,
+                    label = stringResource(R.string.tv_refresh),
+                    onClick = onRefresh,
+                    modifier = Modifier.keyedPaneSection("refresh", owner, refreshFocus),
+                    showFocus = refreshShowsFocus,
+                )
+            }
+        } else {
+            null
+        },
+    ) {
+        Text(
+            text = remember(info) { monoNumber(info, RETENTION_DAYS) },
+            style = INFO_LABEL,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
 }
 
 @Composable
@@ -434,6 +464,5 @@ private val HEADER_HEIGHT = 76.dp
 private val HEADER_BUTTON_GAP = 8.dp
 private val HEADER_BUTTON_LIFT = 1.dp
 private val HEADER_BUTTON_LABEL = PutioTypeScale.tvButton.copy(fontSize = 12.sp)
-private val INFO_GAP = 4.dp
 private val INFO_LABEL = PutioTypeScale.tvLabel.withFullLineBox()
 private val STATE_BOTTOM_GAP = 3.dp

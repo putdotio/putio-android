@@ -33,8 +33,8 @@ Preconditions:
   and `$S/ui.sh gone $SERIAL --match "^Faster, "`.
 - **Subtitles.** Tap the subtitles chip; the sheet lists `Off` first. Press
   Back to close it.
-- **Resume.** Play to about 40 s (well clear of the last 10 s, where no
-  Resume is offered), press Back, reopen the clip. The dialog reads
+- **Resume.** Play to about 40 s (short of 95 %, past which no Resume is
+  offered), press Back, reopen the clip. The dialog reads
   `Resume from <time>?`; `Resume` continues there. Read the position back
   with `files.getStartFrom`.
 - **Back.** Press Back. The shell returns in portrait with its bars.

@@ -60,24 +60,26 @@ val testSignInHarness = tasks.register<Exec>("testSignInHarness") {
     commandLine(bash, "scripts/test-sign-in.sh")
 }
 
-val checkIcons = tasks.register<Exec>("checkIcons") {
-    description = "Verify locked Phosphor drawables without network access"
-    cacheableCheck(
-        "design/phosphor-icons.lock.json",
-        // Every module's drawables: the check fails on stale generated icons anywhere.
-        fileTree(".") {
-            include("*/src/*/res/drawable/ic_ph_*.xml", "*/*/src/*/res/drawable/ic_ph_*.xml")
-            exclude("**/build/**", ".git/**", ".gradle/**")
-        },
-    )
-    commandLine(bash, "scripts/generate-icons.sh", "--check")
+val phosphorLock = layout.projectDirectory.file("design/phosphor-icons.lock.json")
+val phosphorDrawables = fileTree(".") {
+    include(PhosphorIcons.DRAWABLE_PATTERNS)
+    exclude("**/build/**", ".git/**", ".gradle/**")
 }
 
-val testIconPipeline = tasks.register<Exec>("testIconPipeline") {
-    description = "Test the Phosphor lock and drift contracts"
-    cacheableCheck()
-    environment("PYTHONDONTWRITEBYTECODE", "1")
-    commandLine("python3", "scripts/test_phosphor_icons.py")
+val checkIcons = tasks.register<CheckIconsTask>("checkIcons") {
+    group = "verification"
+    description = "Verify locked Phosphor drawables without network access"
+    lockFile.set(phosphorLock)
+    drawables.from(phosphorDrawables)
+    repositoryRoot.set(layout.projectDirectory)
+    report.set(layout.buildDirectory.file("verification/checkIcons.txt"))
+}
+
+tasks.register<GenerateIconsTask>("generateIcons") {
+    description = "Regenerate the locked Phosphor drawables from the npm registry"
+    lockFile.set(phosphorLock)
+    drawables.from(phosphorDrawables)
+    repositoryRoot.set(layout.projectDirectory)
 }
 
 val checkDesignAssets = tasks.register<Exec>("checkDesignAssets") {
@@ -102,10 +104,10 @@ val testDesignAssetPipeline = tasks.register<Exec>("testDesignAssetPipeline") {
     commandLine("python3", "scripts/test_design_assets.py")
 }
 
-val testBrandFontPipeline = tasks.register<Exec>("testBrandFontPipeline") {
-    description = "Test the brand font lock and sync"
-    cacheableCheck("design/brand-fonts.lock.json")
-    commandLine("python3", "-B", "scripts/test_brand_fonts.py")
+tasks.register<SyncBrandFontsTask>("syncBrandFonts") {
+    description = "Fetch the licensed brand fonts design/brand-fonts.lock.json pins"
+    brandFontsLock.set(layout.projectDirectory.file("design/brand-fonts.lock.json"))
+    rootDirectory.set(layout.projectDirectory)
 }
 
 val testTalkBackInput =tasks.register<Exec>("testTalkBackInput") {
@@ -139,13 +141,14 @@ tasks.register("updateDesignMdColors") {
     doLast { markdown.writeText(DesignTokenCodegen.withDesignMdColors(markdown.readText(), tokens.readText())) }
 }
 
-val nodeVersion = providers.exec { commandLine("node", "--version") }.standardOutput.asText
-
-val lintDesignMd = tasks.register<Exec>("lintDesignMd") {
-    description = "Lint DESIGN.md against the design.md format"
-    cacheableCheck("DESIGN.md", "package.json", ".node-version")
-    inputs.property("node", nodeVersion)
-    commandLine(bash, "scripts/lint-design-md.sh", pinnedNodeTool("@google/design.md").get())
+val lintDesignMd = tasks.register<LintDesignMdTask>("lintDesignMd") {
+    group = "verification"
+    description = "Lint DESIGN.md against the design.md format; warnings fail too"
+    designMd.set(designMdFile)
+    linterVersion.set(pinnedNodeTool("@google/design.md"))
+    npx.set(if (windows) "npx.cmd" else "npx")
+    nodeVersion.set(providers.exec { commandLine("node", "--version") }.standardOutput.asText.map { it.trim() })
+    stamp.set(layout.buildDirectory.file("verification/lintDesignMd.stamp"))
 }
 
 val markdownCheck = tasks.register<Exec>("markdownCheck") {
@@ -155,29 +158,62 @@ val markdownCheck = tasks.register<Exec>("markdownCheck") {
     commandLine(if (windows) "npx.cmd" else "npx", "--yes", "oxfmt@${pinnedNodeTool("oxfmt").get()}", "--check", "**/*.md")
 }
 
+val appProjects = setOf(":mobile", ":tv", ":baselineprofile:tv")
+
+fun verifyLane(name: String, summary: String, vararg checks: Any) = tasks.register(name) {
+    group = "verification"
+    description = summary
+    dependsOn(*checks)
+}
+
+val verifyDocs = verifyLane("verifyDocs", "Check Markdown and the DESIGN.md contract", markdownCheck)
+
+val verifyScripts = verifyLane(
+    "verifyScripts",
+    "Run the harness, design asset and icon script checks",
+    checkDesignAssets,
+    checkIcons,
+    testDesignAssetPipeline,
+    testEmulatorHarness,
+    testEvidence,
+    testSignInHarness,
+    testTalkBackInput,
+)
+
+val verifyLibraries = verifyLane(
+    "verifyLibraries",
+    "Check the shared libraries and the build logic",
+    subprojects.filter { it.buildFile.isFile && it.path !in appProjects }.map { "${it.path}:check" },
+    ":domain:auth:assembleDebugAndroidTest",
+    ":domain:transfers:assembleDebugAndroidTest",
+    gradle.includedBuild("build-logic").task(":test"),
+)
+
+val verifyMobile = verifyLane(
+    "verifyMobile",
+    "Check the mobile app and assemble its instrumented tests",
+    ":mobile:check",
+    ":mobile:assembleProductionDebugAndroidTest",
+)
+
+val verifyTv = verifyLane(
+    "verifyTv",
+    "Check the TV app and assemble its instrumented tests",
+    ":tv:check",
+    ":baselineprofile:tv:check",
+    ":tv:assembleProductionDebugAndroidTest",
+)
+
+val verifyRelease = verifyLane(
+    "verifyRelease",
+    "Assemble the minified release builds",
+    ":mobile:assembleProductionRelease",
+    ":tv:assembleProductionRelease",
+    ":tv:assembleNightlyRelease",
+)
+
 tasks.register("verify") {
     group = "verification"
     description = "Run the canonical local checks"
-    dependsOn(
-        // Every app and library runs its own lint, detekt and unit tests.
-        subprojects.filter { it.buildFile.isFile }.map { "${it.path}:check" },
-        ":mobile:assembleProductionRelease",
-        ":tv:assembleProductionRelease",
-        ":tv:assembleNightlyRelease",
-        ":mobile:assembleProductionDebugAndroidTest",
-        ":tv:assembleProductionDebugAndroidTest",
-        ":domain:auth:assembleDebugAndroidTest",
-        ":domain:transfers:assembleDebugAndroidTest",
-        checkDesignAssets,
-        checkIcons,
-        markdownCheck,
-        testBrandFontPipeline,
-        testDesignAssetPipeline,
-        testEmulatorHarness,
-        testEvidence,
-        testIconPipeline,
-        testSignInHarness,
-        testTalkBackInput,
-        gradle.includedBuild("build-logic").task(":test"),
-    )
+    dependsOn(verifyDocs, verifyScripts, verifyLibraries, verifyMobile, verifyTv, verifyRelease)
 }
