@@ -26,7 +26,7 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
-      docs: ${{ github.event_name != 'pull_request' || steps.filter.outputs.code == 'true' || steps.filter.outputs.markdown == 'true' }}
+      docs-only: ${{ github.event_name == 'pull_request' && steps.filter.outputs.code != 'true' && steps.filter.outputs.markdown == 'true' }}
       code: ${{ github.event_name != 'pull_request' || steps.filter.outputs.code == 'true' }}
     steps:
       - name: Classify changed paths
@@ -60,7 +60,7 @@ jobs:
   docs:
     name: Docs
     needs: changes
-    if: ${{ !cancelled() && needs.changes.outputs.docs == 'true' }}
+    if: ${{ !cancelled() && needs.changes.outputs.docs-only == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
@@ -125,27 +125,6 @@ jobs:
           path: ${{ env.APKS }}
           retention-days: 1
 
-  scripts:
-    name: Scripts
-    needs: changes
-    if: ${{ !cancelled() && needs.changes.outputs.code == 'true' }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    env:
-      TASKS: verifyScripts
-      FFMPEG: 'true'
-    steps: *lane
-
-  libraries:
-    name: Libraries
-    needs: changes
-    if: ${{ !cancelled() && needs.changes.outputs.code == 'true' }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    env:
-      TASKS: verifyLibraries
-    steps: *lane
-
   mobile:
     name: Mobile
     needs: changes
@@ -153,19 +132,20 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     env:
-      TASKS: verifyMobile :mobile:assembleProductionDebug
-      APKS: mobile/build/outputs/apk/production/debug/*.apk
+      TASKS: verifyMobile verifyLibraries :mobile:assembleProductionDebug :mobile:assembleNightlyDebug
+      APKS: mobile/build/outputs/apk/*/debug/*.apk
     steps: *lane
 
   tv:
-    name: TV
+    name: TV, docs and scripts
     needs: changes
     if: ${{ !cancelled() && needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     env:
-      TASKS: verifyTv :tv:assembleProductionDebug
-      APKS: tv/build/outputs/apk/production/debug/*.apk
+      TASKS: verifyTv verifyDocs verifyScripts :tv:assembleProductionDebug :tv:assembleNightlyDebug
+      FFMPEG: 'true'
+      APKS: tv/build/outputs/apk/*/debug/*.apk
     steps: *lane
 
   release:
@@ -177,17 +157,4 @@ jobs:
     env:
       TASKS: verifyRelease
       BRAND_FONTS: 'true'
-    steps: *lane
-
-  nightly:
-    name: Nightly debug
-    needs: changes
-    if: ${{ !cancelled() && needs.changes.outputs.code == 'true' }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 40
-    env:
-      TASKS: :mobile:assembleNightlyDebug :tv:assembleNightlyDebug
-      APKS: |
-        mobile/build/outputs/apk/nightly/debug/*.apk
-        tv/build/outputs/apk/nightly/debug/*.apk
     steps: *lane
