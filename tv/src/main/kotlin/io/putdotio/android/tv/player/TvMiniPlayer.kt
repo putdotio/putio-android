@@ -16,11 +16,13 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.Icon
 import androidx.tv.material3.Text
 import io.putdotio.android.R
 import io.putdotio.android.design.R as DesignR
 import io.putdotio.android.design.fileTypeIconRes
+import io.putdotio.android.playback.PlaybackController
 import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.TvButtonSize
 import io.putdotio.sdk.files.PutioFileType
@@ -55,6 +57,13 @@ internal class TvMiniPlayerState {
 }
 
 @Composable
+internal fun TvMiniPlayer(playback: PlaybackController?, state: TvMiniPlayerState, onOpen: () -> Unit) {
+    if (playback == null) return
+    val playing by playback.state.collectAsStateWithLifecycle()
+    TvMiniPlayer(title = playing.target.name, state = state, onOpen = onOpen)
+}
+
+@Composable
 internal fun TvMiniPlayer(
     title: String,
     state: TvMiniPlayerState,
@@ -72,7 +81,9 @@ internal fun TvMiniPlayer(
                 painter = painterResource(
                     if (state.paused) DesignR.drawable.ic_ph_play_fill else DesignR.drawable.ic_ph_pause_fill,
                 ),
-                contentDescription = stringResource(if (state.paused) R.string.tv_player_play else R.string.tv_player_pause),
+                contentDescription = stringResource(
+                    if (state.paused) R.string.tv_player_play else R.string.tv_player_pause,
+                ),
                 modifier = Modifier.size(size.icon),
             )
         }

@@ -382,14 +382,11 @@ internal fun TvSessionShell(
             focusHomePane = homeReturn != null,
             offline = !online,
             trailing = {
-                playback?.takeIf { playbackInBackground }?.let { controller ->
-                    val playing by controller.state.collectAsStateWithLifecycle()
-                    TvMiniPlayer(
-                        title = playing.target.name,
-                        state = miniPlayer,
-                        onOpen = session::foregroundPlayback,
-                    )
-                }
+                TvMiniPlayer(
+                    playback = playback.takeIf { playbackInBackground },
+                    state = miniPlayer,
+                    onOpen = session::foregroundPlayback,
+                )
             },
             homePane = { paneFocus ->
                 val pinFailure by session.pins.editFailure.collectAsStateWithLifecycle()

@@ -148,6 +148,8 @@ internal enum class TvExternalOpen {
  * The controllers of one signed-in session. They survive navigation and configuration
  * changes together and are closed together when the session ends.
  */
+// One entry point per change the viewer makes to the signed-in session, which owns the state they share.
+@Suppress("TooManyFunctions")
 internal class TvSession internal constructor(
     dependencies: TvSessionDependencies,
     historyEnabled: Boolean,

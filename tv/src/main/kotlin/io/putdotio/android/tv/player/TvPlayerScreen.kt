@@ -1,5 +1,6 @@
 package io.putdotio.android.tv.player
 
+import android.content.Context
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import android.os.Build
@@ -85,6 +86,7 @@ import io.putdotio.android.playback.inFileSubtitleLanguage
 import io.putdotio.android.playback.withSubtitleSelection
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSourceKind
+import java.io.Closeable
 import java.util.UUID
 import kotlinx.coroutines.delay
 
@@ -261,7 +263,7 @@ private fun TvReadyPlayer(
 ) {
     val context = LocalContext.current
     val nowPlaying = target.mediaType == PlaybackMediaType.AUDIO
-    val keepsPlaying = nowPlaying && backgroundAudio.onBackground != null
+    val keepsPlaying = backgroundAudio.keepsPlaying(target.mediaType)
     val hidden = backgroundAudio.hidden
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     var stoppedAtMillis by rememberSaveable(source, key = "tv-player-stopped-at-$PROCESS_KEY-${target.fileId.value}") {
@@ -408,20 +410,14 @@ private fun TvReadyPlayer(
         player.playWhenReady = startsPlaying
         player.prepare()
         val positions = reporter.observe(player)
-        val sessionPlayer = tvSessionPlayer(
+        val session = playerFactory.publishSession(
+            context,
             player,
-            onSkipRequested = lifecycle.whileStarted { forward -> apply(overlay.skipTrack(forward)) }
-                .takeIf { nowPlaying },
-        ) { play ->
-            if (!play || keepsPlaying || lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
-                apply(overlay.sessionPlaying(play))
-            }
-        }
-        val session = if (keepsPlaying) {
-            playerFactory.publishInBackground(context, sessionPlayer)
-        } else {
-            playerFactory.publish(context, sessionPlayer)
-        }
+            lifecycle,
+            keepsPlaying,
+            onSkip = { forward: Boolean -> apply(overlay.skipTrack(forward)) }.takeIf { nowPlaying },
+            onPlaying = { play -> apply(overlay.sessionPlaying(play)) },
+        )
         onDispose {
             positions.close()
             session.close()
@@ -439,22 +435,13 @@ private fun TvReadyPlayer(
         )
     }
     BackHandler(enabled = !hidden) { apply(overlay.back(backgrounds = keepsPlaying)) }
-    LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
-        apply(overlay.cancelUpNext())
-        if (!keepsPlaying) apply(overlay.setPlaying(play = false))
-        apply(overlay.reveal())
-    }
-    backgroundAudio.miniPlayer?.takeIf { nowPlaying }?.let { mini ->
-        SideEffect { mini.show(paused = !playWhenReady) }
-        DisposableEffect(mini, player) {
-            val control: (Boolean) -> Unit = { play -> apply(overlay.setPlaying(play)) }
-            mini.bind(control)
-            onDispose { mini.unbind(control) }
-        }
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { leaveForeground({ overlay }, apply, keepsPlaying) }
+    BindMiniPlayer(backgroundAudio.miniPlayer.takeIf { nowPlaying }, player, paused = !playWhenReady) { play ->
+        apply(overlay.setPlaying(play))
     }
     LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) { stoppedAtMillis = player.currentPosition.coerceAtLeast(0L) }
     val view = LocalView.current
-    val keepScreenOn = !hidden && keepsScreenOn(playWhenReady, playbackState)
+    val keepScreenOn = keepsScreenOn(playWhenReady, playbackState, hidden)
     DisposableEffect(view, keepScreenOn) {
         view.keepScreenOn = keepScreenOn
         onDispose { view.keepScreenOn = false }
@@ -499,8 +486,8 @@ private fun TvReadyPlayer(
     }
     val nextTrack = overlay.focusesNextTrack(neighbours)
     val focus = remember { FocusRequester() }
-    val playerHoldsFocus = overlay.holdsPlayerFocus
-    LaunchedEffect(focus, playerHoldsFocus, hidden) { if (playerHoldsFocus && !hidden) focus.requestFocus() }
+    val playerHoldsFocus = overlay.holdsFocusWhenShown(hidden)
+    LaunchedEffect(focus, playerHoldsFocus) { if (playerHoldsFocus) focus.requestFocus() }
     if (!hidden) Box(
         modifier = Modifier
             .fillMaxSize()
@@ -751,7 +738,48 @@ private class TvBackgroundAudio(
     val hidden: Boolean,
     val onBackground: (() -> Unit)?,
     val miniPlayer: TvMiniPlayerState?,
-)
+) {
+    fun keepsPlaying(mediaType: PlaybackMediaType): Boolean =
+        mediaType == PlaybackMediaType.AUDIO && onBackground != null
+}
 
-private fun keepsScreenOn(playWhenReady: Boolean, playbackState: Int): Boolean =
-    playWhenReady && playbackState != Player.STATE_ENDED && playbackState != Player.STATE_IDLE
+@Composable
+private fun BindMiniPlayer(mini: TvMiniPlayerState?, player: Player, paused: Boolean, setPlaying: (Boolean) -> Unit) {
+    if (mini == null) return
+    val currentSetPlaying by rememberUpdatedState(setPlaying)
+    SideEffect { mini.show(paused) }
+    DisposableEffect(mini, player) {
+        val control: (Boolean) -> Unit = { play -> currentSetPlaying(play) }
+        mini.bind(control)
+        onDispose { mini.unbind(control) }
+    }
+}
+
+private fun leaveForeground(
+    overlay: () -> TvPlayerOverlay,
+    apply: (TvPlayerTransition) -> Unit,
+    keepsPlaying: Boolean,
+) {
+    apply(overlay().cancelUpNext())
+    if (!keepsPlaying) apply(overlay().setPlaying(play = false))
+    apply(overlay().reveal())
+}
+
+private fun TvPlayerFactory.publishSession(
+    context: Context,
+    player: Player,
+    lifecycle: Lifecycle,
+    keepsPlaying: Boolean,
+    onSkip: ((Boolean) -> Unit)?,
+    onPlaying: (Boolean) -> Unit,
+): Closeable {
+    val sessionPlayer = tvSessionPlayer(player, onSkipRequested = onSkip?.let(lifecycle::whileStarted)) { play ->
+        if (!play || keepsPlaying || lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) onPlaying(play)
+    }
+    return if (keepsPlaying) publishInBackground(context, sessionPlayer) else publish(context, sessionPlayer)
+}
+
+private fun TvPlayerOverlay.holdsFocusWhenShown(hidden: Boolean): Boolean = !hidden && holdsPlayerFocus
+
+private fun keepsScreenOn(playWhenReady: Boolean, playbackState: Int, hidden: Boolean): Boolean =
+    !hidden && playWhenReady && playbackState != Player.STATE_ENDED && playbackState != Player.STATE_IDLE

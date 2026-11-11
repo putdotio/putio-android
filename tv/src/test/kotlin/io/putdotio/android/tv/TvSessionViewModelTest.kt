@@ -97,6 +97,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
+// Every test drives one TvSession through the same fakes, which a split would duplicate.
+@Suppress("LargeClass")
 @OptIn(ExperimentalCoroutinesApi::class)
 class TvSessionViewModelTest {
     private val auth = MutableStateFlow<TvAuthState>(signedIn(1))

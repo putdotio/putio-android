@@ -131,8 +131,44 @@ class TvPlaybackLayerTest {
     }
 
     @Test
-    fun backFromBackgroundAudioKeepsItPlayingUnderAMiniPlayerThatReopensIt() {
+    fun backFromAudioKeepsItPlayingUnderAMiniPlayerAndFocusesItsFilesRow() {
         val player = FakePlayer()
+        val audio = playAudioWithMiniPlayer(player)
+
+        compose.back()
+
+        compose.onNodeWithContentDescription("Play song.mp3").assertIsFocused()
+        compose.onNodeWithTag(TV_NOW_PLAYING_TAG).assertDoesNotExist()
+        compose.onNodeWithTag(TV_MINI_PLAYER_TAG).assertIsDisplayed()
+        compose.runOnIdle {
+            assertTrue(audio.background)
+            assertTrue(audio.playing != null)
+            assertFalse(player.released)
+            assertTrue(player.playWhenReady)
+        }
+    }
+
+    @Test
+    fun theMiniPlayerPausesAndReopensThePlayer() {
+        val player = FakePlayer()
+        val audio = playAudioWithMiniPlayer(player)
+        compose.back()
+
+        compose.onNodeWithContentDescription("Pause").performSemanticsAction(SemanticsActions.OnClick)
+        compose.runOnIdle { assertFalse(player.playWhenReady) }
+        compose.onNodeWithContentDescription("Play").assertIsDisplayed()
+
+        compose.onNodeWithContentDescription("Open player").performSemanticsAction(SemanticsActions.OnClick)
+        compose.onNodeWithTag(TV_NOW_PLAYING_TAG).assertIsDisplayed()
+        compose.onNodeWithTag(TV_MINI_PLAYER_TAG).assertDoesNotExist()
+        compose.onNodeWithTag(TV_PLAYER_TAG).assertIsFocused()
+        compose.runOnIdle {
+            assertFalse(audio.background)
+            assertFalse(player.released)
+        }
+    }
+
+    private fun playAudioWithMiniPlayer(player: FakePlayer): BackgroundAudio {
         val files = filesBrowserState(
             stack = listOf(
                 FilesFolderState(
@@ -145,79 +181,22 @@ class TvPlaybackLayerTest {
             ),
             nextRequestValue = 10L,
         )
-        var playing by mutableStateOf<FilesItem?>(null)
-        var background by mutableStateOf(false)
-        val miniPlayer = TvMiniPlayerState()
-        val song = readyState(name = "song.mp3", mediaType = PlaybackMediaType.AUDIO)
-        val factory = TvPlayerFactory { _, _ -> player }
-        compose.setTvContent {
-            TvPlaybackLayer(
-                playing = playing != null,
-                background = background,
-                player = {
-                    TvPlayerScreen(
-                        state = song,
-                        onBack = { playing = null },
-                        onRetry = {},
-                        onResume = {},
-                        onRestart = {},
-                        onPlayerFailure = { _, _ -> },
-                        playerFactory = factory,
-                        background = background,
-                        onBackground = { background = true },
-                        miniPlayer = miniPlayer,
-                    )
-                },
-            ) {
-                TvShell(
-                    account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
-                    onSignOut = {},
-                    filesPane = { paneFocus ->
-                        TvFilesScreen(
-                            state = files,
-                            onEvent = { true },
-                            onPlayMedia = { playing = it },
-                            modifier = Modifier.focusRequester(paneFocus),
-                            focusMemory = mutableMapOf(),
-                        )
-                    },
-                    trailing = {
-                        playing?.takeIf { background }?.let { item ->
-                            TvMiniPlayer(title = item.name, state = miniPlayer, onOpen = { background = false })
-                        }
-                    },
-                )
-            }
-        }
+        val audio = BackgroundAudio()
+        setFilesWithPlayback(
+            files,
+            mutableMapOf(),
+            player,
+            playing = { audio.playing },
+            onPlaying = { audio.playing = it },
+            background = audio,
+        )
         compose.openTab(TvDestination.Files)
         compose.onNodeWithContentDescription("notes.txt").assertIsFocused().performKeyInput {
             pressKey(Key.DirectionDown)
         }
         compose.onNodeWithContentDescription("Play song.mp3").assertIsFocused().performKeyInput { pressCenter() }
         compose.onNodeWithTag(TV_NOW_PLAYING_TAG).assertIsDisplayed()
-
-        compose.back()
-
-        compose.onNodeWithContentDescription("Play song.mp3").assertIsFocused()
-        compose.onNodeWithTag(TV_NOW_PLAYING_TAG).assertDoesNotExist()
-        compose.onNodeWithTag(TV_MINI_PLAYER_TAG).assertIsDisplayed()
-        compose.runOnIdle {
-            assertFalse(player.released)
-            assertTrue(player.playWhenReady)
-        }
-
-        compose.onNodeWithContentDescription("Pause").performSemanticsAction(SemanticsActions.OnClick)
-        compose.runOnIdle { assertFalse(player.playWhenReady) }
-        compose.onNodeWithContentDescription("Play").assertIsDisplayed()
-
-        compose.onNodeWithContentDescription("Open player").performSemanticsAction(SemanticsActions.OnClick)
-        compose.onNodeWithTag(TV_NOW_PLAYING_TAG).assertIsDisplayed()
-        compose.onNodeWithTag(TV_MINI_PLAYER_TAG).assertDoesNotExist()
-        compose.onNodeWithTag(TV_PLAYER_TAG).assertIsFocused()
-        compose.runOnIdle {
-            assertFalse(player.released)
-            assertTrue(playing != null)
-        }
+        return audio
     }
 
     @Test
@@ -280,10 +259,12 @@ class TvPlaybackLayerTest {
         player: FakePlayer,
         playing: () -> FilesItem?,
         onPlaying: (FilesItem?) -> Unit,
+        background: BackgroundAudio? = null,
     ) {
         compose.setTvContent {
             TvPlaybackLayer(
                 playing = playing() != null,
+                background = background?.background == true,
                 player = {
                     val item = checkNotNull(playing())
                     TvPlayerScreen(
@@ -297,6 +278,9 @@ class TvPlaybackLayerTest {
                         onRestart = {},
                         onPlayerFailure = { _, _ -> },
                         playerFactory = { _, _ -> player },
+                        background = background?.background == true,
+                        onBackground = background?.let { audio -> { audio.background = true } },
+                        miniPlayer = background?.miniPlayer,
                     )
                 },
             ) {
@@ -312,9 +296,25 @@ class TvPlaybackLayerTest {
                             focusMemory = focusMemory,
                         )
                     },
+                    trailing = {
+                        val item = playing()
+                        if (background != null && background.background && item != null) {
+                            TvMiniPlayer(
+                                title = item.name,
+                                state = background.miniPlayer,
+                                onOpen = { background.background = false },
+                            )
+                        }
+                    },
                 )
             }
         }
+    }
+
+    private class BackgroundAudio {
+        var playing by mutableStateOf<FilesItem?>(null)
+        var background by mutableStateOf(false)
+        val miniPlayer = TvMiniPlayerState()
     }
 
     private fun row(id: Long, name: String, type: PutioFileType) = FilesItem(
