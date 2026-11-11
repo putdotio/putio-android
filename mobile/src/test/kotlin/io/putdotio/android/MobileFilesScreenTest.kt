@@ -334,7 +334,7 @@ class MobileFilesScreenTest {
         compose.runOnIdle {
             state = browserState(FilesContent.Empty(FilesPaging.Complete))
         }
-        compose.onNodeWithText("Empty folder").assertIsDisplayed()
+        compose.onNodeWithText("No files whatsoever!").assertIsDisplayed()
         val emptyRefreshAction = compose.onNodeWithTag(MOBILE_FILES_REFRESH_TAG)
             .fetchSemanticsNode().config[SemanticsActions.CustomActions]
             .single { it.label == "Refresh files" }
@@ -375,6 +375,21 @@ class MobileFilesScreenTest {
         }
         compose.onNodeWithText("put.io is temporarily unavailable. Try again.").assertIsDisplayed()
         compose.onNodeWithText("not a folder").assertDoesNotExist()
+    }
+
+    @Test
+    fun anEmptyFolderOffersToCreateAFolder() {
+        var newFolderRequests = 0
+        val state = browserState(FilesContent.Empty(FilesPaging.Complete))
+        compose.setContent {
+            PutioTheme {
+                MobileFilesScreen(state, onEvent = {}, onPlayMedia = {}, onNewFolder = { newFolderRequests++ })
+            }
+        }
+        compose.onNodeWithText("No files whatsoever!").assertIsDisplayed()
+        compose.onNodeWithText("Maybe you’d like to create a new folder?").assertIsDisplayed()
+        compose.onNodeWithText("Create folder").performClick()
+        compose.runOnIdle { assertEquals(1, newFolderRequests) }
     }
 
     @Test
@@ -673,7 +688,7 @@ class MobileFilesListTest {
             state = browserState(FilesContent.Empty(FilesPaging.Complete))
         }
         val refreshBounds = compose.onNodeWithTag(MOBILE_FILES_REFRESH_TAG).fetchSemanticsNode().boundsInRoot
-        val emptyMessageBounds = compose.onNodeWithText("Empty folder").fetchSemanticsNode().boundsInRoot
+        val emptyMessageBounds = compose.onNodeWithText("No files whatsoever!").fetchSemanticsNode().boundsInRoot
         assertTrue(
             kotlin.math.abs(emptyMessageBounds.center.y - refreshBounds.center.y) < refreshBounds.height / 4f,
         )

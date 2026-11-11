@@ -129,7 +129,7 @@ class TvFilesScreenTest {
     @Test
     fun anEmptyFolderHoldsFocusOnItsEmptyStateWithoutControls() {
         compose.showFiles(state = { state(FilesContent.Empty(FilesPaging.Complete)) })
-        compose.onNodeWithText("Empty folder.").assertIsDisplayed().assertIsFocused()
+        compose.onNodeWithText("No files whatsoever!").assertIsDisplayed().assertIsFocused()
         compose.onNodeWithText("Files you add to this folder on put.io show up here.").assertIsDisplayed()
         compose.onAllNodesWithText("Sort").assertCountEquals(0)
         compose.onAllNodesWithText("Refresh").assertCountEquals(0)
