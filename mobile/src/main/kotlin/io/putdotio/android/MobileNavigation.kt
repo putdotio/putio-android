@@ -81,6 +81,7 @@ import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.playback.rememberFolderNeighbours
 import io.putdotio.android.playback.SubtitleStartupPolicy
 import io.putdotio.android.playback.confirmedAutoplayNextVideo
+import io.putdotio.android.playback.confirmedRotateToLandscape
 import io.putdotio.android.playback.confirmedStreamingMethod
 import io.putdotio.android.playback.dispatch
 import io.putdotio.android.playback.mobilePlaybackViewModelFactory
@@ -424,6 +425,7 @@ internal fun MobileNavHost(
                             analytics = playbackViewModel.analytics,
                             subtitleStartupPolicy = subtitleStartupPolicy,
                             autoplayNextVideo = appConfigState.confirmedAutoplayNextVideo(),
+                            rotateToLandscape = appConfigState.confirmedRotateToLandscape(),
                             onAuthenticationRequired = onPlaybackAuthenticationRequired,
                             onBack = navController::popBackStack,
                             playerFactory = playbackPlayerFactory,
@@ -489,6 +491,7 @@ private fun MobilePlaybackRoute(
     analytics: PlaybackAnalyticsReporter,
     subtitleStartupPolicy: SubtitleStartupPolicy?,
     autoplayNextVideo: Boolean,
+    rotateToLandscape: Boolean,
     onAuthenticationRequired: suspend () -> Unit,
     onBack: () -> Unit,
     playerFactory: MobilePlayerFactory,
@@ -543,6 +546,7 @@ private fun MobilePlaybackRoute(
         onBack = onBack,
         subtitleStartupPolicy = subtitleStartupPolicy,
         autoplayNextVideo = autoplayNextVideo,
+        rotateToLandscape = rotateToLandscape,
         onPlaybackEnded = { controller.dispatch(PlaybackEvent.PlayerEnded) },
         analytics = analytics,
         playerFactory = playerFactory,

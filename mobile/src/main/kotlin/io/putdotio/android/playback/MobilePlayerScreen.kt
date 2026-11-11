@@ -114,6 +114,7 @@ internal fun MobilePlayerScreen(
     modifier: Modifier = Modifier,
     onOriginalRejected: (PlaybackFallbackReason, Long) -> Boolean = { _, _ -> false },
     autoplayNextVideo: Boolean = false,
+    rotateToLandscape: Boolean = true,
     onPlaybackEnded: () -> Unit = {},
     /** The file's end, whatever autoplay does next, and Cast handovers. */
     analytics: PlaybackAnalyticsReporter = PlaybackAnalyticsReporter.None,
@@ -142,7 +143,11 @@ internal fun MobilePlayerScreen(
     val preferences = rememberRetainedPlayerPreferences(state.target.fileId.value)
     val pictureInPicture = rememberPictureInPictureMode()
     if (state.target.mediaType == PlaybackMediaType.VIDEO) {
-        MobileVideoWindow(fileId = state.target.fileId.value, landscape = landscapeVideo)
+        MobileVideoWindow(
+            fileId = state.target.fileId.value,
+            landscape = landscapeVideo,
+            rotateToLandscape = rotateToLandscape,
+        )
         // A closed window stopped the video; the next visit finds it paused instead of playing on.
         PictureInPictureDismissalEffect { preferences.resumeAfterLifecyclePause = false }
     }

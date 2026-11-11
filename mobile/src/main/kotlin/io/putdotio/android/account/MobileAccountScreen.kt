@@ -268,6 +268,7 @@ private fun LazyListScope.playbackItems(
                 }
             },
             config?.let { preferences -> SettingsRow { rows.AutoplayNext(it, preferences) } },
+            config?.let { preferences -> SettingsRow { rows.RotateToLandscape(it, preferences) } },
             config?.let { preferences -> SettingsRow { rows.PlaybackMethod(it, preferences) } },
             settings?.let { preferences -> SettingsRow { rows.Proxy(it, preferences) } },
         ),
@@ -501,19 +502,46 @@ private class AccountRows(
 
     @Composable
     fun AutoplayNext(segment: SettingsSegment, preferences: AndroidAppConfigPreferences) {
-        val mutation = appConfigState.mutation
-        val change = { candidate: AndroidAppConfigChange? -> candidate is AndroidAppConfigChange.AutoplayNextVideo }
-        SwitchSegment(
+        ConfigSwitch(
             segment = segment,
             title = R.string.mobile_settings_autoplay_next,
             icon = R.drawable.ic_ph_skip_forward,
             checked = preferences.autoplayNextVideo,
+            change = AndroidAppConfigChange::AutoplayNextVideo,
+        )
+    }
+
+    @Composable
+    fun RotateToLandscape(segment: SettingsSegment, preferences: AndroidAppConfigPreferences) {
+        ConfigSwitch(
+            segment = segment,
+            title = R.string.mobile_settings_rotate_to_landscape,
+            icon = R.drawable.ic_ph_device_rotate,
+            checked = preferences.rotateToLandscape,
+            change = AndroidAppConfigChange::RotateToLandscape,
+        )
+    }
+
+    @Composable
+    private fun ConfigSwitch(
+        segment: SettingsSegment,
+        @StringRes title: Int,
+        icon: Int,
+        checked: Boolean,
+        change: (Boolean) -> AndroidAppConfigChange,
+    ) {
+        val mutation = appConfigState.mutation
+        val kind = change(checked)::class
+        val matches = { candidate: AndroidAppConfigChange? -> candidate != null && candidate::class == kind }
+        SwitchSegment(
+            segment = segment,
+            title = title,
+            icon = icon,
+            checked = checked,
             enabled = configEnabled,
-            saving = change((mutation as? AndroidAppConfigMutation.Saving)?.change),
-            onToggle = {
-                onAppConfigEvent(AndroidAppConfigEvent.ChangeRequested(AndroidAppConfigChange.AutoplayNextVideo(it)))
-            },
-            failure = (mutation as? AndroidAppConfigMutation.Failed)?.takeIf { change(it.change) }?.let { failed ->
+            saving = matches((mutation as? AndroidAppConfigMutation.Saving)?.change),
+            onToggle = { onAppConfigEvent(AndroidAppConfigEvent.ChangeRequested(change(it))) },
+            failure = (mutation as? AndroidAppConfigMutation.Failed)?.takeIf { matches(it.change) }?.let { failed ->
                 { MobileAppConfigMutationError(failed.failure, failed.operation) { onRetryConfig() } }
             },
         )

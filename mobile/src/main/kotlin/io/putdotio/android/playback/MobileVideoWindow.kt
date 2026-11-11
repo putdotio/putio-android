@@ -19,7 +19,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 
 @Composable
-internal fun MobileVideoWindow(fileId: Long, landscape: Boolean) {
+internal fun MobileVideoWindow(fileId: Long, landscape: Boolean, rotateToLandscape: Boolean) {
     val activity = LocalActivity.current ?: return
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val configuration = LocalConfiguration.current
@@ -27,7 +27,7 @@ internal fun MobileVideoWindow(fileId: Long, landscape: Boolean) {
     val original = rememberSaveable(saver = VideoWindowBaselineSaver) { activity.captureVideoWindowBaseline() }
     val requestedOrientation = videoWindowOrientation(
         original = original.requestedOrientation,
-        landscape = landscape,
+        landscape = landscape && rotateToLandscape,
         smallestWidthDp = configuration.smallestScreenWidthDp,
         // Picture-in-picture is multi-window too, but expanding it must return to the video's own shape.
         multiWindow = activity.isInMultiWindowMode && !activity.isInPictureInPictureMode,
