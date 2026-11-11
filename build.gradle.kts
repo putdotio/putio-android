@@ -82,26 +82,21 @@ tasks.register<GenerateIconsTask>("generateIcons") {
     repositoryRoot.set(layout.projectDirectory)
 }
 
-val checkDesignAssets = tasks.register<Exec>("checkDesignAssets") {
+val designAssetsLock = layout.projectDirectory.file(DesignAssets.LOCK_PATH)
+
+val checkDesignAssets = tasks.register<CheckDesignAssetsTask>("checkDesignAssets") {
+    group = "verification"
     description = "Verify locked @putdotio/design assets without network access"
-    cacheableCheck(
-        fileTree("design"),
-        "core/design/src/main/res/drawable/putio_wordmark.xml",
-        "mobile/src/main/res/drawable/putio_launcher_monochrome.xml",
-        fileTree("core/design/src/main/res") { include("drawable-*/putio_icon.png") },
-        fileTree("mobile/src/main/res") { include("drawable-*/putio_launcher_art.png") },
-        fileTree("mobile/src/nightly/res"),
-        fileTree("mobile/src/debug/res"),
-        fileTree("tv/src/nightly/res"),
-    )
-    commandLine(bash, "scripts/sync-design-assets.sh", "--check")
+    lockFile.set(designAssetsLock)
+    assetFiles.from(DesignAssets.OUTPUT_PATHS)
+    repositoryRoot.set(layout.projectDirectory)
+    report.set(layout.buildDirectory.file("verification/checkDesignAssets.txt"))
 }
 
-val testDesignAssetPipeline = tasks.register<Exec>("testDesignAssetPipeline") {
-    description = "Test the @putdotio/design lock and drift contracts"
-    cacheableCheck()
-    environment("PYTHONDONTWRITEBYTECODE", "1")
-    commandLine("python3", "scripts/test_design_assets.py")
+tasks.register<SyncDesignAssetsTask>("syncDesignAssets") {
+    description = "Write the locked @putdotio/design assets from the npm registry"
+    lockFile.set(designAssetsLock)
+    repositoryRoot.set(layout.projectDirectory)
 }
 
 tasks.register<SyncBrandFontsTask>("syncBrandFonts") {
@@ -173,7 +168,6 @@ val verifyScripts = verifyLane(
     "Run the harness, design asset and icon script checks",
     checkDesignAssets,
     checkIcons,
-    testDesignAssetPipeline,
     testEmulatorHarness,
     testEvidence,
     testSignInHarness,

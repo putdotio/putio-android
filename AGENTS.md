@@ -31,12 +31,12 @@ script headers and `--help` own the harness.
 - A change to TV startup, sign-in or Home regenerates the TV baseline profile
   with `scripts/generate-baseline-profile.sh` on an emulator you booted.
 - Never hand-write design values or edit generated output.
-  `scripts/sync-design-assets.sh` (macOS only) and `./gradlew generateIcons`
-  write them from the locks in `design/`.
+  `./gradlew syncDesignAssets` and `./gradlew generateIcons` write them from the
+  locks in `design/`.
 - To take a design release:
   1. Set the lock's version, tarball, and `integrity`
      (`npm view @putdotio/design@<version> dist.integrity`).
-  2. Run the sync.
+  2. Run `./gradlew syncDesignAssets`.
   3. Replace each digest it reports as unlocked.
 
 ## Hazards
@@ -137,7 +137,7 @@ that matches. Report skipped or unavailable proof.
 | UI, navigation, playback, or launch | Mobile: the affected feature in [verify-putio-android](.agents/skills/verify-putio-android/SKILL.md); TV: `./scripts/prove.sh tv` or its opt-in `*ProofTest` lane   |
 | Google Play delivery                | `./gradlew -PputioVersionName=3.0.1 :mobile:bundleProductionRelease :tv:bundleProductionRelease`, then a `dry_run` of [Google Play delivery](#google-play-delivery) |
 | Live API behavior                   | Mobile: [verify-putio-android](.agents/skills/verify-putio-android/SKILL.md) with its fixture ledger; TV: the lane's `devs-auto` steps                              |
-| Design tokens or icons              | `./scripts/sync-design-assets.sh` or `./gradlew generateIcons`, then `./gradlew verify`                                                                             |
+| Design tokens or icons              | `./gradlew syncDesignAssets` or `./gradlew generateIcons`, then `./gradlew verify`                                                                                  |
 | Visible change                      | Reviewed captures from `.evidence/`, attached with `gh pr comment <n> --attach <file>`                                                                              |
 
 Docs stay high level: a new product area or module boundary updates
