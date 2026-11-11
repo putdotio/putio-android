@@ -75,8 +75,7 @@ import kotlinx.coroutines.withContext
 
 /**
  * The image, fitted to the frame over a checkerboard. Coil decodes it at the frame's size, never at
- * its own, so a 50-megapixel photo costs one screen of memory. Bytes that don't arrive offer Try
- * again; bytes that don't decode offer another app.
+ * its own, so a 50-megapixel photo costs one screen of memory.
  */
 @Composable
 internal fun MobileImagePage(
@@ -106,7 +105,9 @@ private fun Throwable.isLoadFailure(): Boolean =
     this is IOException && this !is FilesPdfUnreadable && !isImageDecodeFailure()
 
 private fun Throwable.isImageDecodeFailure(): Boolean =
-    Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && this is ImageDecoder.DecodeException
+    Build.VERSION.SDK_INT >= Build.VERSION_CODES.P &&
+        this is ImageDecoder.DecodeException &&
+        error != ImageDecoder.DecodeException.SOURCE_EXCEPTION
 
 @Composable
 private fun SubcomposeAsyncImageScope.MobileImageContent(zoom: MobileViewerZoom?) {
@@ -156,10 +157,7 @@ private sealed interface PdfState {
     data object Failed : PdfState
 }
 
-/**
- * The document's pages down one column at the frame's width, each rendered while it is on screen.
- * Bytes that don't arrive offer Try again; a document the renderer refuses offers another app.
- */
+/** The document's pages down one column at the frame's width, each rendered while it is on screen. */
 @Composable
 internal fun MobilePdfPage(
     file: FilesItem,
@@ -285,10 +283,7 @@ private sealed interface TextState {
     data object Failed : TextState
 }
 
-/**
- * The file's start in mono, line by line; past [TEXT_PREVIEW_LIMIT_BYTES] it says so and offers
- * another app. Bytes that don't arrive offer Try again.
- */
+/** The file's start in mono, line by line; past [TEXT_PREVIEW_LIMIT_BYTES] it says so and offers another app. */
 @Composable
 internal fun MobileTextPage(uri: Uri, onOpenWithAnotherApp: () -> Unit) {
     val context = LocalContext.current
