@@ -31,6 +31,14 @@ import kotlinx.coroutines.SupervisorJob
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import android.os.Looper
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import java.time.Duration
+import org.robolectric.Shadows.shadowOf
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -159,6 +167,42 @@ class TvPlayerResumeTest {
             val (fileId, seconds) = writes.single()
             assertEquals(9L, fileId)
             assertTrue("Exit position $seconds s", seconds in 61.0..62.0)
+        }
+        reporting.close()
+    }
+
+    @Test
+    fun backgroundAudioKeepsWritingItsPositionEveryTickWhileTheAppIsStopped() {
+        val player = FakePlayer()
+        val writes = mutableListOf<Pair<Long, Double>>()
+        val reporting = reporting(writes)
+        val owner = object : LifecycleOwner {
+            val registry = LifecycleRegistry(this).apply { currentState = Lifecycle.State.RESUMED }
+            override val lifecycle: Lifecycle get() = registry
+        }
+        compose.setTvContent {
+            CompositionLocalProvider(LocalLifecycleOwner provides owner) {
+                TvPlayerScreen(
+                    state = readyState(name = "song.mp3", useStartFrom = true, mediaType = PlaybackMediaType.AUDIO),
+                    onBack = {},
+                    onRetry = {},
+                    onResume = {},
+                    onRestart = {},
+                    onPlayerFailure = { _, _ -> },
+                    playerFactory = { _, _ -> player },
+                    reporter = reporting,
+                    onBackground = {},
+                )
+            }
+        }
+        compose.runOnIdle { owner.registry.currentState = Lifecycle.State.CREATED }
+        compose.runOnIdle { player.advanceTo(31_000L) }
+
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(16))
+
+        compose.runOnIdle {
+            assertTrue(player.playWhenReady)
+            assertEquals(listOf(9L to 31.0), writes)
         }
         reporting.close()
     }
