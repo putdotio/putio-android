@@ -86,6 +86,7 @@ import io.putdotio.android.tv.TvLinkScreen
 import io.putdotio.android.tv.TvOfflineScreen
 import io.putdotio.android.tv.TvSession
 import io.putdotio.android.tv.TvUndoFailure
+import io.putdotio.android.tv.TvBrief
 import io.putdotio.android.tv.TvSessionDependencies
 import io.putdotio.android.tv.TvSessionKey
 import io.putdotio.android.tv.TvSessionViewModel
@@ -113,7 +114,6 @@ import io.putdotio.android.tv.search.TvRecentSearchActions
 import io.putdotio.android.tv.search.TvSearchActions
 import io.putdotio.android.tv.search.TvSearchScreen
 import io.putdotio.android.tv.search.TvSearchDetail
-import io.putdotio.android.tv.search.TvSearchDialogNotice
 import io.putdotio.android.tv.search.TvSearchItemActions
 import io.putdotio.android.tv.search.TvSearchResultActions
 import io.putdotio.android.tv.files.TvFilesActionContext
@@ -592,17 +592,14 @@ private fun TvFilesPane(
         pinnedIds = pins,
         onSetPinned = { item, pinned -> if (pinned) session.pins.pin(item.id) else session.pins.unpin(item.id) },
         trashUndo = session.trashUndoOffer,
-        notice = linkNotice.text()
-            ?: filesNoticeText(filesNotice, streamFailure, fileActionFailure, undoFailure, pinFailure),
-        noticeMessage = filesNoticeMessage(linkNotice.shown, filesNotice),
-        // OK clears only what it was shown; a failure that arrived behind a VLC
-        // notice is shown next.
+        notice = linkNotice.text() ?: undoFailureText(undoFailure),
         onDismissNotice = {
+            if (linkNotice.shown) linkNotice.onDismiss() else session.trashUndo.dismissFailure()
+        },
+        brief = filesBrief(filesNotice, streamFailure, pinFailure, fileActionFailure) {
             when {
-                linkNotice.shown -> linkNotice.onDismiss()
                 filesNotice != null -> filesNotice = null
                 streamFailure != null -> streamFailure = null
-                undoFailure.shown() -> session.trashUndo.dismissFailure()
                 pinFailure.shown() -> session.pins.dismissEditFailure()
                 else -> session.dismissFileActionFailure()
             }
@@ -685,33 +682,30 @@ private class TvLinkNotice(
     fun text(): String? = shownFailure?.let { stringResource(R.string.tv_link_open_error, it.tvMessageText()) }
 }
 
-@Composable
-private fun filesNoticeMessage(linkNoticeShown: Boolean, filesNotice: Int?): String? =
-    if (!linkNoticeShown && filesNotice == R.string.tv_files_vlc_missing) {
-        stringResource(R.string.tv_files_vlc_missing_message)
-    } else {
-        null
-    }
-
 private fun TvUndoFailure?.shown(): Boolean = this != null && failure !is PutioFailure.AuthenticationRequired
 
 internal fun PutioFailure?.shown(): Boolean = this != null && this !is PutioFailure.AuthenticationRequired
 
 @Composable
-private fun filesNoticeText(
-    filesNotice: Int?,
+private fun undoFailureText(undoFailure: TvUndoFailure?): String? =
+    undoFailure?.takeIf { it.shown() }
+        ?.let { stringResource(R.string.tv_files_undo_failed, it.itemName, it.failure.tvMessageText()) }
+
+@Composable
+private fun filesBrief(
+    vlcNotice: Int?,
     streamFailure: PutioFailure?,
-    fileActionFailure: PutioFailure?,
-    undoFailure: TvUndoFailure?,
     pinFailure: PutioFailure?,
-): String? =
-    filesNotice?.let { stringResource(it) }
+    fileActionFailure: PutioFailure?,
+    onShown: () -> Unit,
+): TvBrief? {
+    val text = vlcNotice?.let { stringResource(it) }
         ?: streamFailure?.let { stringResource(R.string.tv_files_stream_error, it.tvMessageText()) }
-        ?: undoFailure?.takeIf { it.shown() }
-            ?.let { stringResource(R.string.tv_files_undo_failed, it.itemName, it.failure.tvMessageText()) }
         ?: pinFailure?.takeIf { it.shown() }?.let { stringResource(R.string.tv_files_pin_error, it.tvMessageText()) }
-        ?: fileActionFailure?.takeUnless { it is PutioFailure.AuthenticationRequired }
+        ?: fileActionFailure?.takeIf { it.shown() }
             ?.let { stringResource(R.string.tv_files_watched_error, it.tvMessageText()) }
+    return text?.let { TvBrief(it, onShown) }
+}
 
 @Composable
 private fun TvSearchPane(
@@ -747,7 +741,6 @@ private fun TvSearchPane(
     )
     val currentPins by rememberUpdatedState(pins)
     val currentContext by rememberUpdatedState(actionContext)
-    val noticeTitle = filesNoticeText(vlcNotice, streamFailure, fileActionFailure, null, pinFailure)
     TvSearchScreen(
         state = searchState,
         actions = remember(session) { tvSearchActions(session, onQueryEdited = onQueryEdited) },
@@ -810,19 +803,13 @@ private fun TvSearchPane(
             resumePlayback = resumePlayback,
             viewerUrl = session::originalStreamUrl,
         ),
-        dialogNotice = noticeTitle?.let { title ->
-            TvSearchDialogNotice(
-                title = title,
-                message = filesNoticeMessage(linkNoticeShown = false, filesNotice = vlcNotice),
-                onDismiss = {
-                    when {
-                        vlcNotice != null -> vlcNotice = null
-                        streamFailure != null -> streamFailure = null
-                        pinFailure.shown() -> session.pins.dismissEditFailure()
-                        else -> session.dismissFileActionFailure()
-                    }
-                },
-            )
+        brief = filesBrief(vlcNotice, streamFailure, pinFailure, fileActionFailure) {
+            when {
+                vlcNotice != null -> vlcNotice = null
+                streamFailure != null -> streamFailure = null
+                pinFailure.shown() -> session.pins.dismissEditFailure()
+                else -> session.dismissFileActionFailure()
+            }
         },
     )
 }

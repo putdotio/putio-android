@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -131,9 +130,11 @@ internal fun TvPlayerScreen(
     onPlayInVlc: (() -> Unit)? = null,
     neighbours: PlaybackNeighbours? = PlaybackNeighbours(),
     manifestSubtitles: List<PlaybackSubtitle>? = null,
+    notices: TvSnackbarState? = null,
 ) {
     BackHandler(enabled = state.content !is PlaybackContent.Ready, onBack = onBack)
     val nowPlayingFocus = remember { mutableStateOf(TvPlayerControl.SeekBar) }
+    val playerNotices = rememberPlayerNotices(notices)
     Box(modifier = modifier.fillMaxSize().background(Color.Black)) {
         when (val content = state.content) {
             is PlaybackContent.Ready ->
@@ -159,6 +160,7 @@ internal fun TvPlayerScreen(
                     neighbours = neighbours,
                     nowPlayingFocus = nowPlayingFocus,
                     manifestSubtitles = manifestSubtitles,
+                    snackbar = playerNotices,
                 )
 
             is PlaybackContent.AwaitingResume -> {
@@ -202,6 +204,22 @@ internal fun TvPlayerScreen(
 
             PlaybackContent.Ended -> LaunchedEffect(Unit) { onBack() }
         }
+        TvOwnNotices(shown = notices == null, playerNotices)
+    }
+}
+
+@Composable
+private fun rememberPlayerNotices(shared: TvSnackbarState?): TvSnackbarState {
+    val own = remember { TvSnackbarState() }
+    return shared ?: own
+}
+
+@Composable
+private fun TvOwnNotices(shown: Boolean, notices: TvSnackbarState) {
+    if (shown) {
+        Box(modifier = Modifier.fillMaxSize().tvPlayerEdges()) {
+            TvSnackbarHost(notices, Modifier.align(Alignment.BottomStart), raised = true)
+        }
     }
 }
 
@@ -228,6 +246,7 @@ private fun TvReadyPlayer(
     neighbours: PlaybackNeighbours?,
     nowPlayingFocus: MutableState<TvPlayerControl>,
     manifestSubtitles: List<PlaybackSubtitle>?,
+    snackbar: TvSnackbarState,
 ) {
     val context = LocalContext.current
     val nowPlaying = target.mediaType == PlaybackMediaType.AUDIO
@@ -249,7 +268,6 @@ private fun TvReadyPlayer(
     val recovery = remember(player) {
         TvTrackRecovery(prepared.mediaItem.sidecarSubtitleUris(), player::manifestSubtitleUris)
     }
-    val snackbar = remember(player) { TvSnackbarState() }
     val subtitlesFailed by rememberUpdatedState(stringResource(R.string.tv_player_subtitles_failed))
     val audioFailed by rememberUpdatedState(stringResource(R.string.tv_player_audio_failed))
     val currentOnPlayerFailure by rememberUpdatedState(onPlayerFailure)
@@ -494,7 +512,7 @@ private fun TvReadyPlayer(
     val appearance = rememberSubtitleAppearanceStore()
     TvSubtitleOffsetEffect(player, options.subtitleOffsetMillis)
 
-    LaunchedEffect(overlay.controlsVisible, overlay.activity, playWhenReady, overlay.scrub == null, overlay.sheet) {
+    LaunchedEffect(overlay.controlsVisible, overlay.activity, playWhenReady, overlay.sheet) {
         if (overlay.autoHides && playWhenReady) {
             delay(TV_PLAYER_CONTROLS_HIDE_DELAY_MILLIS)
             apply(overlay.hideTimedOut())
@@ -535,7 +553,7 @@ private fun TvReadyPlayer(
                     title = target.name,
                     neighbours = neighbours,
                     paused = !playWhenReady,
-                    scrubTargetMillis = overlay.scrub?.targetMillis,
+                    seeking = overlay.skipHold?.accelerating == true,
                     startPositionMillis = prepared.startPositionMillis,
                     listingDurationMillis = target.durationSeconds?.toPlaybackMillis(),
                 ),
@@ -551,7 +569,7 @@ private fun TvReadyPlayer(
                     player = player,
                     title = target.name,
                     paused = !playWhenReady,
-                    scrubTargetMillis = overlay.scrub?.targetMillis,
+                    seeking = overlay.skipHold?.accelerating == true,
                     startPositionMillis = prepared.startPositionMillis,
                     listingDurationMillis = target.durationSeconds?.toPlaybackMillis(),
                     chips = chips,
@@ -561,7 +579,6 @@ private fun TvReadyPlayer(
                 )
             }
         }
-        TvSnackbarHost(snackbar, Modifier.align(Alignment.TopEnd).padding(PLAYER_NOTICE_INSET))
     }
     TvUpNextOverlay(overlay, upNext) { step -> apply(step(overlay)) }
     TvQueueEndEffect(overlay, playbackState, playWhenReady, neighbours) { next -> apply(overlay.queueEnded(next)) }
@@ -695,7 +712,6 @@ private const val DELAYED_CUE_TICK_MILLIS = 50L
 private const val SUBTITLES_ABOVE_CONTROLS = 117f / 540f
 private const val TV_SUBTITLE_TEXT_FRACTION = 22f / 540f
 private val SUBTITLES_BESIDE_SHEET = 180.dp
-private val PLAYER_NOTICE_INSET = 24.dp
 
 private fun TvPlayerOverlay.previewsTiming(playing: Boolean): Boolean =
     sheet == TvPlayerSheet.SizeAndTiming && !playing

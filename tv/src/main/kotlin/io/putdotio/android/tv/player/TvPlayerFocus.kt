@@ -32,7 +32,7 @@ internal fun TvPlayerOverlay.moveFocus(
     nextTrack: Boolean = true,
 ): TvPlayerTransition {
     val revealed = reveal().overlay
-    if (!controlsVisible || exited || scrub != null) return TvPlayerTransition(revealed)
+    if (!controlsVisible || exited) return TvPlayerTransition(revealed)
     val current = focusIn(chips, nextTrack)
     val seekBar = listOf(TvPlayerControl.SeekBar)
     val circles = circles(nextTrack)
@@ -99,5 +99,5 @@ internal fun TvPlayerOverlay.playNext(): TvPlayerTransition =
     if (exited) {
         TvPlayerTransition(this)
     } else {
-        TvPlayerTransition(copy(exited = true, scrub = null, sheet = null), listOf(TvPlayerCommand.PlayNext))
+        TvPlayerTransition(copy(exited = true, sheet = null), listOf(TvPlayerCommand.PlayNext))
     }
