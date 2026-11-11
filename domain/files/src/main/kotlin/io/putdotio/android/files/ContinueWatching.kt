@@ -43,14 +43,10 @@ public data class ContinueWatchingEntry(
         )
 }
 
-/**
- * A video is in progress above 0 % and below 95 % of its duration, and more than 10 s before the
- * end, the same bounds as TV's Watch Next row: the player starts a nearer position over.
- */
+/** A video is in progress above 0 % and below 95 % of its duration, the player's resume bounds. */
 internal fun isInProgress(positionSeconds: Double, durationSeconds: Double?): Boolean {
     val duration = durationSeconds?.takeIf { it.isFinite() && it > 0.0 } ?: return false
-    return positionSeconds.isFinite() && positionSeconds > 0.0 &&
-        positionSeconds < duration * COMPLETED_FRACTION && positionSeconds < duration - FINISHED_WITHIN_SECONDS
+    return positionSeconds.isFinite() && positionSeconds > 0.0 && !playbackFinishedAt(positionSeconds, duration)
 }
 
 /** Where one user's row persists between launches. */
@@ -291,9 +287,6 @@ private fun JSONArray.toEntries(): List<ContinueWatchingEntry> =
             ContinueWatchingEntry(FilesItemId(id), name, position, duration, entry.optLong("watchedAt", 0L))
         }
     }
-
-private const val COMPLETED_FRACTION = 0.95
-private const val FINISHED_WITHIN_SECONDS = 10.0
 
 /** The items a settled delete's read-back found gone, a partial delete's included. */
 public fun FilesDeleteOutcome.confirmedGone(): List<FilesItemId> = when (status) {

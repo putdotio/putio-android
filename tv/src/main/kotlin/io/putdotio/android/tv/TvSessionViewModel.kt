@@ -631,7 +631,7 @@ private suspend fun PlaybackController.answerResumePrompt(answer: PlaybackEvent)
     if (settled is PlaybackContent.AwaitingResume) dispatch(answer)
 }
 
-// A position within 10 s of the end starts over, which needs the duration that search results
+// A position past 95 % starts over, which needs the duration that search results
 // and single-file reads omit; listing the file itself returns it as the parent. Without one,
 // playback continues from the saved position.
 private suspend fun FilesRepository.withListedDuration(item: FilesItem): FilesItem {

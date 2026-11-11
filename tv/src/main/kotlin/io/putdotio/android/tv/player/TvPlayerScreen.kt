@@ -219,6 +219,7 @@ private fun TvPlaybackInterstitial(
                 conversion = content,
                 onRefresh = onRefreshConversion,
                 onStartConversion = onStartConversion,
+                onCancel = onBack,
                 onPlayInVlc = onPlayInVlc,
             )
 
