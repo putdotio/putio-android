@@ -47,6 +47,7 @@ fun Exec.cacheableCheck(vararg sources: Any) {
         .withPropertyName("sources")
         .withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.property("tools", scriptCheckTools)
+    if (windows) environment("MSYS", "winsymlinks:nativestrict")
     val stamp = layout.buildDirectory.file("verification/$name.stamp")
     outputs.file(stamp).withPropertyName("stamp")
     outputs.cacheIf { true }
