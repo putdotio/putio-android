@@ -127,6 +127,8 @@ internal fun MobilePlayerScreen(
     onStartConversion: () -> Unit = {},
     nextEpisode: PlaybackTarget? = null,
     onNextEpisode: () -> Unit = {},
+    upNext: PlaybackUpNextLookup = PlaybackUpNextLookup.Off,
+    onPlayUpNext: (PlaybackTarget) -> Unit = {},
     neighbours: PlaybackNeighbours = PlaybackNeighbours(),
     onPlay: (PlaybackTarget) -> Unit = {},
     /** Hands the original to VLC when this player can't play it; null where VLC isn't offered. */
@@ -168,6 +170,9 @@ internal fun MobilePlayerScreen(
             pictureInPicture = pictureInPicture,
             nextEpisode = nextEpisode.takeIf { state.target.mediaType == PlaybackMediaType.VIDEO },
             onNextEpisode = onNextEpisode,
+            upNext = upNext.takeIf { autoplayNextVideo && state.target.mediaType == PlaybackMediaType.VIDEO }
+                ?: PlaybackUpNextLookup.Off,
+            onPlayUpNext = onPlayUpNext,
             neighbours = neighbours,
             onPlay = onPlay,
         )
@@ -300,6 +305,8 @@ private fun MobileReadyContent(
     pictureInPicture: State<Boolean>,
     nextEpisode: PlaybackTarget?,
     onNextEpisode: () -> Unit,
+    upNext: PlaybackUpNextLookup,
+    onPlayUpNext: (PlaybackTarget) -> Unit,
     neighbours: PlaybackNeighbours,
     onPlay: (PlaybackTarget) -> Unit,
 ) {
@@ -367,6 +374,8 @@ private fun MobileReadyContent(
             sidecarSubtitles = ready?.source?.playerSubtitles().sidecarTracks(),
             nextEpisode = nextEpisode,
             onNextEpisode = onNextEpisode,
+            upNext = upNext,
+            onPlayUpNext = onPlayUpNext,
             neighbours = neighbours,
             onPlay = onPlay,
             castButton = playerCast.button,
@@ -449,6 +458,8 @@ private fun MobileReadyPlayer(
     sidecarSubtitles: List<PlaybackSubtitle>,
     nextEpisode: PlaybackTarget?,
     onNextEpisode: () -> Unit,
+    upNext: PlaybackUpNextLookup,
+    onPlayUpNext: (PlaybackTarget) -> Unit,
     neighbours: PlaybackNeighbours,
     onPlay: (PlaybackTarget) -> Unit,
     castButton: @Composable (Modifier) -> Unit,
@@ -485,7 +496,6 @@ private fun MobileReadyPlayer(
     val currentOnPlayerFailure = rememberUpdatedState(onPlayerFailure)
     val currentOnOriginalRejected = rememberUpdatedState(onOriginalRejected)
     val currentAutoplayNextVideo = rememberUpdatedState(autoplayNextVideo)
-    val currentOnPlaybackEnded = rememberUpdatedState(onPlaybackEnded)
     val currentOnReachedEnd = rememberUpdatedState<() -> Unit> { analytics.reachedEnd() }
     val currentOnPlaybackRetained = rememberUpdatedState(onPlaybackRetained)
     val currentOnPositionChanged = rememberUpdatedState(onPositionChanged)
@@ -507,6 +517,15 @@ private fun MobileReadyPlayer(
             resumeAfterLifecyclePause = resumeAfterLifecyclePause,
         )
     }
+    val upNextEnd = rememberMobileUpNextEnd(
+        fileId = fileId,
+        playbackState = playerState.playbackState,
+        lookup = upNext,
+        pictureInPicture = pictureInPicture.value,
+        onPlaybackEnded = onPlaybackEnded,
+        onPlay = onPlayUpNext,
+    )
+    val currentOnPlaybackEnded = rememberUpdatedState<() -> Unit> { upNextEnd.ended = true }
     val currentOnVideoAspectRatio by rememberUpdatedState(onVideoAspectRatio)
     LaunchedEffect(playerState.videoSize) {
         playerState.videoSize.displayAspectRatioOrNull()?.let(currentOnVideoAspectRatio)
@@ -625,6 +644,9 @@ private fun MobileReadyPlayer(
         sidecarSubtitles = sidecarSubtitles,
         nextEpisode = nextEpisode,
         onNextEpisode = onNextEpisode,
+        upNextCard = upNextEnd.counting(upNext, pictureInPicture.value),
+        onPlayUpNext = onPlayUpNext,
+        onCancelUpNext = { upNextEnd.cancelled = true },
         neighbours = neighbours,
         onPlay = onPlay,
         enterPictureInPicture = enterPictureInPicture,
@@ -1205,6 +1227,9 @@ private fun MobileReadyPlayerContent(
     sidecarSubtitles: List<PlaybackSubtitle>,
     nextEpisode: PlaybackTarget?,
     onNextEpisode: () -> Unit,
+    upNextCard: PlaybackUpNext?,
+    onPlayUpNext: (PlaybackTarget) -> Unit,
+    onCancelUpNext: () -> Unit,
     neighbours: PlaybackNeighbours,
     onPlay: (PlaybackTarget) -> Unit,
     enterPictureInPicture: (() -> Unit)?,
@@ -1346,6 +1371,19 @@ private fun MobileReadyPlayerContent(
                 onFoldFits = { chromeFitsFold = it },
             )
             MobileSeekFeedbackLayer(pendingSeek.value, videoFold)
+            if (upNextCard != null) {
+                MobileUpNextCard(
+                    upNext = upNextCard,
+                    onPlayNow = { onPlayUpNext(upNextCard.target) },
+                    onCancel = onCancelUpNext,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .zIndex(2.25f)
+                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                        .padding(end = 24.dp, bottom = footerHeight + 8.dp)
+                        .then(optionModifier),
+                )
+            }
         }
         if (!isAudio && !pictureInPicture) {
             MobileVideoSheets(

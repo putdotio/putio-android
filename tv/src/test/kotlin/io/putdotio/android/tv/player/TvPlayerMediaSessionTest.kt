@@ -63,8 +63,6 @@ class TvPlayerMediaSessionTest {
                     state = readyState(),
                     onBack = {},
                     onRetry = {},
-                    onResume = {},
-                    onRestart = {},
                     onPlayerFailure = { _, _ -> },
                     playerFactory = factory,
                 )

@@ -264,8 +264,6 @@ class TvPlaybackStatesTest {
                         ),
                         onBack = {},
                         onRetry = { retries += 1 },
-                        onResume = {},
-                        onRestart = {},
                         onPlayerFailure = { _, _ -> },
                         onRefreshConversion = { refreshes += 1 },
                         onStartConversion = { starts += 1 },

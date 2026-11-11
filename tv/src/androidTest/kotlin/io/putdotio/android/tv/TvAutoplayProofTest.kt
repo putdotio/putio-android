@@ -7,12 +7,10 @@ import android.os.ParcelFileDescriptor
 import android.view.KeyEvent
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
-import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.putdotio.android.TvSessionShell
@@ -63,7 +61,6 @@ import java.util.Collections
 import java.util.UUID
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Rule
@@ -113,22 +110,21 @@ class TvAutoplayProofTest {
         Thread.sleep(PLAY_MILLIS)
         screenshot("02-first-playing")
 
-        // The first video plays to its end; the next in the folder has a saved position, so it asks.
+        // The first video plays to its end; the next in the folder resumes its saved position without asking.
         compose.waitUntil(FIXTURE_MILLIS * 3) {
-            compose.onAllNodesWithText(SECOND_RESUME_TITLE).fetchSemanticsNodes().isNotEmpty()
+            compose.runOnIdle {
+                session.playback.value?.state?.value?.let { it.target.fileId == FilesItemId(SECOND_ID) } == true
+            }
         }
-        assertNotNull("Autoplay stays in playback", compose.runOnIdle { session.playback.value })
-        compose.onNodeWithText(SECOND).assertExists()
-        compose.onNodeWithText(RESUME).assertIsFocused()
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag(TV_PLAYER_TAG).fetchSemanticsNodes().isNotEmpty() }
+        assertEquals(0, compose.onAllNodesWithText(RESUME_PREFIX, substring = true).fetchSemanticsNodes().size)
+        val resumedAt = compose.runOnIdle { session.playback.value?.state?.value?.resumePositionMillis }
+        assertEquals(SECOND_SAVED_MILLIS, resumedAt)
         assertEquals(listOf(FIRST_ID), lookups.toList())
         val firstEnd = writes.toList().last { it.first == FIRST_ID }.second
         assertTrue("The finished video's end is written: $firstEnd s", firstEnd >= FIXTURE_SECONDS - 1.0)
-        screenshot("03-next-resume-prompt")
-
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.waitUntil(10_000) { compose.onAllNodesWithTag(TV_PLAYER_TAG).fetchSemanticsNodes().isNotEmpty() }
         Thread.sleep(PLAY_MILLIS)
-        screenshot("04-next-playing")
+        screenshot("04-next-resumed")
 
         // Back hides the controls, then leaves; Files focuses the video that played last.
         press(KeyEvent.KEYCODE_BACK)
@@ -357,8 +353,7 @@ class TvAutoplayProofTest {
         const val FIXTURE_SECONDS = 30.0
         const val FIXTURE_MILLIS = 30_000L
         const val SECOND_SAVED_SECONDS = 5.0
-        const val SECOND_RESUME_TITLE = "Resume from 0:05?"
-        const val RESUME = "Resume"
+        const val SECOND_SAVED_MILLIS = 5_000L
         const val RESUME_PREFIX = "Resume from"
         const val STEP_MILLIS = 400L
         const val PLAY_MILLIS = 2_000L

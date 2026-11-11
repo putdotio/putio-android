@@ -16,7 +16,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
@@ -39,19 +38,15 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
-import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioRadius
 import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.design.R as DesignR
-import io.putdotio.android.playback.PlaybackContent
-import io.putdotio.android.playback.PlaybackMediaType
-import io.putdotio.android.playback.PlaybackNeighbours
-import io.putdotio.android.playback.PlaybackRepositoryResult
-import io.putdotio.android.playback.PlaybackState
+import io.putdotio.android.playback.PLAYBACK_UP_NEXT_MILLIS
 import io.putdotio.android.playback.PlaybackTarget
-import io.putdotio.android.playback.putioFailure
+import io.putdotio.android.playback.PlaybackUpNext
+import io.putdotio.android.playback.PlaybackUpNextLookup
 import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.TvButtonSize
 import io.putdotio.android.tv.TvButtonStyle
@@ -59,51 +54,12 @@ import io.putdotio.android.tv.withFullLineBox
 import kotlin.math.ceil
 
 internal const val TV_UP_NEXT_TAG = "tv-player-up-next"
-internal const val TV_UP_NEXT_MILLIS = 10_000L
+internal const val TV_UP_NEXT_MILLIS = PLAYBACK_UP_NEXT_MILLIS
 
-internal data class TvUpNext(val target: PlaybackTarget, val folderName: String?)
-
-internal sealed interface TvUpNextLookup {
-    data object Off : TvUpNextLookup
-
-    data object Pending : TvUpNextLookup
-
-    data class Found(val upNext: TvUpNext) : TvUpNextLookup
-
-    data object FolderEnd : TvUpNextLookup
-
-    data object Failed : TvUpNextLookup
-}
-
-internal typealias TvFindNeighbours = suspend (PlaybackTarget) -> PlaybackRepositoryResult<PlaybackNeighbours>
-
-@Composable
-internal fun rememberUpNext(
-    state: PlaybackState,
-    findNeighbours: TvFindNeighbours?,
-    onAuthenticationRequired: suspend () -> Unit,
-): TvUpNextLookup {
-    val ready = state.content is PlaybackContent.Ready && state.target.mediaType == PlaybackMediaType.VIDEO
-    val initial = if (findNeighbours == null) TvUpNextLookup.Off else TvUpNextLookup.Pending
-    val lookup by produceState(initial, state.target.fileId, ready, findNeighbours != null) {
-        value = initial
-        val find = findNeighbours ?: return@produceState
-        if (!ready) return@produceState
-        value = when (val found = find(state.target)) {
-            is PlaybackRepositoryResult.Success ->
-                found.value.next?.takeUnless { it.fileId in state.visitedFileIds }
-                    ?.let { TvUpNextLookup.Found(TvUpNext(it, found.value.folderName)) }
-                    ?: TvUpNextLookup.FolderEnd
-            is PlaybackRepositoryResult.Failure -> {
-                if (found.failure.putioFailure is PutioFailure.AuthenticationRequired) onAuthenticationRequired()
-                TvUpNextLookup.Failed
-            }
-        }
-    }
-    return lookup
-}
-
-internal fun TvPlayerOverlay.ended(autoplayNext: Boolean = false, lookup: TvUpNextLookup = TvUpNextLookup.Off) =
+internal fun TvPlayerOverlay.ended(
+    autoplayNext: Boolean = false,
+    lookup: PlaybackUpNextLookup = PlaybackUpNextLookup.Off,
+) =
     when {
         exited -> TvPlayerTransition(this)
         nowPlaying -> TvPlayerTransition(copy(scrub = null, sheet = null))
@@ -112,14 +68,14 @@ internal fun TvPlayerOverlay.ended(autoplayNext: Boolean = false, lookup: TvUpNe
             .upNextResolved(lookup)
     }
 
-internal fun TvPlayerOverlay.upNextResolved(lookup: TvUpNextLookup): TvPlayerTransition =
+internal fun TvPlayerOverlay.upNextResolved(lookup: PlaybackUpNextLookup): TvPlayerTransition =
     if (!awaitingUpNext || exited) {
         TvPlayerTransition(this)
     } else {
         when (lookup) {
-            TvUpNextLookup.Pending -> TvPlayerTransition(this)
-            is TvUpNextLookup.Found -> TvPlayerTransition(copy(awaitingUpNext = false, upNext = true))
-            TvUpNextLookup.Off, TvUpNextLookup.FolderEnd, TvUpNextLookup.Failed ->
+            PlaybackUpNextLookup.Pending -> TvPlayerTransition(this)
+            is PlaybackUpNextLookup.Found -> TvPlayerTransition(copy(awaitingUpNext = false, upNext = true))
+            PlaybackUpNextLookup.Off, PlaybackUpNextLookup.FolderEnd, PlaybackUpNextLookup.Failed ->
                 copy(awaitingUpNext = false).playNext()
         }
     }
@@ -153,11 +109,11 @@ internal fun TvPlayerOverlay.shownFocus(chips: List<TvPlayerControl>, nextTrack:
 @Composable
 internal fun TvUpNextOverlay(
     overlay: TvPlayerOverlay,
-    lookup: TvUpNextLookup,
+    lookup: PlaybackUpNextLookup,
     update: ((TvPlayerOverlay) -> TvPlayerTransition) -> Unit,
 ) {
     LaunchedEffect(overlay.awaitingUpNext, lookup) { update { it.upNextResolved(lookup) } }
-    val found = lookup as? TvUpNextLookup.Found
+    val found = lookup as? PlaybackUpNextLookup.Found
     if (!overlay.upNext || found == null) return
     TvUpNextCard(
         upNext = found.upNext,
@@ -168,7 +124,7 @@ internal fun TvUpNextOverlay(
 
 @Composable
 private fun TvUpNextCard(
-    upNext: TvUpNext,
+    upNext: PlaybackUpNext,
     onPlayNow: () -> Unit,
     onCancel: () -> Unit,
 ) {

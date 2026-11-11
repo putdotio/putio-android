@@ -2,6 +2,8 @@ package io.putdotio.android.tv.player
 
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.playback.PlaybackTarget
+import io.putdotio.android.playback.PlaybackUpNext
+import io.putdotio.android.playback.PlaybackUpNextLookup
 import io.putdotio.android.tv.player.TvPlayerCommand.Exit
 import io.putdotio.android.tv.player.TvPlayerCommand.Pause
 import io.putdotio.android.tv.player.TvPlayerCommand.Play
@@ -47,34 +49,34 @@ class TvPlayerOverlayTest {
 
     @Test
     fun anEndBeforeTheUpNextLookupWaitsForIt() {
-        val waiting = TvPlayerOverlay().ended(autoplayNext = true, lookup = TvUpNextLookup.Pending)
+        val waiting = TvPlayerOverlay().ended(autoplayNext = true, lookup = PlaybackUpNextLookup.Pending)
         assertEquals(emptyList<TvPlayerCommand>(), waiting.commands)
         assertTrue(waiting.overlay.awaitingUpNext)
         assertFalse(waiting.overlay.autoHides)
 
-        val counting = waiting.overlay.upNextResolved(TvUpNextLookup.Found(TvUpNext(HARBOR_NEXT, "Harbor")))
+        val counting = waiting.overlay.upNextResolved(PlaybackUpNextLookup.Found(PlaybackUpNext(HARBOR_NEXT, "Harbor")))
         assertEquals(emptyList<TvPlayerCommand>(), counting.commands)
         assertTrue(counting.overlay.upNext)
         assertFalse(counting.overlay.awaitingUpNext)
 
-        assertEquals(listOf(PlayNext), waiting.overlay.upNextResolved(TvUpNextLookup.FolderEnd).commands)
-        assertEquals(listOf(PlayNext), waiting.overlay.upNextResolved(TvUpNextLookup.Failed).commands)
-        assertEquals(listOf(PlayNext), TvPlayerOverlay().ended(true, TvUpNextLookup.Failed).commands)
+        assertEquals(listOf(PlayNext), waiting.overlay.upNextResolved(PlaybackUpNextLookup.FolderEnd).commands)
+        assertEquals(listOf(PlayNext), waiting.overlay.upNextResolved(PlaybackUpNextLookup.Failed).commands)
+        assertEquals(listOf(PlayNext), TvPlayerOverlay().ended(true, PlaybackUpNextLookup.Failed).commands)
 
         val cancelled = waiting.overlay.back().overlay
-        assertEquals(emptyList<TvPlayerCommand>(), cancelled.upNextResolved(TvUpNextLookup.FolderEnd).commands)
+        assertEquals(emptyList<TvPlayerCommand>(), cancelled.upNextResolved(PlaybackUpNextLookup.FolderEnd).commands)
     }
 
     @Test
     fun aSeekElsewhereCancelsUpNext() {
-        val found = TvUpNextLookup.Found(TvUpNext(HARBOR_NEXT, null))
+        val found = PlaybackUpNextLookup.Found(PlaybackUpNext(HARBOR_NEXT, null))
         val counting = TvPlayerOverlay().ended(autoplayNext = true, lookup = found).overlay
         assertTrue(counting.upNext)
         val sought = counting.soughtElsewhere()
         assertFalse(sought.overlay.upNext)
         assertEquals(emptyList<TvPlayerCommand>(), sought.commands)
 
-        val waiting = TvPlayerOverlay().ended(autoplayNext = true, lookup = TvUpNextLookup.Pending).overlay
+        val waiting = TvPlayerOverlay().ended(autoplayNext = true, lookup = PlaybackUpNextLookup.Pending).overlay
         assertFalse(waiting.soughtElsewhere().overlay.upNextResolved(found).overlay.upNext)
     }
 

@@ -93,7 +93,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.getAndUpdate
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -435,7 +434,7 @@ internal class TvSession internal constructor(
             }
         }
         continueSaved?.cancel()
-        continueSaved = scope.launch { controller.answerResumePrompt(start.answer) }
+        continueSaved = scope.launch { controller.answerResumePrompts(item.id, start.answer) }
     }
 
     /**
@@ -598,10 +597,12 @@ internal enum class TvPlayStart(val answer: PlaybackEvent) {
     StartOver(PlaybackEvent.Restart),
 }
 
-private suspend fun PlaybackController.answerResumePrompt(answer: PlaybackEvent) {
-    val settled = state.map { it.content }
-        .first { it !is PlaybackContent.Loading && it !is PlaybackContent.Conversion }
-    if (settled is PlaybackContent.AwaitingResume) dispatch(answer)
+internal suspend fun PlaybackController.answerResumePrompts(opened: FilesItemId, answer: PlaybackEvent) {
+    state.collect { playing ->
+        if (playing.content is PlaybackContent.AwaitingResume) {
+            dispatch(if (playing.target.fileId == opened) answer else PlaybackEvent.Resume)
+        }
+    }
 }
 
 // A position within 10 s of the end starts over, which needs the duration that search results

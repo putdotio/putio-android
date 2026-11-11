@@ -350,7 +350,7 @@ class TvPlayerAutoplayTest {
     }
 
     @Test
-    fun anAutoplayedVideoWithASavedPositionAsksWhereToStart() {
+    fun anAutoplayedVideoWithASavedPositionShowsNoPrompt() {
         val players = mutableListOf<FakePlayer>()
         showAutoplayRoute(
             autoplay = true,
@@ -371,8 +371,8 @@ class TvPlayerAutoplayTest {
         compose.waitForIdle()
 
         compose.onNodeWithText("Harbor film 2.mp4").assertIsDisplayed()
-        compose.onNodeWithText(RESUME_LABEL).assertIsFocused()
-        compose.runOnIdle { assertEquals("No player before the choice", 1, players.size) }
+        compose.onNodeWithText(RESUME_LABEL).assertDoesNotExist()
+        compose.onNodeWithText(RESUME_TITLE).assertDoesNotExist()
     }
 
     @Test

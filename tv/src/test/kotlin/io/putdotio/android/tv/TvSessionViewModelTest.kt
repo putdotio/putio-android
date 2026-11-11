@@ -555,6 +555,26 @@ class TvSessionViewModelTest {
     }
 
     @Test
+    fun `Up next resumes its saved position without asking after the opened video started over`() = runTest {
+        playbackRepository.savedSeconds = 45.0
+        playbackRepository.next[FilesItemId(55)] =
+            PlaybackTarget(FilesItemId(56), "Blue.Lights.S01E02.mkv", durationSeconds = 600.0)
+        val video = media(55, "Blue.Lights.S01E01.mkv", PutioFileType.VIDEO)
+            .copy(playback = FilesPlaybackProgress(45.0, 600.0))
+        val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
+
+        session.play(video, TvPlayStart.StartOver)
+        val playback = checkNotNull(session.playback.value)
+        assertEquals(0L, playback.state.value.resumePositionMillis)
+
+        assertTrue(playback.dispatch(PlaybackEvent.PlayerEnded))
+        val upNext = playback.state.value
+        assertEquals(FilesItemId(56), upNext.target.fileId)
+        assertTrue(upNext.content is PlaybackContent.Ready)
+        assertEquals(45_000L, upNext.resumePositionMillis)
+    }
+
+    @Test
     fun `a finished video played without its duration starts over`() = runTest {
         playbackRepository.savedSeconds = 595.0
         val video = media(56, "Sintel.mkv", PutioFileType.VIDEO).copy(playback = FilesPlaybackProgress(595.0, null))

@@ -72,8 +72,6 @@ internal fun ComposeContentTestRule.showReady(
                     state = readyState(resumePositionMillis = resumePositionMillis),
                     onBack = onBack,
                     onRetry = {},
-                    onResume = {},
-                    onRestart = {},
                     onPlayerFailure = { _, _ -> },
                     playerFactory = playerFactory,
                 )

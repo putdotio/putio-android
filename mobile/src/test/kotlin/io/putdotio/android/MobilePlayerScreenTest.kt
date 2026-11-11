@@ -138,6 +138,9 @@ import io.putdotio.android.playback.DefaultMobilePlayerFactory
 import io.putdotio.android.playback.MOBILE_AUDIO_COVER_TAG
 import io.putdotio.android.playback.MOBILE_PLAYER_GESTURE_TAG
 import io.putdotio.android.playback.MOBILE_PLAYER_TAG
+import io.putdotio.android.playback.MOBILE_UP_NEXT_TAG
+import io.putdotio.android.playback.PlaybackUpNext
+import io.putdotio.android.playback.PlaybackUpNextLookup
 import io.putdotio.android.playback.MOBILE_SEEK_BACK_TAG
 import io.putdotio.android.playback.MOBILE_SEEK_FEEDBACK_TAG
 import io.putdotio.android.playback.MOBILE_SEEK_FORWARD_TAG
@@ -767,6 +770,77 @@ class MobilePlayerLifecycleTest {
     }
 
     @Test
+    fun theEndCountsTenSecondsDownToTheNextVideoInTheFolder() {
+        lateinit var player: RecordingPlayer
+        var endedCalls = 0
+        val chosen = mutableListOf<PlaybackTarget>()
+        showUpNext(onEnded = { endedCalls += 1 }, onPlayUpNext = { chosen += it }) { player = it }
+        compose.mainClock.autoAdvance = false
+
+        compose.runOnIdle { player.updatePlaybackState(Media3Player.STATE_ENDED) }
+        compose.mainClock.advanceTimeBy(50L)
+        compose.onNodeWithTag(MOBILE_UP_NEXT_TAG).assertIsDisplayed()
+        compose.onNodeWithText("Up next in 10").assertIsDisplayed()
+        compose.onNodeWithText(UpNextTarget.name).assertIsDisplayed()
+
+        compose.mainClock.advanceTimeBy(5_000L)
+        compose.onNodeWithText("Up next in 5").assertIsDisplayed()
+        compose.runOnIdle { assertTrue("Nothing plays during the countdown", chosen.isEmpty()) }
+
+        compose.mainClock.advanceTimeBy(5_100L)
+        compose.runOnIdle {
+            assertEquals(listOf(UpNextTarget), chosen)
+            assertEquals("Autoplay's own walk is not asked", 0, endedCalls)
+        }
+    }
+
+    @Test
+    fun playNowSkipsTheWaitAndCancelStaysOnTheFinishedVideo() {
+        lateinit var player: RecordingPlayer
+        var endedCalls = 0
+        val chosen = mutableListOf<PlaybackTarget>()
+        showUpNext(onEnded = { endedCalls += 1 }, onPlayUpNext = { chosen += it }) { player = it }
+
+        compose.runOnIdle { player.updatePlaybackState(Media3Player.STATE_ENDED) }
+        compose.onNodeWithText("Play now").performClick()
+        compose.runOnIdle { assertEquals(listOf(UpNextTarget), chosen) }
+
+        compose.runOnIdle { player.updatePlaybackState(Media3Player.STATE_READY) }
+        compose.runOnIdle { player.updatePlaybackState(Media3Player.STATE_ENDED) }
+        compose.onNodeWithText("Cancel").performClick()
+        compose.mainClock.advanceTimeBy(20_000L)
+        compose.onNodeWithTag(MOBILE_UP_NEXT_TAG).assertDoesNotExist()
+        compose.onNodeWithTag(MOBILE_PLAYER_TAG).assertIsDisplayed()
+        compose.runOnIdle {
+            assertEquals(listOf(UpNextTarget), chosen)
+            assertEquals(0, endedCalls)
+        }
+    }
+
+    private fun showUpNext(
+        onEnded: () -> Unit,
+        onPlayUpNext: (PlaybackTarget) -> Unit,
+        onPlayer: (RecordingPlayer) -> Unit,
+    ) {
+        compose.setContent {
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = state(PlaybackContent.Ready(videoSource())),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    autoplayNextVideo = true,
+                    onPlaybackEnded = onEnded,
+                    upNext = PlaybackUpNextLookup.Found(PlaybackUpNext(UpNextTarget, "Blue Lights")),
+                    onPlayUpNext = onPlayUpNext,
+                    playerFactory = MobilePlayerFactory { _, _ -> RecordingPlayer().also(onPlayer) },
+                )
+            }
+        }
+        compose.onNodeWithTag(MOBILE_PLAYER_TAG).assertIsDisplayed()
+    }
+
+    @Test
     fun pausingVideoLetsTheScreenSleep() {
         lateinit var player: RecordingPlayer
         var hostView: View? = null
@@ -930,14 +1004,14 @@ class MobilePlayerSubtitleTest {
             state = readyState(0.0),
             playerFactory = MobilePlayerFactory { _, _ -> RecordingPlayer().also { player = it } },
         )
-        compose.mainClock.advanceTimeByFrame()
+        compose.mainClock.advanceTimeBy(50L)
         compose.onNodeWithContentDescription("Playback speed 1×").assertIsDisplayed()
         compose.onNodeWithContentDescription("Subtitles: Off").assertIsDisplayed()
         compose.onNodeWithContentDescription("Back").assertIsDisplayed()
 
         compose.runOnIdle { player.updatePlaybackState(Media3Player.STATE_READY) }
         compose.mainClock.advanceTimeBy(5_000L)
-        compose.mainClock.advanceTimeByFrame()
+        compose.mainClock.advanceTimeBy(50L)
         compose.onNodeWithContentDescription("Back").assertDoesNotExist()
         compose.onNodeWithContentDescription("Playback speed 1×").assertDoesNotExist()
         compose.onNodeWithContentDescription("Subtitles: Off").assertDoesNotExist()
@@ -951,7 +1025,7 @@ class MobilePlayerSubtitleTest {
             playerFactory = MobilePlayerFactory { _, _ -> RecordingPlayer() },
             subtitleStartupPolicy = null,
         )
-        compose.mainClock.advanceTimeByFrame()
+        compose.mainClock.advanceTimeBy(50L)
         compose.onNodeWithContentDescription("Playback speed 1×").assertIsDisplayed()
         compose.onNodeWithContentDescription("Subtitles", substring = true).assertDoesNotExist()
     }
@@ -1238,7 +1312,7 @@ class MobilePlayerDoubleTapTest {
             click(percentOffset(0.75f, 0.25f))
         }
         compose.runOnIdle { player.updatePlaybackState(Media3Player.STATE_BUFFERING) }
-        compose.mainClock.advanceTimeByFrame()
+        compose.mainClock.advanceTimeBy(50L)
         compose.runOnIdle {
             assertEquals(Media3Player.STATE_BUFFERING, player.playbackState)
             assertEquals(seekWindow, player.currentSeekWindow())
@@ -1491,7 +1565,7 @@ class MobilePlayerSeekTest {
 
         compose.runOnIdle { player.seekTo(34_000L) }
         compose.onNodeWithContentDescription("Forward 10 seconds").performClick()
-        compose.mainClock.advanceTimeByFrame()
+        compose.mainClock.advanceTimeBy(50L)
         compose.runOnIdle { assertEquals(listOf(30_000L, 34_000L, 44_000L), player.seekPositions) }
         compose.onNodeWithTag(MOBILE_SEEK_FEEDBACK_TAG).assertTextEquals("Forward 10 seconds")
         compose.mainClock.advanceTimeBy(4_100L)
@@ -1596,7 +1670,7 @@ class MobilePlayerSeekTest {
         compose.runOnUiThread { seek() }
         compose.mainClock.advanceTimeBy(2L, true)
         compose.runOnUiThread { assertEquals("New seek has not recomposed", 1, starts.size) }
-        compose.mainClock.advanceTimeByFrame()
+        compose.mainClock.advanceTimeBy(50L)
         compose.onNodeWithTag(MOBILE_SEEK_FEEDBACK_TAG).assertTextEquals("Forward 10 seconds")
     }
 
@@ -1971,7 +2045,7 @@ class MobilePlayerAudioTest {
                 RecordingPlayer().also { player = it }
             },
         )
-        compose.mainClock.advanceTimeByFrame()
+        compose.mainClock.advanceTimeBy(50L)
 
         compose.onNodeWithTag(MOBILE_AUDIO_COVER_TAG).assertIsDisplayed()
         compose.onNodeWithText("song.mp3").assertIsDisplayed()
@@ -1984,7 +2058,7 @@ class MobilePlayerAudioTest {
             assertEquals("put.io", player.currentMediaItem?.mediaMetadata?.artist)
         }
         compose.mainClock.advanceTimeBy(5_000L)
-        compose.mainClock.advanceTimeByFrame()
+        compose.mainClock.advanceTimeBy(50L)
 
         compose.onNodeWithTag(MOBILE_SEEK_FORWARD_TAG).assertIsDisplayed()
         compose.runOnIdle {
@@ -1994,7 +2068,7 @@ class MobilePlayerAudioTest {
         // Now Playing goes back 15 seconds and forward 30.
         compose.onNodeWithContentDescription("Forward 30 seconds").assertIsDisplayed()
         compose.onNodeWithContentDescription("Back 15 seconds").performClick()
-        compose.mainClock.advanceTimeByFrame()
+        compose.mainClock.advanceTimeBy(50L)
         compose.runOnIdle { assertEquals(listOf(15_000L), player.seekPositions) }
     }
 
@@ -2499,6 +2573,7 @@ private fun videoSource(): PlaybackSource =
     )
 
 private val Target = PlaybackTarget(FilesItemId(42L), "episode.mkv")
+private val UpNextTarget = PlaybackTarget(FilesItemId(44L), "Blue.Lights.S04E02.1080p.HDTV.H264-ORGANiC.mkv")
 private val AudioTarget = PlaybackTarget(FilesItemId(43L), "song.mp3", PlaybackMediaType.AUDIO)
 
 private class SessionPlayerFactory(
