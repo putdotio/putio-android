@@ -411,7 +411,7 @@
     <string name="tv_player_error_crash">Playback error</string>
     <string name="tv_player_connection_lost">Connection lost</string>
     <string name="tv_player_error_link_expired_title">Playback link expired</string>
-    <string name="tv_player_error_link_expired">The fresh link didn’t work either.</string>
+    <string name="tv_player_error_link_expired">Try again to get a fresh link.</string>
     <string name="tv_player_error_forbidden">You don’t have access to this file.</string>
     <string name="tv_player_error_rejected">put.io couldn’t prepare this file for playback.</string>
     <string name="tv_player_cant_play_title">Can’t play this here</string>

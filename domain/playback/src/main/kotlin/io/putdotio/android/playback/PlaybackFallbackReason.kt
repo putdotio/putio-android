@@ -55,6 +55,7 @@ internal fun PlaybackState.originalRejected(event: PlaybackEvent.OriginalRejecte
             nextRequestValue = nextRequestValue + 1,
             resumePositionMillis = event.positionMillis.coerceAtLeast(0L),
             convertedOnly = true,
+            linkRefetchedAtMillis = null,
         ),
         effect = PlaybackEffect.Resolve(convertedTarget, requestId, convertedOnly = true),
     )

@@ -5,6 +5,7 @@ import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.sdk.files.PlaybackConversionState
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PutioFileType
+import kotlin.math.abs
 
 public data class PlaybackTarget(
     val fileId: FilesItemId,
@@ -268,7 +269,7 @@ private fun PlaybackState.playerFailed(event: PlaybackEvent.PlayerFailed): Playb
     val refetchesExpiredLink = content is PlaybackContent.Ready &&
         target.mediaType == PlaybackMediaType.VIDEO &&
         event.failure is PlaybackFailure.MediaCredentialUnavailable &&
-        linkRefetchedAtMillis != positionMillis
+        linkRefetchedAtMillis.let { it == null || abs(positionMillis - it) > SAME_LINK_WINDOW_MILLIS }
     return if (refetchesExpiredLink) {
         val requestId = PlaybackRequestId(nextRequestValue)
         PlaybackTransition(
@@ -284,11 +285,13 @@ private fun PlaybackState.playerFailed(event: PlaybackEvent.PlayerFailed): Playb
         PlaybackTransition(
             copy(
                 content = PlaybackContent.Failed(event.failure),
-                resumePositionMillis = event.resumePositionMillis,
+                resumePositionMillis = positionMillis,
             ),
         )
     }
 }
+
+private const val SAME_LINK_WINDOW_MILLIS = 5_000L
 
 private fun PlaybackState.retry(): PlaybackTransition {
     val requestId = PlaybackRequestId(nextRequestValue)

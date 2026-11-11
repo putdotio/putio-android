@@ -124,6 +124,7 @@ internal fun TvPlayerScreen(
         stateSaver = TvPlaybackOptionsSaver,
         key = "tv-player-options-${state.target.fileId.value}",
     ) { mutableStateOf(TvPlaybackOptions()) }
+    val playIntent = rememberSaveable(state.target.fileId.value) { mutableStateOf(true) }
     Box(modifier = modifier.fillMaxSize().background(Color.Black)) {
         when (val content = state.content) {
             is PlaybackContent.Ready ->
@@ -149,6 +150,7 @@ internal fun TvPlayerScreen(
                     neighbours = neighbours,
                     nowPlayingFocus = nowPlayingFocus,
                     optionsState = options,
+                    playIntent = playIntent,
                 )
 
             is PlaybackContent.AwaitingResume -> {
@@ -183,8 +185,10 @@ internal fun TvPlayerScreen(
 
             is PlaybackContent.Unsupported -> TvUnsupportedScreen(state.target, onPlayInVlc, onBack)
 
-            is PlaybackContent.Failed ->
+            is PlaybackContent.Failed -> {
+                LaunchedEffect(content) { playIntent.value = true }
                 TvPlaybackFailureScreen(state.target, content.failure, onRetry, onOpenInVlc, onBack)
+            }
 
             is PlaybackContent.NextFailed ->
                 TvPlaybackFailureScreen(state.target, content.failure, onRetry, onOpenInVlc, onBack)
@@ -217,6 +221,7 @@ private fun TvReadyPlayer(
     neighbours: PlaybackNeighbours?,
     nowPlayingFocus: MutableState<TvPlayerControl>,
     optionsState: MutableState<TvPlaybackOptions>,
+    playIntent: MutableState<Boolean>,
 ) {
     val context = LocalContext.current
     val nowPlaying = target.mediaType == PlaybackMediaType.AUDIO
@@ -241,7 +246,7 @@ private fun TvReadyPlayer(
     val currentAnalytics by rememberUpdatedState(analytics)
     val currentUpNext by rememberUpdatedState(upNext)
     val currentNeighbours by rememberUpdatedState(neighbours)
-    val startsPlaying = stoppedAtMillis == null
+    val startsPlaying = stoppedAtMillis == null && playIntent.value
     var overlay by remember(player) { mutableStateOf(tvPlayerOverlay(nowPlaying, nowPlayingFocus.value)) }
     val apply: (TvPlayerTransition) -> Unit = remember(player) {
         { transition ->
@@ -299,6 +304,7 @@ private fun TvReadyPlayer(
 
             override fun onPlayerError(error: PlaybackException) {
                 val position = player.currentPosition.coerceAtLeast(0L)
+                playIntent.value = player.playWhenReady
                 val rejection = error.originalRejection().takeUnless { firstFrameShown }
                 if (rejection == null || !currentOnOriginalRejected(rejection, position)) {
                     currentOnPlayerFailure(error.toPlaybackFailure(), position)
