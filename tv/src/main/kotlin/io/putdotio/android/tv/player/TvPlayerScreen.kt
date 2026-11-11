@@ -59,8 +59,10 @@ import io.putdotio.android.playback.PlaybackNeighbours
 import io.putdotio.android.playback.previousAt
 import io.putdotio.android.playback.PlaybackState
 import io.putdotio.android.playback.PlaybackTarget
+import io.putdotio.android.playback.PlaybackUpNextLookup
 import io.putdotio.android.playback.SubtitleCueOverlay
 import io.putdotio.android.playback.SubtitleStartupPolicy
+import io.putdotio.android.playback.whenAutoplaying
 import io.putdotio.android.playback.directPlayVerdict
 import io.putdotio.android.playback.displayAspectRatioOrNull
 import io.putdotio.android.playback.orHiddenWhen
@@ -96,8 +98,6 @@ internal fun TvPlayerScreen(
     state: PlaybackState,
     onBack: () -> Unit,
     onRetry: () -> Unit,
-    onResume: () -> Unit,
-    onRestart: () -> Unit,
     onPlayerFailure: (PlaybackFailure, Long) -> Unit,
     modifier: Modifier = Modifier,
     onOriginalRejected: (PlaybackFallbackReason, Long) -> Boolean = { _, _ -> false },
@@ -112,7 +112,7 @@ internal fun TvPlayerScreen(
     onNextEpisode: () -> Unit = {},
     onUpNext: (PlaybackTarget) -> Boolean = { false },
     analytics: PlaybackAnalyticsReporter = PlaybackAnalyticsReporter.None,
-    upNext: TvUpNextLookup = TvUpNextLookup.Off,
+    upNext: PlaybackUpNextLookup = PlaybackUpNextLookup.Off,
     onOpenInVlc: (() -> Unit)? = null,
     onPlayInVlc: (() -> Unit)? = null,
     neighbours: PlaybackNeighbours? = PlaybackNeighbours(),
@@ -139,29 +139,13 @@ internal fun TvPlayerScreen(
                     onNextEpisode = onNextEpisode,
                     onUpNext = onUpNext,
                     analytics = analytics,
-                    upNext = upNext.takeIf { autoplayNextVideo && state.target.mediaType == PlaybackMediaType.VIDEO }
-                        ?: TvUpNextLookup.Off,
+                    upNext = upNext.whenAutoplaying(autoplayNextVideo, state.target.mediaType),
                     neighbours = neighbours,
                     nowPlayingFocus = nowPlayingFocus,
                 )
 
-            is PlaybackContent.AwaitingResume -> {
-                if (content.source.startFromSeconds > 0.0) {
-                    TvResumePlaybackDialog(
-                        title = state.target.name,
-                        posterUrl = state.target.posterUrl.takeIf { state.target.mediaType == PlaybackMediaType.VIDEO },
-                        startFromSeconds = content.source.startFromSeconds,
-                        onResume = onResume,
-                        onRestart = onRestart,
-                        onDismiss = onBack,
-                    )
-                } else {
-                    LaunchedEffect(content) { onResume() }
-                    TvPlayerLoading(state.target)
-                }
-            }
-
             is PlaybackContent.Loading,
+            is PlaybackContent.AwaitingResume,
             is PlaybackContent.FindingNext,
             PlaybackContent.Session,
             -> TvPlayerLoading(state.target)
@@ -208,7 +192,7 @@ private fun TvReadyPlayer(
     onNextEpisode: () -> Unit,
     onUpNext: (PlaybackTarget) -> Boolean,
     analytics: PlaybackAnalyticsReporter,
-    upNext: TvUpNextLookup,
+    upNext: PlaybackUpNextLookup,
     neighbours: PlaybackNeighbours?,
     nowPlayingFocus: MutableState<TvPlayerControl>,
 ) {
