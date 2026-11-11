@@ -29,10 +29,10 @@ internal class RateLimitRetry(private val pause: (millis: Long, canceled: () -> 
 }
 
 private fun Response.retryAfterMillis(now: Long = System.currentTimeMillis()): Long? {
-    val value = header(RETRY_AFTER)?.trim() ?: return DEFAULT_RETRY_WAIT_MILLIS
-    val waitMillis = value.toLongOrNull()?.let(TimeUnit.SECONDS::toMillis)
-        ?: headers.getDate(RETRY_AFTER)?.let { (it.time - now).coerceAtLeast(0) }
-        ?: return DEFAULT_RETRY_WAIT_MILLIS
+    val value = header(RETRY_AFTER)?.trim()
+    val waitMillis = value?.toLongOrNull()?.let(TimeUnit.SECONDS::toMillis)
+        ?: value?.let { headers.getDate(RETRY_AFTER) }?.let { (it.time - now).coerceAtLeast(0) }
+        ?: DEFAULT_RETRY_WAIT_MILLIS
     return waitMillis.takeIf { it in 0..MAX_RETRY_WAIT_MILLIS }
 }
 
