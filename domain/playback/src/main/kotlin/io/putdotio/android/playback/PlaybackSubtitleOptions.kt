@@ -44,7 +44,7 @@ internal fun PlaybackSubtitleTrack.formatName(): String? =
 public enum class SubtitleOrigin { File, Folder, OpenSubtitles }
 
 public fun PlaybackSubtitleTrack.putioSubtitle(sidecar: List<PlaybackSubtitle>): PlaybackSubtitle? {
-    val id = identity.id ?: return null
+    val id = identity.trackKey() ?: return null
     return sidecar.firstOrNull { id == it.key || id.endsWith(":${it.key}") }
 }
 
