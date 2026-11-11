@@ -143,6 +143,15 @@ class TvPlayerOverlayTest {
         assertEquals(listOf(TvPlayerCommand.SeekTo(DURATION)), tappedToEnd.commands)
         val heldAtEnd = tappedToEnd.overlay.skipForward(atMillis = 1_000L, repeat = true, positionMillis = DURATION)
         assertEquals("A hold never ends playback again", emptyList<TvPlayerCommand>(), heldAtEnd.commands)
+
+        val rewoundFromEnd = TvPlayerOverlay()
+            .skip(TvSkipPress(TvSkipDirection.Backward, 0L, 0L, repeat = true), DURATION, DURATION).overlay
+            .skip(TvSkipPress(TvSkipDirection.Backward, 0L, 1_000L, repeat = true), DURATION, DURATION)
+        assertEquals(
+            "A rewind hold leaves the end",
+            listOf(TvPlayerCommand.SeekTo(DURATION - 2_000L)),
+            rewoundFromEnd.commands,
+        )
     }
 
     @Test

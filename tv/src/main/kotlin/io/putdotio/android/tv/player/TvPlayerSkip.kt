@@ -97,7 +97,8 @@ private fun TvSkipHold.holds(press: TvSkipPress): Boolean =
 
 private fun TvSkipHold.step(atMillis: Long, durationMillis: Long): TvSkipHold? =
     copy(lastStepAtMillis = atMillis).takeIf {
-        atMillis - lastStepAtMillis >= TV_SKIP_HOLD_STEP_MILLIS && originMillis < durationMillis
+        atMillis - lastStepAtMillis >= TV_SKIP_HOLD_STEP_MILLIS &&
+            (direction == TvSkipDirection.Backward || originMillis < durationMillis)
     }
 
 private fun TvSkipHold.positionAt(atMillis: Long, durationMillis: Long): Long =
