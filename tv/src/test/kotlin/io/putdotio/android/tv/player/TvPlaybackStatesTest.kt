@@ -168,7 +168,7 @@ class TvPlaybackStatesTest {
     }
 
     @Test
-    fun aStatusCheckThatLosesTheNetworkStaysOnTheConversionWithTryAgain() {
+    fun aStatusCheckThatLosesTheNetworkKeepsPollingAndOffersTryAgain() {
         content = PlaybackContent.Conversion(PlaybackConversionState.Converting(42.4), statusCheckFailed = true)
         show()
         compose.onNodeWithText("Converting to MP4").assertIsDisplayed()
@@ -176,11 +176,11 @@ class TvPlaybackStatesTest {
         compose.onNodeWithText("Conversion failed. Try again later.").assertDoesNotExist()
         compose.onNodeWithTag(TV_CONVERSION_PROGRESS_TAG).assertDoesNotExist()
         compose.mainClock.advanceTimeBy(PLAYBACK_CONVERSION_POLL_MILLIS * 3)
-        compose.runOnIdle { assertEquals(0, refreshes) }
+        compose.runOnIdle { assertEquals(3, refreshes) }
 
         compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressKey(Key.DirectionCenter) }
         compose.runOnIdle {
-            assertEquals(1, refreshes)
+            assertEquals(4, refreshes)
             assertEquals(0, retries)
         }
         compose.onNodeWithText("Cancel").assertIsDisplayed()

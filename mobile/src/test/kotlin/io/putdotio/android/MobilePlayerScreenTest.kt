@@ -423,7 +423,7 @@ class MobilePlayerScreenTest {
     }
 
     @Test
-    fun aStatusCheckThatLosesTheNetworkStaysOnTheConversionWithTryAgain() {
+    fun aStatusCheckThatLosesTheNetworkKeepsPollingAndOffersTryAgain() {
         var refreshes = 0
         var retries = 0
         compose.mainClock.autoAdvance = false
@@ -445,10 +445,10 @@ class MobilePlayerScreenTest {
         compose.onNodeWithText("Can’t check conversion status. Check your internet connection.").assertIsDisplayed()
         compose.onNodeWithText("42%").assertDoesNotExist()
         compose.mainClock.advanceTimeBy(PLAYBACK_CONVERSION_POLL_MILLIS * 3)
-        compose.runOnIdle { assertEquals(0, refreshes) }
+        compose.runOnIdle { assertEquals(3, refreshes) }
         compose.onNodeWithText("Try again").performClick()
         compose.runOnIdle {
-            assertEquals(1, refreshes)
+            assertEquals(4, refreshes)
             assertEquals(0, retries)
         }
     }
