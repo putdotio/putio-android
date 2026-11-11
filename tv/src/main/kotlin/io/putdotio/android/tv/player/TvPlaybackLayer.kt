@@ -52,19 +52,25 @@ import kotlinx.coroutines.launch
  * Playback replaces the signed-in shell rather than covering it, so no shell control can
  * take D-pad focus behind the video. The shell's saved state (destination, drawer) is kept
  * while it is away; on return the Files pane puts focus back on the row that was playing.
+ * In the [background], the shell shows again while the player stays composed behind it,
+ * drawing nothing and taking neither focus nor Back.
  */
 @Composable
 internal fun TvPlaybackLayer(
     playing: Boolean,
     player: @Composable () -> Unit,
+    background: Boolean = false,
     shell: @Composable () -> Unit,
 ) {
     val saveableState = rememberSaveableStateHolder()
-    if (playing) {
-        LaunchedEffect(Unit) { ProductAnalytics.capture(AnalyticsEvent.ScreenViewed(AnalyticsEvent.Screen.Player)) }
-        player()
-    } else {
-        saveableState.SaveableStateProvider(SHELL_STATE_KEY, shell)
+    Box(Modifier.fillMaxSize()) {
+        if (!playing || background) saveableState.SaveableStateProvider(SHELL_STATE_KEY, shell)
+        if (playing) {
+            LaunchedEffect(background) {
+                if (!background) ProductAnalytics.capture(AnalyticsEvent.ScreenViewed(AnalyticsEvent.Screen.Player))
+            }
+            player()
+        }
     }
 }
 
@@ -86,6 +92,10 @@ internal fun TvPlaybackRoute(
     findNextEpisode: (suspend (PlaybackTarget) -> PlaybackNextResult)? = null,
     findUpNext: PlaybackFindNeighbours? = null,
     openInVlc: (suspend (PlaybackTarget) -> Int?)? = null,
+    background: Boolean = false,
+    onBackground: (() -> Unit)? = null,
+    onForeground: () -> Unit = {},
+    miniPlayer: TvMiniPlayerState? = null,
     findSubtitles: TvFindSubtitles? = null,
 ) {
     val state by controller.state.collectAsStateWithLifecycle()
@@ -148,11 +158,17 @@ internal fun TvPlaybackRoute(
             onOpenInVlc = handOffToVlc,
             onPlayInVlc = handOffToVlc?.takeIf { vlcInstalled },
             neighbours = neighbours,
+            background = background,
+            onBackground = onBackground,
+            onForeground = onForeground,
+            miniPlayer = miniPlayer,
             manifestSubtitles = manifestSubtitles,
             notices = snackbar,
         )
-        Box(modifier = Modifier.fillMaxSize().tvPlayerEdges()) {
-            TvSnackbarHost(snackbar, Modifier.align(Alignment.BottomStart), raised = true)
+        if (!background) {
+            Box(modifier = Modifier.fillMaxSize().tvPlayerEdges()) {
+                TvSnackbarHost(snackbar, Modifier.align(Alignment.BottomStart), raised = true)
+            }
         }
     }
 }

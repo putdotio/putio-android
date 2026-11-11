@@ -23,6 +23,9 @@ import androidx.compose.ui.test.pressKey
 import androidx.media3.common.util.UnstableApi
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.playback.PlaybackContent
+import java.io.IOException
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackFailure
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -42,6 +45,29 @@ import io.putdotio.android.playback.copyForTest
 class TvPlayerScreenTest {
     @get:Rule
     val compose = createAndroidComposeRule<ComponentActivity>()
+
+    @Test
+    fun aFailureBehindTheShellBringsThePlayerBackToShowIt() {
+        var shown = 0
+        val failed = readyState(name = "song.mp3", mediaType = PlaybackMediaType.AUDIO).copyForTest(
+            content = PlaybackContent.Failed(
+                PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IOException("offline"))),
+            ),
+        )
+        compose.setTvContent {
+            TvPlayerScreen(
+                state = failed,
+                onBack = {},
+                onRetry = {},
+                onPlayerFailure = { _, _ -> },
+                playerFactory = { _, _ -> FakePlayer() },
+                background = true,
+                onBackground = {},
+                onForeground = { shown += 1 },
+            )
+        }
+        compose.runOnIdle { assertEquals(1, shown) }
+    }
 
     @Test
     fun readySourcePlaysAndCenterTogglesPauseWithTheControlsShown() {

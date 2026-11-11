@@ -26,6 +26,8 @@ internal sealed interface TvPlayerCommand {
 
     data object Exit : TvPlayerCommand
 
+    data object Background : TvPlayerCommand
+
     data object PlayNext : TvPlayerCommand
 
     data object ChooseNext : TvPlayerCommand
@@ -74,7 +76,7 @@ internal fun TvPlayerOverlay.sessionPlaying(play: Boolean): TvPlayerTransition =
 internal fun TvPlayerOverlay.playingChanged(playing: Boolean): TvPlayerTransition =
     if (exited || playing) TvPlayerTransition(this) else reveal()
 
-internal fun TvPlayerOverlay.back(): TvPlayerTransition =
+internal fun TvPlayerOverlay.back(backgrounds: Boolean = false): TvPlayerTransition =
     when {
         exited -> TvPlayerTransition(this)
         upNextPending -> cancelUpNext()
@@ -84,6 +86,7 @@ internal fun TvPlayerOverlay.back(): TvPlayerTransition =
             )
         sheet != null -> closeSheet()
         controlsVisible && !nowPlaying -> TvPlayerTransition(hidden())
+        nowPlaying && backgrounds -> TvPlayerTransition(this, listOf(TvPlayerCommand.Background))
         else -> exit()
     }
 

@@ -72,6 +72,8 @@ import io.putdotio.android.playback.DataStoreSwitchedToConvertedFiles
 import io.putdotio.android.playback.MediaCodecDecoderInventory
 import io.putdotio.android.playback.OriginalVideoPolicy
 import io.putdotio.android.playback.playbackPreference
+import io.putdotio.android.tv.player.TvMiniPlayer
+import io.putdotio.android.tv.player.TvMiniPlayerState
 import io.putdotio.android.tv.player.TvPlaybackLayer
 import io.putdotio.android.tv.player.TvPlaybackRoute
 import io.putdotio.android.tv.player.openPlaybackInVlc
@@ -345,10 +347,13 @@ internal fun TvSessionShell(
     InvalidateFilesOnRestore(session, trashState)
     val accountDefaultSort = rememberAccountDefaultSort(session, settingsState)
     val playback by session.playback.collectAsStateWithLifecycle()
+    val playbackInBackground by session.playbackInBackground.collectAsStateWithLifecycle()
+    val miniPlayer = remember(session) { TvMiniPlayerState() }
     val context = LocalContext.current
 
     TvPlaybackLayer(
         playing = playback != null,
+        background = playbackInBackground,
         player = {
             playback?.let { controller ->
                 TvPlaybackRoute(
@@ -364,6 +369,10 @@ internal fun TvSessionShell(
                     openInVlc = { target ->
                         session.originalStreamUrl(target.fileId).openPlaybackInVlc(context, target)
                     },
+                    background = playbackInBackground,
+                    onBackground = session::backgroundPlayback,
+                    onForeground = session::foregroundPlayback,
+                    miniPlayer = miniPlayer,
                 )
             }
         },
@@ -374,6 +383,13 @@ internal fun TvSessionShell(
             showHome = showHome,
             focusHomePane = homeReturn != null,
             offline = !online,
+            trailing = {
+                TvMiniPlayer(
+                    playback = playback.takeIf { playbackInBackground },
+                    state = miniPlayer,
+                    onOpen = session::foregroundPlayback,
+                )
+            },
             homePane = { paneFocus ->
                 val pinFailure by session.pins.editFailure.collectAsStateWithLifecycle()
                 TvHomeScreen(

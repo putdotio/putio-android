@@ -98,6 +98,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
+// Every test drives one TvSession through the same fakes, which a split would duplicate.
+@Suppress("LargeClass")
 @OptIn(ExperimentalCoroutinesApi::class)
 class TvSessionViewModelTest {
     private val auth = MutableStateFlow<TvAuthState>(signedIn(1))
@@ -363,6 +365,30 @@ class TvSessionViewModelTest {
         session.stopPlayback()
         assertNull(session.playback.value)
         assertFalse(second.dispatch(PlaybackEvent.Retry))
+    }
+
+    @Test
+    fun `audio sent behind the shell keeps playing until it stops or another file plays`() {
+        val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
+        session.play(media(10, "song.mp3", PutioFileType.AUDIO))
+        val audio = checkNotNull(session.playback.value)
+
+        session.backgroundPlayback()
+        assertEquals(audio, session.playback.value)
+        assertTrue(session.playbackInBackground.value)
+
+        session.foregroundPlayback()
+        assertFalse(session.playbackInBackground.value)
+
+        session.backgroundPlayback()
+        session.play(media(9, "clip.mp4", PutioFileType.VIDEO))
+        assertFalse(session.playbackInBackground.value)
+        assertTrue(session.playback.value?.state?.value?.target?.mediaType == PlaybackMediaType.VIDEO)
+
+        session.backgroundPlayback()
+        session.stopPlayback()
+        assertNull(session.playback.value)
+        assertFalse(session.playbackInBackground.value)
     }
 
     @Test
