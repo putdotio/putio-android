@@ -14,6 +14,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -58,9 +59,15 @@ internal fun PlaybackUpNextLookup.stepAtEnd(pictureInPicture: Boolean): MobileUp
     }
 
 @Stable
-internal class MobileUpNextEnd {
+internal class MobileUpNextEnd(private val onPlay: State<(PlaybackTarget) -> Unit>) {
     var ended by mutableStateOf(false)
     var cancelled by mutableStateOf(false)
+
+    fun play(target: PlaybackTarget) {
+        if (cancelled) return
+        cancelled = true
+        onPlay.value(target)
+    }
 }
 
 @Composable
@@ -72,9 +79,9 @@ internal fun rememberMobileUpNextEnd(
     onPlaybackEnded: () -> Unit,
     onPlay: (PlaybackTarget) -> Unit,
 ): MobileUpNextEnd {
-    val end = remember(fileId) { MobileUpNextEnd() }
+    val currentOnPlay = rememberUpdatedState(onPlay)
+    val end = remember(fileId) { MobileUpNextEnd(currentOnPlay) }
     val currentOnPlaybackEnded by rememberUpdatedState(onPlaybackEnded)
-    val currentOnPlay by rememberUpdatedState(onPlay)
     LaunchedEffect(end, playbackState) {
         if (playbackState != Media3Player.STATE_ENDED) {
             end.ended = false
@@ -85,7 +92,7 @@ internal fun rememberMobileUpNextEnd(
         if (!end.ended || end.cancelled) return@LaunchedEffect
         when (lookup.stepAtEnd(pictureInPicture)) {
             MobileUpNextStep.Wait, MobileUpNextStep.Count -> Unit
-            MobileUpNextStep.PlayNow -> (lookup as? PlaybackUpNextLookup.Found)?.let { currentOnPlay(it.upNext.target) }
+            MobileUpNextStep.PlayNow -> (lookup as? PlaybackUpNextLookup.Found)?.let { end.play(it.upNext.target) }
             MobileUpNextStep.Leave -> currentOnPlaybackEnded()
         }
     }

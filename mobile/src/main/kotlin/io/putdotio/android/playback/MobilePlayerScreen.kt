@@ -645,7 +645,7 @@ private fun MobileReadyPlayer(
         nextEpisode = nextEpisode,
         onNextEpisode = onNextEpisode,
         upNextCard = upNextEnd.counting(upNext, pictureInPicture.value),
-        onPlayUpNext = onPlayUpNext,
+        onPlayUpNext = upNextEnd::play,
         onCancelUpNext = { upNextEnd.cancelled = true },
         neighbours = neighbours,
         onPlay = onPlay,
