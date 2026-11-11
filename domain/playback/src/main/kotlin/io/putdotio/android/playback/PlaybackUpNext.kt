@@ -3,6 +3,7 @@ package io.putdotio.android.playback
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.withFrameMillis
 import io.putdotio.android.PutioFailure
 
 public const val PLAYBACK_UP_NEXT_MILLIS: Long = 10_000L
@@ -44,6 +45,15 @@ public fun rememberUpNext(
         }
     }
     return lookup
+}
+
+public suspend fun countDownUpNext(fromMillis: Long, onRemaining: (Long) -> Unit) {
+    val start = withFrameMillis { it } - (PLAYBACK_UP_NEXT_MILLIS - fromMillis)
+    var remaining = fromMillis
+    while (remaining > 0L) {
+        remaining = withFrameMillis { now -> (PLAYBACK_UP_NEXT_MILLIS - (now - start)).coerceAtLeast(0L) }
+        onRemaining(remaining)
+    }
 }
 
 public fun PlaybackUpNextLookup.whenAutoplaying(autoplay: Boolean, mediaType: PlaybackMediaType): PlaybackUpNextLookup =

@@ -521,10 +521,11 @@ private fun MobileReadyPlayer(
         playbackState = playerState.playbackState,
         lookup = upNext,
         pictureInPicture = pictureInPicture.value,
+        autoplay = autoplayNextVideo,
         onPlaybackEnded = onPlaybackEnded,
         onPlay = onPlayUpNext,
     )
-    val currentOnPlaybackEnded = rememberUpdatedState<() -> Unit> { upNextEnd.ended = true }
+    val markEnded = rememberUpdatedState<() -> Unit> { upNextEnd.ended = true }
     val currentOnVideoAspectRatio by rememberUpdatedState(onVideoAspectRatio)
     LaunchedEffect(playerState.videoSize) {
         playerState.videoSize.displayAspectRatioOrNull()?.let(currentOnVideoAspectRatio)
@@ -590,7 +591,7 @@ private fun MobileReadyPlayer(
         currentPreferences = currentPreferences,
         currentSubtitleStartupPolicy = currentSubtitleStartupPolicy,
         currentAutoplayNextVideo = currentAutoplayNextVideo,
-        currentOnPlaybackEnded = currentOnPlaybackEnded,
+        currentOnPlaybackEnded = markEnded,
         currentOnReachedEnd = currentOnReachedEnd,
         currentOnPlayerFailure = currentOnPlayerFailure,
         currentOnOriginalRejected = currentOnOriginalRejected,
@@ -1282,6 +1283,7 @@ private fun MobileReadyPlayerContent(
     val fold = tabletopFoldIn(contentInWindow, enabled = !pictureInPicture)
     var chromeFitsFold by remember(fold, contentInWindow.size) { mutableStateOf(true) }
     val videoFold = fold?.takeIf { chromeFitsFold }
+    val shownFooterHeight = footerHeight.takeIf { controlsVisible.value && sheet == null } ?: 0.dp
 
     Box(
         Modifier
@@ -1320,9 +1322,7 @@ private fun MobileReadyPlayerContent(
                 pictureInPicture = pictureInPicture,
                 subtitleTextScale = appearance.textSize.scale,
                 subtitlesBesideSheet = sheet != null,
-                subtitleClearance = videoFold.videoClearance(
-                    footerHeight.takeIf { controlsVisible.value && sheet == null } ?: 0.dp,
-                ),
+                subtitleClearance = videoFold.videoClearance(shownFooterHeight),
                 subtitleDelayMillis = preferences.subtitleOffsetMillis,
                 fold = videoFold,
             )
@@ -1381,7 +1381,7 @@ private fun MobileReadyPlayerContent(
                     .align(Alignment.BottomEnd)
                     .zIndex(2.25f)
                     .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-                    .padding(end = 24.dp, bottom = footerHeight + 8.dp)
+                    .padding(end = 24.dp, bottom = shownFooterHeight + 8.dp)
                     .then(optionModifier),
             )
         }

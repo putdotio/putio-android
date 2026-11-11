@@ -110,7 +110,6 @@ class TvAutoplayProofTest {
         Thread.sleep(PLAY_MILLIS)
         screenshot("02-first-playing")
 
-        // The first video plays to its end; the next in the folder resumes its saved position without asking.
         compose.waitUntil(FIXTURE_MILLIS * 3) {
             compose.runOnIdle {
                 session.playback.value?.state?.value?.let { it.target.fileId == FilesItemId(SECOND_ID) } == true

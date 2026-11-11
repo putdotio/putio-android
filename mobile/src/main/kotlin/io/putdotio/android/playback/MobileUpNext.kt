@@ -22,7 +22,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -78,6 +77,7 @@ internal fun rememberMobileUpNextEnd(
     playbackState: Int,
     lookup: PlaybackUpNextLookup,
     pictureInPicture: Boolean,
+    autoplay: Boolean,
     onPlaybackEnded: () -> Unit,
     onPlay: (PlaybackTarget) -> Unit,
 ): MobileUpNextEnd {
@@ -91,24 +91,24 @@ internal fun rememberMobileUpNextEnd(
             end.remainingMillis = PLAYBACK_UP_NEXT_MILLIS
         }
     }
-    LaunchedEffect(end, end.ended, end.cancelled, lookup, pictureInPicture) {
-        if (!end.ended || end.cancelled) return@LaunchedEffect
+    LaunchedEffect(end, end.ended, end.cancelled, lookup, pictureInPicture, autoplay) {
+        if (!end.ended || end.cancelled || !autoplay) return@LaunchedEffect
         val found = (lookup as? PlaybackUpNextLookup.Found)?.upNext?.target
         when (lookup.stepAtEnd(pictureInPicture)) {
             MobileUpNextStep.Wait -> Unit
             MobileUpNextStep.Count -> found?.let { end.countDownTo(it) }
             MobileUpNextStep.PlayNow -> found?.let(end::play)
-            MobileUpNextStep.Leave -> currentOnPlaybackEnded()
+            MobileUpNextStep.Leave -> {
+                end.cancelled = true
+                currentOnPlaybackEnded()
+            }
         }
     }
     return end
 }
 
 private suspend fun MobileUpNextEnd.countDownTo(target: PlaybackTarget) {
-    val start = withFrameMillis { it } - (PLAYBACK_UP_NEXT_MILLIS - remainingMillis)
-    while (remainingMillis > 0L) {
-        remainingMillis = withFrameMillis { now -> (PLAYBACK_UP_NEXT_MILLIS - (now - start)).coerceAtLeast(0L) }
-    }
+    countDownUpNext(remainingMillis) { remainingMillis = it }
     play(target)
 }
 
@@ -138,7 +138,7 @@ internal fun MobileUpNextCard(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Column(Modifier.weight(1f, fill = false).semantics { liveRegion = LiveRegionMode.Polite }) {
+        Column(Modifier.weight(1f, fill = false)) {
             Text(
                 text = buildAnnotatedString {
                     append(header.substringBefore(COUNTDOWN_SLOT))
@@ -156,6 +156,7 @@ internal fun MobileUpNextCard(
             )
             MobileMiddleCutText(
                 text = upNext.target.name,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
                 color = MaterialTheme.colorScheme.onSurface,
             )

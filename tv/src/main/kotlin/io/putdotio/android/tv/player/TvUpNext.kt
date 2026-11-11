@@ -19,7 +19,6 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,6 +46,7 @@ import io.putdotio.android.playback.PLAYBACK_UP_NEXT_MILLIS
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.playback.PlaybackUpNext
 import io.putdotio.android.playback.PlaybackUpNextLookup
+import io.putdotio.android.playback.countDownUpNext
 import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.TvButtonSize
 import io.putdotio.android.tv.TvButtonStyle
@@ -54,7 +54,6 @@ import io.putdotio.android.tv.withFullLineBox
 import kotlin.math.ceil
 
 internal const val TV_UP_NEXT_TAG = "tv-player-up-next"
-internal const val TV_UP_NEXT_MILLIS = PLAYBACK_UP_NEXT_MILLIS
 
 internal fun TvPlayerOverlay.ended(
     autoplayNext: Boolean = false,
@@ -129,12 +128,9 @@ private fun TvUpNextCard(
     onCancel: () -> Unit,
 ) {
     val currentOnPlayNow by rememberUpdatedState(onPlayNow)
-    var remainingMillis by remember { mutableLongStateOf(TV_UP_NEXT_MILLIS) }
+    var remainingMillis by remember { mutableLongStateOf(PLAYBACK_UP_NEXT_MILLIS) }
     LaunchedEffect(Unit) {
-        val start = withFrameMillis { it }
-        while (remainingMillis > 0L) {
-            remainingMillis = withFrameMillis { now -> (TV_UP_NEXT_MILLIS - (now - start)).coerceAtLeast(0L) }
-        }
+        countDownUpNext(remainingMillis) { remainingMillis = it }
         currentOnPlayNow()
     }
     val focus = remember { FocusRequester() }
@@ -186,7 +182,7 @@ private fun TvUpNextCard(
             ) {
                 Box(
                     Modifier
-                        .fillMaxWidth(1f - remainingMillis.toFloat() / TV_UP_NEXT_MILLIS)
+                        .fillMaxWidth(1f - remainingMillis.toFloat() / PLAYBACK_UP_NEXT_MILLIS)
                         .height(UP_NEXT_LINE)
                         .background(PutioDesignTokens.yellowSolid),
                 )

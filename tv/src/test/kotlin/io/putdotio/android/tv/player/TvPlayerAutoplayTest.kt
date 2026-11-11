@@ -20,6 +20,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.playback.PLAYBACK_UP_NEXT_MILLIS
 import io.putdotio.android.playback.PLAYBACK_REPORTING_LEASE_KEY
 import io.putdotio.android.playback.PlaybackController
 import io.putdotio.android.playback.PlaybackFailure
@@ -116,11 +117,11 @@ class TvPlayerAutoplayTest {
         compose.onNodeWithText("Playing in 10").assertIsDisplayed()
         compose.onNodeWithText("Play now").assertIsFocused()
 
-        compose.mainClock.advanceTimeBy(TV_UP_NEXT_MILLIS / 2)
+        compose.mainClock.advanceTimeBy(PLAYBACK_UP_NEXT_MILLIS / 2)
         compose.onNodeWithText("Playing in 5").assertIsDisplayed()
         compose.runOnIdle { assertEquals("Nothing plays during the countdown", 1, players.size) }
 
-        compose.mainClock.advanceTimeBy(TV_UP_NEXT_MILLIS / 2)
+        compose.mainClock.advanceTimeBy(PLAYBACK_UP_NEXT_MILLIS / 2)
         compose.settle()
         compose.runOnIdle {
             assertEquals(0, exits)
@@ -149,7 +150,7 @@ class TvPlayerAutoplayTest {
         compose.settle()
         compose.onNodeWithTag(TV_UP_NEXT_TAG).assertDoesNotExist()
         compose.onNodeWithTag(TV_PLAYER_TAG).assertIsFocused()
-        compose.mainClock.advanceTimeBy(TV_UP_NEXT_MILLIS * 2)
+        compose.mainClock.advanceTimeBy(PLAYBACK_UP_NEXT_MILLIS * 2)
         compose.runOnIdle {
             assertEquals(0, exits)
             assertEquals(1, players.size)
@@ -163,7 +164,7 @@ class TvPlayerAutoplayTest {
         compose.back()
         compose.settle()
         compose.onNodeWithTag(TV_UP_NEXT_TAG).assertDoesNotExist()
-        compose.mainClock.advanceTimeBy(TV_UP_NEXT_MILLIS * 2)
+        compose.mainClock.advanceTimeBy(PLAYBACK_UP_NEXT_MILLIS * 2)
         compose.runOnIdle {
             assertEquals(0, exits)
             assertEquals(1, players.size)
@@ -257,7 +258,7 @@ class TvPlayerAutoplayTest {
         compose.runOnIdle { players.single().seekTo(0L) }
         compose.settle()
         compose.onNodeWithTag(TV_UP_NEXT_TAG).assertDoesNotExist()
-        compose.mainClock.advanceTimeBy(TV_UP_NEXT_MILLIS * 2)
+        compose.mainClock.advanceTimeBy(PLAYBACK_UP_NEXT_MILLIS * 2)
         compose.runOnIdle { assertEquals(1, players.size) }
     }
 
@@ -284,7 +285,7 @@ class TvPlayerAutoplayTest {
             frames += 1
             assertTrue("The countdown reaches 9", frames < FRAMES_PER_COUNTDOWN)
         }
-        val framesLeft = framesFor(TV_UP_NEXT_MILLIS) - framesFor(SECOND_MILLIS)
+        val framesLeft = framesFor(PLAYBACK_UP_NEXT_MILLIS) - framesFor(SECOND_MILLIS)
         repeat(framesLeft - 2) {
             compose.mainClock.advanceTimeByFrame()
             compose.waitForIdle()
@@ -295,7 +296,7 @@ class TvPlayerAutoplayTest {
         compose.mainClock.advanceTimeByFrame()
         compose.settle()
         compose.onNodeWithTag(TV_UP_NEXT_TAG).assertDoesNotExist()
-        compose.mainClock.advanceTimeBy(TV_UP_NEXT_MILLIS * 2)
+        compose.mainClock.advanceTimeBy(PLAYBACK_UP_NEXT_MILLIS * 2)
         compose.runOnIdle { assertEquals(1, players.size) }
     }
 
@@ -315,14 +316,14 @@ class TvPlayerAutoplayTest {
         compose.mainClock.autoAdvance = false
         compose.runOnIdle { players.single().end() }
         compose.settle()
-        compose.mainClock.advanceTimeBy(TV_UP_NEXT_MILLIS)
+        compose.mainClock.advanceTimeBy(PLAYBACK_UP_NEXT_MILLIS)
         compose.settle()
         compose.runOnIdle { assertEquals("10", players.last().mediaItems.single().mediaId) }
 
         compose.runOnIdle { players.last().end() }
         compose.settle()
         compose.onNodeWithTag(TV_UP_NEXT_TAG).assertDoesNotExist()
-        compose.mainClock.advanceTimeBy(TV_UP_NEXT_MILLIS * 2)
+        compose.mainClock.advanceTimeBy(PLAYBACK_UP_NEXT_MILLIS * 2)
         compose.runOnIdle {
             assertEquals(2, players.size)
             assertEquals(1, exits)
@@ -489,7 +490,7 @@ class TvPlayerAutoplayTest {
 private const val NEXT_EPISODE = "Next episode"
 private const val FRAME_MILLIS = 16L
 private const val SECOND_MILLIS = 1_000L
-private const val FRAMES_PER_COUNTDOWN = TV_UP_NEXT_MILLIS / FRAME_MILLIS
+private const val FRAMES_PER_COUNTDOWN = PLAYBACK_UP_NEXT_MILLIS / FRAME_MILLIS
 
 private fun framesFor(millis: Long): Int = ceil(millis / FRAME_MILLIS.toDouble()).toInt()
 private val NEXT = PlaybackTarget(FilesItemId(10), "Harbor film 2.mp4")
