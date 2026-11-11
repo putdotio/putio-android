@@ -180,7 +180,7 @@ class RunAuthenticatedRenameProofTest {
         for (value in listOf("", "plain", "Harbor été 東京", "a'b\"c", "line one\nline two",
             "\$(printf expanded); `printf expanded` \$HOME * ? [abc] \\ --")) {
             val command = "set -- ${proofShellQuote(value)}; [ \"\$#\" -eq 1 ] && printf '%s' \"\$1\""
-            val process = ProcessBuilder("sh", "-c", command).redirectErrorStream(true).start()
+            val process = ProcessBuilder(HostBash.path, "-c", command).redirectErrorStream(true).start()
             try {
                 assertTrue("Quoted argument command timed out", process.waitFor(5, TimeUnit.SECONDS))
                 assertEquals(0, process.exitValue())

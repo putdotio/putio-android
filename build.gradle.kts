@@ -16,20 +16,8 @@ plugins {
 // Script checks are deterministic in the repository files they read and the host
 // tools they run. Declaring both lets Gradle skip an unchanged check and restore a
 // passing result from the build cache; a failure writes no stamp, so it never caches.
-val windows = System.getProperty("os.name").startsWith("Windows")
-
-// A bare `bash` on Windows is the WSL launcher; Git for Windows ships the bash the scripts expect.
-val bash: String = if (windows) {
-    System.getenv("PATH").orEmpty().split(File.pathSeparator)
-        .map { File(it, "git.exe") }
-        .firstOrNull { it.isFile }
-        ?.parentFile?.parentFile?.resolve("bin/bash.exe")
-        ?.takeIf { it.isFile }
-        ?.path
-        ?: error("Git for Windows must be on PATH: its bash runs the script checks")
-} else {
-    "bash"
-}
+val windows = HostBash.isWindows
+val bash: String = HostBash.path
 
 val scriptCheckTools = providers.exec {
     commandLine(
