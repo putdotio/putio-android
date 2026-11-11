@@ -6,6 +6,7 @@ import io.putdotio.android.files.toFilesItem
 import io.putdotio.android.putioRequest
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.files.FileSearchResponse
+import io.putdotio.sdk.files.FilesContinueQuery
 import io.putdotio.sdk.files.FilesSearchQuery
 
 public interface SearchRepository {
@@ -22,11 +23,11 @@ public interface SearchRepository {
 
 public class SdkSearchRepository internal constructor(
     private val searchFiles: suspend (FilesSearchQuery) -> FileSearchResponse,
-    private val continueSearch: suspend (String) -> FileSearchResponse,
+    private val continueSearch: suspend (String, FilesContinueQuery) -> FileSearchResponse,
 ) : SearchRepository {
     public constructor(client: PutioClient) : this(
         searchFiles = { query -> client.files.search(query) },
-        continueSearch = { cursor -> client.files.continueSearch(cursor) },
+        continueSearch = { cursor, query -> client.files.continueSearch(cursor, query) },
     )
 
     override suspend fun search(term: SearchTerm): PutioResult<SearchPage> = search(term, SearchFilter.All)
@@ -35,10 +36,16 @@ public class SdkSearchRepository internal constructor(
         term: SearchTerm,
         filter: SearchFilter,
     ): PutioResult<SearchPage> =
-        putioRequest { searchFiles(FilesSearchQuery(keyword = term.value, type = filter.apiTypes)).toSearchPage() }
+        putioRequest {
+            searchFiles(
+                FilesSearchQuery(keyword = term.value, perPage = SEARCH_PAGE_SIZE, type = filter.apiTypes),
+            ).toSearchPage()
+        }
 
     override suspend fun loadNextPage(cursor: FilesCursor): PutioResult<SearchPage> =
-        putioRequest { continueSearch(cursor.value).toSearchPage() }
+        putioRequest {
+            continueSearch(cursor.value, FilesContinueQuery(perPage = SEARCH_PAGE_SIZE)).toSearchPage()
+        }
 }
 
 private fun FileSearchResponse.toSearchPage(): SearchPage =
@@ -47,3 +54,5 @@ private fun FileSearchResponse.toSearchPage(): SearchPage =
         nextCursor = cursor?.takeIf(String::isNotBlank)?.let(::FilesCursor),
         total = total,
     )
+
+private const val SEARCH_PAGE_SIZE = 50

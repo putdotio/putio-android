@@ -62,6 +62,26 @@ class SdkHistoryRepositoryTest {
     }
 
     @Test
+    fun firstAndNextPagesRequestFiftyEvents() = runBlocking {
+        val queries = mutableListOf<HistoryListQuery>()
+        val repository = SdkHistoryRepository(
+            listEvents = {
+                queries += it
+                response(emptyList(), hasMore = true)
+            },
+            clearEvents = {},
+        )
+
+        repository.load(null)
+        repository.load(HistoryEventId(4L))
+
+        assertEquals(
+            listOf(HistoryListQuery(perPage = 50), HistoryListQuery(perPage = 50, before = 4L)),
+            queries,
+        )
+    }
+
+    @Test
     fun eachEventTypeKeepsTheNameItsCopyStatesAndBlankNamesAreAbsent() = runBlocking {
         val events = listOf(
             event(1, HistoryEventType.UPLOAD, fileName = "Harbor film.mp4", fileId = 501L),
