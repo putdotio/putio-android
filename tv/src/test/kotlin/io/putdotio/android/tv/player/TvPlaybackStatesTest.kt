@@ -206,7 +206,8 @@ class TvPlaybackStatesTest {
         compose.onNodeWithText("Try again").performKeyInput { pressKey(Key.DirectionRight) }
         compose.onNodeWithText("Go back").assertIsFocused()
 
-        change(PlaybackContent.Failed(PlaybackFailure.Putio(PutioFailure.AccessDenied(PutioConfigurationException("test")))))
+        val denied = PutioFailure.AccessDenied(PutioConfigurationException("test"))
+        change(PlaybackContent.Failed(PlaybackFailure.Putio(denied)))
         compose.onNodeWithText("Try again").assertDoesNotExist()
         compose.onNodeWithText("Go back").assertIsFocused()
     }
