@@ -198,7 +198,7 @@ class TvPlayerResumeTest {
         compose.runOnIdle { owner.registry.currentState = Lifecycle.State.CREATED }
         compose.runOnIdle { player.advanceTo(31_000L) }
 
-        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(16))
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(11))
 
         compose.runOnIdle {
             assertTrue(player.playWhenReady)
