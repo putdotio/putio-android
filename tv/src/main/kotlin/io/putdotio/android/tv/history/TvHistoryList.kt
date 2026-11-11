@@ -44,7 +44,10 @@ import io.putdotio.android.tv.TvListRowDot
 import io.putdotio.android.tv.TvSectionLine
 import io.putdotio.android.tv.TvSectionPill
 import io.putdotio.android.tv.bringIntoComposition
+import io.putdotio.android.tv.TvAutoPaging
 import io.putdotio.android.tv.focusRequesterIf
+import io.putdotio.android.tv.holdAtPendingEnd
+import io.putdotio.android.tv.isNearEnd
 import io.putdotio.android.tv.withFullLineBox
 import java.time.LocalDate
 import java.time.ZoneId
@@ -87,6 +90,9 @@ private fun historyEntries(items: List<HistoryItem>, today: LocalDate, zone: Zon
         }
     }
 }
+
+private val HistoryPaging.isPending: Boolean
+    get() = this is HistoryPaging.Available || this is HistoryPaging.Loading
 
 private fun List<TvHistoryEntry>.firstRowFrom(top: Int): Int =
     indices.firstOrNull { it >= top && this[it] is TvHistoryEntry.Event } ?: -1
@@ -136,7 +142,7 @@ internal fun TvHistoryList(
     val restoreRow = remember { FocusRequester() }
     val pagingHeldFocus = remember { mutableStateOf(false) }
     val handOffToLastRow = remember { mutableStateOf(false) }
-    if (content.paging == HistoryPaging.Complete && pagingHeldFocus.value) {
+    if (content.paging !is HistoryPaging.Failed && pagingHeldFocus.value) {
         pagingHeldFocus.value = false
         handOffToLastRow.value = true
     }
@@ -146,6 +152,12 @@ internal fun TvHistoryList(
     }
     val lastIndex = entries.lastIndex
     val restoreIndex = remember(entries) { entries.indexOfPick(restoreRowId) }
+    val pendingEndIndex = lastIndex.takeIf { content.paging.isPending }
+    TvAutoPaging(
+        page = content.paging as? HistoryPaging.Available,
+        onLoadMore = actions.onNextPage,
+        nearEnd = { listState.isNearEnd(lastIndex) },
+    )
     LaunchedEffect(listState) {
         if (!listState.awaitMountRow(entries, restoreIndex, anchorIndex)) return@LaunchedEffect
         withFrameNanos {}
@@ -183,6 +195,7 @@ internal fun TvHistoryList(
             val requesters = Modifier
                 .focusRequesterIf(index == anchorIndex, anchorRow)
                 .focusRequesterIf(index == lastIndex, lastRow)
+                .holdAtPendingEnd(index == pendingEndIndex)
                 .focusRequesterIf(index == restoreIndex, restoreRow)
             TvHistoryEntryItem(entry, zone, focus, actions, modifier = requesters)
         }
@@ -190,7 +203,6 @@ internal fun TvHistoryList(
             item(key = PAGING_KEY, contentType = "paging") {
                 TvHistoryPaging(
                     paging = content.paging,
-                    onNextPage = actions.onNextPage,
                     onRetry = actions.onRetry,
                     buttonModifier = Modifier.onFocusChanged { pagingHeldFocus.value = it.isFocused },
                 )

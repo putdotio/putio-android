@@ -137,10 +137,6 @@ class TvSearchScreenTest {
         compose.onNodeWithContentDescription("Play Tears of Steel.webm").assertIsFocused().performKeyInput {
             pressKey(Key.DirectionDown)
         }
-        compose.onNode(hasText("Load more") and hasClickAction()).assertIsFocused().performKeyInput {
-            pressCenter()
-            pressKey(Key.DirectionUp)
-        }
         compose.onNodeWithContentDescription("Play Tears of Steel.webm").assertIsFocused().performKeyInput {
             pressCenter()
         }
@@ -176,20 +172,20 @@ class TvSearchScreenTest {
     }
 
     @Test
-    fun anEmptyPageWhoseLoadMoreFindsNothingHandsFocusToTheField() {
+    fun anEmptyPageWithMoreLoadsItOnItsOwnAndFocusStaysOnTheField() {
         var state by mutableStateOf(
             searchState(SearchContent.Empty(SearchTerm("x"), SearchPaging.Available(FilesCursor("c1"))), query = "x"),
         )
         show(state = { state })
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
-        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput {
-            pressKey(Key.DirectionDown)
-            pressKey(Key.DirectionDown)
-        }
-        compose.onNode(hasText("Load more") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
+        assertEquals(listOf("next"), log)
 
+        state = searchState(
+            SearchContent.Empty(SearchTerm("x"), SearchPaging.Loading(FilesCursor("c1"), SearchRequestId(2))),
+            query = "x",
+        )
+        compose.onNodeWithContentDescription("Loading more results").assertIsDisplayed()
         state = searchState(SearchContent.Empty(SearchTerm("x"), SearchPaging.Complete), query = "x")
-        compose.onAllNodesWithText("Load more").assertCountEquals(0)
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assertIsFocused()
         assertEquals(listOf("next"), log)
     }
@@ -212,46 +208,46 @@ class TvSearchScreenTest {
     }
 
     @Test
-    fun loadMoreKeepsFocusThroughLoadingAndHandsOffToTheLastRowWhenComplete() {
-        var state by mutableStateOf(oneRowSearch(SearchPaging.Available(FilesCursor("c1"))))
+    fun aFailedPageRetriesOnlyFromTryAgainAndFocusReturnsToTheLastRow() {
+        var state by mutableStateOf(oneRowSearch(pageFailed()))
         show(state = { state })
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput {
             repeat(3) { pressKey(Key.DirectionDown) }
         }
-        compose.onNode(hasText("Load more") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
-        state = oneRowSearch(SearchPaging.Loading(FilesCursor("c1"), SearchRequestId(2)))
-        compose.onNode(hasText("Loading more results") and hasClickAction()).assertIsFocused()
-
-        state = oneRowSearch(
-            SearchPaging.Failed(FilesCursor("c1"), PutioFailure.Misconfigured(PutioConfigurationException("boom"))),
-        )
         compose.onNodeWithText("Couldn’t load more results.").assertIsDisplayed()
+        assertEquals(emptyList<String>(), log)
         compose.onNode(hasText("Try again") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
 
+        state = oneRowSearch(SearchPaging.Loading(FilesCursor("c1"), SearchRequestId(2)))
+        compose.onNodeWithContentDescription("Loading more results").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Play one.mkv").assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionDown)
+        }
+        compose.onNodeWithContentDescription("Play one.mkv").assertIsFocused()
+
         state = oneRowSearch(SearchPaging.Complete, item(2, "two.mkv", PutioFileType.VIDEO))
-        compose.onNodeWithContentDescription("Play two.mkv").assertIsFocused()
-        assertEquals(listOf("next", "retry"), log)
+        compose.onNodeWithContentDescription("Play two.mkv").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Play one.mkv").assertIsFocused()
+        assertEquals(listOf("retry"), log)
     }
 
     @Test
-    fun aLastPageLandingAfterLeavingLoadMoreDoesNotStealFocus() {
-        var state by mutableStateOf(oneRowSearch(SearchPaging.Available(FilesCursor("c1"))))
+    fun aLastPageLandingAfterLeavingTryAgainDoesNotStealFocus() {
+        var state by mutableStateOf(oneRowSearch(pageFailed()))
         show(state = { state })
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput {
             repeat(3) { pressKey(Key.DirectionDown) }
         }
-        compose.onNode(hasText("Load more") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
-        state = oneRowSearch(SearchPaging.Loading(FilesCursor("c1"), SearchRequestId(2)))
-        compose.onNode(hasText("Loading more results") and hasClickAction()).assertIsFocused().performKeyInput {
+        compose.onNode(hasText("Try again") and hasClickAction()).assertIsFocused().performKeyInput {
             repeat(3) { pressKey(Key.DirectionUp) }
         }
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assertIsFocused()
 
         state = oneRowSearch(SearchPaging.Complete, item(2, "two.mkv", PutioFileType.VIDEO))
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assertIsFocused()
-        assertEquals(listOf("next"), log)
+        assertEquals(emptyList<String>(), log)
     }
 
     @Test
@@ -385,7 +381,7 @@ class TvSearchScreenTest {
         val page = (1..12).map { item(it.toLong(), "row-$it.mkv", PutioFileType.VIDEO) }
         var state by mutableStateOf(
             searchState(
-                SearchContent.Ready(SearchTerm("r"), page, SearchPaging.Available(FilesCursor("c1"))),
+                SearchContent.Ready(SearchTerm("r"), page, pageFailed()),
                 query = "r",
             ),
         )
@@ -394,11 +390,11 @@ class TvSearchScreenTest {
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput {
             repeat(page.size + 2) { pressKey(Key.DirectionDown) }
         }
-        compose.onNode(hasText("Load more") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
+        compose.onNode(hasText("Try again") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
         val more = (13..30).map { item(it.toLong(), "row-$it.mkv", PutioFileType.VIDEO) }
         state = searchState(SearchContent.Ready(SearchTerm("r"), page + more, SearchPaging.Complete), query = "r")
         compose.onNodeWithContentDescription("Play row-30.mkv").assertIsFocused()
-        assertEquals(listOf("next"), log)
+        assertEquals(listOf("retry"), log)
     }
 
     @Test
@@ -639,6 +635,9 @@ class TvSearchScreenTest {
         nextRequestValue = 5L,
         recentSearchesEnabled = historyEnabled,
     )
+
+    private fun pageFailed() =
+        SearchPaging.Failed(FilesCursor("c1"), PutioFailure.Misconfigured(PutioConfigurationException("boom")))
 
     private fun oneRowSearch(paging: SearchPaging, vararg more: FilesItem) = searchState(
         SearchContent.Ready(SearchTerm("t"), listOf(item(1, "one.mkv", PutioFileType.VIDEO)) + more, paging),

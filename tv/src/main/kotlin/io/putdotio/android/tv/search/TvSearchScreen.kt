@@ -52,6 +52,8 @@ import io.putdotio.android.tv.TvDetailSkeleton
 import io.putdotio.android.tv.TvEmptyState
 import io.putdotio.android.tv.TvListDetail
 import io.putdotio.android.tv.TvListSkeleton
+import io.putdotio.android.tv.TvAutoPaging
+import io.putdotio.android.tv.TvListPaging
 import io.putdotio.android.tv.TvLoadFailedState
 import io.putdotio.android.tv.TvNoticeDialog
 import io.putdotio.android.tv.TvPaneFocusOwner
@@ -316,10 +318,13 @@ private fun ColumnScope.TvSearchContent(
                     modifier = Modifier.padding(top = EMPTY_TOP, bottom = EMPTY_BOTTOM),
                     glyphModifier = Modifier.offset(y = -SHRUG_LIFT),
                 )
+                TvAutoPaging(page = content.paging as? SearchPaging.Available, onLoadMore = actions.onNextPage)
                 TvSearchPaging(
                     paging = content.paging,
-                    onNextPage = actions.onNextPage,
-                    onRetry = actions.onRetry,
+                    onRetry = {
+                        owner.focusHome()
+                        actions.onRetry()
+                    },
                     owner = owner,
                     modifier = Modifier.align(Alignment.BottomCenter),
                 )
@@ -546,48 +551,25 @@ private fun TvSearchNotice(
 @Composable
 internal fun TvSearchPaging(
     paging: SearchPaging,
-    onNextPage: () -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
     owner: TvPaneFocusOwner? = null,
     buttonModifier: Modifier = Modifier,
 ) {
     val pagingFocus = remember { FocusRequester() }
-    val label = when (paging) {
-        is SearchPaging.Available -> R.string.tv_search_load_more
-        is SearchPaging.Loading -> R.string.tv_search_loading_more
-        is SearchPaging.Failed -> R.string.tv_files_retry
-        SearchPaging.Complete -> null
-    } ?: return
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (paging is SearchPaging.Failed) {
-            Text(
-                stringResource(R.string.tv_search_paging_error),
-                style = PutioTypeScale.tvMeta,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        TvButton(
-            onClick = {
-                when (paging) {
-                    is SearchPaging.Available -> onNextPage()
-                    is SearchPaging.Failed -> onRetry()
-                    is SearchPaging.Loading, SearchPaging.Complete -> Unit
-                }
-            },
-            modifier = buttonModifier
-                .then(if (owner != null) Modifier.paneSection(owner, pagingFocus) else Modifier)
-                .focusRequester(pagingFocus),
-        ) {
-            Text(stringResource(label))
-        }
-    }
+    if (paging == SearchPaging.Complete) return
+    TvListPaging(
+        failed = paging is SearchPaging.Failed,
+        loadingMore = stringResource(R.string.tv_search_loading_more),
+        error = stringResource(R.string.tv_search_paging_error),
+        retry = stringResource(R.string.tv_files_retry),
+        onRetry = onRetry,
+        modifier = modifier,
+        buttonModifier = buttonModifier
+            .then(if (owner != null) Modifier.paneSection(owner, pagingFocus) else Modifier)
+            .focusRequester(pagingFocus),
+        errorStyle = PutioTypeScale.tvMeta,
+    )
 }
 
 private val PANE_TOP = 4.dp

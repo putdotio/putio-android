@@ -36,7 +36,7 @@ class TvFilesPagingTest {
     val compose = createAndroidComposeRule<androidx.activity.ComponentActivity>()
 
     @Test
-    fun aFailedPageOffersRetryAndLoadingKeepsAFocusOwner() {
+    fun aFailedPageRetriesOnlyFromTryAgainAndHandsFocusBackToTheRow() {
         val events = mutableListOf<FilesBrowserEvent>()
         var paging by mutableStateOf<FilesPaging>(FilesPaging.Failed(FilesCursor("c"), networkFailure()))
         compose.showFiles(
@@ -44,45 +44,61 @@ class TvFilesPagingTest {
             onEvent = { events += it; true },
         )
         compose.onNodeWithText("Couldn’t load more files.").assertIsDisplayed()
+        compose.onNodeWithContentDescription("a.txt").assertIsDisplayed()
+        compose.waitForIdle()
+        assertEquals(emptyList<FilesBrowserEvent>(), events)
         compose.onNodeWithContentDescription("a.txt").performKeyInput { pressKey(Key.DirectionDown) }
         compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.Retry), events)
 
         paging = FilesPaging.Loading(FilesCursor("c"), FilesRequestId(9))
-        compose.onNodeWithText("Loading more files").assertIsFocused()
+        compose.onNodeWithContentDescription("Loading more files").assertIsDisplayed()
+        compose.onNodeWithContentDescription("a.txt").assertIsFocused()
     }
 
     @Test
-    fun completingTheLastPageMovesFocusFromLoadMoreToTheLastRow() {
+    fun rowsNearTheEndLoadTheNextPageOnceAndFocusStaysOnTheRow() {
+        val events = mutableListOf<FilesBrowserEvent>()
         var content by mutableStateOf<FilesContent>(
             FilesContent.Ready(listOf(item(1, "a.txt", PutioFileType.TEXT)), FilesPaging.Available(FilesCursor("c"))),
         )
-        compose.showFiles(state = { state(content) })
-        compose.onNodeWithContentDescription("a.txt").performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithText("Load more").assertIsFocused()
+        compose.showFiles(state = { state(content) }, onEvent = { events += it; true })
+        compose.onNodeWithContentDescription("a.txt").assertIsFocused()
+        assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.LoadNextPage), events)
+
+        content = FilesContent.Ready(
+            listOf(item(1, "a.txt", PutioFileType.TEXT)),
+            FilesPaging.Loading(FilesCursor("c"), FilesRequestId(9)),
+        )
+        compose.onNodeWithContentDescription("Loading more files").assertIsDisplayed()
+        compose.onNodeWithContentDescription("a.txt").performKeyInput { repeat(3) { pressKey(Key.DirectionDown) } }
+        compose.onNodeWithContentDescription("a.txt").assertIsFocused()
 
         content = FilesContent.Ready(
             listOf(item(1, "a.txt", PutioFileType.TEXT), item(2, "b.txt", PutioFileType.TEXT)),
             FilesPaging.Complete,
         )
-        compose.onNodeWithContentDescription("b.txt").assertIsFocused()
+        compose.onNodeWithContentDescription("b.txt").assertIsDisplayed()
+        compose.onNodeWithContentDescription("a.txt").assertIsFocused()
+        assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.LoadNextPage), events)
     }
 
     @Test
-    fun completingAPageWithRowsBelowTheFoldScrollsTheNewLastRowIntoFocus() {
-        val firstPage = (1..8L).map { item(it, "file-$it.txt", PutioFileType.TEXT) }
-        var content by mutableStateOf<FilesContent>(
-            FilesContent.Ready(firstPage, FilesPaging.Available(FilesCursor("c"))),
+    fun aLongListLoadsOnlyWhenItsEndComesNearAndAHeldDownStaysOnTheLastRow() {
+        val events = mutableListOf<FilesBrowserEvent>()
+        val rows = (1..30L).map { item(it, "file-$it.txt", PutioFileType.TEXT) }
+        compose.showFiles(
+            state = { state(FilesContent.Ready(rows, FilesPaging.Available(FilesCursor("c")))) },
+            onEvent = { events += it; true },
         )
-        compose.showFiles(state = { state(content) })
-        compose.onNodeWithContentDescription("file-1.txt").performKeyInput { repeat(8) { pressKey(Key.DirectionDown) } }
-        compose.onNodeWithText("Load more").assertIsFocused()
+        compose.onNodeWithContentDescription("file-1.txt").assertIsFocused()
+        assertEquals(0, events.count { it == FilesBrowserEvent.LoadNextPage })
 
-        content = FilesContent.Ready(
-            firstPage + (9..30L).map { item(it, "file-$it.txt", PutioFileType.TEXT) },
-            FilesPaging.Complete,
-        )
+        compose.onNodeWithContentDescription("file-1.txt").performKeyInput {
+            repeat(35) { pressKey(Key.DirectionDown) }
+        }
         compose.onNodeWithContentDescription("file-30.txt").assertIsFocused()
+        assertEquals(1, events.count { it == FilesBrowserEvent.LoadNextPage })
     }
 
     @Test
@@ -98,21 +114,13 @@ class TvFilesPagingTest {
     }
 
     @Test
-    fun aMiddlePageArrivingKeepsFocusOnLoadMore() {
+    fun anEmptyPageWithMoreLoadsItOnItsOwn() {
         val events = mutableListOf<FilesBrowserEvent>()
-        var state by mutableStateOf(
-            ready(item(1, "a.txt", PutioFileType.TEXT), paging = FilesPaging.Available(FilesCursor("c1"))),
+        compose.showFiles(
+            state = { state(FilesContent.Empty(FilesPaging.Available(FilesCursor("c")))) },
+            onEvent = { events += it; true },
         )
-        compose.showFiles(state = { state }, onEvent = { events += it; true })
-        compose.onNodeWithContentDescription("a.txt").performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithText("Load more").assertIsFocused()
-
-        state = ready(
-            item(1, "a.txt", PutioFileType.TEXT),
-            item(2, "b.txt", PutioFileType.TEXT),
-            paging = FilesPaging.Available(FilesCursor("c2")),
-        )
-        compose.onNodeWithText("Load more").assertIsFocused().performKeyInput { pressCenter() }
+        compose.waitForIdle()
         assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.LoadNextPage), events)
     }
 }

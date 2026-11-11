@@ -36,7 +36,10 @@ import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesViewportPosition
+import io.putdotio.android.tv.TvAutoPaging
 import io.putdotio.android.tv.focusRequesterIf
+import io.putdotio.android.tv.holdAtPendingEnd
+import io.putdotio.android.tv.isNearEnd
 import kotlin.math.abs
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
@@ -65,7 +68,7 @@ internal fun TvFilesList(
     }
     val currentOnEvent by rememberUpdatedState(onEvent)
     val remembered = focusMemory[folderId]
-    val resumeOnPaging = remembered == PAGING_FOCUS_MARKER && content.paging != FilesPaging.Complete
+    val resumeOnPaging = remembered == PAGING_FOCUS_MARKER && content.paging is FilesPaging.Failed
     val rowFocus = remember(listState) { FocusRequester() }
     // Follows whichever row holds focus, so re-entering the pane from the rail lands on
     // the live owner rather than the row that was focused at mount.
@@ -94,12 +97,8 @@ internal fun TvFilesList(
         }
     }.value
     SideEffect { onEntryTarget(entryFocus) }
-    // The paging control leaves the list when the last page lands; if it held focus, the
-    // last row becomes the remembered row so the restorer's fallback lands there.
-    // Decided during composition: once the paging item is gone the list's restorer moves
-    // focus to an earlier row and clears the latch before any effect could read it.
     val handOffToLastRow = remember(listState) { mutableStateOf(false) }
-    if (content.paging == FilesPaging.Complete && pagingHeldFocus.value) {
+    if (content.paging !is FilesPaging.Failed && pagingHeldFocus.value) {
         val lastId = content.items.last().id.value
         focusMemory[folderId] = lastId
         focusedRowId.value = lastId
@@ -109,8 +108,6 @@ internal fun TvFilesList(
     // On every mount the remembered row for this folder takes focus, or the first row the
     // first time in. The row is scrolled into view first, since a lazy row that is not
     // composed has no focus requester to answer.
-    // The paging control that held focus is gone if the last page landed while the pane was
-    // away; the row that replaced it is the last one.
     val focusTarget = content.mountFocusTarget(remembered)
     // After the rows change under a mounted list, keep the row that had focus composed, or the
     // fallback target when that row is gone: the panel's Left and the pane's enter redirect
@@ -154,7 +151,14 @@ internal fun TvFilesList(
         listState.reportViewport(viewport) { currentOnEvent(FilesBrowserEvent.ViewportChanged(it)) }
     }
 
-    val lastRowId = content.items.last().id.takeIf { content.paging == FilesPaging.Complete }
+    val lastItemId = content.items.last().id
+    val lastRowId = lastItemId.takeIf { content.paging !is FilesPaging.Failed }
+    val pendingEndId = lastItemId.takeIf { downFromLast == null && content.paging.isPending }
+    TvAutoPaging(
+        page = (content.paging as? FilesPaging.Available)?.takeIf { pagingEnabled },
+        onLoadMore = { currentOnEvent(FilesBrowserEvent.LoadNextPage) },
+        nearEnd = { listState.isNearEnd(content.items.lastIndex) },
+    )
     RevealOnlyHiddenRows {
         LazyColumn(
             state = listState,
@@ -175,6 +179,7 @@ internal fun TvFilesList(
                     showsFocus = rowsShowFocus,
                     modifier = Modifier
                         .downTo(downFromLast.takeIf { item.id == lastRowId })
+                        .holdAtPendingEnd(item.id == pendingEndId)
                         .focusRequesterIf(item.id.value == focusTarget, rowFocus)
                         .focusRequesterIf(holdsLiveFocus, liveRowFocus)
                         .onFocusChanged {
@@ -212,6 +217,9 @@ internal fun TvFilesList(
 private fun Modifier.downTo(target: FocusRequester?): Modifier =
     if (target == null) this else focusProperties { down = target }
 
+private val FilesPaging.isPending: Boolean
+    get() = this is FilesPaging.Available || this is FilesPaging.Loading
+
 private fun FilesPaging.listEntryFocus(
     pagingHeld: Boolean,
     liveRowListed: Boolean,
@@ -220,14 +228,14 @@ private fun FilesPaging.listEntryFocus(
     rowFocus: FocusRequester,
 ): FocusRequester =
     when {
-        pagingHeld && this != FilesPaging.Complete -> pagingFocus
+        pagingHeld && this is FilesPaging.Failed -> pagingFocus
         !liveRowListed -> rowFocus
         else -> liveRowFocus
     }
 
 private fun FilesContent.Ready.mountFocusTarget(remembered: Long?): Long =
     when {
-        remembered == PAGING_FOCUS_MARKER && paging == FilesPaging.Complete -> items.last().id.value
+        remembered == PAGING_FOCUS_MARKER && paging !is FilesPaging.Failed -> items.last().id.value
         else -> items.firstOrNull { it.id.value == remembered }?.id?.value ?: items.first().id.value
     }
 

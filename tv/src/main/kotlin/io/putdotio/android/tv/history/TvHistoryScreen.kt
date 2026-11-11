@@ -2,14 +2,11 @@ package io.putdotio.android.tv.history
 
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.focusable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
@@ -23,7 +20,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -54,7 +50,6 @@ import io.putdotio.android.tv.files.TvItemEditLayer
 import io.putdotio.android.tv.files.TvItemEditTarget
 import io.putdotio.android.tv.files.TvItemThumbnails
 import io.putdotio.android.tv.files.run
-import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.TvConfirmDialog
 import io.putdotio.android.tv.TvDetailSkeleton
 import io.putdotio.android.tv.TvDialog
@@ -62,6 +57,7 @@ import io.putdotio.android.tv.TvEmptyState
 import io.putdotio.android.tv.TvEmptyStateAction
 import io.putdotio.android.tv.TvListDetail
 import io.putdotio.android.tv.TvListSkeleton
+import io.putdotio.android.tv.TvListPaging
 import io.putdotio.android.tv.TvLoadFailedState
 import io.putdotio.android.tv.TvNoticeDialog
 import io.putdotio.android.tv.TvPickedRow
@@ -387,40 +383,20 @@ private fun TvHistoryNotice(notice: FilesFailure) {
 @Composable
 internal fun TvHistoryPaging(
     paging: HistoryPaging,
-    onNextPage: () -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
     buttonModifier: Modifier = Modifier,
 ) {
-    val label = when (paging) {
-        is HistoryPaging.Available -> R.string.tv_history_load_more
-        is HistoryPaging.Loading -> R.string.tv_history_loading_more
-        is HistoryPaging.Failed -> R.string.tv_state_try_again
-        HistoryPaging.Complete -> null
-    } ?: return
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (paging is HistoryPaging.Failed) {
-            Text(stringResource(R.string.tv_history_paging_error), color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        TvButton(
-            onClick = {
-                when (paging) {
-                    is HistoryPaging.Available -> onNextPage()
-                    is HistoryPaging.Failed -> onRetry()
-                    is HistoryPaging.Loading, HistoryPaging.Complete -> Unit
-                }
-            },
-            modifier = buttonModifier,
-        ) {
-            Text(stringResource(label))
-        }
-    }
+    if (paging == HistoryPaging.Complete) return
+    TvListPaging(
+        failed = paging is HistoryPaging.Failed,
+        loadingMore = stringResource(R.string.tv_history_loading_more),
+        error = stringResource(R.string.tv_history_paging_error),
+        retry = stringResource(R.string.tv_state_try_again),
+        onRetry = onRetry,
+        modifier = modifier,
+        buttonModifier = buttonModifier,
+    )
 }
 
 @Composable

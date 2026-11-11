@@ -107,7 +107,6 @@
     <string name="tv_files_sort_watch_descending">Watched first</string>
     <string name="tv_files_empty_title">Empty folder.</string>
     <string name="tv_files_empty_message">Files you add to this folder on put.io show up here.</string>
-    <string name="tv_files_load_more">Load more</string>
     <string name="tv_files_loading_more">Loading more files</string>
     <string name="tv_files_paging_error">Couldn’t load more files.</string>
     <string name="tv_files_retry">Try again</string>
@@ -231,7 +230,6 @@
     <string name="tv_search_no_results_title">Nothing matches.</string>
     <string name="tv_search_no_results_message">No files or folders named “%1$s”. Try fewer words.</string>
     <string name="tv_search_error_title">Couldn’t search.</string>
-    <string name="tv_search_load_more">Load more</string>
     <string name="tv_search_loading_more">Loading more results</string>
     <string name="tv_search_paging_error">Couldn’t load more results.</string>
     <string name="tv_search_open_result">Open %1$s</string>
@@ -261,7 +259,6 @@
     <string name="tv_history_off_message">Turn on %1$s in %2$s to see what happens to your files.</string>
     <string name="tv_history_open_account">Open Account</string>
     <string name="tv_history_error_title">Couldn’t load your history.</string>
-    <string name="tv_history_load_more">Load more</string>
     <string name="tv_history_loading_more">Loading more history</string>
     <string name="tv_history_paging_error">Couldn’t load more history.</string>
     <string name="tv_history_open_error">Couldn’t open this file. %1$s</string>
@@ -340,7 +337,6 @@
     <string name="tv_trash_empty_message">When you send files to trash, we keep them here for 14 days.</string>
     <string name="tv_trash_error_title">Couldn’t load trash</string>
     <string name="tv_trash_refresh_error">Couldn’t refresh trash. %1$s</string>
-    <string name="tv_trash_load_more">Load more</string>
     <string name="tv_trash_loading_more">Loading more items</string>
     <string name="tv_trash_paging_error">Couldn’t load more items.</string>
     <string name="tv_trash_restore">Restore</string>
