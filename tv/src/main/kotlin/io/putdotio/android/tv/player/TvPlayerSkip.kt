@@ -36,7 +36,7 @@ internal fun TvPlayerOverlay.skip(press: TvSkipPress, positionMillis: Long, dura
     val held = skipHold?.takeIf { press.repeat && it.holds(press) }
     return when {
         exited || durationMillis <= 0L -> TvPlayerTransition(this)
-        held != null -> held.step(press.atMillis)?.let { stepped ->
+        held != null -> held.step(press.atMillis, durationMillis)?.let { stepped ->
             shownWith(stepped, TvPlayerCommand.SeekTo(stepped.positionAt(press.atMillis, durationMillis)))
         } ?: TvPlayerTransition(this)
         press.repeat -> shownWith(
@@ -95,12 +95,14 @@ private fun TvPlayerOverlay.shownWith(hold: TvSkipHold, command: TvPlayerCommand
 private fun TvSkipHold.holds(press: TvSkipPress): Boolean =
     direction == press.direction && downAtMillis == press.downAtMillis
 
-private fun TvSkipHold.step(atMillis: Long): TvSkipHold? =
-    copy(lastStepAtMillis = atMillis).takeIf { atMillis - lastStepAtMillis >= TV_SKIP_HOLD_STEP_MILLIS }
+private fun TvSkipHold.step(atMillis: Long, durationMillis: Long): TvSkipHold? =
+    copy(lastStepAtMillis = atMillis).takeIf {
+        atMillis - lastStepAtMillis >= TV_SKIP_HOLD_STEP_MILLIS && originMillis < durationMillis
+    }
 
 private fun TvSkipHold.positionAt(atMillis: Long, durationMillis: Long): Long =
     direction.step(originMillis, holdTravelMillis(atMillis - startAtMillis))
-        .coerceIn(0L, maxOf(originMillis, durationMillis - TV_SKIP_HOLD_END_GAP_MILLIS).coerceAtMost(durationMillis))
+        .coerceIn(0L, maxOf(originMillis, durationMillis - TV_SKIP_HOLD_END_GAP_MILLIS))
 
 private fun TvSkipDirection.step(fromMillis: Long, byMillis: Long): Long =
     when (this) {

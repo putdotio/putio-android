@@ -138,6 +138,11 @@ class TvPlayerOverlayTest {
         val later = nearEnd.overlay.skipForward(atMillis = 61_000L, repeat = true, positionMillis = target + 900L)
         assertEquals("A hold at the end keeps playback from finishing", target, later.seekTarget())
         assertTrue(later.overlay.activity > nearEnd.overlay.activity)
+
+        val tappedToEnd = TvPlayerOverlay().skipForward(atMillis = 0L, positionMillis = DURATION - 5_000L)
+        assertEquals(listOf(TvPlayerCommand.SeekTo(DURATION)), tappedToEnd.commands)
+        val heldAtEnd = tappedToEnd.overlay.skipForward(atMillis = 1_000L, repeat = true, positionMillis = DURATION)
+        assertEquals("A hold never ends playback again", emptyList<TvPlayerCommand>(), heldAtEnd.commands)
     }
 
     @Test
