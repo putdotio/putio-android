@@ -275,10 +275,10 @@ def check_outputs(lock: DesignLock) -> None:
         try:
             actual = sha256((REPO_ROOT / path).read_bytes())
         except OSError:
-            failures.append(f"missing {path}")
+            failures.append(f"missing {path.as_posix()}")
             continue
         if not hmac.compare_digest(actual, expected):
-            failures.append(f"drifted {path}")
+            failures.append(f"drifted {path.as_posix()}")
     if failures:
         fail("design asset drift detected:\n  " + "\n  ".join(failures))
     print(
@@ -443,7 +443,7 @@ def sync(lock: DesignLock) -> None:
         ),
     }
     mismatches += [
-        f"generated {path} is {sha256(outputs[path])}, locked {expected}"
+        f"generated {path.as_posix()} is {sha256(outputs[path])}, locked {expected}"
         for path, expected in locked_outputs(lock)[1:]
         if not hmac.compare_digest(sha256(outputs[path]), expected)
     ]

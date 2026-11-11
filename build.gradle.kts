@@ -16,9 +16,12 @@ plugins {
 // Script checks are deterministic in the repository files they read and the host
 // tools they run. Declaring both lets Gradle skip an unchanged check and restore a
 // passing result from the build cache; a failure writes no stamp, so it never caches.
+val windows = HostBash.isWindows
+val bash: String = HostBash.path
+
 val scriptCheckTools = providers.exec {
     commandLine(
-        "sh", "-c",
+        bash, "-c",
         "for tool in bash python3 ffmpeg ffprobe; do \"\$tool\" --version 2>&1 | head -1; done",
     )
     isIgnoreExitValue = true
@@ -32,6 +35,7 @@ fun Exec.cacheableCheck(vararg sources: Any) {
         .withPropertyName("sources")
         .withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.property("tools", scriptCheckTools)
+    if (windows) environment("MSYS", "winsymlinks:nativestrict")
     val stamp = layout.buildDirectory.file("verification/$name.stamp")
     outputs.file(stamp).withPropertyName("stamp")
     outputs.cacheIf { true }
@@ -41,19 +45,19 @@ fun Exec.cacheableCheck(vararg sources: Any) {
 val testEvidence = tasks.register<Exec>("testEvidence") {
     description = "Run evidence harness regression tests"
     cacheableCheck()
-    commandLine("bash", "scripts/test-evidence.sh")
+    commandLine(bash, "scripts/test-evidence.sh")
 }
 
 val testEmulatorHarness = tasks.register<Exec>("testEmulatorHarness") {
     description = "Run emulator provisioning and readiness contract tests"
     cacheableCheck()
-    commandLine("bash", "scripts/test-emulator.sh")
+    commandLine(bash, "scripts/test-emulator.sh")
 }
 
 val testSignInHarness = tasks.register<Exec>("testSignInHarness") {
     description = "Run the devs-auto device-code sign-in script's contract tests"
     cacheableCheck()
-    commandLine("bash", "scripts/test-sign-in.sh")
+    commandLine(bash, "scripts/test-sign-in.sh")
 }
 
 val checkIcons = tasks.register<Exec>("checkIcons") {
@@ -66,7 +70,7 @@ val checkIcons = tasks.register<Exec>("checkIcons") {
             exclude("**/build/**", ".git/**", ".gradle/**")
         },
     )
-    commandLine("bash", "scripts/generate-icons.sh", "--check")
+    commandLine(bash, "scripts/generate-icons.sh", "--check")
 }
 
 val testIconPipeline = tasks.register<Exec>("testIconPipeline") {
@@ -88,7 +92,7 @@ val checkDesignAssets = tasks.register<Exec>("checkDesignAssets") {
         fileTree("mobile/src/debug/res"),
         fileTree("tv/src/nightly/res"),
     )
-    commandLine("bash", "scripts/sync-design-assets.sh", "--check")
+    commandLine(bash, "scripts/sync-design-assets.sh", "--check")
 }
 
 val testDesignAssetPipeline = tasks.register<Exec>("testDesignAssetPipeline") {
@@ -141,14 +145,14 @@ val lintDesignMd = tasks.register<Exec>("lintDesignMd") {
     description = "Lint DESIGN.md against the design.md format"
     cacheableCheck("DESIGN.md", "package.json", ".node-version")
     inputs.property("node", nodeVersion)
-    commandLine("bash", "scripts/lint-design-md.sh", pinnedNodeTool("@google/design.md").get())
+    commandLine(bash, "scripts/lint-design-md.sh", pinnedNodeTool("@google/design.md").get())
 }
 
 val markdownCheck = tasks.register<Exec>("markdownCheck") {
     group = "verification"
     description = "Check Markdown formatting with oxfmt, and the DESIGN.md contract"
     dependsOn(checkDesignMdColors, lintDesignMd)
-    commandLine("npx", "--yes", "oxfmt@${pinnedNodeTool("oxfmt").get()}", "--check", "**/*.md")
+    commandLine(if (windows) "npx.cmd" else "npx", "--yes", "oxfmt@${pinnedNodeTool("oxfmt").get()}", "--check", "**/*.md")
 }
 
 tasks.register("verify") {

@@ -13,7 +13,8 @@ SECRET="fake-ambient-token-value"
 ACCOUNT=306077
 mkdir -p "${tmpdir}/sdk/platform-tools" "${tmpdir}/cli" "${tmpdir}/nocli" "${tmpdir}/tools"
 # The interpreter itself, not a version-manager shim that needs the real HOME.
-ln -s "$(python3 -c 'import sys; print(sys.executable)')" "${tmpdir}/tools/python3"
+printf '#!/bin/sh\nexec %q "$@"\n' "$(python3 -c 'import sys; print(sys.executable)')" > "${tmpdir}/tools/python3"
+chmod +x "${tmpdir}/tools/python3"
 
 cat > "${tmpdir}/cli/putio" <<'EOF'
 #!/usr/bin/env bash

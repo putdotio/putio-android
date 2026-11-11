@@ -10,6 +10,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.assertThrows
 import org.junit.After
+import org.junit.Assume.assumeFalse
 import org.junit.BeforeClass
 import org.junit.ClassRule
 import org.junit.Rule
@@ -30,6 +31,11 @@ class AuthenticatedRenameProcessTest {
         // A serial no real emulator uses, so a host temp lock for it can only come from this suite.
         private val SERIAL = "emulator-9" + ProcessHandle.current().pid() + System.nanoTime() % 100_000
         private val hostLock = File(System.getProperty("java.io.tmpdir"), "putio-rename-proof-$SERIAL.lock")
+
+        @BeforeClass @JvmStatic
+        fun fakeCommandsAreShellScriptsThatOnlyPosixHostsRun() {
+            assumeFalse("The fake adb, putio and apkanalyzer are POSIX shell scripts", HostBash.isWindows)
+        }
 
         @BeforeClass @JvmStatic
         fun hostTempStartsWithoutTheSuiteLock() {
@@ -427,7 +433,8 @@ class AuthenticatedRenameProcessTest {
 
     private fun runner(fixture: File): GradleRunner {
         val environment = System.getenv().toMutableMap().apply {
-            put("PATH", File(fixture, "bin").path + File.pathSeparator + getValue("PATH"))
+            val pathKey = keys.firstOrNull { it.equals("PATH", ignoreCase = true) } ?: "PATH"
+            put(pathKey, File(fixture, "bin").path + File.pathSeparator + this[pathKey].orEmpty())
             put("FAKE_PROOF_DIR", fixture.path)
             put("PUTIO_CLI_TOKEN", "synthetic-token-must-be-removed")
         }

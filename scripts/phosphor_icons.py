@@ -95,7 +95,7 @@ def load_lock() -> tuple[PackageLock, tuple[IconLock, ...]]:
             object_pairs_hook=reject_duplicate_keys,
         )
     except (OSError, json.JSONDecodeError) as error:
-        fail(f"cannot read {LOCK_PATH.relative_to(REPO_ROOT)}: {error}")
+        fail(f"cannot read {LOCK_PATH.relative_to(REPO_ROOT).as_posix()}: {error}")
 
     root = require_object(document, "lock")
     if (
@@ -161,7 +161,7 @@ def load_lock() -> tuple[PackageLock, tuple[IconLock, ...]]:
         if ASSET_PATTERN.fullmatch(icon.asset) is None:
             fail(f"{field}.asset is not a supported Phosphor SVG path")
         if icon.output_path in seen_outputs:
-            fail(f"duplicate output {icon.output_path.relative_to(REPO_ROOT)}")
+            fail(f"duplicate output {icon.output_path.relative_to(REPO_ROOT).as_posix()}")
         seen_outputs.add(icon.output_path)
         icons.append(icon)
     return package, tuple(icons)
@@ -199,12 +199,12 @@ def check_outputs(package: PackageLock, icons: tuple[IconLock, ...]) -> None:
         try:
             actual = sha256(icon.output_path.read_bytes())
         except OSError:
-            failures.append(f"missing {icon.output_path.relative_to(REPO_ROOT)}")
+            failures.append(f"missing {icon.output_path.relative_to(REPO_ROOT).as_posix()}")
             continue
         if not hmac.compare_digest(actual, icon.output_sha256):
-            failures.append(f"drifted {icon.output_path.relative_to(REPO_ROOT)}")
+            failures.append(f"drifted {icon.output_path.relative_to(REPO_ROOT).as_posix()}")
 
-    failures += [f"stale {path.relative_to(REPO_ROOT)}" for path in stale_generated_drawables(icons)]
+    failures += [f"stale {path.relative_to(REPO_ROOT).as_posix()}" for path in stale_generated_drawables(icons)]
 
     if failures:
         fail("icon drift detected:\n  " + "\n  ".join(sorted(failures)))
@@ -283,11 +283,11 @@ def generate(package: PackageLock, icons: tuple[IconLock, ...]) -> None:
                 fail(f"generated {icon.resource}.xml does not match its locked SHA-256")
             icon.output_path.parent.mkdir(parents=True, exist_ok=True)
             icon.output_path.write_bytes(output)
-            print(f"wrote {icon.output_path.relative_to(REPO_ROOT)}")
+            print(f"wrote {icon.output_path.relative_to(REPO_ROOT).as_posix()}")
 
     for path in stale_generated_drawables(icons):
         path.unlink()
-        print(f"removed {path.relative_to(REPO_ROOT)}")
+        print(f"removed {path.relative_to(REPO_ROOT).as_posix()}")
 
 
 def main() -> None:

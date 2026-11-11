@@ -7,6 +7,7 @@ import android.app.Service
 import android.content.ClipData
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.content.pm.ServiceInfo
 import android.os.IBinder
 import androidx.core.app.ServiceCompat
@@ -190,9 +191,6 @@ class MobileFileShareService : Service() {
         )
     }
 
-    @androidx.annotation.VisibleForTesting
-    internal fun chooserForTest(file: File): Intent = shareChooser(file)
-
     override fun onTimeout(startId: Int, fgsType: Int) {
         job?.cancel()
         MobileShareProgress.end()
@@ -298,8 +296,12 @@ private val sharedHttp: OkHttpClient by lazy { OkHttpClient() }
 /** Stream only. Recipients receive a read grant on the content URI and nothing else. */
 private fun Context.shareChooser(file: File): Intent {
     val uri = FileProvider.getUriForFile(this, "$packageName.share", file)
+    return shareChooserFor(uri, contentResolver.getType(uri))
+}
+
+internal fun shareChooserFor(uri: Uri, type: String?): Intent {
     val send = Intent(Intent.ACTION_SEND)
-        .setType(contentResolver.getType(uri) ?: "application/octet-stream")
+        .setType(type ?: "application/octet-stream")
         .putExtra(Intent.EXTRA_STREAM, uri)
         .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     send.clipData = ClipData.newRawUri(null, uri)
