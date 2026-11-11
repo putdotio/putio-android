@@ -102,8 +102,11 @@ class TvHistoryProofTest {
         waitFor(hasText("Clear history") and hasClickAction() and isFocused())
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         waitFor(hasText("Clear history?"))
+        waitFor(hasText("Cancel") and isFocused())
         screenshot("tv-history-clear-confirm")
 
+        press(KeyEvent.KEYCODE_DPAD_RIGHT)
+        waitFor(hasText("Clear history") and hasClickAction() and isFocused())
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         waitFor(hasText("No activity yet."))
         assertEquals(1, history.clears)

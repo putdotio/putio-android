@@ -207,7 +207,7 @@ class TvFilesRowActionsTest {
     }
 
     @Test
-    fun permanentDeletionConfirmsWithTheRedDeleteBeforeDispatching() {
+    fun permanentDeletionOpensOnCancelAndDispatchesOnlyFromTheRedDelete() {
         val events = mutableListOf<FilesBrowserEvent>()
         compose.showFiles(
             state = { ready(item(3, "notes.txt", PutioFileType.TEXT)) },
@@ -220,13 +220,13 @@ class TvFilesRowActionsTest {
         compose.onNodeWithText("Delete permanently?").assertIsDisplayed()
         compose.onNodeWithText("Trash is off for this account, so notes.txt can't be restored.").assertIsDisplayed()
         compose.runOnIdle { assertEquals(emptyList<FilesBrowserEvent>(), events) }
-        compose.onNodeWithText("Delete").assertIsFocused().performKeyInput { pressKey(Key.DirectionLeft) }
         compose.onNodeWithText("Cancel").assertIsFocused().performKeyInput { pressCenter() }
         compose.onAllNodesWithText("Delete permanently?").assertCountEquals(0)
         compose.runOnIdle { assertEquals(emptyList<FilesBrowserEvent>(), events) }
 
         compose.onNodeWithContentDescription("notes.txt").assertIsFocused().performKeyInput { pressKey(Key.Menu) }
         compose.onNode(hasText("Delete permanently") and isFocused()).performKeyInput { pressCenter() }
+        compose.onNodeWithText("Cancel").assertIsFocused().performKeyInput { pressKey(Key.DirectionRight) }
         compose.onNodeWithText("Delete").assertIsFocused().performKeyInput { pressCenter() }
         compose.runOnIdle {
             assertEquals(
@@ -388,6 +388,7 @@ class TvFilesRowActionsTest {
 
         compose.onNode(deletePermanently).assertIsFocused().performKeyInput { pressCenter() }
         compose.onNodeWithText("Delete permanently?").assertIsDisplayed()
+        compose.onNodeWithText("Cancel").assertIsFocused().performKeyInput { pressKey(Key.DirectionRight) }
         compose.onNodeWithText("Delete").assertIsFocused().performKeyInput { pressCenter() }
         compose.runOnIdle {
             assertEquals(
@@ -529,12 +530,12 @@ class TvFilesRowActionsTest {
             pressCenter()
         }
         compose.onNodeWithText(message).assertIsDisplayed()
-        compose.onNodeWithText("Delete").assertIsFocused().performKeyInput { pressKey(Key.DirectionLeft) }
         compose.onNodeWithText("Cancel").assertIsFocused().performKeyInput { pressCenter() }
         compose.onAllNodesWithText(message).assertCountEquals(0)
         compose.runOnIdle { assertEquals(emptyList<FilesBrowserEvent>(), events) }
 
         compose.onNode(hasText("Delete permanently") and hasClickAction()).performKeyInput { pressCenter() }
+        compose.onNodeWithText("Cancel").assertIsFocused().performKeyInput { pressKey(Key.DirectionRight) }
         compose.onNodeWithText("Delete").assertIsFocused().performKeyInput { pressCenter() }
         compose.runOnIdle {
             assertEquals(

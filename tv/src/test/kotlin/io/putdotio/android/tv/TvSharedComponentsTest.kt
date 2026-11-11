@@ -142,14 +142,14 @@ class TvSharedComponentsTest {
     }
 
     @Test
-    fun aDestructiveConfirmFocusesItsConfirmAndCancelOnlyDismisses() {
+    fun aDestructiveConfirmOpensOnCancelSoSelectOnlyDismisses() {
         var confirmed = 0
         var dismissed = 0
         compose.setTvContent {
             TvConfirmDialog(
-                title = "Sign out of put.io?",
-                message = "You can sign in again any time with a new code.",
-                confirmLabel = "Sign out",
+                title = "Delete permanently?",
+                message = "Trash is off for this account, so notes.txt can't be restored.",
+                confirmLabel = "Delete",
                 onConfirm = { confirmed += 1 },
                 onDismiss = { dismissed += 1 },
                 destructive = true,
@@ -157,11 +157,13 @@ class TvSharedComponentsTest {
         }
         compose.waitForIdle()
 
-        compose.onNodeWithText("Sign out").assertIsFocused().performKeyInput { pressKey(Key.DirectionLeft) }
         compose.onNodeWithText("Cancel").assertIsFocused().performKeyInput { pressCenter() }
-
         assertEquals(0, confirmed)
         assertEquals(1, dismissed)
+
+        compose.onNodeWithText("Cancel").performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNodeWithText("Delete").assertIsFocused().performKeyInput { pressCenter() }
+        assertEquals(1, confirmed)
     }
 
     @Test

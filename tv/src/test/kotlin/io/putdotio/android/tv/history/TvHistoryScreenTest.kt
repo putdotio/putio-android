@@ -228,14 +228,13 @@ class TvHistoryScreenTest {
     }
 
     @Test
-    fun theClearConfirmFocusesTheRedButtonAndCancelSitsBesideIt() {
+    fun theClearConfirmFocusesCancelAndTheRedButtonSitsBesideIt() {
         var state by mutableStateOf(
             historyState(HistoryContent.Ready(items(), HistoryPaging.Complete), HistoryClearing.AwaitingConfirmation),
         )
         show { state }
 
         compose.onNodeWithText("Clear history?").assertIsDisplayed()
-        compose.onNode(hasText("Clear history") and isFocused()).performKeyInput { pressKey(Key.DirectionLeft) }
         compose.onNode(hasText("Cancel") and isFocused()).performKeyInput { pressKey(Key.DirectionRight) }
         compose.onNode(hasText("Clear history") and isFocused()).performKeyInput { pressCenter() }
         assertEquals(listOf<HistoryEvent>(HistoryEvent.ConfirmClear), log)
