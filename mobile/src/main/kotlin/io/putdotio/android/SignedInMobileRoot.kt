@@ -34,11 +34,13 @@ import io.putdotio.android.files.FilesBrowserController
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesDeleteOutcome
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.files.AppConfigPinnedFiles
 import io.putdotio.android.files.ContinueWatching
 import io.putdotio.android.files.DeviceContinueWatchingStore
 import io.putdotio.android.files.MobileFilesActionSources
 import io.putdotio.android.files.MobileFilesActionsController
 import io.putdotio.android.files.MobileFilesViewModel
+import io.putdotio.android.files.MobilePinnedFiles
 import io.putdotio.android.files.MobileVlcIntentHandoff
 import io.putdotio.android.files.SdkFilesRepository
 import io.putdotio.android.files.SdkFilesSubtitleLanguages
@@ -219,6 +221,11 @@ internal fun SignedInMobileRoot(
             DeviceContinueWatchingStore(downloadsContext, account.userId)
         }
     }
+    val pinnedFiles = remember(filesViewModel, filesRepository, account.userId, sessionId) {
+        filesViewModel.pinnedFilesFor(account.userId, sessionId) { scope ->
+            MobilePinnedFiles(AppConfigPinnedFiles(runtime.putioClient, scope), filesRepository::resolveItem, scope)
+        }
+    }
     val filesActions =
         remember(
             filesViewModel, filesController, trashRepository, continueWatching, searchHistorySession,
@@ -277,6 +284,7 @@ internal fun SignedInMobileRoot(
         deepLinkRequests = deepLinkRequests,
         transferDraft = transferDraft,
         continueWatching = continueWatching,
+        pinnedFiles = pinnedFiles,
         filesActions = filesActions,
     )
 }
@@ -302,6 +310,7 @@ private fun SignedInMobileSession(
     deepLinkRequests: MobileDeepLinkRequests,
     transferDraft: MobileTransferDraft,
     continueWatching: ContinueWatching?,
+    pinnedFiles: MobilePinnedFiles?,
     filesActions: MobileFilesActionsController?,
 ) {
     val account = signedIn.account
@@ -434,6 +443,7 @@ private fun SignedInMobileSession(
         publicLinksController = publicLinksController,
         folderCreator = filesRepository,
         continueWatching = continueWatching,
+        pinnedFiles = pinnedFiles,
         subtitleLanguages = remember(runtime.putioClient) { SdkFilesSubtitleLanguages(runtime.putioClient) },
         filesActions = filesActions,
         sessionId = sessionId,

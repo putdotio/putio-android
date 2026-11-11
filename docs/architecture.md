@@ -40,8 +40,8 @@ flowchart TD
   controllers, state and repositories. Playback also carries the shared
   subtitle overlay.
 - `mobile` and `tv`: navigation, screens, view models, the players, and the
-  controllers of areas only one app has, such as sign-in, Downloads and Home
-  pins. Each app builds the SDK client and hands it to the repositories.
+  controllers of areas only one app has, such as sign-in and Downloads. Each
+  app builds the SDK client and hands it to the repositories.
 - `baselineprofile:tv`: the macrobenchmark journey that writes the TV app's
   baseline profile, a cold start to Home signed in as devs-auto;
   `scripts/generate-baseline-profile.sh` runs it.
@@ -95,7 +95,7 @@ stateDiagram-v2
 | --------- | ------------------------------------------------------ | -------------------------------------------- |
 | Sign-in   | OAuth in the browser                                   | Device code, also as a QR code               |
 | Session   | Secure storage, checked again when the network returns | The same, plus import from the legacy TV app |
-| Home      | Continue watching in Files                             | Continue watching and pinned items           |
+| Home      | Continue watching and pinned items in Files            | Continue watching and pinned items           |
 | Files     | Browse, search, item actions, multi-select             | Browse, search, item actions                 |
 | History   | Account events by day                                  | The same                                     |
 | Trash     | Restore and delete                                     | The same                                     |

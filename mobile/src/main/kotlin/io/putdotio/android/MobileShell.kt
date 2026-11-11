@@ -81,6 +81,7 @@ import io.putdotio.android.files.FilesSubtitleLanguages
 import io.putdotio.android.files.isFilesListDetail
 import io.putdotio.android.files.showsFilesListDetail
 import io.putdotio.android.files.ContinueWatching
+import io.putdotio.android.files.MobilePinnedFiles
 import io.putdotio.android.files.MobileFilesActionsController
 import io.putdotio.android.files.FilesSelection
 import io.putdotio.android.files.MOBILE_FILES_SELECTION_BAR_TAG
@@ -204,6 +205,7 @@ internal fun MobileShell(
     fileDragOut: MobileFileDragOut? = null,
     folderCreator: FilesFolderCreator? = null,
     continueWatching: ContinueWatching? = null,
+    pinnedFiles: MobilePinnedFiles? = null,
     subtitleLanguages: FilesSubtitleLanguages? = null,
     filesActions: MobileFilesActionsController? = null,
 ) {
@@ -505,6 +507,7 @@ internal fun MobileShell(
                             filesBackPreview = filesBackPreview,
                             fileDragOut = fileDragOut,
                             continueWatching = continueWatching,
+                            pinnedFiles = pinnedFiles,
                             onNewFolder = requestNewFolder,
                             filesListPaneTopBar = paneTopBar.takeIf { filesListDetail },
                             linkedFile = linkedFile?.let(::FilesItemId),

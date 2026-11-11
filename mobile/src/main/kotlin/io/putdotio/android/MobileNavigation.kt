@@ -51,6 +51,7 @@ import io.putdotio.android.files.FilesRepository
 import io.putdotio.android.files.FilesSubtitleLanguages
 import io.putdotio.android.files.MobileFileOpener
 import io.putdotio.android.files.ContinueWatching
+import io.putdotio.android.files.MobilePinnedFiles
 import io.putdotio.android.files.MobileFilesActionsController
 import io.putdotio.android.files.MobileFilesItemActions
 import io.putdotio.android.files.FilesSelection
@@ -169,6 +170,7 @@ internal fun MobileNavHost(
     filesBackPreview: MobileBackPreview = rememberMobileBackPreview(),
     fileDragOut: MobileFileDragOut? = null,
     continueWatching: ContinueWatching? = null,
+    pinnedFiles: MobilePinnedFiles? = null,
     onNewFolder: (() -> Unit)? = null,
     /** From 840dp, the Files bar over the list pane; Files then shows the selected file beside the list. */
     filesListPaneTopBar: (@Composable () -> Unit)? = null,
@@ -206,12 +208,14 @@ internal fun MobileNavHost(
                         MobileFileDownloads(it, showSubtitles, askForDownloadNotifications)
                     }
                     val startDownload = fileDownloads?.bySetting
+                    val pinnedIds = pinnedFiles?.ids?.collectAsStateWithLifecycle()?.value
                     val filesItemActions = (
                         filesActions?.itemActions(
                             watchedToggle = accountSettingsState.confirmedResumePlayback() == true,
                             vlcInstalled = rememberVlcInstalled(),
                         ) ?: MobileFilesItemActions()
                         ).withContinueWatching(continueWatching)
+                        .withPins(pinnedFiles, pinnedIds)
                         .withPlayWith(appConfigState.confirmedStreamingMethod()) { item, method ->
                             navController.navigateToPlayback(item, method = method)
                         }
@@ -257,6 +261,7 @@ internal fun MobileNavHost(
                         },
                     ) {
                         val startedVideos = continueWatching?.entries?.collectAsStateWithLifecycle()?.value
+                        val pinnedItems = pinnedFiles?.items?.collectAsStateWithLifecycle()?.value
                         MobileFilesRoute(
                             state = filesState,
                             repository = filesRepository,
@@ -271,6 +276,8 @@ internal fun MobileNavHost(
                             publicLinks = publicLinks,
                             fileDragOut = fileDragOut,
                             continueWatching = startedVideos.orEmpty(),
+                            pinned = pinnedItems.orEmpty(),
+                            onRefreshPinned = pinnedFiles?.let { it::refresh },
                             onNewFolder = onNewFolder,
                             listPaneTopBar = filesListPaneTopBar,
                             linkedFile = linkedFile,

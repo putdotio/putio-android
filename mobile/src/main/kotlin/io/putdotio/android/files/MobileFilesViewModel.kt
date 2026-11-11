@@ -33,6 +33,13 @@ internal class MobileFilesViewModel(
         close = ContinueWatching::close,
     )
 
+    private val pinnedFiles = SessionScopedHolder<MobileAuthState, MobileSessionKey, MobilePinnedFiles>(
+        authState = authState,
+        keyOf = MobileAuthState::sessionKey,
+        scope = viewModelScope,
+        close = MobilePinnedFiles::close,
+    )
+
     // The sheet's own requests outlive a rotation, so a restore put.io accepted still settles the folder.
     private val actions = SessionScopedHolder<MobileAuthState, MobileSessionKey, MobileFilesActionsController>(
         authState = authState,
@@ -57,6 +64,16 @@ internal class MobileFilesViewModel(
     ): ContinueWatching? =
         continueWatching.valueFor(MobileSessionKey(userId, sessionId)) { ContinueWatching(store()) }
 
+    fun pinnedFilesFor(
+        userId: Long,
+        sessionId: MobileAuthSessionId,
+        create: (CoroutineScope) -> MobilePinnedFiles,
+    ): MobilePinnedFiles? =
+        pinnedFiles.valueFor(MobileSessionKey(userId, sessionId)) {
+            val parent = viewModelScope.coroutineContext
+            create(CoroutineScope(parent + SupervisorJob(parent[Job])))
+        }
+
     fun actionsFor(
         userId: Long,
         sessionId: MobileAuthSessionId,
@@ -70,6 +87,7 @@ internal class MobileFilesViewModel(
     override fun onCleared() {
         session.clear()
         continueWatching.clear()
+        pinnedFiles.clear()
         actions.clear()
     }
 }

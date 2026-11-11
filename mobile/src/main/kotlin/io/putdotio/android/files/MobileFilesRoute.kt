@@ -47,6 +47,8 @@ internal fun MobileFilesRoute(
     publicLinks: MobilePublicLinks? = null,
     fileDragOut: MobileFileDragOut? = null,
     continueWatching: List<ContinueWatchingEntry> = emptyList(),
+    pinned: List<FilesItem> = emptyList(),
+    onRefreshPinned: (() -> Unit)? = null,
     onNewFolder: (() -> Unit)? = null,
     /** From 840dp, the Files bar; it then sits over the list pane, beside the selected file's detail. */
     listPaneTopBar: (@Composable () -> Unit)? = null,
@@ -129,6 +131,8 @@ internal fun MobileFilesRoute(
             publicLinks = publicLinks,
             fileDragOut = fileDragOut,
             continueWatching = continueWatching,
+            pinned = pinned,
+            onRefreshPinned = onRefreshPinned,
             onNewFolder = onNewFolder,
             fileOpening = fileOpening,
             itemActions = sheetActions,
@@ -273,6 +277,8 @@ private data class MobileFilesFoldersArgs(
     val publicLinks: MobilePublicLinks?,
     val fileDragOut: MobileFileDragOut?,
     val continueWatching: List<ContinueWatchingEntry>,
+    val pinned: List<FilesItem>,
+    val onRefreshPinned: (() -> Unit)?,
     val onNewFolder: (() -> Unit)?,
     val fileOpening: MobileFilesOpening?,
     val itemActions: MobileFilesItemActions,
@@ -306,6 +312,8 @@ private fun MobileFilesFolders(args: MobileFilesFoldersArgs) = with(args) {
             publicLinks = publicLinks,
             fileDragOut = fileDragOut,
             continueWatching = continueWatching,
+            pinned = pinned,
+            onRefreshPinned = onRefreshPinned?.takeUnless { leaving },
             onNewFolder = onNewFolder?.takeUnless { leaving },
             fileOpening = fileOpening?.takeUnless { leaving },
             itemActions = itemActions,
@@ -331,6 +339,8 @@ private fun MobileFilesFolder(
     publicLinks: MobilePublicLinks?,
     fileDragOut: MobileFileDragOut?,
     continueWatching: List<ContinueWatchingEntry>,
+    pinned: List<FilesItem>,
+    onRefreshPinned: (() -> Unit)?,
     onNewFolder: (() -> Unit)?,
     fileOpening: MobileFilesOpening?,
     itemActions: MobileFilesItemActions,
@@ -350,7 +360,12 @@ private fun MobileFilesFolder(
             ?.firstOrNull { it.id.value == publicLinkItemId && it.acceptsOwnerActions }
         MobileFilesScreen(
             state = state,
-            onEvent = { onEvent(it) },
+            onEvent = { event ->
+                if (event == FilesBrowserEvent.Refresh && state.current.folder.id == FilesFolder.Root.id) {
+                    onRefreshPinned?.invoke()
+                }
+                onEvent(event)
+            },
             onPlayMedia = onPlayMedia,
             confirmedTrashEnabled = confirmedTrashEnabled,
             onMoveItem = startMove?.let { start -> { item -> start(listOf(item)) } },
@@ -361,6 +376,7 @@ private fun MobileFilesFolder(
             onPublicLinkItem = publicLinks?.let { { item -> publicLinkItemId = item.id.value } },
             fileDragOut = fileDragOut,
             continueWatching = continueWatching,
+            pinned = pinned,
             onNewFolder = onNewFolder,
             fileOpening = fileOpening,
             itemActions = itemActions,

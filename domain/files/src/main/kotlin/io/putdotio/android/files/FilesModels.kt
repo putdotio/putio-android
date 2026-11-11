@@ -100,7 +100,7 @@ public enum class FilesOpenOrigin {
     /** A product link; its folder sits on top of the prior Files location and Back stays in Files. */
     LINK,
 
-    /** A TV Home card. */
+    /** A TV Home card, or a pin on the mobile Files root. */
     HOME,
 }
 
