@@ -432,39 +432,7 @@ class MobilePlayerScreenTest {
 
     @Test
     fun failureStatesShowTheirCopyAndOfferTryAgainOnlyWhenRetryable() {
-        val rows = listOf(
-            FailureRow(PlaybackContent.Unsupported(PutioFileType.TEXT), "Can’t play this file", retry = false),
-            FailureRow(
-                PlaybackContent.Failed(PlaybackFailure.MediaCredentialUnavailable(IllegalStateException("expired"))),
-                "Playback access expired. Retry to refresh it.",
-                retry = true,
-            ),
-            FailureRow(
-                PlaybackContent.Failed(PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IOException("offline")))),
-                "Connection lost",
-                retry = true,
-            ),
-            FailureRow(
-                PlaybackContent.Failed(PlaybackFailure.MediaUnsupported(IllegalStateException("codec"))),
-                "Can’t play this here",
-                retry = false,
-                checkBack = true,
-            ),
-            FailureRow(
-                PlaybackContent.NextFailed(
-                    PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IllegalStateException("offline"))),
-                ),
-                "Couldn’t find the next video",
-                retry = true,
-            ),
-            FailureRow(
-                PlaybackContent.NextFailed(
-                    PlaybackFailure.Putio(PutioFailure.AccessDenied(PutioConfigurationException("403"))),
-                ),
-                "Couldn’t find the next video",
-                retry = false,
-            ),
-        )
+        val rows = failureRows()
         var content by mutableStateOf(rows.first().content)
         var retries = 0
         var backs = 0
@@ -497,6 +465,41 @@ class MobilePlayerScreenTest {
         }
     }
 }
+
+private fun failureRows(): List<FailureRow> =
+    listOf(
+        FailureRow(PlaybackContent.Unsupported(PutioFileType.TEXT), "Can’t play this file", retry = false),
+        FailureRow(
+            PlaybackContent.Failed(PlaybackFailure.MediaCredentialUnavailable(IllegalStateException("expired"))),
+            "Playback access expired. Retry to refresh it.",
+            retry = true,
+        ),
+        FailureRow(
+            PlaybackContent.Failed(PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IOException("offline")))),
+            "Connection lost",
+            retry = true,
+        ),
+        FailureRow(
+            PlaybackContent.Failed(PlaybackFailure.MediaUnsupported(IllegalStateException("codec"))),
+            "Can’t play this here",
+            retry = false,
+            checkBack = true,
+        ),
+        FailureRow(
+            PlaybackContent.NextFailed(
+                PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IllegalStateException("offline"))),
+            ),
+            "Couldn’t find the next video",
+            retry = true,
+        ),
+        FailureRow(
+            PlaybackContent.NextFailed(
+                PlaybackFailure.Putio(PutioFailure.AccessDenied(PutioConfigurationException("403"))),
+            ),
+            "Couldn’t find the next video",
+            retry = false,
+        ),
+    )
 
 private data class FailureRow(
     val content: PlaybackContent,
