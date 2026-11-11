@@ -118,6 +118,7 @@ internal fun TvPlayerScreen(
     neighbours: PlaybackNeighbours? = PlaybackNeighbours(),
     background: Boolean = false,
     onBackground: (() -> Unit)? = null,
+    onForeground: () -> Unit = {},
     miniPlayer: TvMiniPlayerState? = null,
 ) {
     BackHandler(enabled = !background && state.content !is PlaybackContent.Ready, onBack = onBack)
@@ -150,7 +151,7 @@ internal fun TvPlayerScreen(
                     backgroundAudio = TvBackgroundAudio(background, onBackground, miniPlayer),
                 )
 
-            background -> TvBackgroundInterstitial(content, onResume = onResume, onEnded = onBack)
+            background -> TvBackgroundInterstitial(content, onResume = onResume, onEnded = onBack, onShow = onForeground)
 
             else ->
                 TvPlaybackInterstitial(
@@ -169,10 +170,20 @@ internal fun TvPlayerScreen(
 }
 
 @Composable
-private fun TvBackgroundInterstitial(content: PlaybackContent, onResume: () -> Unit, onEnded: () -> Unit) {
+private fun TvBackgroundInterstitial(
+    content: PlaybackContent,
+    onResume: () -> Unit,
+    onEnded: () -> Unit,
+    onShow: () -> Unit,
+) {
     when (content) {
         is PlaybackContent.AwaitingResume -> LaunchedEffect(content) { onResume() }
         PlaybackContent.Ended -> LaunchedEffect(Unit) { onEnded() }
+        is PlaybackContent.Failed,
+        is PlaybackContent.NextFailed,
+        is PlaybackContent.Conversion,
+        is PlaybackContent.Unsupported,
+        -> LaunchedEffect(content) { onShow() }
         else -> Unit
     }
 }
@@ -300,7 +311,7 @@ private fun TvReadyPlayer(
                     command,
                     TvPlayerHandlers(
                         exit = { currentOnExit() },
-                        background = { currentOnBackground?.invoke() ?: currentOnExit() },
+                        background = { currentOnBackground.let { if (it != null) it() else currentOnExit() } },
                         playNext = { currentOnPlaybackEnded() },
                         chooseNext = { currentOnNextEpisode() },
                         playChosen = { currentOnUpNext(it) },

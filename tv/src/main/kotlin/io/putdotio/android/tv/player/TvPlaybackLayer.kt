@@ -83,6 +83,7 @@ internal fun TvPlaybackRoute(
     openInVlc: (suspend (PlaybackTarget) -> Int?)? = null,
     background: Boolean = false,
     onBackground: (() -> Unit)? = null,
+    onForeground: () -> Unit = {},
     miniPlayer: TvMiniPlayerState? = null,
 ) {
     val state by controller.state.collectAsStateWithLifecycle()
@@ -145,6 +146,7 @@ internal fun TvPlaybackRoute(
         neighbours = neighbours,
         background = background,
         onBackground = onBackground,
+        onForeground = onForeground,
         miniPlayer = miniPlayer,
     )
     vlcNotice?.let { notice -> TvNoticeDialog(title = stringResource(notice), onDismiss = { vlcNotice = null }) }

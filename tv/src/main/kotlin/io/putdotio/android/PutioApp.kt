@@ -370,6 +370,7 @@ internal fun TvSessionShell(
                     },
                     background = playbackInBackground,
                     onBackground = session::backgroundPlayback,
+                    onForeground = session::foregroundPlayback,
                     miniPlayer = miniPlayer,
                 )
             }
