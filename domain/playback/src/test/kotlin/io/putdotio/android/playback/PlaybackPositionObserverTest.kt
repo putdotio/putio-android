@@ -35,7 +35,7 @@ class PlaybackPositionObserverTest {
         player.play()
         val (observer, snapshots) = observe(player)
         runCurrent()
-        repeat(3) { index ->
+        repeat(2) { index ->
             advanceTimeBy(4_000L)
             player.buffer()
             runCurrent()
@@ -44,13 +44,13 @@ class PlaybackPositionObserverTest {
             player.position(15_000L + index * 5_000L)
             runCurrent()
         }
-        assertEquals(listOf("first" to 25_000L), snapshots)
+        assertEquals(listOf("first" to 20_000L), snapshots)
         observer.close()
         player.release()
     }
 
     @Test
-    fun samplesEveryFifteenSecondsOnlyWhileActuallyPlaying() = runTest {
+    fun samplesEveryTenSecondsOnlyWhileActuallyPlaying() = runTest {
         val player = PositionPlayer()
         player.replace("first", 10_000L)
         val (observer, snapshots) = observe(player)
@@ -60,7 +60,7 @@ class PlaybackPositionObserverTest {
 
         player.play()
         runCurrent()
-        advanceTimeBy(14_999L)
+        advanceTimeBy(9_999L)
         runCurrent()
         assertTrue(snapshots.isEmpty())
         player.position(25_000L)
@@ -68,7 +68,7 @@ class PlaybackPositionObserverTest {
         runCurrent()
         assertEquals(listOf("first" to 25_000L), snapshots)
         player.position(40_000L)
-        advanceTimeBy(15_000L)
+        advanceTimeBy(10_000L)
         runCurrent()
         assertEquals(listOf("first" to 25_000L, "first" to 40_000L), snapshots)
 
@@ -124,6 +124,61 @@ class PlaybackPositionObserverTest {
         observer.flush()
         observer.close()
         assertTrue(snapshots.isEmpty())
+        player.release()
+    }
+
+    @Test
+    fun aSeekInTheSameItemSavesWhereItLands() = runTest {
+        val player = PositionPlayer()
+        player.replace("first", 10_000L)
+        player.play()
+        val (observer, snapshots) = observe(player)
+        runCurrent()
+        advanceTimeBy(1_000L)
+        player.seekTo(70_000L)
+        advanceTimeBy(999L)
+        runCurrent()
+        assertTrue(snapshots.isEmpty())
+        advanceTimeBy(2_001L)
+        runCurrent()
+        assertEquals(listOf("first" to 70_000L), snapshots)
+        observer.close()
+        player.release()
+    }
+
+    @Test
+    fun aHeldSeekBurstSavesOnceWhenItSettles() = runTest {
+        val player = PositionPlayer()
+        player.replace("first", 10_000L)
+        val (observer, snapshots) = observe(player)
+        repeat(20) {
+            advanceTimeBy(300L)
+            player.seekTo(10_000L + (it + 1) * 10_000L)
+        }
+        advanceTimeBy(3_000L)
+        runCurrent()
+        assertEquals(listOf("first" to 210_000L), snapshots)
+        observer.close()
+        player.release()
+    }
+
+    @Test
+    fun aSeekBurstAcrossAPlayingTickSavesOnlyWhereItSettles() = runTest {
+        val player = PositionPlayer()
+        player.replace("first", 10_000L)
+        player.play()
+        val (observer, snapshots) = observe(player)
+        runCurrent()
+        advanceTimeBy(8_500L)
+        repeat(10) {
+            player.seekTo(20_000L + (it + 1) * 10_000L)
+            advanceTimeBy(300L)
+            runCurrent()
+        }
+        advanceTimeBy(1_500L)
+        runCurrent()
+        assertEquals(listOf("first" to 120_000L), snapshots)
+        observer.close()
         player.release()
     }
 
