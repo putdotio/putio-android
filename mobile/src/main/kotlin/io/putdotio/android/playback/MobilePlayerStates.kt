@@ -248,9 +248,9 @@ internal fun PlaybackMediaType.loadingMessage(): Int =
     }
 
 @StringRes
-internal fun PlaybackMediaType.errorTitle(): Int =
-    if (this == PlaybackMediaType.AUDIO) {
-        R.string.mobile_playback_error_title_audio
-    } else {
-        R.string.mobile_playback_error_title
+internal fun PlaybackFailure.errorTitle(mediaType: PlaybackMediaType): Int =
+    when {
+        putioFailure is PutioFailure.NetworkUnavailable -> R.string.mobile_playback_error_connection_lost
+        mediaType == PlaybackMediaType.AUDIO -> R.string.mobile_playback_error_title_audio
+        else -> R.string.mobile_playback_error_title
     }

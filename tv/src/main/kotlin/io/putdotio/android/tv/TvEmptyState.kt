@@ -57,7 +57,7 @@ internal fun TvEmptyState(
     glyphModifier: Modifier = Modifier,
 ) {
     val lead = action ?: secondaryAction
-    LaunchedEffect(action != null, lead != null, lead?.enabled, claimFocus) {
+    LaunchedEffect(action != null, secondaryAction != null, lead?.enabled, claimFocus) {
         if (lead == null || !lead.enabled || !claimFocus) return@LaunchedEffect
         withFrameNanos {}
         actionFocus.requestFocus()
