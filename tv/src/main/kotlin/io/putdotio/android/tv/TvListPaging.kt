@@ -76,8 +76,7 @@ internal fun LazyListState.KeepTopWhenRowsArriveAbove(firstKey: Any?) {
     val seen = remember(this) { SeenFirstKey(firstKey) }
     if (seen.value == firstKey) return
     seen.value = firstKey
-    val atTop = Snapshot.withoutReadObservation { firstVisibleItemIndex == 0 && firstVisibleItemScrollOffset == 0 }
-    if (atTop) requestScrollToItem(0)
+    if (!Snapshot.withoutReadObservation { canScrollBackward }) requestScrollToItem(0)
 }
 
 private class SeenFirstKey(var value: Any?)
