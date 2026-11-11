@@ -1,6 +1,7 @@
 package io.putdotio.android.playback
 
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.files.playbackFinishedAt
 import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.sdk.files.PlaybackConversionState
 import io.putdotio.sdk.files.PlaybackSource
@@ -329,7 +330,7 @@ private fun PlaybackState.ready(resolution: PlaybackResolution.Ready): PlaybackT
             content = PlaybackContent.AwaitingResume(resolution.source, resolution.subtitlesHidden, resolution.offline),
         )
         // A finished video starts over without asking.
-        if (finishedAt(resolution.source.startFromSeconds, target.durationSeconds)) {
+        if (playbackFinishedAt(resolution.source.startFromSeconds, target.durationSeconds)) {
             awaiting.chooseResume(restart = true)
         } else if (target.mediaType == PlaybackMediaType.AUDIO) {
             // Audio continues from its saved position without asking, as iOS does.

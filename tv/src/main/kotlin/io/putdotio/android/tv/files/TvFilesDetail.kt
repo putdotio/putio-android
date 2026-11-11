@@ -37,6 +37,7 @@ import io.putdotio.android.files.FilesRequestId
 import io.putdotio.android.files.FilesSubtitleLanguages
 import io.putdotio.android.files.FilesSubtitles
 import io.putdotio.android.files.items
+import io.putdotio.android.files.playbackFinishedAt
 import io.putdotio.android.tv.TvDetailBody
 import io.putdotio.android.tv.TvDetailDivider
 import io.putdotio.android.tv.TvSheetOption
@@ -375,8 +376,7 @@ internal fun FilesItem.resumePosition(resumePlayback: Boolean): Double? {
     val playback = playback?.takeIf { type == PutioFileType.VIDEO } ?: return null
     val position = playback.startFromSeconds
     val duration = playback.durationSeconds
-    val unfinished = duration == null || position < duration - FINISHED_WITHIN_SECONDS
-    return position.takeIf { resumePlayback && it > 0.0 && unfinished }
+    return position.takeIf { resumePlayback && it > 0.0 && !playbackFinishedAt(it, duration) }
 }
 
 internal fun tvClock(seconds: Double): String {
@@ -405,6 +405,5 @@ private val RESUME_TIME_SPAN = TV_MONO_RUN.merge(SpanStyle(fontWeight = PutioTyp
 private val RESUME_GAP_SPAN = SpanStyle(letterSpacing = 2.sp)
 private const val META_SEPARATOR = " · "
 private const val LOOKUP_DELAY_MILLIS = 300L
-private const val FINISHED_WITHIN_SECONDS = 10.0
 private const val SECONDS_PER_MINUTE = 60L
 private const val SECONDS_PER_HOUR = 3_600L
