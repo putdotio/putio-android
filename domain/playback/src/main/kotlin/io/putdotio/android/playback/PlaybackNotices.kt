@@ -59,7 +59,8 @@ public val playbackNotices: List<OpenSourceNotice> = listOf(
         version = "1.0.16",
         license = "LGPL-2.1-or-later",
         copyright = "Copyright © the FriBidi authors",
-        sourceUrl = "https://github.com/fribidi/fribidi/tree/v1.0.16",
+        // Linked into ass-media's libass.so, so its source is the tree that builds that library.
+        sourceUrl = "https://github.com/peerless2012/libass-android/tree/v0.5.1",
         licenseUrl = "https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html",
     ),
     OpenSourceNotice(
