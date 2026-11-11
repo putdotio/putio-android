@@ -105,11 +105,12 @@ refreshes them. Don't edit their files.
 
 ```bash
 ./gradlew verify                                                  # canonical gate
+./gradlew verifyMobile                                            # one lane: verifyDocs, verifyScripts, verifyLibraries, verifyMobile, verifyTv, verifyRelease
 ./gradlew :mobile:assembleProductionDebug :tv:assembleProductionDebug
 ```
 
-The root [`verify` task](build.gradle.kts)'s `dependsOn` list is the gate's
-inventory. Its script checks need `bash` 3.2+, `python3`, `node`, `ffprobe`,
+The root [`verify` task](build.gradle.kts) is the union of its `verify*` lane
+tasks; the build cache skips the work a change does not reach. Its script checks need `bash` 3.2+, `python3`, `node`, `ffprobe`,
 and `ffmpeg` with the `freezedetect` filter and `libx264` encoder on PATH.
 `markdownCheck` runs oxfmt at the version [package.json](package.json) pins;
 `npx --yes oxfmt@<version> '**/*.md'` fixes its findings.
@@ -148,10 +149,9 @@ DESIGN.md. Screen-level UI changes edit neither.
 Open pull requests against `main`. A merge runs only
 [CI](.github/workflows/ci.yml); nothing ships without a Google Play dispatch.
 
-- `Build release` and `Verify Android app` split `verify` plus the four debug
-  assembles between them. When either command changes, compare their
-  `--dry-run` task lists with the full command's; together they must run
-  exactly the same tasks.
+- CI runs one job per lane. A pull request that touches only docs or files
+  no build reads skips the Gradle lanes; inside a lane, the build cache
+  skips what a change does not reach.
 
 ### Google Play delivery
 
