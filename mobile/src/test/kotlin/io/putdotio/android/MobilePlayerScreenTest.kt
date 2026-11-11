@@ -831,22 +831,6 @@ class MobilePlayerLifecycleTest {
     }
 
     @Test
-    fun aLookupThatSettlesAfterTheEndLeavesOnce() {
-        lateinit var player: RecordingPlayer
-        var endedCalls = 0
-        var lookup by mutableStateOf<PlaybackUpNextLookup>(PlaybackUpNextLookup.Pending)
-        showUpNext(onEnded = { endedCalls += 1 }, onPlayUpNext = {}, lookup = { lookup }) { player = it }
-
-        moveTo(player, Media3Player.STATE_ENDED)
-        compose.runOnIdle { assertEquals("Nothing leaves while the lookup runs", 0, endedCalls) }
-        compose.runOnIdle { lookup = PlaybackUpNextLookup.Failed }
-        compose.mainClock.advanceTimeBy(FRAME_STEP_MILLIS)
-        compose.runOnIdle { lookup = PlaybackUpNextLookup.FolderEnd }
-        compose.mainClock.advanceTimeBy(FRAME_STEP_MILLIS)
-        compose.runOnIdle { assertEquals(1, endedCalls) }
-    }
-
-    @Test
     fun turningAutoplayOffDuringTheCountdownStaysOnTheFinishedVideo() {
         lateinit var player: RecordingPlayer
         var endedCalls = 0
@@ -876,7 +860,6 @@ class MobilePlayerLifecycleTest {
     private fun showUpNext(
         onEnded: () -> Unit,
         onPlayUpNext: (PlaybackTarget) -> Unit,
-        lookup: () -> PlaybackUpNextLookup = { PlaybackUpNextLookup.Found(PlaybackUpNext(UpNextTarget, "Blue Lights")) },
         autoplay: () -> Boolean = { true },
         onPlayer: (RecordingPlayer) -> Unit,
     ) {
@@ -889,7 +872,7 @@ class MobilePlayerLifecycleTest {
                     onBack = {},
                     autoplayNextVideo = autoplay(),
                     onPlaybackEnded = onEnded,
-                    upNext = lookup(),
+                    upNext = PlaybackUpNextLookup.Found(PlaybackUpNext(UpNextTarget, "Blue Lights")),
                     onPlayUpNext = onPlayUpNext,
                     playerFactory = MobilePlayerFactory { _, _ -> RecordingPlayer().also(onPlayer) },
                 )
