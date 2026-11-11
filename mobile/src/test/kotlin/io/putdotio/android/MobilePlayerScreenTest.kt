@@ -775,10 +775,8 @@ class MobilePlayerLifecycleTest {
         var endedCalls = 0
         val chosen = mutableListOf<PlaybackTarget>()
         showUpNext(onEnded = { endedCalls += 1 }, onPlayUpNext = { chosen += it }) { player = it }
-        compose.mainClock.autoAdvance = false
 
-        compose.runOnIdle { player.updatePlaybackState(Media3Player.STATE_ENDED) }
-        compose.mainClock.advanceTimeBy(50L)
+        moveTo(player, Media3Player.STATE_ENDED)
         compose.onNodeWithTag(MOBILE_UP_NEXT_TAG).assertIsDisplayed()
         compose.onNodeWithText("Up next in 10").assertIsDisplayed()
         compose.onNodeWithText(UpNextTarget.name).assertIsDisplayed()
@@ -792,6 +790,7 @@ class MobilePlayerLifecycleTest {
             assertEquals(listOf(UpNextTarget), chosen)
             assertEquals("Autoplay's own walk is not asked", 0, endedCalls)
         }
+        compose.onNodeWithTag(MOBILE_UP_NEXT_TAG).assertDoesNotExist()
     }
 
     @Test
@@ -801,12 +800,13 @@ class MobilePlayerLifecycleTest {
         val chosen = mutableListOf<PlaybackTarget>()
         showUpNext(onEnded = { endedCalls += 1 }, onPlayUpNext = { chosen += it }) { player = it }
 
-        compose.runOnIdle { player.updatePlaybackState(Media3Player.STATE_ENDED) }
+        moveTo(player, Media3Player.STATE_ENDED)
         compose.onNodeWithText("Play now").performClick()
+        compose.mainClock.advanceTimeBy(20_000L)
         compose.runOnIdle { assertEquals(listOf(UpNextTarget), chosen) }
 
-        compose.runOnIdle { player.updatePlaybackState(Media3Player.STATE_READY) }
-        compose.runOnIdle { player.updatePlaybackState(Media3Player.STATE_ENDED) }
+        moveTo(player, Media3Player.STATE_READY)
+        moveTo(player, Media3Player.STATE_ENDED)
         compose.onNodeWithText("Cancel").performClick()
         compose.mainClock.advanceTimeBy(20_000L)
         compose.onNodeWithTag(MOBILE_UP_NEXT_TAG).assertDoesNotExist()
@@ -815,6 +815,12 @@ class MobilePlayerLifecycleTest {
             assertEquals(listOf(UpNextTarget), chosen)
             assertEquals(0, endedCalls)
         }
+    }
+
+    private fun moveTo(player: RecordingPlayer, playbackState: Int) {
+        compose.runOnIdle { player.updatePlaybackState(playbackState) }
+        shadowOf(Looper.getMainLooper()).idle()
+        compose.mainClock.advanceTimeBy(FRAME_STEP_MILLIS)
     }
 
     private fun showUpNext(
@@ -838,6 +844,7 @@ class MobilePlayerLifecycleTest {
             }
         }
         compose.onNodeWithTag(MOBILE_PLAYER_TAG).assertIsDisplayed()
+        compose.mainClock.autoAdvance = false
     }
 
     @Test
@@ -2573,6 +2580,7 @@ private fun videoSource(): PlaybackSource =
     )
 
 private val Target = PlaybackTarget(FilesItemId(42L), "episode.mkv")
+private const val FRAME_STEP_MILLIS = 50L
 private val UpNextTarget = PlaybackTarget(FilesItemId(44L), "Blue.Lights.S04E02.1080p.HDTV.H264-ORGANiC.mkv")
 private val AudioTarget = PlaybackTarget(FilesItemId(43L), "song.mp3", PlaybackMediaType.AUDIO)
 

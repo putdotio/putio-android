@@ -46,6 +46,9 @@ public fun rememberUpNext(
     return lookup
 }
 
+public fun PlaybackUpNextLookup.whenAutoplaying(autoplay: Boolean, mediaType: PlaybackMediaType): PlaybackUpNextLookup =
+    if (autoplay && mediaType == PlaybackMediaType.VIDEO) this else PlaybackUpNextLookup.Off
+
 internal fun PlaybackNeighbours.upNextAfter(state: PlaybackState): PlaybackUpNextLookup =
     next?.takeUnless { it.fileId in state.visitedFileIds }
         ?.let { PlaybackUpNextLookup.Found(PlaybackUpNext(it, folderName)) }

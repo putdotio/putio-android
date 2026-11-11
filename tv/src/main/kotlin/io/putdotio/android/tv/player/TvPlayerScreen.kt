@@ -62,6 +62,7 @@ import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.playback.PlaybackUpNextLookup
 import io.putdotio.android.playback.SubtitleCueOverlay
 import io.putdotio.android.playback.SubtitleStartupPolicy
+import io.putdotio.android.playback.whenAutoplaying
 import io.putdotio.android.playback.directPlayVerdict
 import io.putdotio.android.playback.displayAspectRatioOrNull
 import io.putdotio.android.playback.orHiddenWhen
@@ -138,8 +139,7 @@ internal fun TvPlayerScreen(
                     onNextEpisode = onNextEpisode,
                     onUpNext = onUpNext,
                     analytics = analytics,
-                    upNext = upNext.takeIf { autoplayNextVideo && state.target.mediaType == PlaybackMediaType.VIDEO }
-                        ?: PlaybackUpNextLookup.Off,
+                    upNext = upNext.whenAutoplaying(autoplayNextVideo, state.target.mediaType),
                     neighbours = neighbours,
                     nowPlayingFocus = nowPlayingFocus,
                 )

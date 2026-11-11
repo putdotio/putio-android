@@ -105,11 +105,12 @@ internal fun MobileUpNextEnd.counting(lookup: PlaybackUpNextLookup, pictureInPic
 
 @Composable
 internal fun MobileUpNextCard(
-    upNext: PlaybackUpNext,
-    onPlayNow: () -> Unit,
+    upNext: PlaybackUpNext?,
+    onPlayNow: (PlaybackTarget) -> Unit,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    if (upNext == null) return
     val currentOnPlayNow by rememberUpdatedState(onPlayNow)
     var remainingMillis by remember(upNext) { mutableLongStateOf(PLAYBACK_UP_NEXT_MILLIS) }
     LaunchedEffect(upNext) {
@@ -117,7 +118,7 @@ internal fun MobileUpNextCard(
         while (remainingMillis > 0L) {
             remainingMillis = withFrameMillis { now -> (PLAYBACK_UP_NEXT_MILLIS - (now - start)).coerceAtLeast(0L) }
         }
-        currentOnPlayNow()
+        currentOnPlayNow(upNext.target)
     }
     val seconds = ceil(remainingMillis / MILLIS_PER_SECOND).toLong().toString()
     val header = stringResource(R.string.mobile_playback_up_next_in, COUNTDOWN_SLOT)
@@ -158,7 +159,7 @@ internal fun MobileUpNextCard(
             Text(stringResource(R.string.mobile_action_cancel))
         }
         Button(
-            onClick = onPlayNow,
+            onClick = { onPlayNow(upNext.target) },
             colors = ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary,

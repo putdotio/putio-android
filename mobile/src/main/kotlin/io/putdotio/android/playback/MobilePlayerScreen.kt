@@ -170,8 +170,7 @@ internal fun MobilePlayerScreen(
             pictureInPicture = pictureInPicture,
             nextEpisode = nextEpisode.takeIf { state.target.mediaType == PlaybackMediaType.VIDEO },
             onNextEpisode = onNextEpisode,
-            upNext = upNext.takeIf { autoplayNextVideo && state.target.mediaType == PlaybackMediaType.VIDEO }
-                ?: PlaybackUpNextLookup.Off,
+            upNext = upNext.whenAutoplaying(autoplayNextVideo, state.target.mediaType),
             onPlayUpNext = onPlayUpNext,
             neighbours = neighbours,
             onPlay = onPlay,
@@ -1371,19 +1370,17 @@ private fun MobileReadyPlayerContent(
                 onFoldFits = { chromeFitsFold = it },
             )
             MobileSeekFeedbackLayer(pendingSeek.value, videoFold)
-            if (upNextCard != null) {
-                MobileUpNextCard(
-                    upNext = upNextCard,
-                    onPlayNow = { onPlayUpNext(upNextCard.target) },
-                    onCancel = onCancelUpNext,
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .zIndex(2.25f)
-                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-                        .padding(end = 24.dp, bottom = footerHeight + 8.dp)
-                        .then(optionModifier),
-                )
-            }
+            MobileUpNextCard(
+                upNext = upNextCard,
+                onPlayNow = onPlayUpNext,
+                onCancel = onCancelUpNext,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .zIndex(2.25f)
+                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                    .padding(end = 24.dp, bottom = footerHeight + 8.dp)
+                    .then(optionModifier),
+            )
         }
         if (!isAudio && !pictureInPicture) {
             MobileVideoSheets(
