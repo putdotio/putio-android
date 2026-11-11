@@ -559,7 +559,10 @@ class PlaybackReducerTest {
         val retried = PlaybackReducer.reduce(failed.state, PlaybackEvent.Retry)
         val retriedReady = PlaybackReducer.reduce(
             retried.state,
-            PlaybackEvent.ResolveSucceeded(PlaybackRequestId(3L), PlaybackResolution.Ready(source, useStartFrom = true)),
+            PlaybackEvent.ResolveSucceeded(
+                PlaybackRequestId(3L),
+                PlaybackResolution.Ready(source, useStartFrom = true),
+            ),
         )
         val afterRetry = PlaybackReducer.reduce(retriedReady.state, PlaybackEvent.PlayerFailed(expired, 4_321L))
         assertEquals(PlaybackContent.Loading(PlaybackRequestId(4L)), afterRetry.state.content)
