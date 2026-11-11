@@ -189,7 +189,7 @@ class TvPlaybackStatesTest {
         show()
         compose.onNodeWithText(TITLE).assertIsDisplayed()
         compose.onNodeWithText("Couldn't play this file.").assertIsDisplayed()
-        compose.onNodeWithText("Check the network and try again.").assertIsDisplayed()
+        compose.onNodeWithText("Check your internet connection.").assertIsDisplayed()
         compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressKey(Key.DirectionCenter) }
         compose.runOnIdle { assertEquals(1, retries) }
 
@@ -199,7 +199,7 @@ class TvPlaybackStatesTest {
 
         val cause = PutioConfigurationException("test")
         change(PlaybackContent.Failed(PlaybackFailure.Putio(PutioFailure.AuthenticationRequired(cause))))
-        compose.onNodeWithText("Your session expired. Sign in again.").assertIsDisplayed()
+        compose.onNodeWithText("Session expired. Please sign in again.").assertIsDisplayed()
         compose.onNodeWithText("Try again").assertDoesNotExist()
 
         change(PlaybackContent.Failed(PlaybackFailure.Putio(PutioFailure.AccessDenied(cause))))
@@ -211,6 +211,8 @@ class TvPlaybackStatesTest {
         compose.onNodeWithText("not a video").assertIsDisplayed()
         change(PlaybackContent.Failed(putioRefusal(400, putioErrorBody(400, "NOT_A_VIDEO")).toPlaybackFailure()))
         compose.onNodeWithText("put.io couldn’t prepare this file for playback.").assertIsDisplayed()
+        change(PlaybackContent.Failed(putioRefusal(404, putioErrorBody(404, "NOT_FOUND")).toPlaybackFailure()))
+        compose.onNodeWithText("File not found. This file may have been deleted.").assertIsDisplayed()
     }
 
     @Test

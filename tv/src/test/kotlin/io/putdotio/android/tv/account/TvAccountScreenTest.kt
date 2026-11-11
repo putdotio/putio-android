@@ -361,7 +361,7 @@ class TvAccountScreenTest {
         var settings by mutableStateOf(failed)
         show(settingsState = { settings })
 
-        compose.onNodeWithText("Couldn’t save this setting. Check the network and try again.").assertIsDisplayed()
+        compose.onNodeWithText("Couldn’t save this setting. Check your internet connection.").assertIsDisplayed()
         compose.onNodeWithText("Keep account history").assertIsOn()
         group("Library").performKeyInput { pressKey(Key.DirectionRight) }
         compose.onNodeWithText("Manage your trash").performKeyInput { repeat(3) { pressKey(Key.DirectionDown) } }
@@ -384,7 +384,7 @@ class TvAccountScreenTest {
         ).state
         show(settingsState = { failed })
 
-        compose.onNodeWithText("Couldn’t load account settings. Check the network and try again.").assertIsDisplayed()
+        compose.onNodeWithText("Couldn’t load account settings. Check your internet connection.").assertIsDisplayed()
         group("Library").performKeyInput { pressKey(Key.DirectionRight) }
         compose.onNodeWithText("Manage your trash").assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
         compose.onNode(hasText("Try again") and isFocused()).performKeyInput { pressCenter() }

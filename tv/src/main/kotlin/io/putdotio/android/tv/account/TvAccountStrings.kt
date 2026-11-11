@@ -11,6 +11,8 @@ import io.putdotio.android.apiReason
 import io.putdotio.android.settings.AccountSettingsFailure
 import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.android.settings.apiReason
+import io.putdotio.android.tv.TvFailureCopy
+import io.putdotio.android.tv.tvCopy
 
 /** put.io's reason for a refused request, else this failure's copy. */
 @Composable
@@ -29,18 +31,10 @@ internal fun PutioFailure.tvAppConfigMessageText(): String = apiReason ?: string
 
 @StringRes
 internal fun PutioFailure.tvAppConfigMessage(): Int =
-    when (this) {
-        is PutioFailure.AuthenticationRequired -> R.string.tv_error_session
-        is PutioFailure.AccessDenied -> R.string.tv_account_error_access_denied
-        is PutioFailure.RateLimited -> R.string.tv_error_rate_limited
-        is PutioFailure.NetworkUnavailable -> R.string.tv_error_network
-        is PutioFailure.Timeout -> R.string.tv_error_timeout
-        is PutioFailure.ServerUnavailable,
-        is PutioFailure.ApiRejected,
-        is PutioFailure.InvalidResponse,
-        is PutioFailure.Misconfigured,
-        is PutioFailure.Unexpected,
-        -> R.string.tv_error_unavailable
+    tvCopy()?.line ?: if (this is PutioFailure.AccessDenied) {
+        R.string.tv_account_error_access_denied
+    } else {
+        TvFailureCopy.Server.line
     }
 
 @StringRes

@@ -256,7 +256,7 @@ class TvHistoryScreenTest {
         )
 
         compose.onNodeWithText("Couldn’t clear history").assertIsDisplayed()
-        compose.onNodeWithText("Check the network and try again.").assertIsDisplayed()
+        compose.onNodeWithText("Check your internet connection.").assertIsDisplayed()
         compose.onNodeWithText("OK").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf<HistoryEvent>(HistoryEvent.DismissClear), log)
     }
@@ -270,7 +270,7 @@ class TvHistoryScreenTest {
         )
         show { state }
 
-        compose.onNodeWithText("Can’t connect to put.io right now.").assertIsDisplayed()
+        compose.onNodeWithText("Can’t connect to put.io").assertIsDisplayed()
         compose.onNodeWithText("Try now").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf<HistoryEvent>(HistoryEvent.Retry), log)
 
@@ -359,7 +359,7 @@ class TvHistoryScreenTest {
     fun aBlockedOpenIsExplainedAboveTheList() {
         val notices = listOf<Pair<FilesFailure, String>>(
             PutioFailure.NetworkUnavailable(PutioConfigurationException("offline")) to
-                "Couldn’t open this file. Check the network and try again.",
+                "Couldn’t open this file. Check your internet connection.",
             FilesFailure.NavigationBlocked to "This item can’t be opened right now. Check Files, then try again.",
         )
         var notice by mutableStateOf<FilesFailure?>(null)

@@ -63,7 +63,6 @@ import io.putdotio.android.tv.TvLoadFailedState
 import io.putdotio.android.tv.TvPaneFocusOwner
 import io.putdotio.android.tv.TvPickedRow
 import io.putdotio.android.tv.files.TvFolderHeading
-import io.putdotio.android.tv.files.tvLoadFailedMessage
 import io.putdotio.android.tv.monoNumber
 import io.putdotio.android.tv.paneSection
 import io.putdotio.android.tv.refocusAfterDialog
@@ -151,7 +150,6 @@ internal fun TvTrashScreen(
                 TvLoadFailedState(
                     failure = content.failure,
                     headline = stringResource(R.string.tv_trash_error_title),
-                    message = content.failure.tvLoadFailedMessage(),
                     onRetry = { onEvent(TrashEvent.Retry) },
                     modifier = Modifier
                         .weight(1f)

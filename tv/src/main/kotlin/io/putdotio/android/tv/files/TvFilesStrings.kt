@@ -8,6 +8,8 @@ import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.apiReason
 import io.putdotio.android.files.FilesSort
+import io.putdotio.android.tv.TvFailureCopy
+import io.putdotio.android.tv.tvCopy
 
 @StringRes
 internal fun FilesSort.tvLabel(): Int =
@@ -30,30 +32,13 @@ internal fun FilesSort.tvLabel(): Int =
 @Composable
 internal fun FilesFailure.tvMessageText(): String = (this as? PutioFailure)?.apiReason ?: stringResource(tvMessage())
 
-@Composable
-internal fun FilesFailure.tvLoadFailedMessage(): String =
-    when (this) {
-        is PutioFailure.ServerUnavailable,
-        is PutioFailure.InvalidResponse,
-        is PutioFailure.Misconfigured,
-        is PutioFailure.Unexpected,
-        -> stringResource(R.string.tv_files_error_message)
-        else -> tvMessageText()
-    }
+internal fun FilesFailure.tvStateCopy(): TvFailureCopy? =
+    (this as? PutioFailure)?.takeIf { it.apiReason == null }?.tvCopy()
 
 @StringRes
 internal fun FilesFailure.tvMessage(): Int =
     when (this) {
-        is PutioFailure.AuthenticationRequired -> R.string.tv_error_session
-        is PutioFailure.AccessDenied -> R.string.tv_error_forbidden
-        is PutioFailure.RateLimited -> R.string.tv_error_rate_limited
-        is PutioFailure.NetworkUnavailable -> R.string.tv_error_network
-        is PutioFailure.Timeout -> R.string.tv_error_timeout
         FilesFailure.NavigationBlocked -> R.string.tv_error_navigation_blocked
-        is PutioFailure.ServerUnavailable,
-        is PutioFailure.ApiRejected,
-        is PutioFailure.InvalidResponse,
-        is PutioFailure.Misconfigured,
-        is PutioFailure.Unexpected,
-        -> R.string.tv_error_unavailable
+        is PutioFailure.AccessDenied -> R.string.tv_error_forbidden
+        is PutioFailure -> (tvCopy() ?: TvFailureCopy.Server).line
     }

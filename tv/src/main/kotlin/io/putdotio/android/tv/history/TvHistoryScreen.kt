@@ -68,7 +68,6 @@ import io.putdotio.android.tv.TvTrashUndoOffered
 import io.putdotio.android.tv.TvUndoSnackbar
 import io.putdotio.android.tv.TvUndoSnackbarHost
 import io.putdotio.android.tv.files.rememberBusy
-import io.putdotio.android.tv.files.tvLoadFailedMessage
 import io.putdotio.android.tv.files.tvMessageText
 import io.putdotio.android.tv.refocusAfterDialog
 import io.putdotio.android.tv.rememberTvPaneHasFocus
@@ -176,7 +175,6 @@ internal fun TvHistoryScreen(
                 TvLoadFailedState(
                     failure = content.failure,
                     headline = stringResource(R.string.tv_history_error_title),
-                    message = content.failure.tvLoadFailedMessage(),
                     onRetry = { onEvent(HistoryEvent.Retry) },
                     modifier = statePane,
                     actionFocus = stateFocus,

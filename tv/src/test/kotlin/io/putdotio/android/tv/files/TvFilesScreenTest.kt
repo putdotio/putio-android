@@ -45,6 +45,9 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.test.onNodeWithTag
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
+import io.putdotio.android.putioErrorBody
+import io.putdotio.android.putioRefusal
+import io.putdotio.android.toPutioFailure
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.android.files.FilesFolderCounts
 import io.putdotio.android.tv.setTvContent
@@ -149,12 +152,12 @@ class TvFilesScreenTest {
     }
 
     @Test
-    fun aFolderPutioDidNotAnswerForOffersTryAgain() {
+    fun aServerErrorOnAFolderOffersTryAgain() {
         val events = mutableListOf<FilesBrowserEvent>()
         val failure = PutioFailure.ServerUnavailable(503, PutioConfigurationException("x"))
         compose.showFiles(state = { state(FilesContent.Failed(failure)) }, onEvent = { events += it; true })
-        compose.onNodeWithText("Couldn't load your files.").assertIsDisplayed()
-        compose.onNodeWithText("put.io didn't answer. Check the TV's connection and try again.").assertIsDisplayed()
+        compose.onNodeWithText("Something went wrong on our end").assertIsDisplayed()
+        compose.onNodeWithText("Try again in a few minutes, then contact support.").assertIsDisplayed()
         compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.Retry), events)
     }
@@ -235,11 +238,19 @@ class TvFilesScreenTest {
     }
 
     @Test
+    fun aMissingFolderSaysTheFileIsNotFound() {
+        val failure = putioRefusal(404, putioErrorBody(404, "NOT_FOUND")).toPutioFailure()
+        compose.showFiles(state = { state(FilesContent.Failed(failure)) })
+        compose.onNodeWithText("File not found").assertIsDisplayed()
+        compose.onNodeWithText("This file may have been deleted.").assertIsDisplayed()
+    }
+
+    @Test
     fun anOfflineFolderOffersTryNowAndNoSort() {
         val events = mutableListOf<FilesBrowserEvent>()
         compose.showFiles(state = { state(FilesContent.Failed(networkFailure())) }, onEvent = { events += it; true })
-        compose.onNodeWithText("Can’t connect to put.io right now.").assertIsDisplayed()
-        compose.onNodeWithText("Check the network and try again.").assertIsDisplayed()
+        compose.onNodeWithText("Can’t connect to put.io").assertIsDisplayed()
+        compose.onNodeWithText("Check your internet connection.").assertIsDisplayed()
         compose.onNodeWithText("Try now").assertIsFocused().performKeyInput { pressCenter() }
         compose.onAllNodesWithText("Sort").assertCountEquals(0)
         assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.Retry), events)

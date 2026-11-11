@@ -672,7 +672,6 @@ private fun TvFilesStatePane(
             is FilesContent.Failed -> TvLoadFailedState(
                 failure = content.failure,
                 headline = stringResource(R.string.tv_files_error_title),
-                message = content.failure.tvLoadFailedMessage(),
                 onRetry = { onEvent(FilesBrowserEvent.Retry) },
                 modifier = stateModifier,
                 actionFocus = retryFocus,

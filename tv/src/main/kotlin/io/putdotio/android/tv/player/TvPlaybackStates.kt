@@ -47,6 +47,7 @@ import io.putdotio.android.playback.starting
 import io.putdotio.android.tv.TvEmptyState
 import io.putdotio.android.tv.TvEmptyStateAction
 import io.putdotio.android.tv.TvLoadingIndicator
+import io.putdotio.android.tv.tvCopy
 import io.putdotio.android.tv.withFullLineBox
 import io.putdotio.sdk.files.PlaybackConversionState
 import kotlin.math.roundToInt
@@ -248,19 +249,10 @@ private fun PlaybackFailure.messageResource(): Int =
     when (this) {
         is PlaybackFailure.MediaCredentialUnavailable -> R.string.tv_player_error_link_expired
         is PlaybackFailure.MediaUnsupported -> R.string.tv_player_cant_play_message
-        is PlaybackFailure.Putio -> when (failure) {
-            is PutioFailure.AuthenticationRequired -> R.string.tv_error_session
-            is PutioFailure.NetworkUnavailable -> R.string.tv_error_network
-            is PutioFailure.Timeout -> R.string.tv_error_timeout
-            is PutioFailure.RateLimited -> R.string.tv_error_rate_limited
-            is PutioFailure.AccessDenied -> R.string.tv_player_error_forbidden
-            is PutioFailure.ApiRejected,
-            is PutioFailure.Misconfigured,
-            -> R.string.tv_player_error_rejected
-            is PutioFailure.ServerUnavailable,
-            is PutioFailure.InvalidResponse,
-            is PutioFailure.Unexpected,
-            -> R.string.tv_error_unavailable
+        is PlaybackFailure.Putio -> failure.tvCopy()?.line ?: if (failure is PutioFailure.AccessDenied) {
+            R.string.tv_player_error_forbidden
+        } else {
+            R.string.tv_player_error_rejected
         }
     }
 

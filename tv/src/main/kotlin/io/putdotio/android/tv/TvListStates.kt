@@ -24,10 +24,11 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.FilesFailure
-import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioEmptyGlyph
+import io.putdotio.android.tv.files.tvMessageText
+import io.putdotio.android.tv.files.tvStateCopy
 
 @Composable
 internal fun TvListSkeleton(modifier: Modifier = Modifier) {
@@ -94,17 +95,17 @@ internal fun TvDetailSkeleton(modifier: Modifier = Modifier) {
 internal fun TvLoadFailedState(
     failure: FilesFailure,
     headline: String,
-    message: String,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
     actionFocus: FocusRequester = remember { FocusRequester() },
     claimFocus: Boolean = true,
 ) {
-    val offline = failure is PutioFailure.NetworkUnavailable
+    val copy = failure.tvStateCopy()
+    val offline = copy == TvFailureCopy.Network
     TvEmptyState(
         glyph = if (offline) PutioEmptyGlyph.Offline else PutioEmptyGlyph.CouldNotLoad,
-        headline = if (offline) stringResource(R.string.tv_state_offline_title) else headline,
-        message = message,
+        headline = copy?.let { stringResource(it.headline) } ?: headline,
+        message = copy?.let { stringResource(it.recovery) } ?: failure.tvMessageText(),
         action = TvEmptyStateAction(
             label = stringResource(if (offline) R.string.tv_state_try_now else R.string.tv_state_try_again),
             onClick = onRetry,

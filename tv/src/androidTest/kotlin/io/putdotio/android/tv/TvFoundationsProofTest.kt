@@ -154,7 +154,7 @@ class TvFoundationsProofTest {
     @Test
     fun error() {
         mount(listings = emptyMap())
-        waitForText("Couldn't load your files.")
+        waitForText("Something went wrong on our end")
         compose.onNode(hasText("Try again") and hasClickAction()).assertIsFocused()
         screenshot("androidtv-st-s3-error")
     }
@@ -286,8 +286,8 @@ private fun FoundationsSheet() {
             Box(Modifier.fillMaxWidth().weight(1f)) {
                 TvEmptyState(
                     glyph = PutioEmptyGlyph.CouldNotLoad,
-                    headline = "Couldn't load your files.",
-                    message = "put.io is temporarily unavailable. Try again.",
+                    headline = "Something went wrong on our end",
+                    message = "Try again in a few minutes, then contact support.",
                     action = TvEmptyStateAction("Try again", onClick = {}, icon = R.drawable.ic_ph_arrow_clockwise),
                     claimFocus = false,
                 )
