@@ -316,6 +316,23 @@ class TvNowPlayingTest {
     }
 
     @Test
+    fun backFromAPausedTrackLeavesThePlayer() {
+        var backgrounds = 0
+        showFolder(start = SECOND, onBackground = { backgrounds += 1 })
+        val session = connect(sessions.last())
+        session.pause()
+        idleSession()
+
+        compose.back()
+
+        compose.runOnIdle {
+            assertEquals(0, backgrounds)
+            assertEquals(1, exits)
+        }
+        session.release()
+    }
+
+    @Test
     fun backgroundAudioKeepsPlayingWhileTheAppIsStoppedAndTheSystemStillControlsIt() {
         val owner = object : LifecycleOwner {
             val registry = LifecycleRegistry(this).apply { currentState = Lifecycle.State.RESUMED }

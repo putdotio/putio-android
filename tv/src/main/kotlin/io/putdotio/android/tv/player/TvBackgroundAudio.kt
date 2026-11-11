@@ -11,7 +11,7 @@ import androidx.media3.common.Player
 import io.putdotio.android.playback.PlaybackMediaType
 import java.io.Closeable
 
-internal class TvBackgroundAudio(
+internal data class TvBackgroundAudio(
     val hidden: Boolean,
     val onBackground: (() -> Unit)?,
     val miniPlayer: TvMiniPlayerState?,
