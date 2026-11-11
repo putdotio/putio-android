@@ -55,7 +55,8 @@
     <string name="tv_home_pinned_empty_message">Pin a folder or file from its actions to keep it here.</string>
     <string name="tv_home_pinned_error_title">Couldn’t load your pins.</string>
     <string name="tv_home_first_run_title">Nothing here yet.</string>
-    <string name="tv_home_first_run_message">Videos you start come back here. Press Menu on a folder or file to pin it.</string>
+    <string name="tv_home_first_run_message">Add files at put.io</string>
+    <string name="tv_home_first_run_qr_description">QR code that opens put.io</string>
     <string name="tv_home_browse_files">Browse your files</string>
     <plurals name="tv_home_folder_count">
         <item quantity="one">%1$s folder</item>
@@ -105,7 +106,7 @@
     <string name="tv_files_sort_type_descending">Type, Z to A</string>
     <string name="tv_files_sort_watch_ascending">Unwatched first</string>
     <string name="tv_files_sort_watch_descending">Watched first</string>
-    <string name="tv_files_empty_title">Empty folder.</string>
+    <string name="tv_files_empty_title">No files whatsoever!</string>
     <string name="tv_files_empty_message">Files you add to this folder on put.io show up here.</string>
     <string name="tv_files_loading_more">Loading more files</string>
     <string name="tv_files_paging_error">Couldn’t load more files.</string>

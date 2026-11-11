@@ -369,7 +369,7 @@ private fun noResultsMessage(term: SearchTerm): AnnotatedString {
     val parts = message.split(TERM_MARK, limit = 2)
     return buildAnnotatedString {
         append(parts.first())
-        withStyle(emphasis) { append(term.value) }
+        withStyle(emphasis) { append(term.shown) }
         parts.getOrNull(1)?.let(::append)
     }
 }
