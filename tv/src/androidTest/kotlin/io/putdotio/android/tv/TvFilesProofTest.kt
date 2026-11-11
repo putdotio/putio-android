@@ -143,7 +143,7 @@ class TvFilesProofTest {
         compose.waitUntil(5_000) { isFocused("Open $EMPTY") }
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(5_000) {
-            compose.onAllNodesWithText("Empty folder.").fetchSemanticsNodes().any(::focused)
+            compose.onAllNodesWithText("No files whatsoever!").fetchSemanticsNodes().any(::focused)
         }
         compose.focusTvTab("Files")
         screenshot("androidtv-st-s2-empty-folder")
