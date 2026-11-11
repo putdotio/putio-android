@@ -117,7 +117,7 @@ internal fun TvConversionScreen(
                     label = stringResource(label),
                     onClick = onClick,
                     icon = R.drawable.ic_ph_arrows_clockwise,
-                    enabled = polling || conversion.refreshRequestId == null,
+                    enabled = polling || conversion.statusCheckFailed || conversion.refreshRequestId == null,
                 )
             },
             secondaryAction = onPlayInVlc?.let { onClick ->
