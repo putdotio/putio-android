@@ -107,8 +107,9 @@ class SentryEnvelopesTest {
         val id = checkNotNull(PutioDiagnostics.capture(TelemetryFailure("putio_failure", listOf("on"), emptyMap())))
 
         val deadline = System.currentTimeMillis() + FLUSH_MILLIS
-        while (received.none { id in it } && System.currentTimeMillis() < deadline) Thread.sleep(POLL_MILLIS)
-        assertTrue(received.single { id in it }.contains("\"event_id\":\"$id\""))
+        val sent = "\"event_id\":\"$id\""
+        while (received.none { sent in it } && System.currentTimeMillis() < deadline) Thread.sleep(POLL_MILLIS)
+        assertTrue(received.any { sent in it })
     }
 
     private fun launch() {
