@@ -162,7 +162,7 @@ private fun MobileConversionActions(
     if (action != null) {
         MobilePlayerStateAction(
             label = stringResource(action.first),
-            enabled = conversion.refreshRequestId == null,
+            enabled = conversion.refreshRequestId == null || conversion.statusCheckFailed,
             onClick = action.second,
         )
     }

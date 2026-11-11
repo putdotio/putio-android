@@ -81,6 +81,7 @@ public sealed interface PlaybackContent {
     /**
      * The file needs MP4 conversion first. A [refreshRequestId] is a resolution or conversion
      * start in flight; the interstitial stays up meanwhile instead of flashing a loading screen.
+     * [statusCheckFailed] marks a status read that lost the network; polling goes on.
      */
     public data class Conversion(
         val state: PlaybackConversionState,
@@ -463,10 +464,14 @@ public enum class PlaybackConversionAction {
     /** [PlaybackEvent.RefreshConversion] for a status that does not poll on its own. */
     CheckAgain,
 
+    /** [PlaybackEvent.RefreshConversion] after a status read lost the network. */
     RetryStatusCheck,
 }
 
-/** Null while the conversion starts or polls on its own, and once the file cannot be converted. */
+/**
+ * Null while the conversion starts or polls on its own with no failed status read, and once the
+ * file cannot be converted.
+ */
 public val PlaybackContent.Conversion.action: PlaybackConversionAction?
     get() = when {
         statusCheckFailed -> PlaybackConversionAction.RetryStatusCheck

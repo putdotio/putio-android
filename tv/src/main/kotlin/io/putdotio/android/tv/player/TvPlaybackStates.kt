@@ -128,7 +128,7 @@ internal fun TvConversionScreen(
                 )
             },
             tertiaryAction = TvEmptyStateAction(
-                label = stringResource(R.string.tv_player_conversion_cancel),
+                label = stringResource(R.string.tv_dialog_cancel),
                 onClick = onCancel,
                 icon = R.drawable.ic_ph_x,
             ).takeIf { running || conversion.statusCheckFailed },

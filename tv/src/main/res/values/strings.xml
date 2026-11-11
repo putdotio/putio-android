@@ -427,7 +427,6 @@
     <string name="tv_player_conversion_percent">%1$d%%</string>
     <string name="tv_player_conversion_queued">Waiting to convert…</string>
     <string name="tv_player_conversion_status_failed">Can’t check conversion status. Check your internet connection.</string>
-    <string name="tv_player_conversion_cancel">Cancel</string>
     <string name="tv_player_convert_again">Convert again</string>
     <string name="tv_player_check_again">Check again</string>
     <string name="tv_player_unsupported_title">Can’t play this here</string>
