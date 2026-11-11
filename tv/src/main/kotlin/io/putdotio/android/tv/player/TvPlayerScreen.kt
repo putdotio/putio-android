@@ -174,13 +174,13 @@ internal fun TvPlayerScreen(
                     onPlayInVlc = onPlayInVlc,
                 )
 
-            is PlaybackContent.Unsupported -> TvUnsupportedScreen(state.target)
+            is PlaybackContent.Unsupported -> TvUnsupportedScreen(state.target, onPlayInVlc, onBack)
 
             is PlaybackContent.Failed ->
-                TvPlaybackFailureScreen(state.target, content.failure, onRetry, onOpenInVlc)
+                TvPlaybackFailureScreen(state.target, content.failure, onRetry, onOpenInVlc, onBack)
 
             is PlaybackContent.NextFailed ->
-                TvPlaybackFailureScreen(state.target, content.failure, onRetry, onOpenInVlc)
+                TvPlaybackFailureScreen(state.target, content.failure, onRetry, onOpenInVlc, onBack)
 
             PlaybackContent.Ended -> LaunchedEffect(Unit) { onBack() }
         }

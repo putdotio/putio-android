@@ -440,6 +440,11 @@ class MobilePlayerScreenTest {
                 retry = true,
             ),
             FailureRow(
+                PlaybackContent.Failed(PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IOException("offline")))),
+                "Connection lost",
+                retry = true,
+            ),
+            FailureRow(
                 PlaybackContent.Failed(PlaybackFailure.MediaUnsupported(IllegalStateException("codec"))),
                 "Can’t play this here",
                 retry = false,
@@ -2305,6 +2310,14 @@ class MobilePlayerAudioTest {
                 PlaybackContent.Failed(PlaybackFailure.Putio(PutioFailure.Unexpected(IllegalStateException("boom"))))
         }
         compose.onNodeWithText("Couldn’t play this audio").assertIsDisplayed()
+
+        compose.runOnIdle {
+            content =
+                PlaybackContent.Failed(PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IOException("offline"))))
+        }
+        compose.onNodeWithText("Connection lost").assertIsDisplayed()
+        compose.onNodeWithText("Check your connection and try again.").assertIsDisplayed()
+        compose.onNodeWithText("Try again").assertIsDisplayed()
     }
 }
 
