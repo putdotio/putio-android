@@ -16,8 +16,9 @@ internal class RateLimitRetry(private val pause: (Long) -> Unit) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
         val response = chain.proceed(request)
-        if (response.code != HTTP_TOO_MANY_REQUESTS || request.method !in IDEMPOTENT_METHODS) return response
-        val waitMillis = response.retryAfterMillis() ?: return response
+        val waitMillis = response.takeIf {
+            it.code == HTTP_TOO_MANY_REQUESTS && request.method in IDEMPOTENT_METHODS
+        }?.retryAfterMillis() ?: return response
         response.close()
         pause(waitMillis)
         return chain.proceed(request)
