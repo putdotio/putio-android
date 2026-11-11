@@ -10,7 +10,6 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.jsonPrimitive
 import org.gradle.api.GradleException
 import org.w3c.dom.Element
 
@@ -51,7 +50,7 @@ object PhosphorIcons {
         } catch (error: SerializationException) {
             fail("cannot read design/phosphor-icons.lock.json: ${error.message}")
         }
-        rejectDuplicateKeys(json)
+        LockJson.duplicateKey(json)?.let { fail("lock contains duplicate key '$it'") }
         val root = document.objectOrFail("lock")
         val schemaVersion = root["schemaVersion"] as? JsonPrimitive
         if (root.keys != setOf("schemaVersion", "package", "icons") ||
@@ -210,45 +209,6 @@ object PhosphorIcons {
 
     private fun digestEquals(actual: String, expected: String): Boolean =
         MessageDigest.isEqual(actual.toByteArray(), expected.toByteArray())
-
-    private fun rejectDuplicateKeys(json: String) {
-        val scopes = ArrayDeque<MutableSet<String>?>()
-        var expectKey = false
-        var index = 0
-        while (index < json.length) {
-            when (json[index]) {
-                '"' -> {
-                    val end = stringEnd(json, index)
-                    if (expectKey) {
-                        val key = Json.parseToJsonElement(json.substring(index, end + 1)).jsonPrimitive.content
-                        if (!scopes.last()!!.add(key)) fail("lock contains duplicate key '$key'")
-                        expectKey = false
-                    }
-                    index = end
-                }
-                '{' -> {
-                    scopes.addLast(mutableSetOf())
-                    expectKey = true
-                }
-                '[' -> {
-                    scopes.addLast(null)
-                    expectKey = false
-                }
-                '}', ']' -> {
-                    scopes.removeLast()
-                    expectKey = false
-                }
-                ',' -> expectKey = scopes.lastOrNull() != null
-            }
-            index++
-        }
-    }
-
-    private fun stringEnd(json: String, start: Int): Int {
-        var index = start + 1
-        while (json[index] != '"') index += if (json[index] == '\\') 2 else 1
-        return index
-    }
 
     private fun JsonElement.objectOrFail(field: String): JsonObject = this as? JsonObject ?: fail("$field must be an object")
 

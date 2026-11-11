@@ -1,6 +1,4 @@
 import java.io.IOException
-import java.net.HttpURLConnection
-import java.net.URI
 import javax.inject.Inject
 import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
@@ -37,16 +35,14 @@ abstract class GenerateIconsTask : DefaultTask() {
         val lock = PhosphorIcons.parseLock(lockFile.get().asFile.readText())
         val root = repositoryRoot.get().asFile
         val stale = PhosphorIcons.staleDrawables(lock, PhosphorIcons.drawablesByPath(root, drawables.files))
-        val archive = download(lock.pkg.tarball)
+        val archive = try {
+            NpmPackage.download(lock.pkg.tarball)
+        } catch (error: IOException) {
+            throw GradleException("Phosphor icons: package download failed: ${error.message}", error)
+        }
         PhosphorIcons.verifyArchive(lock.pkg, archive)
         val tarball = temporaryDir.resolve("package.tgz").apply { writeBytes(archive) }
-        val wanted = lock.icons.map { "package/${it.asset}" }.toSet()
-        val assets = mutableMapOf<String, ByteArray>()
-        archives.tarTree(archives.gzip(tarball)).visit {
-            if (!isDirectory && relativePath.pathString in wanted) {
-                assets[relativePath.pathString.removePrefix("package/")] = open().use { it.readBytes() }
-            }
-        }
+        val assets = NpmPackage.unpack(archives, tarball, lock.icons.map { it.asset }.toSet())
         PhosphorIcons.render(lock, assets).forEach { (path, output) ->
             val target = root.resolve(path)
             target.parentFile.mkdirs()
@@ -57,25 +53,5 @@ abstract class GenerateIconsTask : DefaultTask() {
             root.resolve(path).delete()
             logger.lifecycle("removed $path")
         }
-    }
-
-    private fun download(url: String): ByteArray {
-        val connection = URI(url).toURL().openConnection() as HttpURLConnection
-        connection.connectTimeout = TIMEOUT_MILLIS
-        connection.readTimeout = TIMEOUT_MILLIS
-        return try {
-            if (connection.responseCode != HttpURLConnection.HTTP_OK) {
-                throw GradleException("Phosphor icons: package download failed: HTTP ${connection.responseCode}")
-            }
-            connection.inputStream.use { it.readBytes() }
-        } catch (error: IOException) {
-            throw GradleException("Phosphor icons: package download failed: ${error.message}", error)
-        } finally {
-            connection.disconnect()
-        }
-    }
-
-    private companion object {
-        const val TIMEOUT_MILLIS = 30_000
     }
 }

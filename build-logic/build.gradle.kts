@@ -12,9 +12,9 @@ dependencies {
     testImplementation(gradleTestKit())
 }
 
-// The codegen tests read the repository's design contract, token graph, font lock and icon lock.
+// The codegen tests read the repository's design contract, token graph and design, font and icon locks.
 tasks.test {
-    inputs.files("../DESIGN.md", "../design/tokens.dtcg.json", "../design/brand-fonts.lock.json", "../design/phosphor-icons.lock.json")
+    inputs.files("../DESIGN.md", "../design/tokens.dtcg.json", "../design/brand-fonts.lock.json", "../design/phosphor-icons.lock.json", "../design/putio-design.lock.json")
         .withPropertyName("designSources")
         .withPathSensitivity(PathSensitivity.RELATIVE)
 }
