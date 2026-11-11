@@ -30,7 +30,7 @@ flowchart TD
   tv --> sdk
 ```
 
-- `core:common`: shared failures, network state and small primitives.
+- `core:common`: shared failures, network state and small primitives, kept small.
 - `core:design`: the theme, type and colour generated from `design/` and
   DESIGN.md, plus the shared components.
 - `core:telemetry`: crash reporting and product analytics behind the account's
