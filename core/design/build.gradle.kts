@@ -16,7 +16,7 @@ dependencies {
     implementation(libs.putio.sdk.kotlin)
 }
 
-// Licensed fonts, fetched by scripts/sync-brand-fonts.sh into the lock's ignored directory.
+// Licensed fonts, fetched by ./gradlew syncBrandFonts into the lock's ignored directory.
 val brandFontLock = rootProject.layout.projectDirectory.file("design/brand-fonts.lock.json")
 val brandFontFiles = rootProject.fileTree(
     BrandFonts.parseLock(providers.fileContents(brandFontLock).asText.get()).directory,

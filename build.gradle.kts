@@ -104,10 +104,10 @@ val testDesignAssetPipeline = tasks.register<Exec>("testDesignAssetPipeline") {
     commandLine("python3", "scripts/test_design_assets.py")
 }
 
-val testBrandFontPipeline = tasks.register<Exec>("testBrandFontPipeline") {
-    description = "Test the brand font lock and sync"
-    cacheableCheck("design/brand-fonts.lock.json")
-    commandLine("python3", "-B", "scripts/test_brand_fonts.py")
+tasks.register<SyncBrandFontsTask>("syncBrandFonts") {
+    description = "Fetch the licensed brand fonts design/brand-fonts.lock.json pins"
+    brandFontsLock.set(layout.projectDirectory.file("design/brand-fonts.lock.json"))
+    rootDirectory.set(layout.projectDirectory)
 }
 
 val testTalkBackInput =tasks.register<Exec>("testTalkBackInput") {
@@ -173,7 +173,6 @@ val verifyScripts = verifyLane(
     "Run the harness, design asset and icon script checks",
     checkDesignAssets,
     checkIcons,
-    testBrandFontPipeline,
     testDesignAssetPipeline,
     testEmulatorHarness,
     testEvidence,

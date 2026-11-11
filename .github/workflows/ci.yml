@@ -95,7 +95,7 @@ jobs:
 
       - name: Fetch brand fonts
         if: env.BRAND_FONTS == 'true'
-        run: ./scripts/sync-brand-fonts.sh
+        run: ./gradlew syncBrandFonts
 
       - name: Run Gradle
         run: |

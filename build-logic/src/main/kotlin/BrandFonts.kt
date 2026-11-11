@@ -9,7 +9,7 @@ import kotlinx.serialization.json.intOrNull
 
 /**
  * `design/brand-fonts.lock.json`: the licensed GT America and Berkeley Mono files the apps embed.
- * `scripts/sync-brand-fonts.sh` fetches them into the lock's git-ignored directory; the build never
+ * `./gradlew syncBrandFonts` fetches them into the lock's git-ignored directory; no other task
  * downloads them. A build without them sets DESIGN.md's families in the system face.
  */
 object BrandFonts {
@@ -22,13 +22,17 @@ object BrandFonts {
     private val SHA256 = Regex("[0-9a-f]{64}")
     private val FACE_KEYS = setOf("path", "sha256", "family", "weight", "weightRange")
 
-    /** A locked file: a static face at [weight], or a variable one whose weight axis spans [weightRange]. */
+    /**
+     * A locked file fetched from [url]: a static face at [weight], or a variable one whose weight axis
+     * spans [weightRange].
+     */
     data class Face(
         val file: String,
         val family: String,
         val sha256: String,
         val weight: Int? = null,
         val weightRange: IntRange? = null,
+        val url: String,
     ) {
         fun covers(requested: Int): Boolean = weight == requested || weightRange?.contains(requested) == true
     }
@@ -64,7 +68,7 @@ object BrandFonts {
             listOfNotNull(weight, range?.first, range?.last).forEach {
                 check(it in 1..1000) { "$name weights must be 1..1000" }
             }
-            Face(name, entry.string("family"), sha256, weight, range)
+            Face(name, entry.string("family"), sha256, weight, range, "$BASE_URL/$path")
         }
         return Lock(directory, faces)
     }
@@ -80,20 +84,20 @@ object BrandFonts {
         }
         check(mismatched.isEmpty()) {
             "brand fonts do not match design/brand-fonts.lock.json: ${mismatched.joinToString { it.file }}; " +
-                "run ./scripts/sync-brand-fonts.sh"
+                "run ./gradlew syncBrandFonts"
         }
         val installed = lock.faces.map(Face::file).filter(byName::containsKey).toSet()
         if (required) {
             val missing = lock.faces.map(Face::file) - installed
             check(missing.isEmpty()) {
                 "release builds embed the brand fonts, but ${lock.directory} lacks ${missing.joinToString()}; " +
-                    "run ./scripts/sync-brand-fonts.sh"
+                    "run ./gradlew syncBrandFonts"
             }
         }
         return installed
     }
 
-    private fun sha256(bytes: ByteArray): String =
+    fun sha256(bytes: ByteArray): String =
         MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
 
     private fun JsonObject.string(key: String): String =
