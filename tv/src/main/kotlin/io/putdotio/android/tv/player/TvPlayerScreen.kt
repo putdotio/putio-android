@@ -413,7 +413,7 @@ private fun TvReadyPlayer(
     val appearance = rememberSubtitleAppearanceStore()
     TvSubtitleOffsetEffect(player, options.subtitleOffsetMillis)
 
-    LaunchedEffect(overlay.controlsVisible, overlay.activity, playWhenReady, overlay.scrub == null, overlay.sheet) {
+    LaunchedEffect(overlay.controlsVisible, overlay.activity, playWhenReady, overlay.sheet) {
         if (overlay.autoHides && playWhenReady) {
             delay(TV_PLAYER_CONTROLS_HIDE_DELAY_MILLIS)
             apply(overlay.hideTimedOut())
@@ -454,7 +454,7 @@ private fun TvReadyPlayer(
                     title = target.name,
                     neighbours = neighbours,
                     paused = !playWhenReady,
-                    scrubTargetMillis = overlay.scrub?.targetMillis,
+                    seeking = overlay.skipHold?.accelerating == true,
                     startPositionMillis = prepared.startPositionMillis,
                     listingDurationMillis = target.durationSeconds?.toPlaybackMillis(),
                 ),
@@ -470,7 +470,7 @@ private fun TvReadyPlayer(
                     player = player,
                     title = target.name,
                     paused = !playWhenReady,
-                    scrubTargetMillis = overlay.scrub?.targetMillis,
+                    seeking = overlay.skipHold?.accelerating == true,
                     startPositionMillis = prepared.startPositionMillis,
                     listingDurationMillis = target.durationSeconds?.toPlaybackMillis(),
                     chips = chips,

@@ -159,7 +159,7 @@ class TvPlayerProofTest {
     }
 
     @Test
-    fun dpadScrubbingAndBackWalkTheOverlayStack() {
+    fun dpadSkippingAndBackWalkTheOverlayStack() {
         val factory = mountFilesWithPlayer()
         compose.onNodeWithContentDescription("Open Documents").assertIsFocused()
         press(KeyEvent.KEYCODE_DPAD_DOWN)
@@ -175,31 +175,19 @@ class TvPlayerProofTest {
         val before = compose.runOnIdle { factory.current().currentPosition }
         press(KeyEvent.KEYCODE_DPAD_RIGHT)
         press(KeyEvent.KEYCODE_DPAD_RIGHT)
-        awaitPlayer(factory) { !it.playWhenReady }
-        val target = shownElapsedSeconds()
-        assertTrue("Scrub target $target s from ${before / 1_000L} s", target * 1_000L >= before + 30_000L - 1_000L)
-        val paused = compose.runOnIdle { factory.current().currentPosition }
-        assertTrue("Nothing seeks before the commit", paused < target * 1_000L - 10_000L)
-        screenshot("11-seek-mode")
-        pause()
-
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
-        awaitPlayer(factory) { it.isPlaying && it.currentPosition >= target * 1_000L - 1_000L }
-        screenshot("12-seek-committed")
-        pause()
-
-        val committed = compose.runOnIdle { factory.current().currentPosition }
-        press(KeyEvent.KEYCODE_MEDIA_REWIND)
-        awaitPlayer(factory) { !it.playWhenReady }
-        assertTrue(shownElapsedSeconds() * 1_000L <= committed - 14_000L)
-        screenshot("13-seek-mode-rewind")
-        pause()
-        press(KeyEvent.KEYCODE_BACK)
-        awaitPlayer(factory) { it.isPlaying }
-        val resumed = compose.runOnIdle { factory.current().currentPosition }
-        assertTrue("Dismissing seek mode keeps the time", resumed >= committed)
         compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertExists()
-        screenshot("14-seek-dismissed")
+        val skipped = compose.runOnIdle { factory.current().currentPosition }
+        assertTrue("Two taps skip 20 s from ${before / 1_000L} s", skipped >= before + 20_000L - 1_000L)
+        awaitPlayer(factory) { it.isPlaying }
+        screenshot("11-skipped-forward")
+        pause()
+
+        val beforeRewind = compose.runOnIdle { factory.current().currentPosition }
+        press(KeyEvent.KEYCODE_MEDIA_REWIND)
+        val rewound = compose.runOnIdle { factory.current().currentPosition }
+        assertTrue("Rewind skips back 10 s", rewound <= beforeRewind - 10_000L + 1_000L)
+        awaitPlayer(factory) { it.isPlaying }
+        screenshot("12-skipped-back")
         pause()
 
         press(KeyEvent.KEYCODE_BACK)
@@ -628,9 +616,10 @@ class TvPlayerProofTest {
         compose.onNodeWithTag(SUBTITLE_CUES_TAG).assertDoesNotExist()
         compose.onNodeWithContentDescription("$SUBTITLES Off").assertIsSelected()
 
-        // Up to the seek bar, scrub and commit: subtitles stay off.
+        // Up to the seek bar, skip and play: subtitles stay off.
         press(KeyEvent.KEYCODE_DPAD_UP)
         press(KeyEvent.KEYCODE_DPAD_RIGHT)
+        awaitPlayer(factory) { !it.playWhenReady }
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         awaitPlayer(factory) { it.isPlaying }
         elapse(STEP_PAUSE_MILLIS)

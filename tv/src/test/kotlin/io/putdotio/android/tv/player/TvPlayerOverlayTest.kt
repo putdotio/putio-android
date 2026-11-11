@@ -14,16 +14,12 @@ import org.junit.Test
 
 class TvPlayerOverlayTest {
     @Test
-    fun backDismissesSeekModeThenTheControlsThenExitsOnce() {
-        val scrubbing = TvPlayerOverlay().scrubForward(nowMillis = 0L).overlay
+    fun backDismissesTheControlsAfterASkipThenExitsOnce() {
+        val skipped = TvPlayerOverlay(controlsVisible = false).skipForward(atMillis = 0L).overlay
+        assertTrue(skipped.controlsVisible)
 
-        val seekDismissed = scrubbing.back()
-        assertNull(seekDismissed.overlay.scrub)
-        assertTrue("Only seek mode is dismissed", seekDismissed.overlay.controlsVisible)
-        assertEquals("The scrub paused playback, so Back resumes it", listOf(Play), seekDismissed.commands)
-
-        val controlsDismissed = seekDismissed.overlay.back()
-        assertFalse(controlsDismissed.overlay.controlsVisible)
+        val controlsDismissed = skipped.back()
+        assertFalse("A skip leaves nothing to cancel", controlsDismissed.overlay.controlsVisible)
         assertEquals(emptyList<TvPlayerCommand>(), controlsDismissed.commands)
 
         val exited = controlsDismissed.overlay.back()
@@ -37,9 +33,8 @@ class TvPlayerOverlayTest {
     fun anEndedVideoMovesOnOnceWithAutoplayAndLeavesWithout() {
         assertEquals(listOf(Exit), TvPlayerOverlay().ended().commands)
 
-        val advanced = TvPlayerOverlay().scrubForward(nowMillis = 0L).overlay.ended(autoplayNext = true)
+        val advanced = TvPlayerOverlay().skipForward(atMillis = 0L).overlay.ended(autoplayNext = true)
         assertEquals(listOf(PlayNext), advanced.commands)
-        assertNull(advanced.overlay.scrub)
 
         assertEquals(emptyList<TvPlayerCommand>(), advanced.overlay.ended(autoplayNext = true).commands)
         assertEquals(emptyList<TvPlayerCommand>(), advanced.overlay.back().commands)
@@ -79,70 +74,78 @@ class TvPlayerOverlayTest {
     }
 
     @Test
-    fun theSystemControlsPausingShowsTheControlsAndPlayingDropsAPendingScrub() {
+    fun theSystemControlsPausingShowsTheControls() {
         val hidden = TvPlayerOverlay().hideTimedOut().overlay
         val paused = hidden.playingChanged(playing = false)
         assertTrue(paused.overlay.controlsVisible)
         assertEquals("The session already paused the player", emptyList<TvPlayerCommand>(), paused.commands)
-
-        val scrubbing = TvPlayerOverlay().scrubForward(nowMillis = 0L, playing = false).overlay
-        val played = scrubbing.playingChanged(playing = true)
-        assertNull(played.overlay.scrub)
-        assertEquals(emptyList<TvPlayerCommand>(), played.commands)
-
-        assertEquals(scrubbing.scrub, scrubbing.playingChanged(playing = false).overlay.scrub)
+        assertEquals(hidden, hidden.playingChanged(playing = true).overlay)
     }
 
     @Test
-    fun dismissingSeekModeStartedWhilePausedStaysPausedAndNeverSeeks() {
-        val scrubbing = TvPlayerOverlay().scrubForward(nowMillis = 0L, playing = false)
-        assertEquals("Already paused", emptyList<TvPlayerCommand>(), scrubbing.commands)
+    fun aTapSkipsTenSecondsAtOnceAndKeepsThePlayState() {
+        val tapped = TvPlayerOverlay(controlsVisible = false).skipForward(atMillis = 0L)
+        assertEquals(listOf(TvPlayerCommand.SeekTo(POSITION + 10_000L)), tapped.commands)
+        assertTrue("Any press shows the overlay", tapped.overlay.controlsVisible)
+        assertEquals("The next tap skips again", TvPlayerControl.SeekBar, tapped.overlay.focus)
 
-        val dismissed = scrubbing.overlay.back()
-        assertNull(dismissed.overlay.scrub)
-        assertEquals(emptyList<TvPlayerCommand>(), dismissed.commands)
+        val back = TvPlayerOverlay().skip(
+            TvSkipPress(TvSkipDirection.Backward, downAtMillis = 0L, atMillis = 0L, repeat = false),
+            positionMillis = POSITION, durationMillis = DURATION,
+        )
+        assertEquals(listOf(TvPlayerCommand.SeekTo(POSITION - 10_000L)), back.commands)
+        assertTrue("A tap never holds the controls", tapped.overlay.autoHides)
     }
 
     @Test
-    fun aHeldKeyGrowsTheStepAtTheHoldCadenceOnly() {
-        val first = TvPlayerOverlay().scrubForward(nowMillis = 0L)
-        val tooSoon = first.overlay.scrubForward(nowMillis = 50L, repeat = true)
-        assertEquals("A 50 ms key repeat is not a press", first.overlay, tooSoon.overlay)
+    fun holdingSpeedsTheSkipUpTwoFourThenEightTimes() {
+        val first = TvPlayerOverlay().skipForward(atMillis = 0L).overlay
+        val tooSoon = first.skipForward(atMillis = 50L, repeat = true)
+        assertEquals("A 50 ms key repeat is not a step", first, tooSoon.overlay)
+        assertEquals(emptyList<TvPlayerCommand>(), tooSoon.commands)
 
-        val held = first.overlay.scrubForward(nowMillis = TV_SCRUB_HOLD_REPEAT_MILLIS, repeat = true)
-        assertEquals(2, held.overlay.scrub?.presses)
-        val stillHeld = held.overlay.scrubForward(nowMillis = TV_SCRUB_HOLD_REPEAT_MILLIS + 600L, repeat = true)
-        assertEquals(3, stillHeld.overlay.scrub?.presses)
-        assertEquals(POSITION + 15_000L + 30_000L + 45_000L, stillHeld.overlay.scrub?.targetMillis)
+        val twice = first.skipForward(atMillis = 500L, repeat = true)
+        assertEquals(listOf(TvPlayerCommand.SeekTo(POSITION + 20_000L)), twice.commands)
+        assertTrue(checkNotNull(twice.overlay.skipHold).accelerating)
+        val fourTimes = twice.overlay.skipForward(atMillis = TV_SKIP_HOLD_STAGE_MILLIS + 500L, repeat = true)
+        assertEquals(listOf(TvPlayerCommand.SeekTo(POSITION + 40_000L)), fourTimes.commands)
+        val eightTimes = fourTimes.overlay.skipForward(atMillis = TV_SKIP_HOLD_STAGE_MILLIS * 5, repeat = true)
+        assertEquals(listOf(TvPlayerCommand.SeekTo(POSITION + 80_000L)), eightTimes.commands)
+
+        val released = checkNotNull(eightTimes.overlay.skipReleased()).overlay
+        assertNull(released.skipHold)
+        assertNull("Nothing to release twice", released.skipReleased())
+        val retapped = eightTimes.overlay.skipForward(atMillis = 20_000L, downAtMillis = 20_000L)
+        assertEquals(
+            "A new press starts at 10 s",
+            listOf(TvPlayerCommand.SeekTo(POSITION + 10_000L)),
+            retapped.commands,
+        )
     }
 
     @Test
-    fun scrubbingStaysWithinTheMedia() {
-        val start = TvPlayerOverlay().scrub(
-            TvScrubPress(TvScrubDirection.Backward, atMillis = 0L, repeat = false),
-            positionMillis = 5_000L, durationMillis = DURATION, playing = true,
+    fun skippingStaysWithinTheMedia() {
+        val start = TvPlayerOverlay().skip(
+            TvSkipPress(TvSkipDirection.Backward, downAtMillis = 0L, atMillis = 0L, repeat = false),
+            positionMillis = 5_000L, durationMillis = DURATION,
         )
-        assertEquals(0L, start.overlay.scrub?.targetMillis)
-        val end = TvPlayerOverlay().scrub(
-            TvScrubPress(TvScrubDirection.Forward, atMillis = 0L, repeat = false),
-            positionMillis = DURATION - 1_000L, durationMillis = DURATION, playing = true,
+        assertEquals(listOf(TvPlayerCommand.SeekTo(0L)), start.commands)
+        val end = TvPlayerOverlay().skipForward(atMillis = 0L, positionMillis = DURATION - 1_000L)
+        assertEquals(listOf(TvPlayerCommand.SeekTo(DURATION)), end.commands)
+        val unknown = TvPlayerOverlay().skip(
+            TvSkipPress(TvSkipDirection.Forward, downAtMillis = 0L, atMillis = 0L, repeat = false),
+            positionMillis = 0L, durationMillis = 0L,
         )
-        assertEquals(DURATION, end.overlay.scrub?.targetMillis)
-        val unknown = TvPlayerOverlay().scrub(
-            TvScrubPress(TvScrubDirection.Forward, atMillis = 0L, repeat = false),
-            positionMillis = 0L, durationMillis = 0L, playing = true,
-        )
-        assertNull(unknown.overlay.scrub)
+        assertNull(unknown.overlay.skipHold)
         assertEquals(emptyList<TvPlayerCommand>(), unknown.commands)
     }
 
     @Test
-    fun thePlayAndPauseKeysDropAPendingScrub() {
-        val scrubbing = TvPlayerOverlay().scrubForward(nowMillis = 0L).overlay
-        val played = scrubbing.setPlaying(play = true)
-        assertNull(played.overlay.scrub)
-        assertEquals(listOf(Play), played.commands)
-        assertEquals(listOf(Pause), scrubbing.setPlaying(play = false).commands)
+    fun thePlayAndPauseKeysMapDirectly() {
+        val skipped = TvPlayerOverlay().skipForward(atMillis = 0L).overlay
+        assertEquals(listOf(Play), skipped.setPlaying(play = true).commands)
+        assertEquals(listOf(Pause), skipped.setPlaying(play = false).commands)
+        assertEquals(listOf(Pause), skipped.select(playing = true).commands)
     }
 
     @Test
@@ -201,8 +204,9 @@ class TvPlayerOverlayTest {
         val hidden = TvPlayerOverlay(controlsVisible = false).moveFocus(TvFocusMove.Down, chips).overlay
         assertTrue(hidden.controlsVisible)
         assertEquals(TvPlayerControl.PlayPause, hidden.focus)
-        val scrubbing = TvPlayerOverlay().scrubForward(nowMillis = 0L).overlay
-        assertEquals(TvPlayerControl.SeekBar, scrubbing.moveFocus(TvFocusMove.Down, chips).overlay.focus)
+        val skipped = TvPlayerOverlay().skipForward(atMillis = 0L).overlay
+        assertEquals(TvPlayerControl.SeekBar, skipped.focus)
+        assertEquals(TvPlayerControl.Audio, skipped.moveFocus(TvFocusMove.Down, chips).overlay.focus)
     }
 
     @Test
@@ -226,8 +230,12 @@ class TvPlayerOverlayTest {
         assertFalse("The controller leaves only once the next video resolves", chosen.overlay.exited)
     }
 
-    private fun TvPlayerOverlay.scrubForward(nowMillis: Long, playing: Boolean = true, repeat: Boolean = false) =
-        scrub(TvScrubPress(TvScrubDirection.Forward, nowMillis, repeat), POSITION, DURATION, playing)
+    private fun TvPlayerOverlay.skipForward(
+        atMillis: Long,
+        repeat: Boolean = false,
+        downAtMillis: Long = 0L,
+        positionMillis: Long = POSITION,
+    ) = skip(TvSkipPress(TvSkipDirection.Forward, downAtMillis, atMillis, repeat), positionMillis, DURATION)
 
     private companion object {
         const val POSITION = 60_000L

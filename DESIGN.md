@@ -405,9 +405,11 @@ tokens, type, glyphs, rows, switch, empty-state voice and copy.
   what had focus before.
 - **Side sheets** from the right hold every secondary surface; dialogs carry
   confirms, notices and text entry.
-- **Back** closes the topmost layer first: a sheet, then seek mode, then the
-  player controls, and only then the screen.
+- **Back** closes the topmost layer first: a sheet, then the player controls,
+  and only then the screen.
+- **Seeking:** left, right, rewind and fast-forward skip 10 s at once and keep
+  the play state; holding one speeds up to 2x, 4x, then 8x.
 - **Now Playing:** audio's controls never hide, so Back leaves it once no
-  sheet or seek is open.
+  sheet is open.
 - **Phone-only:** Transfers, Downloads, Cast, selection, share and exclusive
   links.
