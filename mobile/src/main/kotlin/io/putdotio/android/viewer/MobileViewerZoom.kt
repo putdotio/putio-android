@@ -19,7 +19,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntSize
 
 @Stable
@@ -28,10 +27,15 @@ internal class MobileViewerZoom {
         private set
     var offset by mutableStateOf(Offset.Zero)
         private set
-    var viewport by mutableStateOf(IntSize.Zero)
-    var content by mutableStateOf<IntSize?>(null)
+    private var viewport = IntSize.Zero
+    private var contentAspect: Float? = null
 
     val zoomed by derivedStateOf { scale > 1f }
+
+    fun measure(viewport: IntSize, contentAspect: Float?) {
+        this.viewport = viewport
+        this.contentAspect = contentAspect
+    }
 
     fun transform(zoomChange: Float, centroid: Offset, pan: Offset): Offset {
         val next = (scale * zoomChange).coerceIn(1f, VIEWER_ZOOM_MAX)
@@ -53,30 +57,55 @@ internal class MobileViewerZoom {
 
     private fun center() = Offset(viewport.width / 2f, viewport.height / 2f)
 
+    private fun shown(): Pair<Float, Float> {
+        val width = viewport.width.toFloat()
+        val height = viewport.height.toFloat()
+        val aspect = contentAspect ?: return width to height
+        return if (height > 0f && aspect > width / height) width to width / aspect else height * aspect to height
+    }
+
     private fun clamp(wanted: Offset): Offset {
-        val shown = content ?: viewport
-        val maxX = ((shown.width * scale - viewport.width) / 2f).coerceAtLeast(0f)
-        val maxY = ((shown.height * scale - viewport.height) / 2f).coerceAtLeast(0f)
+        val (width, height) = shown()
+        val maxX = ((width * scale - viewport.width) / 2f).coerceAtLeast(0f)
+        val maxY = ((height * scale - viewport.height) / 2f).coerceAtLeast(0f)
         return Offset(wanted.x.coerceIn(-maxX, maxX), wanted.y.coerceIn(-maxY, maxY))
     }
 }
 
-internal fun Modifier.viewerZoom(zoom: MobileViewerZoom?, onOverflow: (Offset) -> Unit = {}): Modifier {
+internal fun Modifier.viewerZoom(
+    zoom: MobileViewerZoom?,
+    contentAspect: Float? = null,
+    onOverflow: (Offset) -> Unit = {},
+): Modifier {
     if (zoom == null) return this
     return clipToBounds()
-        .onSizeChanged { zoom.viewport = it }
-        .pointerInput(zoom) { detectTapGestures(onDoubleTap = zoom::toggle) }
-        .pointerInput(zoom) {
+        .pointerInput(zoom, contentAspect) {
+            detectTapGestures(
+                onDoubleTap = {
+                    zoom.measure(size, contentAspect)
+                    zoom.toggle(it)
+                },
+            )
+        }
+        .pointerInput(zoom, contentAspect) {
             awaitEachGesture {
                 awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                var panned = Offset.Zero
+                var pastSlop = false
                 do {
                     val event = awaitPointerEvent(PointerEventPass.Initial)
                     val pressed = event.changes.count { it.pressed }
-                    if (pressed > 1 || (pressed == 1 && zoom.zoomed)) {
+                    val pan = event.calculatePan()
+                    if (pressed == 1 && !pastSlop) {
+                        panned += pan
+                        pastSlop = panned.getDistance() > viewConfiguration.touchSlop
+                    }
+                    if (pressed > 1 || (pressed == 1 && pastSlop && zoom.zoomed)) {
+                        zoom.measure(size, contentAspect)
                         val overflow = zoom.transform(
                             zoomChange = event.calculateZoom(),
                             centroid = event.calculateCentroid(useCurrent = true),
-                            pan = event.calculatePan(),
+                            pan = pan,
                         )
                         if (overflow != Offset.Zero) onOverflow(overflow / zoom.scale)
                         event.changes.forEach { if (it.positionChanged()) it.consume() }

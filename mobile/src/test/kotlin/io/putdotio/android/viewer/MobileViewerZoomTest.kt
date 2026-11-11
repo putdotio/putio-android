@@ -46,6 +46,25 @@ class MobileViewerZoomTest {
     }
 
     @Test
+    fun aDoubleTapThatJittersStillFitsAZoomedPage() {
+        val zoom = MobileViewerZoom()
+        compose.setContent { Box(Modifier.fillMaxSize().viewerZoom(zoom).testTag(PAGE)) }
+        compose.onNodeWithTag(PAGE).performTouchInput { doubleClick(center) }
+        compose.runOnIdle { assertTrue(zoom.zoomed) }
+
+        compose.onNodeWithTag(PAGE).performTouchInput {
+            repeat(2) {
+                down(center)
+                moveBy(Offset(2f, 1f))
+                up()
+                advanceEventTime(100)
+            }
+        }
+
+        compose.runOnIdle { assertFalse(zoom.zoomed) }
+    }
+
+    @Test
     fun aPinchZoomsIn() {
         val zoom = MobileViewerZoom()
         compose.setContent { Box(Modifier.fillMaxSize().viewerZoom(zoom).testTag(PAGE)) }
@@ -79,23 +98,20 @@ class MobileViewerZoomTest {
 
     @Test
     fun theContentUnderThePinchStaysUnderIt() {
-        val zoom = MobileViewerZoom().apply { viewport = IntSize(1000, 2000) }
+        val zoom = MobileViewerZoom().apply { measure(IntSize(1000, 2000), contentAspect = null) }
         val centroid = Offset(700f, 1300f)
-        val before = contentAt(zoom, centroid)
+        val before = contentAt(zoom, IntSize(1000, 2000), centroid)
 
         zoom.transform(zoomChange = 2f, centroid = centroid, pan = Offset.Zero)
 
-        val after = contentAt(zoom, centroid)
+        val after = contentAt(zoom, IntSize(1000, 2000), centroid)
         assertEquals(before.x, after.x, 0.01f)
         assertEquals(before.y, after.y, 0.01f)
     }
 
     @Test
     fun aPanNeverMovesTheContentEdgeInsideTheFrame() {
-        val zoom = MobileViewerZoom().apply {
-            viewport = IntSize(1000, 2000)
-            content = IntSize(1000, 600)
-        }
+        val zoom = MobileViewerZoom().apply { measure(IntSize(1000, 2000), contentAspect = 1000f / 600f) }
         zoom.transform(zoomChange = 3f, centroid = Offset(500f, 1000f), pan = Offset.Zero)
 
         val overflow = zoom.transform(zoomChange = 1f, centroid = Offset(500f, 1000f), pan = Offset(5000f, 5000f))
@@ -107,7 +123,7 @@ class MobileViewerZoomTest {
 
     @Test
     fun zoomStaysBetweenFitAndTheMaximum() {
-        val zoom = MobileViewerZoom().apply { viewport = IntSize(1000, 1000) }
+        val zoom = MobileViewerZoom().apply { measure(IntSize(1000, 1000), contentAspect = null) }
 
         zoom.transform(zoomChange = 0.2f, centroid = Offset(500f, 500f), pan = Offset.Zero)
         assertFalse(zoom.zoomed)
@@ -117,8 +133,8 @@ class MobileViewerZoomTest {
         assertEquals(VIEWER_ZOOM_MAX, zoom.scale)
     }
 
-    private fun contentAt(zoom: MobileViewerZoom, screen: Offset): Offset {
-        val center = Offset(zoom.viewport.width / 2f, zoom.viewport.height / 2f)
+    private fun contentAt(zoom: MobileViewerZoom, viewport: IntSize, screen: Offset): Offset {
+        val center = Offset(viewport.width / 2f, viewport.height / 2f)
         return (screen - center - zoom.offset) / zoom.scale + center
     }
 

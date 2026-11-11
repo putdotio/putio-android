@@ -42,7 +42,6 @@ import androidx.compose.ui.graphics.ShaderBrush
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -90,11 +89,11 @@ internal fun MobileImagePage(
             val image = this
             val size = painter.intrinsicSize
             if (size.isSpecified && size.width > 0f && size.height > 0f) {
-                Box(Modifier.fillMaxSize().viewerZoom(zoom), contentAlignment = Alignment.Center) {
+                val aspect = size.width / size.height
+                Box(Modifier.fillMaxSize().viewerZoom(zoom, aspect), contentAlignment = Alignment.Center) {
                     image.SubcomposeAsyncImageContent(
                         Modifier
-                            .aspectRatio(size.width / size.height)
-                            .onSizeChanged { zoom?.content = it }
+                            .aspectRatio(aspect)
                             .transparencyGrid(),
                     )
                 }
@@ -175,6 +174,7 @@ private fun MobilePdfPages(
         val list = rememberLazyListState()
         LazyColumn(
             state = list,
+            userScrollEnabled = zoom?.zoomed != true,
             modifier = Modifier
                 .fillMaxSize()
                 .viewerZoom(zoom) { overflow -> list.dispatchRawDelta(-overflow.y) }
