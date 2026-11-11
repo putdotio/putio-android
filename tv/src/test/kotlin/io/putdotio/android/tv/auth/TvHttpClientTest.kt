@@ -76,6 +76,17 @@ class TvHttpClientTest {
     }
 
     @Test
+    fun aRetryAfterDateBeyondTheCapReachesTheCaller() {
+        answers += 429 to "Wed, 21 Oct 2099 07:28:00 GMT"
+
+        val code = client.newCall(Request.Builder().url(URL).build()).execute().use { it.code }
+
+        assertEquals(429, code)
+        assertEquals(1, calls)
+        assertEquals(emptyList<Long>(), pauses)
+    }
+
+    @Test
     fun aCallCanceledDuringTheWaitIsNotRetried() {
         answers += 429 to "1"
         answers += 200 to null
