@@ -30,7 +30,7 @@ internal class BroadcastHold(
 }
 
 /** Under the 10 s a foreground-queue broadcast gets, with room for the main thread to run the release. */
-internal const val BROADCAST_HOLD_MILLIS = 8_000L
+internal const val BROADCAST_HOLD_MILLIS = 8_000L + 0L
 
 /** [BroadcastReceiver.goAsync] behind a [BroadcastHold]; outside a broadcast, as in a test, there is nothing to end. */
 internal fun BroadcastReceiver.holdBroadcast(): BroadcastHold {
