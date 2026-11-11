@@ -57,4 +57,5 @@ covers the gate and [building against an unreleased SDK](./AGENTS.md#kotlin-sdk)
 
 ## License
 
-[MIT](./LICENSE)
+[MIT](./LICENSE). Release builds bundle FFmpeg and FriBidi, both
+LGPL-2.1-or-later, as separate native libraries. See [NOTICE](./NOTICE).

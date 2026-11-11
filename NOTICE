@@ -1,0 +1,23 @@
+put.io for Android
+Copyright (c) put.io
+
+The app's source is MIT. See LICENSE.
+
+Release builds also bundle native libraries under their own licences. Each
+is a separate shared library loaded at runtime; none is compiled into the
+app's own code.
+
+- libffmpegJNI.so, from io.put:media3-ffmpeg-decoder (Apache-2.0): FFmpeg,
+  LGPL-2.1-or-later, built without --enable-gpl, --enable-nonfree and
+  --enable-version3. The FFmpeg source that was built and the commands to
+  rebuild and relink it are published next to each release on Maven Central
+  as media3-ffmpeg-decoder-<version>-ffmpeg-source.tar.xz.
+- libass.so, from io.github.peerless2012:ass-media (MIT): libass (ISC),
+  FriBidi (LGPL-2.1-or-later), FreeType (FTL), HarfBuzz (MIT), fontconfig
+  (HPND), libunibreak (Zlib) and Expat (MIT). Its source, with every library
+  it links, is the libass-android tag the app pins, with its libass-cmake
+  submodule.
+- libsentry.so, from io.sentry:sentry-android-ndk: sentry-native (MIT).
+
+Versions, copyrights, sources and licence texts for each are listed in the
+app under Open source licenses, from playbackNotices and telemetryNotices.
