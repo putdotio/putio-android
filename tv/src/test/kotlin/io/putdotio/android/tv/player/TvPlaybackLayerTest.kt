@@ -25,6 +25,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.pressKey
+import androidx.compose.ui.test.requestFocus
 import androidx.media3.common.util.UnstableApi
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.tv.material3.Text
@@ -35,6 +36,7 @@ import io.putdotio.android.files.FilesFolderState
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPaging
+import io.putdotio.android.onTab
 import io.putdotio.android.openTab
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.tv.TvDestination
@@ -167,6 +169,17 @@ class TvPlaybackLayerTest {
             assertFalse(audio.background)
             assertFalse(player.released)
         }
+    }
+
+    @Test
+    fun backOnTheMiniPlayerActsLikeBackOnTheTabBar() {
+        playAudioWithMiniPlayer(FakePlayer())
+        compose.back()
+        compose.onNodeWithContentDescription("Open player").requestFocus().assertIsFocused()
+
+        compose.back()
+
+        compose.onTab("Home").assertIsFocused()
     }
 
     private fun playAudioWithMiniPlayer(player: FakePlayer): BackgroundAudio {

@@ -90,7 +90,9 @@ internal fun TvShell(
 ) {
     val start = if (showHome) TvDestination.Home else TvDestination.Files
     var destination by rememberSaveable { mutableStateOf(start) }
-    var tabBarHasFocus by remember { mutableStateOf(false) }
+    var tabsHaveFocus by remember { mutableStateOf(false) }
+    var trailingHasFocus by remember { mutableStateOf(false) }
+    val tabBarHasFocus = tabsHaveFocus || trailingHasFocus
     val paneReleased = remember { mutableStateOf(false) }
     var focusPaneOf by remember { mutableStateOf<TvDestination?>(destination) }
     val tabFocus = remember { TvDestination.entries.associateWith { FocusRequester() } }
@@ -136,10 +138,10 @@ internal fun TvShell(
                 paneReleased.value = true
             },
             modifier = Modifier
-                .onFocusChanged { tabBarHasFocus = it.hasFocus }
+                .onFocusChanged { tabsHaveFocus = it.hasFocus }
                 .focusProperties { enter = { tabBarEntry(it, tabFocus.getValue(destination)) } },
             paneFocus = paneFocus,
-            trailing = trailing,
+            trailing = { Box(Modifier.onFocusChanged { trailingHasFocus = it.hasFocus }) { trailing() } },
         )
         TvShellNotices(account.inactiveNotice, offline)
         Box(
