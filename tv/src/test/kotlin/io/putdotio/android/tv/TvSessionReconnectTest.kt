@@ -29,6 +29,7 @@ import io.putdotio.android.trash.TrashEvent
 import io.putdotio.android.trash.TrashPage
 import io.putdotio.android.trash.TrashRepository
 import java.io.IOException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -37,6 +38,7 @@ import kotlinx.coroutines.plus
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
@@ -79,12 +81,41 @@ class TvSessionReconnectTest {
         }
     }
 
+    @Test
+    fun `a read still loading when the network returns retries once after it fails`() = runTest {
+        val eager = UnconfinedTestDispatcher(testScheduler)
+        val interrupted = CompletableDeferred<Unit>()
+        val history = object : HistoryRepository {
+            override suspend fun load(before: HistoryEventId?): PutioResult<HistoryPage> {
+                if (loads.getValue("history") == 0) interrupted.await()
+                return failedLoad("history")
+            }
+
+            override suspend fun clear() = error("No clear expected")
+        }
+        val session = TvSession(offlineDependencies(history), historyEnabled = true, { true }, backgroundScope + eager)
+        val online = MutableStateFlow(true)
+        backgroundScope.launch(eager) { session.retryFailedLoadsOnReturn(online) }
+        runCurrent()
+
+        online.value = false
+        runCurrent()
+        online.value = true
+        runCurrent()
+        assertEquals(0, loads["history"])
+
+        interrupted.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(2, loads["history"])
+    }
+
     private fun <T> failedLoad(name: String): PutioResult<T> {
         loads.merge(name, 1, Int::plus)
         return PutioResult.Failure(offline)
     }
 
-    private fun offlineDependencies() = TvSessionDependencies(
+    private fun offlineDependencies(historyRepository: HistoryRepository = OfflineHistory()) = TvSessionDependencies(
         filesRepository = object : StubFilesRepository() {
             override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> = failedLoad("files")
         },
@@ -93,11 +124,7 @@ class TvSessionReconnectTest {
 
             override suspend fun loadNextPage(cursor: FilesCursor) = error("No continuation expected")
         },
-        historyRepository = object : HistoryRepository {
-            override suspend fun load(before: HistoryEventId?): PutioResult<HistoryPage> = failedLoad("history")
-
-            override suspend fun clear() = error("No clear expected")
-        },
+        historyRepository = historyRepository,
         trashRepository = OfflineTrash(),
         settingsRepository = OfflineSettings(),
         appConfigRepository = object : AndroidAppConfigRepository {
@@ -118,6 +145,12 @@ class TvSessionReconnectTest {
         playbackRepository = { NoPlayback },
         writePlaybackPosition = { _, _ -> error("No playback expected") },
     )
+
+    private inner class OfflineHistory : HistoryRepository {
+        override suspend fun load(before: HistoryEventId?): PutioResult<HistoryPage> = failedLoad("history")
+
+        override suspend fun clear() = error("No clear expected")
+    }
 
     private inner class OfflineTrash : TrashRepository {
         override suspend fun load(): PutioResult<TrashPage> = failedLoad("trash")
