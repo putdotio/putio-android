@@ -56,7 +56,6 @@ class TvPlaybackStatesTest {
     private var retries = 0
     private var backs = 0
     private var vlcOpens = 0
-    private var backs = 0
     private val lifecycleOwner = object : LifecycleOwner {
         val registry = LifecycleRegistry(this).apply { currentState = Lifecycle.State.RESUMED }
         override val lifecycle: Lifecycle get() = registry
