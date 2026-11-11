@@ -104,7 +104,7 @@ class TvPlayerOptionsTest {
     }
 
     @Test
-    fun downReachesTheChipsLeftAndRightWalkThemAndUpReturnsToScrubbing() {
+    fun downReachesTheChipsLeftAndRightWalkThemAndUpReturnsToTheSeekBar() {
         val player = TrackPlayer()
         show(player, readyState(resumePositionMillis = 60_000L))
         compose.onNodeWithContentDescription("Pause").assertIsSelected()
@@ -118,13 +118,15 @@ class TvPlayerOptionsTest {
         key(Key.DirectionRight)
         chip(SPEED).assertIsSelected()
         chip(AUDIO).assertIsNotSelected()
-        compose.runOnIdle { assertTrue("Walking the chips never scrubs", player.playWhenReady) }
+        compose.runOnIdle { assertTrue("Walking the chips keeps playing", player.playWhenReady) }
 
         key(Key.DirectionUp)
         chip(SPEED).assertIsNotSelected()
         key(Key.DirectionLeft)
-        compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("0:45")
-        compose.runOnIdle { assertFalse("Left on the seek bar scrubs", player.playWhenReady) }
+        compose.runOnIdle {
+            assertTrue("Left on the seek bar skips back 10 s", player.currentPosition in 50_000L..51_000L)
+            assertTrue("and keeps playing", player.playWhenReady)
+        }
     }
 
     @Test
@@ -147,7 +149,7 @@ class TvPlayerOptionsTest {
     }
 
     @Test
-    fun rewindOnAChipPullsFocusBackToTheSeekBarAndScrubs() {
+    fun rewindOnAChipPullsFocusBackToTheSeekBarAndSkips() {
         val player = TrackPlayer()
         show(player, readyState(resumePositionMillis = 60_000L))
         key(Key.DirectionDown)
@@ -157,8 +159,10 @@ class TvPlayerOptionsTest {
         key(Key.MediaRewind)
         chip(AUDIO).assertIsNotSelected()
         compose.onNodeWithTag(TV_PLAYER_SEEK_BAR_TAG).assertIsSelected()
-        compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("0:45")
-        compose.runOnIdle { assertFalse(player.playWhenReady) }
+        compose.runOnIdle {
+            assertTrue("Rewind skips back 10 s", player.currentPosition in 50_000L..51_000L)
+            assertTrue(player.playWhenReady)
+        }
     }
 
     @Test

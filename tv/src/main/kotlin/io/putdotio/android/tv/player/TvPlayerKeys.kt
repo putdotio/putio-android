@@ -50,19 +50,19 @@ private fun TvPlayerOverlay.keyDown(
     chips: List<TvPlayerControl>,
     nextTrack: Boolean,
 ): TvPlayerTransition {
-    val direction = event.key.scrubDirection(onSeekBar = focused == TvPlayerControl.SeekBar)
+    val direction = event.key.skipDirection(onSeekBar = focused == TvPlayerControl.SeekBar)
     val move = event.key.focusMove()
     return when {
-        direction != null && player.canScrub() ->
-            scrub(
-                press = TvScrubPress(
+        direction != null && player.canSeek() ->
+            skip(
+                press = TvSkipPress(
                     direction = direction,
+                    downAtMillis = event.nativeKeyEvent.downTime,
                     atMillis = event.nativeKeyEvent.eventTime,
                     repeat = event.nativeKeyEvent.repeatCount > 0,
                 ),
                 positionMillis = player.currentPosition.coerceAtLeast(0L),
                 durationMillis = player.duration,
-                playing = player.playWhenReady,
             )
         move != null -> moveFocus(move, chips, nextTrack)
         else -> reveal()
@@ -74,7 +74,7 @@ private fun TvPlayerOverlay.keyUp(key: Key, player: Player, focused: TvPlayerCon
         Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> when (focused) {
             TvPlayerControl.SeekBar, TvPlayerControl.PlayPause -> select(player.playWhenReady)
             TvPlayerControl.Back, TvPlayerControl.Forward ->
-                if (player.canScrub()) {
+                if (player.canSeek()) {
                     skip(
                         forward = focused == TvPlayerControl.Forward,
                         positionMillis = player.currentPosition.coerceAtLeast(0L),
@@ -91,15 +91,16 @@ private fun TvPlayerOverlay.keyUp(key: Key, player: Player, focused: TvPlayerCon
         Key.MediaPlay -> setPlaying(play = true)
         Key.MediaPause -> setPlaying(play = false)
         Key.MediaPrevious, Key.MediaNext -> skipTrack(forward = key == Key.MediaNext)
+        Key.DirectionLeft, Key.DirectionRight, Key.MediaRewind, Key.MediaFastForward -> skipReleased()
         else -> null
     }
 
-private fun Key.scrubDirection(onSeekBar: Boolean): TvScrubDirection? =
+private fun Key.skipDirection(onSeekBar: Boolean): TvSkipDirection? =
     when (this) {
-        Key.MediaRewind -> TvScrubDirection.Backward
-        Key.MediaFastForward -> TvScrubDirection.Forward
-        Key.DirectionLeft -> TvScrubDirection.Backward.takeIf { onSeekBar }
-        Key.DirectionRight -> TvScrubDirection.Forward.takeIf { onSeekBar }
+        Key.MediaRewind -> TvSkipDirection.Backward
+        Key.MediaFastForward -> TvSkipDirection.Forward
+        Key.DirectionLeft -> TvSkipDirection.Backward.takeIf { onSeekBar }
+        Key.DirectionRight -> TvSkipDirection.Forward.takeIf { onSeekBar }
         else -> null
     }
 
@@ -112,7 +113,7 @@ private fun Key.focusMove(): TvFocusMove? =
         else -> null
     }
 
-private fun Player.canScrub(): Boolean =
+private fun Player.canSeek(): Boolean =
     isCommandAvailable(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM) &&
         isCurrentMediaItemSeekable &&
         duration != C.TIME_UNSET &&

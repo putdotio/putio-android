@@ -61,9 +61,9 @@ internal fun TvPlayerOverlay.ended(
 ) =
     when {
         exited -> TvPlayerTransition(this)
-        nowPlaying -> TvPlayerTransition(copy(scrub = null, sheet = null))
+        nowPlaying -> TvPlayerTransition(copy(sheet = null))
         !autoplayNext -> exit()
-        else -> copy(awaitingUpNext = true, controlsVisible = true, scrub = null, sheet = null, activity = activity + 1)
+        else -> copy(awaitingUpNext = true, controlsVisible = true, sheet = null, activity = activity + 1)
             .upNextResolved(lookup)
     }
 
@@ -82,7 +82,7 @@ internal fun TvPlayerOverlay.upNextResolved(lookup: PlaybackUpNextLookup): TvPla
 internal fun TvPlayerOverlay.playUpNext(target: PlaybackTarget): TvPlayerTransition =
     if (upNext && !exited) {
         TvPlayerTransition(
-            copy(upNext = false, exited = true, scrub = null, sheet = null),
+            copy(upNext = false, exited = true, sheet = null),
             listOf(TvPlayerCommand.PlayChosen(target)),
         )
     } else {
