@@ -28,14 +28,20 @@ internal fun FilesBrowserState.loadFailed(event: FilesBrowserEvent.LoadFailed): 
             deleteFinished(FilesBrowserEvent.DeleteFinished(
                 event.requestId, PutioResult.Failure(event.failure),
             ))
-        else -> {
-            val updated = stack.getOrNull(index)?.loadFailed(event.requestId, event.failure)
-            if (updated == null) {
-                FilesBrowserTransition(this, consumed = false)
-            } else {
-                FilesBrowserTransition(copy(stack = stack.replaceAt(index, updated)))
-            }
-        }
+        isMissingFolder(index, event) -> leaveMissingFolder(event.requestId) ?: folderLoadFailed(index, event)
+        else -> folderLoadFailed(index, event)
+    }
+}
+
+private fun FilesBrowserState.folderLoadFailed(
+    index: Int,
+    event: FilesBrowserEvent.LoadFailed,
+): FilesBrowserTransition {
+    val updated = stack.getOrNull(index)?.loadFailed(event.requestId, event.failure)
+    return if (updated == null) {
+        FilesBrowserTransition(this, consumed = false)
+    } else {
+        FilesBrowserTransition(copy(stack = stack.replaceAt(index, updated)))
     }
 }
 

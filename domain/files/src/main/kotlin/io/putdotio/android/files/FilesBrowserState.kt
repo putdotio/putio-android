@@ -159,6 +159,7 @@ public data class FilesBrowserState internal constructor(
     val stack: List<FilesFolderState>,
     internal val nextRequestValue: Long,
     val copyOutcome: FilesCopyOutcome? = null,
+    val missingFolder: FilesMissingFolder? = null,
 ) {
     init {
         require(stack.isNotEmpty()) { "The Files browser must contain a root folder" }
@@ -324,9 +325,17 @@ public sealed interface FilesBrowserEvent {
 
     public data object Retry : FilesBrowserEvent
 
+    /** What the screen reports about what it shows; it never loads or navigates. */
+    public sealed interface ScreenEvent : FilesBrowserEvent
+
     public data class ViewportChanged(
         val position: FilesViewportPosition,
-    ) : FilesBrowserEvent
+    ) : ScreenEvent
+
+    /** The screen said "File not found" for this [FilesBrowserState.missingFolder]. */
+    public data class MissingFolderAnnounced(
+        val notice: FilesMissingFolder,
+    ) : ScreenEvent
 
     public sealed interface LoadResult : FilesBrowserEvent {
         public val requestId: FilesRequestId
@@ -454,7 +463,7 @@ public object FilesBrowserReducer {
             is FilesBrowserEvent.SelectSort -> state.selectSort(event.sort)
             is FilesBrowserEvent.ItemMutationEvent -> state.itemMutation(event)
             FilesBrowserEvent.Retry -> state.retry()
-            is FilesBrowserEvent.ViewportChanged -> state.rememberViewport(event.position)
+            is FilesBrowserEvent.ScreenEvent -> state.screenEvent(event)
             is FilesBrowserEvent.LoadResult -> state.loadResult(event)
             is FilesBrowserEvent.MutationSucceeded -> state.mutationSucceeded(event.requestId)
         }
@@ -475,6 +484,12 @@ public object FilesBrowserReducer {
             is FilesBrowserEvent.DeleteEvent -> reduceDelete(event)
             is FilesBrowserEvent.MoveEvent -> reduceMove(event)
             is FilesBrowserEvent.CopyEvent -> reduceCopy(event)
+        }
+
+    private fun FilesBrowserState.screenEvent(event: FilesBrowserEvent.ScreenEvent): FilesBrowserTransition =
+        when (event) {
+            is FilesBrowserEvent.ViewportChanged -> rememberViewport(event.position)
+            is FilesBrowserEvent.MissingFolderAnnounced -> missingFolderAnnounced(event.notice)
         }
 
     private fun FilesBrowserState.loadResult(event: FilesBrowserEvent.LoadResult): FilesBrowserTransition =

@@ -816,6 +816,7 @@
     <string name="mobile_files_undo_failed">Couldn’t restore “%1$s” from trash. %2$s</string>
     <string name="mobile_files_mark_watched_failed">Couldn’t mark “%1$s” as watched. %2$s</string>
     <string name="mobile_files_mark_unwatched_failed">Couldn’t mark “%1$s” as unwatched. %2$s</string>
+    <string name="mobile_files_folder_not_found">File not found</string>
     <string name="mobile_files_vlc_missing">Install VLC to open “%1$s”.</string>
     <string name="mobile_files_vlc_unavailable">Couldn’t prepare “%1$s” for VLC. Sign in again.</string>
     <string name="mobile_files_vlc_failed">Couldn’t prepare “%1$s” for VLC. %2$s</string>

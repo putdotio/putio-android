@@ -236,7 +236,10 @@ private fun MobileFilesStateWithCopy(
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) { content() }
         }
         // Item actions started from a listing can fail while the next folder loads.
-        MobileFilesNoticeHost(notices, Modifier.align(Alignment.BottomCenter))
+        val snackbarHostState = remember { SnackbarHostState() }
+        MobileFilesNotices(notices, snackbarHostState)
+        MobileFilesMissingFolderAnnouncement(state, snackbarHostState, onEvent)
+        MobileSnackbarHost(snackbarHostState, Modifier.align(Alignment.BottomCenter))
     }
 }
 
@@ -365,6 +368,7 @@ private fun MobileRefreshableFilesContent(
     val snackbarHostState = remember { SnackbarHostState() }
     MobileFilesTrashedAnnouncement(state.current, snackbarHostState, onEvent, itemActions.onUndoTrash)
     MobileFilesNotices(itemActions.notices, snackbarHostState)
+    MobileFilesMissingFolderAnnouncement(state, snackbarHostState, onEvent)
     val hideStarted = rememberHideWithUndo(itemActions, snackbarHostState)
 
     Box(modifier = modifier.fillMaxSize()) {
@@ -572,6 +576,26 @@ private fun MobileFilesTrashedAnnouncement(
         } finally {
             currentOnEvent(FilesBrowserEvent.DeleteOutcomeAnnounced(outcome))
         }
+    }
+}
+
+@Composable
+private fun MobileFilesMissingFolderAnnouncement(
+    state: FilesBrowserState,
+    snackbarHostState: SnackbarHostState,
+    onEvent: (FilesBrowserEvent) -> Unit,
+) {
+    val missing = state.missingFolder
+    val message = stringResource(R.string.mobile_files_folder_not_found)
+    val currentOnEvent by rememberUpdatedState(onEvent)
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(missing) {
+        val notice = missing ?: return@LaunchedEffect
+        scope.launch {
+            snackbarHostState.currentSnackbarData?.dismiss()
+            snackbarHostState.showSnackbar(message, duration = SnackbarDuration.Short)
+        }
+        currentOnEvent(FilesBrowserEvent.MissingFolderAnnounced(notice))
     }
 }
 
