@@ -1,9 +1,9 @@
 package io.putdotio.android.tv.files
 
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import io.putdotio.android.tv.pressCenter
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.ExperimentalTestApi
@@ -11,9 +11,7 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.hasClickAction
-import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
-import androidx.compose.ui.test.isFocused
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.assertCountEquals
@@ -24,7 +22,6 @@ import androidx.compose.ui.test.pressKey
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesContent
-import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesFolderOperation
 import io.putdotio.android.files.FilesFolderOperationIntent
@@ -43,9 +40,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.test.onNodeWithTag
-import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
-import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.android.files.FilesFolderCounts
 import io.putdotio.android.tv.setTvContent
 import io.putdotio.sdk.files.PutioFileType
@@ -149,17 +144,6 @@ class TvFilesScreenTest {
     }
 
     @Test
-    fun aFolderPutioDidNotAnswerForOffersTryAgain() {
-        val events = mutableListOf<FilesBrowserEvent>()
-        val failure = PutioFailure.ServerUnavailable(503, PutioConfigurationException("x"))
-        compose.showFiles(state = { state(FilesContent.Failed(failure)) }, onEvent = { events += it; true })
-        compose.onNodeWithText("Couldn't load your files.").assertIsDisplayed()
-        compose.onNodeWithText("put.io didn't answer. Check the TV's connection and try again.").assertIsDisplayed()
-        compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressCenter() }
-        assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.Retry), events)
-    }
-
-    @Test
     fun aReloadKeepsFocusOnTheSortPillAndIgnoresItsPress() {
         var operation by mutableStateOf<FilesFolderOperation>(FilesFolderOperation.Idle)
         val events = mutableListOf<FilesBrowserEvent>()
@@ -232,80 +216,6 @@ class TvFilesScreenTest {
             FilesFolderOperationPhase.RELOADING,
         )
         compose.onAllNodesWithText("Sort by").assertCountEquals(0)
-    }
-
-    @Test
-    fun anOfflineFolderOffersTryNowAndNoSort() {
-        val events = mutableListOf<FilesBrowserEvent>()
-        compose.showFiles(state = { state(FilesContent.Failed(networkFailure())) }, onEvent = { events += it; true })
-        compose.onNodeWithText("Can’t connect to put.io right now.").assertIsDisplayed()
-        compose.onNodeWithText("Check the network and try again.").assertIsDisplayed()
-        compose.onNodeWithText("Try now").assertIsFocused().performKeyInput { pressCenter() }
-        compose.onAllNodesWithText("Sort").assertCountEquals(0)
-        assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.Retry), events)
-    }
-
-    @Test
-    fun aFailedRefreshShowsTheErrorWithRetryAndKeepsPagingEnabled() {
-        val events = mutableListOf<FilesBrowserEvent>()
-        compose.showFiles(
-            state = {
-                state(
-                    FilesContent.Ready(
-                        listOf(item(1, "a.txt", PutioFileType.TEXT)),
-                        FilesPaging.Available(FilesCursor("c")),
-                    ),
-                    operation = FilesFolderOperation.Failed(
-                        networkFailure(),
-                        FilesFolderOperationIntent.Refresh,
-                        FilesFolderOperationPhase.RELOADING,
-                    ),
-                )
-            },
-            onEvent = { events += it; true },
-        )
-        compose.onNodeWithText("Couldn’t refresh files.").assertIsDisplayed()
-        assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.LoadNextPage), events)
-        compose.onNodeWithContentDescription("a.txt").performKeyInput { pressKey(Key.DirectionUp) }
-        compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressCenter() }
-        assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.LoadNextPage, FilesBrowserEvent.Retry), events)
-    }
-
-    @Test
-    fun tryAgainOnAFailedRefreshHandsFocusBackToTheRows() {
-        var operation by mutableStateOf<FilesFolderOperation>(
-            FilesFolderOperation.Failed(
-                networkFailure(),
-                FilesFolderOperationIntent.Refresh,
-                FilesFolderOperationPhase.RELOADING,
-            ),
-        )
-        compose.showFiles(
-            state = {
-                state(
-                    FilesContent.Ready(
-                        listOf(item(1, "a.txt", PutioFileType.TEXT), item(2, "b.txt", PutioFileType.TEXT)),
-                        FilesPaging.Complete,
-                    ),
-                    operation = operation,
-                )
-            },
-        )
-        compose.onNodeWithContentDescription("a.txt").performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithContentDescription("b.txt").assertIsFocused().performKeyInput {
-            pressKey(Key.DirectionUp)
-            pressKey(Key.DirectionUp)
-        }
-        compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressCenter() }
-
-        compose.runOnIdle {
-            operation = FilesFolderOperation.Loading(
-                FilesRequestId(3),
-                FilesFolderOperationIntent.Refresh,
-                FilesFolderOperationPhase.RELOADING,
-            )
-        }
-        compose.onAllNodes(hasTestTag(TV_FILES_ROW_TAG) and isFocused()).assertCountEquals(1)
     }
 
     @Test

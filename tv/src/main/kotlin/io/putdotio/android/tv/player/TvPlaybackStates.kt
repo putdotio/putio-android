@@ -42,11 +42,15 @@ import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.playback.action
 import io.putdotio.android.playback.apiReason
+import io.putdotio.android.playback.putioFailure
 import io.putdotio.android.playback.retryable
 import io.putdotio.android.playback.starting
 import io.putdotio.android.tv.TvEmptyState
 import io.putdotio.android.tv.TvEmptyStateAction
 import io.putdotio.android.tv.TvLoadingIndicator
+import io.putdotio.android.tv.isUnknown
+import io.putdotio.android.tv.tvCopy
+import io.putdotio.android.tv.tvUnknownLine
 import io.putdotio.android.tv.withFullLineBox
 import io.putdotio.sdk.files.PlaybackConversionState
 import kotlin.math.roundToInt
@@ -209,7 +213,9 @@ internal fun TvPlaybackFailureScreen(
             message = if (cantPlay) {
                 stringResource(R.string.tv_player_cant_play_message)
             } else {
-                failure.apiReason ?: stringResource(failure.messageResource())
+                failure.apiReason
+                    ?: failure.putioFailure?.takeIf { it.isUnknown }?.tvUnknownLine()
+                    ?: stringResource(failure.messageResource())
             },
             action = when {
                 failure.retryable -> TvEmptyStateAction(
@@ -248,18 +254,9 @@ private fun PlaybackFailure.messageResource(): Int =
     when (this) {
         is PlaybackFailure.MediaCredentialUnavailable -> R.string.tv_player_error_link_expired
         is PlaybackFailure.MediaUnsupported -> R.string.tv_player_cant_play_message
-        is PlaybackFailure.Putio -> when (failure) {
-            is PutioFailure.AuthenticationRequired -> R.string.tv_error_session
-            is PutioFailure.NetworkUnavailable -> R.string.tv_error_network
-            is PutioFailure.RateLimited -> R.string.tv_error_rate_limited
-            is PutioFailure.AccessDenied -> R.string.tv_player_error_forbidden
-            is PutioFailure.ApiRejected,
-            is PutioFailure.Misconfigured,
-            -> R.string.tv_player_error_rejected
-            is PutioFailure.ServerUnavailable,
-            is PutioFailure.InvalidResponse,
-            is PutioFailure.Unexpected,
-            -> R.string.tv_error_unavailable
+        is PlaybackFailure.Putio -> when {
+            failure is PutioFailure.AccessDenied -> R.string.tv_player_error_forbidden
+            else -> failure.tvCopy()?.line ?: R.string.tv_player_error_rejected
         }
     }
 

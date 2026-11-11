@@ -32,7 +32,7 @@
     <string name="tv_link_open_error">Couldn’t open that file. %1$s</string>
 
     <string name="tv_session_checking">Checking your session</string>
-    <string name="tv_session_unavailable_title">Can’t connect to put.io right now.</string>
+    <string name="tv_session_unavailable_title">Can’t connect to put.io</string>
     <string name="tv_session_unavailable_message">Your sign-in is saved. The app tries again on its own when the network is back.</string>
     <string name="tv_session_retry">Try now</string>
     <string name="tv_session_signing_out">Signing out</string>
@@ -111,7 +111,6 @@
     <string name="tv_files_paging_error">Couldn’t load more files.</string>
     <string name="tv_files_retry">Try again</string>
     <string name="tv_files_error_title">Couldn\'t load your files.</string>
-    <string name="tv_files_error_message">put.io didn\'t answer. Check the TV\'s connection and try again.</string>
     <string name="tv_files_open_folder">Open %1$s</string>
     <string name="tv_files_play_media">Play %1$s</string>
     <string name="tv_files_watched">Watched</string>
@@ -202,15 +201,31 @@
         <item quantity="one">Your files are deleted in %d day unless you renew.</item>
         <item quantity="other">Your files are deleted in %d days unless you renew.</item>
     </plurals>
-    <string name="tv_state_offline_title">Can’t connect to put.io right now.</string>
+    <string name="tv_state_offline_title">Can’t connect to put.io</string>
     <string name="tv_state_try_now">Try now</string>
     <string name="tv_state_try_again">Try again</string>
     <string name="tv_error_navigation_blocked">This item can’t be opened right now. Check Files, then try again.</string>
-    <string name="tv_error_network">Check the network and try again.</string>
-    <string name="tv_error_session">Your session expired. Sign in again.</string>
+    <string name="tv_error_network">Check your internet connection.</string>
+    <string name="tv_error_timeout_title">Request timed out</string>
+    <string name="tv_error_timeout_recovery">Check your connection and try again.</string>
+    <string name="tv_error_timeout">Request timed out. Check your connection and try again.</string>
+    <string name="tv_error_session_title">Session expired</string>
+    <string name="tv_error_session_recovery">Please sign in again.</string>
+    <string name="tv_error_session">Session expired. Please sign in again.</string>
     <string name="tv_error_forbidden">You don’t have access to this folder.</string>
-    <string name="tv_error_rate_limited">put.io is receiving too many requests. Try again shortly.</string>
-    <string name="tv_error_unavailable">put.io is temporarily unavailable. Try again.</string>
+    <string name="tv_error_rate_limited_title">Too many requests</string>
+    <string name="tv_error_rate_limited_recovery">Please try again in a moment.</string>
+    <string name="tv_error_rate_limited">Too many requests. Please try again in a moment.</string>
+    <string name="tv_error_not_found_title">File not found</string>
+    <string name="tv_error_not_found_recovery">This file may have been deleted.</string>
+    <string name="tv_error_not_found">File not found. This file may have been deleted.</string>
+    <string name="tv_error_server_title">Something went wrong on our end</string>
+    <string name="tv_error_server_recovery">Try again in a few minutes, then contact support.</string>
+    <string name="tv_error_unexpected_title">Something unexpected happened</string>
+    <string name="tv_error_id">Error id: %1$s</string>
+    <string name="tv_error_unexpected">Something unexpected happened.</string>
+    <string name="tv_error_unexpected_with_id">Something unexpected happened. Error id: %1$s</string>
+    <string name="tv_error_unavailable">Something went wrong on our end. Try again in a few minutes, then contact support.</string>
     <string name="tv_global_search_description">Files in your put.io account</string>
     <string name="tv_search_placeholder">Search your files</string>
     <string name="tv_search_field">Search files</string>

@@ -3,6 +3,7 @@ package io.putdotio.android.playback
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.apiReason
 import io.putdotio.android.toPutioFailure
+import io.putdotio.android.toTransportFailure
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.loadMediaAccount
 import io.putdotio.android.settings.StreamingMethod
@@ -84,6 +85,7 @@ public val PlaybackFailure.retryable: Boolean
         is PlaybackFailure.MediaUnsupported -> false
         is PlaybackFailure.Putio -> when (failure) {
             is PutioFailure.NetworkUnavailable,
+            is PutioFailure.Timeout,
             is PutioFailure.RateLimited,
             is PutioFailure.ServerUnavailable,
             is PutioFailure.InvalidResponse,
@@ -583,7 +585,7 @@ private fun PutioException.leafFailure(context: PutioException): PutioFailure =
                 else -> PutioFailure.ApiRejected(httpStatusCode, errorType, context)
             }
 
-        is PutioTransportException -> PutioFailure.NetworkUnavailable(context)
+        is PutioTransportException -> toTransportFailure(context)
         is PutioSerializationException -> PutioFailure.InvalidResponse(context)
         is PutioConfigurationException -> PutioFailure.Misconfigured(context)
         is PutioOperationException -> PutioFailure.Unexpected(context)

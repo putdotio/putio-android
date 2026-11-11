@@ -83,7 +83,6 @@ import io.putdotio.android.tv.files.TvViewerUrl
 import io.putdotio.android.tv.files.rememberBusy
 import io.putdotio.android.tv.files.secondary
 import io.putdotio.android.tv.files.run
-import io.putdotio.android.tv.files.tvMessageText
 
 internal class TvSearchActions(
     val onQueryChanged: (String) -> Unit,
@@ -349,7 +348,6 @@ private fun ColumnScope.TvSearchContent(
             TvLoadFailedState(
                 failure = content.failure,
                 headline = stringResource(R.string.tv_search_error_title),
-                message = content.failure.tvMessageText(),
                 onRetry = {
                     fieldFocus.requestFocus()
                     actions.onRetry()

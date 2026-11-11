@@ -810,7 +810,7 @@ class TvPlayerProofTest {
         compose.onNodeWithContentDescription("Play $OFFLINE_TITLE").assertIsFocused()
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(10_000) {
-            compose.onAllNodesWithText("Check the network and try again.").fetchSemanticsNodes().isNotEmpty()
+            compose.onAllNodesWithText("Check your internet connection.").fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNodeWithText("Try again").assertIsFocused()
         screenshot("58-network-error")

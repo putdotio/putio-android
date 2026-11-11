@@ -53,6 +53,7 @@ import io.putdotio.android.LoadNextPageNow
 import io.putdotio.android.MobileEmptyState
 import io.putdotio.android.MobileErrorState
 import io.putdotio.android.RetryWhenOnline
+import io.putdotio.android.isUnreachable
 import io.putdotio.android.MobileRow
 import io.putdotio.android.MobileSectionLabel
 import io.putdotio.android.PutioFailure
@@ -129,7 +130,7 @@ internal fun MobileSearchScreen(
                     modifier = fill,
                 )
             is SearchContent.Failed -> {
-                val offline = content.failure is PutioFailure.NetworkUnavailable
+                val offline = content.failure.isUnreachable
                 if (offline) RetryWhenOnline(content.failure, onSearchRetry)
                 MobileErrorState(
                     title = stringResource(R.string.mobile_search_error_title),

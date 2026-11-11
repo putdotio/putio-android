@@ -277,7 +277,7 @@ class TvTrashScreenTest {
         )
         show { state }
 
-        compose.onNodeWithText("Can’t connect to put.io right now.").assertIsDisplayed()
+        compose.onNodeWithText("Can’t connect to put.io").assertIsDisplayed()
         compose.onNodeWithText("Try now").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf<TrashEvent>(TrashEvent.Retry), events)
 

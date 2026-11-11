@@ -7,6 +7,7 @@ import io.putdotio.sdk.errors.PutioOperationErrorReason
 import io.putdotio.sdk.errors.PutioOperationException
 import io.putdotio.sdk.errors.PutioSerializationException
 import io.putdotio.sdk.errors.PutioTransportException
+import java.io.InterruptedIOException
 
 /**
  * What a Files-family surface explains when it fails: a [PutioFailure], or a Files navigation the
@@ -50,6 +51,10 @@ public sealed interface PutioFailure : FilesFailure {
     /** Any cause: playback also reports a failed media stream or a timed-out position write here. */
     public data class NetworkUnavailable(
         override val cause: Throwable,
+    ) : PutioFailure
+
+    public data class Timeout(
+        override val cause: PutioException,
     ) : PutioFailure
 
     public data class InvalidResponse(
@@ -108,6 +113,16 @@ public fun Throwable.findPutioApiException(): PutioApiException? {
     return null
 }
 
+public fun PutioTransportException.toTransportFailure(context: PutioException = this): PutioFailure {
+    var current: Throwable? = cause
+    val visited = mutableSetOf<Throwable>()
+    while (current != null && visited.add(current)) {
+        if (current is InterruptedIOException) return PutioFailure.Timeout(context)
+        current = current.cause
+    }
+    return PutioFailure.NetworkUnavailable(context)
+}
+
 private fun PutioOperationException.reasonFailure(context: PutioException): PutioFailure? =
     when ((reason as? PutioOperationErrorReason.StatusCode)?.statusCode) {
         HTTP_UNAUTHORIZED -> PutioFailure.AuthenticationRequired(context)
@@ -126,7 +141,7 @@ private fun PutioException.leafFailure(context: PutioException): PutioFailure =
                 else -> PutioFailure.ApiRejected(statusCode, errorType, context, httpStatusCode)
             }
 
-        is PutioTransportException -> PutioFailure.NetworkUnavailable(context)
+        is PutioTransportException -> toTransportFailure(context)
         is PutioSerializationException -> PutioFailure.InvalidResponse(context)
         is PutioConfigurationException -> PutioFailure.Misconfigured(context)
         is PutioOperationException -> PutioFailure.Unexpected(context)

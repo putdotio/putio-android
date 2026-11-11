@@ -19,6 +19,7 @@ import io.sentry.protocol.Mechanism
 import io.sentry.protocol.OperatingSystem
 import io.sentry.protocol.SdkVersion
 import io.sentry.protocol.SentryException
+import io.sentry.protocol.SentryId
 import io.sentry.protocol.SentryStackFrame
 import io.sentry.protocol.SentryStackTrace
 import io.sentry.protocol.User
@@ -85,10 +86,16 @@ internal object SentryBoundary {
         return executor.submit { files.delete() }
     }
 
-    fun capture(failure: TelemetryFailure) {
-        if (current == null) return
+    fun capture(failure: TelemetryFailure): String? {
+        if (current == null) return null
+        val id = SentryId()
+        val event = SentryEvent().apply {
+            eventId = id
+            level = failure.sentryLevel
+        }
         val hint = Hint().apply { set(FAILURE_HINT, failure) }
-        executor.submit { Sentry.captureEvent(SentryEvent().apply { level = failure.sentryLevel }, hint) }
+        executor.submit { Sentry.captureEvent(event, hint) }
+        return id.toString()
     }
 
     private val TelemetryFailure.sentryLevel: SentryLevel

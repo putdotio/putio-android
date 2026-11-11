@@ -27,7 +27,9 @@ import io.putdotio.android.playback.rememberNextEpisode
 import io.putdotio.android.telemetry.AnalyticsEvent
 import io.putdotio.android.telemetry.ProductAnalytics
 import io.putdotio.android.telemetry.PutioDiagnostics
+import io.putdotio.android.tv.TvFailureReports
 import io.putdotio.android.tv.TvNoticeDialog
+import io.putdotio.android.tv.isUnknown
 import io.putdotio.android.tv.files.hasVlc
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -104,7 +106,8 @@ internal fun TvPlaybackRoute(
         onPlayerFailure = { failure, positionMillis ->
             val telemetry = controller.state.value.playerFailureTelemetry(failure)
             if (controller.dispatch(PlaybackEvent.PlayerFailed(failure, positionMillis))) {
-                PutioDiagnostics.capture(telemetry)
+                val id = PutioDiagnostics.capture(telemetry)
+                failure.putioFailure?.takeIf { it.isUnknown }?.let { TvFailureReports.record(it, id) }
             }
         },
         onOriginalRejected = { reason, positionMillis ->

@@ -64,9 +64,7 @@ public object PutioDiagnostics {
         preferences.edit().putBoolean(ALLOWED, allowed).apply()
     }
 
-    public fun capture(failure: TelemetryFailure) {
-        SentryBoundary.capture(failure)
-    }
+    public fun capture(failure: TelemetryFailure): String? = SentryBoundary.capture(failure)
 
     private fun apply(allowed: Boolean, launch: Boolean) {
         val configuration = configuration
