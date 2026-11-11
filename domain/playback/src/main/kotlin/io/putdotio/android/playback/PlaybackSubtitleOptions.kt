@@ -90,6 +90,8 @@ public fun formatSubtitleOffset(offsetMillis: Long): String {
 
 private const val MILLIS_PER_SECOND = 1_000.0
 
+internal const val PLAYER_PREFERENCES_NAME = "io.put.player"
+
 @Stable
 public class SubtitleAppearanceStore(private val context: Context?) {
     public var textSize: SubtitleTextSize by mutableStateOf(context?.let(::storedTextSize) ?: SubtitleTextSize.Medium)
@@ -97,17 +99,16 @@ public class SubtitleAppearanceStore(private val context: Context?) {
 
     public fun update(size: SubtitleTextSize) {
         textSize = size
-        context?.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)?.edit {
+        context?.getSharedPreferences(PLAYER_PREFERENCES_NAME, Context.MODE_PRIVATE)?.edit {
             putString(TEXT_SIZE_KEY, size.name)
         }
     }
 
     internal companion object {
-        private const val PREFERENCES_NAME = "io.put.player"
         private const val TEXT_SIZE_KEY = "subtitle_text_size"
 
         fun storedTextSize(context: Context): SubtitleTextSize {
-            val stored = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
+            val stored = context.getSharedPreferences(PLAYER_PREFERENCES_NAME, Context.MODE_PRIVATE)
                 .getString(TEXT_SIZE_KEY, null)
             return SubtitleTextSize.entries.firstOrNull { it.name == stored } ?: SubtitleTextSize.Medium
         }
@@ -139,10 +140,10 @@ internal fun SubtitleSelection.preferringNamedTrack(
     return pick?.let { SubtitleSelection.Track(it.identity) } ?: this
 }
 
-private fun String.sameLanguageAs(tag: String): Boolean =
+internal fun String.sameLanguageAs(tag: String): Boolean =
     Locale.forLanguageTag(this).iso3OrLanguage() == Locale.forLanguageTag(tag).iso3OrLanguage()
 
 private fun Locale.iso3OrLanguage(): String = runCatching { isO3Language }.getOrDefault(language)
 
 private const val FORCED = C.SELECTION_FLAG_FORCED
-private const val ACCESSORY_ROLES = C.ROLE_FLAG_DESCRIBES_MUSIC_AND_SOUND or C.ROLE_FLAG_COMMENTARY
+internal const val ACCESSORY_ROLES = C.ROLE_FLAG_DESCRIBES_MUSIC_AND_SOUND or C.ROLE_FLAG_COMMENTARY
