@@ -442,32 +442,7 @@ class TvShellBackTest {
             )
         }
         var requested by mutableStateOf<TvDestination?>(null)
-        compose.setTvContent {
-            TvShell(
-                account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
-                onSignOut = {},
-                accountPane = { paneFocus ->
-                    TvAccountScreen(
-                        account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
-                        settingsState = readySettings(),
-                        appConfigState = AndroidAppConfigReducer.start().state,
-                        onSettingsEvent = { true },
-                        onAppConfigEvent = { true },
-                        onSignOut = {},
-                        paneFocus = paneFocus,
-                        trashPane = { trashFocus ->
-                            TvTrashScreen(
-                                state = TrashState(content = TrashContent.Loaded(items, null, 3, 30)),
-                                onEvent = { true },
-                                modifier = Modifier.focusRequester(trashFocus),
-                            )
-                        },
-                    )
-                },
-                requestedDestination = requested,
-                onDestinationRequestHandled = { requested = null },
-            )
-        }
+        setTrashInAccount(items, { requested }, { requested = null })
         compose.openTab(TvDestination.Account)
         compose.onNode(hasText("Library") and hasClickAction()).assertIsFocused().performKeyInput {
             pressKey(Key.DirectionRight)
@@ -497,6 +472,39 @@ class TvShellBackTest {
         }
         visitNeighbourAndReturn("Account", TvDestination.History)
         compose.onNode(hasText("Restore all") and hasClickAction()).assertIsFocused()
+    }
+
+    private fun setTrashInAccount(
+        items: List<TrashItem>,
+        requested: () -> TvDestination?,
+        onRequestHandled: () -> Unit,
+    ) {
+        compose.setTvContent {
+            TvShell(
+                account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                onSignOut = {},
+                accountPane = { paneFocus ->
+                    TvAccountScreen(
+                        account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                        settingsState = readySettings(),
+                        appConfigState = AndroidAppConfigReducer.start().state,
+                        onSettingsEvent = { true },
+                        onAppConfigEvent = { true },
+                        onSignOut = {},
+                        paneFocus = paneFocus,
+                        trashPane = { trashFocus ->
+                            TvTrashScreen(
+                                state = TrashState(content = TrashContent.Loaded(items, null, 3, 30)),
+                                onEvent = { true },
+                                modifier = Modifier.focusRequester(trashFocus),
+                            )
+                        },
+                    )
+                },
+                requestedDestination = requested(),
+                onDestinationRequestHandled = onRequestHandled,
+            )
+        }
     }
 
     private fun visitNeighbourAndReturn(tab: String, neighbour: TvDestination) {

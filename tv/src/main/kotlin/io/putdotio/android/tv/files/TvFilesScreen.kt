@@ -852,6 +852,29 @@ internal fun TvFilesNotice(
 }
 
 @Composable
+private fun TvFilesSectionPills(
+    sortLabel: String,
+    sortFocus: FocusRequester,
+    sorting: Boolean,
+    onSort: () -> Unit,
+    onRefresh: () -> Unit,
+) {
+    TvSectionPill(
+        icon = R.drawable.ic_ph_sort_ascending,
+        label = sortLabel,
+        onClick = onSort,
+        modifier = Modifier.focusRequester(sortFocus),
+        showFocus = !sorting,
+    )
+    TvSectionPill(
+        icon = R.drawable.ic_ph_arrows_clockwise,
+        label = stringResource(R.string.tv_files_refresh),
+        onClick = onRefresh,
+        showFocus = !sorting,
+    )
+}
+
+@Composable
 private fun TvFilesSectionLine(
     state: FilesBrowserState,
     onEvent: (FilesBrowserEvent) -> Boolean,
@@ -872,18 +895,12 @@ private fun TvFilesSectionLine(
         modifier = Modifier.onFocusChanged { onFocusChanged(it.hasFocus) },
         pill = if (showSort) {
             {
-                TvSectionPill(
-                    icon = R.drawable.ic_ph_sort_ascending,
-                    label = stringResource(sortInEffect?.tvLabel() ?: R.string.tv_files_sort_title),
-                    onClick = { if (idle) sorting = true },
-                    modifier = Modifier.focusRequester(sortFocus),
-                    showFocus = !sorting,
-                )
-                TvSectionPill(
-                    icon = R.drawable.ic_ph_arrows_clockwise,
-                    label = stringResource(R.string.tv_files_refresh),
-                    onClick = { if (idle) onEvent(FilesBrowserEvent.Refresh) },
-                    showFocus = !sorting,
+                TvFilesSectionPills(
+                    sortLabel = stringResource(sortInEffect?.tvLabel() ?: R.string.tv_files_sort_title),
+                    sortFocus = sortFocus,
+                    sorting = sorting,
+                    onSort = { if (idle) sorting = true },
+                    onRefresh = { if (idle) onEvent(FilesBrowserEvent.Refresh) },
                 )
             }
         } else {

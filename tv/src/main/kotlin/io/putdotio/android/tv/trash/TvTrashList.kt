@@ -113,12 +113,8 @@ internal fun TvTrashList(
                 item = item,
                 onClick = { onChoose(item) },
                 showsFocus = !focus.dialogShowing.value,
-                modifier = Modifier
-                    .focusRequesterIf(index == anchorIndex, rows.anchor)
-                    .focusRequesterIf(index == 0, rows.first)
-                    .focusRequesterIf(index == items.lastIndex, rows.last)
-                    .holdAtPendingEnd(content.pagePending && index == items.lastIndex)
-                    .focusRequesterIf(index == restoreIndex, rows.restore)
+                modifier = rows
+                    .requesters(index, items.lastIndex, anchorIndex, restoreIndex, content.pagePending)
                     .onFocusChanged {
                         if (it.isFocused) heldRowId.value = item.id.value
                         onRowFocusChanged(item, it.isFocused)
@@ -168,6 +164,14 @@ private class TrashRowFocus {
     val first = FocusRequester()
     val last = FocusRequester()
     val restore = FocusRequester()
+
+    fun requesters(index: Int, lastIndex: Int, anchorIndex: Int, restoreIndex: Int, pagePending: Boolean): Modifier =
+        Modifier
+            .focusRequesterIf(index == anchorIndex, anchor)
+            .focusRequesterIf(index == 0, first)
+            .focusRequesterIf(index == lastIndex, last)
+            .holdAtPendingEnd(pagePending && index == lastIndex)
+            .focusRequesterIf(index == restoreIndex, restore)
 }
 
 private fun LazyListState.restoreTarget(
