@@ -271,7 +271,7 @@ class TvPlayerProofTest {
         leavePlayback()
         compose.waitUntil(10_000) { compose.runOnIdle { server.writes.size == 2 } }
         val (periodic, exit) = server.writes
-        assertTrue("Periodic write $periodic s", periodic >= SAVED_SECONDS + 14.0)
+        assertTrue("Periodic write $periodic s", periodic >= SAVED_SECONDS + POSITION_INTERVAL_MILLIS / 1_000.0 - 1.0)
         assertTrue("Exit write $exit s after $periodic s", exit >= periodic)
         compose.onNodeWithContentDescription("Play $FIXTURE_TITLE").assertIsFocused()
         pause()
@@ -1325,7 +1325,7 @@ class TvPlayerProofTest {
         const val NEAR_END_SAVED_SECONDS = 70.0
         const val NEAR_END_LABEL = "Resume from 1:10?"
         const val AUDIO_TITLE = "Harbor tune.m4a"
-        const val POSITION_INTERVAL_MILLIS = 15_000L
+        const val POSITION_INTERVAL_MILLIS = 10_000L
         const val RESUME_TITLE = "Resume from 0:45?"
         const val RESUME_LABEL = "Resume"
         const val RESTART_LABEL = "Start over"
