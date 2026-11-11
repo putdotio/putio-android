@@ -50,6 +50,7 @@ internal class TvTrackRecovery(
 ) {
     private val failingSubtitles = mutableMapOf<String, Long>()
     private var droppedAtMillis: Long? = null
+    private var droppedUris = emptySet<String>()
     private var audioSwitch: TvAudioSwitch? = null
     private var audioSwitchedAtMillis = 0L
 
@@ -77,8 +78,11 @@ internal class TvTrackRecovery(
         val switch = audioSwitch?.takeIf { atMillis - audioSwitchedAtMillis <= TRACK_FAILURE_WINDOW_MILLIS }
         forgetBefore(atMillis)
         val justDropped = droppedAtMillis?.let { atMillis - it <= TRACK_FAILURE_WINDOW_MILLIS } == true
+        val dropped = droppedUris.takeIf { justDropped }.orEmpty()
         droppedAtMillis = null
-        val subtitleLoad = failure.uri?.let { it in failingSubtitles || isSubtitle(C.TRACK_TYPE_UNKNOWN, it) } != false
+        droppedUris = emptySet()
+        val subtitleLoad = failure.uri
+            ?.let { it in failingSubtitles || it in dropped || isSubtitle(C.TRACK_TYPE_UNKNOWN, it) } != false
         return when {
             switch != null && failure.code in AUDIO_FAILURES && failure.audioRenderer != false -> {
                 audioSwitch = null
@@ -95,6 +99,7 @@ internal class TvTrackRecovery(
             uris = failingSubtitles.keys intersect sidecarUris,
             notify = failingSubtitles.isNotEmpty(),
         )
+        droppedUris = failingSubtitles.keys.toSet()
         failingSubtitles.clear()
         droppedAtMillis = atMillis
         return step

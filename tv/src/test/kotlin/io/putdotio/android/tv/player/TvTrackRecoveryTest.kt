@@ -74,6 +74,20 @@ class TvTrackRecoveryTest {
     }
 
     @Test
+    fun theErrorADroppedManifestSegmentRaisesContinuesPlayback() {
+        val recovery = TvTrackRecovery(emptySet())
+
+        recovery.loadFailed(C.TRACK_TYPE_TEXT, MANIFEST_SEGMENT, gaveUp = true, atMillis = 0L)
+        assertEquals(
+            TvTrackRecoveryStep.DropSubtitles(emptySet(), notify = false),
+            recovery.recover(
+                TvPlayerFailure(PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS, uri = MANIFEST_SEGMENT),
+                atMillis = 500L,
+            ),
+        )
+    }
+
+    @Test
     fun aManifestSubtitlePlaylistThatFailsCountsAsASubtitleFailure() {
         val recovery = TvTrackRecovery(emptySet()) { setOf(SUBTITLE_PLAYLIST) }
 
