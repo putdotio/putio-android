@@ -30,6 +30,7 @@ import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -540,7 +541,10 @@ private fun MobileFilesFolderStatus(
     }
 }
 
-/** A permanent retry asks again, as every permanent delete does. */
+/**
+ * A permanent retry asks again, as every permanent delete does. A Trash retry is sent after the next
+ * composition, against the latest Trash setting: once Trash is off, put.io applies it as permanent.
+ */
 @Composable
 private fun MobileFilesDeleteRetryStatus(
     outcome: FilesDeleteOutcome,
@@ -548,16 +552,24 @@ private fun MobileFilesDeleteRetryStatus(
     onEvent: (FilesBrowserEvent) -> Unit,
 ) {
     var confirming by rememberSaveable(outcome) { mutableStateOf(false) }
+    var trashTapped by remember { mutableStateOf(false) }
+    val currentRetry by rememberUpdatedState(retry)
+    if (trashTapped) {
+        SideEffect {
+            trashTapped = false
+            currentRetry?.takeIf { it.mode == FilesDeleteMode.TRASH }?.let(onEvent)
+        }
+    }
     MobileFilesDeleteStatus(outcome, retry?.let { event ->
-        { if (event.mode == FilesDeleteMode.PERMANENT) confirming = true else onEvent(event) }
+        { if (event.mode == FilesDeleteMode.PERMANENT) confirming = true else trashTapped = true }
     })
-    if (confirming && retry != null) {
+    if (confirming && retry?.mode == FilesDeleteMode.PERMANENT) {
         MobileFilesDeleteConfirmation(
             enabled = true,
             onDismiss = { confirming = false },
             onConfirm = {
                 confirming = false
-                onEvent(retry)
+                currentRetry?.takeIf { it.mode == FilesDeleteMode.PERMANENT }?.let(onEvent)
             },
             count = retry.itemIds.size,
         )
