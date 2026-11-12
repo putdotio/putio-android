@@ -179,7 +179,7 @@ internal class TvAuthController(
     }
 
     suspend fun retryValidation(): Boolean = operationMutex.withLock {
-        val unavailable = mutableState.value as? TvAuthState.ValidationUnavailable ?: return@withLock false
+        val previous = mutableState.value.takeIf { it.retriesStoredSession() } ?: return@withLock false
         try {
             val accessToken = when (val stored = tokens.read()) {
                 is StoredToken.Present -> stored.accessToken
@@ -193,31 +193,9 @@ internal class TvAuthController(
             validateStoredSession(TvSessionValidationSource.RETRY)
             true
         } catch (error: CancellationException) {
-            rollBackInterruptedValidation(unavailable)
+            rollBackInterruptedValidation(previous)
             throw error
         }
-    }
-
-    suspend fun retryStoredSession(): Boolean = operationMutex.withLock {
-        val stopped = mutableState.value as? TvAuthState.Linking ?: return@withLock false
-        if ((stopped.phase as? TvLinkPhase.Stopped)?.reason != TvLinkStop.SessionUnreadable) {
-            return@withLock false
-        }
-        mutableState.value = TvAuthState.RestoringSession
-        try {
-            when (val stored = tokens.read()) {
-                is StoredToken.Present -> {
-                    tokens.configure(stored.accessToken)
-                    validateStoredSession(TvSessionValidationSource.RETRY)
-                }
-                StoredToken.Absent -> importLegacySession(TvSessionValidationSource.RETRY)
-                StoredToken.Unreadable -> mutableState.value = stopped
-            }
-        } catch (error: CancellationException) {
-            rollBackInterruptedValidation(stopped)
-            throw error
-        }
-        mutableState.value is TvAuthState.SignedIn
     }
 
     // Only an in-flight validation is rolled back. A verdict that already settled
@@ -353,6 +331,10 @@ internal class TvAuthController(
         mutableState.value = TvAuthState.SignedIn(account, TvAuthSessionId(sessionSequence))
     }
 }
+
+private fun TvAuthState.retriesStoredSession(): Boolean =
+    this is TvAuthState.ValidationUnavailable ||
+        this is TvAuthState.Linking && (phase as? TvLinkPhase.Stopped)?.reason == TvLinkStop.SessionUnreadable
 
 /**
  * Ends a session put.io rejected while no screen could show it: the token leaves the gateway and

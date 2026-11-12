@@ -337,14 +337,14 @@ class TvAuthControllerTest {
         val harness = Harness(storedToken = "stored-token", tokenStore = tokenStore)
         harness.controller.restoreSession()
 
-        assertFalse(harness.controller.retryStoredSession())
+        assertFalse(harness.controller.retryValidation())
         assertEquals(
             TvAuthState.Linking(TvLinkPhase.Stopped(TvLinkStop.SessionUnreadable)),
             harness.controller.state.value,
         )
 
         tokenStore.readFails = false
-        assertTrue(harness.controller.retryStoredSession())
+        assertTrue(harness.controller.retryValidation())
 
         assertTrue(harness.controller.state.value is TvAuthState.SignedIn)
         assertEquals("stored-token", tokenStore.stored?.reveal())
@@ -363,7 +363,7 @@ class TvAuthControllerTest {
             TvAuthState.Linking(TvLinkPhase.Stopped(TvLinkStop.StorageUnavailable)),
             harness.controller.state.value,
         )
-        assertFalse(harness.controller.retryStoredSession())
+        assertFalse(harness.controller.retryValidation())
         assertEquals(
             TvAuthState.Linking(TvLinkPhase.Stopped(TvLinkStop.StorageUnavailable)),
             harness.controller.state.value,
