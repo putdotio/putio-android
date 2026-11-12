@@ -1070,9 +1070,6 @@ private fun MobileChrome(
     }
 }
 
-private fun drawsTopBarInContent(filesPane: Boolean, listDetail: Boolean, destination: MobileDestination): Boolean =
-    filesPane || listDetail && destination == MobileDestination.Account
-
 /** Without its top bar the scaffold leaves the status bar to the content, which draws the bar itself. */
 @Composable
 private fun chromeContentInsets(topBarInContent: Boolean): WindowInsets =
