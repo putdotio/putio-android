@@ -289,6 +289,10 @@
     <string name="mobile_settings_rotate_to_landscape">Rotate to landscape</string>
     <string name="mobile_settings_default_sort">Default sort order</string>
     <string name="mobile_settings_default_sort_unknown">Not set</string>
+    <string name="mobile_settings_reset_sorts">Reset all sort settings</string>
+    <string name="mobile_settings_reset_sorts_confirm_title">Reset all sort settings?</string>
+    <string name="mobile_settings_reset_sorts_confirm_message">Every folder goes back to the default sort order.</string>
+    <string name="mobile_settings_reset">Reset</string>
     <string name="mobile_settings_show_subtitles">Show subtitles</string>
     <string name="mobile_settings_auto_select_subtitles">Pick matching subtitles</string>
     <string name="mobile_settings_tunnel_route">Choose your proxy</string>

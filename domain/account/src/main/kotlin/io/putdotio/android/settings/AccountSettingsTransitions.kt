@@ -131,6 +131,8 @@ internal fun AccountSettingsState.saveSucceeded(
             state =
                 copy(
                     mutation = saving.copy(operation = AccountSettingsMutation.Operation.Refresh),
+                    folderSortResets = folderSortResets +
+                        if (saving.change == AccountSettingsChange.ResetFolderSorts) 1 else 0,
                 ),
             effect = AccountSettingsEffect.Refresh(event.requestId),
         )

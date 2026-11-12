@@ -103,7 +103,7 @@ internal fun MobileLoggedInAppsScreen(
         )
     }
     if (confirming && state.othersSignedIn) {
-        MobileTurnOffDialog(
+        MobileConfirmDialog(
             title = R.string.mobile_logged_in_apps_sign_out_others_title,
             message = R.string.mobile_logged_in_apps_sign_out_others_message,
             confirm = R.string.mobile_account_sign_out,

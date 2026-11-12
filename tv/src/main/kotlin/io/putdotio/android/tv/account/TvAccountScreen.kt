@@ -126,6 +126,7 @@ internal enum class TvAccountSheet {
     ManageAccount,
     TrashOff,
     ResumeOff,
+    ResetSorts,
     SignOut,
 }
 
@@ -135,6 +136,7 @@ private object RowKey {
     const val MANAGE_TRASH = "manage-trash"
     const val TRASH = "trash"
     const val DEFAULT_SORT = "default-sort"
+    const val RESET_SORTS = "reset-sorts"
     const val HISTORY = "history"
     const val SHOW_HOME = "show-home"
     const val RESUME = "resume"
@@ -560,6 +562,15 @@ private fun TvAccountSheets(
             destructive = true,
             titleStyle = TvAccountType.dialogTitle,
         )
+        TvAccountSheet.ResetSorts -> TvConfirmDialog(
+            title = stringResource(R.string.tv_account_reset_sorts_title),
+            message = stringResource(R.string.tv_account_reset_sorts_message),
+            confirmLabel = stringResource(R.string.tv_account_reset),
+            onConfirm = { change(AccountSettingsChange.ResetFolderSorts) },
+            onDismiss = onClose,
+            destructive = true,
+            titleStyle = TvAccountType.dialogTitle,
+        )
         TvAccountSheet.SignOut -> TvConfirmDialog(
             title = stringResource(R.string.tv_account_sign_out_title),
             message = stringResource(R.string.tv_account_sign_out_message),
@@ -644,6 +655,15 @@ private class TvAccountRowsScope(
                         val sort = preferences.defaultSort?.tvLabel() ?: R.string.tv_account_default_sort_unset
                         TvSettingValue(AnnotatedString(stringResource(sort)), focused)
                     }
+                }
+                add { segment ->
+                    TvSettingRow(
+                        title = stringResource(R.string.tv_account_reset_sorts),
+                        icon = R.drawable.ic_ph_arrow_counter_clockwise,
+                        segment = segment,
+                        onClick = { if (settingsControls) open(TvAccountSheet.ResetSorts, RowKey.RESET_SORTS) },
+                        modifier = Modifier.accountFocus(this@TvAccountRowsScope.context, RowKey.RESET_SORTS),
+                    )
                 }
                 add { segment ->
                     TvSwitchSettingRow(
@@ -1202,6 +1222,7 @@ private val OPEN_SOURCE_NOTICES = listOf(appSourceNotice(BuildConfig.VERSION_NAM
 private val LIBRARY_KEYS = mapOf(
     AccountSettingsKey.Trash to RowKey.TRASH,
     AccountSettingsKey.DefaultSort to RowKey.DEFAULT_SORT,
+    AccountSettingsKey.FolderSorts to RowKey.RESET_SORTS,
     AccountSettingsKey.History to RowKey.HISTORY,
 )
 private val PLAYBACK_KEYS = mapOf(

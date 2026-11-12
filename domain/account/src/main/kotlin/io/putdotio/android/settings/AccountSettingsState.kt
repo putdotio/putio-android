@@ -56,6 +56,7 @@ public enum class AccountSettingsKey {
     ResumePlayback,
     TunnelRoute,
     DefaultSort,
+    FolderSorts,
     Diagnostics,
     ProductAnalytics,
 }
@@ -82,6 +83,10 @@ public sealed interface AccountSettingsChange {
         val sort: FilesSort,
     ) : AccountSettingsChange {
         override val key: AccountSettingsKey get() = AccountSettingsKey.DefaultSort
+    }
+
+    public data object ResetFolderSorts : AccountSettingsChange {
+        override val key: AccountSettingsKey get() = AccountSettingsKey.FolderSorts
     }
 
     public companion object {
@@ -133,6 +138,7 @@ public data class AccountSettingsState internal constructor(
     val content: AccountSettingsContent,
     val mutation: AccountSettingsMutation,
     internal val nextRequestValue: Long,
+    internal val folderSortResets: Long = 0,
 )
 
 public sealed interface AccountSettingsEvent {
@@ -251,13 +257,14 @@ public fun AccountSettingsState.confirmedShowSubtitles(): Boolean? =
     confirmedPreferences(AccountSettingsKey.ShowSubtitles)?.showSubtitles
 
 /**
- * The default sort the server holds, or null while unloaded or while a sort write is unsettled.
- * A refresh failure after an accepted write still counts: the server took the value.
+ * The default sort the server holds and how many folder sort resets it has accepted, or null while
+ * unloaded or while a sort write or reset is unsettled. A refresh failure after an accepted write
+ * still counts: the server took the value.
  */
 public fun AccountSettingsState.confirmedDefaultSort(): ConfirmedDefaultSort? {
     val ready = content as? AccountSettingsContent.Ready ?: return null
-    val unsettledWrite = mutation.pending == (AccountSettingsKey.DefaultSort to AccountSettingsMutation.Operation.Save)
-    return ConfirmedDefaultSort(ready.preferences.defaultSort).takeUnless { unsettledWrite }
+    val unsettledWrite = mutation.pending in UNSETTLED_SORT_WRITES
+    return ConfirmedDefaultSort(ready.preferences.defaultSort, folderSortResets).takeUnless { unsettledWrite }
 }
 
 /**
@@ -276,9 +283,13 @@ public fun AccountSettingsState.productAnalyticsAllowed(): Boolean? =
         confirmedPreferences(AccountSettingsKey.ProductAnalytics)?.productAnalyticsEnabled == true
     }
 
-// Wraps the nullable sort so "confirmed as unknown to this app" stays distinct from "not confirmed".
-@JvmInline
-public value class ConfirmedDefaultSort(public val sort: FilesSort?)
+// Wraps the nullable sort so "confirmed as unknown to this app" stays distinct from "not confirmed";
+// the accepted reset count makes a folder sort reset read as a change too.
+@ConsistentCopyVisibility
+public data class ConfirmedDefaultSort internal constructor(
+    public val sort: FilesSort?,
+    internal val folderSortResets: Long = 0,
+)
 
 // A pending or failed mutation only makes its own key unconfirmed; the other
 // preferences still reflect the last authoritative read.
@@ -295,4 +306,9 @@ internal val AccountSettingsMutation.pending: Pair<AccountSettingsKey, AccountSe
     }
 
 private const val INITIAL_REQUEST_VALUE = 1L
-private val NON_TOGGLE_KEYS = setOf(AccountSettingsKey.TunnelRoute, AccountSettingsKey.DefaultSort)
+private val NON_TOGGLE_KEYS =
+    setOf(AccountSettingsKey.TunnelRoute, AccountSettingsKey.DefaultSort, AccountSettingsKey.FolderSorts)
+private val UNSETTLED_SORT_WRITES = setOf(
+    AccountSettingsKey.DefaultSort to AccountSettingsMutation.Operation.Save,
+    AccountSettingsKey.FolderSorts to AccountSettingsMutation.Operation.Save,
+)

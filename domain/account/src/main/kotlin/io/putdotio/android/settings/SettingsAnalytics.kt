@@ -105,12 +105,14 @@ internal fun AccountSettingsChange.analyticsEvent(): AnalyticsEvent.SettingsChan
             AccountSettingsKey.ResumePlayback -> Setting.UseStartFrom to SettingValue.of(enabled)
             AccountSettingsKey.TunnelRoute,
             AccountSettingsKey.DefaultSort,
+            AccountSettingsKey.FolderSorts,
             AccountSettingsKey.Diagnostics,
             AccountSettingsKey.ProductAnalytics,
             -> null
         }
         is AccountSettingsChange.Route -> Setting.TunnelRoute to SettingValue.Changed
         is AccountSettingsChange.Sort -> Setting.SortBy to SettingValue.Changed
+        AccountSettingsChange.ResetFolderSorts -> null
     }?.let { (setting, value) -> AnalyticsEvent.SettingsChanged(setting, value) }
 
 internal fun AndroidAppConfigChange.analyticsEvent(): AnalyticsEvent.SettingsChanged? =

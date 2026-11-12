@@ -153,14 +153,14 @@ internal fun MobileTunnelRouteDialog(
     )
 }
 
-/** Turning off a switch whose loss can't be undone, such as Trash or Resume, confirms in red. */
+/** A setting change that can't be undone, such as turning off Trash or Resume, confirms in red. */
 @Composable
-internal fun MobileTurnOffDialog(
+internal fun MobileConfirmDialog(
     @StringRes title: Int,
     @StringRes message: Int,
+    @StringRes confirm: Int,
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
-    @StringRes confirm: Int = R.string.mobile_settings_turn_off,
     confirmTag: String? = null,
 ) {
     AlertDialog(
