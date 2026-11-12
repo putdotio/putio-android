@@ -10,8 +10,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -56,6 +58,8 @@ internal fun MobileAccountListDetail(
     list: @Composable (open: MobileAccountPage?) -> Unit,
     page: @Composable () -> Unit,
 ) {
+    val currentPage by rememberUpdatedState(page)
+    val movablePage = remember { movableContentOf { currentPage() } }
     when {
         panes != null -> MobileFilesListDetail(
             topBar = panes.listTopBar,
@@ -66,13 +70,13 @@ internal fun MobileAccountListDetail(
                 } else {
                     Column(Modifier.fillMaxSize().testTag(MOBILE_ACCOUNT_PAGE_PANE_TAG)) {
                         panes.pageTopBar(open)
-                        Box(Modifier.weight(1f)) { page() }
+                        Box(Modifier.weight(1f)) { movablePage() }
                     }
                 }
             },
         )
         open == null -> list(null)
-        else -> page()
+        else -> movablePage()
     }
 }
 
