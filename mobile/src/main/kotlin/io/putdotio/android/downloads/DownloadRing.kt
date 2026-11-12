@@ -22,6 +22,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
@@ -51,7 +52,6 @@ internal fun DownloadRing(status: DownloadStatus, action: DownloadRingAction, on
             DownloadRingAction.Cancel -> R.string.mobile_downloads_ring_cancel
         },
     )
-    val track = MaterialTheme.colorScheme.surfaceContainerHighest
     val glyph = MaterialTheme.colorScheme.onSurface
     MobileTooltip(label) {
         IconButton(
@@ -59,12 +59,7 @@ internal fun DownloadRing(status: DownloadStatus, action: DownloadRingAction, on
             modifier = Modifier.semantics { contentDescription = label }.testTag(MOBILE_DOWNLOADS_RING_TAG),
         ) {
             Box(Modifier.size(RING_BOX), contentAlignment = Alignment.Center) {
-                when (status) {
-                    is DownloadStatus.Downloading -> RingProgress(status.percent, PutioDesignTokens.yellowSolid, track)
-                    is DownloadStatus.Paused ->
-                        RingProgress(status.percent ?: 0f, MaterialTheme.colorScheme.onSurfaceVariant, track)
-                    else -> Canvas(Modifier.size(RING_BOX)) { drawDashedTrack(track) }
-                }
+                DownloadRingTrack(status, RING_BOX)
                 Canvas(Modifier.size(RING_BOX)) {
                     when (action) {
                         DownloadRingAction.Pause -> drawPauseBars(glyph)
@@ -77,15 +72,29 @@ internal fun DownloadRing(status: DownloadStatus, action: DownloadRingAction, on
     }
 }
 
-/** Material's indicator, drawn on the ring's 26dp stroke circle; no percentage yet spins. */
 @Composable
-private fun RingProgress(percent: Float?, color: Color, track: Color) {
-    val modifier = Modifier.size(RING_DIAMETER + RING_STROKE)
+internal fun DownloadRingTrack(status: DownloadStatus, size: Dp, modifier: Modifier = Modifier) {
+    val track = MaterialTheme.colorScheme.surfaceContainerHighest
+    Box(modifier.size(size), contentAlignment = Alignment.Center) {
+        when (status) {
+            is DownloadStatus.Downloading -> RingProgress(status.percent, PutioDesignTokens.yellowSolid, track, size)
+            is DownloadStatus.Paused ->
+                RingProgress(status.percent ?: 0f, MaterialTheme.colorScheme.onSurfaceVariant, track, size)
+            else -> Canvas(Modifier.size(size)) { drawDashedTrack(track) }
+        }
+    }
+}
+
+/** Material's indicator, drawn on the ring's stroke circle; no percentage yet spins. */
+@Composable
+private fun RingProgress(percent: Float?, color: Color, track: Color, box: Dp) {
+    val stroke = box * (STROKE_UNITS / RING_UNITS)
+    val modifier = Modifier.size(box * ((RING_RADIUS_UNITS * 2 + STROKE_UNITS) / RING_UNITS))
     if (percent == null) {
         CircularProgressIndicator(
             modifier = modifier,
             color = color,
-            strokeWidth = RING_STROKE,
+            strokeWidth = stroke,
             trackColor = track,
             strokeCap = StrokeCap.Round,
         )
@@ -94,7 +103,7 @@ private fun RingProgress(percent: Float?, color: Color, track: Color) {
             progress = { (percent / PERCENT).coerceIn(0f, 1f) },
             modifier = modifier,
             color = color,
-            strokeWidth = RING_STROKE,
+            strokeWidth = stroke,
             trackColor = track,
             strokeCap = StrokeCap.Round,
             gapSize = 0.dp,
@@ -147,8 +156,6 @@ private fun DrawScope.drawStopSquare(color: Color) {
 }
 
 private val RING_BOX = 36.dp
-private val RING_DIAMETER = 26.dp
-private val RING_STROKE = 3.dp
 private const val PERCENT = 100f
 private const val RING_UNITS = 36f
 private const val RING_RADIUS_UNITS = 13f

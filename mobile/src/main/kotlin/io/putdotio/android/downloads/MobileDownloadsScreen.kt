@@ -2,6 +2,7 @@ package io.putdotio.android.downloads
 
 import android.content.Context
 import androidx.activity.compose.BackHandler
+import androidx.annotation.StringRes
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
@@ -378,13 +379,7 @@ private fun downloadMeta(entry: DownloadEntry, state: DownloadsState, removing: 
                 }
             }
             is DownloadStatus.Paused -> {
-                append(resources.getString(
-                    when (status.reason) {
-                        DownloadPauseReason.NETWORK -> R.string.mobile_files_download_waiting
-                        DownloadPauseReason.STORAGE -> R.string.mobile_files_download_waiting_storage
-                        DownloadPauseReason.USER -> R.string.mobile_downloads_meta_paused
-                    },
-                ))
+                append(resources.getString(status.reason.label))
                 append(SEPARATOR)
                 parts.progress(this, status.bytesDownloaded, status.contentLength, status.percent)
             }
@@ -617,3 +612,10 @@ private const val SEPARATOR = " · "
 private const val VALUE_ONE = "\u0001"
 private const val VALUE_TWO = "\u0002"
 private val FILE_ICON_SIZE = 26.dp
+
+internal val DownloadPauseReason.label: Int
+    @StringRes get() = when (this) {
+        DownloadPauseReason.NETWORK -> R.string.mobile_files_download_waiting
+        DownloadPauseReason.STORAGE -> R.string.mobile_files_download_waiting_storage
+        DownloadPauseReason.USER -> R.string.mobile_downloads_meta_paused
+    }
