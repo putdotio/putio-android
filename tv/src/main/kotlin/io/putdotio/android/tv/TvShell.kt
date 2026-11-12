@@ -100,9 +100,7 @@ internal fun TvShell(
     val paneFocus = remember { FocusRequester() }
     val paneStates = rememberSaveableStateHolder()
     val panes = TvShellPanes(homePane, filesPane, searchPane, historyPane, accountPane)
-    val tabs = TvDestination.entries.filter {
-        (showHome || it != TvDestination.Home) && (showHistory || it != TvDestination.History)
-    }
+    val tabs = shownTabs(showHome, showHistory)
 
     // Registered before any pane composes, so each pane's own Back handlers take precedence.
     BackHandler(enabled = !tabBarHasFocus) {
@@ -121,15 +119,14 @@ internal fun TvShell(
             onDestinationRequestHandled()
         }
     }
-    val destinationHidden = destination !in tabs
-    LaunchedEffect(destinationHidden) {
-        if (destinationHidden) {
-            val tabWasFocused = tabsHaveFocus
-            val paneWasFocused = !tabBarHasFocus
-            destination = TvDestination.Files
-            if (tabWasFocused) tabFocus.getValue(TvDestination.Files).requestFocus()
-            if (paneWasFocused) focusPaneOf = TvDestination.Files
-        }
+    TvHiddenTabEffect(
+        hidden = destination !in tabs,
+        tabsFocused = { tabsHaveFocus },
+        paneFocused = { !tabBarHasFocus },
+        filesTab = tabFocus.getValue(TvDestination.Files),
+    ) { focusPane ->
+        destination = TvDestination.Files
+        if (focusPane) focusPaneOf = TvDestination.Files
     }
     LaunchedEffect(destination) { ProductAnalytics.capture(AnalyticsEvent.ScreenViewed(destination.analyticsScreen)) }
 
@@ -195,6 +192,28 @@ private fun TvShellNotices(notice: InactiveAccountNotice?, offline: Boolean) {
 }
 
 private fun paneGap(noticeShown: Boolean) = if (noticeShown) NOTICE_PANE_GAP else TAB_BAR_GAP
+
+private fun shownTabs(showHome: Boolean, showHistory: Boolean): List<TvDestination> =
+    TvDestination.entries.filter {
+        (showHome || it != TvDestination.Home) && (showHistory || it != TvDestination.History)
+    }
+
+@Composable
+private fun TvHiddenTabEffect(
+    hidden: Boolean,
+    tabsFocused: () -> Boolean,
+    paneFocused: () -> Boolean,
+    filesTab: FocusRequester,
+    showFiles: (focusPane: Boolean) -> Unit,
+) {
+    LaunchedEffect(hidden) {
+        if (hidden) {
+            val tabWasFocused = tabsFocused()
+            showFiles(paneFocused())
+            if (tabWasFocused) filesTab.requestFocus()
+        }
+    }
+}
 
 private fun TvDestination.entryFocus(
     focusHomePane: Boolean,

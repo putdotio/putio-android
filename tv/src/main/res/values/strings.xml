@@ -272,9 +272,6 @@
     <string name="tv_history_detail_saved_to">Saved to</string>
     <string name="tv_history_empty">No activity yet.</string>
     <string name="tv_history_empty_message">Completed transfers and shared files will appear here.</string>
-    <string name="tv_history_off_title">History is off.</string>
-    <string name="tv_history_off_message">Turn on %1$s in %2$s to see what happens to your files.</string>
-    <string name="tv_history_open_account">Open Account</string>
     <string name="tv_history_error_title">Couldn’t load your history.</string>
     <string name="tv_history_loading_more">Loading more history</string>
     <string name="tv_history_paging_error">Couldn’t load more history.</string>
