@@ -200,7 +200,7 @@ class TvTrashScreenTest {
     }
 
     @Test
-    fun aRefreshKeepsTheFocusedRowOrFallsBackToTheFirstRow() {
+    fun aRefreshKeepsTheFocusedRowOrMovesToTheRowThatFollowedIt() {
         val third = item.copy(id = FilesItemId(11), name = "third.txt")
         var state by mutableStateOf(TrashState(content = loaded.copy(items = listOf(item, folder, third), total = 3)))
         show { state }
@@ -212,7 +212,7 @@ class TvTrashScreenTest {
         compose.onNode(oldDownloads).assertIsFocused()
 
         compose.runOnIdle { state = TrashState(content = loaded.copy(items = listOf(third, item), total = 2)) }
-        compose.onNode(hasText("third.txt") and hasClickAction()).assertIsFocused()
+        compose.onNode(row).assertIsFocused()
     }
 
     @Test
