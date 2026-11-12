@@ -368,6 +368,7 @@ class MobileAuthControllerSessionTest {
         assertNull(fixture.tokenStore.token)
         assertNull(fixture.gateway.configuredToken)
         assertEquals(MobileAuthState.SignedOut(), fixture.controller.state.value)
+        fixture.revocationScope.advanceUntilIdle()
         assertEquals(listOf(TOKEN), fixture.revoker.attempts)
         assertNull(fixture.revocationStore.token)
     }
@@ -448,20 +449,98 @@ class MobileAuthControllerSessionTest {
         fixture.tokenStore.failRead = true
 
         fixture.controller.logout()
+        fixture.tokenStore.failRead = false
+        fixture.revocationScope.advanceUntilIdle()
 
         assertEquals(listOf(TOKEN), fixture.revoker.attempts)
         assertNull(fixture.revocationStore.token)
     }
 
     @Test
-    fun `app start keeps a restored session whose token is still recorded for revocation`() = runBlocking {
-        val fixture = AuthControllerFixture(storedToken = TOKEN, revocations = RevocationScript(pending = TOKEN))
+    fun `app start clears a stored session whose token a sign-out recorded for revocation`() = runBlocking {
+        val fixture = AuthControllerFixture(
+            storedToken = TOKEN,
+            revocations = RevocationScript(pending = TOKEN, results = listOf(TokenRevocationResult.UNAVAILABLE)),
+        )
 
         fixture.controller.restoreSession()
 
-        assertEquals(SIGNED_IN, fixture.controller.state.value)
-        assertTrue(fixture.revoker.attempts.isEmpty())
+        assertEquals(MobileAuthState.SignedOut(), fixture.controller.state.value)
+        assertNull(fixture.tokenStore.token)
+        assertFalse("validate" in fixture.gateway.calls)
+        assertEquals(TOKEN, fixture.revocationStore.token?.reveal())
+    }
+
+    @Test
+    fun `a sign-out whose clear failed never restores the session on the next launch`() = runBlocking {
+        val fixture = AuthControllerFixture(
+            storedToken = TOKEN,
+            revocations = RevocationScript(results = listOf(TokenRevocationResult.UNAVAILABLE)),
+        )
+        fixture.controller.restoreSession()
+        fixture.tokenStore.failClear = true
+        fixture.controller.logout()
+        assertEquals(TOKEN, fixture.tokenStore.token?.reveal())
+        val validations = fixture.gateway.calls.count { it == "validate" }
+
+        val nextLaunch = fixture.nextLaunch()
+        nextLaunch.restoreSession()
+
+        assertEquals(
+            MobileAuthState.SignedOut(MobileSignedOutReason.SecureStorageUnavailable),
+            nextLaunch.state.value,
+        )
+        assertEquals(validations, fixture.gateway.calls.count { it == "validate" })
+        fixture.tokenStore.failClear = false
+        assertTrue(nextLaunch.retrySecureStorage())
+        assertEquals(MobileAuthState.SignedOut(), nextLaunch.state.value)
+        assertNull(fixture.tokenStore.token)
+        assertEquals(TOKEN, fixture.revocationStore.token?.reveal())
+    }
+
+    @Test
+    fun `a sign-out whose clear failed stays signed out after put io confirms the revocation`() = runBlocking {
+        val fixture = AuthControllerFixture(storedToken = TOKEN)
+        fixture.controller.restoreSession()
+        fixture.tokenStore.failClear = true
+        fixture.controller.logout()
+        fixture.revocationScope.advanceUntilIdle()
+        assertEquals(listOf(TOKEN), fixture.revoker.attempts)
+        val validations = fixture.gateway.calls.count { it == "validate" }
+
+        val nextLaunch = fixture.nextLaunch()
+        nextLaunch.restoreSession()
+
+        assertEquals(
+            MobileAuthState.SignedOut(MobileSignedOutReason.SecureStorageUnavailable),
+            nextLaunch.state.value,
+        )
+        assertEquals(validations, fixture.gateway.calls.count { it == "validate" })
+        fixture.tokenStore.failClear = false
+        assertTrue(nextLaunch.retrySecureStorage())
+        assertEquals(MobileAuthState.SignedOut(), nextLaunch.state.value)
+        fixture.revocationScope.advanceUntilIdle()
+        assertNull(fixture.tokenStore.token)
         assertNull(fixture.revocationStore.token)
+    }
+
+    @Test
+    fun `a sign-in whose token cannot be stored still revokes the token a sign-out queued`() = runBlocking {
+        val fixture = AuthControllerFixture(
+            revocations = RevocationScript(pending = TOKEN, results = listOf(TokenRevocationResult.UNAVAILABLE)),
+        )
+        fixture.controller.restoreSession()
+        fixture.controller.beginSignIn()
+        fixture.tokenStore.failWrite = true
+
+        fixture.controller.handleOAuthCallback(VALID_CALLBACK)
+
+        assertEquals(
+            MobileAuthState.SignedOut(MobileSignedOutReason.SecureStorageUnavailable),
+            fixture.controller.state.value,
+        )
+        assertNull(fixture.tokenStore.token)
+        assertEquals(TOKEN, fixture.revocationStore.token?.reveal())
     }
 
     @Test

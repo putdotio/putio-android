@@ -460,6 +460,7 @@ class TvAuthControllerTest {
         assertNull(harness.tokenStore.stored)
         assertEquals(TvAuthState.Linking(TvLinkPhase.RequestingCode), harness.controller.state.value)
         assertEquals(listOf("set", "validate", "clear", "link"), harness.gateway.calls)
+        harness.scope.advanceUntilIdle()
         assertEquals(listOf("stored-token"), harness.revoker.attempts)
         assertNull(harness.revocationStore.token)
     }
@@ -471,9 +472,107 @@ class TvAuthControllerTest {
         harness.tokenStore.readFails = true
 
         harness.controller.logout()
+        harness.tokenStore.readFails = false
+        harness.scope.advanceUntilIdle()
 
         assertEquals(listOf("stored-token"), harness.revoker.attempts)
         assertNull(harness.revocationStore.token)
+    }
+
+    @Test
+    fun `a sign-out whose clear failed never restores the session on the next launch`() = runTest {
+        val signedOut = Harness(
+            storedToken = "stored-token",
+            revocationResults = listOf(TokenRevocationResult.UNAVAILABLE),
+        )
+        signedOut.controller.restoreSession()
+        signedOut.tokenStore.clearFails = true
+        signedOut.controller.logout()
+        assertEquals("stored-token", signedOut.tokenStore.stored?.reveal())
+
+        val nextLaunch = Harness(
+            storedToken = "stored-token",
+            tokenStore = signedOut.tokenStore,
+            pendingRevocation = signedOut.revocationStore.token?.reveal(),
+            revocationResults = listOf(TokenRevocationResult.UNAVAILABLE),
+        )
+        assertFalse(nextLaunch.controller.restoreSession())
+
+        assertEquals(
+            TvAuthState.Linking(TvLinkPhase.Stopped(TvLinkStop.StorageUnavailable)),
+            nextLaunch.controller.state.value,
+        )
+        assertFalse("validate" in nextLaunch.gateway.calls)
+
+        nextLaunch.tokenStore.clearFails = false
+        val cleared = Harness(
+            storedToken = "stored-token",
+            tokenStore = nextLaunch.tokenStore,
+            pendingRevocation = nextLaunch.revocationStore.token?.reveal(),
+            revocationResults = listOf(TokenRevocationResult.UNAVAILABLE),
+        )
+        assertFalse(cleared.controller.restoreSession())
+
+        assertEquals(TvAuthState.Linking(TvLinkPhase.RequestingCode), cleared.controller.state.value)
+        assertFalse("validate" in cleared.gateway.calls)
+        assertNull(cleared.tokenStore.stored)
+        assertEquals("stored-token", cleared.revocationStore.token?.reveal())
+    }
+
+    @Test
+    fun `a sign-out whose clear failed stays signed out after put io confirms the revocation`() = runTest {
+        val signedOut = Harness(storedToken = "stored-token")
+        signedOut.controller.restoreSession()
+        signedOut.tokenStore.clearFails = true
+        signedOut.controller.logout()
+        signedOut.scope.advanceUntilIdle()
+        assertEquals(listOf("stored-token"), signedOut.revoker.attempts)
+
+        val nextLaunch = Harness(
+            storedToken = "stored-token",
+            tokenStore = signedOut.tokenStore,
+            pendingRevocation = signedOut.revocationStore.token?.reveal(),
+        )
+        assertFalse(nextLaunch.controller.restoreSession())
+
+        assertEquals(
+            TvAuthState.Linking(TvLinkPhase.Stopped(TvLinkStop.StorageUnavailable)),
+            nextLaunch.controller.state.value,
+        )
+        assertFalse("validate" in nextLaunch.gateway.calls)
+    }
+
+    @Test
+    fun `a link whose token cannot be stored still revokes the token a sign-out queued`() = runTest {
+        val harness = Harness(
+            tokenStore = FakeTokenStore(writeFails = true),
+            pendingRevocation = "fresh-token",
+            revocationResults = listOf(TokenRevocationResult.UNAVAILABLE),
+        )
+        harness.controller.restoreSession()
+
+        harness.gateway.emit(DeviceCodeAuthState.Linked("fresh-token", accountInfo()))
+        harness.scope.advanceUntilIdle()
+
+        assertEquals(
+            TvAuthState.Linking(TvLinkPhase.Stopped(TvLinkStop.StorageUnavailable)),
+            harness.controller.state.value,
+        )
+        assertEquals("fresh-token", harness.revocationStore.token?.reveal())
+    }
+
+    @Test
+    fun `the system search provider never restores a session a sign-out failed to clear`() = runTest {
+        val harness = Harness(
+            storedToken = "stored-token",
+            pendingRevocation = "stored-token",
+            revocationResults = listOf(TokenRevocationResult.UNAVAILABLE),
+        )
+
+        assertFalse(harness.controller.restoreSession(interactive = false))
+
+        assertEquals(TvAuthState.Initializing, harness.controller.state.value)
+        assertTrue(harness.gateway.calls.isEmpty())
     }
 
     @Test
@@ -699,6 +798,7 @@ class TvAuthControllerTest {
     private class FakeTokenStore(
         private val writeFails: Boolean = false,
         var readFails: Boolean = false,
+        var clearFails: Boolean = false,
     ) : AuthTokenStore {
         var stored: AccessToken? = null
 
@@ -713,6 +813,7 @@ class TvAuthControllerTest {
         }
 
         override suspend fun clear() {
+            if (clearFails) throw AuthTokenStorageException("clear")
             stored = null
         }
     }

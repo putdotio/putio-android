@@ -351,17 +351,17 @@ internal class MobileAuthController(
     }
 
     private suspend fun persistAndValidateToken(accessToken: AccessToken, source: SessionValidationSource) {
-        try {
+        val kept = try {
             // The previous token's account must never open the shell for this one.
             if (!validatedAccounts.clear()) throw AuthTokenStorageException("clear validated account")
-            tokenStore.write(accessToken)
+            tokenRevocations.keep(accessToken) { tokenStore.write(accessToken) }
         } catch (_: AuthTokenStorageException) {
             clearConfiguredSession()
             failStorage()
             return
         }
 
-        if (!tokenRevocations.keep(accessToken)) {
+        if (!kept) {
             handleRejectedSession()
             return
         }
@@ -410,11 +410,18 @@ internal class MobileAuthController(
     private suspend fun readStoredToken(): AccessToken? =
         try {
             val accessToken = tokenStore.read()
-            if (accessToken == null) {
-                clearConfiguredSession()
-                mutableState.value = oauthConfiguration.initialSignedOutState()
+            when {
+                accessToken == null -> {
+                    clearConfiguredSession()
+                    mutableState.value = oauthConfiguration.initialSignedOutState()
+                    null
+                }
+                tokenRevocations.isSignedOut(accessToken) -> {
+                    withContext(NonCancellable) { finishClear(clearLocalSession(), reason = null) }
+                    null
+                }
+                else -> accessToken
             }
-            accessToken
         } catch (_: AuthTokenStorageException) {
             clearConfiguredSession()
             failStorage(storedSessionUnread = true)

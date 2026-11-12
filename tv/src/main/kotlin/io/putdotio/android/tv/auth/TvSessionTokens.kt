@@ -72,5 +72,7 @@ internal sealed interface StoredToken {
 
     data object Absent : StoredToken
 
+    data object SignedOut : StoredToken
+
     data object Unreadable : StoredToken
 }

@@ -1,6 +1,7 @@
 package io.putdotio.android.tv.auth
 
 import io.putdotio.android.auth.AccessToken
+import io.putdotio.android.auth.AuthTokenStorageException
 import io.putdotio.android.auth.AuthTokenStore
 import io.putdotio.android.auth.TokenRevocations
 import io.putdotio.sdk.auth.DeviceCodeAuthState
@@ -125,12 +126,16 @@ internal class TvAuthController(
         if (mutableState.value != TvAuthState.Initializing) {
             return@withLock mutableState.value is TvAuthState.SignedIn
         }
-        val quietToken = if (interactive) null else tokens.read() as? StoredToken.Present ?: return@withLock false
+        val quietToken = if (interactive) {
+            null
+        } else {
+            tokens.readSession(tokenRevocations) as? StoredToken.Present ?: return@withLock false
+        }
 
         mutableState.value = TvAuthState.RestoringSession
         tokenRevocations.resume()
         try {
-            val accessToken = when (val stored = quietToken ?: tokens.read()) {
+            val accessToken = when (val stored = quietToken ?: tokens.readSession(tokenRevocations)) {
                 is StoredToken.Present -> {
                     // Unread: a Keystore session supersedes it. Deleting here retries a
                     // cleanup that failed after import.
@@ -140,6 +145,10 @@ internal class TvAuthController(
                 StoredToken.Absent -> {
                     importLegacySession(TvSessionValidationSource.RESTORE)
                     return@withLock mutableState.value is TvAuthState.SignedIn
+                }
+                StoredToken.SignedOut -> {
+                    linking.restart(sessionExpired = false)
+                    return@withLock false
                 }
                 StoredToken.Unreadable -> {
                     linking.stop(TvLinkStop.SessionUnreadable, sessionExpired = false)
@@ -181,9 +190,13 @@ internal class TvAuthController(
     suspend fun retryValidation(): Boolean = operationMutex.withLock {
         val previous = mutableState.value.takeIf { it.retriesStoredSession() } ?: return@withLock false
         try {
-            val accessToken = when (val stored = tokens.read()) {
+            val accessToken = when (val stored = tokens.readSession(tokenRevocations)) {
                 is StoredToken.Present -> stored.accessToken
                 StoredToken.Absent -> return@withLock importLegacySession(TvSessionValidationSource.RETRY)
+                StoredToken.SignedOut -> {
+                    linking.restart(sessionExpired = false)
+                    return@withLock false
+                }
                 StoredToken.Unreadable -> {
                     linking.stop(TvLinkStop.SessionUnreadable, sessionExpired = false)
                     return@withLock false
@@ -251,14 +264,17 @@ internal class TvAuthController(
         sessionExpired: Boolean,
     ) {
         val accessToken = AccessToken.parse(linked.accessToken)
-        when {
-            accessToken == null -> linking.stop(TvLinkStop.Failed(TvLinkFailure.SERVER), sessionExpired)
-            !tokens.write(accessToken) -> linking.stop(TvLinkStop.StorageUnavailable, sessionExpired)
-            !tokenRevocations.keep(accessToken) -> linking.restart(sessionExpired = true)
-            else -> {
+        if (accessToken == null) {
+            linking.stop(TvLinkStop.Failed(TvLinkFailure.SERVER), sessionExpired)
+            return
+        }
+        when (tokenRevocations.keepStored(accessToken, tokens)) {
+            false -> linking.restart(sessionExpired = true)
+            true -> {
                 tokens.configure(accessToken)
                 signIn(linked.account.toTvAccount())
             }
+            null -> linking.stop(TvLinkStop.StorageUnavailable, sessionExpired)
         }
     }
 
@@ -308,17 +324,20 @@ internal class TvAuthController(
                     linking.start(sessionExpired = false)
                 }
                 is TvSessionValidation.Valid -> {
-                    if (tokens.write(legacyToken)) {
-                        legacySession.delete()
-                        // Like a linked token: one awaiting revocation is kept, one already revoked is not.
-                        if (tokenRevocations.keep(legacyToken)) {
-                            signIn(result.account)
-                        } else {
+                    // Like a linked token: one awaiting revocation is kept, one already revoked is not.
+                    when (tokenRevocations.keepStored(legacyToken, tokens)) {
+                        false -> {
+                            legacySession.delete()
                             linking.restart(sessionExpired = true)
                         }
-                    } else {
-                        tokens.clearConfigured()
-                        linking.stop(TvLinkStop.StorageUnavailable, sessionExpired = false)
+                        true -> {
+                            legacySession.delete()
+                            signIn(result.account)
+                        }
+                        null -> {
+                            tokens.clearConfigured()
+                            linking.stop(TvLinkStop.StorageUnavailable, sessionExpired = false)
+                        }
                     }
                 }
             }
@@ -350,3 +369,22 @@ private suspend fun TvSessionTokens.signOutQuietly(
     state.value = TvAuthState.Initializing
     signOuts.update { it + 1 }
 }
+
+private suspend fun TvSessionTokens.readSession(revocations: TokenRevocations): StoredToken {
+    val stored = read()
+    if (stored !is StoredToken.Present) return stored
+    return try {
+        if (revocations.isSignedOut(stored.accessToken)) StoredToken.SignedOut else stored
+    } catch (_: AuthTokenStorageException) {
+        StoredToken.Unreadable
+    }
+}
+
+private suspend fun TokenRevocations.keepStored(accessToken: AccessToken, tokens: TvSessionTokens): Boolean? =
+    try {
+        keep(accessToken) {
+            if (!tokens.write(accessToken)) throw AuthTokenStorageException("write session")
+        }
+    } catch (_: AuthTokenStorageException) {
+        null
+    }
