@@ -67,10 +67,9 @@ private fun TrashActionOutcome.verifyGone(
 }
 
 private fun TrashActionOutcome.failedCount(page: TrashContent.Loaded): Int? {
-    val items = (action as? TrashAction.DeleteSelected)?.items ?: return null
-    if (page.nextCursor != null) return null
+    val items = (action as? TrashAction.DeleteSelected)?.items?.takeIf { page.nextCursor == null }
     val listed = page.items.mapTo(hashSetOf(), TrashItem::id)
-    return items.count { it.id in listed }
+    return items?.count { it.id in listed }
 }
 
 private val TrashAction.isBulkRestore: Boolean
