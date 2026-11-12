@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
@@ -79,7 +80,6 @@ internal fun TvFilesActionsMenu(
     }
     if (confirmingPermanentDelete && folder.permanentDeleteConfirmable(trashEnabled)) {
         TvFilesDeleteDialog(
-            item = item,
             onConfirm = { delete(FilesDeleteMode.PERMANENT) },
             onDismiss = onClose,
         )
@@ -251,13 +251,12 @@ private fun RowScope.TvFilesActionTile(
 
 @Composable
 internal fun TvFilesDeleteDialog(
-    item: FilesItem,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     TvConfirmDialog(
-        title = stringResource(R.string.tv_files_delete_title),
-        message = stringResource(R.string.tv_files_delete_message, item.name),
+        title = pluralStringResource(R.plurals.tv_files_delete_title, 1, 1),
+        message = stringResource(R.string.tv_files_delete_message),
         confirmLabel = stringResource(R.string.tv_files_delete_confirm),
         onConfirm = onConfirm,
         onDismiss = onDismiss,

@@ -218,11 +218,11 @@ class TvFilesRowActionsTest {
 
         compose.onNodeWithContentDescription("notes.txt").assertIsFocused().performKeyInput { pressKey(Key.Menu) }
         compose.onNode(hasText("Delete permanently") and isFocused()).performKeyInput { pressCenter() }
-        compose.onNodeWithText("Delete permanently?").assertIsDisplayed()
-        compose.onNodeWithText("Trash is off for this account, so notes.txt can't be restored.").assertIsDisplayed()
+        compose.onNodeWithText("Delete 1 item permanently?").assertIsDisplayed()
+        compose.onNodeWithText("Trash is off for this account, so this can’t be undone.").assertIsDisplayed()
         compose.runOnIdle { assertEquals(emptyList<FilesBrowserEvent>(), events) }
         compose.onNodeWithText("Cancel").assertIsFocused().performKeyInput { pressCenter() }
-        compose.onAllNodesWithText("Delete permanently?").assertCountEquals(0)
+        compose.onAllNodesWithText("Delete 1 item permanently?").assertCountEquals(0)
         compose.runOnIdle { assertEquals(emptyList<FilesBrowserEvent>(), events) }
 
         compose.onNodeWithContentDescription("notes.txt").assertIsFocused().performKeyInput { pressKey(Key.Menu) }
@@ -237,7 +237,7 @@ class TvFilesRowActionsTest {
                 events,
             )
         }
-        compose.onAllNodesWithText("Delete permanently?").assertCountEquals(0)
+        compose.onAllNodesWithText("Delete 1 item permanently?").assertCountEquals(0)
     }
 
     @Test
@@ -457,10 +457,10 @@ class TvFilesRowActionsTest {
         compose.onNode(moveToTrash).performKeyInput { pressCenter() }
         compose.mainClock.autoAdvance = true
         compose.runOnIdle { assertEquals(emptyList<FilesBrowserEvent>(), events) }
-        compose.onAllNodesWithText("Delete permanently?").assertCountEquals(0)
+        compose.onAllNodesWithText("Delete 1 item permanently?").assertCountEquals(0)
 
         compose.onNode(deletePermanently).assertIsFocused().performKeyInput { pressCenter() }
-        compose.onNodeWithText("Delete permanently?").assertIsDisplayed()
+        compose.onNodeWithText("Delete 1 item permanently?").assertIsDisplayed()
         compose.onNodeWithText("Cancel").assertIsFocused().performKeyInput { pressKey(Key.DirectionRight) }
         compose.onNodeWithText("Delete").assertIsFocused().performKeyInput { pressCenter() }
         compose.runOnIdle {
@@ -489,9 +489,9 @@ class TvFilesRowActionsTest {
         compose.onNode(hasText("Delete permanently") and isFocused()).performKeyInput { pressCenter() }
         compose.onAllNodesWithText("Mark as watched").assertCountEquals(0)
         // The setting flipping under an open confirmation withdraws it rather than rewording it.
-        compose.onNodeWithText("Delete permanently?").assertIsDisplayed()
+        compose.onNodeWithText("Delete 1 item permanently?").assertIsDisplayed()
         compose.runOnIdle { trash = true }
-        compose.onAllNodesWithText("Delete permanently?").assertCountEquals(0)
+        compose.onAllNodesWithText("Delete 1 item permanently?").assertCountEquals(0)
         compose.onNode(hasText("Move to trash") and isFocused()).assertExists()
     }
 
