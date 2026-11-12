@@ -148,8 +148,8 @@ class TvShellTest {
                 onSignOut = {},
             )
         }
-        compose.onNodeWithText("Your account has been deactivated.").assertIsDisplayed()
-        compose.onNodeWithText("Your files are deleted in 14 days unless you renew.")
+        compose.onNodeWithText("Your account has been deactivated 😢").assertIsDisplayed()
+        compose.onNodeWithText("Your files are still here, but they are scheduled to be deleted in 14 days.")
             .assertIsDisplayed()
         compose.onAllNodesWithText("app.put.io", substring = true).assertCountEquals(0)
         compose.onNodeWithText("Keep a good thing going!").assertDoesNotExist()
@@ -163,13 +163,31 @@ class TvShellTest {
             pressKey(Key.DirectionDown)
         }
         compose.onNodeWithText("Sign out").assertIsFocused()
-        compose.onNodeWithText("Your account has been deactivated.").assertIsDisplayed()
+        compose.onNodeWithText("Your account has been deactivated 😢").assertIsDisplayed()
 
         compose.pressBack()
         compose.onTab("Account").assertIsFocused()
         compose.pressBack()
         compose.onTab("Home").assertIsFocused().assertIsSelected()
-        compose.onNodeWithText("Your account has been deactivated.").assertIsDisplayed()
+        compose.onNodeWithText("Your account has been deactivated 😢").assertIsDisplayed()
+    }
+
+    @Test
+    fun familyMemberIsToldThePlanExpiredWithoutADeletionCountdown() {
+        compose.setTvContent {
+            TvShell(
+                account = TvAccount(
+                    userId = 1,
+                    username = "user",
+                    email = "user@example.com",
+                    inactiveNotice = InactiveAccountNotice.FamilyPlanExpired,
+                ),
+                onSignOut = {},
+            )
+        }
+        compose.onNodeWithText("Your family plan is no longer active.").assertIsDisplayed()
+        compose.onNodeWithText("Your account has been deactivated", substring = true).assertDoesNotExist()
+        compose.onNodeWithText("to be deleted in", substring = true).assertDoesNotExist()
     }
 
     @Test

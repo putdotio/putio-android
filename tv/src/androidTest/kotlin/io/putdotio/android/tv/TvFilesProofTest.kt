@@ -177,6 +177,24 @@ class TvFilesProofTest {
     }
 
     @Test
+    fun familyPlanExpired() {
+        mount(
+            listings(),
+            account = TvAccount(
+                userId = 1,
+                username = "proof",
+                email = "proof@example.invalid",
+                historyEnabled = true,
+                inactiveNotice = InactiveAccountNotice.FamilyPlanExpired,
+            ),
+        )
+        compose.waitUntil(5_000) { isFocused("Open $BBB") }
+        focusBlueLights()
+        waitForText("English, English · SDH")
+        screenshot("androidtv-st-s10-inactive-family")
+    }
+
+    @Test
     fun fileActions() {
         mount()
         focusBbbVideo()
