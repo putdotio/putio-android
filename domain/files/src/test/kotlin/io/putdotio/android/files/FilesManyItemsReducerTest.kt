@@ -157,7 +157,7 @@ class FilesManyItemsReducerTest {
             PutioResult.Success(first.copy(parentId = other.id)), PutioResult.Success(second),
         )), second, other)
 
-        val retry = checkNotNull(settled.current.moveOutcome).retry(settled.current)
+        val retry = checkNotNull(settled.current.moveOutcome).retry(settled)
         assertEquals(FilesBrowserEvent.Move(FilesFolder.Root.id, listOf(second.id), other.id), retry)
         val effect = FilesBrowserReducer.reduce(settled, checkNotNull(retry)).effect as FilesBrowserEffect.Move
         assertEquals(listOf(second.id), effect.itemIds)

@@ -53,7 +53,8 @@ internal fun failedListedIds(
     remainingIds: Set<FilesItemId>,
     folder: FilesFolderState,
 ): List<FilesItemId>? {
-    if (itemIds.size < 2 || folder.operation != FilesFolderOperation.Idle) return null
-    val listed = folder.content.items().mapTo(mutableSetOf()) { it.id }
-    return itemIds.filter { it in remainingIds && it in listed }.takeIf { it.isNotEmpty() }
+    val retryable = itemIds.size >= 2 && remainingIds.isNotEmpty() &&
+        folder.operation == FilesFolderOperation.Idle &&
+        folder.content.items().mapTo(mutableSetOf()) { it.id }.containsAll(remainingIds)
+    return if (retryable) itemIds.filter { it in remainingIds } else null
 }

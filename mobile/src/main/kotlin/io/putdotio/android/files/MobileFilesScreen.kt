@@ -529,13 +529,38 @@ private fun MobileFilesFolderStatus(
             if (outcome.status == FilesDeleteStatus.TOO_LARGE_FOR_TRASH) {
                 MobileFilesTrashLimitStatus(outcome, state.current, onEvent)
             } else {
-                val retry = outcome.retry(state.current, confirmedDeleteMode(confirmedTrashEnabled))
-                MobileFilesDeleteStatus(outcome, retry?.let { event -> { onEvent(event) } })
+                MobileFilesDeleteRetryStatus(
+                    outcome, outcome.retry(state.current, confirmedDeleteMode(confirmedTrashEnabled)), onEvent,
+                )
             }
         }
         state.current.moveOutcome?.let { outcome ->
-            MobileFilesMoveStatus(outcome, outcome.retry(state.current)?.let { event -> { onEvent(event) } })
+            MobileFilesMoveStatus(outcome, outcome.retry(state)?.let { event -> { onEvent(event) } })
         }
+    }
+}
+
+/** A permanent retry asks again, as every permanent delete does. */
+@Composable
+private fun MobileFilesDeleteRetryStatus(
+    outcome: FilesDeleteOutcome,
+    retry: FilesBrowserEvent.Delete?,
+    onEvent: (FilesBrowserEvent) -> Unit,
+) {
+    var confirming by rememberSaveable(outcome) { mutableStateOf(false) }
+    MobileFilesDeleteStatus(outcome, retry?.let { event ->
+        { if (event.mode == FilesDeleteMode.PERMANENT) confirming = true else onEvent(event) }
+    })
+    if (confirming && retry != null) {
+        MobileFilesDeleteConfirmation(
+            enabled = true,
+            onDismiss = { confirming = false },
+            onConfirm = {
+                confirming = false
+                onEvent(retry)
+            },
+            count = retry.itemIds.size,
+        )
     }
 }
 
