@@ -313,7 +313,7 @@
     <string name="mobile_welcome_caption_failed">That didn’t work.</string>
     <string name="mobile_welcome_title">Welcome!</string>
     <string name="mobile_welcome_back_title">Welcome back!</string>
-    <string name="mobile_welcome_lede">Your put.io files, streaming and offline on this phone.</string>
+    <string name="mobile_welcome_lede">Your put.io files, streaming and offline on this device.</string>
     <string name="mobile_welcome_expired">Your session expired. Sign in again to continue.</string>
     <string name="mobile_welcome_failed_title">Sign-in didn’t finish</string>
     <string name="mobile_welcome_failed">Nothing was saved, so you can try again.</string>
@@ -487,7 +487,7 @@
     <string name="mobile_downloads_storage">%1$s on this device</string>
     <string name="mobile_downloads_free">%1$s free</string>
     <string name="mobile_downloads_empty_title">Nothing downloaded yet</string>
-    <string name="mobile_downloads_empty_message">Open a video or audio file’s actions and choose Download to this device.</string>
+    <string name="mobile_downloads_empty_message">Open a video or audio file’s actions and choose Download.</string>
     <string name="mobile_downloads_actions_named">Download actions for %1$s</string>
     <string name="mobile_downloads_channel_name">Downloads</string>
     <string name="mobile_files_share">Share file</string>

@@ -82,6 +82,14 @@ class MobileDownloadsScreenTest {
     }
 
     @Test
+    fun emptyDownloadsNamesTheDownloadFileAction() {
+        compose.setContent { PutioTheme { DownloadsTab(DownloadsState(), { true }) } }
+
+        compose.onNodeWithText("Nothing downloaded yet").assertIsDisplayed()
+        compose.onNodeWithText("Open a video or audio file’s actions and choose Download.").assertIsDisplayed()
+    }
+
+    @Test
     fun downloadingListsRowsInStartOrderWithProgressPlaceAndTheLimit() {
         val running = FilesItemId(11L)
         val state = DownloadsState(concurrency = 2, speeds = mapOf(running to 12_000_000L)).withEntries(listOf(

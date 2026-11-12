@@ -53,7 +53,7 @@ class MobileWelcomeScreenTest {
 
         compose.onNodeWithContentDescription("put.io").assertIsDisplayed()
         compose.onNodeWithText("Welcome!").assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading))
-        compose.onNodeWithText("Your put.io files, streaming and offline on this phone.").assertIsDisplayed()
+        compose.onNodeWithText("Your put.io files, streaming and offline on this device.").assertIsDisplayed()
         compose.onNodeWithText("Sign in").performScrollTo().performClick()
         assertEquals(1, actions)
 
