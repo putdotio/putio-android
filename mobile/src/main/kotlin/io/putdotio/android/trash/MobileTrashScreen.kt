@@ -189,7 +189,7 @@ private fun LazyListScope.loadedTrashItems(
 ) {
     val empty = content.items.isEmpty() && content.nextCursor == null
     item(key = "summary") {
-        if (!empty) MobileTrashSummary(content)
+        if (!empty && rows.checked == null) MobileTrashSummary(content)
     }
     content.refreshFailure?.let { failure ->
         item(key = "refresh-error") { TrashReadFailure(failure) { onEvent(TrashEvent.Refresh) } }
