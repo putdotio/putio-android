@@ -7,10 +7,14 @@ import io.putdotio.android.account.MOBILE_OPEN_SOURCE_LICENSES_ROUTE
 import io.putdotio.android.account.MOBILE_PRIVACY_CONTROLS_ROUTE
 import io.putdotio.android.design.R as DesignR
 import io.putdotio.android.downloads.MOBILE_DOWNLOADS_ROUTE
+import io.putdotio.android.history.HistoryContent
+import io.putdotio.android.history.HistoryState
+import io.putdotio.android.settings.AccountSettingsState
+import io.putdotio.android.settings.confirmedHistoryEnabled
 import io.putdotio.android.sharing.MOBILE_PUBLIC_LINKS_ROUTE
 import io.putdotio.android.trash.MOBILE_TRASH_ROUTE
 
-/** The five tabs, in the order DESIGN.md's Layout fixes. Each keeps its own back stack. */
+/** The tabs, in the order DESIGN.md's Layout fixes. Each keeps its own back stack. */
 internal enum class MobileDestination(
     val route: String,
     @StringRes val labelRes: Int,
@@ -65,5 +69,11 @@ internal enum class MobileDestination(
             if (route in ACCOUNT_SUBPAGES) Account else entries.firstOrNull { it.route == route }
 
         fun fromRoute(route: String?): MobileDestination = ofRoute(route) ?: start
+
+        fun shown(historyShown: Boolean): List<MobileDestination> =
+            entries.filter { it != History || historyShown }
     }
 }
+
+internal fun historyTabShown(settings: AccountSettingsState, history: HistoryState): Boolean =
+    settings.confirmedHistoryEnabled() ?: (history.content != HistoryContent.Disabled)

@@ -3,6 +3,8 @@ package io.putdotio.android.tv
 import android.content.Context
 import android.graphics.Bitmap
 import android.view.KeyEvent
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
@@ -80,15 +82,12 @@ class TvHistoryProofTest {
     }
 
     @Test
-    fun historyOffOpensAccount() {
+    fun historyOffHidesTheTab() {
         mount(FakeHistory(events()), historyEnabled = false)
-        compose.openTvTab("History")
-        waitFor(hasText("Open Account") and isFocused())
-        screenshot("androidtv-st-s5-history-off")
-
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
-        waitFor(hasText("Keep account history"))
-        screenshot("tv-history-off-opened-account")
+        compose.focusTvTab("Files")
+        val historyTab = hasText("History") and SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab)
+        assertEquals(0, compose.onAllNodes(historyTab).fetchSemanticsNodes().size)
+        screenshot("tv-history-off-tabs")
     }
 
     @Test

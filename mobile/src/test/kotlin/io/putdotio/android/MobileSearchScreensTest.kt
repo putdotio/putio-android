@@ -429,13 +429,6 @@ class MobileSearchScreensTest {
         compose.onNodeWithText("Transfer completed · ", substring = true).assertIsDisplayed()
     }
 
-    @Test
-    fun disabledHistoryPointsAtTheAccountToggle() {
-        setHistoryScreen(history = historyState(HistoryContent.Disabled))
-
-        compose.onNodeWithText("Turn on “Keep account history” in Account to see activity here.").assertIsDisplayed()
-    }
-
     private fun setHistoryScreen(
         history: HistoryState,
         actions: MobileSearchHistoryActions = MobileSearchHistoryActions(),

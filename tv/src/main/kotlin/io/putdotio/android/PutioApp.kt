@@ -35,6 +35,7 @@ import io.putdotio.android.files.SdkFilesSubtitleLanguages
 import io.putdotio.android.files.SdkFilesWatchedRepository
 import io.putdotio.android.files.authoritativeSessionFailure
 import io.putdotio.android.files.canStartOperation
+import io.putdotio.android.history.HistoryContent
 import io.putdotio.android.history.HistoryEvent
 import io.putdotio.android.history.HistoryState
 import io.putdotio.android.history.SdkHistoryRepository
@@ -381,6 +382,7 @@ internal fun TvSessionShell(
             account = account,
             onSignOut = onSignOut,
             showHome = showHome,
+            showHistory = historyTabShown(settingsState, historyState),
             focusHomePane = homeReturn != null,
             offline = !online,
             trailing = {
@@ -472,7 +474,6 @@ internal fun TvSessionShell(
                     openRejected = historyOpenRejected,
                     openFailure = historyOpenFailure,
                     onClearOpenRejection = { historyOpenRejected = false },
-                    onOpenAccount = { requestedDestination = TvDestination.Account },
                     onSessionRejected = onSessionRejected,
                     sessionKey = sessionKey,
                     paneFocus = paneFocus,
@@ -859,7 +860,6 @@ private fun TvHistoryPane(
     openRejected: Boolean,
     openFailure: PutioFailure?,
     onClearOpenRejection: () -> Unit,
-    onOpenAccount: () -> Unit,
     onSessionRejected: suspend () -> Unit,
     settingsState: AccountSettingsState,
     sessionKey: Any,
@@ -891,7 +891,6 @@ private fun TvHistoryPane(
         sessionKey = sessionKey,
         pickedRow = session.historyPickedRow,
         files = session.historyFiles,
-        onOpenAccount = onOpenAccount,
         onAuthenticationRequired = onSessionRejected,
         itemActions = TvHistoryItemActions(
             resumePlayback = settingsState.confirmedResumePlayback() != false,
@@ -993,3 +992,6 @@ private fun tvSearchActions(
             onRetry = session::retryRecentSearches,
         ),
     )
+
+private fun historyTabShown(settings: AccountSettingsState, history: HistoryState): Boolean =
+    settings.confirmedHistoryEnabled() ?: (history.content != HistoryContent.Disabled)

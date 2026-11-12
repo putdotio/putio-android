@@ -362,8 +362,6 @@
     <string name="mobile_history_error_title">Couldn’t load history</string>
     <string name="mobile_history_empty_title">No history yet</string>
     <string name="mobile_history_empty_message">Completed transfers and shared files will appear here.</string>
-    <string name="mobile_history_disabled_title">History is turned off</string>
-    <string name="mobile_history_disabled_message">Turn on “%1$s” in %2$s to see activity here.</string>
     <string name="mobile_history_clear">Clear history</string>
     <string name="mobile_history_clear_title">Clear history?</string>
     <string name="mobile_history_clear_message">This removes all activity from your put.io history.</string>

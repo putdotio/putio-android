@@ -213,6 +213,9 @@ internal fun MobileShell(
     var rejectedNavigation by remember(sessionId) { mutableStateOf<FilesFailure?>(null) }
     val backStackEntry by navController.currentBackStackEntryAsState()
     val selectedDestination = MobileDestination.fromRoute(backStackEntry?.destination?.route)
+    val historyShown = historyTabShown(accountSettingsState, searchHistoryState.history)
+    val destinations = remember(historyShown) { MobileDestination.shown(historyShown) }
+    HiddenDestinationEffect(backStackEntry?.destination?.route, destinations, navController)
     val incomingDraft by transferDraft.state.collectAsStateWithLifecycle()
     val nowPlayingPending by nowPlayingRequests.pending.collectAsStateWithLifecycle()
     LaunchedEffect(
@@ -384,7 +387,7 @@ internal fun MobileShell(
             onOwnDragEnded = { drag, dropped -> fileDragOut?.ended(drag, dropped) },
         ) {
             BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-                val navigationLayout = mobileNavigationLayout(maxWidth, maxHeight)
+                val navigationLayout = mobileNavigationLayout(maxWidth, maxHeight, destinations)
                 // Files keeps its panes while Search covers it, so nothing under Search is rebuilt.
                 val filesListDetail = isFilesListDetail(maxWidth, maxHeight)
                 val topBarInFilesPane = showsFilesListDetail(
@@ -399,6 +402,7 @@ internal fun MobileShell(
                     selectedDestination = selectedDestination,
                     onDestination = selectDestination,
                     enabled = !isPlayback,
+                    destinations = destinations,
                 ) { openNavigation ->
                     val topBar: @Composable () -> Unit = {
                         MobileTopBar(
@@ -464,6 +468,7 @@ internal fun MobileShell(
                         layout = navigationLayout,
                         navController = navController,
                         selectedDestination = selectedDestination,
+                        destinations = destinations,
                         onDestination = selectDestination,
                         playbackPlayerFactory = playbackPlayerFactory,
                         inactiveNotice = account.inactiveNotice,
@@ -660,6 +665,18 @@ private fun NavHostController.openDownload(controller: DownloadsController?, fil
     val state = controller?.state?.value ?: return
     val entry = state.entry(fileId)?.takeIf { play && state.isAvailableOffline(fileId) }
     if (entry != null) navigateToPlayback(entry.toFilesItem()) else controller.dispatch(DownloadsEvent.Focus(fileId))
+}
+
+@Composable
+private fun HiddenDestinationEffect(
+    route: String?,
+    destinations: List<MobileDestination>,
+    navController: NavHostController,
+) {
+    val hidden = MobileDestination.ofRoute(route)?.let { it !in destinations } == true
+    LaunchedEffect(hidden) {
+        if (hidden) navController.showTab(MobileDestination.Files)
+    }
 }
 
 @Composable
@@ -958,6 +975,7 @@ private fun MobileChrome(
     layout: MobileNavigationLayout,
     navController: NavHostController,
     selectedDestination: MobileDestination,
+    destinations: List<MobileDestination>,
     onDestination: (MobileDestination) -> Unit,
     playbackPlayerFactory: MobilePlayerFactory,
     inactiveNotice: InactiveAccountNotice?,
@@ -986,7 +1004,7 @@ private fun MobileChrome(
                         navigationBarContainerColor = container,
                     ),
                 ) {
-                    MobileDestination.entries.forEach { destination ->
+                    destinations.forEach { destination ->
                         val selected = destination == selectedDestination
                         NavigationSuiteItem(
                             selected = selected,

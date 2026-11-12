@@ -528,6 +528,48 @@ class MobileShellTest {
     }
 
     @Test
+    fun historyOffHidesItsTabAndSendsHistoryToFiles() {
+        val requests = MobileDeepLinkRequests.None
+        var settings by mutableStateOf(readyAccountSettingsState())
+        compose.setContent {
+            PutioTheme {
+                MobileShell(
+                    deepLinkRequests = requests,
+                    playbackPlayerFactory = NoAudioSessionFactory,
+                    filesState = emptyFilesState(),
+                    accountSettingsState = settings,
+                    appConfigState = readyAndroidAppConfigState(),
+                    transfersState = transfersState(TransfersContent.Empty),
+                    account = Account,
+                    playbackRepository = ConversionRepository,
+                    sessionId = Session,
+                    onFilesEvent = { true },
+                    onAccountSettingsEvent = {},
+                    onPlaybackAuthenticationRequired = {},
+                    onSignOut = {},
+                )
+            }
+        }
+        val historyTab = hasText("History") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))
+        val filesTab = hasText("Files") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))
+        compose.onNode(historyTab).performClick()
+        compose.onAllNodes(hasText("History")).assertCountEquals(2)
+
+        compose.runOnIdle {
+            settings = readyAccountSettingsState(DefaultAccountSettingsPreferences.copy(historyEnabled = false))
+        }
+
+        compose.onAllNodes(hasText("History")).assertCountEquals(0)
+        compose.onNode(filesTab).assertIsSelected()
+
+        compose.runOnIdle { requests.receive(MobileDeepLink.History) }
+        compose.waitForIdle()
+
+        compose.onAllNodes(hasText("History")).assertCountEquals(0)
+        compose.onNode(filesTab).assertIsSelected()
+    }
+
+    @Test
     fun aLinkToATabShowsWhatAColdStartShowsNotAPlayerSavedUnderIt() {
         val requests = MobileDeepLinkRequests.None
         val video = rootFile(8L, "episode.mkv", PutioFileType.VIDEO)
