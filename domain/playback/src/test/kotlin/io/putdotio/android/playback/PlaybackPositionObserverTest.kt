@@ -119,6 +119,8 @@ class PlaybackPositionObserverTest {
         assertEquals(listOf("first" to 20_000L), snapshots)
         snapshots.clear()
         player.replace(null, 17_000L)
+        assertEquals(listOf("first" to 20_000L), snapshots)
+        snapshots.clear()
         player.seekTo(0L)
         observer.flush()
         observer.close()
