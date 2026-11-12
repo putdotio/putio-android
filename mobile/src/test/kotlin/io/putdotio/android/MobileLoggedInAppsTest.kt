@@ -113,6 +113,7 @@ class MobileLoggedInAppsTest {
         compose.onNodeWithTag(MOBILE_LOGGED_IN_APPS_ROW_TAG).performClick()
         compose.onNodeWithText("put.io for iOS").assertIsDisplayed()
 
+        compose.onNodeWithTag(MOBILE_LOGGED_IN_APPS_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_SIGN_OUT_OTHERS_TAG))
         compose.onNodeWithTag(MOBILE_SIGN_OUT_OTHERS_TAG).performClick()
         compose.onNodeWithTag(MOBILE_SIGN_OUT_OTHERS_CONFIRM_TAG).performClick()
         compose.onNodeWithContentDescription("Back").performClick()
