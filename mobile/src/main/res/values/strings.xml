@@ -225,6 +225,8 @@
     <string name="mobile_settings_save_error">Couldn’t save this setting</string>
     <string name="mobile_settings_refresh_error">Saved, but couldn’t confirm this setting</string>
     <string name="mobile_settings_error_access_denied">This app doesn’t have access to account settings.</string>
+    <string name="mobile_account_no_page_title">No setting selected</string>
+    <string name="mobile_account_no_page_message">Tap a setting to see it here.</string>
     <string name="mobile_settings_section_files">Files</string>
     <string name="mobile_settings_section_library">Library</string>
     <string name="mobile_settings_section_privacy">Privacy</string>

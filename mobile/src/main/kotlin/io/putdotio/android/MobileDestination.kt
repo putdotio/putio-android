@@ -2,14 +2,9 @@ package io.putdotio.android
 
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
-import io.putdotio.android.account.MOBILE_APP_INFO_ROUTE
-import io.putdotio.android.account.MOBILE_OPEN_SOURCE_LICENSES_ROUTE
-import io.putdotio.android.account.MOBILE_LOGGED_IN_APPS_ROUTE
-import io.putdotio.android.account.MOBILE_PRIVACY_CONTROLS_ROUTE
+import io.putdotio.android.account.MobileAccountPage
 import io.putdotio.android.design.R as DesignR
 import io.putdotio.android.downloads.MOBILE_DOWNLOADS_ROUTE
-import io.putdotio.android.sharing.MOBILE_PUBLIC_LINKS_ROUTE
-import io.putdotio.android.trash.MOBILE_TRASH_ROUTE
 
 /** The tabs, in the order DESIGN.md's Layout fixes. Each keeps its own back stack. */
 internal enum class MobileDestination(
@@ -51,20 +46,11 @@ internal enum class MobileDestination(
     ;
 
     companion object {
-        private val ACCOUNT_SUBPAGES = setOf(
-            MOBILE_TRASH_ROUTE,
-            MOBILE_PUBLIC_LINKS_ROUTE,
-            MOBILE_PRIVACY_CONTROLS_ROUTE,
-            MOBILE_LOGGED_IN_APPS_ROUTE,
-            MOBILE_APP_INFO_ROUTE,
-            MOBILE_OPEN_SOURCE_LICENSES_ROUTE,
-        )
-
         val start: MobileDestination = Files
 
         /** The tab a route belongs to; null for playback, which plays over whichever tab opened it. */
         fun ofRoute(route: String?): MobileDestination? =
-            if (route in ACCOUNT_SUBPAGES) Account else entries.firstOrNull { it.route == route }
+            if (MobileAccountPage.ofRoute(route) != null) Account else entries.firstOrNull { it.route == route }
 
         fun fromRoute(route: String?): MobileDestination = ofRoute(route) ?: start
 

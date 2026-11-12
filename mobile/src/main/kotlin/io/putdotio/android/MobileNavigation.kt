@@ -27,10 +27,13 @@ import androidx.navigation.navArgument
 import io.putdotio.android.account.LoggedInAppsController
 import io.putdotio.android.account.MOBILE_APP_INFO_ROUTE
 import io.putdotio.android.account.loggedInAppsDestination
-import io.putdotio.android.account.loggedInAppsOpener
 import io.putdotio.android.account.MOBILE_OPEN_SOURCE_LICENSES_ROUTE
 import io.putdotio.android.account.MOBILE_PRIVACY_CONTROLS_ROUTE
 import io.putdotio.android.account.MobileAccountLibrary
+import io.putdotio.android.account.MobileAccountListDetail
+import io.putdotio.android.account.MobileAccountPage
+import io.putdotio.android.account.MobileAccountPanes
+import io.putdotio.android.account.rememberAccountListScroll
 import io.putdotio.android.account.MobileAccountScreen
 import io.putdotio.android.account.MobileAppInfoScreen
 import io.putdotio.android.account.bytesOnDevice
@@ -187,6 +190,7 @@ internal fun MobileNavHost(
     filesActions: MobileFilesActionsController? = null,
     folderCreator: FilesFolderCreator? = null,
     filesSelection: FilesSelection? = null,
+    accountPanes: MobileAccountPanes? = null,
 ) {
     val currentTransfersState by rememberUpdatedState(transfersState)
     val currentTransfersSessionId by rememberUpdatedState(transfersSessionId)
@@ -194,19 +198,59 @@ internal fun MobileNavHost(
     val appContext = LocalContext.current.applicationContext
     val moveTargetStore = remember(appContext, account.userId) { MobileMoveTargetStore(appContext, account.userId) }
     val motion = rememberMobileMotion()
+    val panes = accountPanes != null
+    val accountScroll = rememberAccountListScroll()
+    val openPage = { page: MobileAccountPage ->
+        if (navController.currentDestination?.route != page.route) {
+            navController.navigate(page.route) {
+                launchSingleTop = true
+                if (panes) popUpTo(MobileDestination.Account.route)
+            }
+        }
+    }
+    val accountList: @Composable (MobileAccountPage?) -> Unit = { open ->
+        val trashState = trashController?.state?.collectAsStateWithLifecycle()?.value
+        MobileAccountScreen(
+            account = account,
+            sessionId = sessionId,
+            settingsState = accountSettingsState,
+            appConfigState = appConfigState,
+            onSettingsEvent = onAccountSettingsEvent,
+            onAppConfigEvent = onAppConfigEvent,
+            loadTunnelRoutes = loadTunnelRoutes,
+            onSignOut = onSignOut,
+            onManageTrash = { openPage(MobileAccountPage.Trash) },
+            onManagePublicLinks = publicLinks?.let { { openPage(MobileAccountPage.ExclusiveLinks) } },
+            onPrivacyControls = { openPage(MobileAccountPage.PrivacyControls) },
+            onLoggedInApps = loggedInAppsController?.let { { openPage(MobileAccountPage.LoggedInApps) } },
+            onAppInfo = { openPage(MobileAccountPage.AppInfo) },
+            onOpenSourceLicenses = { openPage(MobileAccountPage.OpenSourceLicenses) },
+            open = open,
+            listState = accountScroll.rememberListState(),
+            library = MobileAccountLibrary(
+                exclusiveLinkCount =
+                    (publicLinks?.state?.content as? PublicLinksContent.Ready)?.links?.size,
+                trashSizeBytes = (trashState?.content as? TrashContent.Loaded)?.trashSizeBytes,
+            ),
+            downloadsOnDeviceBytes = downloadsState.bytesOnDevice(),
+        )
+    }
+    val accountPage: @Composable (MobileAccountPage, @Composable () -> Unit) -> Unit = { page, content ->
+        MobileAccountListDetail(accountPanes, page, accountList, content)
+    }
     SharedTransitionLayout(modifier = modifier) {
         CompositionLocalProvider(LocalMobileSharedTransition provides takeUnless { motion.reducedMotion }) {
             NavHost(
                 navController = navController,
                 startDestination = MobileDestination.start.route,
                 modifier = Modifier.fillMaxSize(),
-                enterTransition = { motion.enter(motion.between(initialState, targetState, pop = false)) },
-                exitTransition = { motion.exit(motion.between(initialState, targetState, pop = false)) },
-                popEnterTransition = { motion.enter(motion.between(initialState, targetState, pop = true)) },
-                popExitTransition = { motion.exit(motion.between(initialState, targetState, pop = true)) },
+                enterTransition = { motion.enter(motion.between(initialState, targetState, false, panes)) },
+                exitTransition = { motion.exit(motion.between(initialState, targetState, false, panes)) },
+                popEnterTransition = { motion.enter(motion.between(initialState, targetState, true, panes)) },
+                popExitTransition = { motion.exit(motion.between(initialState, targetState, true, panes)) },
                 // A Back gesture seeks the same pop, so it previews what Back will do.
-                predictivePopEnterTransition = { motion.enter(motion.between(initialState, targetState, pop = true)) },
-                predictivePopExitTransition = { motion.exit(motion.between(initialState, targetState, pop = true)) },
+                predictivePopEnterTransition = { motion.enter(motion.between(initialState, targetState, true, panes)) },
+                predictivePopExitTransition = { motion.exit(motion.between(initialState, targetState, true, panes)) },
             ) {
                 composable(MobileDestination.Files.route) {
                     val askForDownloadNotifications = rememberFirstDownloadNotificationPrompt()
@@ -332,63 +376,45 @@ internal fun MobileNavHost(
                     }
                 }
                 composable(MobileDestination.Account.route) {
-                    val trashState = trashController?.state?.collectAsStateWithLifecycle()?.value
-                    MobileAccountScreen(
-                        account = account,
-                        sessionId = sessionId,
-                        settingsState = accountSettingsState,
-                        appConfigState = appConfigState,
-                        onSettingsEvent = onAccountSettingsEvent,
-                        onAppConfigEvent = onAppConfigEvent,
-                        loadTunnelRoutes = loadTunnelRoutes,
-                        onSignOut = onSignOut,
-                        onManageTrash = { navController.navigate(MOBILE_TRASH_ROUTE) { launchSingleTop = true } },
-                        onManagePublicLinks = publicLinks?.let {
-                            { navController.navigate(MOBILE_PUBLIC_LINKS_ROUTE) { launchSingleTop = true } }
-                        },
-                        onPrivacyControls = {
-                            navController.navigate(MOBILE_PRIVACY_CONTROLS_ROUTE) { launchSingleTop = true }
-                        },
-                        onLoggedInApps = navController.loggedInAppsOpener(loggedInAppsController),
-                        onAppInfo = { navController.navigate(MOBILE_APP_INFO_ROUTE) { launchSingleTop = true } },
-                        onOpenSourceLicenses = {
-                            navController.navigate(MOBILE_OPEN_SOURCE_LICENSES_ROUTE) { launchSingleTop = true }
-                        },
-                        library = MobileAccountLibrary(
-                            exclusiveLinkCount =
-                                (publicLinks?.state?.content as? PublicLinksContent.Ready)?.links?.size,
-                            trashSizeBytes = (trashState?.content as? TrashContent.Loaded)?.trashSizeBytes,
-                        ),
-                        downloadsOnDeviceBytes = downloadsState.bytesOnDevice(),
-                    )
+                    MobileAccountListDetail(accountPanes, open = null, list = accountList, page = {})
                 }
                 composable(MOBILE_APP_INFO_ROUTE) {
-                    MobileAppInfoScreen(
-                        mobileAppDiagnostics(
-                            appConfigState.playbackPreference(),
-                            appConfigState.confirmedStreamingMethod(),
-                            deviceClass,
-                        ),
-                    )
+                    accountPage(MobileAccountPage.AppInfo) {
+                        MobileAppInfoScreen(
+                            mobileAppDiagnostics(
+                                appConfigState.playbackPreference(),
+                                appConfigState.confirmedStreamingMethod(),
+                                deviceClass,
+                            ),
+                        )
+                    }
                 }
                 composable(MOBILE_OPEN_SOURCE_LICENSES_ROUTE) {
-                    MobileOpenSourceLicensesScreen()
+                    accountPage(MobileAccountPage.OpenSourceLicenses) { MobileOpenSourceLicensesScreen() }
                 }
                 composable(MOBILE_PRIVACY_CONTROLS_ROUTE) {
-                    MobilePrivacyControlsScreen(
-                        settingsState = accountSettingsState,
-                        onSettingsEvent = onAccountSettingsEvent,
-                    )
+                    accountPage(MobileAccountPage.PrivacyControls) {
+                        MobilePrivacyControlsScreen(
+                            settingsState = accountSettingsState,
+                            onSettingsEvent = onAccountSettingsEvent,
+                        )
+                    }
                 }
-                loggedInAppsDestination(loggedInAppsController, onFilesAuthenticationRequired)
+                loggedInAppsDestination(loggedInAppsController, onFilesAuthenticationRequired) { content ->
+                    accountPage(MobileAccountPage.LoggedInApps, content)
+                }
                 composable(MOBILE_PUBLIC_LINKS_ROUTE) {
-                    publicLinks?.let { MobilePublicLinksScreen(it) }
+                    accountPage(MobileAccountPage.ExclusiveLinks) {
+                        publicLinks?.let { MobilePublicLinksScreen(it) }
+                    }
                 }
                 composable(MOBILE_TRASH_ROUTE) {
-                    trashController?.let { controller ->
-                        val state by controller.state.collectAsStateWithLifecycle()
-                        LaunchedEffect(controller) { controller.dispatch(TrashEvent.Open) }
-                        MobileTrashScreen(state, controller::dispatch, selection = trashSelection)
+                    accountPage(MobileAccountPage.Trash) {
+                        trashController?.let { controller ->
+                            val state by controller.state.collectAsStateWithLifecycle()
+                            LaunchedEffect(controller) { controller.dispatch(TrashEvent.Open) }
+                            MobileTrashScreen(state, controller::dispatch, selection = trashSelection)
+                        }
                     }
                 }
                 composable(

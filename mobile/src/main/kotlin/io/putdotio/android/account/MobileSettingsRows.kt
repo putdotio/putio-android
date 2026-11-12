@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextAlign
@@ -95,16 +96,20 @@ internal fun MobileSettingsSegment(
     segment: SettingsSegment,
     modifier: Modifier = Modifier,
     interaction: Modifier = Modifier,
+    selected: Boolean = false,
     below: (@Composable ColumnScope.() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    val surface =
+        if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainer
     Column(
         modifier = modifier
             .fillMaxWidth()
             .clip(segment.shape())
-            .background(MaterialTheme.colorScheme.surfaceContainer),
+            .background(surface),
     ) {
-        Column(interaction.fillMaxWidth(), content = content)
+        val marked = if (selected) Modifier.semantics { this.selected = true } else Modifier
+        Column(interaction.then(marked).fillMaxWidth(), content = content)
         below?.let { Column(Modifier.fillMaxWidth().padding(bottom = 8.dp), content = it) }
     }
 }
