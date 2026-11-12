@@ -28,7 +28,15 @@ import androidx.compose.ui.focus.focusRequester
 import io.putdotio.android.search.SearchContent
 import io.putdotio.android.search.SearchTerm
 import io.putdotio.android.tv.TvDestination
+import io.putdotio.android.tv.TvLinkRoute
 import io.putdotio.android.tv.TvLinkScreen
+import io.putdotio.android.tv.auth.TvAuthState
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import androidx.test.core.app.ApplicationProvider
+import org.robolectric.Shadows.shadowOf
+import org.robolectric.shadows.ShadowNetworkCapabilities
 import io.putdotio.android.tv.TvOfflineScreen
 import io.putdotio.android.tv.search.TV_SEARCH_FIELD_TAG
 import io.putdotio.android.tv.search.TvRecentSearchActions
@@ -132,6 +140,35 @@ class TvShellTest {
         compose.onNodeWithText("Waiting for authentication…").assertIsDisplayed()
         compose.onNodeWithText("No connection").assertDoesNotExist()
         compose.onNodeWithContentDescription("Activation code GIQTKN").assertIsDisplayed()
+    }
+
+    @Test
+    fun linkRouteNotesTheSystemNetworkDroppingAndReturning() {
+        val connectivity = ApplicationProvider.getApplicationContext<Context>()
+            .getSystemService(ConnectivityManager::class.java)
+        val network = requireNotNull(connectivity.activeNetwork)
+        val validated = ShadowNetworkCapabilities.newInstance().also {
+            shadowOf(it).addCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+        }
+        shadowOf(connectivity).setNetworkCapabilities(network, validated)
+        compose.setTvContent {
+            TvLinkRoute(
+                linking = TvAuthState.Linking(TvLinkPhase.AwaitingLink("GIQTKN")),
+                onRequestNewCode = {},
+                onTryAgain = {},
+            )
+        }
+        compose.onNodeWithText("Waiting for authentication…").assertIsDisplayed()
+
+        compose.runOnIdle { shadowOf(connectivity).networkCallbacks.forEach { it.onLost(network) } }
+        compose.onNodeWithText("No connection").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Activation code GIQTKN").assertIsDisplayed()
+
+        compose.runOnIdle {
+            shadowOf(connectivity).networkCallbacks.forEach { it.onCapabilitiesChanged(network, validated) }
+        }
+        compose.onNodeWithText("Waiting for authentication…").assertIsDisplayed()
+        compose.onNodeWithText("No connection").assertDoesNotExist()
     }
 
     @Test
