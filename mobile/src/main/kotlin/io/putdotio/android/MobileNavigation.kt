@@ -24,7 +24,10 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import io.putdotio.android.account.LoggedInAppsRepository
 import io.putdotio.android.account.MOBILE_APP_INFO_ROUTE
+import io.putdotio.android.account.MOBILE_LOGGED_IN_APPS_ROUTE
+import io.putdotio.android.account.MobileLoggedInAppsRoute
 import io.putdotio.android.account.MOBILE_OPEN_SOURCE_LICENSES_ROUTE
 import io.putdotio.android.account.MOBILE_PRIVACY_CONTROLS_ROUTE
 import io.putdotio.android.account.MobileAccountLibrary
@@ -167,6 +170,7 @@ internal fun MobileNavHost(
     modifier: Modifier = Modifier,
     deviceClass: AppDiagnostics.DeviceClass = AppDiagnostics.DeviceClass.Phone,
     publicLinks: MobilePublicLinks? = null,
+    loggedInAppsRepository: LoggedInAppsRepository? = null,
     searchOpen: Boolean = false,
     searchForward: Boolean = true,
     filesBackPreview: MobileBackPreview = rememberMobileBackPreview(),
@@ -342,6 +346,9 @@ internal fun MobileNavHost(
                         onPrivacyControls = {
                             navController.navigate(MOBILE_PRIVACY_CONTROLS_ROUTE) { launchSingleTop = true }
                         },
+                        onLoggedInApps = loggedInAppsRepository?.let {
+                            { navController.navigate(MOBILE_LOGGED_IN_APPS_ROUTE) { launchSingleTop = true } }
+                        },
                         onAppInfo = { navController.navigate(MOBILE_APP_INFO_ROUTE) { launchSingleTop = true } },
                         onOpenSourceLicenses = {
                             navController.navigate(MOBILE_OPEN_SOURCE_LICENSES_ROUTE) { launchSingleTop = true }
@@ -371,6 +378,11 @@ internal fun MobileNavHost(
                         settingsState = accountSettingsState,
                         onSettingsEvent = onAccountSettingsEvent,
                     )
+                }
+                composable(MOBILE_LOGGED_IN_APPS_ROUTE) {
+                    loggedInAppsRepository?.let { repository ->
+                        MobileLoggedInAppsRoute(repository, onFilesAuthenticationRequired)
+                    }
                 }
                 composable(MOBILE_PUBLIC_LINKS_ROUTE) {
                     publicLinks?.let { MobilePublicLinksScreen(it) }

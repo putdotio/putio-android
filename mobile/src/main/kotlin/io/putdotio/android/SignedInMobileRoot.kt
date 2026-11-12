@@ -94,6 +94,7 @@ import io.putdotio.android.share.MobileFileShareService
 import io.putdotio.android.sharing.MobilePublicLinksViewModel
 import io.putdotio.android.sharing.PublicLinksController
 import io.putdotio.android.sharing.SdkPublicLinksRepository
+import io.putdotio.android.account.SdkLoggedInAppsRepository
 import io.putdotio.android.telemetry.ProductAnalytics
 import io.putdotio.android.telemetry.PutioDiagnostics
 import io.putdotio.android.transfers.MobileTransferDraft
@@ -441,6 +442,7 @@ private fun SignedInMobileSession(
         },
         downloadsController = downloadsController,
         publicLinksController = publicLinksController,
+        loggedInAppsRepository = remember(runtime.putioClient) { SdkLoggedInAppsRepository(runtime.putioClient) },
         folderCreator = filesRepository,
         continueWatching = continueWatching,
         pinnedFiles = pinnedFiles,

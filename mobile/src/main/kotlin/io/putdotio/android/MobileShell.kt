@@ -55,6 +55,8 @@ import androidx.navigation.compose.rememberNavController
 import io.putdotio.android.account.InactiveAccountNotice
 import io.putdotio.android.account.MOBILE_APP_INFO_ROUTE
 import io.putdotio.android.account.MOBILE_OPEN_SOURCE_LICENSES_ROUTE
+import io.putdotio.android.account.LoggedInAppsRepository
+import io.putdotio.android.account.MOBILE_LOGGED_IN_APPS_ROUTE
 import io.putdotio.android.account.MOBILE_PRIVACY_CONTROLS_ROUTE
 import io.putdotio.android.account.MobileInactiveAccountNotice
 import io.putdotio.android.auth.MobileAccount
@@ -169,6 +171,7 @@ internal fun MobileShell(
     trashController: TrashController? = null,
     downloadsController: DownloadsController? = null,
     publicLinksController: PublicLinksController? = null,
+    loggedInAppsRepository: LoggedInAppsRepository? = null,
     accountSettingsState: AccountSettingsState,
     appConfigState: AndroidAppConfigState,
     searchHistoryState: MobileSearchHistoryState = emptySearchHistoryState(),
@@ -518,6 +521,7 @@ internal fun MobileShell(
                             onSignOut = onSignOut,
                             modifier = contentModifier,
                             publicLinks = publicLinks,
+                            loggedInAppsRepository = loggedInAppsRepository,
                             searchOpen = searchOpen,
                             searchForward = searchForward,
                             filesBackPreview = filesBackPreview,
@@ -1294,6 +1298,7 @@ private fun accountSubpageTitle(route: String?): Int? =
         MOBILE_TRASH_ROUTE -> R.string.mobile_trash_title
         MOBILE_PUBLIC_LINKS_ROUTE -> R.string.mobile_settings_exclusive_links
         MOBILE_PRIVACY_CONTROLS_ROUTE -> R.string.mobile_settings_privacy_controls
+        MOBILE_LOGGED_IN_APPS_ROUTE -> R.string.mobile_settings_logged_in_apps
         MOBILE_APP_INFO_ROUTE -> R.string.mobile_settings_about
         MOBILE_OPEN_SOURCE_LICENSES_ROUTE -> R.string.mobile_settings_open_source_licenses
         else -> null

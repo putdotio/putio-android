@@ -160,6 +160,8 @@ internal fun MobileTurnOffDialog(
     @StringRes message: Int,
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
+    @StringRes confirm: Int = R.string.mobile_settings_turn_off,
+    confirmTag: String? = null,
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -173,8 +175,11 @@ internal fun MobileTurnOffDialog(
             )
         },
         confirmButton = {
-            PutioDestructiveButton(onClick = onConfirm) {
-                Text(stringResource(R.string.mobile_settings_turn_off))
+            PutioDestructiveButton(
+                onClick = onConfirm,
+                modifier = confirmTag?.let { Modifier.testTag(it) } ?: Modifier,
+            ) {
+                Text(stringResource(confirm))
             }
         },
         dismissButton = {
