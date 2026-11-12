@@ -153,6 +153,8 @@ internal fun MobileFileViewerContent(
     val reads = remember { ViewerPageReads() }
     LoadNextPageNearLast(pager, files.size, paging, reads)
     val more = paging.more && !reads.stopped
+    val settledId = files.getOrNull(pager.settledPage)?.id
+    val zoom = remember(pager.settledPage, settledId) { MobileViewerZoom() }
     val frame = MaterialTheme.colorScheme.scrim
     Box(
         modifier = Modifier
@@ -164,6 +166,7 @@ internal fun MobileFileViewerContent(
             HorizontalPager(
                 state = pager,
                 key = { files.getOrNull(it)?.id?.value ?: it },
+                userScrollEnabled = !zoom.zoomed,
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
@@ -172,9 +175,10 @@ internal fun MobileFileViewerContent(
                 val file = files.getOrNull(page) ?: return@HorizontalPager
                 val uri = actions.documentUri(file)
                 val openElsewhere = { actions.onOpenWithAnotherApp(file) }
+                val pageZoom = zoom.takeIf { page == pager.settledPage }
                 when (file.viewerKind) {
-                    FilesViewerKind.Image -> MobileImagePage(file, uri, openElsewhere)
-                    FilesViewerKind.Pdf -> MobilePdfPage(file, uri, openElsewhere)
+                    FilesViewerKind.Image -> MobileImagePage(file, uri, pageZoom, openElsewhere)
+                    FilesViewerKind.Pdf -> MobilePdfPage(file, uri, pageZoom, openElsewhere)
                     FilesViewerKind.Text -> MobileTextPage(uri, openElsewhere)
                     null -> MobileViewerFailure(openElsewhere)
                 }
