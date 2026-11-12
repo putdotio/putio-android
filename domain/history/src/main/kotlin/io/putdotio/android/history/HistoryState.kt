@@ -37,13 +37,16 @@ public data class HistoryState internal constructor(
     internal val consumedBefore: Set<HistoryEventId> = emptySet(),
     internal val nextRequestValue: Long = 1L,
     internal val refreshing: HistoryRequestId? = null,
-)
+) {
+    public val isRefreshing: Boolean get() = refreshing != null
+}
 
 public sealed interface HistoryEvent {
     public data class SetEnabled(val enabled: Boolean) : HistoryEvent
     public data object LoadNextPage : HistoryEvent
     public data object Retry : HistoryEvent
     public data object Refresh : HistoryEvent
+    public data object Reload : HistoryEvent
     public data object RequestClear : HistoryEvent
     public data object DismissClear : HistoryEvent
     public data object ConfirmClear : HistoryEvent
@@ -81,7 +84,7 @@ public object HistoryReducer {
             is HistoryEvent.SetEnabled -> state.setEnabled(event.enabled)
             HistoryEvent.LoadNextPage -> state.loadNextPage()
             HistoryEvent.Retry -> state.retry()
-            HistoryEvent.Refresh -> state.refresh()
+            HistoryEvent.Refresh, HistoryEvent.Reload -> state.refresh()
             HistoryEvent.RequestClear -> state.requestClear()
             HistoryEvent.DismissClear -> state.dismissClear()
             HistoryEvent.ConfirmClear -> state.confirmClear()

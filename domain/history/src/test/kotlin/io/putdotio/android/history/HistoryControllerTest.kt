@@ -70,6 +70,31 @@ class HistoryControllerTest {
     }
 
     @Test
+    fun reloadReadsTheFirstPageAgainWhereAnEntryRefreshIsThrottled() = runBlocking {
+        var loads = 0
+        val repository = object : HistoryRepository {
+            override suspend fun load(before: HistoryEventId?): PutioResult<HistoryPage> {
+                loads += 1
+                return PutioResult.Success(HistoryPage(listOf(item(loads.toLong())), false))
+            }
+            override suspend fun clear() = PutioResult.Success(Unit)
+        }
+        val controller = HistoryController(repository, historyEnabled = true, parentScope = this)
+        try {
+            controller.awaitState { it.content is HistoryContent.Ready }
+            assertFalse(controller.dispatch(HistoryEvent.Refresh))
+            assertEquals(1, loads)
+
+            assertTrue(controller.dispatch(HistoryEvent.Reload))
+            controller.awaitState { (it.content as? HistoryContent.Ready)?.items?.first()?.id == HistoryEventId(2L) }
+            assertEquals(2, loads)
+            assertFalse(controller.state.value.isRefreshing)
+        } finally {
+            controller.close()
+        }
+    }
+
+    @Test
     fun cancelledParentRejectsEventsWithoutPublishingLoadingState() = runBlocking {
         var calls = 0
         val parent = Job()
