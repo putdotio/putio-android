@@ -68,7 +68,7 @@ private val ACCOUNT_DIALOG_MAX_WIDTH = 608.dp
 @Composable
 internal fun MobilePlaybackMethodDialog(
     selected: StreamingMethod,
-    onSave: (StreamingMethod) -> Unit,
+    onSelect: (StreamingMethod) -> Unit,
     onDismiss: () -> Unit,
 ) {
     MobileChoiceDialog(
@@ -85,7 +85,7 @@ internal fun MobilePlaybackMethodDialog(
             )
         },
         selected = selected,
-        onSave = onSave,
+        onSelect = onSelect,
         onDismiss = onDismiss,
     )
 }
@@ -96,7 +96,7 @@ internal fun MobilePlaybackMethodDialog(
 internal fun MobileTunnelRouteDialog(
     selected: TunnelRouteName,
     loadRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>>,
-    onSave: (TunnelRouteName) -> Unit,
+    onSelect: (TunnelRouteName) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var attempt by remember { mutableIntStateOf(0) }
@@ -121,7 +121,7 @@ internal fun MobileTunnelRouteDialog(
             }
         },
         selected = selected,
-        onSave = onSave,
+        onSelect = onSelect,
         onDismiss = onDismiss,
         placeholder = {
             when (val loaded = result) {

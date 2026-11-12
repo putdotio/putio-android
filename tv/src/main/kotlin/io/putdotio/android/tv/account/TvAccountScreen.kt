@@ -484,7 +484,7 @@ private fun TvAccountSheets(
             TvTunnelRouteSheet(
                 selected = settings.tunnelRoute,
                 loadRoutes = loadTunnelRoutes,
-                onSave = { change(AccountSettingsChange.Route(it)) },
+                onSelect = { change(AccountSettingsChange.Route(it)) },
                 onDismiss = onClose,
                 returnFocus = returnFocus(RowKey.PROXY),
             )
@@ -492,7 +492,7 @@ private fun TvAccountSheets(
         TvAccountSheet.PlaybackMethod -> if (config != null) {
             TvPlaybackMethodSheet(
                 selected = config.streamingMethod,
-                onSave = {
+                onSelect = {
                     onClose()
                     onAppConfigEvent(AndroidAppConfigEvent.ChangeRequested(AndroidAppConfigChange.PlaybackMethod(it)))
                 },

@@ -416,14 +416,14 @@ private fun MobileAccountDialogs(
             MobileTunnelRouteDialog(
                 selected = settings.tunnelRoute,
                 loadRoutes = loadTunnelRoutes,
-                onSave = { change(AccountSettingsChange.Route(it)) },
+                onSelect = { change(AccountSettingsChange.Route(it)) },
                 onDismiss = onDismiss,
             )
         }
         AccountDialog.PlaybackMethod -> if (config != null) {
             MobilePlaybackMethodDialog(
                 selected = config.streamingMethod,
-                onSave = {
+                onSelect = {
                     onDismiss()
                     onAppConfigEvent(AndroidAppConfigEvent.ChangeRequested(AndroidAppConfigChange.PlaybackMethod(it)))
                 },

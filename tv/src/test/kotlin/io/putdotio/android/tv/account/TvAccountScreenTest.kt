@@ -41,6 +41,7 @@ import io.putdotio.android.settings.AccountSettingsRequestId
 import io.putdotio.android.settings.AccountSettingsState
 import io.putdotio.android.settings.AndroidAppConfigChange
 import io.putdotio.android.settings.AndroidAppConfigEvent
+import io.putdotio.android.settings.AndroidAppConfigMutation
 import io.putdotio.android.settings.AndroidAppConfigPreferences
 import io.putdotio.android.settings.AndroidAppConfigReducer
 import io.putdotio.android.settings.AndroidAppConfigRequestId
@@ -162,36 +163,54 @@ class TvAccountScreenTest {
     }
 
     @Test
-    fun playbackMethodChoosesInASheetAndSavesOnlyOnSave() {
-        show(settingsState = { ready(preferences) }, appConfigState = { readyConfig(StreamingMethod.Hls) })
+    fun playbackMethodAppliesOnSelectAndAFailedSaveRevertsIt() {
+        var config by mutableStateOf(readyConfig(StreamingMethod.Hls))
+        show(settingsState = { ready(preferences) }, appConfigState = { config })
 
         openPlaybackRow("Playback method", downs = 2)
+        compose.onNode(inSheet("Standard")).assertIsSelected()
+        compose.onAllNodes(hasText("Save") and hasAnyAncestor(isDialog())).assertCountEquals(0)
+        compose.onAllNodes(hasText("Cancel") and hasAnyAncestor(isDialog())).assertCountEquals(0)
         compose.onNode(inSheet("Standard")).performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNode(inSheet("Direct play")).performKeyInput { pressCenter() }
         compose.onNodeWithText(
             "Plays the original file, up to 4K and surround, when this device can. Converted otherwise.",
         ).assertIsDisplayed()
-        assertEquals(emptyList<AndroidAppConfigEvent>(), appConfigEvents)
-        compose.onNode(inSheet("Save")).performKeyInput { pressCenter() }
+        compose.onNode(inSheet("Direct play")).performKeyInput { pressCenter() }
         assertEquals(
             listOf<AndroidAppConfigEvent>(
                 AndroidAppConfigEvent.ChangeRequested(AndroidAppConfigChange.PlaybackMethod(StreamingMethod.File)),
             ),
             appConfigEvents,
         )
-        compose.onAllNodesWithText("Direct play").assertCountEquals(0)
+        compose.onAllNodes(isDialog()).assertCountEquals(0)
         compose.onNodeWithText("Playback method").assertIsFocused()
+
+        compose.runOnIdle { config = AndroidAppConfigReducer.reduce(config, appConfigEvents.single()).state }
+        compose.onNodeWithText("Direct play").assertIsDisplayed()
+        compose.runOnIdle {
+            val saving = config.mutation as AndroidAppConfigMutation.Saving
+            config = AndroidAppConfigReducer.reduce(
+                config,
+                AndroidAppConfigEvent.SaveFailed(
+                    saving.requestId,
+                    PutioFailure.NetworkUnavailable(PutioConfigurationException("offline")),
+                ),
+            ).state
+        }
+        compose.onNodeWithText("Couldn’t save this setting. Check your internet connection.").assertIsDisplayed()
+        compose.onAllNodesWithText("Direct play").assertCountEquals(0)
+        compose.onNodeWithText("Standard").assertIsDisplayed()
     }
 
     @Test
-    fun proxySheetListsRoutesWithTheirDescriptionsAndCancelChangesNothing() {
+    fun proxySheetOpensOnTheCurrentRouteAndAppliesOnSelect() {
         show(
             settingsState = { ready(preferences) },
             loadTunnelRoutes = {
                 AccountSettingsRepositoryResult.Success(
                     listOf(
-                        TunnelRouteOption(TunnelRouteName("cdn77"), "Fastest for most places. The default."),
                         TunnelRouteOption(TunnelRouteName.DEFAULT, "Amsterdam"),
+                        TunnelRouteOption(TunnelRouteName("cdn77"), "Fastest for most places. The default."),
                         TunnelRouteOption(TunnelRouteName("lon"), "London"),
                     ),
                 )
@@ -201,26 +220,21 @@ class TvAccountScreenTest {
         openPlaybackRow("Proxy", downs = 3)
         compose.onNodeWithText("Choose your proxy").assertIsDisplayed()
         compose.onNodeWithText("Straight from put.io's servers in Amsterdam.").assertIsDisplayed()
-        compose.onNode(inSheet("cdn77")).performKeyInput {
-            pressKey(Key.DirectionDown)
-            pressKey(Key.DirectionDown)
-        }
-        compose.onNode(inSheet("lon")).performKeyInput { pressCenter() }
-        compose.onNode(inSheet("Save")).performKeyInput { pressKey(Key.DirectionLeft) }
-        compose.onNode(inSheet("Cancel")).performKeyInput { pressCenter() }
+        compose.onAllNodes(hasText("Save") and hasAnyAncestor(isDialog())).assertCountEquals(0)
+        compose.onNode(inSheet("cdn77")).assertIsSelected().performKeyInput { pressCenter() }
+        compose.onAllNodes(isDialog()).assertCountEquals(0)
         assertEquals(emptyList<AccountSettingsEvent>(), settingsEvents)
         compose.onNodeWithText("Proxy").assertIsFocused().performKeyInput { pressCenter() }
-        compose.onNode(inSheet("cdn77")).performKeyInput {
-            repeat(2) { pressKey(Key.DirectionDown) }
-            pressCenter()
-        }
-        compose.onNode(inSheet("Save")).performKeyInput { pressCenter() }
+        compose.onNode(inSheet("cdn77")).performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNode(inSheet("lon")).performKeyInput { pressCenter() }
         assertEquals(
             listOf<AccountSettingsEvent>(
                 AccountSettingsEvent.ChangeRequested(AccountSettingsChange.Route(TunnelRouteName("lon"))),
             ),
             settingsEvents,
         )
+        compose.onAllNodes(isDialog()).assertCountEquals(0)
+        compose.onNodeWithText("Proxy").assertIsFocused()
     }
 
     @Test

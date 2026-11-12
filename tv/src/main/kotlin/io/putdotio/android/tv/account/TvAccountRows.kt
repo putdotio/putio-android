@@ -344,8 +344,6 @@ internal object TvAccountType {
         PutioTypeScale.tvBody.copy(fontSize = 16.sp, lineHeight = 20.sp, fontWeight = FontWeight.Medium)
     val storageTitle: TextStyle = PutioTypeScale.tvBody.copy(fontSize = 14.sp).boardLines(BOARD_LEADING)
     val storageValue: TextStyle = PutioTypeScale.tvMeta.boardLines(BOARD_LEADING)
-    val option: TextStyle = PutioTypeScale.tvBody.copy(fontSize = 15.sp, lineHeight = 18.sp).boardLines()
-    val optionDetail: TextStyle = PutioTypeScale.tvMeta.copy(lineHeight = 15.sp).boardLines()
     val mono: TextStyle = PutioTypeScale.tvMono.copy(
         fontSize = PutioTypeScale.tvMono.fontSize * MONO_SCALE,
         letterSpacing = MONO_TRACKING,
