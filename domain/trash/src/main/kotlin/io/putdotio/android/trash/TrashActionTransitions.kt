@@ -5,8 +5,8 @@ import io.putdotio.android.parsePutioTimestamp
 
 internal fun TrashMachine.action(event: TrashEvent.ActionEvent): TrashMachine? = when (event) {
     is TrashEvent.SelectDelete -> selectDelete(event)
-    TrashEvent.RestoreAll -> onAll { submitAction(TrashAction.RestoreAll) }
-    TrashEvent.SelectEmpty -> onAll { openActionConfirmation(TrashAction.Empty) }
+    TrashEvent.RestoreAll -> if (mayActOnAll) submitAction(TrashAction.RestoreAll) else null
+    TrashEvent.SelectEmpty -> if (mayActOnAll) openActionConfirmation(TrashAction.Empty) else null
     TrashEvent.CancelAction -> cancelAction()
     is TrashEvent.ConfirmAction -> confirmAction(event)
     TrashEvent.CheckAction -> startActionCheck()
@@ -19,8 +19,8 @@ private fun TrashMachine.selectDelete(event: TrashEvent.SelectDelete): TrashMach
     return openActionConfirmation(TrashAction.DeleteItem(item))
 }
 
-private inline fun TrashMachine.onAll(next: TrashMachine.() -> TrashMachine?): TrashMachine? =
-    if (request != null || !state.canActOnAll) null else next()
+private val TrashMachine.mayActOnAll: Boolean
+    get() = request == null && state.canActOnAll
 
 private fun TrashMachine.openActionConfirmation(action: TrashDestructiveAction): TrashMachine = copy(
     state = state.copy(
