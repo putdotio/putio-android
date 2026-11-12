@@ -155,8 +155,8 @@ class TvAccountScreenTest {
             pressKey(Key.DirectionDown)
             pressKey(Key.DirectionRight)
         }
-        compose.onNodeWithText("Resume where you left off").assertIsFocused().performKeyInput { pressCenter() }
-        compose.onNodeWithText("Resume where you left off").performKeyInput { pressKey(Key.DirectionLeft) }
+        compose.onNodeWithText("Resume where you left off").assertIsFocused()
+            .performKeyInput { pressKey(Key.DirectionLeft) }
         group("Playback").performKeyInput {
             pressKey(Key.DirectionDown)
             pressKey(Key.DirectionRight)
@@ -167,7 +167,6 @@ class TvAccountScreenTest {
             .performKeyInput { pressCenter() }
         assertEquals(
             listOf<AccountSettingsEvent>(
-                AccountSettingsEvent.ChangeRequested(AccountSettingsChange(AccountSettingsKey.ResumePlayback, false)),
                 AccountSettingsEvent.ChangeRequested(
                     AccountSettingsChange(AccountSettingsKey.AutoSelectSubtitles, true),
                 ),
@@ -295,6 +294,45 @@ class TvAccountScreenTest {
         compose.runOnIdle { settings = AccountSettingsReducer.reduce(settings, settingsEvents.single()).state }
         compose.onAllNodesWithText("Manage your trash").assertCountEquals(0)
         compose.onNodeWithText("Move deleted files to Trash").assertIsFocused().assertIsOff()
+    }
+
+    @Test
+    fun turningResumeOffConfirmsInRedWithCancelFocused() {
+        var settings by mutableStateOf(ready(preferences))
+        show(settingsState = { settings })
+        val resume = "Resume where you left off"
+
+        group("Library").performKeyInput {
+            pressKey(Key.DirectionDown)
+            pressKey(Key.DirectionRight)
+        }
+        compose.onNodeWithText(resume).assertIsFocused().assertIsOn().performKeyInput { pressCenter() }
+        compose.onNodeWithText("Turn off resume?").assertIsDisplayed()
+        compose.onNodeWithText("This erases every saved playback position on your account, on all devices.")
+            .assertIsDisplayed()
+        compose.onNode(hasText("Cancel") and isFocused()).performKeyInput { pressCenter() }
+        compose.onAllNodes(isDialog()).assertCountEquals(0)
+        compose.onNodeWithText(resume).assertIsFocused().assertIsOn()
+        assertEquals(emptyList<AccountSettingsEvent>(), settingsEvents)
+
+        compose.onNodeWithText(resume).performKeyInput { pressCenter() }
+        compose.onNode(hasText("Cancel") and isFocused()).performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNode(hasText("Turn off") and isFocused() and hasAnyAncestor(isDialog())).performKeyInput {
+            pressCenter()
+        }
+        assertEquals(
+            listOf<AccountSettingsEvent>(
+                AccountSettingsEvent.ChangeRequested(AccountSettingsChange(AccountSettingsKey.ResumePlayback, false)),
+            ),
+            settingsEvents,
+        )
+        compose.runOnIdle { settings = ready(preferences.copy(resumePlayback = false)) }
+        compose.onNodeWithText(resume).assertIsFocused().assertIsOff().performKeyInput { pressCenter() }
+        compose.onAllNodes(isDialog()).assertCountEquals(0)
+        assertEquals(
+            AccountSettingsEvent.ChangeRequested(AccountSettingsChange(AccountSettingsKey.ResumePlayback, true)),
+            settingsEvents.last(),
+        )
     }
 
     @Test

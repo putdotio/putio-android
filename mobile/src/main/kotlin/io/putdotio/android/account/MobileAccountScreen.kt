@@ -142,10 +142,10 @@ internal fun MobileAccountScreen(
         settingsState = settingsState,
         appConfigState = appConfigState,
         onSettingsChange = { change ->
-            if (change.disablesTrash) {
-                dialog = AccountDialog.TrashOff
-            } else {
-                onSettingsEvent(AccountSettingsEvent.ChangeRequested(change))
+            when {
+                change.turnsOff(AccountSettingsKey.Trash) -> dialog = AccountDialog.TrashOff
+                change.turnsOff(AccountSettingsKey.ResumePlayback) -> dialog = AccountDialog.ResumeOff
+                else -> onSettingsEvent(AccountSettingsEvent.ChangeRequested(change))
             }
         },
         onRetrySettings = { onSettingsEvent(AccountSettingsEvent.RetryChange) },
@@ -189,7 +189,7 @@ internal fun MobileAccountScreen(
     )
 }
 
-private enum class AccountDialog { None, TrashOff, SignOut, Proxy, PlaybackMethod }
+private enum class AccountDialog { None, TrashOff, ResumeOff, SignOut, Proxy, PlaybackMethod }
 
 private fun LazyListScope.libraryGroup(
     rows: AccountRows,
@@ -402,9 +402,19 @@ private fun MobileAccountDialogs(
     when (dialog) {
         AccountDialog.None -> Unit
         AccountDialog.TrashOff -> if (settings != null) {
-            MobileTrashOffDialog(
+            MobileTurnOffDialog(
+                title = R.string.mobile_settings_trash_confirm_title,
+                message = R.string.mobile_settings_trash_confirm_message,
                 onDismiss = onDismiss,
                 onConfirm = { change(AccountSettingsChange(AccountSettingsKey.Trash, enabled = false)) },
+            )
+        }
+        AccountDialog.ResumeOff -> if (settings != null) {
+            MobileTurnOffDialog(
+                title = R.string.mobile_settings_resume_confirm_title,
+                message = R.string.mobile_settings_resume_confirm_message,
+                onDismiss = onDismiss,
+                onConfirm = { change(AccountSettingsChange(AccountSettingsKey.ResumePlayback, enabled = false)) },
             )
         }
         AccountDialog.SignOut -> MobileSignOutDialog(

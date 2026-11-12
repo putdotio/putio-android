@@ -125,6 +125,7 @@ internal enum class TvAccountSheet {
     OpenSourceNotice,
     ManageAccount,
     TrashOff,
+    ResumeOff,
     SignOut,
 }
 
@@ -544,8 +545,17 @@ private fun TvAccountSheets(
         TvAccountSheet.TrashOff -> TvConfirmDialog(
             title = stringResource(R.string.tv_account_trash_disable_title),
             message = stringResource(R.string.tv_account_trash_disable_message),
-            confirmLabel = stringResource(R.string.tv_account_trash_disable_confirm),
+            confirmLabel = stringResource(R.string.tv_account_turn_off),
             onConfirm = { change(AccountSettingsChange(AccountSettingsKey.Trash, enabled = false)) },
+            onDismiss = onClose,
+            destructive = true,
+            titleStyle = TvAccountType.dialogTitle,
+        )
+        TvAccountSheet.ResumeOff -> TvConfirmDialog(
+            title = stringResource(R.string.tv_account_resume_disable_title),
+            message = stringResource(R.string.tv_account_resume_disable_message),
+            confirmLabel = stringResource(R.string.tv_account_turn_off),
+            onConfirm = { change(AccountSettingsChange(AccountSettingsKey.ResumePlayback, enabled = false)) },
             onDismiss = onClose,
             destructive = true,
             titleStyle = TvAccountType.dialogTitle,
@@ -674,7 +684,13 @@ private class TvAccountRowsScope(
                         icon = R.drawable.ic_ph_play_circle,
                         checked = preferences.resumePlayback,
                         segment = segment,
-                        onToggle = { toggle(AccountSettingsKey.ResumePlayback, it) },
+                        onToggle = { enabled ->
+                            when {
+                                !settingsControls -> Unit
+                                enabled -> toggle(AccountSettingsKey.ResumePlayback, true)
+                                else -> open(TvAccountSheet.ResumeOff, RowKey.RESUME)
+                            }
+                        },
                         modifier = Modifier.accountFocus(context, RowKey.RESUME),
                     )
                 }

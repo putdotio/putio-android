@@ -149,8 +149,6 @@ class MobileAccountScreenTest {
             .assertRangeInfoEquals(ProgressBarRangeInfo(0.25f, 0f..1f))
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Show subtitles"))
         compose.onNodeWithText("Show subtitles").performClick()
-        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Resume where you left off"))
-        compose.onNodeWithText("Resume where you left off").performClick()
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_ACCOUNT_SIGN_OUT_TAG))
         compose.onNodeWithTag(MOBILE_ACCOUNT_SIGN_OUT_TAG).performClick()
         compose.onNode(hasText("Sign out") and hasAnyAncestor(hasTestTag(MOBILE_SIGN_OUT_DIALOG_TAG))).performClick()
@@ -160,13 +158,60 @@ class MobileAccountScreenTest {
                 AccountSettingsEvent.ChangeRequested(
                     AccountSettingsChange(AccountSettingsKey.ShowSubtitles, enabled = false),
                 ),
+            ),
+            events,
+        )
+        assertEquals(false, signedOut)
+    }
+
+    @Test
+    fun turningResumeOffAsksFirstAndCancelKeepsItOn() {
+        val events = mutableListOf<AccountSettingsEvent>()
+        compose.setAccountContent(events = events)
+        val resume = "Resume where you left off"
+        val message = "This erases every saved playback position on your account, on all devices."
+
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText(resume))
+        compose.onNodeWithText(resume).assertIsOn().performClick()
+        compose.onNode(hasText("Turn off resume?") and hasAnyAncestor(isDialog())).assertIsDisplayed()
+        compose.onNode(hasText(message) and hasAnyAncestor(isDialog())).assertIsDisplayed()
+        compose.onNode(hasText("Cancel") and hasAnyAncestor(isDialog())).performClick()
+        compose.onAllNodes(isDialog()).assertCountEquals(0)
+        compose.onNodeWithText(resume).assertIsOn()
+        assertEquals(emptyList<AccountSettingsEvent>(), events)
+
+        compose.onNodeWithText(resume).performClick()
+        compose.onNode(hasText("Turn off") and hasAnyAncestor(isDialog())).performClick()
+        compose.onAllNodes(isDialog()).assertCountEquals(0)
+        assertEquals(
+            listOf(
                 AccountSettingsEvent.ChangeRequested(
                     AccountSettingsChange(AccountSettingsKey.ResumePlayback, enabled = false),
                 ),
             ),
             events,
         )
-        assertEquals(false, signedOut)
+    }
+
+    @Test
+    fun turningResumeOnSavesAtOnce() {
+        val events = mutableListOf<AccountSettingsEvent>()
+        compose.setAccountContent(
+            state = { readyAccountSettingsState(DefaultAccountSettingsPreferences.copy(resumePlayback = false)) },
+            events = events,
+        )
+
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Resume where you left off"))
+        compose.onNodeWithText("Resume where you left off").assertIsOff().performClick()
+        compose.onAllNodes(isDialog()).assertCountEquals(0)
+        assertEquals(
+            listOf(
+                AccountSettingsEvent.ChangeRequested(
+                    AccountSettingsChange(AccountSettingsKey.ResumePlayback, enabled = true),
+                ),
+            ),
+            events,
+        )
     }
 
     @Test
