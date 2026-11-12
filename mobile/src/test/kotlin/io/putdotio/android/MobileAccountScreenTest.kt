@@ -915,7 +915,7 @@ class MobileAccountSignOutAndLibraryTest {
         val full = AccountStorage(availableBytes = 0, sizeBytes = 4 * GIBIBYTE, usedBytes = 4 * GIBIBYTE)
         var account by mutableStateOf(Account)
         compose.setAccountContent(account = { account })
-        val fullLine = "Full. New transfers wait until you free up space. Empty trash or delete files to make room."
+        val fullLine = "Full. New transfers wait until you free up space. Empty Trash or delete files to make room."
         compose.onAllNodesWithText(fullLine, substring = true).assertCountEquals(0)
 
         compose.runOnIdle { account = Account.copy(storage = full) }

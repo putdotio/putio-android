@@ -370,15 +370,21 @@ class TvAccountScreenTest {
 
     @Test
     fun fullStorageWarnsThatTransfersWaitAndSaysSoToAccessibility() {
-        val full = AccountStorage(availableBytes = 0, sizeBytes = 1_000_000_000_000, usedBytes = 1_000_000_000_000)
+        val full = AccountStorage(
+            availableBytes = 0,
+            sizeBytes = 1_000_000_000_000,
+            usedBytes = 1_000_000_000_000,
+            showOptimisticUsage = true,
+        )
         var shown by mutableStateOf(account)
         show(settingsState = { ready(preferences) }, account = { shown })
-        val warning = "Full. New transfers wait until you free up space. Empty trash or delete files to make room."
+        val warning = "Full. New transfers wait until you free up space. Empty Trash or delete files to make room."
         compose.onAllNodesWithText(warning).assertCountEquals(0)
 
         compose.runOnIdle { shown = account.copy(storage = full) }
         compose.onNodeWithText(warning).assertIsDisplayed()
-        compose.onNodeWithContentDescription("devs-auto. 1.0 TB of 1.0 TB used, 100% used. $warning").assertExists()
+        compose.onNodeWithText("1.0 TB of 1.0 TB").assertIsDisplayed()
+        compose.onNodeWithContentDescription("devs-auto. 1.0 TB of 1.0 TB, 100% used. $warning").assertExists()
     }
 
     @Test

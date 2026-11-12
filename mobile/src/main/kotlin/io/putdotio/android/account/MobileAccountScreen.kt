@@ -775,7 +775,7 @@ private fun MobileAccountStorage(storage: AccountStorage) {
     fun size(bytes: Long) = formatFileSize(bytes.coerceAtLeast(0L))
     val full = storage.isFull
     val (template, shown) = when {
-        full -> R.string.mobile_account_storage_full_value to storage.usedBytes
+        full -> AccountR.string.account_storage_full_value to storage.usedBytes
         storage.showOptimisticUsage -> R.string.mobile_account_storage_free to storage.availableBytes
         else -> R.string.mobile_account_storage_used to storage.usedBytes
     }

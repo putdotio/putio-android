@@ -1039,21 +1039,14 @@ private fun TvStorageCard(account: TvAccount) {
     val context = LocalContext.current
     val storage = account.storage
     val size = Formatter.formatShortFileSize(context, storage.sizeBytes.coerceAtLeast(0L))
-    val label = if (storage.showOptimisticUsage) {
-        tvMonoArguments(
-            R.string.tv_account_storage_free,
-            Formatter.formatShortFileSize(context, storage.availableBytes.coerceAtLeast(0L)),
-            size,
-        )
-    } else {
-        tvMonoArguments(
-            R.string.tv_account_storage_used,
-            Formatter.formatShortFileSize(context, storage.usedBytes.coerceAtLeast(0L)),
-            size,
-        )
-    }
-    val usedPercent = (storage.usedFraction * PERCENT).toInt()
     val full = storage.isFull
+    val (template, shown) = when {
+        full -> AccountR.string.account_storage_full_value to storage.usedBytes
+        storage.showOptimisticUsage -> R.string.tv_account_storage_free to storage.availableBytes
+        else -> R.string.tv_account_storage_used to storage.usedBytes
+    }
+    val label = tvMonoArguments(template, Formatter.formatShortFileSize(context, shown.coerceAtLeast(0L)), size)
+    val usedPercent = (storage.usedFraction * PERCENT).toInt()
     val warning = stringResource(AccountR.string.account_storage_full)
     val usage = stringResource(R.string.tv_account_storage_description, label.text, usedPercent)
     val description = if (full) "$usage. $warning" else usage

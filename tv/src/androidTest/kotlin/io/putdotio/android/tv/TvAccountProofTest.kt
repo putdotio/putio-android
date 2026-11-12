@@ -289,7 +289,7 @@ class TvAccountProofTest {
         const val MANAGE_ACCOUNT = "Manage account at put.io"
         const val ACCOUNT_URL = "https://app.put.io/account"
         const val STORAGE_FULL =
-            "Full. New transfers wait until you free up space. Empty trash or delete files to make room."
+            "Full. New transfers wait until you free up space. Empty Trash or delete files to make room."
         const val SIGN_OUT_TITLE = "Sign out of put.io?"
         const val USED_BYTES = 2_000_000_000_000L
         const val TOTAL_BYTES = 11_000_000_000_000L
