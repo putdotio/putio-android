@@ -149,7 +149,7 @@ class TvShellTest {
             )
         }
         compose.onNodeWithText("Your account has been deactivated 😢").assertIsDisplayed()
-        compose.onNodeWithText("Your files are deleted in 14 days unless you renew.")
+        compose.onNodeWithText("Your files are still here, but they are scheduled to be deleted in 14 days.")
             .assertIsDisplayed()
         compose.onAllNodesWithText("app.put.io", substring = true).assertCountEquals(0)
         compose.onNodeWithText("Keep a good thing going!").assertDoesNotExist()
@@ -187,7 +187,7 @@ class TvShellTest {
         }
         compose.onNodeWithText("Your family plan is no longer active.").assertIsDisplayed()
         compose.onNodeWithText("Your account has been deactivated", substring = true).assertDoesNotExist()
-        compose.onNodeWithText("Your files are deleted", substring = true).assertDoesNotExist()
+        compose.onNodeWithText("to be deleted in", substring = true).assertDoesNotExist()
     }
 
     @Test
