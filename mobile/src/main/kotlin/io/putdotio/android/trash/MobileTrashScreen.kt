@@ -88,13 +88,16 @@ internal fun MobileTrashScreen(
     val loaded = state.content as? TrashContent.Loaded
     LoadNextPageNearEnd(
         listState = listState,
-        nextPage = loaded?.nextCursor?.takeIf { !loaded.isBusy && loaded.pageFailure == null },
+        nextPage = loaded?.nextCursor?.takeIf {
+            !loaded.isBusy && loaded.pageFailure == null && !state.hasRequestInFlight
+        },
         onLoadNextPage = { onEvent(TrashEvent.LoadNextPage) },
         threshold = TRASH_PAGING_THRESHOLD,
     )
     MobilePullToRefresh(
         isRefreshing = loaded?.isRefreshing == true,
-        onRefresh = { if (loaded?.isBusy == false) onEvent(TrashEvent.Refresh) },
+        enabled = loaded?.isBusy == false && state.authenticationFailure == null,
+        onRefresh = { onEvent(TrashEvent.Refresh) },
         modifier = modifier.fillMaxSize(),
     ) {
         LazyColumn(Modifier.fillMaxSize().testTag(MOBILE_TRASH_LIST_TAG), state = listState) {
@@ -361,6 +364,11 @@ private fun TrashRestoreSubmission.messageResource(): Int = when (this) {
 @Composable
 private fun PutioFailure.trashMessage(): String =
     if (this is PutioFailure.AccessDenied) stringResource(R.string.mobile_trash_access_denied) else mobileMessage()
+
+private val TrashState.hasRequestInFlight: Boolean
+    get() = restoreOutcome?.submission == TrashRestoreSubmission.SUBMITTING ||
+        restoreOutcome?.check == TrashRestoreCheck.CHECKING ||
+        actionOutcome?.submission == TrashActionSubmission.SUBMITTING
 
 private const val EMPTY_HEIGHT_FRACTION = 0.7f
 private const val TRASH_PAGING_THRESHOLD = 5

@@ -112,11 +112,18 @@ private fun MobileHistoryContent(
     today: LocalDate,
     modifier: Modifier = Modifier,
 ) {
+    var pulled by remember { mutableStateOf(false) }
+    LaunchedEffect(state.isRefreshing) { if (!state.isRefreshing) pulled = false }
+    val refreshing = pulled && state.isRefreshing
+    val reload = {
+        pulled = true
+        onEvent(HistoryEvent.Reload)
+    }
     when (val content = state.content) {
         HistoryContent.Disabled, is HistoryContent.Loading ->
             MobileLoadingState(stringResource(R.string.mobile_history_loading), modifier)
         HistoryContent.Empty ->
-            MobilePullToRefresh(state.isRefreshing, { onEvent(HistoryEvent.Reload) }, modifier) {
+            MobilePullToRefresh(refreshing, state.clearing == HistoryClearing.Idle, reload, modifier) {
                 BoxWithConstraints(Modifier.fillMaxSize()) {
                     val viewportHeight = maxHeight
                     Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
@@ -137,7 +144,7 @@ private fun MobileHistoryContent(
                 modifier = modifier,
             )
         is HistoryContent.Ready ->
-            MobilePullToRefresh(state.isRefreshing, { onEvent(HistoryEvent.Reload) }, modifier) {
+            MobilePullToRefresh(refreshing, state.clearing == HistoryClearing.Idle, reload, modifier) {
                 MobileHistoryList(content, today, onEvent, Modifier.fillMaxSize())
             }
     }
