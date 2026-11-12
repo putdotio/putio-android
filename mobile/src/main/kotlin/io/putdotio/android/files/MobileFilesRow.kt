@@ -43,9 +43,9 @@ import io.putdotio.android.R
 import io.putdotio.android.design.FileTypeIcon
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.putioMono
-import io.putdotio.android.downloads.DownloadPauseReason
 import io.putdotio.android.downloads.DownloadRingTrack
 import io.putdotio.android.downloads.DownloadStatus
+import io.putdotio.android.downloads.label
 import io.putdotio.android.playbackContainer
 import io.putdotio.sdk.files.PutioFolderType
 import io.putdotio.android.MobileIconButton
@@ -261,29 +261,22 @@ private fun MobileFilesDownloadMark(status: DownloadStatus) {
             tint = PutioDesignTokens.redTextSecondary,
             modifier = Modifier.size(FILES_META_ICON_SIZE).testTag(MOBILE_FILES_DOWNLOAD_FAILED_TAG),
         )
-        DownloadStatus.Queued, is DownloadStatus.Downloading, is DownloadStatus.Paused -> {
-            val label = stringResource(status.ringLabel())
-            DownloadRingTrack(
-                status,
-                FILES_META_ICON_SIZE,
-                Modifier.semantics { contentDescription = label }.testTag(MOBILE_FILES_DOWNLOAD_RING_TAG),
-            )
-        }
+        DownloadStatus.Queued -> MobileFilesDownloadRing(status, R.string.mobile_downloads_status_queued)
+        is DownloadStatus.Downloading -> MobileFilesDownloadRing(status, R.string.mobile_files_downloading)
+        is DownloadStatus.Paused -> MobileFilesDownloadRing(status, status.reason.label)
         DownloadStatus.Missing -> Unit
     }
 }
 
-@StringRes
-private fun DownloadStatus.ringLabel(): Int =
-    when (this) {
-        is DownloadStatus.Paused -> when (reason) {
-            DownloadPauseReason.NETWORK -> R.string.mobile_files_download_waiting
-            DownloadPauseReason.STORAGE -> R.string.mobile_files_download_waiting_storage
-            DownloadPauseReason.USER -> R.string.mobile_downloads_meta_paused
-        }
-        DownloadStatus.Queued -> R.string.mobile_downloads_status_queued
-        else -> R.string.mobile_files_downloading
-    }
+@Composable
+private fun MobileFilesDownloadRing(status: DownloadStatus, @StringRes labelRes: Int) {
+    val label = stringResource(labelRes)
+    DownloadRingTrack(
+        status,
+        FILES_META_ICON_SIZE,
+        Modifier.testTag(MOBILE_FILES_DOWNLOAD_RING_TAG).clearAndSetSemantics { contentDescription = label },
+    )
+}
 
 /**
  * Tap runs [onClick], or opens the actions when there is nothing else to do; long-press runs
