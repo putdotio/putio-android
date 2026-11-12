@@ -381,6 +381,7 @@ internal fun TvSessionShell(
             account = account,
             onSignOut = onSignOut,
             showHome = showHome,
+            showHistory = confirmedHistoryEnabled != false,
             focusHomePane = homeReturn != null,
             offline = !online,
             trailing = {
@@ -472,7 +473,6 @@ internal fun TvSessionShell(
                     openRejected = historyOpenRejected,
                     openFailure = historyOpenFailure,
                     onClearOpenRejection = { historyOpenRejected = false },
-                    onOpenAccount = { requestedDestination = TvDestination.Account },
                     onSessionRejected = onSessionRejected,
                     sessionKey = sessionKey,
                     paneFocus = paneFocus,
@@ -859,7 +859,6 @@ private fun TvHistoryPane(
     openRejected: Boolean,
     openFailure: PutioFailure?,
     onClearOpenRejection: () -> Unit,
-    onOpenAccount: () -> Unit,
     onSessionRejected: suspend () -> Unit,
     settingsState: AccountSettingsState,
     sessionKey: Any,
@@ -891,7 +890,6 @@ private fun TvHistoryPane(
         sessionKey = sessionKey,
         pickedRow = session.historyPickedRow,
         files = session.historyFiles,
-        onOpenAccount = onOpenAccount,
         onAuthenticationRequired = onSessionRejected,
         itemActions = TvHistoryItemActions(
             resumePlayback = settingsState.confirmedResumePlayback() != false,

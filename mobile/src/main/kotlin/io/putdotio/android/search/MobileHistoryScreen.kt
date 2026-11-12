@@ -108,16 +108,7 @@ private fun MobileHistoryContent(
     modifier: Modifier = Modifier,
 ) {
     when (val content = state.content) {
-        HistoryContent.Disabled ->
-            MobileEmptyState(
-                title = stringResource(R.string.mobile_history_disabled_title),
-                message = stringResource(
-                    R.string.mobile_history_disabled_message,
-                    stringResource(R.string.mobile_settings_history),
-                    stringResource(R.string.mobile_destination_account),
-                ),
-                modifier = modifier,
-            )
+        HistoryContent.Disabled -> Unit
         is HistoryContent.Loading ->
             MobileLoadingState(stringResource(R.string.mobile_history_loading), modifier)
         HistoryContent.Empty ->

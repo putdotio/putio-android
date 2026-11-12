@@ -290,19 +290,6 @@ class TvHistoryScreenTest {
     }
 
     @Test
-    fun historyOffNamesTheSettingAndOpenAccountGoesThere() {
-        var opened = 0
-        show(onOpenAccount = { opened++ }) { historyState(HistoryContent.Disabled) }
-
-        compose.onNodeWithText("History is off.").assertIsDisplayed()
-        compose.onNodeWithText("Turn on Keep account history in Account to see what happens to your files.")
-            .assertIsDisplayed()
-        compose.onNode(hasText("Open Account") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
-        assertEquals(1, opened)
-        compose.onNode(hasText("Clear history") and hasClickAction()).assertDoesNotExist()
-    }
-
-    @Test
     fun theNextPageLoadsNearTheEndAndAFailedPageRetriesOnlyFromTryAgain() {
         var state by mutableStateOf(
             historyState(HistoryContent.Ready(items(), HistoryPaging.Available(HistoryEventId(3)))),
@@ -397,7 +384,6 @@ class TvHistoryScreenTest {
     private fun show(
         notice: () -> FilesFailure? = { null },
         files: TvHistoryFiles = TvHistoryFiles.None,
-        onOpenAccount: () -> Unit = {},
         itemActions: TvHistoryItemActions? = null,
         state: () -> HistoryState,
     ) {
@@ -412,7 +398,6 @@ class TvHistoryScreenTest {
                 clock = clock,
                 files = files,
                 itemActions = itemActions,
-                onOpenAccount = onOpenAccount,
             )
         }
         compose.onNodeWithText("History").assertDoesNotExist()

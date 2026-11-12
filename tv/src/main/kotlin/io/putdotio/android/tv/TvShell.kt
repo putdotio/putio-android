@@ -84,6 +84,7 @@ internal fun TvShell(
     /** Files' own Back step, such as leaving a folder; null when Files has none. */
     onFilesBack: (() -> Unit)? = null,
     showHome: Boolean = true,
+    showHistory: Boolean = true,
     focusHomePane: Boolean = false,
     offline: Boolean = false,
     trailing: @Composable () -> Unit = {},
@@ -99,7 +100,9 @@ internal fun TvShell(
     val paneFocus = remember { FocusRequester() }
     val paneStates = rememberSaveableStateHolder()
     val panes = TvShellPanes(homePane, filesPane, searchPane, historyPane, accountPane)
-    val tabs = TvDestination.entries.filter { showHome || it != TvDestination.Home }
+    val tabs = TvDestination.entries.filter {
+        (showHome || it != TvDestination.Home) && (showHistory || it != TvDestination.History)
+    }
 
     // Registered before any pane composes, so each pane's own Back handlers take precedence.
     BackHandler(enabled = !tabBarHasFocus) {
@@ -111,15 +114,22 @@ internal fun TvShell(
     }
     LaunchedEffect(requestedDestination) {
         if (requestedDestination != null) {
-            val shown = requestedDestination.within(tabs, start)
+            val shown = requestedDestination.takeIf { it in tabs } ?: TvDestination.Files
             destination = shown
             focusPaneOf = shown
             paneReleased.value = false
             onDestinationRequestHandled()
         }
     }
-    LaunchedEffect(showHome) {
-        if (!showHome && destination == TvDestination.Home) destination = TvDestination.Files
+    val destinationHidden = destination !in tabs
+    LaunchedEffect(destinationHidden) {
+        if (destinationHidden) {
+            val tabWasFocused = tabsHaveFocus
+            val paneWasFocused = !tabBarHasFocus
+            destination = TvDestination.Files
+            if (tabWasFocused) tabFocus.getValue(TvDestination.Files).requestFocus()
+            if (paneWasFocused) focusPaneOf = TvDestination.Files
+        }
     }
     LaunchedEffect(destination) { ProductAnalytics.capture(AnalyticsEvent.ScreenViewed(destination.analyticsScreen)) }
 
@@ -185,9 +195,6 @@ private fun TvShellNotices(notice: InactiveAccountNotice?, offline: Boolean) {
 }
 
 private fun paneGap(noticeShown: Boolean) = if (noticeShown) NOTICE_PANE_GAP else TAB_BAR_GAP
-
-private fun TvDestination.within(tabs: List<TvDestination>, start: TvDestination): TvDestination =
-    if (this in tabs) this else start
 
 private fun TvDestination.entryFocus(
     focusHomePane: Boolean,

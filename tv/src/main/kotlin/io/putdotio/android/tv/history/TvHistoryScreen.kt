@@ -54,7 +54,6 @@ import io.putdotio.android.tv.TvConfirmDialog
 import io.putdotio.android.tv.TvDetailSkeleton
 import io.putdotio.android.tv.TvDialog
 import io.putdotio.android.tv.TvEmptyState
-import io.putdotio.android.tv.TvEmptyStateAction
 import io.putdotio.android.tv.TvListDetail
 import io.putdotio.android.tv.TvListSkeleton
 import io.putdotio.android.tv.TvListPaging
@@ -79,7 +78,7 @@ internal const val TV_HISTORY_ROW_TAG = "tv-history-row"
 
 private fun HistoryContent.entryTarget(stateFocus: FocusRequester, rowsTarget: FocusRequester): FocusRequester =
     when (this) {
-        HistoryContent.Empty -> FocusRequester.Cancel
+        HistoryContent.Empty, HistoryContent.Disabled -> FocusRequester.Cancel
         is HistoryContent.Ready -> rowsTarget
         else -> stateFocus
     }
@@ -113,7 +112,6 @@ internal fun TvHistoryScreen(
     clock: Clock = Clock.systemDefaultZone(),
     pickedRow: TvPickedRow = remember(sessionKey) { TvPickedRow() },
     files: TvHistoryFiles = TvHistoryFiles.None,
-    onOpenAccount: () -> Unit = {},
     onAuthenticationRequired: suspend () -> Unit = {},
     itemActions: TvHistoryItemActions? = null,
 ) = key(sessionKey) {
@@ -153,24 +151,7 @@ internal fun TvHistoryScreen(
             .fillMaxSize()
             .padding(top = HISTORY_TOP_GAP, bottom = STATE_BOTTOM_GAP)
         when (content) {
-            HistoryContent.Disabled ->
-                TvEmptyState(
-                    glyph = PutioEmptyGlyph.HistoryOff,
-                    headline = stringResource(R.string.tv_history_off_title),
-                    message = stringResource(
-                        R.string.tv_history_off_message,
-                        stringResource(R.string.tv_account_history_enabled),
-                        stringResource(R.string.tv_destination_account),
-                    ),
-                    action = TvEmptyStateAction(
-                        label = stringResource(R.string.tv_history_open_account),
-                        onClick = onOpenAccount,
-                        icon = R.drawable.ic_ph_user_circle,
-                    ),
-                    modifier = statePane,
-                    actionFocus = stateFocus,
-                    claimFocus = paneHasFocus.value,
-                )
+            HistoryContent.Disabled -> Unit
             is HistoryContent.Failed ->
                 TvLoadFailedState(
                     failure = content.failure,

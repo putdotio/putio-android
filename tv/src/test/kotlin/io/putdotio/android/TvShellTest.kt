@@ -265,6 +265,38 @@ class TvShellTest {
     }
 
     @Test
+    fun historyOffHidesItsTabAndLeavesAnOpenHistoryPaneForFiles() {
+        var showHistory by mutableStateOf(true)
+        var requested by mutableStateOf<TvDestination?>(null)
+        compose.setTvContent {
+            TvShell(
+                account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                onSignOut = {},
+                showHistory = showHistory,
+                requestedDestination = requested,
+                onDestinationRequestHandled = { requested = null },
+            )
+        }
+        compose.openTab(TvDestination.History)
+
+        showHistory = false
+        compose.waitForIdle()
+
+        compose.onTab("History").assertDoesNotExist()
+        compose.onTab("Files").assertIsSelected()
+        compose.onNodeWithText("Your files will show up here.").assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionUp)
+        }
+        compose.onTab("Files").assertIsFocused().performKeyInput { pressKey(Key.DirectionLeft) }
+        compose.onTab("Home").assertIsSelected()
+        requested = TvDestination.History
+        compose.waitForIdle()
+
+        compose.onTab("Files").assertIsSelected()
+        compose.onNodeWithText("Your files will show up here.").assertIsDisplayed()
+    }
+
+    @Test
     fun searchTabEntersOnTheFieldAndAResultRequestMovesFocusIntoFiles() {
         val search = searchState(
             query = "",

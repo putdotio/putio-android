@@ -65,5 +65,8 @@ internal enum class MobileDestination(
             if (route in ACCOUNT_SUBPAGES) Account else entries.firstOrNull { it.route == route }
 
         fun fromRoute(route: String?): MobileDestination = ofRoute(route) ?: start
+
+        fun shown(historyEnabled: Boolean?): List<MobileDestination> =
+            entries.filter { it != History || historyEnabled != false }
     }
 }

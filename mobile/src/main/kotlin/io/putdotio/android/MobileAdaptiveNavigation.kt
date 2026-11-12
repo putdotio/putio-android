@@ -61,7 +61,11 @@ internal fun isShortWideWindow(): Boolean {
 }
 
 @Composable
-internal fun mobileNavigationLayout(width: Dp, height: Dp): MobileNavigationLayout {
+internal fun mobileNavigationLayout(
+    width: Dp,
+    height: Dp,
+    destinations: List<MobileDestination>,
+): MobileNavigationLayout {
     val density = LocalDensity.current
     // IME changes must not reparent the shell and dispose a focused editor.
     val insets = WindowInsets.systemBars.union(WindowInsets.displayCutout)
@@ -71,7 +75,7 @@ internal fun mobileNavigationLayout(width: Dp, height: Dp): MobileNavigationLayo
     }
     val availableHeight = height - with(density) { (insets.getTop(density) + insets.getBottom(density)).toDp() }
     val measurer = rememberTextMeasurer()
-    val labels = MobileDestination.entries.map {
+    val labels = destinations.map {
         measurer.measure(stringResource(it.labelRes), MaterialTheme.typography.labelMedium, softWrap = false).size
     }
     val widest = with(density) { labels.maxOf { it.width }.toDp() }
@@ -80,14 +84,14 @@ internal fun mobileNavigationLayout(width: Dp, height: Dp): MobileNavigationLayo
     // share of the bar and its label may fill it; a label on the 96dp rail takes its width less the
     // item padding. A compact-height window, such as a phone in landscape, keeps the phone's bar.
     return if (width >= 600.dp && !isCompactHeight(height)) {
-        val railHeight = (24.dp + 12.dp + tallest + 24.dp) * MobileDestination.entries.size + 16.dp
+        val railHeight = (24.dp + 12.dp + tallest + 24.dp) * destinations.size + 16.dp
         if (widest <= 80.dp && availableHeight >= railHeight) {
             MobileNavigationLayout.Rail
         } else {
             MobileNavigationLayout.Modal
         }
     } else {
-        val labelWidth = availableWidth / MobileDestination.entries.size
+        val labelWidth = availableWidth / destinations.size
         val minimumViewport = 64.dp + (24.dp + tallest + 32.dp) * 3
         if (widest <= labelWidth && availableHeight >= minimumViewport) {
             MobileNavigationLayout.Bar
@@ -103,6 +107,7 @@ internal fun MobileNavigationContainer(
     selectedDestination: MobileDestination,
     onDestination: (MobileDestination) -> Unit,
     enabled: Boolean = true,
+    destinations: List<MobileDestination> = MobileDestination.entries,
     content: @Composable ((() -> Unit)?) -> Unit,
 ) {
     // Moving between layouts must keep the content, the open player included, rather than rebuild it.
@@ -125,7 +130,7 @@ internal fun MobileNavigationContainer(
             ModalDrawerSheet(modifier = Modifier.testTag(MOBILE_NAV_DRAWER_TAG)) {
                 Column(Modifier.fillMaxHeight().verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)) {
                     TextButton(onClick = close) { Text(stringResource(R.string.mobile_navigation_close)) }
-                    MobileDestination.entries.forEach { destination ->
+                    destinations.forEach { destination ->
                         val selected = destination == selectedDestination
                         NavigationDrawerItem(
                             selected = selected,
