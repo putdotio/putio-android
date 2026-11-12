@@ -126,12 +126,16 @@ internal class TvAuthController(
         if (mutableState.value != TvAuthState.Initializing) {
             return@withLock mutableState.value is TvAuthState.SignedIn
         }
-        val quietToken = if (interactive) null else readSession() as? StoredToken.Present ?: return@withLock false
+        val quietToken = if (interactive) {
+            null
+        } else {
+            tokens.readSession(tokenRevocations) as? StoredToken.Present ?: return@withLock false
+        }
 
         mutableState.value = TvAuthState.RestoringSession
         tokenRevocations.resume()
         try {
-            val accessToken = when (val stored = quietToken ?: readSession()) {
+            val accessToken = when (val stored = quietToken ?: tokens.readSession(tokenRevocations)) {
                 is StoredToken.Present -> {
                     // Unread: a Keystore session supersedes it. Deleting here retries a
                     // cleanup that failed after import.
@@ -186,7 +190,7 @@ internal class TvAuthController(
     suspend fun retryValidation(): Boolean = operationMutex.withLock {
         val previous = mutableState.value.takeIf { it.retriesStoredSession() } ?: return@withLock false
         try {
-            val accessToken = when (val stored = readSession()) {
+            val accessToken = when (val stored = tokens.readSession(tokenRevocations)) {
                 is StoredToken.Present -> stored.accessToken
                 StoredToken.Absent -> return@withLock importLegacySession(TvSessionValidationSource.RETRY)
                 StoredToken.SignedOut -> {
@@ -264,7 +268,7 @@ internal class TvAuthController(
             linking.stop(TvLinkStop.Failed(TvLinkFailure.SERVER), sessionExpired)
             return
         }
-        val kept = keep(accessToken)
+        val kept = tokenRevocations.keepOrNull(accessToken)
         when {
             kept == false -> linking.restart(sessionExpired = true)
             kept == true && tokens.write(accessToken) -> {
@@ -322,7 +326,7 @@ internal class TvAuthController(
                 }
                 is TvSessionValidation.Valid -> {
                     // Like a linked token: one awaiting revocation is kept, one already revoked is not.
-                    val kept = keep(legacyToken)
+                    val kept = tokenRevocations.keepOrNull(legacyToken)
                     when {
                         kept == false -> {
                             legacySession.delete()
@@ -342,23 +346,6 @@ internal class TvAuthController(
         }
         return true
     }
-
-    private suspend fun readSession(): StoredToken {
-        val stored = tokens.read()
-        if (stored !is StoredToken.Present) return stored
-        return try {
-            if (tokenRevocations.isSignedOut(stored.accessToken)) StoredToken.SignedOut else stored
-        } catch (_: AuthTokenStorageException) {
-            StoredToken.Unreadable
-        }
-    }
-
-    private suspend fun keep(accessToken: AccessToken): Boolean? =
-        try {
-            tokenRevocations.keep(accessToken)
-        } catch (_: AuthTokenStorageException) {
-            null
-        }
 
     private fun signIn(account: TvAccount) {
         sessionSequence = Math.incrementExact(sessionSequence)
@@ -384,3 +371,20 @@ private suspend fun TvSessionTokens.signOutQuietly(
     state.value = TvAuthState.Initializing
     signOuts.update { it + 1 }
 }
+
+private suspend fun TvSessionTokens.readSession(revocations: TokenRevocations): StoredToken {
+    val stored = read()
+    if (stored !is StoredToken.Present) return stored
+    return try {
+        if (revocations.isSignedOut(stored.accessToken)) StoredToken.SignedOut else stored
+    } catch (_: AuthTokenStorageException) {
+        StoredToken.Unreadable
+    }
+}
+
+private suspend fun TokenRevocations.keepOrNull(accessToken: AccessToken): Boolean? =
+    try {
+        keep(accessToken)
+    } catch (_: AuthTokenStorageException) {
+        null
+    }
