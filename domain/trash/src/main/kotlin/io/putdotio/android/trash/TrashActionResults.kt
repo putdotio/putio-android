@@ -30,8 +30,10 @@ internal fun TrashMachine.verifyActionAgainstPage(page: TrashContent.Loaded): Tr
     val outcome = state.actionOutcome?.takeIf { it.check == TrashActionCheck.CHECKING } ?: return this
     val check = outcome.verify(page)
     val verifiedBulkRestore = check == TrashActionCheck.VERIFIED && outcome.action.isBulkRestore
+    val listed = page.items.mapTo(hashSetOf(), TrashItem::id)
+    val stillListed = (outcome.action as? TrashSelectionAction)?.items.orEmpty().filter { it.id in listed }
     return copy(state = state.copy(
-        actionOutcome = outcome.copy(check = check, checkFailure = null),
+        actionOutcome = outcome.copy(check = check, checkFailure = null, stillListed = stillListed),
         bulkRestoreVersion = state.bulkRestoreVersion + (if (verifiedBulkRestore) 1L else 0L),
     ))
 }

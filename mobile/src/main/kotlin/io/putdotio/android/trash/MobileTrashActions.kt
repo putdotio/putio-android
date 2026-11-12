@@ -262,9 +262,8 @@ private fun TrashActionOutcome.message(state: TrashState): String =
     when {
         check == TrashActionCheck.VERIFIED -> action.verifiedMessage()
         check == TrashActionCheck.INCONCLUSIVE -> action.inconclusiveMessage()
-        check == TrashActionCheck.FAILED && checkFailure == null -> action.stillPresentMessage(state)
-        submission == TrashActionSubmission.ACKNOWLEDGED -> action.startedMessage()
-        else -> stringResource(submissionMessageResource())
+        check == TrashActionCheck.FAILED && checkFailure == null -> action.stillPresentMessage(stillListed.size)
+        else -> submissionMessage()
     }
 
 @Composable
@@ -295,19 +294,18 @@ private fun TrashAction.inconclusiveMessage(): String = when (this) {
 }
 
 @Composable
-private fun TrashAction.stillPresentMessage(state: TrashState): String = when (this) {
+private fun TrashAction.stillPresentMessage(failed: Int): String = when (this) {
     is TrashAction.DeleteItem -> stringResource(R.string.mobile_trash_delete_still_present, item.name)
-    is TrashAction.DeleteSelected -> state.stillListed(this).size.let { failed ->
-        pluralStringResource(R.plurals.mobile_trash_delete_selected_failed, failed, failed)
-    }
+    is TrashAction.DeleteSelected -> pluralStringResource(R.plurals.mobile_trash_delete_selected_failed, failed, failed)
     else -> stringResource(R.string.mobile_trash_empty_still_present)
 }
 
-private fun TrashActionOutcome.submissionMessageResource(): Int = when (submission) {
-    TrashActionSubmission.SUBMITTING -> R.string.mobile_trash_action_submitting
-    TrashActionSubmission.ACKNOWLEDGED -> R.string.mobile_trash_action_submitting
-    TrashActionSubmission.UNCERTAIN -> R.string.mobile_trash_action_uncertain
-    TrashActionSubmission.REJECTED -> R.string.mobile_trash_action_rejected
+@Composable
+private fun TrashActionOutcome.submissionMessage(): String = when (submission) {
+    TrashActionSubmission.SUBMITTING -> stringResource(R.string.mobile_trash_action_submitting)
+    TrashActionSubmission.ACKNOWLEDGED -> action.startedMessage()
+    TrashActionSubmission.UNCERTAIN -> stringResource(R.string.mobile_trash_action_uncertain)
+    TrashActionSubmission.REJECTED -> stringResource(R.string.mobile_trash_action_rejected)
 }
 
 @Composable

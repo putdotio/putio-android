@@ -14,6 +14,8 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.longClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.files.FilesItemId
@@ -163,6 +165,9 @@ class MobileTrashActionsScreenTest {
         val rows = TrashContent.Loaded(listOf(item, second, third), null, 3, 36)
         var state by mutableStateOf(TrashState(content = rows))
         compose.setContent { PutioTheme { TrashWithOverflow(state) { events += it; true } } }
+        compose.onNodeWithContentDescription("Restore ${second.name}").performTouchInput { longClick() }
+        compose.onNodeWithTag(MOBILE_TRASH_SELECTION_BAR_TAG).assertDoesNotExist()
+        compose.runOnIdle { events.clear() }
         compose.trashMenuItem(MOBILE_TRASH_SELECT_TAG).performClick()
         compose.onNodeWithTag(MOBILE_TRASH_SELECTION_BAR_TAG).assertIsDisplayed()
         compose.onNodeWithText("0 selected").assertIsDisplayed()
@@ -170,6 +175,10 @@ class MobileTrashActionsScreenTest {
         compose.onNodeWithText(third.name).performClick()
         compose.onNodeWithText("2 selected").assertIsDisplayed()
         compose.onNodeWithTag(MOBILE_TRASH_SELECTION_RESTORE_TAG).performClick()
+        compose.onNodeWithTag(MOBILE_TRASH_SELECTION_BAR_TAG).assertDoesNotExist()
+        compose.onNodeWithText(item.name).performTouchInput { longClick() }
+        compose.onNodeWithText(third.name).performClick()
+        compose.onNodeWithText("2 selected").assertIsDisplayed()
         compose.onNodeWithTag(MOBILE_TRASH_SELECTION_DELETE_TAG).performClick()
         compose.runOnIdle {
             assertEquals(
@@ -195,6 +204,7 @@ class MobileTrashActionsScreenTest {
                     TrashAction.DeleteSelected(listOf(item, third)),
                     TrashActionSubmission.UNCERTAIN,
                     check = TrashActionCheck.FAILED,
+                    stillListed = listOf(item, third),
                 ),
             )
         }

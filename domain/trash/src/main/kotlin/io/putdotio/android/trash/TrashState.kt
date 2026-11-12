@@ -54,6 +54,7 @@ public data class TrashActionOutcome(
     val checkFailure: PutioFailure? = null,
     // What Restore all submitted; verification compares the fresh listing against it, not against empty.
     val restoreSnapshot: TrashRestoreSnapshot? = null,
+    val stillListed: List<TrashItem> = emptyList(),
 ) {
     // A complete read that still lists the target answers the question; only a failed read keeps recovery open.
     val isPending: Boolean
@@ -109,10 +110,6 @@ public data class TrashState(
         itemIds.isNotEmpty() && itemIds.all(::canRestore)
     public fun canDeleteAll(itemIds: Collection<FilesItemId>): Boolean =
         itemIds.isNotEmpty() && itemIds.all(::canDelete)
-    public fun stillListed(action: TrashSelectionAction): List<TrashItem> {
-        val listed = (content as? TrashContent.Loaded)?.items.orEmpty().mapTo(hashSetOf(), TrashItem::id)
-        return action.items.filter { it.id in listed }
-    }
     // A failed refresh leaves a snapshot the server may have moved past; bulk actions wait for a fresh one.
     val canActOnAll: Boolean
         get() = isIdleLoaded && content is TrashContent.Loaded &&

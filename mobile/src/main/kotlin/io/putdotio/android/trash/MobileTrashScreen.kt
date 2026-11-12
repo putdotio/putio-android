@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
@@ -150,6 +151,7 @@ internal fun MobileTrashScreen(
                 state = state,
                 selected = selected,
                 onEvent = onEvent,
+                onSent = selection::end,
                 modifier = Modifier.align(Alignment.BottomCenter).onSizeChanged { toolbarHeight = it.height },
             )
         }
@@ -158,7 +160,11 @@ internal fun MobileTrashScreen(
         MobileTrashItemSheet(item, state, onEvent, onDismiss = { sheetItemId = null })
     }
     state.actionConfirmation?.let { action ->
-        MobileTrashActionConfirmation(action, state, onEvent)
+        MobileTrashActionConfirmation(action, state) { event ->
+            onEvent(event).also { sent ->
+                if (sent && event is TrashEvent.ConfirmAction && action is TrashAction.DeleteSelected) selection.end()
+            }
+        }
     }
 }
 
@@ -240,12 +246,13 @@ private fun MobileTrashRow(
 ) {
     val muted = IconButtonDefaults.iconButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
     val selectLabel = stringResource(R.string.mobile_trash_select)
+    val currentOnSelect by rememberUpdatedState(onSelect)
     MobileRow(
         leading = { FileTypeIcon(item.type, Modifier.size(26.dp)) },
         headline = { MobileMiddleCutText(item.name) },
         meta = { MobileTrashRowMeta(item) },
         modifier = Modifier
-            .pointerInput(enabled) { if (enabled) detectTapGestures(onLongPress = { onSelect() }) }
+            .pointerInput(enabled) { if (enabled) detectTapGestures(onLongPress = { currentOnSelect() }) }
             .semantics {
                 if (enabled) {
                     onLongClick(label = selectLabel) {

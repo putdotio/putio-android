@@ -413,6 +413,10 @@
         <item quantity="one">%1$d item is no longer in trash.</item>
         <item quantity="other">%1$d items are no longer in trash.</item>
     </plurals>
+    <plurals name="tv_trash_delete_selected_failed">
+        <item quantity="one">Couldn’t delete %1$d item.</item>
+        <item quantity="other">Couldn’t delete %1$d items.</item>
+    </plurals>
     <string name="tv_trash_delete_selected_inconclusive">Some items were not on the first page. Check trash again in a moment.</string>
     <string name="tv_player_loading">Loading</string>
     <string name="tv_player_buffering">Buffering…</string>

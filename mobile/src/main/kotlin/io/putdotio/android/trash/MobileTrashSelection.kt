@@ -69,9 +69,6 @@ internal class TrashSelection(private val selection: MobileSelection = MobileSel
 @Composable
 internal fun TrashSelectionEffects(state: TrashState, selection: TrashSelection) {
     LaunchedEffect(selection, state.content) { selection.reconcile(state) }
-    LaunchedEffect(state.actionOutcome?.action) {
-        if (state.actionOutcome?.action is TrashSelectionAction) selection.end()
-    }
     DisposableEffect(selection) { onDispose(selection::end) }
     BackHandler(enabled = selection.isActive(state), onBack = selection::end)
 }
@@ -103,6 +100,7 @@ internal fun MobileTrashSelectionToolbar(
     state: TrashState,
     selected: Set<FilesItemId>,
     onEvent: (TrashEvent) -> Boolean,
+    onSent: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val label = pluralStringResource(R.plurals.mobile_trash_selection_actions, selected.size, selected.size)
@@ -116,7 +114,7 @@ internal fun MobileTrashSelectionToolbar(
             icon = R.drawable.ic_ph_arrow_counter_clockwise,
             label = stringResource(R.string.mobile_trash_restore),
             enabled = state.canRestoreAll(selected),
-            onClick = { onEvent(TrashEvent.RestoreSelected(selected)) },
+            onClick = { if (onEvent(TrashEvent.RestoreSelected(selected))) onSent() },
             modifier = Modifier.testTag(MOBILE_TRASH_SELECTION_RESTORE_TAG),
         )
         MobileToolbarTile(
