@@ -38,7 +38,7 @@ import io.putdotio.android.MobileMiddleCutText
 import io.putdotio.android.MobileRow
 import io.putdotio.android.MobileSelectedRowTint
 import io.putdotio.android.MobileSelectionCheckbox
-import io.putdotio.android.monoFigures
+import io.putdotio.android.monoValue
 import io.putdotio.android.R
 import io.putdotio.android.design.FileTypeIcon
 import io.putdotio.android.design.PutioDesignTokens
@@ -188,7 +188,7 @@ internal sealed interface MobileFilesRowPlace {
 }
 
 /**
- * Size with mono figures, then the date in a folder or the containing folder's name in search, then
+ * Size in mono, then the date in a folder or the containing folder's name in search, then
  * a grey eye once a video or song is finished, then the download: a ring while it runs or waits, a red
  * mark once it failed, and a yellow mark when on this device. A folder dates
  * itself by its last change, "3 days ago"; the shared folders have no size of their own.
@@ -207,7 +207,7 @@ private fun MobileFilesMeta(item: FilesItem, downloadStatus: DownloadStatus?, pl
     val color = MaterialTheme.colorScheme.onSurfaceVariant
     val parts = buildList<@Composable RowScope.() -> Unit> {
         size?.let {
-            add { Text(monoFigures(it, style.putioMono().toSpanStyle()), style = style, color = color, maxLines = 1) }
+            add { Text(monoValue(it, style.putioMono().toSpanStyle()), style = style, color = color, maxLines = 1) }
         }
         // The date or folder gives way first, so the glyphs after it keep their room at large text sizes.
         date?.let {

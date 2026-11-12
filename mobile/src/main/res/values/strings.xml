@@ -256,7 +256,7 @@
     <string name="mobile_settings_about">App info</string>
     <string name="mobile_settings_about_description">Version, build, and device details for support.</string>
     <string name="mobile_settings_about_version">Version</string>
-    <string name="mobile_settings_about_version_value">%1$s (build %2$d)</string>
+    <string name="mobile_settings_about_version_value">%1$s (build %2$s)</string>
     <string name="mobile_settings_about_channel">Channel</string>
     <string name="mobile_settings_about_channel_stable">Production, %1$s build</string>
     <string name="mobile_settings_about_channel_internal">Nightly, %1$s build</string>
@@ -911,5 +911,5 @@
     <string name="mobile_trash_more">Trash actions</string>
     <string name="mobile_share_progress_title">Preparing to share</string>
     <string name="mobile_share_progress_message">%1$s downloads first, then the share sheet opens.</string>
-    <string name="mobile_share_progress_bytes">%1$d%% · %2$s of %3$s</string>
+    <string name="mobile_share_progress_bytes">%1$s · %2$s of %3$s</string>
 </resources>

@@ -313,8 +313,9 @@ colors:
 ## Typography
 
 GT America for UI; Berkeley Mono with tabular figures for sizes, times,
-speeds, counts, percentages and versions. Dates read as words and stay in GT
-America, as do filenames and words in a value slot. Nothing goes below 12sp.
+speeds, counts, percentages and versions. A unit sets in mono with its figures
+(`30.7 MB`, `1.4 MB/s`, `42%`). Dates read as words and stay in GT America, as
+do filenames and words in a value slot. Nothing goes below 12sp.
 
 The front matter's roles map onto Material's slots on the phone; the `tv-*`
 roles are the TV's scale. `mono` takes the size of the text it sits in.

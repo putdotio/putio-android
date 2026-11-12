@@ -5,17 +5,27 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 
-internal fun monoFigures(text: String, mono: SpanStyle): AnnotatedString =
-    buildAnnotatedString { appendMonoFigures(text, mono) }
+internal fun monoValue(value: String, mono: SpanStyle): AnnotatedString = AnnotatedString(value, mono)
 
-internal fun AnnotatedString.Builder.appendMonoFigures(text: String, mono: SpanStyle) {
-    var start = 0
-    while (start < text.length) {
-        val digits = text[start].isDigit()
-        var end = start
-        while (end < text.length && text[end].isDigit() == digits) end++
-        val run = text.substring(start, end)
-        if (digits) withStyle(mono) { append(run) } else append(run)
-        start = end
-    }
+internal fun AnnotatedString.Builder.appendMonoValue(value: String, mono: SpanStyle) {
+    withStyle(mono) { append(value) }
 }
+
+/** [template] with its `%1$s`, `%2$s`… slots filled by [values] in [mono]. */
+internal fun monoArguments(template: String, mono: SpanStyle, vararg values: String): AnnotatedString =
+    styledTemplate(template, values.map { it to mono })
+
+/** [template] with each `%n$s` slot filled from [slots] in its style. */
+internal fun styledTemplate(template: String, slots: List<Pair<String, SpanStyle>>): AnnotatedString =
+    buildAnnotatedString {
+        var cursor = 0
+        for (match in SLOT.findAll(template)) {
+            append(template.substring(cursor, match.range.first))
+            val slot = slots.getOrNull(match.groupValues[1].toInt() - 1)
+            if (slot != null) withStyle(slot.second) { append(slot.first) }
+            cursor = match.range.last + 1
+        }
+        append(template.substring(cursor))
+    }
+
+private val SLOT = Regex("%(\\d+)\\\$s")

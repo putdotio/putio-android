@@ -58,7 +58,7 @@ import coil3.compose.SubcomposeAsyncImageContent
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
 import io.putdotio.android.R
-import io.putdotio.android.monoFigures
+import io.putdotio.android.monoValue
 import io.putdotio.android.design.FileTypeIcon
 import io.putdotio.android.design.PutioEmptyState
 import io.putdotio.android.design.PutioRadius
@@ -372,7 +372,7 @@ private fun MobileFilesDetailFact(fact: DetailFact, style: TextStyle) {
         )
         val mono = style.putioMono().toSpanStyle()
         Text(
-            text = if (fact.mono) monoFigures(fact.value, mono) else AnnotatedString(fact.value),
+            text = if (fact.mono) monoValue(fact.value, mono) else AnnotatedString(fact.value),
             style = style,
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f),

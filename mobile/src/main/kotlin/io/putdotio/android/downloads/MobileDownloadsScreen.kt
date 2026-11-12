@@ -58,7 +58,7 @@ import io.putdotio.android.MobileSelectionCheckbox
 import io.putdotio.android.MobileSelectionToolbarClearance
 import io.putdotio.android.MobileSelectionToolbarOffset
 import io.putdotio.android.R
-import io.putdotio.android.appendMonoFigures
+import io.putdotio.android.appendMonoValue
 import io.putdotio.android.files.formatFileSize
 import io.putdotio.android.files.MobileFilesActionRow
 import io.putdotio.android.files.MobileFilesActionTiles
@@ -67,7 +67,7 @@ import io.putdotio.android.files.MobileFilesDestructiveAction
 import io.putdotio.android.files.MobileFilesSheetHeader
 import io.putdotio.android.files.MobileFilesSheetMeta
 import io.putdotio.android.files.toDisplayDate
-import io.putdotio.android.monoFigures
+import io.putdotio.android.monoValue
 import io.putdotio.android.design.FileTypeIcon
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioDestructiveButton
@@ -219,7 +219,7 @@ private fun LazyListScope.section(section: DownloadSection, rows: DownloadRows, 
             trailing = storage?.let { bytes ->
                 {
                     val style = MaterialTheme.typography.bodySmall
-                    Text(monoFigures(formatFileSize(bytes), style.putioMono().toSpanStyle()), style = style)
+                    Text(monoValue(formatFileSize(bytes), style.putioMono().toSpanStyle()), style = style)
                 }
             },
         )
@@ -375,7 +375,7 @@ private fun downloadMeta(entry: DownloadEntry, state: DownloadsState, removing: 
                 parts.progress(this, status.bytesDownloaded, status.contentLength, status.percent)
                 state.speeds[entry.fileId]?.takeIf { it > 0L }?.let { speed ->
                     append(SEPARATOR)
-                    appendMonoFigures(resources.getString(R.string.mobile_transfer_speed, formatFileSize(speed)), mono)
+                    appendMonoValue(resources.getString(R.string.mobile_transfer_speed, formatFileSize(speed)), mono)
                 }
             }
             is DownloadStatus.Paused -> {
@@ -392,7 +392,7 @@ private fun downloadMeta(entry: DownloadEntry, state: DownloadsState, removing: 
             }
             DownloadStatus.Missing -> append(resources.getString(R.string.mobile_files_download_missing))
             is DownloadStatus.Completed -> {
-                appendMonoFigures(formatFileSize(status.bytes), mono)
+                appendMonoValue(formatFileSize(status.bytes), mono)
                 append(SEPARATOR)
                 append(entry.createdAt.toDisplayDate(context))
             }
@@ -429,7 +429,7 @@ private class DownloadMetaParts(private val context: Context, private val mono: 
             }
             percent != null ->
                 builder.withStyle(mono) { append("${percent.roundToInt().coerceIn(0, PERCENT.toInt())}%") }
-            else -> builder.appendMonoFigures(done, mono)
+            else -> builder.appendMonoValue(done, mono)
         }
     }
 
@@ -444,7 +444,7 @@ private class DownloadMetaParts(private val context: Context, private val mono: 
                 rest = ""
             } else {
                 append(rest.substring(0, next))
-                appendMonoFigures(if (next == one) first else second, mono)
+                appendMonoValue(if (next == one) first else second, mono)
                 rest = rest.substring(next + VALUE_ONE.length)
             }
         }
