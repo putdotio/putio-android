@@ -34,6 +34,7 @@ internal class MobilePinnedFiles(
     private val mutableNotices =
         MutableSharedFlow<MobileFilesNotice>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     private var editedName = ""
+    private var resolvedRefresh = 0
 
     val ids: StateFlow<List<FilesItemId>?> = pins.pins
     val items: StateFlow<List<FilesItem>> = mutableItems.asStateFlow()
@@ -41,8 +42,9 @@ internal class MobilePinnedFiles(
 
     init {
         scope.launch {
-            combine(pins.pins, refreshes) { ids, _ -> ids }.collectLatest { ids ->
-                mutableItems.value = ids?.let { resolveAll(it) }.orEmpty()
+            combine(pins.pins, refreshes, ::Pair).collectLatest { (ids, refresh) ->
+                mutableItems.value = ids?.let { resolveAll(it, fresh = refresh != resolvedRefresh) }.orEmpty()
+                resolvedRefresh = refresh
             }
         }
         scope.launch {
@@ -65,7 +67,6 @@ internal class MobilePinnedFiles(
     }
 
     fun refresh() {
-        known.clear()
         gone.clear()
         pins.reload()
         refreshes.update { it + 1 }
@@ -76,17 +77,20 @@ internal class MobilePinnedFiles(
         scope.cancel()
     }
 
-    private suspend fun resolveAll(ids: List<FilesItemId>): List<FilesItem> = coroutineScope {
-        ids.map { id -> async { known[id] ?: read(id) } }.awaitAll().filterNotNull()
+    private suspend fun resolveAll(ids: List<FilesItemId>, fresh: Boolean): List<FilesItem> = coroutineScope {
+        ids.map { id -> async { known[id]?.takeUnless { fresh } ?: read(id) } }.awaitAll().filterNotNull()
     }
 
     private suspend fun read(id: FilesItemId): FilesItem? {
         if (id in gone) return null
         return when (val result = resolve(id)) {
             is PutioResult.Success -> result.value.also { known[id] = it }
-            is PutioResult.Failure -> {
-                if (result.failure.isNotFound && gone.add(id)) pins.unpinGone(id)
+            is PutioResult.Failure -> if (result.failure.isNotFound) {
+                known.remove(id)
+                if (gone.add(id)) pins.unpinGone(id)
                 null
+            } else {
+                known[id]
             }
         }
     }

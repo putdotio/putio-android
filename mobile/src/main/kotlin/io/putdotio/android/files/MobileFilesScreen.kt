@@ -1092,7 +1092,7 @@ private fun openPinned(
     onEvent: (FilesBrowserEvent) -> Unit,
     onPlayMedia: (FilesItem) -> Unit,
 ) {
-    val listed = !item.isFolder && folder.content.items().any { it.id == item.id }
+    val listed = folder.content.items().any { it.id == item.id }
     val listedClick = if (listed) rowClick(item, fileOpening, onEvent, onPlayMedia) else null
     when {
         listedClick != null -> listedClick()

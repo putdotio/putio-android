@@ -19,15 +19,21 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class MobilePinnedFilesTest {
     private val reads = mutableListOf<FilesItemId>()
+    private var offline = false
     private val resolve: suspend (FilesItemId) -> PutioResult<FilesItem> = { id ->
         reads += id
+        when {
+            offline -> PutioResult.Failure(PutioFailure.NetworkUnavailable(PutioConfigurationException("offline")))
+            else -> resolveOnline(id)
+        }
+    }
+    private fun resolveOnline(id: FilesItemId): PutioResult<FilesItem> =
         when (id) {
             Series -> PutioResult.Success(item(Series, "Series", PutioFileType.FOLDER))
             Clip -> PutioResult.Success(item(Clip, "clip.mp4", PutioFileType.VIDEO))
             Offline -> PutioResult.Failure(PutioFailure.NetworkUnavailable(PutioConfigurationException("offline")))
             else -> PutioResult.Failure(notFound())
         }
-    }
 
     @Test
     fun pinsLoadByIdInPinOrderAndAFileGoneIsDropped() = runTest(UnconfinedTestDispatcher()) {
@@ -54,6 +60,19 @@ class MobilePinnedFilesTest {
 
         assertEquals(listOf("clip.mp4"), pinned.items.value.map { it.name })
         assertEquals(listOf(Offline, Clip), pins.pins.value)
+    }
+
+    @Test
+    fun aRefreshThatFailsKeepsThePinsAlreadyShown() = runTest(UnconfinedTestDispatcher()) {
+        val pins = FakePinnedFiles(listOf(Series, Clip))
+        val pinned = MobilePinnedFiles(pins, resolve, backgroundScope)
+        offline = true
+        reads.clear()
+
+        pinned.refresh()
+
+        assertEquals(listOf(Series, Clip), reads)
+        assertEquals(listOf("Series", "clip.mp4"), pinned.items.value.map { it.name })
     }
 
     @Test
