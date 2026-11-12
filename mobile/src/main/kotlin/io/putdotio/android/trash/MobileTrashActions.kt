@@ -215,10 +215,9 @@ internal fun MobileTrashActionConfirmation(
 @Composable
 internal fun MobileTrashActionOutcome(
     outcome: TrashActionOutcome,
-    state: TrashState,
+    enabled: Boolean,
     onEvent: (TrashEvent) -> Boolean,
 ) {
-    val enabled = state.authenticationFailure == null
     Column(
         Modifier.fillMaxWidth().padding(16.dp).testTag(MOBILE_TRASH_ACTION_OUTCOME_TAG)
             .semantics { liveRegion = LiveRegionMode.Polite },
@@ -227,7 +226,7 @@ internal fun MobileTrashActionOutcome(
         (outcome.action as? TrashAction.DeleteItem)?.let {
             Text(it.item.name, style = MaterialTheme.typography.titleMedium)
         }
-        Text(outcome.message(state))
+        Text(outcome.message())
         outcome.submissionFailure?.takeIf { outcome.submission == TrashActionSubmission.REJECTED }?.let { failure ->
             Text(failure.trashActionMessage())
         }
@@ -258,7 +257,7 @@ internal fun MobileTrashActionOutcome(
 }
 
 @Composable
-private fun TrashActionOutcome.message(state: TrashState): String =
+private fun TrashActionOutcome.message(): String =
     when {
         check == TrashActionCheck.VERIFIED -> action.verifiedMessage()
         check == TrashActionCheck.INCONCLUSIVE -> action.inconclusiveMessage()

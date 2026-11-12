@@ -127,3 +127,12 @@ internal fun MobileTrashSelectionToolbar(
         )
     }
 }
+
+internal fun ((TrashEvent) -> Boolean).endingSelectionOn(
+    action: TrashDestructiveAction,
+    selection: TrashSelection,
+): (TrashEvent) -> Boolean = { event ->
+    invoke(event).also { sent ->
+        if (sent && event is TrashEvent.ConfirmAction && action is TrashAction.DeleteSelected) selection.end()
+    }
+}

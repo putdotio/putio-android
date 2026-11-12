@@ -122,7 +122,7 @@ internal fun MobileTrashScreen(
                 }
                 state.actionOutcome?.let { outcome ->
                     item(key = "action-outcome") {
-                        MobileTrashActionOutcome(outcome, state, onEvent)
+                        MobileTrashActionOutcome(outcome, state.authenticationFailure == null, onEvent)
                     }
                 }
                 when (val content = state.content) {
@@ -160,11 +160,7 @@ internal fun MobileTrashScreen(
         MobileTrashItemSheet(item, state, onEvent, onDismiss = { sheetItemId = null })
     }
     state.actionConfirmation?.let { action ->
-        MobileTrashActionConfirmation(action, state) { event ->
-            onEvent(event).also { sent ->
-                if (sent && event is TrashEvent.ConfirmAction && action is TrashAction.DeleteSelected) selection.end()
-            }
-        }
+        MobileTrashActionConfirmation(action, state, onEvent.endingSelectionOn(action, selection))
     }
 }
 
