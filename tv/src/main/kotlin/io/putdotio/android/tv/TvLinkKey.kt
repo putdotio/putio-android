@@ -10,8 +10,7 @@ import java.security.SecureRandom
 internal value class TvLinkKey(val value: String) {
     fun fileLinkSegment(id: FilesItemId): String = "${id.value}$SEPARATOR$value"
 
-    fun matches(candidate: String?): Boolean =
-        candidate != null && MessageDigest.isEqual(value.toByteArray(), candidate.toByteArray())
+    fun matches(candidate: String): Boolean = MessageDigest.isEqual(value.toByteArray(), candidate.toByteArray())
 
     companion object {
         const val SEPARATOR = '~'
