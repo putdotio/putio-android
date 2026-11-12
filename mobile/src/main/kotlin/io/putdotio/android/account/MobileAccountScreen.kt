@@ -123,6 +123,7 @@ internal fun MobileAccountScreen(
     onManageTrash: () -> Unit = {},
     onManagePublicLinks: (() -> Unit)? = null,
     onPrivacyControls: () -> Unit = {},
+    onLoggedInApps: (() -> Unit)? = null,
     onAppInfo: () -> Unit = {},
     onOpenSourceLicenses: () -> Unit = {},
     library: MobileAccountLibrary = MobileAccountLibrary(),
@@ -166,7 +167,7 @@ internal fun MobileAccountScreen(
             playbackItems(settingsState, appConfigState, rows, onRetryLoad = {
                 onAppConfigEvent(AndroidAppConfigEvent.RetryLoad)
             })
-            privacyItems(settingsState, rows, onPrivacyControls)
+            privacyItems(settingsState, rows, onPrivacyControls, onLoggedInApps)
             aboutItems(
                 rows = rows,
                 onAppInfo = onAppInfo,
@@ -295,6 +296,7 @@ private fun LazyListScope.privacyItems(
     settingsState: AccountSettingsState,
     rows: AccountRows,
     onPrivacyControls: () -> Unit,
+    onLoggedInApps: (() -> Unit)?,
 ) {
     val preferences = (settingsState.content as? AccountSettingsContent.Ready)?.preferences
     if (preferences != null) {
@@ -326,6 +328,12 @@ private fun LazyListScope.privacyItems(
                 }
             },
             SettingsRow { rows.PrivacyControls(it, preferences, onPrivacyControls) },
+            onLoggedInApps?.let { open ->
+                SettingsRow {
+                    rows.Link(it, R.string.mobile_settings_logged_in_apps, R.drawable.ic_ph_devices, null, open,
+                        MOBILE_LOGGED_IN_APPS_ROW_TAG)
+                }
+            },
         ),
     )
 }

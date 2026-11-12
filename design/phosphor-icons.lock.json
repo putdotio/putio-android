@@ -597,6 +597,20 @@
     },
     {
       "resDir": "mobile/src/main/res",
+      "resource": "ic_ph_app_window",
+      "asset": "assets/regular/app-window.svg",
+      "sourceSha256": "652a65a43b5d8981c0146731c7ede101690636c90ac26c118a50b0ab73309be5",
+      "outputSha256": "4c0535a2648f4cf45b4f100e7b484198a150acced50832c0d795cc7a3f229ca1"
+    },
+    {
+      "resDir": "mobile/src/main/res",
+      "resource": "ic_ph_devices",
+      "asset": "assets/regular/devices.svg",
+      "sourceSha256": "eef33b37db84ff5ab0e69570cd82363e27f015f90a7307ac918193c6c7b122e8",
+      "outputSha256": "c750e64c9d9e4bdc03167acb4d3241f020b2d75099c132210e453d0625ef06f9"
+    },
+    {
+      "resDir": "mobile/src/main/res",
       "resource": "ic_ph_trash_simple",
       "asset": "assets/regular/trash-simple.svg",
       "sourceSha256": "4bba1f6bd6a5b969a1ddca0bddfd5a68764b29c7c7b9600251e96f551ade1171",

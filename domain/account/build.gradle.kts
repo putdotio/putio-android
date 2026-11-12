@@ -5,7 +5,7 @@ plugins {
 android {
     namespace = "io.putdotio.android.account"
 
-    // State builders other modules' tests reuse.
+    // State builders and fakes other modules' tests reuse.
     testFixtures.enable = true
 }
 
@@ -14,4 +14,6 @@ dependencies {
     implementation(project(":core:telemetry"))
     implementation(libs.putio.sdk.kotlin)
     implementation(libs.kotlinx.coroutines.android)
+    testFixturesImplementation(project(":core:common"))
+    testFixturesImplementation(libs.putio.sdk.kotlin)
 }

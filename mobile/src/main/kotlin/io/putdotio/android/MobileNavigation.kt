@@ -24,7 +24,10 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import io.putdotio.android.account.LoggedInAppsController
 import io.putdotio.android.account.MOBILE_APP_INFO_ROUTE
+import io.putdotio.android.account.loggedInAppsDestination
+import io.putdotio.android.account.loggedInAppsOpener
 import io.putdotio.android.account.MOBILE_OPEN_SOURCE_LICENSES_ROUTE
 import io.putdotio.android.account.MOBILE_PRIVACY_CONTROLS_ROUTE
 import io.putdotio.android.account.MobileAccountLibrary
@@ -167,6 +170,7 @@ internal fun MobileNavHost(
     modifier: Modifier = Modifier,
     deviceClass: AppDiagnostics.DeviceClass = AppDiagnostics.DeviceClass.Phone,
     publicLinks: MobilePublicLinks? = null,
+    loggedInAppsController: LoggedInAppsController? = null,
     searchOpen: Boolean = false,
     searchForward: Boolean = true,
     filesBackPreview: MobileBackPreview = rememberMobileBackPreview(),
@@ -342,6 +346,7 @@ internal fun MobileNavHost(
                         onPrivacyControls = {
                             navController.navigate(MOBILE_PRIVACY_CONTROLS_ROUTE) { launchSingleTop = true }
                         },
+                        onLoggedInApps = navController.loggedInAppsOpener(loggedInAppsController),
                         onAppInfo = { navController.navigate(MOBILE_APP_INFO_ROUTE) { launchSingleTop = true } },
                         onOpenSourceLicenses = {
                             navController.navigate(MOBILE_OPEN_SOURCE_LICENSES_ROUTE) { launchSingleTop = true }
@@ -372,6 +377,7 @@ internal fun MobileNavHost(
                         onSettingsEvent = onAccountSettingsEvent,
                     )
                 }
+                loggedInAppsDestination(loggedInAppsController, onFilesAuthenticationRequired)
                 composable(MOBILE_PUBLIC_LINKS_ROUTE) {
                     publicLinks?.let { MobilePublicLinksScreen(it) }
                 }
