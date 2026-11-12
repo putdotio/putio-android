@@ -99,10 +99,12 @@ internal fun Modifier.viewerZoom(
                 do {
                     val event = awaitPointerEvent(PointerEventPass.Initial)
                     val pressed = event.changes.count { it.pressed }
-                    val pan = event.calculatePan()
+                    var pan = event.calculatePan()
+                    if (pressed > 1) pastSlop = true
                     if (pressed == 1 && !pastSlop) {
                         panned += pan
                         pastSlop = panned.getDistance() > viewConfiguration.touchSlop
+                        if (pastSlop) pan = panned
                     }
                     val panning = pressed == 1 && pastSlop
                     if (pressed > 1 || (panning && zoom.zoomed)) {

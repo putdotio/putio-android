@@ -133,6 +133,48 @@ class MobileViewerZoomTest {
     }
 
     @Test
+    fun aZoomedPanMovesTheContentAsFarAsTheFinger() {
+        val zoom = MobileViewerZoom()
+        compose.setContent { Box(Modifier.fillMaxSize().viewerZoom(zoom).testTag(PAGE)) }
+        val node = compose.onNodeWithTag(PAGE)
+        node.performTouchInput { doubleClick(center) }
+        val start = compose.runOnIdle { zoom.offset }
+
+        node.performTouchInput {
+            down(center)
+            repeat(10) { moveBy(Offset(4f, 0f)) }
+            up()
+        }
+
+        compose.runOnIdle { assertEquals(start.x + 40f, zoom.offset.x, 0.5f) }
+    }
+
+    @Test
+    fun aPinchThatDropsToOneFingerKeepsPanning() {
+        val zoom = MobileViewerZoom()
+        compose.setContent { Box(Modifier.fillMaxSize().viewerZoom(zoom).testTag(PAGE)) }
+        val node = compose.onNodeWithTag(PAGE)
+        var before = Offset.Zero
+
+        node.performTouchInput {
+            down(0, center - Offset(50f, 0f))
+            down(1, center + Offset(50f, 0f))
+            repeat(5) {
+                moveBy(0, Offset(-20f, 0f))
+                moveBy(1, Offset(20f, 0f))
+            }
+            up(1)
+        }
+        compose.runOnIdle { before = zoom.offset }
+        node.performTouchInput {
+            moveBy(0, Offset(0f, 3f))
+            up(0)
+        }
+
+        compose.runOnIdle { assertEquals(before.y + 3f, zoom.offset.y, 0.5f) }
+    }
+
+    @Test
     fun aSmallerFrameKeepsTheZoomedContentEdgeAtItsBorder() {
         val zoom = MobileViewerZoom().apply { measure(IntSize(2000, 1000), contentAspect = 2f) }
         zoom.transform(zoomChange = 2.5f, centroid = Offset(1000f, 500f), pan = Offset(5000f, 0f))
