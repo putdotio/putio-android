@@ -127,6 +127,7 @@ import io.putdotio.android.settings.ConfirmedDefaultSort
 import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.android.settings.TunnelRouteOption
 import io.putdotio.android.settings.confirmedDefaultSort
+import io.putdotio.android.settings.historyTabShown
 import io.putdotio.android.sharing.MOBILE_PUBLIC_LINKS_ROUTE
 import io.putdotio.android.sharing.MobilePublicLinks
 import io.putdotio.android.share.MobileFileDragOut
@@ -215,7 +216,7 @@ internal fun MobileShell(
     var rejectedNavigation by remember(sessionId) { mutableStateOf<FilesFailure?>(null) }
     val backStackEntry by navController.currentBackStackEntryAsState()
     val selectedDestination = MobileDestination.fromRoute(backStackEntry?.destination?.route)
-    val historyShown = historyTabShown(accountSettingsState, searchHistoryState.history)
+    val historyShown = accountSettingsState.historyTabShown()
     val destinations = remember(historyShown) { MobileDestination.shown(historyShown) }
     HiddenDestinationEffect(backStackEntry?.destination?.route, destinations, navController)
     val incomingDraft by transferDraft.state.collectAsStateWithLifecycle()

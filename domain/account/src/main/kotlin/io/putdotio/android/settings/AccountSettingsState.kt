@@ -237,6 +237,15 @@ public fun AccountSettingsState.authoritativeSessionFailure(): AccountSettingsFa
 public fun AccountSettingsState.confirmedHistoryEnabled(): Boolean? =
     confirmedPreferences(AccountSettingsKey.History)?.historyEnabled
 
+public fun AccountSettingsState.historyTabShown(): Boolean {
+    val lastRead = when (val write = mutation) {
+        AccountSettingsMutation.Idle -> null
+        is AccountSettingsMutation.Saving -> write.previousPreferences
+        is AccountSettingsMutation.Failed -> write.previousPreferences
+    }?.takeIf { mutation.pending?.first == AccountSettingsKey.History }
+    return (lastRead?.historyEnabled ?: confirmedHistoryEnabled()) != false
+}
+
 public fun AccountSettingsState.confirmedTrashEnabled(): Boolean? =
     confirmedPreferences(AccountSettingsKey.Trash)?.trashEnabled
 

@@ -102,6 +102,7 @@ import io.putdotio.android.playback.PlaybackResolution
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.search.MOBILE_SEARCH_FIELD_TAG
 import io.putdotio.android.settings.AccountSettingsChange
+import io.putdotio.android.settings.AccountSettingsContent
 import io.putdotio.android.settings.AccountSettingsEvent
 import io.putdotio.android.settings.AccountSettingsFailure
 import io.putdotio.android.settings.AccountSettingsKey
@@ -116,6 +117,7 @@ import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.android.settings.AndroidAppConfigState
 import io.putdotio.android.settings.AccountSettingsState
 import io.putdotio.android.settings.DefaultAccountSettingsPreferences
+import io.putdotio.android.settings.accountSettingsState
 import io.putdotio.android.settings.androidAppConfigState
 import io.putdotio.android.settings.readyAccountSettingsState
 import io.putdotio.android.settings.readyAndroidAppConfigState
@@ -567,6 +569,43 @@ class MobileShellTest {
 
         compose.onAllNodes(hasText("History")).assertCountEquals(0)
         compose.onNode(filesTab).assertIsSelected()
+    }
+
+    @Test
+    fun historyStaysWhileTheSettingIsUnknownEvenWhenTheCachedAccountSaysOff() {
+        val requests = MobileDeepLinkRequests.None
+        val loading = accountSettingsState(
+            content = AccountSettingsContent.Loading(AccountSettingsRequestId(1L)),
+            mutation = AccountSettingsMutation.Idle,
+            nextRequestValue = 2L,
+        )
+        compose.setContent {
+            PutioTheme {
+                MobileShell(
+                    deepLinkRequests = requests,
+                    playbackPlayerFactory = NoAudioSessionFactory,
+                    filesState = emptyFilesState(),
+                    accountSettingsState = loading,
+                    appConfigState = readyAndroidAppConfigState(),
+                    transfersState = transfersState(TransfersContent.Empty),
+                    account = Account,
+                    playbackRepository = ConversionRepository,
+                    sessionId = Session,
+                    onFilesEvent = { true },
+                    onAccountSettingsEvent = {},
+                    onPlaybackAuthenticationRequired = {},
+                    onSignOut = {},
+                )
+            }
+        }
+        val historyTab = hasText("History") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))
+        compose.onNode(historyTab).assertExists()
+
+        compose.runOnIdle { requests.receive(MobileDeepLink.History) }
+        compose.waitForIdle()
+
+        compose.onNode(historyTab).assertIsSelected()
+        compose.onNodeWithTag(MOBILE_TAB_TITLE_TAG).assertTextEquals("History")
     }
 
     @Test

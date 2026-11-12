@@ -35,7 +35,6 @@ import io.putdotio.android.files.SdkFilesSubtitleLanguages
 import io.putdotio.android.files.SdkFilesWatchedRepository
 import io.putdotio.android.files.authoritativeSessionFailure
 import io.putdotio.android.files.canStartOperation
-import io.putdotio.android.history.HistoryContent
 import io.putdotio.android.history.HistoryEvent
 import io.putdotio.android.history.HistoryState
 import io.putdotio.android.history.SdkHistoryRepository
@@ -60,6 +59,7 @@ import io.putdotio.android.settings.authoritativeSessionFailure
 import io.putdotio.android.files.FilesSort
 import io.putdotio.android.settings.confirmedDefaultSort
 import io.putdotio.android.settings.confirmedHistoryEnabled
+import io.putdotio.android.settings.historyTabShown
 import io.putdotio.android.settings.confirmedResumePlayback
 import io.putdotio.android.settings.confirmedTrashEnabled
 import io.putdotio.android.tv.files.openInVlc
@@ -382,7 +382,7 @@ internal fun TvSessionShell(
             account = account,
             onSignOut = onSignOut,
             showHome = showHome,
-            showHistory = historyTabShown(settingsState, historyState),
+            showHistory = settingsState.historyTabShown(),
             focusHomePane = homeReturn != null,
             offline = !online,
             trailing = {
@@ -992,6 +992,3 @@ private fun tvSearchActions(
             onRetry = session::retryRecentSearches,
         ),
     )
-
-private fun historyTabShown(settings: AccountSettingsState, history: HistoryState): Boolean =
-    settings.confirmedHistoryEnabled() ?: (history.content != HistoryContent.Disabled)

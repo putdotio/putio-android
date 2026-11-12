@@ -46,6 +46,27 @@ class AccountSettingsReducerTest {
     }
 
     @Test
+    fun historyTabHidesOnlyOnTheLastReadOffWhileAHistoryWriteIsUnsettled() {
+        assertTrue(AccountSettingsReducer.start().state.historyTabShown())
+        val off = loadedState(Preferences.copy(historyEnabled = false))
+        assertFalse(off.historyTabShown())
+
+        val saving = off.reduce(toggle(AccountSettingsKey.History, true))
+        assertFalse(saving.state.historyTabShown())
+
+        val failed = saving.state.reduce(AccountSettingsEvent.SaveFailed(saving.saveRequestId(), Offline))
+        assertFalse(failed.state.historyTabShown())
+
+        val retried = failed.state.reduce(AccountSettingsEvent.RetryChange)
+        val requestId = retried.saveRequestId()
+        val refreshing = retried.state.reduce(AccountSettingsEvent.SaveSucceeded(requestId))
+        assertFalse(refreshing.state.historyTabShown())
+
+        val confirmed = refreshing.state.reduce(AccountSettingsEvent.RefreshSucceeded(requestId, Preferences))
+        assertTrue(confirmed.state.historyTabShown())
+    }
+
+    @Test
     fun rejectsNoOpAndConcurrentChanges() {
         val loaded = loadedState(Preferences)
         val noOp = loaded.reduce(toggle(AccountSettingsKey.History, true))
