@@ -35,6 +35,7 @@ import io.putdotio.android.downloads.MOBILE_DOWNLOADS_CONCURRENCY_TAG
 import io.putdotio.android.downloads.MOBILE_DOWNLOADS_NOTIFICATIONS_TAG
 import io.putdotio.android.downloads.MOBILE_DOWNLOADS_ITEM_SHEET_TAG
 import io.putdotio.android.downloads.MOBILE_DOWNLOADS_OVERFLOW_TAG
+import io.putdotio.android.downloads.MOBILE_DOWNLOADS_PAUSE_ALL_TAG
 import io.putdotio.android.downloads.MOBILE_DOWNLOADS_REMOVE_ACTION_TAG
 import io.putdotio.android.downloads.MOBILE_DOWNLOADS_RETRY_ACTION_TAG
 import io.putdotio.android.downloads.MOBILE_DOWNLOADS_SELECTION_DELETE_TAG
@@ -387,6 +388,37 @@ class MobileDownloadsScreenTest {
             listOf(DownloadsEvent.Pause(setOf(FilesItemId(10L))), DownloadsEvent.Resume(setOf(FilesItemId(11L)))),
             events.takeLast(2),
         )
+    }
+
+    @Test
+    fun theOverflowPausesEveryUnfinishedRowThenResumesThemOnceAllArePaused() {
+        val running = row(10L, "Running.mkv", DownloadStatus.Downloading(10L, 1f), queuedAt = 1L)
+        val waiting = row(11L, "Waiting.mkv", DownloadStatus.Queued, queuedAt = 2L)
+        val paused = row(12L, "Paused.mkv", DownloadStatus.Paused(DownloadPauseReason.USER, 10L), queuedAt = 3L)
+        val done = row(13L, "Done.mkv", DownloadStatus.Completed(1L), queuedAt = 4L)
+        var state by mutableStateOf(DownloadsState().withEntries(listOf(running, waiting, paused, done)))
+        val events = mutableListOf<DownloadsEvent>()
+        compose.setContent { PutioTheme { DownloadsTab(state, { events += it; true }) } }
+
+        compose.onNodeWithTag(MOBILE_DOWNLOADS_OVERFLOW_TAG).performClick()
+        compose.onNodeWithTag(MOBILE_DOWNLOADS_PAUSE_ALL_TAG).assertTextContains("Pause all").performClick()
+        compose.onNodeWithTag(MOBILE_DOWNLOADS_PAUSE_ALL_TAG).assertDoesNotExist()
+
+        state = DownloadsState().withEntries(listOf(paused, done))
+        compose.onNodeWithTag(MOBILE_DOWNLOADS_OVERFLOW_TAG).performClick()
+        compose.onNodeWithTag(MOBILE_DOWNLOADS_PAUSE_ALL_TAG).assertTextContains("Resume all").performClick()
+        assertEquals(
+            listOf(
+                DownloadsEvent.Pause(setOf(FilesItemId(10L), FilesItemId(11L))),
+                DownloadsEvent.Resume(setOf(FilesItemId(12L))),
+            ),
+            events,
+        )
+
+        state = DownloadsState().withEntries(listOf(done))
+        compose.onNodeWithTag(MOBILE_DOWNLOADS_OVERFLOW_TAG).performClick()
+        compose.onNodeWithTag(MOBILE_DOWNLOADS_SELECT_TAG).assertIsDisplayed()
+        compose.onNodeWithTag(MOBILE_DOWNLOADS_PAUSE_ALL_TAG).assertDoesNotExist()
     }
 
     /** The tab as the shell draws it: the top bar over the list, sharing one selection. */

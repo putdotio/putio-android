@@ -36,6 +36,15 @@ internal data class DownloadsState(
     val onDevice: List<DownloadEntry>
         get() = entries.filter { it.isCompleted }
 
+    val pauseAll: DownloadsEvent?
+        get() {
+            val rows = entries.filter { it.fileId !in removing }
+            val pausable = rows.filter { it.canPause }.mapTo(linkedSetOf()) { it.fileId }
+            if (pausable.isNotEmpty()) return DownloadsEvent.Pause(pausable)
+            val resumable = rows.filter { it.isPausedByUser }.mapTo(linkedSetOf()) { it.fileId }
+            return if (resumable.isEmpty()) null else DownloadsEvent.Resume(resumable)
+        }
+
     /** 1 for the next row to start, among rows waiting for a free slot; null for any other row. */
     fun queuePosition(fileId: FilesItemId): Int? {
         val waiting = queue.filter { it.status == DownloadStatus.Queued && it.fileId !in removing }

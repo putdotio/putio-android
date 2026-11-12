@@ -47,6 +47,7 @@ import io.putdotio.android.MobileIconButton
 
 internal const val MOBILE_DOWNLOADS_OVERFLOW_TAG = "mobile-downloads-overflow"
 internal const val MOBILE_DOWNLOADS_SELECT_TAG = "mobile-downloads-select"
+internal const val MOBILE_DOWNLOADS_PAUSE_ALL_TAG = "mobile-downloads-pause-all"
 internal const val MOBILE_DOWNLOADS_CONCURRENCY_TAG = "mobile-downloads-concurrency"
 internal const val MOBILE_DOWNLOADS_SELECTION_BAR_TAG = "mobile-downloads-selection-bar"
 internal const val MOBILE_DOWNLOADS_SELECTION_PAUSE_TAG = "mobile-downloads-selection-pause"
@@ -93,8 +94,9 @@ internal fun rememberDownloadsSelection(): DownloadsSelection =
     rememberSaveable(saver = DownloadsSelection.Saver) { DownloadsSelection() }
 
 /**
- * The Downloads tab's top: the tab title with its storage summary and an overflow holding Select
- * and the concurrency limit, or, in selection, a bar with close, the count and select all.
+ * The Downloads tab's top: the tab title with its storage summary and an overflow holding Select,
+ * Pause all or Resume all, and the concurrency limit, or, in selection, a bar with close, the count
+ * and select all.
  */
 @Composable
 internal fun MobileDownloadsTopBar(
@@ -119,8 +121,10 @@ internal fun MobileDownloadsTopBar(
             navigationActions()
             DownloadsOverflow(
                 canSelect = state.entries.any { it.fileId !in state.removing },
+                pauseAll = state.pauseAll,
                 concurrency = state.concurrency,
                 onSelect = selection::start,
+                onPauseAll = { onEvent(it) },
                 onChooseConcurrency = { choosingConcurrency = true },
             )
         }
@@ -140,8 +144,10 @@ internal fun MobileDownloadsTopBar(
 @Composable
 private fun DownloadsOverflow(
     canSelect: Boolean,
+    pauseAll: DownloadsEvent?,
     concurrency: Int,
     onSelect: () -> Unit,
+    onPauseAll: (DownloadsEvent) -> Unit,
     onChooseConcurrency: () -> Unit,
 ) {
     var open by rememberSaveable { mutableStateOf(false) }
@@ -162,6 +168,21 @@ private fun DownloadsOverflow(
                 enabled = canSelect,
                 modifier = Modifier.testTag(MOBILE_DOWNLOADS_SELECT_TAG),
             )
+            if (pauseAll != null) {
+                val label = if (pauseAll is DownloadsEvent.Resume) {
+                    R.string.mobile_downloads_resume_all
+                } else {
+                    R.string.mobile_downloads_pause_all
+                }
+                DropdownMenuItem(
+                    text = { Text(stringResource(label)) },
+                    onClick = {
+                        open = false
+                        onPauseAll(pauseAll)
+                    },
+                    modifier = Modifier.testTag(MOBILE_DOWNLOADS_PAUSE_ALL_TAG),
+                )
+            }
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.mobile_downloads_concurrency)) },
                 trailingIcon = {

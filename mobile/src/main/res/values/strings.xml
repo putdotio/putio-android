@@ -562,6 +562,8 @@
     <!-- Stands in for the name of a download whose row the app had to rebuild. -->
     <string name="mobile_downloads_recovered_name">Downloaded file</string>
     <string name="mobile_downloads_select">Select</string>
+    <string name="mobile_downloads_pause_all">Pause all</string>
+    <string name="mobile_downloads_resume_all">Resume all</string>
     <string name="mobile_selection_select_all">Select all</string>
     <string name="mobile_selection_clear">Cancel selection</string>
     <plurals name="mobile_selection_count">
