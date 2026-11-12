@@ -7,8 +7,6 @@ import io.putdotio.android.account.MOBILE_OPEN_SOURCE_LICENSES_ROUTE
 import io.putdotio.android.account.MOBILE_PRIVACY_CONTROLS_ROUTE
 import io.putdotio.android.design.R as DesignR
 import io.putdotio.android.downloads.MOBILE_DOWNLOADS_ROUTE
-import io.putdotio.android.history.HistoryContent
-import io.putdotio.android.history.HistoryState
 import io.putdotio.android.settings.AccountSettingsState
 import io.putdotio.android.settings.confirmedHistoryEnabled
 import io.putdotio.android.sharing.MOBILE_PUBLIC_LINKS_ROUTE
@@ -75,5 +73,5 @@ internal enum class MobileDestination(
     }
 }
 
-internal fun historyTabShown(settings: AccountSettingsState, history: HistoryState): Boolean =
-    settings.confirmedHistoryEnabled() ?: (history.content != HistoryContent.Disabled)
+internal fun historyTabShown(settings: AccountSettingsState): Boolean =
+    settings.confirmedHistoryEnabled() != false
