@@ -153,6 +153,7 @@ internal fun PutioApp(runtime: TvAuthRuntime, launchRequests: TvLaunchRequests) 
                     phase = state.phase,
                     sessionExpired = state.sessionExpired,
                     onRequestNewCode = { scope.launch { authController.requestNewCode() } },
+                    onTryAgain = { scope.launch { authController.retryStoredSession() } },
                 )
             is TvAuthState.SignedIn ->
                 TvSignedInApp(

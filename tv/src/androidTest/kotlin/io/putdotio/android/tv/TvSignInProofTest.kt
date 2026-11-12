@@ -63,6 +63,17 @@ class TvSignInProofTest {
     }
 
     @Test
+    fun storedSessionUnreadable() {
+        capture("androidtv-storage-unreadable", "Try again") {
+            TvLinkScreen(
+                phase = TvLinkPhase.Stopped(TvLinkStop.SessionUnreadable),
+                sessionExpired = false,
+                onRequestNewCode = {},
+            )
+        }
+    }
+
+    @Test
     fun sessionExpired() {
         capture("androidtv-st-s8-session-expired", "Welcome back!") {
             TvLinkScreen(phase = TvLinkPhase.AwaitingLink(CODE), sessionExpired = true, onRequestNewCode = {})

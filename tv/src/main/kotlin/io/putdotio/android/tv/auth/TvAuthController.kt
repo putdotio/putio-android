@@ -73,7 +73,12 @@ internal sealed interface TvLinkStop {
     ) : TvLinkStop
 
     data object StorageUnavailable : TvLinkStop
+
+    data object SessionUnreadable : TvLinkStop
 }
+
+internal val TvLinkStop.isStorageFailure: Boolean
+    get() = this == TvLinkStop.StorageUnavailable || this == TvLinkStop.SessionUnreadable
 
 internal enum class TvSessionValidationSource {
     RESTORE,
@@ -137,7 +142,7 @@ internal class TvAuthController(
                     return@withLock mutableState.value is TvAuthState.SignedIn
                 }
                 StoredToken.Unreadable -> {
-                    linking.stop(TvLinkStop.StorageUnavailable, sessionExpired = false)
+                    linking.stop(TvLinkStop.SessionUnreadable, sessionExpired = false)
                     return@withLock false
                 }
             }
@@ -180,7 +185,7 @@ internal class TvAuthController(
                 is StoredToken.Present -> stored.accessToken
                 StoredToken.Absent -> return@withLock importLegacySession(TvSessionValidationSource.RETRY)
                 StoredToken.Unreadable -> {
-                    linking.stop(TvLinkStop.StorageUnavailable, sessionExpired = false)
+                    linking.stop(TvLinkStop.SessionUnreadable, sessionExpired = false)
                     return@withLock false
                 }
             }
@@ -191,6 +196,28 @@ internal class TvAuthController(
             rollBackInterruptedValidation(unavailable)
             throw error
         }
+    }
+
+    suspend fun retryStoredSession(): Boolean = operationMutex.withLock {
+        val stopped = mutableState.value as? TvAuthState.Linking ?: return@withLock false
+        if ((stopped.phase as? TvLinkPhase.Stopped)?.reason != TvLinkStop.SessionUnreadable) {
+            return@withLock false
+        }
+        mutableState.value = TvAuthState.RestoringSession
+        try {
+            when (val stored = tokens.read()) {
+                is StoredToken.Present -> {
+                    tokens.configure(stored.accessToken)
+                    validateStoredSession(TvSessionValidationSource.RETRY)
+                }
+                StoredToken.Absent -> importLegacySession(TvSessionValidationSource.RETRY)
+                StoredToken.Unreadable -> mutableState.value = stopped
+            }
+        } catch (error: CancellationException) {
+            rollBackInterruptedValidation(stopped)
+            throw error
+        }
+        mutableState.value is TvAuthState.SignedIn
     }
 
     // Only an in-flight validation is rolled back. A verdict that already settled

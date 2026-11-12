@@ -150,7 +150,7 @@ internal fun TvAuthState.diagnosticsAnswer(): DiagnosticsAnswer? =
 
         is TvAuthState.Linking ->
             DiagnosticsAnswer.SignedOut.takeUnless {
-                (phase as? TvLinkPhase.Stopped)?.reason == TvLinkStop.StorageUnavailable
+                (phase as? TvLinkPhase.Stopped)?.reason?.isStorageFailure == true
             }
         is TvAuthState.SignedIn -> DiagnosticsAnswer.Account(account.diagnosticsEnabled)
     }

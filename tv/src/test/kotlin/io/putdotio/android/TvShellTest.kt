@@ -122,6 +122,48 @@ class TvShellTest {
     }
 
     @Test
+    fun unreadableStoredSessionFocusesTryAgainAndOffersANewCodeBesideIt() {
+        var tries = 0
+        var requests = 0
+        compose.setTvContent {
+            TvLinkScreen(
+                phase = TvLinkPhase.Stopped(TvLinkStop.SessionUnreadable),
+                sessionExpired = false,
+                onRequestNewCode = { requests += 1 },
+                onTryAgain = { tries += 1 },
+            )
+        }
+
+        compose.onNodeWithText("Secure storage is unavailable on this device, so the sign-in can’t be kept.")
+            .assertIsDisplayed()
+        compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressCenter() }
+        assertEquals(1, tries)
+        assertEquals(0, requests)
+
+        compose.onNodeWithText("Try again").performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNodeWithText("Get a new code").assertIsFocused().performKeyInput { pressCenter() }
+        assertEquals(1, tries)
+        assertEquals(1, requests)
+    }
+
+    @Test
+    fun storageThatCannotKeepAFreshSignInOffersOnlyANewCode() {
+        compose.setTvContent {
+            TvLinkScreen(
+                phase = TvLinkPhase.Stopped(TvLinkStop.StorageUnavailable),
+                sessionExpired = false,
+                onRequestNewCode = {},
+                onTryAgain = {},
+            )
+        }
+
+        compose.onNodeWithText("Secure storage is unavailable on this device, so the sign-in can’t be kept.")
+            .assertIsDisplayed()
+        compose.onAllNodesWithText("Try again").assertCountEquals(0)
+        compose.onNodeWithText("Get a new code").assertIsFocused()
+    }
+
+    @Test
     fun offlineStartSaysTheSignInIsSavedAndTriesNowOnRequest() {
         var tries = 0
         compose.setTvContent { TvOfflineScreen(onTryNow = { tries += 1 }) }

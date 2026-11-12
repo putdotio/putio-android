@@ -57,6 +57,7 @@ internal fun TvLinkScreen(
     sessionExpired: Boolean,
     onRequestNewCode: () -> Unit,
     modifier: Modifier = Modifier,
+    onTryAgain: () -> Unit = {},
 ) {
     Box(
         modifier = modifier
@@ -89,6 +90,7 @@ internal fun TvLinkScreen(
         LinkColumns(
             phase = phase,
             onRequestNewCode = onRequestNewCode,
+            onTryAgain = onTryAgain,
             modifier = Modifier.padding(
                 start = TV_SIDE_MARGIN,
                 end = TV_SIDE_MARGIN,
@@ -103,6 +105,7 @@ internal fun TvLinkScreen(
 private fun LinkColumns(
     phase: TvLinkPhase,
     onRequestNewCode: () -> Unit,
+    onTryAgain: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val code = phase.shownCode()
@@ -141,7 +144,14 @@ private fun LinkColumns(
                 )
             }
             CodeTiles(code = code, dimmed = dimmed)
-            NewCodeButton(enabled = phase !is TvLinkPhase.Validating, onClick = onRequestNewCode)
+            if ((phase as? TvLinkPhase.Stopped)?.reason == TvLinkStop.SessionUnreadable) {
+                Row(horizontalArrangement = Arrangement.spacedBy(ACTION_GAP)) {
+                    TryAgainButton(onClick = onTryAgain)
+                    NewCodeButton(enabled = true, onClick = onRequestNewCode, claimsFocus = false)
+                }
+            } else {
+                NewCodeButton(enabled = phase !is TvLinkPhase.Validating, onClick = onRequestNewCode)
+            }
         }
     }
 }
@@ -238,10 +248,27 @@ private fun CodeTiles(
 }
 
 @Composable
-private fun NewCodeButton(enabled: Boolean, onClick: () -> Unit) {
+private fun TryAgainButton(onClick: () -> Unit) {
     val focus = remember { FocusRequester() }
-    LaunchedEffect(enabled) {
-        if (!enabled) return@LaunchedEffect
+    LaunchedEffect(Unit) {
+        withFrameNanos {}
+        focus.requestFocus()
+    }
+    TvButton(
+        onClick = onClick,
+        style = TvButtonStyle.Filled,
+        size = TvButtonSize.Compact,
+        modifier = Modifier.focusRequester(focus),
+    ) {
+        Text(stringResource(R.string.tv_state_try_again), style = PutioTypeScale.tvLabel)
+    }
+}
+
+@Composable
+private fun NewCodeButton(enabled: Boolean, onClick: () -> Unit, claimsFocus: Boolean = true) {
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(enabled, claimsFocus) {
+        if (!enabled || !claimsFocus) return@LaunchedEffect
         withFrameNanos {}
         focus.requestFocus()
     }
@@ -302,7 +329,7 @@ private fun TvLinkPhase.statusText(): String? =
 private fun TvLinkStop.message(): Int =
     when (this) {
         TvLinkStop.CodeExpired -> R.string.tv_link_expired
-        TvLinkStop.StorageUnavailable -> R.string.tv_link_failed_storage
+        TvLinkStop.StorageUnavailable, TvLinkStop.SessionUnreadable -> R.string.tv_link_failed_storage
         is TvLinkStop.Failed ->
             when (failure) {
                 TvLinkFailure.NETWORK -> R.string.tv_link_failed_network
@@ -319,6 +346,7 @@ private val COLUMNS_TOP = 235.dp
 private val COLUMNS_TOP_EXPIRED = 245.dp
 private val COLUMNS_BOTTOM = 27.dp
 private val COLUMN_GAP = 12.dp
+private val ACTION_GAP = 12.dp
 private val DIVIDER_GAP = 40.dp
 private val DIVIDER_WIDTH = 1.dp
 private val QR_SIZE: Dp = 170.dp

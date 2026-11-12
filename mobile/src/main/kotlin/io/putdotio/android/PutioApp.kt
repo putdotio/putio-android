@@ -160,6 +160,7 @@ private fun MobileAuthRoot(
                     openChromeStoreListing(context)
                     rootScope.launch { authController.dismissAuthTabBrowserMissing() }
                 },
+                onRetrySecureStorage = { rootScope.launch { authController.retrySecureStorage() } },
             )
 
         MobileAuthState.AwaitingOAuthCallback ->
@@ -203,10 +204,16 @@ internal fun MobileSignedOutScreen(
     canSignIn: Boolean,
     onSignIn: () -> Unit,
     onGetChrome: () -> Unit = {},
+    onRetrySecureStorage: () -> Unit = {},
 ) {
     MobileWelcomeScreen(
         content = mobileWelcomeContent(reason, canSignIn),
-        onAction = if (canSignIn && reason == MobileSignedOutReason.AuthTabBrowserMissing) onGetChrome else onSignIn,
+        onAction = when (reason.takeIf { canSignIn }) {
+            MobileSignedOutReason.AuthTabBrowserMissing -> onGetChrome
+            MobileSignedOutReason.SecureStorageUnavailable -> onRetrySecureStorage
+            else -> onSignIn
+        },
+        onSecondaryAction = onSignIn,
     )
 }
 
