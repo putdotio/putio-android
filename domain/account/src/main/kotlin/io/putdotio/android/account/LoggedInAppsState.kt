@@ -191,10 +191,13 @@ internal data class LoggedInAppsMachine(
     }
 }
 
-private fun LoggedInAppsContent.without(step: LoggedInAppsStep): LoggedInAppsContent {
-    if (this !is LoggedInAppsContent.Ready) return this
-    val session = step.session ?: return LoggedInAppsContent.Ready(apps.filterNot { it.id == step.app.id })
-    return LoggedInAppsContent.Ready(
-        apps.map { app -> if (app.id == step.app.id) app.copy(otherSessions = app.otherSessions - session) else app },
-    )
-}
+private fun LoggedInAppsContent.without(step: LoggedInAppsStep): LoggedInAppsContent =
+    when {
+        this !is LoggedInAppsContent.Ready -> this
+        step.session == null -> LoggedInAppsContent.Ready(apps.filterNot { it.id == step.app.id })
+        else -> LoggedInAppsContent.Ready(
+            apps.map { app ->
+                if (app.id == step.app.id) app.copy(otherSessions = app.otherSessions - step.session) else app
+            },
+        )
+    }

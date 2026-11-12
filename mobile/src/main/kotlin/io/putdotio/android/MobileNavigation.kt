@@ -19,6 +19,7 @@ import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -346,9 +347,7 @@ internal fun MobileNavHost(
                         onPrivacyControls = {
                             navController.navigate(MOBILE_PRIVACY_CONTROLS_ROUTE) { launchSingleTop = true }
                         },
-                        onLoggedInApps = loggedInAppsController?.let {
-                            { navController.navigate(MOBILE_LOGGED_IN_APPS_ROUTE) { launchSingleTop = true } }
-                        },
+                        onLoggedInApps = navController.loggedInAppsOpener(loggedInAppsController),
                         onAppInfo = { navController.navigate(MOBILE_APP_INFO_ROUTE) { launchSingleTop = true } },
                         onOpenSourceLicenses = {
                             navController.navigate(MOBILE_OPEN_SOURCE_LICENSES_ROUTE) { launchSingleTop = true }
@@ -379,9 +378,7 @@ internal fun MobileNavHost(
                         onSettingsEvent = onAccountSettingsEvent,
                     )
                 }
-                composable(MOBILE_LOGGED_IN_APPS_ROUTE) {
-                    loggedInAppsController?.let { MobileLoggedInAppsRoute(it, onFilesAuthenticationRequired) }
-                }
+                loggedInAppsDestination(loggedInAppsController, onFilesAuthenticationRequired)
                 composable(MOBILE_PUBLIC_LINKS_ROUTE) {
                     publicLinks?.let { MobilePublicLinksScreen(it) }
                 }
@@ -610,6 +607,17 @@ internal fun TransfersVisibilityEffect(
         onEvent(TransfersEvent.VisibilityChanged(true))
         onStopOrDispose { onEvent(TransfersEvent.VisibilityChanged(false)) }
     }
+}
+
+private fun NavHostController.loggedInAppsOpener(controller: LoggedInAppsController?): (() -> Unit)? =
+    controller?.let { { navigate(MOBILE_LOGGED_IN_APPS_ROUTE) { launchSingleTop = true } } }
+
+private fun NavGraphBuilder.loggedInAppsDestination(
+    controller: LoggedInAppsController?,
+    onAuthenticationRequired: suspend () -> Unit,
+) {
+    if (controller == null) return
+    composable(MOBILE_LOGGED_IN_APPS_ROUTE) { MobileLoggedInAppsRoute(controller, onAuthenticationRequired) }
 }
 
 internal fun NavHostController.navigateTo(destination: MobileDestination) {
