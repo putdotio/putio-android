@@ -21,7 +21,8 @@ internal fun styledTemplate(template: String, slots: List<Pair<String, SpanStyle
         var cursor = 0
         for (match in SLOT.findAll(template)) {
             append(template.substring(cursor, match.range.first))
-            slots.getOrNull(match.groupValues[1].toInt() - 1)?.let { (value, style) -> withStyle(style) { append(value) } }
+            val slot = slots.getOrNull(match.groupValues[1].toInt() - 1)
+            if (slot != null) withStyle(slot.second) { append(slot.first) }
             cursor = match.range.last + 1
         }
         append(template.substring(cursor))
