@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -58,6 +59,7 @@ internal fun TvLinkScreen(
     onRequestNewCode: () -> Unit,
     modifier: Modifier = Modifier,
     onTryAgain: () -> Unit = {},
+    offline: Boolean = false,
 ) {
     Box(
         modifier = modifier
@@ -89,6 +91,7 @@ internal fun TvLinkScreen(
         }
         LinkColumns(
             phase = phase,
+            offline = offline,
             onRequestNewCode = onRequestNewCode,
             onTryAgain = onTryAgain,
             modifier = Modifier.padding(
@@ -104,6 +107,7 @@ internal fun TvLinkScreen(
 @Composable
 private fun LinkColumns(
     phase: TvLinkPhase,
+    offline: Boolean,
     onRequestNewCode: () -> Unit,
     onTryAgain: () -> Unit,
     modifier: Modifier = Modifier,
@@ -134,15 +138,7 @@ private fun LinkColumns(
         ) {
             ColumnTitle(stringResource(R.string.tv_link_browser_title))
             BrowserInstruction()
-            phase.statusText()?.let { status ->
-                Text(
-                    text = status,
-                    style = MaterialTheme.typography.bodySmall.copy(lineHeight = STATUS_LINE).withFullLineBox(),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-                )
-            }
+            LinkStatus(phase = phase, offline = offline)
             CodeTiles(code = code, dimmed = dimmed)
             if ((phase as? TvLinkPhase.Stopped)?.reason == TvLinkStop.SessionUnreadable) {
                 Row(horizontalArrangement = Arrangement.spacedBy(ACTION_GAP)) {
@@ -153,6 +149,27 @@ private fun LinkColumns(
                 NewCodeButton(enabled = phase !is TvLinkPhase.Validating, onClick = onRequestNewCode)
             }
         }
+    }
+}
+
+@Composable
+private fun LinkStatus(phase: TvLinkPhase, offline: Boolean) {
+    if (phase is TvLinkPhase.AwaitingLink && offline) {
+        TvOfflineBanner(Modifier.width(IntrinsicSize.Max))
+        return
+    }
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(STATUS_SPINNER_GAP),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (phase is TvLinkPhase.AwaitingLink) TvSpinner(Modifier.size(STATUS_SPINNER))
+        Text(
+            text = phase.statusText(),
+            style = MaterialTheme.typography.bodySmall.copy(lineHeight = STATUS_LINE).withFullLineBox(),
+            color = MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+        )
     }
 }
 
@@ -318,10 +335,10 @@ private fun TvLinkPhase.shownCode(): String? =
     }
 
 @Composable
-private fun TvLinkPhase.statusText(): String? =
+private fun TvLinkPhase.statusText(): String =
     when (this) {
         TvLinkPhase.RequestingCode -> stringResource(R.string.tv_link_requesting)
-        is TvLinkPhase.AwaitingLink -> null
+        is TvLinkPhase.AwaitingLink -> stringResource(R.string.tv_link_waiting)
         is TvLinkPhase.Validating -> stringResource(R.string.tv_link_validating)
         is TvLinkPhase.Stopped -> stringResource(reason.message())
     }
@@ -353,6 +370,8 @@ private val QR_SIZE: Dp = 170.dp
 private val QR_PADDING = 12.dp
 private val COLUMN_TITLE_LINE = 22.sp
 private val STATUS_LINE = 17.sp
+private val STATUS_SPINNER = 14.dp
+private val STATUS_SPINNER_GAP = 8.dp
 private val OR_LINE = 18.sp
 private val OR_PADDING = 6.dp
 private val SESSION_EXPIRED_TOP = 202.dp

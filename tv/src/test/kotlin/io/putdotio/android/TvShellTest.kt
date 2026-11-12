@@ -7,6 +7,8 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasProgressBarRangeInfo
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -101,6 +103,34 @@ class TvShellTest {
         compose.runOnIdle { sessionExpired = true }
         compose.onNodeWithText("Welcome back!").assertIsDisplayed()
         compose.onNodeWithText("Your session expired. Sign in again to continue.").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Activation code GIQTKN").assertIsDisplayed()
+    }
+
+    @Test
+    fun shownCodeSaysItIsWaitingAndNotesALostConnectionWithoutDroppingTheCode() {
+        var offline by mutableStateOf(false)
+        compose.setTvContent {
+            TvLinkScreen(
+                phase = TvLinkPhase.AwaitingLink("GIQTKN"),
+                sessionExpired = false,
+                onRequestNewCode = {},
+                offline = offline,
+            )
+        }
+
+        compose.onNodeWithText("Waiting for authentication…").assertIsDisplayed()
+        compose.onNode(hasProgressBarRangeInfo(ProgressBarRangeInfo.Indeterminate)).assertIsDisplayed()
+        compose.onNodeWithText("No connection").assertDoesNotExist()
+
+        compose.runOnIdle { offline = true }
+        compose.onNodeWithText("No connection").assertIsDisplayed()
+        compose.onNodeWithText("Waiting for authentication…").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Activation code GIQTKN").assertIsDisplayed()
+        compose.onNodeWithText("Get a new code").assertIsFocused()
+
+        compose.runOnIdle { offline = false }
+        compose.onNodeWithText("Waiting for authentication…").assertIsDisplayed()
+        compose.onNodeWithText("No connection").assertDoesNotExist()
         compose.onNodeWithContentDescription("Activation code GIQTKN").assertIsDisplayed()
     }
 

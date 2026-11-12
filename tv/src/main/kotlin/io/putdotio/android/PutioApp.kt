@@ -148,13 +148,16 @@ internal fun PutioApp(runtime: TvAuthRuntime, launchRequests: TvLaunchRequests) 
             TvAuthState.SigningOut -> TvStartupScreen(stringResource(R.string.tv_session_signing_out))
             is TvAuthState.ValidationUnavailable ->
                 TvOfflineScreen(onTryNow = { scope.launch { authController.retryValidation() } })
-            is TvAuthState.Linking ->
+            is TvAuthState.Linking -> {
+                val online by rememberTvConnectivity().online.collectAsStateWithLifecycle()
                 TvLinkScreen(
                     phase = state.phase,
                     sessionExpired = state.sessionExpired,
                     onRequestNewCode = { scope.launch { authController.requestNewCode() } },
                     onTryAgain = { scope.launch { authController.retryValidation() } },
+                    offline = !online,
                 )
+            }
             is TvAuthState.SignedIn ->
                 TvSignedInApp(
                     signedIn = state,
