@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.CircularProgressIndicator
@@ -94,14 +95,7 @@ internal fun MobileTrashScreen(
     TrashSelectionEffects(state, selection)
     val sheetItem = (state.content as? TrashContent.Loaded)?.items?.firstOrNull { it.id.value == sheetItemId }
     val listState = rememberLazyListState()
-    // A new outcome is inserted above the list content while the list stays anchored on its
-    // previous first item, which leaves the outcome and its recovery controls above the viewport.
-    LaunchedEffect(state.restoreOutcome?.item) {
-        if (state.restoreOutcome != null) listState.scrollToItem(0)
-    }
-    LaunchedEffect(state.actionOutcome?.action) {
-        if (state.actionOutcome != null) listState.scrollToItem(if (state.restoreOutcome != null) 1 else 0)
-    }
+    ScrollToNewOutcome(state, listState)
     LoadNextPageNearEnd(
         listState = listState,
         nextPage = state.nextPageCursor,
@@ -165,6 +159,18 @@ internal fun MobileTrashScreen(
     }
     state.actionConfirmation?.let { action ->
         MobileTrashActionConfirmation(action, state, onEvent)
+    }
+}
+
+@Composable
+private fun ScrollToNewOutcome(state: TrashState, listState: LazyListState) {
+    // A new outcome is inserted above the list content while the list stays anchored on its
+    // previous first item, which leaves the outcome and its recovery controls above the viewport.
+    LaunchedEffect(state.restoreOutcome?.item) {
+        if (state.restoreOutcome != null) listState.scrollToItem(0)
+    }
+    LaunchedEffect(state.actionOutcome?.action) {
+        if (state.actionOutcome != null) listState.scrollToItem(if (state.restoreOutcome != null) 1 else 0)
     }
 }
 
