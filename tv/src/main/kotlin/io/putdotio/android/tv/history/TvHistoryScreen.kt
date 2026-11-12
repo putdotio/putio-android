@@ -41,6 +41,7 @@ import io.putdotio.android.history.HistoryFileId
 import io.putdotio.android.history.HistoryItem
 import io.putdotio.android.history.HistoryPaging
 import io.putdotio.android.history.HistoryState
+import io.putdotio.android.settings.HistoryOpen
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.history.navigableFileId
 import io.putdotio.android.tv.files.TvFilesAction
@@ -115,12 +116,18 @@ internal fun TvHistoryScreen(
     files: TvHistoryFiles = TvHistoryFiles.None,
     onAuthenticationRequired: suspend () -> Unit = {},
     itemActions: TvHistoryItemActions? = null,
+    open: HistoryOpen = HistoryOpen.History,
+    onRetryOpen: () -> Unit = {},
 ) = key(sessionKey) {
     LaunchedEffect(Unit) {
         files.forgetAll()
         onEvent(HistoryEvent.Refresh)
     }
-    val content = state.content
+    val content = when (open) {
+        HistoryOpen.History -> state.content
+        is HistoryOpen.Failed -> HistoryContent.Failed(open.failure)
+        HistoryOpen.Pending, HistoryOpen.FilesRoot -> HistoryContent.Disabled
+    }
     val paneHasFocus = rememberTvPaneHasFocus()
     val listFocus = remember { FocusRequester() }
     val stateFocus = remember { FocusRequester() }
@@ -132,7 +139,7 @@ internal fun TvHistoryScreen(
     )
     LaunchedEffect(content::class) { placeStateFocus(content, paneHasFocus, stateFocus, tabFocus) }
     val snackbar = remember { TvUndoSnackbar(FocusRequester()) }
-    val dialogOpen = state.clearing != HistoryClearing.Idle
+    val dialogOpen = open == HistoryOpen.History && state.clearing != HistoryClearing.Idle
     val dialogWasOpen = remember { mutableStateOf(false) }
     LaunchedEffect(dialogOpen) { refocusAfterDialog(dialogOpen, dialogWasOpen, paneHasFocus, entryTarget) }
     Column(
@@ -156,7 +163,7 @@ internal fun TvHistoryScreen(
                 TvLoadFailedState(
                     failure = content.failure,
                     headline = stringResource(R.string.tv_history_error_title),
-                    onRetry = { onEvent(HistoryEvent.Retry) },
+                    onRetry = { if (open is HistoryOpen.Failed) onRetryOpen() else onEvent(HistoryEvent.Retry) },
                     modifier = statePane,
                     actionFocus = stateFocus,
                     claimFocus = paneHasFocus.value,
@@ -184,7 +191,7 @@ internal fun TvHistoryScreen(
                 )
         }
     }
-    TvHistoryClearDialog(state.clearing, onEvent)
+    if (open == HistoryOpen.History) TvHistoryClearDialog(state.clearing, onEvent)
 }
 
 @Composable

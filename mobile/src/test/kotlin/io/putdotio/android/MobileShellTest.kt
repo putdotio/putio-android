@@ -609,6 +609,67 @@ class MobileShellTest {
     }
 
     @Test
+    fun aHistoryLinkWhileSettingsFailOffersTryAgainThenFollowsTheLoadedSetting() {
+        val requests = MobileDeepLinkRequests.None
+        val events = mutableListOf<AccountSettingsEvent>()
+        var settings by mutableStateOf(
+            accountSettingsState(
+                content = AccountSettingsContent.Failed(
+                    AccountSettingsFailure.Putio(PutioFailure.Unexpected(IllegalStateException("offline"))),
+                ),
+                mutation = AccountSettingsMutation.Idle,
+                nextRequestValue = 2L,
+            ),
+        )
+        compose.setContent {
+            PutioTheme {
+                MobileShell(
+                    deepLinkRequests = requests,
+                    playbackPlayerFactory = NoAudioSessionFactory,
+                    filesState = emptyFilesState(),
+                    accountSettingsState = settings,
+                    appConfigState = readyAndroidAppConfigState(),
+                    transfersState = transfersState(TransfersContent.Empty),
+                    account = Account,
+                    playbackRepository = ConversionRepository,
+                    sessionId = Session,
+                    onFilesEvent = { true },
+                    onAccountSettingsEvent = { events += it },
+                    onPlaybackAuthenticationRequired = {},
+                    onSignOut = {},
+                )
+            }
+        }
+        val historyTab = hasText("History") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))
+        val filesTab = hasText("Files") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))
+
+        compose.runOnIdle { requests.receive(MobileDeepLink.History) }
+        compose.waitForIdle()
+
+        compose.onNode(historyTab).assertIsSelected()
+        compose.onNodeWithText("Couldn’t load history").assertIsDisplayed()
+        compose.onNodeWithText("Loading history").assertDoesNotExist()
+        compose.onNodeWithText("Try again").performClick()
+        compose.runOnIdle { assertEquals(listOf<AccountSettingsEvent>(AccountSettingsEvent.RetryLoad), events) }
+
+        compose.runOnIdle {
+            settings = accountSettingsState(
+                content = AccountSettingsContent.Loading(AccountSettingsRequestId(2L)),
+                mutation = AccountSettingsMutation.Idle,
+                nextRequestValue = 3L,
+            )
+        }
+        compose.onNode(historyTab).assertIsSelected()
+        compose.onNodeWithText("Loading history").assertIsDisplayed()
+
+        compose.runOnIdle {
+            settings = readyAccountSettingsState(DefaultAccountSettingsPreferences.copy(historyEnabled = false))
+        }
+        compose.onNode(historyTab).assertDoesNotExist()
+        compose.onNode(filesTab).assertIsSelected()
+    }
+
+    @Test
     fun aLinkToATabShowsWhatAColdStartShowsNotAPlayerSavedUnderIt() {
         val requests = MobileDeepLinkRequests.None
         val video = rootFile(8L, "episode.mkv", PutioFileType.VIDEO)

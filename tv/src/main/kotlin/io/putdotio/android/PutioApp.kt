@@ -59,6 +59,8 @@ import io.putdotio.android.settings.authoritativeSessionFailure
 import io.putdotio.android.files.FilesSort
 import io.putdotio.android.settings.confirmedDefaultSort
 import io.putdotio.android.settings.confirmedHistoryEnabled
+import io.putdotio.android.settings.AccountSettingsEvent
+import io.putdotio.android.settings.historyOpen
 import io.putdotio.android.settings.historyTabShown
 import io.putdotio.android.settings.confirmedResumePlayback
 import io.putdotio.android.settings.confirmedTrashEnabled
@@ -888,6 +890,8 @@ private fun TvHistoryPane(
         },
         modifier = Modifier.focusRequester(paneFocus),
         sessionKey = sessionKey,
+        open = settingsState.historyOpen(),
+        onRetryOpen = { session.settings.dispatch(AccountSettingsEvent.RetryLoad) },
         pickedRow = session.historyPickedRow,
         files = session.historyFiles,
         onAuthenticationRequired = onSessionRejected,

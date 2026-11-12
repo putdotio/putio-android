@@ -129,6 +129,8 @@ import io.putdotio.android.settings.ConfirmedDefaultSort
 import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.android.settings.TunnelRouteOption
 import io.putdotio.android.settings.confirmedDefaultSort
+import io.putdotio.android.settings.HistoryOpen
+import io.putdotio.android.settings.historyOpen
 import io.putdotio.android.settings.historyTabShown
 import io.putdotio.android.sharing.MOBILE_PUBLIC_LINKS_ROUTE
 import io.putdotio.android.sharing.MobilePublicLinks
@@ -221,7 +223,6 @@ internal fun MobileShell(
     val selectedDestination = MobileDestination.fromRoute(backStackEntry?.destination?.route)
     val historyShown = accountSettingsState.historyTabShown()
     val destinations = remember(historyShown) { MobileDestination.shown(historyShown) }
-    HiddenDestinationEffect(backStackEntry?.destination?.route, destinations, navController)
     val incomingDraft by transferDraft.state.collectAsStateWithLifecycle()
     val nowPlayingPending by nowPlayingRequests.pending.collectAsStateWithLifecycle()
     LaunchedEffect(
@@ -278,6 +279,7 @@ internal fun MobileShell(
         leaveSearch(false)
         onFilesEvent(FilesBrowserEvent.PopToRoot)
     }
+    HiddenDestinationEffect(backStackEntry?.destination?.route, destinations, navController, showFilesRoot)
     val selectDestination = { destination: MobileDestination ->
         navController.select(destination, selectedDestination, showFilesRoot)
     }
@@ -452,6 +454,7 @@ internal fun MobileShell(
                                 onTransfersEvent,
                             ) ?: historyActions(
                                 selectedDestination,
+                                accountSettingsState.historyOpen(),
                                 searchHistoryState.history,
                                 searchHistoryActions.onHistoryEvent,
                             ),
@@ -687,10 +690,15 @@ private fun HiddenDestinationEffect(
     route: String?,
     destinations: List<MobileDestination>,
     navController: NavHostController,
+    showFilesRoot: () -> Unit,
 ) {
     val hidden = MobileDestination.ofRoute(route)?.let { it !in destinations } == true
+    val currentShowFilesRoot by rememberUpdatedState(showFilesRoot)
     LaunchedEffect(hidden) {
-        if (hidden) navController.showTab(MobileDestination.Files)
+        if (hidden) {
+            navController.showTab(MobileDestination.Files)
+            currentShowFilesRoot()
+        }
     }
 }
 
@@ -1283,10 +1291,15 @@ private fun tabActions(
 /** History's overflow holds Clear history, so it shows only over a list to clear. */
 private fun historyActions(
     destination: MobileDestination,
+    open: HistoryOpen,
     history: HistoryState,
     onHistoryEvent: (HistoryEvent) -> Unit,
 ): (@Composable RowScope.() -> Unit)? =
-    if (destination == MobileDestination.History && history.content is HistoryContent.Ready) {
+    if (
+        destination == MobileDestination.History &&
+        open == HistoryOpen.History &&
+        history.content is HistoryContent.Ready
+    ) {
         { MobileHistoryOverflow(history.clearing, onHistoryEvent) }
     } else {
         null

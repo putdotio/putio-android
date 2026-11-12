@@ -66,6 +66,7 @@ import io.putdotio.android.history.HistoryPaging
 import io.putdotio.android.history.HistoryState
 import io.putdotio.android.history.navigableFileId
 import io.putdotio.android.parsePutioTimestamp
+import io.putdotio.android.settings.HistoryOpen
 import io.putdotio.android.neutralTextButtonColors
 import java.time.LocalDate
 import java.time.ZoneId
@@ -81,10 +82,24 @@ internal fun MobileHistoryScreen(
     historyState: HistoryState,
     onHistoryEvent: (HistoryEvent) -> Unit,
     modifier: Modifier = Modifier,
+    open: HistoryOpen = HistoryOpen.History,
+    onRetryOpen: () -> Unit = {},
     today: LocalDate = rememberToday(),
 ) {
     LaunchedEffect(Unit) { onHistoryEvent(HistoryEvent.Refresh) }
-    MobileHistoryContent(historyState, onHistoryEvent, today, modifier.fillMaxSize())
+    when (open) {
+        HistoryOpen.History -> MobileHistoryContent(historyState, onHistoryEvent, today, modifier.fillMaxSize())
+        is HistoryOpen.Failed ->
+            MobileErrorState(
+                title = stringResource(R.string.mobile_history_error_title),
+                message = open.failure.mobileMessage(),
+                retryLabel = stringResource(R.string.mobile_action_retry),
+                onRetry = onRetryOpen,
+                modifier = modifier.fillMaxSize(),
+            )
+        HistoryOpen.Pending, HistoryOpen.FilesRoot ->
+            MobileLoadingState(stringResource(R.string.mobile_history_loading), modifier.fillMaxSize())
+    }
 }
 
 /** Today's date, moved on at midnight and on every resume, so Today and Yesterday stay true. */
