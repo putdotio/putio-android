@@ -22,9 +22,12 @@ import io.putdotio.sdk.files.FileMoveError
 internal const val MOBILE_FILES_MOVE_OUTCOME_TAG = "mobile-files-move-outcome"
 
 @Composable
-internal fun MobileFilesMoveStatus(outcome: FilesMoveOutcome) {
-    val message = outcome.statusMessage()
-    if (message != null) {
+internal fun MobileFilesMoveStatus(outcome: FilesMoveOutcome, onRetry: (() -> Unit)? = null) {
+    val message = outcome.statusMessage(retryable = onRetry != null)
+    if (message != null && onRetry != null) {
+        MobileFilesRetryStatus(message, outcome.failure?.moveFailureMessage(), onRetry,
+            Modifier.testTag(MOBILE_FILES_MOVE_OUTCOME_TAG))
+    } else if (message != null) {
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
             .testTag(MOBILE_FILES_MOVE_OUTCOME_TAG).semantics { liveRegion = LiveRegionMode.Polite }) {
             Text(message, style = MaterialTheme.typography.bodyMedium)
@@ -40,7 +43,7 @@ internal fun MobileFilesMoveStatus(outcome: FilesMoveOutcome) {
 
 /** The settled move's line: the item by name, or several by count; a lone name clash names it. */
 @Composable
-private fun FilesMoveOutcome.statusMessage(): String? {
+private fun FilesMoveOutcome.statusMessage(retryable: Boolean): String? {
     val collision = errors?.singleOrNull()?.takeIf { error ->
         intent.itemIds.any { it.value == error.id } && error.errorType == "NAME_ALREADY_EXIST"
     }
@@ -51,7 +54,9 @@ private fun FilesMoveOutcome.statusMessage(): String? {
         } else {
             stringResource(R.string.mobile_files_move_moved, itemName)
         }
-        FilesMoveStatus.STILL_PRESENT -> if (many) {
+        FilesMoveStatus.STILL_PRESENT -> if (retryable) {
+            pluralStringResource(R.plurals.mobile_files_move_still_present_retry_many, remainingCount, remainingCount)
+        } else if (many) {
             pluralStringResource(R.plurals.mobile_files_move_still_present_many, remainingCount, remainingCount)
         } else {
             stringResource(R.string.mobile_files_move_still_present, itemName)

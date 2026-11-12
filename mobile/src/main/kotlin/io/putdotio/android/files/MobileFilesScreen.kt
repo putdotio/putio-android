@@ -30,6 +30,7 @@ import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -92,6 +93,7 @@ import io.putdotio.android.MobileSnackbarHost
 
 internal const val MOBILE_FILES_LIST_TAG = "mobile-files-list"
 internal const val MOBILE_FILES_OPERATION_RETRY_TAG = "mobile-files-operation-retry"
+internal const val MOBILE_FILES_OUTCOME_RETRY_TAG = "mobile-files-outcome-retry"
 internal const val MOBILE_FILES_PAGING_ACTION_TAG = "mobile-files-paging-action"
 internal const val MOBILE_FILES_REFRESH_TAG = "mobile-files-refresh"
 internal const val MOBILE_FILES_SNACKBAR_TAG = "mobile-files-snackbar"
@@ -454,7 +456,7 @@ private fun MobileRefreshableFilesContent(
                     -> Unit
                 }
             }
-            MobileFilesFolderStatus(state, onEvent)
+            MobileFilesFolderStatus(state, confirmedTrashEnabled, onEvent)
         }
         MobileFilesSelectionToolbarSlot(
             state = state,
@@ -518,6 +520,7 @@ private fun <T> T?.afterFocusChange(itemId: T, focused: Boolean): T? =
 @Composable
 private fun MobileFilesFolderStatus(
     state: FilesBrowserState,
+    confirmedTrashEnabled: Boolean?,
     onEvent: (FilesBrowserEvent) -> Unit,
 ) {
     val operation = state.current.operation
@@ -527,10 +530,49 @@ private fun MobileFilesFolderStatus(
             if (outcome.status == FilesDeleteStatus.TOO_LARGE_FOR_TRASH) {
                 MobileFilesTrashLimitStatus(outcome, state.current, onEvent)
             } else {
-                MobileFilesDeleteStatus(outcome)
+                MobileFilesDeleteRetryStatus(
+                    outcome, outcome.retry(state.current, confirmedDeleteMode(confirmedTrashEnabled)), onEvent,
+                )
             }
         }
-        state.current.moveOutcome?.let { MobileFilesMoveStatus(it) }
+        state.current.moveOutcome?.let { outcome ->
+            MobileFilesMoveStatus(outcome, outcome.retry(state)?.let { event -> { onEvent(event) } })
+        }
+    }
+}
+
+/**
+ * A permanent retry asks again, as every permanent delete does. A Trash retry is sent after the next
+ * composition, against the latest Trash setting: once Trash is off, put.io applies it as permanent.
+ */
+@Composable
+private fun MobileFilesDeleteRetryStatus(
+    outcome: FilesDeleteOutcome,
+    retry: FilesBrowserEvent.Delete?,
+    onEvent: (FilesBrowserEvent) -> Unit,
+) {
+    var confirming by rememberSaveable(outcome) { mutableStateOf(false) }
+    var trashTapped by remember { mutableStateOf(false) }
+    val currentRetry by rememberUpdatedState(retry)
+    if (trashTapped) {
+        SideEffect {
+            trashTapped = false
+            currentRetry?.takeIf { it.mode == FilesDeleteMode.TRASH }?.let(onEvent)
+        }
+    }
+    MobileFilesDeleteStatus(outcome, retry?.let { event ->
+        { if (event.mode == FilesDeleteMode.PERMANENT) confirming = true else trashTapped = true }
+    })
+    if (confirming && retry?.mode == FilesDeleteMode.PERMANENT) {
+        MobileFilesDeleteConfirmation(
+            enabled = true,
+            onDismiss = { confirming = false },
+            onConfirm = {
+                confirming = false
+                currentRetry?.takeIf { it.mode == FilesDeleteMode.PERMANENT }?.let(onEvent)
+            },
+            count = retry.itemIds.size,
+        )
     }
 }
 
@@ -657,10 +699,16 @@ internal fun MobileFilesNoticeHost(notices: Flow<MobileFilesNotice>, modifier: M
 @Composable
 private fun MobileFilesNotices(notices: Flow<MobileFilesNotice>, snackbarHostState: SnackbarHostState) {
     val context = LocalContext.current
+    val retryLabel = stringResource(R.string.mobile_action_retry)
     LaunchedEffect(notices) {
         notices.collect { notice ->
             snackbarHostState.currentSnackbarData?.dismiss()
-            snackbarHostState.showSnackbar(notice.text(context), duration = SnackbarDuration.Long)
+            val result = snackbarHostState.showSnackbar(
+                message = notice.text(context),
+                actionLabel = retryLabel.takeIf { notice.retry != null },
+                duration = SnackbarDuration.Long,
+            )
+            if (result == SnackbarResult.ActionPerformed) notice.retry?.invoke()
         }
     }
 }
@@ -818,9 +866,26 @@ private fun FilesFolderOperation.Failed.retryLabel(): Int =
     }
 
 @Composable
-private fun MobileFilesDeleteStatus(outcome: FilesDeleteOutcome) {
-    val message = outcome.statusMessage()
-    if (message != null) {
+internal fun MobileFilesRetryStatus(
+    message: String,
+    reason: String?,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    MobileInlineError(
+        message = listOfNotNull(message, reason).joinToString(" "),
+        onRetry = onRetry,
+        modifier = modifier,
+        retryModifier = Modifier.testTag(MOBILE_FILES_OUTCOME_RETRY_TAG),
+    )
+}
+
+@Composable
+private fun MobileFilesDeleteStatus(outcome: FilesDeleteOutcome, onRetry: (() -> Unit)?) {
+    val message = outcome.statusMessage(retryable = onRetry != null)
+    if (message != null && onRetry != null) {
+        MobileFilesRetryStatus(message, outcome.failure?.mobileMessage(), onRetry)
+    } else if (message != null) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -843,7 +908,7 @@ private fun MobileFilesDeleteStatus(outcome: FilesDeleteOutcome) {
 
 /** The settled delete's line: the item by name, or several by count. */
 @Composable
-private fun FilesDeleteOutcome.statusMessage(): String? {
+private fun FilesDeleteOutcome.statusMessage(retryable: Boolean): String? {
     val many = itemCount > 1
     return when (status) {
         FilesDeleteStatus.NO_LONGER_AVAILABLE -> if (many) {
@@ -851,7 +916,9 @@ private fun FilesDeleteOutcome.statusMessage(): String? {
         } else {
             stringResource(R.string.mobile_files_delete_unavailable, itemName)
         }
-        FilesDeleteStatus.STILL_PRESENT -> if (many) {
+        FilesDeleteStatus.STILL_PRESENT -> if (retryable) {
+            pluralStringResource(R.plurals.mobile_files_delete_still_present_retry_many, remainingCount, remainingCount)
+        } else if (many) {
             pluralStringResource(R.plurals.mobile_files_delete_still_present_many, remainingCount, remainingCount)
         } else {
             stringResource(R.string.mobile_files_delete_still_present, itemName)
