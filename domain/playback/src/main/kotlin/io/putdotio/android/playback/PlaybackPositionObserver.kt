@@ -73,7 +73,7 @@ public class PlaybackPositionObserver(
             if (itemChanged) {
                 cancelSeekSave()
                 submitPosition(oldLease, oldPosition.positionMs)
-                seekedLease = null
+                if (newPosition.mediaItem.reportingLease() != oldLease) seekedLease = null
             } else if (reason == Media3Player.DISCONTINUITY_REASON_SEEK ||
                 reason == Media3Player.DISCONTINUITY_REASON_SEEK_ADJUSTMENT
             ) {
@@ -143,7 +143,9 @@ public class PlaybackPositionObserver(
 
     private fun submitPosition(lease: String?, positionMillis: Long) {
         if (lease.isNullOrBlank()) return
-        if (positionMillis > 0 || (positionMillis == 0L && lease == seekedLease)) submit(lease, positionMillis)
+        if (positionMillis >= MIN_SAVED_POSITION_MILLIS || (positionMillis >= 0L && lease == seekedLease)) {
+            submit(lease, positionMillis)
+        }
     }
 
     private fun checkApplicationLooper() {

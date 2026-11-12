@@ -21,7 +21,6 @@ public class SdkPlaybackPositionRepository internal constructor(
         loadResumeSetting = { client.account.getSettings().useStartFrom },
     )
 
-    /** Saves [seconds] as [fileId]'s position; zero clears it. */
     public suspend fun write(fileId: Long, seconds: Double): PlaybackRepositoryResult<Unit> = request {
         require(fileId > 0L && seconds.isFinite() && seconds >= 0.0)
         if (seconds == 0.0) clearPosition(fileId) else setPosition(fileId, seconds)

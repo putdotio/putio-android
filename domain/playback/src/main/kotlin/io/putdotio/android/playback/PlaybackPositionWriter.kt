@@ -65,8 +65,9 @@ public class PlaybackPositionWriter(
         return block()
     }
 
-    public fun offer(token: String, positionMillis: Long) {
-        val lease = leases[token]?.takeIf { !closed && positionMillis >= 0L && it.authorized() } ?: return
+    public fun offer(token: String, offeredMillis: Long) {
+        val lease = leases[token]?.takeIf { !closed && offeredMillis >= 0L && it.authorized() } ?: return
+        val positionMillis = offeredMillis.takeIf { it >= MIN_SAVED_POSITION_MILLIS } ?: 0L
         if (lease.delivery.covers(positionMillis)) return
         // One in-flight request and one latest snapshot bound memory during slow requests
         // and rapid file switches. Intermediate queued exit positions may be superseded.
@@ -180,6 +181,6 @@ private const val MAX_LEASES = 8
 private const val WRITE_TIMEOUT_MILLIS = 15_000L
 private const val MILLIS_PER_SECOND = 1_000.0
 private const val POSITION_DEDUP_MILLIS = 1_000L
+internal const val MIN_SAVED_POSITION_MILLIS = 1_000L
 
-private fun sameSecond(a: Long, b: Long): Boolean =
-    a / POSITION_DEDUP_MILLIS == b / POSITION_DEDUP_MILLIS && (a == 0L) == (b == 0L)
+private fun sameSecond(a: Long, b: Long): Boolean = a / POSITION_DEDUP_MILLIS == b / POSITION_DEDUP_MILLIS
