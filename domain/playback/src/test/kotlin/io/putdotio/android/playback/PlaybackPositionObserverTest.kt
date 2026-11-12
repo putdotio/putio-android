@@ -233,6 +233,20 @@ class PlaybackPositionObserverTest {
     }
 
     @Test
+    fun aSeekAdjustedPastTheStartSavesWhereItLands() = runTest {
+        val player = PositionPlayer()
+        player.replace("first", 40_000L)
+        val (observer, snapshots) = observe(player)
+        player.seekTo(500L)
+        player.adjust(2_000L)
+        advanceTimeBy(1_001L)
+        runCurrent()
+        assertEquals(listOf("first" to 2_000L), snapshots)
+        observer.close()
+        player.release()
+    }
+
+    @Test
     fun aHeldSeekBurstSavesOnceWhenItSettles() = runTest {
         val player = PositionPlayer()
         player.replace("first", 10_000L)
@@ -343,6 +357,14 @@ private class PositionPlayer : SimpleBasePlayer(Looper.getMainLooper()) {
 
     fun position(positionMillis: Long) {
         state = state.buildUpon().setContentPositionMs(positionMillis).build()
+        invalidateState()
+    }
+
+    fun adjust(positionMillis: Long) {
+        state = state.buildUpon()
+            .setContentPositionMs(positionMillis)
+            .setPositionDiscontinuity(Media3Player.DISCONTINUITY_REASON_SEEK_ADJUSTMENT, positionMillis)
+            .build()
         invalidateState()
     }
 

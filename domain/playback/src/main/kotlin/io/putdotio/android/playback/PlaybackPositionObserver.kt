@@ -77,7 +77,7 @@ public class PlaybackPositionObserver(
             } else if (reason == Media3Player.DISCONTINUITY_REASON_SEEK ||
                 reason == Media3Player.DISCONTINUITY_REASON_SEEK_ADJUSTMENT
             ) {
-                if (reason == Media3Player.DISCONTINUITY_REASON_SEEK) trackStartSeek(oldLease, oldPosition, newPosition)
+                trackStartSeek(oldLease, oldPosition, newPosition)
                 saveWhenSeekSettles()
             }
         }
@@ -154,7 +154,7 @@ public class PlaybackPositionObserver(
         if (positionMillis >= MIN_SAVED_POSITION_MILLIS) {
             if (lease == startSeekLease) startSeekLease = null
             submit(lease, positionMillis)
-        } else if (positionMillis >= 0L && lease == startSeekLease) {
+        } else if (lease == startSeekLease) {
             submit(lease, positionMillis)
         }
     }
