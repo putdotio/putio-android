@@ -21,6 +21,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -54,6 +55,7 @@ import io.putdotio.android.settings.AndroidAppConfigContent
 import io.putdotio.android.settings.AndroidAppConfigEvent
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.settings.AndroidAppConfigMutation
+import io.putdotio.android.settings.AndroidAppConfigReducer
 import io.putdotio.android.settings.AndroidAppConfigRequestId
 import io.putdotio.android.settings.AndroidAppConfigState
 import io.putdotio.android.settings.StreamingMethod
@@ -79,7 +81,6 @@ import io.putdotio.android.account.MOBILE_ABOUT_ROW_TAG
 import io.putdotio.android.account.MOBILE_ACCOUNT_AVATAR_FALLBACK_TAG
 import io.putdotio.android.account.MOBILE_ACCOUNT_LIST_TAG
 import io.putdotio.android.account.MOBILE_ACCOUNT_SIGN_OUT_TAG
-import io.putdotio.android.account.MOBILE_CHOICE_SAVE_TAG
 import io.putdotio.android.account.MOBILE_ACCOUNT_STORAGE_PROGRESS_TAG
 import io.putdotio.android.account.MOBILE_DEFAULT_SORT_ROW_TAG
 import io.putdotio.android.account.MOBILE_MANAGE_PUBLIC_LINKS_TAG
@@ -96,6 +97,7 @@ import io.putdotio.android.playback.playbackPreference
 import io.putdotio.android.playback.confirmedStreamingMethod
 import io.putdotio.android.trash.MOBILE_MANAGE_TRASH_TAG
 import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 
@@ -489,7 +491,7 @@ class MobileAccountPlaybackSettingsTest {
                 ),
             )
             .performClick()
-        compose.onNodeWithTag(MOBILE_CHOICE_SAVE_TAG).performClick()
+        compose.onAllNodes(isDialog()).assertCountEquals(0)
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Autoplay next video"))
         compose.onNodeWithText("Autoplay next video").performClick()
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Rotate to landscape"))
@@ -509,6 +511,53 @@ class MobileAccountPlaybackSettingsTest {
             ),
             appConfigEvents,
         )
+    }
+
+    @Test
+    fun playbackMethodAppliesOnTapAndAFailedSaveRevertsIt() {
+        val appConfigEvents = mutableListOf<AndroidAppConfigEvent>()
+        var appConfigState by mutableStateOf(readyAndroidAppConfigState())
+        compose.setAccountContent(
+            appConfigState = { appConfigState },
+            options = AccountScreenOptions(
+                onAppConfigEvent = { event ->
+                    appConfigEvents += event
+                    appConfigState = AndroidAppConfigReducer.reduce(appConfigState, event).state
+                },
+            ),
+        )
+
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Playback method"))
+        compose.onNodeWithText("Playback method").performClick()
+        compose.onAllNodesWithText("Save").assertCountEquals(0)
+        compose.onNode(hasText("Standard") and hasAnyAncestor(isDialog())).assertIsSelected().performClick()
+        compose.onAllNodes(isDialog()).assertCountEquals(0)
+        assertEquals(emptyList<AndroidAppConfigEvent>(), appConfigEvents)
+
+        compose.onNodeWithText("Playback method").performClick()
+        compose.onNode(hasText("Direct play") and hasAnyAncestor(isDialog())).performClick()
+        compose.onAllNodes(isDialog()).assertCountEquals(0)
+        assertEquals(
+            listOf(AndroidAppConfigEvent.ChangeRequested(AndroidAppConfigChange.PlaybackMethod(StreamingMethod.File))),
+            appConfigEvents,
+        )
+        compose.onNodeWithText("Direct play").assertIsDisplayed()
+
+        compose.runOnIdle {
+            val saving = appConfigState.mutation as AndroidAppConfigMutation.Saving
+            appConfigState = AndroidAppConfigReducer.reduce(
+                appConfigState,
+                AndroidAppConfigEvent.SaveFailed(
+                    saving.requestId,
+                    PutioFailure.Unexpected(IllegalStateException("offline")),
+                ),
+            ).state
+        }
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Couldn’t save this setting"))
+        compose.onNodeWithText("Couldn’t save this setting").assertIsDisplayed()
+        compose.onAllNodesWithText("Direct play").assertCountEquals(0)
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Playback method"))
+        compose.onNodeWithText("Standard").assertIsDisplayed()
     }
 
     @Test
@@ -609,7 +658,7 @@ class MobileAccountPlaybackSettingsTest {
     }
 
     @Test
-    fun tunnelRoutePickerLoadsOnOpenRetriesAndDispatchesTheChosenRoute() {
+    fun tunnelRoutePickerLoadsOnOpenRetriesAndAppliesTheTappedRoute() {
         val events = mutableListOf<AccountSettingsEvent>()
         var attempts = 0
         compose.setAccountContent(
@@ -640,7 +689,6 @@ class MobileAccountPlaybackSettingsTest {
         compose.onNodeWithText("Straight from put.io, no proxy.", substring = true).assertIsDisplayed()
         compose.onAllNodesWithText("Amsterdam (Direct)", substring = true).assertCountEquals(0)
         compose.onNodeWithText("cdn77", substring = true).assertTextContains("CDN").performClick()
-        compose.onNodeWithTag(MOBILE_CHOICE_SAVE_TAG).performClick()
         compose.runOnIdle {
             assertEquals(2, attempts)
             assertEquals(

@@ -335,7 +335,6 @@
     <string name="tv_account_error_access_denied">This app doesn’t have access to these settings.</string>
     <string name="tv_account_error_route_unavailable">That proxy isn’t available for your account. Choose another one.</string>
     <string name="tv_account_retry">Try again</string>
-    <string name="tv_account_save">Save</string>
     <string name="tv_account_done">Done</string>
     <string name="tv_account_cancel">Cancel</string>
     <string name="tv_trash_title">Trash</string>
