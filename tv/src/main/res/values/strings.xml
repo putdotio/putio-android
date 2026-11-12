@@ -20,6 +20,7 @@
     <string name="tv_link_browser_instruction">Go to %1$s and enter</string>
     <string name="tv_link_url">put.io/link</string>
     <string name="tv_link_requesting">Getting a code</string>
+    <string name="tv_link_waiting">Waiting for authentication…</string>
     <string name="tv_link_validating">Signing you in</string>
     <string name="tv_link_expired">This code expired.</string>
     <string name="tv_link_failed_network">Can’t connect to put.io right now. Check the network, then get a new code.</string>

@@ -85,7 +85,7 @@ import io.putdotio.android.tv.TvExternalOpen
 import io.putdotio.android.tv.TvLaunchRequest
 import io.putdotio.android.tv.TvLaunchRequests
 import io.putdotio.android.tv.TvConnectivity
-import io.putdotio.android.tv.TvLinkScreen
+import io.putdotio.android.tv.TvLinkRoute
 import io.putdotio.android.tv.TvOfflineScreen
 import io.putdotio.android.tv.TvSession
 import io.putdotio.android.tv.TvUndoFailure
@@ -149,9 +149,8 @@ internal fun PutioApp(runtime: TvAuthRuntime, launchRequests: TvLaunchRequests) 
             is TvAuthState.ValidationUnavailable ->
                 TvOfflineScreen(onTryNow = { scope.launch { authController.retryValidation() } })
             is TvAuthState.Linking ->
-                TvLinkScreen(
-                    phase = state.phase,
-                    sessionExpired = state.sessionExpired,
+                TvLinkRoute(
+                    linking = state,
                     onRequestNewCode = { scope.launch { authController.requestNewCode() } },
                     onTryAgain = { scope.launch { authController.retryValidation() } },
                 )

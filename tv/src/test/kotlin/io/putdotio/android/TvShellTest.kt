@@ -7,6 +7,8 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasProgressBarRangeInfo
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -26,7 +28,15 @@ import androidx.compose.ui.focus.focusRequester
 import io.putdotio.android.search.SearchContent
 import io.putdotio.android.search.SearchTerm
 import io.putdotio.android.tv.TvDestination
+import io.putdotio.android.tv.TvLinkRoute
 import io.putdotio.android.tv.TvLinkScreen
+import io.putdotio.android.tv.auth.TvAuthState
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import androidx.test.core.app.ApplicationProvider
+import org.robolectric.Shadows.shadowOf
+import org.robolectric.shadows.ShadowNetworkCapabilities
 import io.putdotio.android.tv.TvOfflineScreen
 import io.putdotio.android.tv.search.TV_SEARCH_FIELD_TAG
 import io.putdotio.android.tv.search.TvRecentSearchActions
@@ -102,6 +112,63 @@ class TvShellTest {
         compose.onNodeWithText("Welcome back!").assertIsDisplayed()
         compose.onNodeWithText("Your session expired. Sign in again to continue.").assertIsDisplayed()
         compose.onNodeWithContentDescription("Activation code GIQTKN").assertIsDisplayed()
+    }
+
+    @Test
+    fun shownCodeSaysItIsWaitingAndNotesALostConnectionWithoutDroppingTheCode() {
+        var offline by mutableStateOf(false)
+        compose.setTvContent {
+            TvLinkScreen(
+                phase = TvLinkPhase.AwaitingLink("GIQTKN"),
+                sessionExpired = false,
+                onRequestNewCode = {},
+                offline = offline,
+            )
+        }
+
+        compose.onNodeWithText("Waiting for authentication…").assertIsDisplayed()
+        compose.onNode(hasProgressBarRangeInfo(ProgressBarRangeInfo.Indeterminate)).assertIsDisplayed()
+        compose.onNodeWithText("No connection").assertDoesNotExist()
+
+        compose.runOnIdle { offline = true }
+        compose.onNodeWithText("No connection").assertIsDisplayed()
+        compose.onNodeWithText("Waiting for authentication…").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Activation code GIQTKN").assertIsDisplayed()
+        compose.onNodeWithText("Get a new code").assertIsFocused()
+
+        compose.runOnIdle { offline = false }
+        compose.onNodeWithText("Waiting for authentication…").assertIsDisplayed()
+        compose.onNodeWithText("No connection").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Activation code GIQTKN").assertIsDisplayed()
+    }
+
+    @Test
+    fun linkRouteNotesTheSystemNetworkDroppingAndReturning() {
+        val connectivity = ApplicationProvider.getApplicationContext<Context>()
+            .getSystemService(ConnectivityManager::class.java)
+        val network = requireNotNull(connectivity.activeNetwork)
+        val validated = ShadowNetworkCapabilities.newInstance().also {
+            shadowOf(it).addCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+        }
+        shadowOf(connectivity).setNetworkCapabilities(network, validated)
+        compose.setTvContent {
+            TvLinkRoute(
+                linking = TvAuthState.Linking(TvLinkPhase.AwaitingLink("GIQTKN")),
+                onRequestNewCode = {},
+                onTryAgain = {},
+            )
+        }
+        compose.onNodeWithText("Waiting for authentication…").assertIsDisplayed()
+
+        compose.runOnIdle { shadowOf(connectivity).networkCallbacks.forEach { it.onLost(network) } }
+        compose.onNodeWithText("No connection").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Activation code GIQTKN").assertIsDisplayed()
+
+        compose.runOnIdle {
+            shadowOf(connectivity).networkCallbacks.forEach { it.onCapabilitiesChanged(network, validated) }
+        }
+        compose.onNodeWithText("Waiting for authentication…").assertIsDisplayed()
+        compose.onNodeWithText("No connection").assertDoesNotExist()
     }
 
     @Test
