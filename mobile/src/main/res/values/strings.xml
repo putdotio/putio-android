@@ -286,11 +286,13 @@
     <string name="mobile_settings_tunnel_route_error">Couldn’t load proxies</string>
     <string name="mobile_settings_tunnel_route_unavailable">That proxy isn’t available for your account. Choose another one.</string>
     <string name="mobile_settings_resume_playback">Resume where you left off</string>
+    <string name="mobile_settings_resume_confirm_title">Turn off resume?</string>
+    <string name="mobile_settings_resume_confirm_message">This erases every saved playback position on your account, on all devices.</string>
     <string name="mobile_settings_history">Keep account history</string>
     <string name="mobile_settings_trash">Move deleted files to trash</string>
     <string name="mobile_settings_trash_confirm_title">Turn off trash?</string>
     <string name="mobile_settings_trash_confirm_message">Deleted files will no longer be recoverable. Files already in trash stay for their 14 days.</string>
-    <string name="mobile_settings_trash_confirm_action">Turn off</string>
+    <string name="mobile_settings_turn_off">Turn off</string>
     <string name="mobile_action_back">Back</string>
     <string name="mobile_auth_restoring">Restoring your session</string>
     <string name="mobile_auth_validating">Checking your session</string>

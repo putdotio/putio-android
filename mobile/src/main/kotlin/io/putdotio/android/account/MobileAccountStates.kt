@@ -87,8 +87,8 @@ internal fun StreamingMethod.labelResource(): Int =
         StreamingMethod.File -> R.string.mobile_settings_playback_direct
     }
 
-internal val AccountSettingsChange.disablesTrash: Boolean
-    get() = this is AccountSettingsChange.Toggle && key == AccountSettingsKey.Trash && !enabled
+internal fun AccountSettingsChange.turnsOff(setting: AccountSettingsKey): Boolean =
+    this is AccountSettingsChange.Toggle && key == setting && !enabled
 
 internal fun AccountSettingsState.accountControlsEnabled(): Boolean = mutation.controlsEnabled()
 

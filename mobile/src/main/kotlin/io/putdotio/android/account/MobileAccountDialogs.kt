@@ -1,5 +1,6 @@
 package io.putdotio.android.account
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -152,23 +153,28 @@ internal fun MobileTunnelRouteDialog(
     )
 }
 
-/** Turning Trash off makes every later delete permanent, so it confirms in red. */
+/** Turning off a switch whose loss can't be undone, such as Trash or Resume, confirms in red. */
 @Composable
-internal fun MobileTrashOffDialog(onDismiss: () -> Unit, onConfirm: () -> Unit) {
+internal fun MobileTurnOffDialog(
+    @StringRes title: Int,
+    @StringRes message: Int,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
     AlertDialog(
         onDismissRequest = onDismiss,
         modifier = Modifier.accountDialogWidth(),
         properties = AccountDialogProperties,
-        title = { Text(stringResource(R.string.mobile_settings_trash_confirm_title)) },
+        title = { Text(stringResource(title)) },
         text = {
             Text(
-                stringResource(R.string.mobile_settings_trash_confirm_message),
+                stringResource(message),
                 Modifier.verticalScroll(rememberScrollState()),
             )
         },
         confirmButton = {
             PutioDestructiveButton(onClick = onConfirm) {
-                Text(stringResource(R.string.mobile_settings_trash_confirm_action))
+                Text(stringResource(R.string.mobile_settings_turn_off))
             }
         },
         dismissButton = {

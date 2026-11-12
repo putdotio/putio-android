@@ -5,8 +5,10 @@ import android.graphics.Bitmap
 import android.view.KeyEvent
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.putdotio.android.AccountStorage
@@ -115,6 +117,21 @@ class TvAccountProofTest {
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(5_000) { isFocused(CDN77) }
         screenshot("androidtv-st-d2-proxy")
+    }
+
+    @Test
+    fun resumeOffConfirm() {
+        mount()
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        press(KeyEvent.KEYCODE_DPAD_RIGHT)
+        compose.waitUntil(5_000) { isFocused(RESUME) }
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitUntil(5_000) { isFocused(CANCEL) }
+        screenshot("androidtv-resume-off-confirm")
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitUntil(5_000) { isFocused(RESUME) }
+        compose.onNodeWithText(RESUME).assertIsOn()
+        screenshot("androidtv-resume-off-cancelled")
     }
 
     @Test
@@ -276,6 +293,7 @@ class TvAccountProofTest {
         const val LIBRARY = "Library"
         const val MANAGE_TRASH = "Manage your trash"
         const val RESUME = "Resume where you left off"
+        const val CANCEL = "Cancel"
         const val DIAGNOSTICS = "Diagnostics"
         const val VERSION = "Version"
         const val FFMPEG = "FFmpeg 7.1.5"
