@@ -135,6 +135,32 @@ class MobileWelcomeScreenTest {
     }
 
     @Test
+    @Config(qualifiers = "w412dp-h915dp")
+    fun deviceWithoutGooglePlayExplainsAndOffersOnlyTryAgain() {
+        var chromeRequests = 0
+        compose.setContent {
+            PutioTheme {
+                Surface {
+                    MobileSignedOutScreen(
+                        reason = MobileSignedOutReason.ChromeStoreUnavailable,
+                        canSignIn = true,
+                        onSignIn = { actions += 1 },
+                        onGetChrome = { chromeRequests += 1 },
+                    )
+                }
+            }
+        }
+
+        compose.onNodeWithText("This device can’t get Chrome").assertIsDisplayed()
+        compose.onNodeWithText("Sign-in needs Chrome from Google Play, which isn’t available here.")
+            .assertIsDisplayed()
+        compose.onAllNodes(hasClickAction()).assertCountEquals(1)
+        compose.onNodeWithText("Try again").performClick()
+        assertEquals(1, actions)
+        assertEquals(0, chromeRequests)
+    }
+
+    @Test
     fun missingOAuthClientExplainsWithoutAnAction() {
         setSignedOut(canSignIn = false)
 

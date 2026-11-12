@@ -58,6 +58,23 @@ class MobileAuthControllerTest {
     }
 
     @Test
+    fun `Chrome listing that opens nowhere replaces the Get Chrome prompt`() = runBlocking {
+        val fixture = AuthControllerFixture()
+        fixture.controller.restoreSession()
+        assertFalse(fixture.controller.failChromeStoreListing())
+        fixture.controller.beginSignIn()
+        fixture.controller.failSignInWithoutAuthTabBrowser()
+
+        assertTrue(fixture.controller.failChromeStoreListing())
+
+        assertEquals(
+            MobileAuthState.SignedOut(MobileSignedOutReason.ChromeStoreUnavailable),
+            fixture.controller.state.value,
+        )
+        assertFalse(fixture.controller.dismissAuthTabBrowserMissing())
+    }
+
+    @Test
     fun `Auth Tab cancellation after process recreation clears the persisted attempt`() = runBlocking {
         val pendingAttemptStore = FakePendingOAuthAttemptStore()
         val firstProcess = AuthControllerFixture(pendingAttemptStore = pendingAttemptStore)
