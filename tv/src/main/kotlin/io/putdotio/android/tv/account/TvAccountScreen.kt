@@ -90,6 +90,7 @@ import io.putdotio.android.settings.AppDiagnostics
 import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.android.settings.TunnelRouteOption
 import io.putdotio.android.settings.putioFailure
+import io.putdotio.android.settings.trashOff
 import io.putdotio.android.telemetry.AnalyticsEvent
 import io.putdotio.android.telemetry.ProductAnalytics
 import io.putdotio.android.telemetry.telemetryNotices
@@ -286,6 +287,7 @@ private fun TvAccountBody(
     val sheetOpen = rememberUpdatedState(sheet != null)
     val entry = { focus.resolve(lastFocus.value, group.value.focusKey) }
     val rightPane = remember { FocusRequester() }
+    val shownTrashSize = trashSizeBytes.takeUnless { settingsState.trashOff }
     val open = { next: TvAccountSheet, from: String ->
         lastFocus.value = from
         notice = OPEN_SOURCE_NOTICES.indices.firstOrNull { RowKey.notice(it) == from } ?: notice
@@ -327,7 +329,7 @@ private fun TvAccountBody(
     ) {
         TvAccountGroups(
             account = account,
-            trashSizeBytes = trashSizeBytes,
+            trashSizeBytes = shownTrashSize,
             group = group,
             opened = opened,
             context = context,
@@ -347,7 +349,7 @@ private fun TvAccountBody(
                 onAppConfigEvent = onAppConfigEvent,
                 open = open,
             ),
-            library = TvLibraryRows(trashSizeBytes, onManageTrash, showHome),
+            library = TvLibraryRows(shownTrashSize, onManageTrash.takeUnless { settingsState.trashOff }, showHome),
             playbackPreference = appConfigState.playbackPreference(),
         )
     }
@@ -409,7 +411,7 @@ private fun TvAccountGroups(
         Spacer(Modifier.height(8.dp))
         TvAccountGroupRow(
             title = stringResource(R.string.tv_account_sign_out),
-            icon = R.drawable.ic_ph_sign_out,
+            icon = null,
             selected = false,
             onClick = onSignOut,
             danger = true,

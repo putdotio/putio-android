@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -143,6 +144,7 @@ internal fun MobileSettingsLine(
     saving: Boolean = false,
     titleColor: Color = MaterialTheme.colorScheme.onSurface,
     iconColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    alignTitleWithIcons: Boolean = false,
 ) {
     Row(
         modifier = modifier
@@ -152,8 +154,14 @@ internal fun MobileSettingsLine(
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        icon?.let {
-            Icon(painterResource(it), contentDescription = null, tint = iconColor, modifier = Modifier.size(22.dp))
+        when {
+            icon != null -> Icon(
+                painterResource(icon),
+                contentDescription = null,
+                tint = iconColor,
+                modifier = Modifier.size(22.dp),
+            )
+            alignTitleWithIcons -> Spacer(Modifier.size(22.dp))
         }
         TitleAndTrailing(
             title = {

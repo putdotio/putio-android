@@ -331,13 +331,6 @@
     },
     {
       "resDir": "tv/src/main/res",
-      "resource": "ic_ph_sign_out",
-      "asset": "assets/regular/sign-out.svg",
-      "sourceSha256": "511fe7958ef31f8904185631fd7045c11f35c8034a2a64ccb3bdcc4dfa81df77",
-      "outputSha256": "35522463af94ba5f929cf3fa71d6f07ed46a2948e1c0ea434a2eb99072a1e308"
-    },
-    {
-      "resDir": "tv/src/main/res",
       "resource": "ic_ph_gauge",
       "asset": "assets/regular/gauge.svg",
       "sourceSha256": "053e22a3b54c3baa7997bd0fddbf2cc35cbdd2662842b553d13d9f2a58c67f4a",
@@ -636,13 +629,6 @@
       "asset": "assets/regular/file-text.svg",
       "sourceSha256": "9a580a038cce9f6dd223597864abe1b5c5c03bf8176d2f7171574598468b16f7",
       "outputSha256": "0bf9d404fe8b6475d4f91c5e5d51a505c31b20b530504716dd1d5703b70135f8"
-    },
-    {
-      "resDir": "mobile/src/main/res",
-      "resource": "ic_ph_sign_out",
-      "asset": "assets/regular/sign-out.svg",
-      "sourceSha256": "511fe7958ef31f8904185631fd7045c11f35c8034a2a64ccb3bdcc4dfa81df77",
-      "outputSha256": "35522463af94ba5f929cf3fa71d6f07ed46a2948e1c0ea434a2eb99072a1e308"
     },
     {
       "resDir": "mobile/src/main/res",

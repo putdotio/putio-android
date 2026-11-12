@@ -65,7 +65,7 @@ internal class PlaybackConfigHttpFixture(
                 format = body.getValue("value").jsonPrimitive.content
                 """{"status":"OK"}"""
             }
-            "GET /v2/account/settings" -> """{"status":"OK","settings":{"sort_by":"NAME_ASC"}}"""
+            "GET /v2/account/settings" -> """{"status":"OK","settings":{"sort_by":"NAME_ASC","trash_enabled":true}}"""
             "GET /v2/account/info" -> ACCOUNT_RESPONSE
             "GET /v2/files/list" -> """{"status":"OK","parent":null,"files":[$FILE],"cursor":null}"""
             "GET /v2/files/42" -> {
@@ -97,7 +97,7 @@ internal class PlaybackConfigHttpFixture(
             "status":"OK","info":{
                 "user_id":42,"username":"test-user","mail":"test@example.invalid",
                 "avatar_url":"","account_status":"active","download_token":"synthetic-media-token",
-                "disk":{"avail":90,"size":100,"used":10},"settings":{"sort_by":"NAME_ASC"}
+                "disk":{"avail":90,"size":100,"used":10},"settings":{"sort_by":"NAME_ASC","trash_enabled":true}
             }
         }"""
     }

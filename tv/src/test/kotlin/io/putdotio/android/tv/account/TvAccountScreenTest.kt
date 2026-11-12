@@ -104,6 +104,20 @@ class TvAccountScreenTest {
     }
 
     @Test
+    fun trashOffHidesManageYourTrashAndTheLibraryTrashSize() {
+        var settings by mutableStateOf(AccountSettingsReducer.start().state)
+        show(settingsState = { settings })
+        compose.onNodeWithText("Manage your trash").assertIsDisplayed()
+        compose.onNodeWithText("Trash 0 B").assertIsDisplayed()
+
+        compose.runOnIdle { settings = ready(preferences.copy(trashEnabled = false)) }
+        compose.onAllNodesWithText("Manage your trash").assertCountEquals(0)
+        compose.onAllNodesWithText("Trash 0 B").assertCountEquals(0)
+        group("Library").assertIsFocused().performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNodeWithText("Move deleted files to Trash").assertIsFocused().assertIsOff()
+    }
+
+    @Test
     fun theQuotaStatesWhatIsFreeWhenTheAccountShowsOptimisticUsage() {
         var shown by mutableStateOf(account)
         show(settingsState = { ready(preferences) }, account = { shown })
@@ -261,7 +275,8 @@ class TvAccountScreenTest {
 
     @Test
     fun turningTrashOffConfirmsInRedWithCancelFocused() {
-        show(settingsState = { ready(preferences) })
+        var settings by mutableStateOf(ready(preferences))
+        show(settingsState = { settings })
 
         group("Library").performKeyInput { pressKey(Key.DirectionRight) }
         compose.onNodeWithText("Manage your trash").performKeyInput { pressKey(Key.DirectionDown) }
@@ -277,7 +292,9 @@ class TvAccountScreenTest {
             ),
             settingsEvents,
         )
-        compose.onNodeWithText("Move deleted files to Trash").assertIsFocused()
+        compose.runOnIdle { settings = AccountSettingsReducer.reduce(settings, settingsEvents.single()).state }
+        compose.onAllNodesWithText("Manage your trash").assertCountEquals(0)
+        compose.onNodeWithText("Move deleted files to Trash").assertIsFocused().assertIsOff()
     }
 
     @Test

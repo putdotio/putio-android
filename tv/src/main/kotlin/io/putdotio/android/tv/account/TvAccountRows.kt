@@ -103,7 +103,7 @@ internal fun TvSegments(modifier: Modifier = Modifier, content: @Composable Colu
 @Composable
 internal fun TvAccountGroupRow(
     title: String,
-    @DrawableRes icon: Int,
+    @DrawableRes icon: Int?,
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -150,12 +150,14 @@ internal fun TvAccountGroupRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(Modifier.size(20.dp), contentAlignment = Alignment.Center) {
-                Icon(
-                    painterResource(icon),
-                    contentDescription = null,
-                    tint = if (danger) content else secondary,
-                    modifier = Modifier.size(18.dp),
-                )
+                icon?.let {
+                    Icon(
+                        painterResource(it),
+                        contentDescription = null,
+                        tint = if (danger) content else secondary,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
             }
             Text(
                 title,
