@@ -32,14 +32,20 @@ class TrashSelectionTest {
     }
 
     @Test
-    fun aRestoreIsNotVerifiedWhileLaterPagesMayStillHoldItsRows() = runBlocking {
+    fun aRestoreIsVerifiedOnlyOnceAPageReachesPastItsRows() = runBlocking {
+        val newer = trashItem(20L).copy(deletedAt = "2026-09-07T10:00:00")
+        val older = trashItem(21L).copy(deletedAt = "2026-09-01T10:00:00")
         val repository = FakeTrashRepository().apply { onLoad = { page(first, second, third) } }
         TrashController(repository, this).use { controller ->
             controller.openLoaded()
-            repository.onLoad = { PutioResult.Success(TrashPage(listOf(second), FilesCursor("more"), 40, 12L)) }
+            repository.onLoad = { PutioResult.Success(TrashPage(listOf(newer), FilesCursor("more"), 40, 12L)) }
             assertTrue(controller.dispatch(TrashEvent.RestoreSelected(ticked)))
             val draining = controller.awaitState { it.actionOutcome?.check == TrashActionCheck.INCONCLUSIVE }
             assertTrue(draining.hasPendingAction)
+            repository.onLoad = { PutioResult.Success(TrashPage(listOf(older), FilesCursor("more"), 40, 12L)) }
+            assertTrue(controller.dispatch(TrashEvent.CheckAction))
+            val verified = controller.awaitState { it.actionOutcome?.check == TrashActionCheck.VERIFIED }
+            assertTrue(!verified.hasPendingAction)
         }
     }
 

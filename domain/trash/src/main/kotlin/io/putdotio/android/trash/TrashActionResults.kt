@@ -39,14 +39,8 @@ internal fun TrashMachine.verifyActionAgainstPage(page: TrashContent.Loaded): Tr
 private fun TrashActionOutcome.verify(page: TrashContent.Loaded): TrashActionCheck = when (val action = action) {
     is TrashAction.DeleteItem -> verifyGone(page, listOf(action.item), whenListed = TrashActionCheck.FAILED)
     is TrashAction.DeleteSelected -> verifyGone(page, action.items, whenListed = TrashActionCheck.FAILED)
-    is TrashAction.RestoreSelected -> {
-        val ids = action.items.mapTo(hashSetOf(), TrashItem::id)
-        if (page.nextCursor == null && page.items.none { it.id in ids }) {
-            TrashActionCheck.VERIFIED
-        } else {
-            TrashActionCheck.INCONCLUSIVE
-        }
-    }
+    is TrashAction.RestoreSelected ->
+        if (page.passed(action.items)) TrashActionCheck.VERIFIED else TrashActionCheck.INCONCLUSIVE
     TrashAction.Empty -> if (page.isKnownEmpty) TrashActionCheck.VERIFIED else TrashActionCheck.FAILED
     // Bulk restore drains asynchronously. Items deleted after the snapshot were never part of the
     // request, so a complete page holding only those still verifies it.
@@ -64,6 +58,16 @@ private fun TrashActionOutcome.verifyGone(
         page.nextCursor == null || submission == TrashActionSubmission.ACKNOWLEDGED -> TrashActionCheck.VERIFIED
         else -> TrashActionCheck.INCONCLUSIVE
     }
+}
+
+private fun TrashContent.Loaded.passed(rows: List<TrashItem>): Boolean {
+    val ids = rows.mapTo(hashSetOf(), TrashItem::id)
+    val oldestListed = items.lastOrNull()?.deletedAt?.let(::parsePutioTimestamp)
+    val oldestRow = rows.map { it.deletedAt?.let(::parsePutioTimestamp) }
+        .takeIf { stamps -> stamps.none { it == null } }?.filterNotNull()?.minOrNull()
+    val reachesRows = nextCursor == null ||
+        (oldestListed != null && oldestRow != null && oldestListed.isBefore(oldestRow))
+    return reachesRows && items.none { it.id in ids }
 }
 
 private fun TrashActionOutcome.failedCount(page: TrashContent.Loaded): Int? {
