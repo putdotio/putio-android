@@ -21,7 +21,7 @@ internal fun TrashMachine.startList(verifiesAction: Boolean = false): TrashMachi
     ) ?: TrashContent.Loading
     return copy(
         state = state.copy(
-            content = content, confirmation = null, confirmationId = null,
+            content = content,
             actionConfirmation = null, actionConfirmationId = null,
         ),
         request = TrashRequest.ListPage(nextRequestId, verifiesAction = verifiesAction),
@@ -46,7 +46,6 @@ private fun TrashMachine.startNextPage(): TrashMachine? {
     return if (cursor == null || request != null || cursor in consumedCursors) null else copy(
         state = state.copy(
             content = content.copy(isLoadingMore = true, pageFailure = null),
-            confirmation = null, confirmationId = null,
             actionConfirmation = null, actionConfirmationId = null,
         ),
         request = TrashRequest.ListPage(nextRequestId, cursor), nextRequestId = nextRequestId + 1L,

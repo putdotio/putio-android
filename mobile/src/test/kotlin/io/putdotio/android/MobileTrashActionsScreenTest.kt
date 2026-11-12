@@ -81,13 +81,13 @@ class MobileTrashActionsScreenTest {
     }
 
     @Test
-    fun bulkButtonsConfirmSeparatelyAndStayDisabledOnKnownEmptyTrash() {
+    fun restoreAllStartsAtOnceEmptyConfirmsAndBothStayDisabledOnKnownEmptyTrash() {
         val events = mutableListOf<TrashEvent>()
         var state by mutableStateOf(TrashState(content = loaded))
         compose.setContent { PutioTheme { TrashWithOverflow(state) { events += it; true } } }
         compose.trashMenuItem(MOBILE_TRASH_RESTORE_ALL_TAG).performClick()
         compose.trashMenuItem(MOBILE_TRASH_EMPTY_TAG).performClick()
-        compose.runOnIdle { assertEquals(listOf(TrashEvent.SelectRestoreAll, TrashEvent.SelectEmpty), events) }
+        compose.runOnIdle { assertEquals(listOf(TrashEvent.RestoreAll, TrashEvent.SelectEmpty), events) }
         compose.runOnIdle { state = state.copy(actionConfirmation = TrashAction.Empty, actionConfirmationId = 5) }
         compose.onNodeWithText("Empty trash?").assertIsDisplayed()
         compose.onNodeWithTag(MOBILE_TRASH_ACTION_CONFIRM_TAG).performClick()

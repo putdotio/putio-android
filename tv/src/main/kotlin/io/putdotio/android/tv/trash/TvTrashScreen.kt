@@ -97,7 +97,7 @@ internal fun TvTrashScreen(
         }
     }
     val headerOwnsFocus = content.isLoadingOrKnownEmpty
-    val dialogOpen = state.confirmation != null || state.actionConfirmation != null
+    val dialogOpen = state.actionConfirmation != null
     val dialogShowing = rememberUpdatedState(dialogOpen)
     val refreshedOnOpen = rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) {
@@ -135,7 +135,7 @@ internal fun TvTrashScreen(
         }
         val header: @Composable () -> Unit = {
             TvTrashHeader(
-                onRestoreAll = { onEvent(TrashEvent.SelectRestoreAll) },
+                onRestoreAll = { onEvent(TrashEvent.RestoreAll) },
                 onEmpty = { onEvent(TrashEvent.SelectEmpty) },
                 showsFocus = !dialogOpen,
                 showsActions = !knownEmpty,
@@ -255,7 +255,7 @@ private fun TvTrashListDetail(
                 TvTrashList(
                     content = loaded,
                     restoreRowId = restoreRowId,
-                    onChoose = { if (state.canRestore(it.id)) onEvent(TrashEvent.SelectRestore(it.id)) },
+                    onChoose = { if (state.canRestore(it.id)) onEvent(TrashEvent.Restore(it.id)) },
                     onRowFocusChanged = { item, focused ->
                         if (focused) {
                             panelHeld.value = false
@@ -278,7 +278,7 @@ private fun TvTrashListDetail(
                     actions = TvTrashDetailActions(
                         canRestore = state.canRestore(detailItem.id),
                         canDelete = state.canDelete(detailItem.id),
-                        onRestore = { onEvent(TrashEvent.SelectRestore(detailItem.id)) },
+                        onRestore = { onEvent(TrashEvent.Restore(detailItem.id)) },
                         onDelete = { onEvent(TrashEvent.SelectDelete(detailItem.id)) },
                         showsFocus = !listFocus.dialogShowing.value,
                         restoreModifier = Modifier.keyedPaneSection("restore", listFocus.owner, focus.restore),

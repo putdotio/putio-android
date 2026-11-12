@@ -14,11 +14,12 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.files.FilesItemId
-import io.putdotio.android.trash.MOBILE_TRASH_CONFIRM_TAG
+import io.putdotio.android.trash.MOBILE_TRASH_ACTION_CONFIRM_TAG
 import io.putdotio.android.trash.MOBILE_TRASH_ITEM_DELETE_TAG
 import io.putdotio.android.trash.MOBILE_TRASH_ITEM_RESTORE_TAG
 import io.putdotio.android.trash.MobileTrashItemSheet
 import io.putdotio.android.trash.MobileTrashScreen
+import io.putdotio.android.trash.TrashAction
 import io.putdotio.android.trash.TrashContent
 import io.putdotio.android.trash.TrashEvent
 import io.putdotio.android.trash.TrashItem
@@ -60,7 +61,7 @@ class MobileTrashLayoutTest {
         compose.onNodeWithTag(MOBILE_TRASH_ITEM_RESTORE_TAG).performScrollTo().assertIsDisplayed().assertIsButton()
             .performClick()
         compose.runOnIdle {
-            assertEquals(listOf(TrashEvent.SelectDelete(item.id), TrashEvent.SelectRestore(item.id)), events)
+            assertEquals(listOf(TrashEvent.SelectDelete(item.id), TrashEvent.Restore(item.id)), events)
         }
     }
 
@@ -77,19 +78,20 @@ class MobileTrashLayoutTest {
         compose.setContent {
             PutioTheme {
                 MobileTrashScreen(TrashState(content = TrashContent.Loaded(emptyList(), null, 0, 0),
-                    confirmation = item, confirmationId = 1), events::add)
+                    actionConfirmation = TrashAction.DeleteItem(item), actionConfirmationId = 1), events::add)
             }
         }
         val layouts = mutableListOf<TextLayoutResult>()
-        compose.onNodeWithText(item.name).performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+        compose.onNodeWithText(item.name, substring = true)
+            .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
         assertEquals(2f, layouts.single().layoutInput.density.fontScale)
-        val confirm = compose.onNodeWithTag(MOBILE_TRASH_CONFIRM_TAG)
+        val confirm = compose.onNodeWithTag(MOBILE_TRASH_ACTION_CONFIRM_TAG)
         val cancel = compose.onNodeWithText("Cancel")
         listOf(confirm, cancel).forEach { action ->
             val bounds = action.getUnclippedBoundsInRoot()
             assertTrue("Action has visible content: $bounds", bounds.bottom > bounds.top)
             action.assertIsDisplayed().assertIsEnabled().performClick()
         }
-        compose.runOnIdle { assertEquals(listOf(TrashEvent.ConfirmRestore(1), TrashEvent.CancelRestore), events) }
+        compose.runOnIdle { assertEquals(listOf(TrashEvent.ConfirmAction(1), TrashEvent.CancelAction), events) }
     }
 }

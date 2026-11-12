@@ -88,7 +88,9 @@ internal fun TvTrashList(
         if (restoreIndex >= 0) rows.restore.requestFocus() else focus.list.requestFocus()
     }
     val heldRowId = remember { mutableStateOf<Long?>(null) }
-    TvTrashHeldRowLeaves(items, heldRowId, listState, focus, rows.first)
+    val nextRowId = remember { mutableStateOf<Long?>(null) }
+    val nextIndex = items.indexOfFirst { it.id.value == nextRowId.value }
+    TvTrashHeldRowLeaves(items, heldRowId, nextRowId, listState, focus, rows.next)
     TvTrashLastRowHandOff(items, handOffToLastRow, listState, focus, rows.last)
     LazyColumn(
         state = listState,
@@ -100,7 +102,9 @@ internal fun TvTrashList(
             .focusRestorer {
                 val lastId = items.lastOrNull()?.id?.value
                     ?: return@focusRestorer if (content.pageFailure != null) pagingFocus else FocusRequester.Default
-                listState.restoreTarget(rows, lastId, items.getOrNull(restoreIndex)?.id?.value, handOffToLastRow.value)
+                listState.restoreTarget(
+                    rows, lastId, nextRowId.value, items.getOrNull(restoreIndex)?.id?.value, handOffToLastRow.value,
+                )
             }
             .focusGroup()
             .testTag(TV_TRASH_LIST_TAG),
@@ -113,8 +117,12 @@ internal fun TvTrashList(
                 modifier = with(rows) {
                     Modifier
                         .requesters(index, items.lastIndex, anchorIndex, restoreIndex, content.pagePending)
+                        .focusRequesterIf(index == nextIndex, next)
                         .onFocusChanged {
-                            if (it.isFocused) heldRowId.value = item.id.value
+                            if (it.isFocused) {
+                                heldRowId.value = item.id.value
+                                nextRowId.value = null
+                            }
                             onRowFocusChanged(item, it.isFocused)
                         }
                 },
@@ -138,22 +146,38 @@ internal fun TvTrashList(
 private fun TvTrashHeldRowLeaves(
     items: List<TrashItem>,
     heldRowId: MutableState<Long?>,
+    nextRowId: MutableState<Long?>,
     listState: LazyListState,
     focus: TvTrashListFocus,
-    firstRow: FocusRequester,
+    nextRow: FocusRequester,
 ) {
+    val shown = remember { mutableStateOf(items) }
     LaunchedEffect(items) {
+        val before = shown.value
+        shown.value = items
         val held = heldRowId.value ?: return@LaunchedEffect
-        val gone = items.isNotEmpty() && items.none { it.id.value == held }
-        if (!gone || !focus.owner.owns(focus.list)) return@LaunchedEffect
+        if (items.isEmpty() || items.any { it.id.value == held }) return@LaunchedEffect
         heldRowId.value = null
-        if (!mayPlaceFocus(focus.paneHasFocus, focus.dialogShowing)) return@LaunchedEffect
-        listState.scrollToItem(0)
+        val target = before.survivorAfter(held, items) ?: items.first()
+        val index = items.indexOf(target)
+        nextRowId.value = target.id.value
+        if (!focus.owner.owns(focus.list) || !mayPlaceFocus(focus.paneHasFocus, focus.dialogShowing)) {
+            return@LaunchedEffect
+        }
+        listState.bringIntoComposition(target.id.value, index)
         withFrameNanos {}
         if (mayPlaceFocus(focus.paneHasFocus, focus.dialogShowing) && focus.owner.owns(focus.list)) {
-            firstRow.requestFocus()
+            nextRow.requestFocus()
         }
     }
+}
+
+private fun List<TrashItem>.survivorAfter(goneId: Long, now: List<TrashItem>): TrashItem? {
+    val kept = now.associateBy { it.id }
+    val at = indexOfFirst { it.id.value == goneId }
+    if (at < 0) return null
+    return drop(at + 1).firstNotNullOfOrNull { kept[it.id] }
+        ?: take(at).asReversed().firstNotNullOfOrNull { kept[it.id] }
 }
 
 @Composable
@@ -179,9 +203,9 @@ internal fun mayPlaceFocus(paneHasFocus: State<Boolean>, dialogShowing: State<Bo
 
 private class TrashRowFocus {
     val anchor = FocusRequester()
-    val first = FocusRequester()
     val last = FocusRequester()
     val restore = FocusRequester()
+    val next = FocusRequester()
 
     fun Modifier.requesters(
         index: Int,
@@ -192,7 +216,6 @@ private class TrashRowFocus {
     ): Modifier =
         this
             .focusRequesterIf(index == anchorIndex, anchor)
-            .focusRequesterIf(index == 0, first)
             .focusRequesterIf(index == lastIndex, last)
             .holdAtPendingEnd(pagePending && index == lastIndex)
             .focusRequesterIf(index == restoreIndex, restore)
@@ -201,10 +224,12 @@ private class TrashRowFocus {
 private fun LazyListState.restoreTarget(
     rows: TrashRowFocus,
     lastId: Long,
+    nextId: Long?,
     restoreId: Long?,
     handOffToLastRow: Boolean,
 ): FocusRequester = when {
     handOffToLastRow && composes(lastId) -> rows.last
+    composes(nextId) -> rows.next
     composes(restoreId) -> rows.restore
     else -> rows.anchor
 }

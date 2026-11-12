@@ -625,9 +625,6 @@
     <string name="mobile_action_refresh">Refresh</string>
     <string name="mobile_trash_empty_title">Your trash is empty</string>
     <string name="mobile_trash_empty_message">Files you move to trash stay here for 14 days.</string>
-    <string name="mobile_trash_restore_title">Restore item?</string>
-    <string name="mobile_trash_restore_message">Restoration may take a moment. You can check when this item is available again.</string>
-    <string name="mobile_trash_restore_folder_message">Restore this folder and its contents. Restoration may take a moment.</string>
     <string name="mobile_trash_restore">Restore</string>
     <string name="mobile_trash_file_available">Available again: %1$s</string>
     <string name="mobile_trash_folder_available">Folder available again: %1$s</string>
@@ -645,8 +642,6 @@
     <string name="mobile_trash_delete_title">Delete permanently?</string>
     <string name="mobile_trash_delete_message">“%1$s” will be removed from trash right away. This cannot be undone.</string>
     <string name="mobile_trash_restore_all">Restore all</string>
-    <string name="mobile_trash_restore_all_title">Restore everything?</string>
-    <string name="mobile_trash_restore_all_message">Every item in trash goes back to Files. Restoration may take a moment.</string>
     <string name="mobile_trash_empty_action">Empty trash</string>
     <string name="mobile_trash_empty_confirm_title">Empty trash?</string>
     <string name="mobile_trash_empty_confirm_message">Every item in trash will be removed right away. This cannot be undone.</string>

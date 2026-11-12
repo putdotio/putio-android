@@ -10,36 +10,23 @@ internal fun TrashMachine.transition(event: TrashEvent): TrashMachine? {
 }
 
 private fun TrashMachine.restore(event: TrashEvent.RestoreEvent): TrashMachine? = when (event) {
-    is TrashEvent.SelectRestore -> selectRestore(event)
-    TrashEvent.CancelRestore -> cancelRestore()
-    is TrashEvent.ConfirmRestore -> confirmRestore(event)
+    is TrashEvent.Restore -> submitRestore(event)
     TrashEvent.CheckRestore -> startCheck()
     TrashEvent.DismissRestoreOutcome -> dismissRestoreOutcome()
 }
-
-private fun TrashMachine.cancelRestore(): TrashMachine? =
-    if (state.confirmation == null) null
-    else copy(state = state.copy(confirmation = null, confirmationId = null))
 
 private fun TrashMachine.dismissRestoreOutcome(): TrashMachine? =
     if (state.restoreOutcome == null || state.hasPendingRestore) null
     else copy(state = state.copy(restoreOutcome = null))
 
-private fun TrashMachine.selectRestore(event: TrashEvent.SelectRestore): TrashMachine? {
-    val item = loadedItem(event.itemId)
-    if (item == null || request != null || !state.canRestore(event.itemId)) return null
-    return copy(
-        state = state.copy(confirmation = item, confirmationId = nextRequestId, restoreOutcome = null),
-        nextRequestId = nextRequestId + 1L,
-    )
-}
+internal val TrashMachine.mayStartRestore: Boolean
+    get() = request == null && state.actionConfirmation == null
 
-private fun TrashMachine.confirmRestore(event: TrashEvent.ConfirmRestore): TrashMachine? {
-    val item = state.confirmation ?: return null
-    val eligible = loadedItem(item.id) == item && state.canRestore(item.id)
-    return if (!eligible || request != null || event.confirmationId != state.confirmationId) null else copy(
+private fun TrashMachine.submitRestore(event: TrashEvent.Restore): TrashMachine? {
+    val item = loadedItem(event.itemId)
+    if (item == null || !mayStartRestore || !state.canRestore(event.itemId)) return null
+    return copy(
         state = state.copy(
-            confirmation = null, confirmationId = null,
             restoreOutcome = TrashRestoreOutcome(item, TrashRestoreSubmission.SUBMITTING),
         ),
         request = TrashRequest.Restore(nextRequestId, item), nextRequestId = nextRequestId + 1L,

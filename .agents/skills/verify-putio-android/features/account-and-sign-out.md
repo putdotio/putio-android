@@ -41,8 +41,8 @@ Preconditions:
 
 - Settings are the shared account's. Restore every value you change and read
   it back.
-- Never confirm Restore all or Empty trash: they act on the whole shared
-  account. Trash recipes use owned fixtures only; `TrashRestoreUiProofTest`
+- Never tap Restore all, which starts at once, or confirm Empty trash: they act
+  on the whole shared account. Trash recipes use owned fixtures only; `TrashRestoreUiProofTest`
   covers the bulk actions synthetically.
 - Sign out revokes the session's grant. In a `--snapshot` run that grant is
   shared by every snapshot instance and the snapshot itself: signing out

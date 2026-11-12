@@ -28,10 +28,12 @@ public sealed interface TrashContent {
 }
 
 public sealed interface TrashAction {
-    public data class DeleteItem(val item: TrashItem) : TrashAction
+    public data class DeleteItem(val item: TrashItem) : TrashDestructiveAction
     public data object RestoreAll : TrashAction
-    public data object Empty : TrashAction
+    public data object Empty : TrashDestructiveAction
 }
+
+public sealed interface TrashDestructiveAction : TrashAction
 
 public enum class TrashActionSubmission { SUBMITTING, ACKNOWLEDGED, UNCERTAIN, REJECTED }
 
@@ -76,10 +78,8 @@ public data class TrashRestoreOutcome(
 
 public data class TrashState(
     val content: TrashContent = TrashContent.Loading,
-    val confirmation: TrashItem? = null,
-    val confirmationId: Long? = null,
     val restoreOutcome: TrashRestoreOutcome? = null,
-    val actionConfirmation: TrashAction? = null,
+    val actionConfirmation: TrashDestructiveAction? = null,
     val actionConfirmationId: Long? = null,
     val actionOutcome: TrashActionOutcome? = null,
     val authenticationFailure: PutioException? = null,
@@ -114,13 +114,11 @@ public sealed interface TrashEvent {
     public data object Refresh : ReadEvent
     public data object Retry : ReadEvent
     public data object LoadNextPage : ReadEvent
-    public data class SelectRestore(val itemId: FilesItemId) : RestoreEvent
-    public data object CancelRestore : RestoreEvent
-    public data class ConfirmRestore(val confirmationId: Long) : RestoreEvent
+    public data class Restore(val itemId: FilesItemId) : RestoreEvent
     public data object CheckRestore : RestoreEvent
     public data object DismissRestoreOutcome : RestoreEvent
     public data class SelectDelete(val itemId: FilesItemId) : ActionEvent
-    public data object SelectRestoreAll : ActionEvent
+    public data object RestoreAll : ActionEvent
     public data object SelectEmpty : ActionEvent
     public data object CancelAction : ActionEvent
     public data class ConfirmAction(val confirmationId: Long) : ActionEvent

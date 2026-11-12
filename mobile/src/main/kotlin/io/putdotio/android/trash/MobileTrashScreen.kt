@@ -12,10 +12,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
@@ -44,7 +40,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.LoadNextPageNearEnd
-import io.putdotio.android.MobileDialogDismissButton
 import io.putdotio.android.MobileEmptyState
 import io.putdotio.android.MobileLoadingState
 import io.putdotio.android.MobileMiddleCutText
@@ -65,7 +60,6 @@ import io.putdotio.android.MobileIconButton
 internal const val MOBILE_TRASH_ROUTE = "account/trash"
 internal const val MOBILE_MANAGE_TRASH_TAG = "mobile-manage-trash"
 internal const val MOBILE_TRASH_LIST_TAG = "mobile-trash-list"
-internal const val MOBILE_TRASH_CONFIRM_TAG = "mobile-trash-confirm"
 internal const val MOBILE_TRASH_CHECK_TAG = "mobile-trash-check"
 internal const val MOBILE_TRASH_OUTCOME_TAG = "mobile-trash-outcome"
 
@@ -127,9 +121,6 @@ internal fun MobileTrashScreen(
     state.actionConfirmation?.let { action ->
         MobileTrashActionConfirmation(action, state, onEvent)
     }
-    state.confirmation?.let { item ->
-        MobileTrashRestoreConfirmation(item, state, onEvent)
-    }
 }
 
 private fun LazyListScope.loadedTrashItems(
@@ -160,7 +151,7 @@ private fun LazyListScope.loadedTrashItems(
             item,
             enabled = state.canRestore(item.id) || state.canDelete(item.id),
             canRestore = state.canRestore(item.id),
-            onRestore = { onEvent(TrashEvent.SelectRestore(item.id)) },
+            onRestore = { onEvent(TrashEvent.Restore(item.id)) },
             onActions = { onActions(item) },
         )
     }
@@ -171,37 +162,6 @@ private fun LazyListScope.loadedTrashItems(
             pageFailure != null -> TrashReadFailure(pageFailure) { onEvent(TrashEvent.Retry) }
         }
     }
-}
-
-@Composable
-private fun MobileTrashRestoreConfirmation(item: TrashItem, state: TrashState, onEvent: (TrashEvent) -> Boolean) {
-    val confirmationId = state.confirmationId
-    AlertDialog(
-        onDismissRequest = { onEvent(TrashEvent.CancelRestore) },
-        title = { Text(stringResource(R.string.mobile_trash_restore_title)) },
-        text = {
-            Column(
-                Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Text(item.name)
-                Text(stringResource(if (item.isFolder) R.string.mobile_trash_restore_folder_message
-                    else R.string.mobile_trash_restore_message))
-            }
-        },
-        confirmButton = {
-            val canConfirm =
-                confirmationId != null && state.authenticationFailure == null && !state.hasPendingMutation
-            Button(onClick = { confirmationId?.let { onEvent(TrashEvent.ConfirmRestore(it)) } },
-                enabled = canConfirm,
-                modifier = Modifier.testTag(MOBILE_TRASH_CONFIRM_TAG)) {
-                Text(stringResource(R.string.mobile_trash_restore))
-            }
-        },
-        dismissButton = {
-            MobileDialogDismissButton(onClick = { onEvent(TrashEvent.CancelRestore) })
-        },
-    )
 }
 
 /** Size in mono, then how long Trash keeps it; Restore sits on the row, the rest in its sheet. */
