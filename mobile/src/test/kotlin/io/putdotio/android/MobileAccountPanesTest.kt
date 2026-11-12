@@ -26,6 +26,7 @@ import io.putdotio.android.account.MOBILE_PRIVACY_CONTROLS_ROW_TAG
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35], qualifiers = "en-rUS-w1280dp-h800dp-land")
@@ -69,6 +70,7 @@ class MobileAccountPanesTest : NavigationShellFixture(1f) {
 }
 
 @RunWith(AndroidJUnit4::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [35], qualifiers = "en-rUS-w1280dp-h800dp-land")
 class MobileAccountPanesLargeTextTest : NavigationShellFixture(2f) {
     @Test
