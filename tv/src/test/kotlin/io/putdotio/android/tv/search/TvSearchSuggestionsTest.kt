@@ -3,6 +3,7 @@ package io.putdotio.android.tv.search
 import android.app.SearchManager
 import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.provider.BaseColumns
 import androidx.core.net.toUri
@@ -18,10 +19,11 @@ import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.search.SearchPage
 import io.putdotio.android.search.SearchTerm
 import io.putdotio.android.tv.TvLaunchRequest
+import io.putdotio.android.tv.TvLinkKey
 import io.putdotio.android.tv.auth.TvAccount
 import io.putdotio.android.tv.auth.TvAuthSessionId
 import io.putdotio.android.tv.auth.TvAuthState
-import io.putdotio.android.tv.toTvLaunchRequest
+import io.putdotio.android.tv.consumeTvLaunchRequest
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.test.runTest
@@ -63,15 +65,21 @@ class TvSearchSuggestionsTest {
         }
         assertEquals(
             listOf(
-                listOf(55L, "Harbor film.mp4", "55", "https://api.put.io/screenshots/55.jpg", "video/*", 600_000L),
-                listOf(56L, "Harbor stills", "56", "content://${context.packageName}.launcherart/card.png", null, 0L),
+                listOf(55L, "Harbor film.mp4", "55~$key", "https://api.put.io/screenshots/55.jpg", "video/*", 600_000L),
+                listOf(
+                    56L, "Harbor stills", "56~$key", "content://${context.packageName}.launcherart/card.png", null, 0L,
+                ),
             ),
             rows,
         )
         // The search app appends the row's id to searchable.xml's intent data.
+        val chosen = Intent(
+            searchableAttribute("searchSuggestIntentAction"),
+            "${searchableAttribute("searchSuggestIntentData")}/${rows.first()[2]}".toUri(),
+        )
         assertEquals(
             TvLaunchRequest.OpenFile(FilesItemId(55L)),
-            "${searchableAttribute("searchSuggestIntentData")}/${rows.first()[2]}".toUri().toTvLaunchRequest(),
+            chosen.consumeTvLaunchRequest { TvLinkKey.get(context) },
         )
     }
 
@@ -138,8 +146,8 @@ class TvSearchSuggestionsTest {
     fun `the system's row limit caps the list`() {
         val many = (1L..30L).map { video.copy(id = FilesItemId(it)) }
 
-        assertEquals(5, tvSearchSuggestions(many, limit = 5, fallbackArt = null).count)
-        assertEquals(20, tvSearchSuggestions(many, limit = null, fallbackArt = null).count)
+        assertEquals(5, tvSearchSuggestions(many, limit = 5, fallbackArt = null, TvLinkKey("k")).count)
+        assertEquals(20, tvSearchSuggestions(many, limit = null, fallbackArt = null, TvLinkKey("k")).count)
     }
 
     @Test
@@ -169,6 +177,8 @@ class TvSearchSuggestionsTest {
         TvAccount(userId = 42L, username = "u", email = "u@example.com", historyEnabled = true),
         TvAuthSessionId(1L),
     )
+
+    private val key get() = TvLinkKey.get(context).value
 
     private val suggestUri = "content://${context.packageName}.search/${SearchManager.SUGGEST_URI_PATH_QUERY}".toUri()
 

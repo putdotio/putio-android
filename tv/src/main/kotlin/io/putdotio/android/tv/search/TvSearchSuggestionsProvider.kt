@@ -13,6 +13,7 @@ import io.putdotio.android.PutioResult
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.search.SearchPage
 import io.putdotio.android.search.SearchTerm
+import io.putdotio.android.tv.TvLinkKey
 import io.putdotio.android.tv.auth.TvAuthController
 import io.putdotio.android.tv.auth.TvAuthRuntime
 import io.putdotio.android.tv.auth.TvAuthSessionId
@@ -25,8 +26,9 @@ import kotlinx.coroutines.withTimeoutOrNull
 /**
  * put.io as an Android TV global search source. The system's search app queries this provider
  * as the viewer types (`searchable.xml`); each query runs [TvGlobalSearch], and a chosen row
- * opens `putio://files/<id>` in [io.putdotio.android.MainActivity]. Only callers holding
- * `GLOBAL_SEARCH` (the system search app) may use it, so other apps never see file names.
+ * opens `putio://files/<id>~<key>` in [io.putdotio.android.MainActivity]. Only callers holding
+ * `GLOBAL_SEARCH` (the system search app) may use it, so other apps never see file names or the
+ * [TvLinkKey] that lets a link open a file.
  */
 internal class TvSearchSuggestionsProvider internal constructor(
     private val globalSearch: (Context?) -> TvGlobalSearch?,
@@ -45,10 +47,12 @@ internal class TvSearchSuggestionsProvider internal constructor(
         val query = selectionArgs?.firstOrNull()
             ?: uri.lastPathSegment?.takeIf { it != SearchManager.SUGGEST_URI_PATH_QUERY }
         val limit = uri.getQueryParameter(SearchManager.SUGGEST_PARAMETER_LIMIT)?.toIntOrNull()
-        val search = globalSearch(context) ?: return tvSearchSuggestions(emptyList(), limit, fallbackArt = null)
+        val context = context
+        val search = globalSearch(context)
+        if (context == null || search == null) return MatrixCursor(SUGGESTION_COLUMNS)
         // A binder thread: the system search waits on this answer, so it is bounded.
         val items = runBlocking { withTimeoutOrNull(QUERY_TIMEOUT_MILLIS) { search.files(query) } }
-        return tvSearchSuggestions(items.orEmpty(), limit, context?.let(::tvLauncherFallbackArt))
+        return tvSearchSuggestions(items.orEmpty(), limit, tvLauncherFallbackArt(context), TvLinkKey.get(context))
     }
 
     override fun getType(uri: Uri): String = SearchManager.SUGGEST_MIME_TYPE
@@ -107,9 +111,9 @@ internal fun tvGlobalSearch(
 
 /**
  * The rows the system search shows: the file's name, its kind, put.io's still or else
- * [fallbackArt], and a duration for media. The intent data id completes `putio://files/<id>`.
+ * [fallbackArt], and a duration for media. The intent data id completes `putio://files/<id>~<key>`.
  */
-internal fun tvSearchSuggestions(items: List<FilesItem>, limit: Int?, fallbackArt: String?): Cursor {
+internal fun tvSearchSuggestions(items: List<FilesItem>, limit: Int?, fallbackArt: String?, key: TvLinkKey): Cursor {
     val cursor = MatrixCursor(SUGGESTION_COLUMNS)
     items.take(limit?.takeIf { it > 0 } ?: DEFAULT_LIMIT).forEach { item ->
         cursor.addRow(
@@ -117,7 +121,7 @@ internal fun tvSearchSuggestions(items: List<FilesItem>, limit: Int?, fallbackAr
                 item.id.value,
                 item.name,
                 item.type.suggestionKind(),
-                item.id.value.toString(),
+                key.fileLinkSegment(item.id),
                 item.screenshotUrl ?: fallbackArt,
                 item.playback?.durationSeconds?.let { (it * MILLIS_PER_SECOND).toLong() },
                 SearchManager.SUGGEST_NEVER_MAKE_SHORTCUT,
