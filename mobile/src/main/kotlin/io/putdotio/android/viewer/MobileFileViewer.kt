@@ -49,7 +49,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import io.putdotio.android.MobileEmptyState
 import io.putdotio.android.MobileMiddleCutText
+import io.putdotio.android.MobileRetryButton
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.files.FilesItem
@@ -354,6 +356,21 @@ internal fun MobileViewerFailure(onOpenWithAnotherApp: () -> Unit, modifier: Mod
         )
         TextButton(onClick = onOpenWithAnotherApp) {
             Text(stringResource(R.string.mobile_viewer_open_with))
+        }
+    }
+}
+
+@Composable
+internal fun MobileViewerLoadFailure(onRetry: () -> Unit, onOpenWithAnotherApp: () -> Unit) {
+    MobileEmptyState(
+        title = stringResource(R.string.mobile_state_error_title),
+        message = stringResource(R.string.mobile_state_error_message),
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            MobileRetryButton(onClick = onRetry)
+            TextButton(onClick = onOpenWithAnotherApp) {
+                Text(stringResource(R.string.mobile_viewer_open_with))
+            }
         }
     }
 }

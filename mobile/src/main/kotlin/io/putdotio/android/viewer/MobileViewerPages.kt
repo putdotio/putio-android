@@ -1,7 +1,9 @@
 package io.putdotio.android.viewer
 
 import android.graphics.Bitmap
+import android.graphics.ImageDecoder
 import android.net.Uri
+import android.os.Build
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -28,8 +30,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -54,11 +58,13 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.SubcomposeAsyncImage
 import coil3.compose.SubcomposeAsyncImageContent
+import coil3.compose.SubcomposeAsyncImageScope
 import io.putdotio.android.R
 import io.putdotio.android.files.formatFileSize
 import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesPdfDocument
+import io.putdotio.android.files.FilesPdfUnreadable
 import io.putdotio.android.files.FilesTextPreview
 import io.putdotio.android.files.TEXT_PREVIEW_LIMIT_BYTES
 import io.putdotio.android.files.readTextPreview
@@ -84,24 +90,41 @@ internal fun MobileImagePage(
         contentScale = ContentScale.Fit,
         modifier = Modifier.fillMaxSize(),
         loading = { MobileViewerLoading() },
-        error = { MobileViewerFailure(onOpenWithAnotherApp) },
-        success = {
-            val image = this
-            val size = painter.intrinsicSize
-            if (size.isSpecified && size.width > 0f && size.height > 0f) {
-                val aspect = size.width / size.height
-                Box(Modifier.fillMaxSize().viewerZoom(zoom, aspect), contentAlignment = Alignment.Center) {
-                    image.SubcomposeAsyncImageContent(
-                        Modifier
-                            .aspectRatio(aspect)
-                            .transparencyGrid(),
-                    )
-                }
+        error = { failure ->
+            if (failure.result.throwable.isLoadFailure()) {
+                MobileViewerLoadFailure(onRetry = painter::restart, onOpenWithAnotherApp = onOpenWithAnotherApp)
             } else {
-                SubcomposeAsyncImageContent(Modifier.viewerZoom(zoom))
+                MobileViewerFailure(onOpenWithAnotherApp)
             }
         },
+        success = { MobileImageContent(zoom) },
     )
+}
+
+private fun Throwable.isLoadFailure(): Boolean =
+    this is IOException && this !is FilesPdfUnreadable && !isImageDecodeFailure()
+
+private fun Throwable.isImageDecodeFailure(): Boolean =
+    Build.VERSION.SDK_INT >= Build.VERSION_CODES.P &&
+        this is ImageDecoder.DecodeException &&
+        error != ImageDecoder.DecodeException.SOURCE_EXCEPTION
+
+@Composable
+private fun SubcomposeAsyncImageScope.MobileImageContent(zoom: MobileViewerZoom?) {
+    val image = this
+    val size = painter.intrinsicSize
+    if (size.isSpecified && size.width > 0f && size.height > 0f) {
+        val aspect = size.width / size.height
+        Box(Modifier.fillMaxSize().viewerZoom(zoom, aspect), contentAlignment = Alignment.Center) {
+            image.SubcomposeAsyncImageContent(
+                Modifier
+                    .aspectRatio(aspect)
+                    .transparencyGrid(),
+            )
+        }
+    } else {
+        SubcomposeAsyncImageContent(Modifier.viewerZoom(zoom))
+    }
 }
 
 @Composable
@@ -129,6 +152,8 @@ private sealed interface PdfState {
 
     data class Ready(val document: FilesPdfDocument) : PdfState
 
+    data object LoadFailed : PdfState
+
     data object Failed : PdfState
 }
 
@@ -141,14 +166,16 @@ internal fun MobilePdfPage(
     onOpenWithAnotherApp: () -> Unit,
 ) {
     val context = LocalContext.current
-    val state by produceState<PdfState>(PdfState.Loading, uri) {
+    var attempt by remember(uri) { mutableIntStateOf(0) }
+    val state by produceState<PdfState>(PdfState.Loading, uri, attempt) {
+        value = PdfState.Loading
         var opened: FilesPdfDocument? = null
         value = try {
             FilesPdfDocument.open(context, file.sizeBytes) { context.contentResolver.openInputStream(uri) }
                 .also { opened = it }
                 .let(PdfState::Ready)
-        } catch (_: IOException) {
-            PdfState.Failed
+        } catch (error: IOException) {
+            if (error.isLoadFailure()) PdfState.LoadFailed else PdfState.Failed
         } catch (_: SecurityException) {
             PdfState.Failed
         }
@@ -156,6 +183,10 @@ internal fun MobilePdfPage(
     }
     when (val current = state) {
         PdfState.Loading -> MobileViewerLoading()
+        PdfState.LoadFailed -> MobileViewerLoadFailure(
+            onRetry = { attempt++ },
+            onOpenWithAnotherApp = onOpenWithAnotherApp,
+        )
         PdfState.Failed -> MobileViewerFailure(onOpenWithAnotherApp)
         is PdfState.Ready -> MobilePdfPages(current.document, zoom, onOpenWithAnotherApp)
     }
@@ -247,6 +278,8 @@ private sealed interface TextState {
 
     data class Ready(val preview: FilesTextPreview) : TextState
 
+    data object LoadFailed : TextState
+
     data object Failed : TextState
 }
 
@@ -254,15 +287,17 @@ private sealed interface TextState {
 @Composable
 internal fun MobileTextPage(uri: Uri, onOpenWithAnotherApp: () -> Unit) {
     val context = LocalContext.current
-    val state by produceState<TextState>(TextState.Loading, uri) {
+    var attempt by remember(uri) { mutableIntStateOf(0) }
+    val state by produceState<TextState>(TextState.Loading, uri, attempt) {
+        value = TextState.Loading
         value = withContext(Dispatchers.IO) {
             try {
                 context.contentResolver.openInputStream(uri)?.use { input ->
                     TextState.Ready(input.readTextPreview { isActive })
                 }
                     ?: TextState.Failed
-            } catch (_: IOException) {
-                TextState.Failed
+            } catch (error: IOException) {
+                if (error.isLoadFailure()) TextState.LoadFailed else TextState.Failed
             } catch (_: SecurityException) {
                 TextState.Failed
             }
@@ -270,6 +305,10 @@ internal fun MobileTextPage(uri: Uri, onOpenWithAnotherApp: () -> Unit) {
     }
     when (val current = state) {
         TextState.Loading -> MobileViewerLoading()
+        TextState.LoadFailed -> MobileViewerLoadFailure(
+            onRetry = { attempt++ },
+            onOpenWithAnotherApp = onOpenWithAnotherApp,
+        )
         TextState.Failed -> MobileViewerFailure(onOpenWithAnotherApp)
         is TextState.Ready -> MobileTextLines(current.preview, onOpenWithAnotherApp)
     }

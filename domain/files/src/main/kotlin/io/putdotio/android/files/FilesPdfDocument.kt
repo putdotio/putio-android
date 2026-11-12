@@ -22,6 +22,9 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+/** A PDF the viewer can't show however often it tries: absent, too large, protected or malformed. */
+public class FilesPdfUnreadable(message: String, cause: Throwable? = null) : IOException(message, cause)
+
 /**
  * One PDF open in a viewer. The renderer needs a seekable file, and a stream from put.io reopens the
  * connection on every backward seek, so the document is first copied, in one pass, into a private
@@ -66,11 +69,12 @@ public class FilesPdfDocument private constructor(
 
     public companion object {
         /**
-         * Copies the stream [openStream] returns into the viewer cache and opens it; throws when the
-         * bytes don't arrive or don't parse. [openStream] runs off the main thread; null means no bytes.
+         * Copies the stream [openStream] returns into the viewer cache and opens it; throws an
+         * [IOException] when the bytes don't arrive, and a [FilesPdfUnreadable] when the document is too
+         * large, protected, absent or doesn't parse. [openStream] runs off the main thread; null means no bytes.
          */
         public suspend fun open(context: Context, sizeBytes: Long, openStream: () -> InputStream?): FilesPdfDocument {
-            if (sizeBytes > PDF_MAX_BYTES) throw IOException("Too large to view in the app")
+            if (sizeBytes > PDF_MAX_BYTES) throw FilesPdfUnreadable("Too large to view in the app")
             // One renderer may run one page at a time, so every call on it shares one thread.
             val dispatcher = Dispatchers.IO.limitedParallelism(1)
             // A caller cancelled as the document opens never receives it, so it is closed here instead.
@@ -99,7 +103,7 @@ public class FilesPdfDocument private constructor(
         }
 
         private suspend fun copyInto(openStream: () -> InputStream?, file: File) {
-            val input = openStream() ?: throw IOException("No stream")
+            val input = openStream() ?: throw FilesPdfUnreadable("No stream")
             input.use { source -> file.outputStream().use { source.copyCancellably(it) } }
         }
 
@@ -109,11 +113,11 @@ public class FilesPdfDocument private constructor(
                 PdfRenderer(descriptor)
             } catch (error: IOException) {
                 descriptor.close()
-                throw error
+                throw FilesPdfUnreadable("Unreadable document", error)
             } catch (error: SecurityException) {
                 // A password-protected document.
                 descriptor.close()
-                throw IOException("Protected document", error)
+                throw FilesPdfUnreadable("Protected document", error)
             }
 
         /**
