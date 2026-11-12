@@ -26,12 +26,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -40,15 +42,11 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
 import coil3.compose.SubcomposeAsyncImage
 import coil3.compose.SubcomposeAsyncImageContent
+import coil3.request.CachePolicy
+import coil3.request.ImageRequest
 import io.putdotio.android.MobileErrorState
 import io.putdotio.android.MobileLoadingState
 import io.putdotio.android.PutioFailure
@@ -104,7 +102,7 @@ internal fun MobileLoggedInAppsScreen(
             modifier = modifier,
         )
     }
-    if (confirming && state.otherApps.isNotEmpty()) {
+    if (confirming && state.othersSignedIn) {
         MobileTurnOffDialog(
             title = R.string.mobile_logged_in_apps_sign_out_others_title,
             message = R.string.mobile_logged_in_apps_sign_out_others_message,
@@ -146,7 +144,7 @@ private fun LoggedInAppsList(
                     LoggedInAppRow(app, settingsSegment(index, apps.size), state, onEvent)
                 }
             }
-            if (state.otherApps.isNotEmpty()) {
+            if (state.othersSignedIn) {
                 item(key = "sign-out-others") {
                     SignOutOthersButton(
                         enabled = state.canSignOutOthers,
@@ -232,8 +230,16 @@ private fun LoggedInAppIcon(app: LoggedInApp) {
         GenericAppIcon(tile)
         return
     }
+    val context = LocalContext.current
+    val request = remember(context, app.id, url) {
+        ImageRequest.Builder(context)
+            .data(url)
+            .memoryCacheKey("logged-in-app-icon-${app.id.value}")
+            .diskCachePolicy(CachePolicy.DISABLED)
+            .build()
+    }
     SubcomposeAsyncImage(
-        model = url,
+        model = request,
         contentDescription = null,
         modifier = tile,
         contentScale = ContentScale.Crop,
@@ -323,31 +329,16 @@ private val LOGGED_IN_APPS_MAX_WIDTH = 640.dp
 
 @Composable
 internal fun MobileLoggedInAppsRoute(
-    repository: LoggedInAppsRepository?,
+    controller: LoggedInAppsController,
     onAuthenticationRequired: suspend () -> Unit,
 ) {
-    if (repository == null) return
-    val model: MobileLoggedInAppsViewModel = viewModel(factory = mobileLoggedInAppsViewModelFactory(repository))
-    val state by model.controller.state.collectAsStateWithLifecycle()
-    LaunchedEffect(model) {
-        if (model.controller.state.value.content == LoggedInAppsContent.Loading) {
-            model.controller.dispatch(LoggedInAppsEvent.Load)
-        }
+    val state by controller.state.collectAsStateWithLifecycle()
+    LaunchedEffect(controller) {
+        if (controller.state.value.outcome == null) controller.dispatch(LoggedInAppsEvent.Load)
     }
     val authenticationFailure = state.authenticationFailure
     LaunchedEffect(authenticationFailure) {
         if (authenticationFailure != null) onAuthenticationRequired()
     }
-    MobileLoggedInAppsScreen(state, model.controller::dispatch)
+    MobileLoggedInAppsScreen(state, controller::dispatch)
 }
-
-internal class MobileLoggedInAppsViewModel(repository: LoggedInAppsRepository) : ViewModel() {
-    val controller: LoggedInAppsController = LoggedInAppsController(repository, viewModelScope)
-
-    override fun onCleared() {
-        controller.close()
-    }
-}
-
-private fun mobileLoggedInAppsViewModelFactory(repository: LoggedInAppsRepository): ViewModelProvider.Factory =
-    viewModelFactory { initializer { MobileLoggedInAppsViewModel(repository) } }

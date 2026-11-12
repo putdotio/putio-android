@@ -34,14 +34,25 @@ public data class LoggedInAppsState(
     private val apps: List<LoggedInApp>?
         get() = (content as? LoggedInAppsContent.Ready)?.apps
 
+    private val thisDevice: LoggedInApp?
+        get() = apps.orEmpty().filter(LoggedInApp::thisDevice).singleOrNull()
+
     val canRevoke: Boolean
-        get() = apps != null && work == null && !refreshing && authenticationFailure == null
+        get() = thisDevice != null && work == null && !refreshing && authenticationFailure == null
 
     val otherApps: List<LoggedInApp>
         get() = apps.orEmpty().filterNot(LoggedInApp::thisDevice)
 
+    internal val signOutOthersSteps: List<LoggedInAppsStep>
+        get() = thisDevice?.let { device ->
+            otherApps.map(::LoggedInAppsStep) + device.otherSessions.map { LoggedInAppsStep(device, it) }
+        }.orEmpty()
+
+    val othersSignedIn: Boolean
+        get() = otherApps.isNotEmpty() || thisDevice?.otherSessions.orEmpty().isNotEmpty()
+
     val canSignOutOthers: Boolean
-        get() = canRevoke && otherApps.isNotEmpty() && apps.orEmpty().count(LoggedInApp::thisDevice) == 1
+        get() = canRevoke && signOutOthersSteps.isNotEmpty()
 
     val authenticationFailure: PutioFailure?
         get() = listOfNotNull(
@@ -61,6 +72,8 @@ public sealed interface LoggedInAppsEvent {
     public data object DismissOutcome : LoggedInAppsEvent
 }
 
+internal data class LoggedInAppsStep(val app: LoggedInApp, val session: LoggedInSessionId? = null)
+
 internal sealed interface LoggedInAppsRequest {
     val id: Long
 
@@ -68,8 +81,8 @@ internal sealed interface LoggedInAppsRequest {
 
     data class Revoke(
         override val id: Long,
-        val app: LoggedInApp,
-        val next: List<LoggedInApp>? = null,
+        val step: LoggedInAppsStep,
+        val next: List<LoggedInAppsStep>? = null,
     ) : LoggedInAppsRequest {
         val signingOutOthers: Boolean get() = next != null
     }
@@ -102,21 +115,20 @@ internal data class LoggedInAppsMachine(
         val app = state.otherApps.firstOrNull { it.id == id }
         return if (request != null || !state.canRevoke || app == null) null else copy(
             state = state.copy(work = LoggedInAppsWork.Revoking(app), outcome = null),
-            request = LoggedInAppsRequest.Revoke(nextRequestId, app),
+            request = LoggedInAppsRequest.Revoke(nextRequestId, LoggedInAppsStep(app)),
             nextRequestId = nextRequestId + 1L,
         )
     }
 
     private fun signOutOthers(): LoggedInAppsMachine? {
         if (request != null || !state.canSignOutOthers) return null
-        val others = state.otherApps
-        return revokeNext(state.copy(outcome = null), others.first(), others.drop(1))
+        return revokeNext(state.copy(outcome = null), state.signOutOthersSteps)
     }
 
-    private fun revokeNext(from: LoggedInAppsState, app: LoggedInApp, next: List<LoggedInApp>): LoggedInAppsMachine =
+    private fun revokeNext(from: LoggedInAppsState, steps: List<LoggedInAppsStep>): LoggedInAppsMachine =
         copy(
-            state = from.copy(work = LoggedInAppsWork.SigningOutOthers(app, left = next.size + 1)),
-            request = LoggedInAppsRequest.Revoke(nextRequestId, app, next),
+            state = from.copy(work = LoggedInAppsWork.SigningOutOthers(steps.first().app, left = steps.size)),
+            request = LoggedInAppsRequest.Revoke(nextRequestId, steps.first(), steps.drop(1)),
             nextRequestId = nextRequestId + 1L,
         )
 
@@ -139,7 +151,7 @@ internal data class LoggedInAppsMachine(
 
     fun completeRevoke(request: LoggedInAppsRequest.Revoke, result: PutioResult<Unit>): LoggedInAppsMachine {
         if (result is PutioResult.Failure) return revokeFailed(request, result.failure)
-        val remaining = state.copy(content = state.content.without(request.app.id))
+        val remaining = state.copy(content = state.content.without(request.step))
         val next = request.next
         return when {
             next == null -> copy(state = remaining.copy(work = null), request = null)
@@ -147,15 +159,15 @@ internal data class LoggedInAppsMachine(
                 state = remaining.copy(work = null, outcome = LoggedInAppsOutcome.SignedOutOthers),
                 request = null,
             )
-            else -> revokeNext(remaining, next.first(), next.drop(1))
+            else -> revokeNext(remaining, next)
         }
     }
 
     private fun revokeFailed(request: LoggedInAppsRequest.Revoke, failure: PutioFailure): LoggedInAppsMachine {
         val outcome = if (request.signingOutOthers) {
-            LoggedInAppsOutcome.SignOutOthersFailed(request.app, failure)
+            LoggedInAppsOutcome.SignOutOthersFailed(request.step.app, failure)
         } else {
-            LoggedInAppsOutcome.RevokeFailed(request.app, failure)
+            LoggedInAppsOutcome.RevokeFailed(request.step.app, failure)
         }
         return if (failure is PutioFailure.AuthenticationRequired) {
             copy(state = state.copy(work = null, outcome = outcome), request = null)
@@ -169,5 +181,10 @@ internal data class LoggedInAppsMachine(
     }
 }
 
-private fun LoggedInAppsContent.without(id: LoggedInAppId): LoggedInAppsContent =
-    if (this is LoggedInAppsContent.Ready) LoggedInAppsContent.Ready(apps.filterNot { it.id == id }) else this
+private fun LoggedInAppsContent.without(step: LoggedInAppsStep): LoggedInAppsContent {
+    if (this !is LoggedInAppsContent.Ready) return this
+    val session = step.session ?: return LoggedInAppsContent.Ready(apps.filterNot { it.id == step.app.id })
+    return LoggedInAppsContent.Ready(
+        apps.map { app -> if (app.id == step.app.id) app.copy(otherSessions = app.otherSessions - session) else app },
+    )
+}

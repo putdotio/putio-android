@@ -50,17 +50,47 @@ class LoggedInAppsControllerTest {
     }
 
     @Test
-    fun signingOutOfOthersRevokesEachOtherAppAndKeepsThisDevice() = runTest {
-        val repository = FakeLoggedInAppsRepository(listOf(thisDevice, ios, appleTv, infuse))
+    fun signingOutOfOthersEndsEveryOtherAppAndSessionAndKeepsThisOne() = runTest {
+        val device = loggedInApp(1L, "put.io for Android", thisDevice = true, otherSessions = listOf(11L, 12L))
+        val repository = FakeLoggedInAppsRepository(listOf(device, ios, appleTv, infuse))
         val controller = loaded(repository)
 
         assertTrue(controller.dispatch(LoggedInAppsEvent.SignOutOthers))
         runCurrent()
 
         assertEquals(listOf(ios.id, appleTv.id, infuse.id), repository.revoked)
+        assertEquals(listOf(LoggedInSessionId(11L), LoggedInSessionId(12L)), repository.revokedSessions)
         assertEquals(listOf(thisDevice), apps(controller))
         assertEquals(LoggedInAppsOutcome.SignedOutOthers, controller.state.value.outcome)
+        assertFalse(controller.state.value.othersSignedIn)
         assertFalse(controller.state.value.canSignOutOthers)
+    }
+
+    @Test
+    fun signingOutOfOthersEndsThisAppsOtherSessionsWhenNoOtherAppIsSignedIn() = runTest {
+        val device = loggedInApp(1L, "put.io for Android", thisDevice = true, otherSessions = listOf(11L))
+        val repository = FakeLoggedInAppsRepository(listOf(device))
+        val controller = loaded(repository)
+
+        assertTrue(controller.state.value.othersSignedIn)
+        assertTrue(controller.dispatch(LoggedInAppsEvent.SignOutOthers))
+        runCurrent()
+
+        assertEquals(emptyList<LoggedInAppId>(), repository.revoked)
+        assertEquals(listOf(LoggedInSessionId(11L)), repository.revokedSessions)
+        assertEquals(listOf(thisDevice), apps(controller))
+    }
+
+    @Test
+    fun revokeWaitsUntilThisDeviceIsKnown() = runTest {
+        val repository = FakeLoggedInAppsRepository(listOf(ios, appleTv))
+        val controller = loaded(repository)
+
+        assertFalse(controller.state.value.canRevoke)
+        assertFalse(controller.dispatch(LoggedInAppsEvent.Revoke(ios.id)))
+        runCurrent()
+
+        assertEquals(emptyList<LoggedInAppId>(), repository.revoked)
     }
 
     @Test

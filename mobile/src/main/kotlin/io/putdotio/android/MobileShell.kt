@@ -55,7 +55,7 @@ import androidx.navigation.compose.rememberNavController
 import io.putdotio.android.account.InactiveAccountNotice
 import io.putdotio.android.account.MOBILE_APP_INFO_ROUTE
 import io.putdotio.android.account.MOBILE_OPEN_SOURCE_LICENSES_ROUTE
-import io.putdotio.android.account.LoggedInAppsRepository
+import io.putdotio.android.account.LoggedInAppsController
 import io.putdotio.android.account.MOBILE_LOGGED_IN_APPS_ROUTE
 import io.putdotio.android.account.MOBILE_PRIVACY_CONTROLS_ROUTE
 import io.putdotio.android.account.MobileInactiveAccountNotice
@@ -171,7 +171,7 @@ internal fun MobileShell(
     trashController: TrashController? = null,
     downloadsController: DownloadsController? = null,
     publicLinksController: PublicLinksController? = null,
-    loggedInAppsRepository: LoggedInAppsRepository? = null,
+    loggedInAppsController: LoggedInAppsController? = null,
     accountSettingsState: AccountSettingsState,
     appConfigState: AndroidAppConfigState,
     searchHistoryState: MobileSearchHistoryState = emptySearchHistoryState(),
@@ -521,7 +521,7 @@ internal fun MobileShell(
                             onSignOut = onSignOut,
                             modifier = contentModifier,
                             publicLinks = publicLinks,
-                            loggedInAppsRepository = loggedInAppsRepository,
+                            loggedInAppsController = loggedInAppsController,
                             searchOpen = searchOpen,
                             searchForward = searchForward,
                             filesBackPreview = filesBackPreview,

@@ -94,6 +94,8 @@ import io.putdotio.android.share.MobileFileShareService
 import io.putdotio.android.sharing.MobilePublicLinksViewModel
 import io.putdotio.android.sharing.PublicLinksController
 import io.putdotio.android.sharing.SdkPublicLinksRepository
+import io.putdotio.android.account.LoggedInAppsController
+import io.putdotio.android.account.MobileLoggedInAppsViewModel
 import io.putdotio.android.account.SdkLoggedInAppsRepository
 import io.putdotio.android.telemetry.ProductAnalytics
 import io.putdotio.android.telemetry.PutioDiagnostics
@@ -137,6 +139,7 @@ internal fun SignedInMobileRoot(
     rootScope: CoroutineScope,
     downloadsViewModel: MobileDownloadsViewModel? = null,
     publicLinksViewModel: MobilePublicLinksViewModel? = null,
+    loggedInAppsViewModel: MobileLoggedInAppsViewModel? = null,
     playbackPlayerFactory: MobilePlayerFactory = DefaultMobilePlayerFactory,
     nowPlayingRequests: NowPlayingRequests = NowPlayingRequests.None,
     deepLinkRequests: MobileDeepLinkRequests = MobileDeepLinkRequests.None,
@@ -217,6 +220,11 @@ internal fun SignedInMobileRoot(
         remember(publicLinksViewModel, publicLinksRepository, account.userId, sessionId) {
             publicLinksViewModel?.controllerFor(account.userId, sessionId, publicLinksRepository)
         }
+    val loggedInAppsRepository = remember(runtime.putioClient) { SdkLoggedInAppsRepository(runtime.putioClient) }
+    val loggedInAppsController =
+        remember(loggedInAppsViewModel, loggedInAppsRepository, account.userId, sessionId) {
+            loggedInAppsViewModel?.controllerFor(account.userId, sessionId, loggedInAppsRepository)
+        }
     val continueWatching = remember(filesViewModel, downloadsContext, account.userId, sessionId) {
         filesViewModel.continueWatchingFor(account.userId, sessionId) {
             DeviceContinueWatchingStore(downloadsContext, account.userId)
@@ -278,6 +286,7 @@ internal fun SignedInMobileRoot(
         trashController = trashController,
         downloadsController = downloadsController,
         publicLinksController = publicLinksController,
+        loggedInAppsController = loggedInAppsController,
         authController = authController,
         rootScope = rootScope,
         playbackPlayerFactory = playbackPlayerFactory,
@@ -304,6 +313,7 @@ private fun SignedInMobileSession(
     trashController: TrashController,
     downloadsController: DownloadsController?,
     publicLinksController: PublicLinksController?,
+    loggedInAppsController: LoggedInAppsController?,
     authController: MobileAuthController,
     rootScope: CoroutineScope,
     playbackPlayerFactory: MobilePlayerFactory,
@@ -442,7 +452,7 @@ private fun SignedInMobileSession(
         },
         downloadsController = downloadsController,
         publicLinksController = publicLinksController,
-        loggedInAppsRepository = remember(runtime.putioClient) { SdkLoggedInAppsRepository(runtime.putioClient) },
+        loggedInAppsController = loggedInAppsController,
         folderCreator = filesRepository,
         continueWatching = continueWatching,
         pinnedFiles = pinnedFiles,

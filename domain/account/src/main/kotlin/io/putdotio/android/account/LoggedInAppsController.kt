@@ -44,7 +44,7 @@ public class LoggedInAppsController(
             val completion: (LoggedInAppsMachine) -> LoggedInAppsMachine = when (request) {
                 is LoggedInAppsRequest.Load -> safely { repository.list() }
                     .let { result -> { it.completeLoad(request, result) } }
-                is LoggedInAppsRequest.Revoke -> safely { repository.revoke(request.app.id) }
+                is LoggedInAppsRequest.Revoke -> safely { repository.revokeStep(request.step) }
                     .let { result -> { it.completeRevoke(request, result) } }
             }
             synchronized(lock) {
@@ -52,6 +52,9 @@ public class LoggedInAppsController(
             }
         }
     }
+
+    private suspend fun LoggedInAppsRepository.revokeStep(step: LoggedInAppsStep): PutioResult<Unit> =
+        step.session?.let { revokeSession(it) } ?: revoke(step.app.id)
 
     // Injected repositories may throw anything; cancellation still has to propagate.
     @Suppress("TooGenericExceptionCaught")

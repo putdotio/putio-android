@@ -33,7 +33,10 @@ class SdkLoggedInAppsRepositoryTest {
 
         assertEquals(
             listOf(
-                LoggedInApp(LoggedInAppId(9677L), "put.io for Android", at("2026-11-12T10:00:00Z"), true, icon(9677L)),
+                LoggedInApp(
+                    LoggedInAppId(9677L), "put.io for Android", at("2026-11-12T10:00:00Z"), true, icon(9677L),
+                    otherSessions = listOf(LoggedInSessionId(4L)),
+                ),
                 LoggedInApp(LoggedInAppId(2L), "put.io for iOS", at("2026-11-09T12:30:00Z"), false, icon(2L)),
                 LoggedInApp(LoggedInAppId(5L), "Infuse", at("2026-10-30T20:00:00Z"), false, null),
                 LoggedInApp(LoggedInAppId(7L), "Old script", null, false, null),
@@ -43,24 +46,29 @@ class SdkLoggedInAppsRepositoryTest {
     }
 
     @Test
-    fun revokeEndsEverySessionOfThatApp() = runBlocking {
+    fun revokeEndsEverySessionOfThatAppAndRevokeSessionEndsOne() = runBlocking {
         val revoked = mutableListOf<Long>()
-        val repository = repository(onRevoke = { revoked += it })
+        val revokedSessions = mutableListOf<Long>()
+        val repository = repository(onRevoke = { revoked += it }, onRevokeSession = { revokedSessions += it })
 
         repository.revoke(LoggedInAppId(2L))
+        repository.revokeSession(LoggedInSessionId(4L))
 
         assertEquals(listOf(2L), revoked)
+        assertEquals(listOf(4L), revokedSessions)
     }
 
     private fun repository(
         grants: List<OAuthGrant> = emptyList(),
         clients: List<OAuthClient> = emptyList(),
         onRevoke: (Long) -> Unit = {},
+        onRevokeSession: (Long) -> Unit = {},
     ) = SdkLoggedInAppsRepository(
         listGrants = { grants },
         listClients = { clients },
         iconUrl = ::icon,
         revokeGrant = { onRevoke(it); OkResponse("OK") },
+        revokeClient = { onRevokeSession(it); OkResponse("OK") },
     )
 
     private fun icon(appId: Long): PutioCredentialUrl =
