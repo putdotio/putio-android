@@ -56,7 +56,11 @@ class PlaybackPositionWriterTest {
         runCurrent()
         writer.offer(lease, 0L)
         runCurrent()
-        assertEquals(listOf(1L to 42.0, 1L to 0.0), calls)
+        writer.offer(lease, 500L)
+        runCurrent()
+        writer.offer(lease, 0L)
+        runCurrent()
+        assertEquals(listOf(1L to 42.0, 1L to 0.0, 1L to 0.5, 1L to 0.0), calls)
         writer.close()
     }
 

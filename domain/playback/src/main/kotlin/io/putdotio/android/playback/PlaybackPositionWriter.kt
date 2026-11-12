@@ -181,4 +181,5 @@ private const val WRITE_TIMEOUT_MILLIS = 15_000L
 private const val MILLIS_PER_SECOND = 1_000.0
 private const val POSITION_DEDUP_MILLIS = 1_000L
 
-private fun sameSecond(a: Long, b: Long): Boolean = a / POSITION_DEDUP_MILLIS == b / POSITION_DEDUP_MILLIS
+private fun sameSecond(a: Long, b: Long): Boolean =
+    a / POSITION_DEDUP_MILLIS == b / POSITION_DEDUP_MILLIS && (a == 0L) == (b == 0L)
