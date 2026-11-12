@@ -31,7 +31,7 @@ internal data class TvStoredWatchNextProgram(
     val owner: TvWatchNextOwner?,
     val program: TvWatchNextProgram,
     val engagedAtMillis: Long,
-    val missingArt: Boolean = false,
+    val outdated: Boolean = false,
 )
 
 /** The system's Watch Next programs this app owns; the provider refuses anyone else's. */
@@ -57,7 +57,7 @@ internal class TvProviderWatchNextStore(context: Context) : TvWatchNextStore {
 
     override suspend fun programs(): List<TvStoredWatchNextProgram> = provider(emptyList()) {
         resolver.query(WatchNextPrograms.CONTENT_URI, PROJECTION, null, null, null)
-            ?.use { cursor -> buildList { while (cursor.moveToNext()) add(cursor.toStored(fallbackArt)) } }
+            ?.use { cursor -> buildList { while (cursor.moveToNext()) add(cursor.toStored(fallbackArt, ::intentUri)) } }
             .orEmpty()
     }
 
@@ -89,6 +89,8 @@ internal class TvProviderWatchNextStore(context: Context) : TvWatchNextStore {
     override suspend fun delete(rowId: Long) {
         provider(Unit) { resolver.delete(TvContract.buildWatchNextProgramUri(rowId), null, null) }
     }
+
+    private fun intentUri(fileId: Long): String = watchNextIntent(context, fileId).toUri(Intent.URI_INTENT_SCHEME)
 
     private suspend fun <T> provider(fallback: T, block: () -> T): T =
         withContext(Dispatchers.IO) {
@@ -143,7 +145,7 @@ internal fun watchNextIntent(context: Context, fileId: Long): Intent =
     )
         .setComponent(ComponentName(context, MainActivity::class.java))
 
-private fun Cursor.toStored(fallbackArt: String): TvStoredWatchNextProgram {
+private fun Cursor.toStored(fallbackArt: String, intentUri: (fileId: Long) -> String): TvStoredWatchNextProgram {
     val owner = string(WatchNextPrograms.COLUMN_INTERNAL_PROVIDER_ID)?.toOwner()
     val posterArt = string(WatchNextPrograms.COLUMN_POSTER_ART_URI)
     return TvStoredWatchNextProgram(
@@ -157,7 +159,8 @@ private fun Cursor.toStored(fallbackArt: String): TvStoredWatchNextProgram {
             durationMillis = long(WatchNextPrograms.COLUMN_DURATION_MILLIS),
         ),
         engagedAtMillis = long(WatchNextPrograms.COLUMN_LAST_ENGAGEMENT_TIME_UTC_MILLIS),
-        missingArt = posterArt == null,
+        outdated = posterArt == null ||
+            owner?.let { string(WatchNextPrograms.COLUMN_INTENT_URI) != intentUri(it.fileId) } == true,
     )
 }
 
@@ -183,6 +186,7 @@ private val PROJECTION = arrayOf(
     WatchNextPrograms.COLUMN_INTERNAL_PROVIDER_ID,
     WatchNextPrograms.COLUMN_TITLE,
     WatchNextPrograms.COLUMN_POSTER_ART_URI,
+    WatchNextPrograms.COLUMN_INTENT_URI,
     WatchNextPrograms.COLUMN_LAST_PLAYBACK_POSITION_MILLIS,
     WatchNextPrograms.COLUMN_DURATION_MILLIS,
     WatchNextPrograms.COLUMN_LAST_ENGAGEMENT_TIME_UTC_MILLIS,

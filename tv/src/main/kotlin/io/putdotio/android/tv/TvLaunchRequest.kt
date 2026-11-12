@@ -32,7 +32,9 @@ internal fun Intent.consumeTvLaunchRequest(key: () -> TvLinkKey): TvLaunchReques
     when (action) {
         Intent.ACTION_VIEW -> data?.let { link ->
             setDataAndType(null, null)
-            link.toTvLaunchRequest()?.takeIf { it !is TvLaunchRequest.OpenFile || key().matches(link.fileLinkKey()) }
+            link.toTvLaunchRequest()?.takeIf { request ->
+                request !is TvLaunchRequest.OpenFile || link.fileLinkKey()?.let { key().matches(it) } == true
+            }
         }
         Intent.ACTION_SEARCH ->
             getStringExtra(SearchManager.QUERY)?.trim()?.takeIf(String::isNotEmpty)
@@ -41,7 +43,6 @@ internal fun Intent.consumeTvLaunchRequest(key: () -> TvLinkKey): TvLaunchReques
         else -> null
     }
 
-/** The request a link names, keyed or not; only for links the app saved itself. */
 internal fun Uri.toTvLaunchRequest(): TvLaunchRequest? {
     if (scheme != SCHEME) return null
     // Shared folders such as Items shared with you (-2) have negative ids; only files are watched.

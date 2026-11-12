@@ -35,7 +35,8 @@ class TvGlobalSearchProofTest {
             buildList {
                 while (it.moveToNext()) {
                     val link = it.getString(it.getColumnIndexOrThrow(SearchManager.SUGGEST_COLUMN_INTENT_DATA_ID))
-                    val id = link.substringBefore('~')
+                    val id = link.substringBefore(TvLinkKey.SEPARATOR)
+                    check(link.substringAfter(TvLinkKey.SEPARATOR, "").isNotEmpty()) { "Row $id carries no link key" }
                     add(id to it.getString(it.getColumnIndexOrThrow(SearchManager.SUGGEST_COLUMN_TEXT_1)))
                 }
             }

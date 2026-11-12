@@ -214,7 +214,7 @@ private fun TvStoredWatchNextProgram.media(file: FilesItem): TvWatchNextMedia =
     )
 
 private fun TvWatchNextChange.isNoOpFor(card: TvStoredWatchNextProgram): Boolean =
-    this is TvWatchNextChange.Publish && program == card.program && !card.missingArt
+    this is TvWatchNextChange.Publish && program == card.program && !card.outdated
 
 /** Bounds the cards one user keeps, so each sign-in's reconcile reads at most this many files. */
 private const val MAX_CARDS = 20

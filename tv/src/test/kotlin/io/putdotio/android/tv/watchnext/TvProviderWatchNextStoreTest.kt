@@ -98,7 +98,7 @@ class TvProviderWatchNextStoreTest {
             provider.rows.single().getAsString(TvContract.WatchNextPrograms.COLUMN_POSTER_ART_URI),
         )
         assertEquals(bare, store.programs().single().program)
-        assertEquals(false, store.programs().single().missingArt)
+        assertEquals(false, store.programs().single().outdated)
     }
 
     @Test
@@ -108,7 +108,17 @@ class TvProviderWatchNextStoreTest {
             put("_id", 9L)
         }
 
-        assertEquals(true, TvProviderWatchNextStore(context).programs().single().missingArt)
+        assertEquals(true, TvProviderWatchNextStore(context).programs().single().outdated)
+    }
+
+    @Test
+    fun `a row whose intent lacks this install's link key reads as outdated`() = runTest {
+        provider.rows += watchNextProgramValues(context, TvWatchNextOwner(42L, 7L), program, 1_234L).apply {
+            put(TvContract.WatchNextPrograms.COLUMN_INTENT_URI, "intent:putio://continue/7#Intent;end")
+            put("_id", 9L)
+        }
+
+        assertEquals(true, TvProviderWatchNextStore(context).programs().single().outdated)
     }
 
     @Test
