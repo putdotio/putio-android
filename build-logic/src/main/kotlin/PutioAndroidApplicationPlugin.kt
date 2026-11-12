@@ -14,7 +14,7 @@ import org.gradle.kotlin.dsl.withType
 /**
  * Shared setup for the `mobile` and `tv` application modules: SDK levels, the
  * `production` and `nightly` channels, release minification, release-like nightly debug builds,
- * upload signing, R8 mappings and native symbols for Sentry, the lint and detekt gates, and the launcher manifest
+ * upload signing, Sentry debug files, the lint and detekt gates, and the launcher manifest
  * check. Each app declares its application id, surface-specific build config and dependencies.
  */
 class PutioAndroidApplicationPlugin : Plugin<Project> {
@@ -161,8 +161,8 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
 
     /**
      * Only with delivery's `SENTRY_AUTH_TOKEN`: each release build then gets an R8 mapping id Sentry
-     * events carry and uploads its mapping under it, plus the debug symbols of its native libraries,
-     * so FFmpeg and libass frames symbolicate. Other builds never apply the plugin. Its
+     * events carry and uploads its mapping under it, plus its native libraries keyed by build id.
+     * Other builds never apply the plugin. Its
      * tracing, SDK installation, optimizations and telemetry stay off, since the SDK lives in
      * core/telemetry.
      */
