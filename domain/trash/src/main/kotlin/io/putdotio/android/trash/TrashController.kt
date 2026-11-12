@@ -70,8 +70,10 @@ public class TrashController(
             safely { repository.resolveItem(request.item.id) }.let { result -> { it.completeCheck(request, result) } }
         is TrashRequest.Act -> safely {
             when (val action = request.action) {
-                is TrashAction.DeleteItem -> repository.deleteItem(action.item.id)
-                TrashAction.RestoreAll -> repository.restoreAll(checkNotNull(request.selection))
+                is TrashAction.DeleteItem -> repository.deleteItems(listOf(action.item.id))
+                is TrashAction.DeleteSelected -> repository.deleteItems(action.items.map(TrashItem::id))
+                TrashAction.RestoreAll, is TrashAction.RestoreSelected ->
+                    repository.restoreAll(checkNotNull(request.selection))
                 TrashAction.Empty -> repository.empty()
             }
         }.let { result -> { it.completeAction(request, result) } }

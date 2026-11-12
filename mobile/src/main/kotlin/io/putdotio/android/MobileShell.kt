@@ -144,6 +144,8 @@ import io.putdotio.android.transfers.TransfersEvent
 import io.putdotio.android.transfers.TransfersReducer
 import io.putdotio.android.transfers.TransfersState
 import io.putdotio.android.trash.MOBILE_TRASH_ROUTE
+import io.putdotio.android.trash.rememberTrashSelection
+import io.putdotio.android.trash.trashSelectionBar
 import io.putdotio.android.trash.trashTopBarActions
 import io.putdotio.android.trash.TrashController
 import io.putdotio.android.trash.TrashState
@@ -290,6 +292,7 @@ internal fun MobileShell(
         searchOpen = searchOpen,
     )
     val trashState = trashController?.state?.collectAsStateWithLifecycle()?.value
+    val trashSelection = rememberTrashSelection(sessionId)
     TrashRestoreEffects(trashState, onFilesEvent)
     val shareNavigationBlocked = shareNavigationBlocked(filesState, trashState, transfersState, nowPlayingPending)
     DeepLinkNavigationEffect(
@@ -452,6 +455,12 @@ internal fun MobileShell(
                                 backStackEntry?.destination?.route,
                                 trashState,
                                 trashController,
+                                trashSelection,
+                            ),
+                            subpageSelectionBar = trashSelectionBar(
+                                backStackEntry?.destination?.route,
+                                trashState,
+                                trashSelection,
                             ),
                             downloads = downloadsController?.let {
                                 MobileDownloadsBar(downloadsState, downloadsSelection, it::dispatch)
@@ -481,6 +490,7 @@ internal fun MobileShell(
                             filesState = filesState,
                             filesRepository = filesRepository,
                             trashController = trashController,
+                            trashSelection = trashSelection,
                             downloadsController = downloadsController,
                             downloadsState = downloadsState,
                             downloadsSelection = downloadsSelection,
@@ -1109,12 +1119,14 @@ private fun MobileTopBar(
     tabActions: (@Composable RowScope.() -> Unit)? = null,
     downloads: MobileDownloadsBar? = null,
     subpageActions: (@Composable RowScope.() -> Unit)? = null,
+    subpageSelectionBar: (@Composable () -> Unit)? = null,
     /** Set while Files is selecting; its bar then replaces the folder's or the root's. */
     filesSelection: FilesSelection? = null,
     accountSort: FilesSort? = null,
 ) {
     val subpageTitle = accountSubpageTitle(route)
     when {
+        subpageTitle != null && subpageSelectionBar != null -> subpageSelectionBar()
         subpageTitle != null -> MobileSmallTopBar(
             title = stringResource(subpageTitle),
             onBack = onSubpageBack,

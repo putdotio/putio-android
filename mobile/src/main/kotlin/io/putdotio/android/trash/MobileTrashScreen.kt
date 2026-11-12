@@ -1,6 +1,23 @@
 package io.putdotio.android.trash
 
 import android.content.Context
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.onLongClick
+import io.putdotio.android.MobileSelectedRowTint
+import io.putdotio.android.MobileSelectionCheckbox
+import io.putdotio.android.MobileSelectionToolbarClearance
+import io.putdotio.android.files.FilesItemId
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,6 +27,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.CircularProgressIndicator
@@ -68,10 +86,86 @@ internal fun MobileTrashScreen(
     state: TrashState,
     onEvent: (TrashEvent) -> Boolean,
     modifier: Modifier = Modifier,
+    selection: TrashSelection = rememberTrashSelection(Unit),
 ) {
     var sheetItemId by rememberSaveable { mutableStateOf<Long?>(null) }
+    val inSelection = selection.isActive(state)
+    val selected = selection.selected(state)
+    var toolbarHeight by remember { mutableIntStateOf(0) }
+    val toolbarClearance = with(LocalDensity.current) { toolbarHeight.toDp() } + MobileSelectionToolbarClearance
+    TrashSelectionEffects(state, selection)
     val sheetItem = (state.content as? TrashContent.Loaded)?.items?.firstOrNull { it.id.value == sheetItemId }
     val listState = rememberLazyListState()
+    ScrollToNewOutcome(state, listState)
+    LoadNextPageNearEnd(
+        listState = listState,
+        nextPage = state.nextPageCursor,
+        onLoadNextPage = { onEvent(TrashEvent.LoadNextPage) },
+        threshold = TRASH_PAGING_THRESHOLD,
+    )
+    Box(modifier.fillMaxSize()) {
+        MobilePullToRefresh(
+            isRefreshing = (state.content as? TrashContent.Loaded)?.isRefreshing == true,
+            enabled = state.canPullToRefresh && !inSelection,
+            onRefresh = { onEvent(TrashEvent.Refresh) },
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            LazyColumn(
+                Modifier.fillMaxSize().testTag(MOBILE_TRASH_LIST_TAG),
+                state = listState,
+                contentPadding = PaddingValues(bottom = if (inSelection) toolbarClearance else 0.dp),
+            ) {
+                state.restoreOutcome?.let { outcome ->
+                    item(key = "restore-outcome") {
+                        MobileTrashOutcome(outcome, state.authenticationFailure == null, onEvent)
+                    }
+                }
+                state.actionOutcome?.let { outcome ->
+                    item(key = "action-outcome") {
+                        MobileTrashActionOutcome(outcome, state.authenticationFailure == null, onEvent)
+                    }
+                }
+                when (val content = state.content) {
+                    TrashContent.Loading -> item(key = "loading") {
+                        MobileLoadingState(stringResource(R.string.mobile_trash_loading))
+                    }
+                    is TrashContent.Error -> item(key = "error") {
+                        TrashReadFailure(content.failure) { onEvent(TrashEvent.Retry) }
+                    }
+                    is TrashContent.Loaded -> loadedTrashItems(
+                        content,
+                        state,
+                        onEvent,
+                        TrashRowHandlers(
+                            checked = selected.takeIf { inSelection },
+                            onActions = { sheetItemId = it.id.value },
+                            onSelect = { selection.start(state, it.id) },
+                            onToggle = { selection.toggle(it.id) },
+                        ),
+                    )
+                }
+            }
+        }
+        if (inSelection) {
+            MobileTrashSelectionToolbar(
+                state = state,
+                selected = selected,
+                onEvent = onEvent,
+                onSent = selection::end,
+                modifier = Modifier.align(Alignment.BottomCenter).onSizeChanged { toolbarHeight = it.height },
+            )
+        }
+    }
+    sheetItem?.let { item ->
+        MobileTrashItemSheet(item, state, onEvent, onDismiss = { sheetItemId = null })
+    }
+    state.actionConfirmation?.let { action ->
+        MobileTrashActionConfirmation(action, state, onEvent.endingSelectionOn(action, selection))
+    }
+}
+
+@Composable
+private fun ScrollToNewOutcome(state: TrashState, listState: LazyListState) {
     // A new outcome is inserted above the list content while the list stays anchored on its
     // previous first item, which leaves the outcome and its recovery controls above the viewport.
     LaunchedEffect(state.restoreOutcome?.item) {
@@ -80,58 +174,24 @@ internal fun MobileTrashScreen(
     LaunchedEffect(state.actionOutcome?.action) {
         if (state.actionOutcome != null) listState.scrollToItem(if (state.restoreOutcome != null) 1 else 0)
     }
-    LoadNextPageNearEnd(
-        listState = listState,
-        nextPage = state.nextPageCursor,
-        onLoadNextPage = { onEvent(TrashEvent.LoadNextPage) },
-        threshold = TRASH_PAGING_THRESHOLD,
-    )
-    MobilePullToRefresh(
-        isRefreshing = (state.content as? TrashContent.Loaded)?.isRefreshing == true,
-        enabled = state.canPullToRefresh,
-        onRefresh = { onEvent(TrashEvent.Refresh) },
-        modifier = modifier.fillMaxSize(),
-    ) {
-        LazyColumn(Modifier.fillMaxSize().testTag(MOBILE_TRASH_LIST_TAG), state = listState) {
-            state.restoreOutcome?.let { outcome ->
-                item(key = "restore-outcome") {
-                    MobileTrashOutcome(outcome, state.authenticationFailure == null, onEvent)
-                }
-            }
-            state.actionOutcome?.let { outcome ->
-                item(key = "action-outcome") {
-                    MobileTrashActionOutcome(outcome, state.authenticationFailure == null, onEvent)
-                }
-            }
-            when (val content = state.content) {
-                TrashContent.Loading -> item(key = "loading") {
-                    MobileLoadingState(stringResource(R.string.mobile_trash_loading))
-                }
-                is TrashContent.Error -> item(key = "error") {
-                    TrashReadFailure(content.failure) { onEvent(TrashEvent.Retry) }
-                }
-                is TrashContent.Loaded ->
-                    loadedTrashItems(content, state, onEvent, onActions = { sheetItemId = it.id.value })
-            }
-        }
-    }
-    sheetItem?.let { item ->
-        MobileTrashItemSheet(item, state, onEvent, onDismiss = { sheetItemId = null })
-    }
-    state.actionConfirmation?.let { action ->
-        MobileTrashActionConfirmation(action, state, onEvent)
-    }
 }
+
+private class TrashRowHandlers(
+    val checked: Set<FilesItemId>?,
+    val onActions: (TrashItem) -> Unit,
+    val onSelect: (TrashItem) -> Unit,
+    val onToggle: (TrashItem) -> Unit,
+)
 
 private fun LazyListScope.loadedTrashItems(
     content: TrashContent.Loaded,
     state: TrashState,
     onEvent: (TrashEvent) -> Boolean,
-    onActions: (TrashItem) -> Unit,
+    rows: TrashRowHandlers,
 ) {
     val empty = content.items.isEmpty() && content.nextCursor == null
     item(key = "summary") {
-        if (!empty) MobileTrashSummary(content)
+        if (!empty && rows.checked == null) MobileTrashSummary(content)
     }
     content.refreshFailure?.let { failure ->
         item(key = "refresh-error") { TrashReadFailure(failure) { onEvent(TrashEvent.Refresh) } }
@@ -147,13 +207,19 @@ private fun LazyListScope.loadedTrashItems(
         }
     }
     items(content.items, key = { it.id.value }) { item ->
-        MobileTrashRow(
-            item,
-            enabled = state.canRestore(item.id) || state.canDelete(item.id),
-            canRestore = state.canRestore(item.id),
-            onRestore = { onEvent(TrashEvent.Restore(item.id)) },
-            onActions = { onActions(item) },
-        )
+        val checked = rows.checked
+        if (checked != null) {
+            MobileTrashSelectableRow(item, checked = item.id in checked, onToggle = { rows.onToggle(item) })
+        } else {
+            MobileTrashRow(
+                item,
+                enabled = state.canRestore(item.id) || state.canDelete(item.id),
+                canRestore = state.canRestore(item.id),
+                onRestore = { onEvent(TrashEvent.Restore(item.id)) },
+                onActions = { rows.onActions(item) },
+                onSelect = { rows.onSelect(item) },
+            )
+        }
     }
     item(key = "paging") {
         val pageFailure = content.pageFailure
@@ -172,23 +238,25 @@ private fun MobileTrashRow(
     canRestore: Boolean,
     onRestore: () -> Unit,
     onActions: () -> Unit,
+    onSelect: () -> Unit,
 ) {
-    val context = LocalContext.current
-    val style = MaterialTheme.typography.bodySmall
     val muted = IconButtonDefaults.iconButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
+    val selectLabel = stringResource(R.string.mobile_trash_select)
+    val currentOnSelect by rememberUpdatedState(onSelect)
     MobileRow(
         leading = { FileTypeIcon(item.type, Modifier.size(26.dp)) },
         headline = { MobileMiddleCutText(item.name) },
-        meta = {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                val size = formatFileSize(item.sizeBytes)
-                Text(monoFigures(size, style.putioMono().toSpanStyle()), style = style, maxLines = 1)
-                item.expirationDate?.trashDaysLeft(LocalDate.now())?.let { days ->
-                    Text("·", style = style, modifier = Modifier.clearAndSetSemantics {})
-                    Text(context.goneIn(days), style = style, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        meta = { MobileTrashRowMeta(item) },
+        modifier = Modifier
+            .pointerInput(enabled) { if (enabled) detectTapGestures(onLongPress = { currentOnSelect() }) }
+            .semantics {
+                if (enabled) {
+                    onLongClick(label = selectLabel) {
+                        onSelect()
+                        true
+                    }
                 }
-            }
-        },
+            },
         trailing = {
             Row {
                 MobileIconButton(
@@ -208,6 +276,31 @@ private fun MobileTrashRow(
             }
         },
     )
+}
+
+@Composable
+private fun MobileTrashSelectableRow(item: TrashItem, checked: Boolean, onToggle: () -> Unit) {
+    MobileRow(
+        leading = { MobileSelectionCheckbox(checked = checked) },
+        headline = { MobileMiddleCutText(item.name) },
+        meta = { MobileTrashRowMeta(item) },
+        containerColor = if (checked) MobileSelectedRowTint else Color.Transparent,
+        modifier = Modifier.toggleable(value = checked, role = Role.Checkbox, onValueChange = { onToggle() }),
+    )
+}
+
+@Composable
+private fun MobileTrashRowMeta(item: TrashItem) {
+    val context = LocalContext.current
+    val style = MaterialTheme.typography.bodySmall
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+        val size = formatFileSize(item.sizeBytes)
+        Text(monoFigures(size, style.putioMono().toSpanStyle()), style = style, maxLines = 1)
+        item.expirationDate?.trashDaysLeft(LocalDate.now())?.let { days ->
+            Text("·", style = style, modifier = Modifier.clearAndSetSemantics {})
+            Text(context.goneIn(days), style = style, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
 }
 
 /** The section line: what Trash holds in mono, then how long it keeps items. */

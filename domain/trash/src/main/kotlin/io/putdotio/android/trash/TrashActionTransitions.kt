@@ -6,6 +6,8 @@ import io.putdotio.android.parsePutioTimestamp
 internal fun TrashMachine.action(event: TrashEvent.ActionEvent): TrashMachine? = when (event) {
     is TrashEvent.SelectDelete -> selectDelete(event)
     TrashEvent.RestoreAll -> if (mayStartRestore && state.canActOnAll) submitAction(TrashAction.RestoreAll) else null
+    is TrashEvent.RestoreSelected -> restoreSelected(event)
+    is TrashEvent.SelectDeleteSelected -> selectDeleteSelected(event)
     TrashEvent.SelectEmpty -> if (mayActOnAll) openActionConfirmation(TrashAction.Empty) else null
     TrashEvent.CancelAction -> cancelAction()
     is TrashEvent.ConfirmAction -> confirmAction(event)
@@ -22,7 +24,7 @@ private fun TrashMachine.selectDelete(event: TrashEvent.SelectDelete): TrashMach
 private val TrashMachine.mayActOnAll: Boolean
     get() = request == null && state.canActOnAll
 
-private fun TrashMachine.openActionConfirmation(action: TrashDestructiveAction): TrashMachine = copy(
+internal fun TrashMachine.openActionConfirmation(action: TrashDestructiveAction): TrashMachine = copy(
     state = state.copy(
         actionConfirmation = action, actionConfirmationId = nextRequestId, actionOutcome = null,
     ),
@@ -43,12 +45,14 @@ private fun TrashMachine.confirmAction(event: TrashEvent.ConfirmAction): TrashMa
     return submitAction(action)
 }
 
-private fun TrashMachine.submitAction(action: TrashAction): TrashMachine? {
+internal fun TrashMachine.submitAction(action: TrashAction): TrashMachine? {
     val content = state.content as? TrashContent.Loaded ?: return null
-    val selection = (action as? TrashAction.RestoreAll)?.let {
-        TrashBulkSelection(content.snapshotCursor, content.items.map(TrashItem::id))
+    val selection = when (action) {
+        TrashAction.RestoreAll -> TrashBulkSelection(content.snapshotCursor, content.items.map(TrashItem::id))
+        is TrashAction.RestoreSelected -> TrashBulkSelection(cursor = null, action.items.map(TrashItem::id))
+        else -> null
     }
-    val snapshot = selection?.let {
+    val snapshot = selection?.takeIf { action == TrashAction.RestoreAll }?.let {
         TrashRestoreSnapshot(
             itemIds = it.itemIds.toSet(),
             coversUnloadedItems = it.cursor != null,
@@ -68,6 +72,8 @@ private fun TrashMachine.submitAction(action: TrashAction): TrashMachine? {
 
 private fun TrashMachine.isEligible(action: TrashDestructiveAction): Boolean = when (action) {
     is TrashAction.DeleteItem -> loadedItem(action.item.id) == action.item && state.canDelete(action.item.id)
+    is TrashAction.DeleteSelected -> action.items.all { loadedItem(it.id) == it } &&
+        state.canDeleteAll(action.items.map(TrashItem::id))
     TrashAction.Empty -> state.canActOnAll
 }
 

@@ -38,7 +38,7 @@ class TvTrashUndoTest {
                 if (itemId.value == 1L) firstReadback.await()
                 return PutioResult.Success(item(itemId.value))
             }
-            override suspend fun deleteItem(itemId: FilesItemId) = error("No delete expected")
+            override suspend fun deleteItems(itemIds: List<FilesItemId>) = error("No delete expected")
             override suspend fun restoreAll(selection: TrashBulkSelection) = error("No bulk restore expected")
             override suspend fun empty() = error("No empty expected")
         }

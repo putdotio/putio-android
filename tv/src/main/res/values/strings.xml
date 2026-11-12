@@ -393,6 +393,32 @@
     <string name="tv_trash_restore_all_inconclusive">Items are still leaving trash. Check again in a moment.</string>
     <string name="tv_trash_delete_still_present">%1$s is still in trash.</string>
     <string name="tv_trash_empty_still_present">Trash still has items. Refresh in a moment and try again.</string>
+    <plurals name="tv_trash_delete_selected_title">
+        <item quantity="one">Delete %1$d item permanently?</item>
+        <item quantity="other">Delete %1$d items permanently?</item>
+    </plurals>
+    <plurals name="tv_trash_delete_selected_message">
+        <item quantity="one">It will be removed from trash right away. This cannot be undone.</item>
+        <item quantity="other">They will be removed from trash right away. This cannot be undone.</item>
+    </plurals>
+    <plurals name="tv_trash_restore_selected_started">
+        <item quantity="one">Restore started for %1$d item.</item>
+        <item quantity="other">Restore started for %1$d items.</item>
+    </plurals>
+    <plurals name="tv_trash_delete_selected_started">
+        <item quantity="one">Deletion of %1$d item requested.</item>
+        <item quantity="other">Deletion of %1$d items requested.</item>
+    </plurals>
+    <plurals name="tv_trash_delete_selected_verified">
+        <item quantity="one">%1$d item is no longer in trash.</item>
+        <item quantity="other">%1$d items are no longer in trash.</item>
+    </plurals>
+    <string name="tv_trash_delete_selected_some_failed">Couldn’t delete some items.</string>
+    <plurals name="tv_trash_delete_selected_failed">
+        <item quantity="one">Couldn’t delete %1$d item.</item>
+        <item quantity="other">Couldn’t delete %1$d items.</item>
+    </plurals>
+    <string name="tv_trash_delete_selected_inconclusive">Some items were not on the first page. Check trash again in a moment.</string>
     <string name="tv_player_loading">Loading</string>
     <string name="tv_player_buffering">Buffering…</string>
     <string name="tv_player_stalled">Playback stalled</string>

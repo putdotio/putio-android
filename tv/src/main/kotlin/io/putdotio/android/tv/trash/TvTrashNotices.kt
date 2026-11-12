@@ -11,6 +11,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -152,7 +153,7 @@ private fun TrashActionOutcome.tvText(): String = when (check) {
     TrashActionCheck.CHECKING -> stringResource(R.string.tv_trash_checking)
     TrashActionCheck.VERIFIED -> action.verifiedText()
     TrashActionCheck.INCONCLUSIVE -> action.inconclusiveText()
-    TrashActionCheck.FAILED -> checkFailure?.tvMessageText() ?: action.stillPresentText()
+    TrashActionCheck.FAILED -> checkFailure?.tvMessageText() ?: action.stillPresentText(failedCount)
     TrashActionCheck.NOT_CHECKED -> submissionText()
 }
 
@@ -168,6 +169,10 @@ private fun TrashActionOutcome.submissionText(): String = when (submission) {
 @Composable
 private fun TrashAction.startedText(): String = when (this) {
     is TrashAction.DeleteItem -> stringResource(R.string.tv_trash_delete_started, item.name)
+    is TrashAction.DeleteSelected ->
+        pluralStringResource(R.plurals.tv_trash_delete_selected_started, items.size, items.size)
+    is TrashAction.RestoreSelected ->
+        pluralStringResource(R.plurals.tv_trash_restore_selected_started, items.size, items.size)
     TrashAction.RestoreAll -> stringResource(R.string.tv_trash_restore_all_started)
     TrashAction.Empty -> stringResource(R.string.tv_trash_empty_started)
 }
@@ -175,20 +180,27 @@ private fun TrashAction.startedText(): String = when (this) {
 @Composable
 private fun TrashAction.verifiedText(): String = when (this) {
     is TrashAction.DeleteItem -> stringResource(R.string.tv_trash_delete_verified, item.name)
-    TrashAction.RestoreAll -> stringResource(R.string.tv_trash_restore_all_verified)
+    is TrashAction.DeleteSelected ->
+        pluralStringResource(R.plurals.tv_trash_delete_selected_verified, items.size, items.size)
+    TrashAction.RestoreAll, is TrashAction.RestoreSelected -> stringResource(R.string.tv_trash_restore_all_verified)
     TrashAction.Empty -> stringResource(R.string.tv_trash_empty_verified)
 }
 
 @Composable
 private fun TrashAction.inconclusiveText(): String = when (this) {
     is TrashAction.DeleteItem -> stringResource(R.string.tv_trash_delete_inconclusive, item.name)
-    TrashAction.RestoreAll -> stringResource(R.string.tv_trash_restore_all_inconclusive)
+    is TrashAction.DeleteSelected -> stringResource(R.string.tv_trash_delete_selected_inconclusive)
+    TrashAction.RestoreAll, is TrashAction.RestoreSelected ->
+        stringResource(R.string.tv_trash_restore_all_inconclusive)
     TrashAction.Empty -> stringResource(R.string.tv_trash_empty_inconclusive)
 }
 
 @Composable
-private fun TrashAction.stillPresentText(): String = when (this) {
+private fun TrashAction.stillPresentText(failed: Int?): String = when (this) {
     is TrashAction.DeleteItem -> stringResource(R.string.tv_trash_delete_still_present, item.name)
+    is TrashAction.DeleteSelected -> failed?.let {
+        pluralStringResource(R.plurals.tv_trash_delete_selected_failed, it, it)
+    } ?: stringResource(R.string.tv_trash_delete_selected_some_failed)
     else -> stringResource(R.string.tv_trash_empty_still_present)
 }
 

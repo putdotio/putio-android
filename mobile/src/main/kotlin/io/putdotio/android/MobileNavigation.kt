@@ -118,6 +118,7 @@ import io.putdotio.android.transfers.MobileTransfersScreen
 import io.putdotio.android.transfers.TransfersEvent
 import io.putdotio.android.transfers.TransfersState
 import io.putdotio.android.trash.MOBILE_TRASH_ROUTE
+import io.putdotio.android.trash.TrashSelection
 import io.putdotio.android.trash.MobileTrashScreen
 import io.putdotio.android.trash.TrashContent
 import io.putdotio.android.trash.TrashController
@@ -140,6 +141,7 @@ internal fun MobileNavHost(
     filesState: FilesBrowserState,
     filesRepository: FilesRepository?,
     trashController: TrashController?,
+    trashSelection: TrashSelection,
     accountSettingsState: AccountSettingsState,
     appConfigState: AndroidAppConfigState,
     searchHistoryState: MobileSearchHistoryState,
@@ -377,7 +379,7 @@ internal fun MobileNavHost(
                     trashController?.let { controller ->
                         val state by controller.state.collectAsStateWithLifecycle()
                         LaunchedEffect(controller) { controller.dispatch(TrashEvent.Open) }
-                        MobileTrashScreen(state, controller::dispatch)
+                        MobileTrashScreen(state, controller::dispatch, selection = trashSelection)
                     }
                 }
                 composable(

@@ -404,7 +404,7 @@ class MobileFilesActionsControllerTest {
                 }
             }
         }
-        override suspend fun deleteItem(itemId: FilesItemId): PutioResult<Unit> = error("unused")
+        override suspend fun deleteItems(itemIds: List<FilesItemId>): PutioResult<Unit> = error("unused")
         override suspend fun restoreAll(selection: TrashBulkSelection): PutioResult<Unit> =
             result.also { restoredAll += selection }
         override suspend fun empty(): PutioResult<Unit> = error("unused")
