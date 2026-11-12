@@ -169,6 +169,21 @@ class MobileTrashScreenTest {
     }
 
     @Test
+    fun aShortPageAsksForTheNextOnceAnInFlightDeleteSettles() {
+        val events = mutableListOf<TrashEvent>()
+        val submitting = TrashActionOutcome(TrashAction.DeleteItem(item), TrashActionSubmission.SUBMITTING)
+        var state by mutableStateOf(
+            TrashState(content = loaded.copy(nextCursor = FilesCursor("next")), actionOutcome = submitting),
+        )
+        compose.setContent { PutioTheme { MobileTrashScreen(state, events::add) } }
+        compose.runOnIdle { assertEquals(emptyList<TrashEvent>(), events) }
+        compose.runOnIdle {
+            state = state.copy(actionOutcome = submitting.copy(submission = TrashActionSubmission.ACKNOWLEDGED))
+        }
+        compose.runOnIdle { assertEquals(listOf<TrashEvent>(TrashEvent.LoadNextPage), events) }
+    }
+
+    @Test
     fun pullingTheListDownRefreshesTrash() {
         val events = mutableListOf<TrashEvent>()
         compose.setContent { PutioTheme { MobileTrashScreen(TrashState(content = loaded), events::add) } }
