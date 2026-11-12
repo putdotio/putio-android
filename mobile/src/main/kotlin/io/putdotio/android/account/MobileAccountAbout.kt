@@ -23,6 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -40,7 +41,6 @@ import io.putdotio.android.settings.AppDiagnostics
 import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.sdk.files.PlaybackPreference
 import kotlinx.coroutines.launch
-import java.util.Locale
 
 internal const val MOBILE_APP_INFO_ROUTE = "account/app-info"
 internal const val MOBILE_ABOUT_ROW_TAG = "mobile-about-row"
@@ -96,7 +96,7 @@ internal fun MobileAppInfoScreen(diagnostics: AppDiagnostics, modifier: Modifier
                 stringResource(R.string.mobile_settings_about_version_value),
                 mono,
                 diagnostics.appVersion,
-                "%d".format(Locale.getDefault(), diagnostics.versionCode),
+                "%d".format(LocalLocale.current.platformLocale, diagnostics.versionCode),
             ),
         ),
         AppInfoRow(
