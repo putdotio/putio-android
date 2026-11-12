@@ -23,12 +23,12 @@ def problems(rows):
             yield f"line {line}: {len(row)} columns, expected {COLUMNS}"
             continue
         question, response, value, requirement, _ = row
-        chosen = value == "TRUE"
+        chosen = value.strip().upper() == "TRUE"
         if requirement == "SINGLE_CHOICE" and chosen:
             single_choice[question].append(line)
         if question == ACCOUNT_CREATION and chosen:
             account_creation.append(response)
-        if question == ACCOUNT_DELETION_URL and value:
+        if question == ACCOUNT_DELETION_URL and value.strip():
             deletion_url_lines.append(line)
     for question, lines in single_choice.items():
         if len(lines) > 1:
