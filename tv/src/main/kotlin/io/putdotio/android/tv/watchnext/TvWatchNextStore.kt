@@ -12,6 +12,7 @@ import android.media.tv.TvContract.WatchNextPrograms
 import io.putdotio.android.MainActivity
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.tv.TvLaunchRequest
+import io.putdotio.android.tv.TvLinkKey
 import io.putdotio.android.tv.toUri
 import io.putdotio.android.tv.tvLauncherFallbackArt
 import kotlinx.coroutines.Dispatchers
@@ -136,7 +137,10 @@ internal fun watchNextProgramValues(
 
 /** Opens the file in this app's activity and continues it from the saved position. */
 internal fun watchNextIntent(context: Context, fileId: Long): Intent =
-    Intent(Intent.ACTION_VIEW, TvLaunchRequest.OpenFile(FilesItemId(fileId), continueWatching = true).toUri())
+    Intent(
+        Intent.ACTION_VIEW,
+        TvLaunchRequest.OpenFile(FilesItemId(fileId), continueWatching = true).toUri(TvLinkKey.get(context)),
+    )
         .setComponent(ComponentName(context, MainActivity::class.java))
 
 private fun Cursor.toStored(fallbackArt: String): TvStoredWatchNextProgram {

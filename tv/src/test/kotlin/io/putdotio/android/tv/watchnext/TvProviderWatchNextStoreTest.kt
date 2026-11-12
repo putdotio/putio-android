@@ -14,6 +14,7 @@ import android.media.tv.TvContract
 import io.putdotio.android.MainActivity
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.tv.TvLaunchRequest
+import io.putdotio.android.tv.TvLinkKey
 import io.putdotio.android.tv.consumeTvLaunchRequest
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -62,7 +63,7 @@ class TvProviderWatchNextStoreTest {
         assertEquals(context.packageName, intent.component?.packageName)
         assertEquals(
             TvLaunchRequest.OpenFile(FilesItemId(7L), continueWatching = true),
-            intent.consumeTvLaunchRequest(),
+            intent.consumeTvLaunchRequest { TvLinkKey.get(context) },
         )
 
         assertEquals(
