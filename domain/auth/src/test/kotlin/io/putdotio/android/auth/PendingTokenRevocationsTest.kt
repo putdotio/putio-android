@@ -121,6 +121,16 @@ class PendingTokenRevocationsTest {
     }
 
     @Test
+    fun `a sign-in that cannot read every record keeps the one it matched`() = runTest {
+        val stores = listOf(InMemoryAuthTokenStore(TOKEN), InMemoryAuthTokenStore(SECOND).apply { failedReads = 1 })
+        val revocations = PendingTokenRevocations(stores, InMemoryAuthTokenStore(), ScriptedTokenRevoker(), this)
+
+        assertTrue(runCatching { revocations.keep(TOKEN) {} }.exceptionOrNull() is AuthTokenStorageException)
+
+        assertEquals(listOf(TOKEN.reveal(), SECOND.reveal()), stores.map { it.token?.reveal() })
+    }
+
+    @Test
     fun `a confirmed revocation keeps its record until the session no longer holds the token`() = runTest {
         val store = InMemoryAuthTokenStore()
         val session = InMemoryAuthTokenStore(TOKEN)

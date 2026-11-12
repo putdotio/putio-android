@@ -143,14 +143,24 @@ public class PendingTokenRevocations(
 
     override suspend fun keep(accessToken: AccessToken, store: suspend () -> Unit): Boolean =
         attemptMutex.withLock {
-            val dropped = slotMutex.withLock { slots.count { it.drop(accessToken) } } > 0
-            if (isRevoked(accessToken)) return@withLock false
-            var stored = false
+            var dropped = false
+            var settled = false
             try {
+                slotMutex.withLock {
+                    val matching = slots.filter { it.load()?.reveal() == accessToken.reveal() }
+                    matching.forEach { slot ->
+                        slot.drop()
+                        dropped = true
+                    }
+                }
+                if (isRevoked(accessToken)) {
+                    settled = true
+                    return@withLock false
+                }
                 store()
-                stored = true
+                settled = true
             } finally {
-                if (!stored && dropped) withContext(NonCancellable) { revoke(accessToken) }
+                if (!settled && dropped) withContext(NonCancellable) { revoke(accessToken) }
             }
             true
         }
@@ -240,11 +250,9 @@ public class PendingTokenRevocations(
         }
 
         // Call with slotMutex held.
-        suspend fun drop(accessToken: AccessToken): Boolean {
-            if (load()?.reveal() != accessToken.reveal()) return false
+        suspend fun drop() {
             store.clear()
             pending = null
-            return true
         }
 
         // Call with slotMutex held. A record left by a failed clear is revoked again (401 if put.io
