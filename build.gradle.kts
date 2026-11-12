@@ -111,6 +111,12 @@ val testTalkBackInput =tasks.register<Exec>("testTalkBackInput") {
     commandLine("python3", "-B", "scripts/test_talkback_input.py")
 }
 
+val checkDataSafety = tasks.register<Exec>("checkDataSafety") {
+    description = "Check the Google Play Data safety CSV for answers Play rejects"
+    cacheableCheck("play/data-safety.csv")
+    commandLine("python3", "-B", "scripts/check-data-safety.py", "play/data-safety.csv")
+}
+
 // package.json pins the Node tools so Renovate can bump them; they need Node on PATH.
 fun pinnedNodeTool(name: String) =
     providers.fileContents(layout.projectDirectory.file("package.json")).asText.map { text ->
@@ -166,7 +172,8 @@ val verifyDocs = verifyLane("verifyDocs", "Check Markdown and the DESIGN.md cont
 
 val verifyScripts = verifyLane(
     "verifyScripts",
-    "Run the harness, design asset and icon script checks",
+    "Run the harness, design asset, icon and Data safety script checks",
+    checkDataSafety,
     checkDesignAssets,
     checkIcons,
     testEmulatorHarness,

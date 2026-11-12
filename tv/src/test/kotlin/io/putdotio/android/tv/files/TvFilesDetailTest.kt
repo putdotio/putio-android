@@ -24,8 +24,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.height
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.putdotio.android.BasePutioActivity
 import io.putdotio.android.PutioResult
+import io.putdotio.android.TV_MAX_FONT_SCALE
 import io.putdotio.android.files.FilesFolderCounts
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesFolder
@@ -173,7 +173,7 @@ class TvFilesDetailLargeTextTest {
         private var previousFontScale = 1f
         override fun before() {
             previousFontScale = RuntimeEnvironment.getApplication().resources.configuration.fontScale
-            RuntimeEnvironment.setFontScale(BasePutioActivity.MAX_FONT_SCALE)
+            RuntimeEnvironment.setFontScale(TV_MAX_FONT_SCALE)
         }
 
         override fun after() = RuntimeEnvironment.setFontScale(previousFontScale)
