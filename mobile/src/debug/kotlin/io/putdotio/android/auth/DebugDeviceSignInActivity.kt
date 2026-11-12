@@ -13,6 +13,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
@@ -25,12 +26,15 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 
 /**
- * Debug builds only: signs the app in with a device code, for harnesses that approve it with the
- * `putio` CLI instead of a browser. The token goes
- * through [MobileAuthController.completeDeviceLink], so the session is the one a browser sign-in
- * stores. The screen shows the code, then the signed-in account's ID, as plain text nodes.
+ * Debug builds only: signs the app in for harnesses, with no browser. A token the harness pushed to
+ * [HARNESS_IMPORT_TOKEN] is used first; otherwise the screen shows a device code the `putio` CLI
+ * approves, and with [EXTRA_EXPORT_TOKEN] the new token lands in [HARNESS_EXPORT_TOKEN] for the
+ * harness to cache. Either token goes through [MobileAuthController.completeDeviceLink], so the
+ * session is the one a browser sign-in stores. The screen shows the code, then the signed-in
+ * account's ID, as plain text nodes.
  */
 class DebugDeviceSignInActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -63,7 +67,17 @@ internal sealed interface DebugDeviceSignInState {
     data class Stopped(
         val reason: String,
     ) : DebugDeviceSignInState
+
+    data class ImportRejected(
+        val reason: String,
+    ) : DebugDeviceSignInState
 }
+
+/** Relative to the app's data directory, which is where `adb shell run-as` starts. */
+internal const val HARNESS_IMPORT_TOKEN = "files/harness/import-token"
+internal const val HARNESS_EXPORT_TOKEN = "files/harness/export-token"
+internal const val EXTRA_EXPORT_TOKEN = "io.putdotio.android.harness.EXPORT_TOKEN"
+
 
 // The harness reads these with uiautomator; scripts/sign-in-devs-auto.sh matches them.
 private fun DebugDeviceSignInState.label(): String =
@@ -73,13 +87,17 @@ private fun DebugDeviceSignInState.label(): String =
         DebugDeviceSignInState.Validating -> "Device sign-in: validating"
         is DebugDeviceSignInState.SignedIn -> "Signed in account $userId"
         is DebugDeviceSignInState.Stopped -> "Device sign-in stopped: $reason"
+        is DebugDeviceSignInState.ImportRejected -> "Cached token rejected: $reason"
     }
 
 /** One attempt per activity, kept across configuration changes so a rotation does not replace the code. */
 internal class DebugDeviceSignIn(
     application: Application,
+    savedState: SavedStateHandle,
 ) : AndroidViewModel(application) {
     private val runtime = MobileOAuthRuntime.get(application)
+    private val dataDir = application.dataDir
+    private val exportsToken = savedState.get<Boolean>(EXTRA_EXPORT_TOKEN) == true
     private val mutableState = MutableStateFlow<DebugDeviceSignInState>(DebugDeviceSignInState.Starting)
 
     val state: StateFlow<DebugDeviceSignInState> = mutableState.asStateFlow()
@@ -89,6 +107,8 @@ internal class DebugDeviceSignIn(
     }
 
     private suspend fun signIn() {
+        // Consumed before anything else, so a pushed token never outlives this launch.
+        val imported = takeImportedToken()
         val controller = runtime.authController
         controller.restoreSession()
         when (val settled = controller.state.first { it.isSettled() }) {
@@ -106,6 +126,10 @@ internal class DebugDeviceSignIn(
                 mutableState.value = DebugDeviceSignInState.Stopped("app is ${settled::class.simpleName}")
                 return
             }
+        }
+        if (imported != null) {
+            mutableState.value = withContext(NonCancellable) { completeImport(imported) }
+            return
         }
         runtime.putioClient.deviceCodeAuth.link().collect { link ->
             when (link) {
@@ -126,9 +150,29 @@ internal class DebugDeviceSignIn(
 
     private suspend fun complete(link: DeviceCodeAuthState.Linked): DebugDeviceSignInState {
         val accessToken = AccessToken.parse(link.accessToken)
+            ?: return DebugDeviceSignInState.Stopped("put.io returned an unusable token")
+        val result = completeWith(accessToken)
+        if (exportsToken && result is DebugDeviceSignInState.SignedIn) {
+            File(dataDir, HARNESS_EXPORT_TOKEN).apply { parentFile?.mkdirs() }.writeText(link.accessToken)
+        }
+        return result
+    }
+
+    private suspend fun completeImport(token: String): DebugDeviceSignInState {
+        val accessToken = AccessToken.parse(token)
+            ?: return DebugDeviceSignInState.ImportRejected("not a put.io token")
+        val result = completeWith(accessToken)
+        val after = runtime.authController.state.value
+        return if (after is MobileAuthState.SignedOut && after.reason == MobileSignedOutReason.SessionExpired) {
+            DebugDeviceSignInState.ImportRejected("put.io rejected it")
+        } else {
+            result
+        }
+    }
+
+    private suspend fun completeWith(accessToken: AccessToken): DebugDeviceSignInState {
         val controller = runtime.authController
         return when {
-            accessToken == null -> DebugDeviceSignInState.Stopped("put.io returned an unusable token")
             !controller.completeDeviceLink(accessToken) ->
                 DebugDeviceSignInState.Stopped("the app is not signed out, or a browser sign-in is pending")
             else -> when (val after = controller.state.value) {
@@ -136,6 +180,16 @@ internal class DebugDeviceSignIn(
                 is MobileAuthState.SignedOut -> DebugDeviceSignInState.Stopped("signed out (${after.reason})")
                 else -> DebugDeviceSignInState.Stopped("app is ${after::class.simpleName}")
             }
+        }
+    }
+
+    private fun takeImportedToken(): String? {
+        val file = File(dataDir, HARNESS_IMPORT_TOKEN)
+        if (!file.exists()) return null
+        return try {
+            file.readText().trim().takeIf { it.isNotEmpty() }
+        } finally {
+            file.delete()
         }
     }
 }

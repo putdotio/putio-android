@@ -29,6 +29,13 @@ PUTIO_CLI_PROFILE=devs-auto putio auth approve (dry run first), wait for the
 app's account ID and compare it with the CLI's, then open MainActivity and
 wait for Files. An app already signed in as devs-auto passes with no approval.
 
+Token cache: the first approval on a host caches the app's token in
+$PUTIO_DEVS_AUTO_CACHE (default ~/.cache/putio-android/devs-auto), one 0600
+file per package. Later runs push it into the app with run-as and request no
+device code; put.io limits code requests per IP. A cached token put.io
+rejects is dropped and replaced by one new approval. Signing out in the app
+revokes the cached token for every run on the host.
+
 Stdout: SIGNED IN <account id>, then PROOF PASS sign-in-devs-auto.
 Stderr: progress, and on failure one ERROR line naming the fix:
   - python3 or putio missing, the profile signed out, or not on https://api.put.io
@@ -43,7 +50,8 @@ No token enters an argument, the log or the output; an ambient
 PUTIO_CLI_TOKEN is ignored. Each live approval creates a grant for the app on
 devs-auto; signing out in the app revokes it.
 
-Environment: PUTIO_SIGN_IN_TIMEOUT bounds each wait in seconds (default 90);
+Environment: PUTIO_DEVS_AUTO_CACHE overrides the cache directory;
+PUTIO_SIGN_IN_TIMEOUT bounds each wait in seconds (default 90);
 PUTIO_SIGN_IN_POLL is the pause between UI reads (default 2).
 EOF
 }
@@ -61,6 +69,10 @@ SIGN_IN_ACTIVITY="io.putdotio.android.auth.DebugDeviceSignInActivity"
 MAIN_ACTIVITY="io.putdotio.android.MainActivity"
 TIMEOUT="${PUTIO_SIGN_IN_TIMEOUT:-90}"
 POLL="${PUTIO_SIGN_IN_POLL:-2}"
+CACHE_DIR="${PUTIO_DEVS_AUTO_CACHE:-${XDG_CACHE_HOME:-${HOME}/.cache}/putio-android/devs-auto}"
+IMPORT_FILE="files/harness/import-token"
+EXPORT_FILE="files/harness/export-token"
+EXPORT_EXTRA="io.putdotio.android.harness.EXPORT_TOKEN"
 
 serial="${1:-}"
 package="${2:-io.put.putio.mobile.debug}"
@@ -152,11 +164,54 @@ await_text() {
   die "timed out after ${TIMEOUT}s waiting for ${what} on ${serial}"
 }
 
-started="$(adb_ shell am start -W --activity-clear-task -n "${package}/${SIGN_IN_ACTIVITY}" 2>&1 || true)"
-[[ "${started}" != *Error* && "${started}" != *Exception* ]] ||
-  die "${package} has no device-code sign-in; install a debug build of this revision"
+cache_file="${CACHE_DIR}/${package}.token"
 
-first="$(await_text '^(Activation code [A-Z0-9]+|Signed in account [0-9]+)$' "an activation code")"
+open_sign_in() {
+  local started
+  started="$(adb_ shell am start -W --activity-clear-task --ez "${EXPORT_EXTRA}" true -n "${package}/${SIGN_IN_ACTIVITY}" 2>&1 || true)"
+  [[ "${started}" != *Error* && "${started}" != *Exception* ]] ||
+    die "${package} has no device-code sign-in; install a debug build of this revision"
+}
+
+# The token travels on stdin and stdout, never in an argument. adb joins its
+# arguments into one device shell command, so each command is one string.
+push_cached_token() {
+  adb_ exec-in "run-as ${package} sh -c 'mkdir -p files/harness && cat > ${IMPORT_FILE}'" <"${cache_file}" ||
+    die "could not push the cached token into ${package}"
+}
+
+cache_app_token() {
+  local tmp
+  (umask 077 && mkdir -p "${CACHE_DIR}") || die "could not create ${CACHE_DIR}"
+  tmp="$(umask 077 && mktemp "${CACHE_DIR}/.${package}.XXXXXX")" || die "could not write to ${CACHE_DIR}"
+  if adb_ exec-out "run-as ${package} sh -c 'cat ${EXPORT_FILE} && rm -f ${EXPORT_FILE}'" >"${tmp}" 2>/dev/null &&
+    [[ -s "${tmp}" ]]; then
+    mv -f "${tmp}" "${cache_file}"
+    log "cached the app's token for later runs on this host"
+  else
+    rm -f "${tmp}"
+    log "WARNING: the app exported no token; the next fresh device needs another code"
+  fi
+}
+
+signed_in_or_code='^(Activation code [A-Z0-9]+|Signed in account [0-9]+|Cached token rejected: .*)$'
+if [[ -s "${cache_file}" ]]; then
+  push_cached_token
+  open_sign_in
+  first="$(await_text "${signed_in_or_code}" "the cached session")"
+  if [[ "${first}" == Cached\ token\ rejected:* ]]; then
+    rm -f "${cache_file}"
+    log "${first}; dropped it and requesting a device code"
+    open_sign_in
+    first="$(await_text "${signed_in_or_code}" "an activation code")"
+  elif [[ "${first}" == Signed\ in\ account\ * ]]; then
+    log "signed in with the cached token; no code requested"
+  fi
+else
+  open_sign_in
+  first="$(await_text "${signed_in_or_code}" "an activation code")"
+fi
+
 if [[ "${first}" == Activation\ code\ * ]]; then
   code="${first#Activation code }"
   payload="{\"code\":\"${code}\"}"
@@ -169,14 +224,18 @@ if [[ "${first}" == Activation\ code\ * ]]; then
   cli auth approve --json "${payload}" --output json >/dev/null 2>&1 || die "putio auth approve failed"
   log "approved the app's code as ${PROFILE}"
   first="$(await_text '^Signed in account [0-9]+$' "the signed-in account")"
+  approved=1
+elif [[ "${first}" == Cached\ token\ rejected:* ]]; then
+  die "${first}"
 else
-  log "app already signed in; no approval needed"
+  log "app signed in; no approval needed"
 fi
 
 app_account="${first#Signed in account }"
 [[ "${app_account}" == "${account_id}" ]] ||
   die "app is signed in as account ${app_account}, not ${PROFILE} (${account_id}); sign out or pm clear ${package} first"
 echo "SIGNED IN ${app_account}"
+if [[ -n "${approved:-}" ]]; then cache_app_token; fi
 
 adb_ shell am start -W -n "${package}/${MAIN_ACTIVITY}" >/dev/null 2>&1 || die "could not open ${MAIN_ACTIVITY}"
 # The Files root's search bar shows in every navigation layout; Welcome has none.
