@@ -16,7 +16,7 @@ import io.putdotio.android.trash.TrashContent
 import io.putdotio.android.trash.TrashEvent
 import io.putdotio.android.trash.TrashRestoreCheck
 import io.putdotio.android.trash.TrashRestoreSubmission
-import io.putdotio.android.trash.confirm
+import io.putdotio.android.trash.restore
 import io.putdotio.android.trash.liveItem
 import io.putdotio.android.trash.mobileTrashViewModelFactory
 import io.putdotio.android.trash.trashItem
@@ -52,7 +52,7 @@ class MobileTrashViewModelTest {
             val before = checkNotNull(beforeViewModel.controllerFor(USER_ID, SessionOne, repository))
             before.dispatch(TrashEvent.Open)
             shadowOf(Looper.getMainLooper()).idle()
-            before.confirm()
+            before.restore()
             shadowOf(Looper.getMainLooper()).idle()
             val pending = before.state.value
             assertEquals(TrashRestoreSubmission.ACKNOWLEDGED, pending.restoreOutcome?.submission)
@@ -68,7 +68,7 @@ class MobileTrashViewModelTest {
             assertSame(before, after)
             assertEquals(pending, after.state.value)
             assertFalse(after.dispatch(TrashEvent.Open))
-            assertFalse(after.dispatch(TrashEvent.SelectRestore(trashItem().id)))
+            assertFalse(after.dispatch(TrashEvent.Restore(trashItem().id)))
             assertEquals(1, repository.loadCount)
 
             val resolved = liveItem().copy(parentId = FilesItemId(0L), name = "collision-2.txt")
@@ -102,7 +102,7 @@ class MobileTrashViewModelTest {
             val first = checkNotNull(viewModel.controllerFor(USER_ID, SessionOne, oldRepository))
             first.dispatch(TrashEvent.Open)
             shadowOf(Looper.getMainLooper()).idle()
-            first.confirm()
+            first.restore()
             shadowOf(Looper.getMainLooper()).idle()
             val oldPending = first.state.value
             assertEquals(TrashRestoreCheck.CHECKING, oldPending.restoreOutcome?.check)
@@ -121,7 +121,7 @@ class MobileTrashViewModelTest {
             assertNotSame(first, second)
             assertTrue(second.dispatch(TrashEvent.Open))
             shadowOf(Looper.getMainLooper()).idle()
-            second.confirm()
+            second.restore()
             shadowOf(Looper.getMainLooper()).idle()
             val newPending = second.state.value
             assertEquals(TrashRestoreCheck.UNAVAILABLE, newPending.restoreOutcome?.check)

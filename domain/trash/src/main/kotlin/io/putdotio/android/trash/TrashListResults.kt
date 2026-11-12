@@ -54,7 +54,7 @@ private fun TrashMachine.rejectPage(completed: TrashRequest.ListPage, failure: P
     }
     val authFailure = failure.authFailure()
     val rejected = copy(state = if (authFailure == null) state.copy(content = content) else state.copy(
-        content = content, confirmation = null, confirmationId = null,
+        content = content,
         actionConfirmation = null, actionConfirmationId = null, authenticationFailure = authFailure,
     ))
     return if (completed.verifiesAction) rejected.failActionVerification(failure) else rejected

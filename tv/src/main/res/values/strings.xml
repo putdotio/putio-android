@@ -351,12 +351,8 @@
     <string name="tv_trash_restore">Restore</string>
     <string name="tv_trash_delete">Delete permanently</string>
     <string name="tv_trash_ok">OK</string>
-    <string name="tv_trash_restore_title">Restore item?</string>
-    <string name="tv_trash_restore_message">%1$s goes back to Files. Restoration may take a moment.</string>
     <string name="tv_trash_delete_title">Delete permanently?</string>
     <string name="tv_trash_delete_message">%1$s will be removed from trash right away. This cannot be undone.</string>
-    <string name="tv_trash_restore_all_title">Restore everything?</string>
-    <string name="tv_trash_restore_all_message">Every item in trash goes back to Files. Restoration may take a moment.</string>
     <string name="tv_trash_empty_title_confirm">Empty trash?</string>
     <string name="tv_trash_empty_message_confirm">Every item in trash is deleted permanently. This can\'t be undone.</string>
     <plurals name="tv_trash_empty_count_message">

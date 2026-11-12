@@ -17,7 +17,7 @@ class TrashRepeatedRestoreTest {
         }
         TrashController(repository, this).use { controller ->
             controller.openLoaded()
-            controller.confirm(original.id)
+            controller.restore(original.id)
             controller.awaitState {
                 it.restoreOutcome?.check == TrashRestoreCheck.AVAILABLE &&
                     (it.content as? TrashContent.Loaded)?.isRefreshing == false
@@ -29,7 +29,7 @@ class TrashRepeatedRestoreTest {
                 controller.dispatch(TrashEvent.Refresh)
                 controller.awaitState { (it.content as? TrashContent.Loaded)?.isRefreshing == false }
                 assertFalse("Unproven new deletion: $date", controller.state.value.canRestore(original.id))
-                assertFalse(controller.dispatch(TrashEvent.SelectRestore(original.id)))
+                assertFalse(controller.dispatch(TrashEvent.Restore(original.id)))
             }
 
             val deletedAgain = original.copy(deletedAt = "2026-09-07T10:00:00")
@@ -48,9 +48,9 @@ class TrashRepeatedRestoreTest {
             repository.onResolve = { PutioResult.Failure(apiFailure(404, "NOT_FOUND")) }
             controller.dispatch(TrashEvent.Refresh)
             controller.awaitState { (it.content as? TrashContent.Loaded)?.isRefreshing == false }
-            controller.confirm(original.id)
+            controller.restore(original.id)
             controller.awaitState { it.restoreOutcome?.check == TrashRestoreCheck.UNAVAILABLE }
-            assertFalse(controller.dispatch(TrashEvent.SelectRestore(original.id)))
+            assertFalse(controller.dispatch(TrashEvent.Restore(original.id)))
             assertEquals(listOf(original.id, original.id), repository.restoredIds)
         }
     }
@@ -65,7 +65,7 @@ class TrashRepeatedRestoreTest {
             }
             TrashController(repository, this).use { controller ->
                 controller.openLoaded()
-                controller.confirm(original.id)
+                controller.restore(original.id)
                 controller.awaitState {
                     it.restoreOutcome?.check == TrashRestoreCheck.AVAILABLE &&
                         (it.content as? TrashContent.Loaded)?.isRefreshing == false

@@ -57,7 +57,7 @@ import io.putdotio.android.trash.TrashContent
 import io.putdotio.android.trash.TrashController
 import io.putdotio.android.trash.TrashEvent
 import io.putdotio.android.trash.TrashRestoreCheck
-import io.putdotio.android.trash.confirm
+import io.putdotio.android.trash.restore
 import io.putdotio.android.trash.trashItem
 import io.putdotio.android.trash.page
 import io.putdotio.sdk.files.PutioFileType
@@ -175,7 +175,7 @@ class MobileFilesMoveNavigationTest {
             compose.waitUntil(5_000L) {
                 compose.runOnIdle { controller.state.value.content is TrashContent.Loaded }
             }
-            compose.runOnIdle { controller.confirm(restoreItem.id) }
+            compose.runOnIdle { controller.restore(restoreItem.id) }
             compose.waitUntil(5_000L) {
                 compose.runOnIdle { controller.state.value.restoreOutcome?.check == TrashRestoreCheck.UNAVAILABLE }
             }

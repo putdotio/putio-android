@@ -84,9 +84,8 @@ internal suspend fun TrashController.openLoaded() {
     awaitState { it.content is TrashContent.Loaded && !it.content.isRefreshing }
 }
 
-public fun TrashController.confirm(itemId: FilesItemId = trashItem().id) {
-    check(dispatch(TrashEvent.SelectRestore(itemId)))
-    check(dispatch(TrashEvent.ConfirmRestore(checkNotNull(state.value.confirmationId))))
+public fun TrashController.restore(itemId: FilesItemId = trashItem().id) {
+    check(dispatch(TrashEvent.Restore(itemId)))
 }
 
 internal fun TrashController.confirmAction(select: TrashEvent) {

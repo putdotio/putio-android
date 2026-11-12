@@ -56,7 +56,6 @@ import io.putdotio.android.files.MOBILE_FILES_LIST_TAG
 import io.putdotio.android.playback.dispatch
 import io.putdotio.android.trash.MOBILE_MANAGE_TRASH_TAG
 import io.putdotio.android.trash.MOBILE_TRASH_CHECK_TAG
-import io.putdotio.android.trash.MOBILE_TRASH_CONFIRM_TAG
 import io.putdotio.android.trash.MOBILE_TRASH_ITEM_RESTORE_TAG
 import io.putdotio.android.trash.MOBILE_TRASH_LIST_TAG
 import io.putdotio.android.trash.MOBILE_TRASH_OUTCOME_TAG
@@ -105,18 +104,9 @@ class AuthenticatedTrashRestoreTest {
             }
             compose.onNode(hasText("Account") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))).performClick()
             compose.onNodeWithTag(MOBILE_MANAGE_TRASH_TAG).performScrollTo().performClick()
-            openConfirmation(fixture.cancel)
-            trashRestoreScreenshot("cancel-confirmation")
-            compose.onNodeWithText(context.getString(R.string.mobile_action_cancel)).performClick()
-            compose.runOnIdle { assertEquals(0, repository.restores) }
-            trashRestoreApiCheck("Cancel readback") {
-                requireUnavailable(repository.resolveItem(FilesItemId(fixture.cancel.id)))
-                assertTrue("Cancel remains in Trash", boundedTrash(repository).any { it.id.value == fixture.cancel.id })
-            }
             requireSession(runtime, session)
             assertEquals(settings, settings(runtime))
-            openConfirmation(fixture.file)
-            compose.onNodeWithTag(MOBILE_TRASH_CONFIRM_TAG).performClick()
+            restoreFromSheet(fixture.file)
             compose.waitUntil(TIMEOUT) {
                 controller.state.value.restoreOutcome?.submission
                     ?.let { it != TrashRestoreSubmission.SUBMITTING } == true
@@ -190,7 +180,7 @@ class AuthenticatedTrashRestoreTest {
         }
     }
 
-    private fun openConfirmation(item: TrashRestoreFixtureItem) {
+    private fun restoreFromSheet(item: TrashRestoreFixtureItem) {
         var pages = 1
         while (true) {
             compose.waitUntil(TIMEOUT) {
@@ -210,8 +200,7 @@ class AuthenticatedTrashRestoreTest {
             context.getString(R.string.mobile_trash_actions_named, item.name),
         ).performClick()
         compose.onNodeWithTag(MOBILE_TRASH_ITEM_RESTORE_TAG).performClick()
-        compose.onNodeWithTag(MOBILE_TRASH_CONFIRM_TAG).assertIsDisplayed()
-        assertEquals(item.id, controller.state.value.confirmation?.id?.value)
+        assertEquals(item.id, controller.state.value.restoreOutcome?.item?.id?.value)
     }
 
     private fun filesRow(name: String): androidx.compose.ui.test.SemanticsNodeInteraction {

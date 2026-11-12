@@ -65,7 +65,6 @@ import io.putdotio.android.files.MOBILE_FILES_REFRESH_TAG
 import io.putdotio.android.playback.dispatch
 import io.putdotio.android.trash.MOBILE_MANAGE_TRASH_TAG
 import io.putdotio.android.trash.MOBILE_TRASH_CHECK_TAG
-import io.putdotio.android.trash.MOBILE_TRASH_CONFIRM_TAG
 import io.putdotio.android.trash.MOBILE_TRASH_ITEM_RESTORE_TAG
 import io.putdotio.android.trash.MOBILE_TRASH_LIST_TAG
 import io.putdotio.android.account.MOBILE_ACCOUNT_LIST_TAG
@@ -90,7 +89,6 @@ class TrashRestoreUiProofTest {
         openTrash()
         repository.completeList(0, TrashPage(listOf(repository.item), null, 1, 40))
         select(repository.item)
-        compose.onNodeWithTag(MOBILE_TRASH_CONFIRM_TAG).performClick()
         await { repository.restores.size == 1 }
         repository.restores[0].complete(PutioResult.Failure(offline()))
         repository.completeCheck(0, PutioResult.Failure(offline()))
@@ -104,8 +102,7 @@ class TrashRestoreUiProofTest {
         await { controller.state.value.authenticationFailure != null }
         assertNotNull(controller.state.value.restoreOutcome)
         compose.runOnIdle {
-            assertFalse(controller.dispatch(TrashEvent.SelectRestore(repository.item.id)))
-            assertFalse(controller.dispatch(TrashEvent.ConfirmRestore(1)))
+            assertFalse(controller.dispatch(TrashEvent.Restore(repository.item.id)))
         }
         assertEquals(1, repository.restores.size)
         assertEquals(2, repository.checkIds.size)

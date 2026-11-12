@@ -87,7 +87,7 @@ internal fun MobileTrashItemSheet(
                     .testTag(MOBILE_TRASH_ITEM_RESTORE_TAG)
                     .clickable(enabled = state.canRestore(item.id), role = Role.Button) {
                         onDismiss()
-                        onEvent(TrashEvent.SelectRestore(item.id))
+                        onEvent(TrashEvent.Restore(item.id))
                     },
             )
             HorizontalDivider()
@@ -150,7 +150,7 @@ internal fun MobileTrashOverflow(state: TrashState, onEvent: (TrashEvent) -> Boo
             )
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.mobile_trash_restore_all)) },
-                onClick = { choose(TrashEvent.SelectRestoreAll) },
+                onClick = { choose(TrashEvent.RestoreAll) },
                 enabled = state.canActOnAll,
                 modifier = Modifier.testTag(MOBILE_TRASH_RESTORE_ALL_TAG),
             )
@@ -166,9 +166,12 @@ internal fun MobileTrashOverflow(state: TrashState, onEvent: (TrashEvent) -> Boo
 }
 
 @Composable
-internal fun MobileTrashActionConfirmation(action: TrashAction, state: TrashState, onEvent: (TrashEvent) -> Boolean) {
+internal fun MobileTrashActionConfirmation(
+    action: TrashDestructiveAction,
+    state: TrashState,
+    onEvent: (TrashEvent) -> Boolean,
+) {
     val confirmationId = state.actionConfirmationId
-    val destructive = action !is TrashAction.RestoreAll
     AlertDialog(
         onDismissRequest = { onEvent(TrashEvent.CancelAction) },
         title = { Text(stringResource(action.titleResource())) },
@@ -176,22 +179,17 @@ internal fun MobileTrashActionConfirmation(action: TrashAction, state: TrashStat
             Text(
                 text = when (action) {
                     is TrashAction.DeleteItem -> stringResource(R.string.mobile_trash_delete_message, action.item.name)
-                    TrashAction.RestoreAll -> stringResource(R.string.mobile_trash_restore_all_message)
                     TrashAction.Empty -> stringResource(R.string.mobile_trash_empty_confirm_message)
                 },
                 modifier = Modifier.verticalScroll(rememberScrollState()),
             )
         },
         confirmButton = {
-            val onConfirm: () -> Unit = { confirmationId?.let { onEvent(TrashEvent.ConfirmAction(it)) } }
-            val enabled = confirmationId != null && state.authenticationFailure == null && !state.hasPendingMutation
-            val modifier = Modifier.testTag(MOBILE_TRASH_ACTION_CONFIRM_TAG)
-            val label = stringResource(action.confirmResource())
-            if (destructive) {
-                PutioDestructiveButton(onClick = onConfirm, enabled = enabled, modifier = modifier) { Text(label) }
-            } else {
-                TextButton(onClick = onConfirm, enabled = enabled, modifier = modifier) { Text(label) }
-            }
+            PutioDestructiveButton(
+                onClick = { confirmationId?.let { onEvent(TrashEvent.ConfirmAction(it)) } },
+                enabled = confirmationId != null && state.authenticationFailure == null && !state.hasPendingMutation,
+                modifier = Modifier.testTag(MOBILE_TRASH_ACTION_CONFIRM_TAG),
+            ) { Text(stringResource(action.confirmResource())) }
         },
         dismissButton = {
             MobileDialogDismissButton(onClick = { onEvent(TrashEvent.CancelAction) })
@@ -282,15 +280,13 @@ private fun TrashActionOutcome.submissionMessageResource(): Int = when (submissi
     TrashActionSubmission.REJECTED -> R.string.mobile_trash_action_rejected
 }
 
-private fun TrashAction.titleResource(): Int = when (this) {
+private fun TrashDestructiveAction.titleResource(): Int = when (this) {
     is TrashAction.DeleteItem -> R.string.mobile_trash_delete_title
-    TrashAction.RestoreAll -> R.string.mobile_trash_restore_all_title
     TrashAction.Empty -> R.string.mobile_trash_empty_confirm_title
 }
 
-private fun TrashAction.confirmResource(): Int = when (this) {
+private fun TrashDestructiveAction.confirmResource(): Int = when (this) {
     is TrashAction.DeleteItem -> R.string.mobile_trash_delete
-    TrashAction.RestoreAll -> R.string.mobile_trash_restore_all
     TrashAction.Empty -> R.string.mobile_trash_empty_action
 }
 
