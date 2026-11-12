@@ -15,6 +15,8 @@ internal fun openChromeStoreListing(context: Context): Boolean =
             true
         } catch (_: ActivityNotFoundException) {
             false
+        } catch (_: SecurityException) {
+            false
         }
     }
 

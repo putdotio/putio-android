@@ -341,7 +341,7 @@
     <string name="mobile_auth_chrome_message">Install or update Chrome, then come back to sign in.</string>
     <string name="mobile_auth_chrome_action">Get Chrome</string>
     <string name="mobile_auth_no_chrome_title">This device can’t get Chrome</string>
-    <string name="mobile_auth_no_chrome_message">Sign-in needs Chrome from Google Play, which this device doesn’t have.</string>
+    <string name="mobile_auth_no_chrome_message">Sign-in needs Chrome from Google Play, which isn’t available here.</string>
     <string name="mobile_auth_not_configured_title">Mobile sign-in isn’t configured</string>
     <string name="mobile_auth_not_configured_message">This build needs its own Android sign-in registration before it can open the browser.</string>
     <string name="mobile_auth_storage_title">Secure storage is unavailable</string>

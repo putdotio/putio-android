@@ -152,7 +152,7 @@ class MobileWelcomeScreenTest {
         }
 
         compose.onNodeWithText("This device can’t get Chrome").assertIsDisplayed()
-        compose.onNodeWithText("Sign-in needs Chrome from Google Play, which this device doesn’t have.")
+        compose.onNodeWithText("Sign-in needs Chrome from Google Play, which isn’t available here.")
             .assertIsDisplayed()
         compose.onAllNodes(hasClickAction()).assertCountEquals(1)
         compose.onNodeWithText("Try again").performClick()

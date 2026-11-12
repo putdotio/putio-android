@@ -2,6 +2,7 @@ package io.putdotio.android.auth
 
 import android.app.Activity
 import android.content.ComponentName
+import android.content.ContextWrapper
 import android.content.Intent
 import android.content.IntentFilter
 import android.net.Uri
@@ -65,6 +66,15 @@ class ChromeStoreListingTest {
     fun `no store at all reports that nothing opened`() {
         assertFalse(openChromeStoreListing(activity))
         assertNull(shadowOf(activity).nextStartedActivity)
+    }
+
+    @Test
+    fun `a Google Play that refuses the launch reports that nothing opened`() {
+        val refusing = object : ContextWrapper(activity) {
+            override fun startActivity(intent: Intent) = throw SecurityException("blocked by policy")
+        }
+
+        assertFalse(openChromeStoreListing(refusing))
     }
 
     private fun registerHandler(packageName: String, scheme: String) {
