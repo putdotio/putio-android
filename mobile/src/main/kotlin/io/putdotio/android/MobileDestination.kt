@@ -10,7 +10,7 @@ import io.putdotio.android.downloads.MOBILE_DOWNLOADS_ROUTE
 import io.putdotio.android.sharing.MOBILE_PUBLIC_LINKS_ROUTE
 import io.putdotio.android.trash.MOBILE_TRASH_ROUTE
 
-/** The five tabs, in the order DESIGN.md's Layout fixes. Each keeps its own back stack. */
+/** The tabs, in the order DESIGN.md's Layout fixes. Each keeps its own back stack. */
 internal enum class MobileDestination(
     val route: String,
     @StringRes val labelRes: Int,

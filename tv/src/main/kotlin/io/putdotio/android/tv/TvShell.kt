@@ -121,8 +121,8 @@ internal fun TvShell(
     }
     TvHiddenTabEffect(
         hidden = destination !in tabs,
-        tabsFocused = { tabsHaveFocus },
-        paneFocused = { !tabBarHasFocus },
+        tabsFocused = tabsHaveFocus,
+        paneFocused = !tabBarHasFocus,
         filesTab = tabFocus.getValue(TvDestination.Files),
     ) { focusPane ->
         destination = TvDestination.Files
@@ -201,16 +201,15 @@ private fun shownTabs(showHome: Boolean, showHistory: Boolean): List<TvDestinati
 @Composable
 private fun TvHiddenTabEffect(
     hidden: Boolean,
-    tabsFocused: () -> Boolean,
-    paneFocused: () -> Boolean,
+    tabsFocused: Boolean,
+    paneFocused: Boolean,
     filesTab: FocusRequester,
     showFiles: (focusPane: Boolean) -> Unit,
 ) {
     LaunchedEffect(hidden) {
         if (hidden) {
-            val tabWasFocused = tabsFocused()
-            showFiles(paneFocused())
-            if (tabWasFocused) filesTab.requestFocus()
+            showFiles(paneFocused)
+            if (tabsFocused) filesTab.requestFocus()
         }
     }
 }

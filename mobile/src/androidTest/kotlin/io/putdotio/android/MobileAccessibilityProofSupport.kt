@@ -86,7 +86,7 @@ internal fun accessibilityTrash(): TrashState = TrashState(TrashContent.Loaded(
 ))
 
 internal fun accessibilitySettings(): AccountSettingsState = accountSettingsState(
-    AccountSettingsContent.Ready(AccountSettingsPreferences(false, true, false, false)),
+    AccountSettingsContent.Ready(AccountSettingsPreferences(true, true, false, false)),
     AccountSettingsMutation.Idle, 1,
 )
 

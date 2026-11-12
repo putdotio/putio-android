@@ -79,14 +79,8 @@ class TvCopyProofTest {
     }
 
     @Test
-    fun historyOffNamesTheToggleAndTheQuotaStatesWhatIsFree() {
+    fun historyOffAndTheQuotaStatesWhatIsFree() {
         mount(account(historyEnabled = false, optimistic = true), trash = emptyList())
-
-        compose.openTvTab("History")
-        compose.waitUntil(5_000) {
-            hasText("Turn on Keep account history in Account to see what happens to your files.")
-        }
-        screenshot("04-tv-history-off")
 
         compose.openTvTab("Account")
         compose.waitUntil(5_000) { hasText("${size(SIZE - USED)} of ${size(SIZE)} free") }

@@ -78,7 +78,7 @@ internal const val TV_HISTORY_ROW_TAG = "tv-history-row"
 
 private fun HistoryContent.entryTarget(stateFocus: FocusRequester, rowsTarget: FocusRequester): FocusRequester =
     when (this) {
-        HistoryContent.Empty, HistoryContent.Disabled -> FocusRequester.Cancel
+        HistoryContent.Empty -> FocusRequester.Cancel
         is HistoryContent.Ready -> rowsTarget
         else -> stateFocus
     }
@@ -90,7 +90,8 @@ private suspend fun placeStateFocus(
     tabFocus: FocusRequester?,
 ) {
     val empty = content == HistoryContent.Empty
-    if (!(empty || content is HistoryContent.Loading) || !paneHasFocus.value) return
+    val loading = content is HistoryContent.Loading || content == HistoryContent.Disabled
+    if (!(empty || loading) || !paneHasFocus.value) return
     withFrameNanos {}
     if (!paneHasFocus.value) return
     if (empty) {
@@ -151,7 +152,6 @@ internal fun TvHistoryScreen(
             .fillMaxSize()
             .padding(top = HISTORY_TOP_GAP, bottom = STATE_BOTTOM_GAP)
         when (content) {
-            HistoryContent.Disabled -> Unit
             is HistoryContent.Failed ->
                 TvLoadFailedState(
                     failure = content.failure,
@@ -168,7 +168,7 @@ internal fun TvHistoryScreen(
                     message = stringResource(R.string.tv_history_empty_message),
                     modifier = statePane,
                 )
-            is HistoryContent.Loading -> TvHistoryLoading(stateFocus)
+            HistoryContent.Disabled, is HistoryContent.Loading -> TvHistoryLoading(stateFocus)
             is HistoryContent.Ready ->
                 TvHistoryListDetail(
                     content = content,

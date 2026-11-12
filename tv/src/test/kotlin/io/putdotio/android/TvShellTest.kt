@@ -297,6 +297,26 @@ class TvShellTest {
     }
 
     @Test
+    fun historyOffWhileItsTabHasFocusMovesFocusToTheFilesTab() {
+        var showHistory by mutableStateOf(true)
+        compose.setTvContent {
+            TvShell(
+                account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                onSignOut = {},
+                showHistory = showHistory,
+            )
+        }
+        compose.onTab("Home").performKeyInput { repeat(3) { pressKey(Key.DirectionRight) } }
+        compose.onTab("History").assertIsFocused().assertIsSelected()
+
+        showHistory = false
+        compose.waitForIdle()
+
+        compose.onTab("History").assertDoesNotExist()
+        compose.onTab("Files").assertIsFocused().assertIsSelected()
+    }
+
+    @Test
     fun searchTabEntersOnTheFieldAndAResultRequestMovesFocusIntoFiles() {
         val search = searchState(
             query = "",
