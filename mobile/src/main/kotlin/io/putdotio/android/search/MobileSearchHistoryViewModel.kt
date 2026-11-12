@@ -88,7 +88,7 @@ internal class ActiveSearchHistorySession(
     private val historyOpener = HistoryFileOpener(
         history.navigation,
         filesItemResolver,
-        { item, origin -> navigationChannel.send(FilesExternalOpen(item, origin)) },
+        { item, origin, _ -> navigationChannel.send(FilesExternalOpen(item, origin)) },
         scope,
     )
 

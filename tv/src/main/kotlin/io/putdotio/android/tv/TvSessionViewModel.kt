@@ -42,6 +42,7 @@ import io.putdotio.android.tv.home.TvShowHomeSetting
 import io.putdotio.android.tv.home.TvShowHomeStore
 import io.putdotio.android.history.HistoryController
 import io.putdotio.android.history.HistoryFileOpener
+import io.putdotio.android.history.HistoryOpenTarget
 import io.putdotio.android.history.HistoryRepository
 import io.putdotio.android.tv.history.TvHistoryFiles
 import io.putdotio.android.settings.AndroidAppConfigState
@@ -181,11 +182,13 @@ internal class TvSession internal constructor(
     private val streamUrls = dependencies.streamUrls
     private val sessionJob = SupervisorJob(parentScope.coroutineContext[Job])
     private val scope = CoroutineScope(parentScope.coroutineContext + sessionJob)
-    private val historyOpenChannel = Channel<FilesItem>(Channel.BUFFERED)
+    private val historyOpenChannel = Channel<TvExternalOpen>(Channel.BUFFERED)
     private val historyOpener = HistoryFileOpener(
         history.navigation,
         dependencies.filesItemResolver,
-        { item, _ -> historyOpenChannel.send(item) },
+        { item, origin, target ->
+            historyOpenChannel.send(openExternal(item, origin, playMedia = target == HistoryOpenTarget.File))
+        },
         scope,
     )
     private val fileActionFailures = TvActionFailure()
@@ -276,8 +279,8 @@ internal class TvSession internal constructor(
 
     val recentSearchFailure = recentSearches.failure
 
-    /** A history event's file, resolved and ready for Files to open. */
-    val historyOpens: Flow<FilesItem> = historyOpenChannel.receiveAsFlow()
+    /** What opening a history event's file did. */
+    val historyOpens: Flow<TvExternalOpen> = historyOpenChannel.receiveAsFlow()
 
     /** Why the last history row could not be resolved; cleared by the next success or dismissal. */
     val historyOpenFailure: StateFlow<PutioFailure?> = historyOpener.failure

@@ -301,9 +301,9 @@ internal fun TvSessionShell(
         confirmedHistoryEnabled?.let { session.history.dispatch(HistoryEvent.SetEnabled(it)) }
     }
 
-    // A search result or a Home pick plays when it is media; anything else opens in Files and the
-    // shell switches destinations. A history event always opens its folder in Files. A refused
-    // jump stays put with an explanation.
+    // A search result, a Home pick or a history event plays when it is media; anything else opens
+    // in Files and the shell switches destinations. A history event's "Go to folder" opens its
+    // folder in Files. A refused jump stays put with an explanation.
     var requestedDestination by remember(session) { mutableStateOf<TvDestination?>(null) }
     var openRejected by remember(session) { mutableStateOf(false) }
     var historyOpenRejected by remember(session) { mutableStateOf(false) }
@@ -328,10 +328,9 @@ internal fun TvSessionShell(
         }
     }
     LaunchedEffect(session) {
-        session.historyOpens.collect { item ->
-            val opened = session.openExternal(item, FilesOpenOrigin.HISTORY, playMedia = false)
+        session.historyOpens.collect { opened ->
             historyOpenRejected = opened == TvExternalOpen.REFUSED
-            if (!historyOpenRejected) requestedDestination = TvDestination.Files
+            if (opened == TvExternalOpen.IN_FILES) requestedDestination = TvDestination.Files
         }
     }
     val linkNotice = rememberTvLaunchHandling(
@@ -880,7 +879,7 @@ private fun TvHistoryPane(
     TvHistoryScreen(
         state = historyState,
         onEvent = { event ->
-            if (event is HistoryEvent.OpenFile) onClearOpenRejection()
+            if (event is HistoryEvent.OpenFile || event is HistoryEvent.GoToFolder) onClearOpenRejection()
             session.history.dispatch(event)
         },
         notice = when {
