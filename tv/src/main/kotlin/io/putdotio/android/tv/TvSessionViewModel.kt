@@ -279,7 +279,7 @@ internal class TvSession internal constructor(
 
     val recentSearchFailure = recentSearches.failure
 
-    /** What opening a history event's file did: its media plays, and "Go to folder" opens Files. */
+    /** What opening a history event's file did. */
     val historyOpens: Flow<TvExternalOpen> = historyOpenChannel.receiveAsFlow()
 
     /** Why the last history row could not be resolved; cleared by the next success or dismissal. */
