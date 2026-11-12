@@ -139,7 +139,7 @@ internal fun TvHistoryScreen(
     )
     LaunchedEffect(content::class) { placeStateFocus(content, paneHasFocus, stateFocus, tabFocus) }
     val snackbar = remember { TvUndoSnackbar(FocusRequester()) }
-    val dialogOpen = state.clearing != HistoryClearing.Idle
+    val dialogOpen = open == HistoryOpen.History && state.clearing != HistoryClearing.Idle
     val dialogWasOpen = remember { mutableStateOf(false) }
     LaunchedEffect(dialogOpen) { refocusAfterDialog(dialogOpen, dialogWasOpen, paneHasFocus, entryTarget) }
     Column(
@@ -191,7 +191,7 @@ internal fun TvHistoryScreen(
                 )
         }
     }
-    TvHistoryClearDialog(state.clearing, onEvent)
+    if (open == HistoryOpen.History) TvHistoryClearDialog(state.clearing, onEvent)
 }
 
 @Composable

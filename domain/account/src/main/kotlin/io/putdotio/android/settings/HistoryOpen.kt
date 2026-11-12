@@ -22,6 +22,7 @@ public fun AccountSettingsState.historyOpen(): HistoryOpen {
     }?.takeIf { mutation.pending?.first == AccountSettingsKey.History }
     val enabled = lastRead?.historyEnabled ?: confirmedHistoryEnabled()
     val loadFailure = (content as? AccountSettingsContent.Failed)?.failure?.putioFailure
+        ?.takeUnless { it is PutioFailure.AuthenticationRequired }
     return when {
         enabled == true -> HistoryOpen.History
         enabled == false -> HistoryOpen.FilesRoot
