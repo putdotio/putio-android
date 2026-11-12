@@ -16,6 +16,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LocalContentColor
@@ -42,10 +43,12 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import io.putdotio.android.LoadNextPageNearEnd
 import io.putdotio.android.MobileDialogDismissButton
 import io.putdotio.android.MobileEmptyState
 import io.putdotio.android.MobileLoadingState
 import io.putdotio.android.MobileMiddleCutText
+import io.putdotio.android.MobilePullToRefresh
 import io.putdotio.android.MobileRow
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
@@ -82,26 +85,39 @@ internal fun MobileTrashScreen(
     LaunchedEffect(state.actionOutcome?.action) {
         if (state.actionOutcome != null) listState.scrollToItem(if (state.restoreOutcome != null) 1 else 0)
     }
-    LazyColumn(modifier.fillMaxSize().testTag(MOBILE_TRASH_LIST_TAG), state = listState) {
-        state.restoreOutcome?.let { outcome ->
-            item(key = "restore-outcome") {
-                MobileTrashOutcome(outcome, state.authenticationFailure == null, onEvent)
+    val loaded = state.content as? TrashContent.Loaded
+    LoadNextPageNearEnd(
+        listState = listState,
+        nextPage = loaded?.nextCursor?.takeIf { !loaded.isBusy && loaded.pageFailure == null },
+        onLoadNextPage = { onEvent(TrashEvent.LoadNextPage) },
+        threshold = TRASH_PAGING_THRESHOLD,
+    )
+    MobilePullToRefresh(
+        isRefreshing = loaded?.isRefreshing == true,
+        onRefresh = { if (loaded?.isBusy == false) onEvent(TrashEvent.Refresh) },
+        modifier = modifier.fillMaxSize(),
+    ) {
+        LazyColumn(Modifier.fillMaxSize().testTag(MOBILE_TRASH_LIST_TAG), state = listState) {
+            state.restoreOutcome?.let { outcome ->
+                item(key = "restore-outcome") {
+                    MobileTrashOutcome(outcome, state.authenticationFailure == null, onEvent)
+                }
             }
-        }
-        state.actionOutcome?.let { outcome ->
-            item(key = "action-outcome") {
-                MobileTrashActionOutcome(outcome, state.authenticationFailure == null, onEvent)
+            state.actionOutcome?.let { outcome ->
+                item(key = "action-outcome") {
+                    MobileTrashActionOutcome(outcome, state.authenticationFailure == null, onEvent)
+                }
             }
-        }
-        when (val content = state.content) {
-            TrashContent.Loading -> item(key = "loading") {
-                MobileLoadingState(stringResource(R.string.mobile_trash_loading))
+            when (val content = state.content) {
+                TrashContent.Loading -> item(key = "loading") {
+                    MobileLoadingState(stringResource(R.string.mobile_trash_loading))
+                }
+                is TrashContent.Error -> item(key = "error") {
+                    TrashReadFailure(content.failure) { onEvent(TrashEvent.Retry) }
+                }
+                is TrashContent.Loaded ->
+                    loadedTrashItems(content, state, onEvent, onActions = { sheetItemId = it.id.value })
             }
-            is TrashContent.Error -> item(key = "error") {
-                TrashReadFailure(content.failure) { onEvent(TrashEvent.Retry) }
-            }
-            is TrashContent.Loaded ->
-                loadedTrashItems(content, state, onEvent, onActions = { sheetItemId = it.id.value })
         }
     }
     sheetItem?.let { item ->
@@ -123,10 +139,7 @@ private fun LazyListScope.loadedTrashItems(
 ) {
     val empty = content.items.isEmpty() && content.nextCursor == null
     item(key = "summary") {
-        Column(Modifier.fillMaxWidth()) {
-            if (!empty) MobileTrashSummary(content)
-            if (content.isRefreshing) LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 16.dp))
-        }
+        if (!empty) MobileTrashSummary(content)
     }
     content.refreshFailure?.let { failure ->
         item(key = "refresh-error") { TrashReadFailure(failure) { onEvent(TrashEvent.Refresh) } }
@@ -153,13 +166,8 @@ private fun LazyListScope.loadedTrashItems(
     item(key = "paging") {
         val pageFailure = content.pageFailure
         when {
-            content.isLoadingMore -> LinearProgressIndicator(Modifier.fillMaxWidth().padding(16.dp))
+            content.isLoadingMore -> MobileTrashLoadingMore()
             pageFailure != null -> TrashReadFailure(pageFailure) { onEvent(TrashEvent.Retry) }
-            content.nextCursor != null -> TextButton(
-                onClick = { onEvent(TrashEvent.LoadNextPage) },
-                enabled = !content.isRefreshing,
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
-            ) { Text(stringResource(R.string.mobile_files_load_more)) }
         }
     }
 }
@@ -270,6 +278,18 @@ private fun Context.goneIn(days: Long): String = when (days) {
 }
 
 @Composable
+private fun MobileTrashLoadingMore() {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(16.dp).semantics { liveRegion = LiveRegionMode.Polite },
+        horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        CircularProgressIndicator(Modifier.size(24.dp).clearAndSetSemantics {}, strokeWidth = 2.dp)
+        Text(stringResource(R.string.mobile_files_loading_more))
+    }
+}
+
+@Composable
 private fun TrashReadFailure(failure: PutioFailure, onRetry: () -> Unit) {
     Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(failure.trashMessage())
@@ -343,3 +363,4 @@ private fun PutioFailure.trashMessage(): String =
     if (this is PutioFailure.AccessDenied) stringResource(R.string.mobile_trash_access_denied) else mobileMessage()
 
 private const val EMPTY_HEIGHT_FRACTION = 0.7f
+private const val TRASH_PAGING_THRESHOLD = 5
