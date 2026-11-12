@@ -116,7 +116,8 @@ internal fun TvTrashList(
                 showsFocus = !focus.dialogShowing.value,
                 modifier = with(rows) {
                     Modifier
-                        .requesters(index, items.lastIndex, anchorIndex, restoreIndex, nextIndex, content.pagePending)
+                        .requesters(index, items.lastIndex, anchorIndex, restoreIndex, content.pagePending)
+                        .focusRequesterIf(index == nextIndex, next)
                         .onFocusChanged {
                             if (it.isFocused) {
                                 heldRowId.value = item.id.value
@@ -211,7 +212,6 @@ private class TrashRowFocus {
         lastIndex: Int,
         anchorIndex: Int,
         restoreIndex: Int,
-        nextIndex: Int,
         pagePending: Boolean,
     ): Modifier =
         this
@@ -219,7 +219,6 @@ private class TrashRowFocus {
             .focusRequesterIf(index == lastIndex, last)
             .holdAtPendingEnd(pagePending && index == lastIndex)
             .focusRequesterIf(index == restoreIndex, restore)
-            .focusRequesterIf(index == nextIndex, next)
 }
 
 private fun LazyListState.restoreTarget(
