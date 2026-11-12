@@ -346,8 +346,8 @@ internal fun MobileNavHost(
                         onPrivacyControls = {
                             navController.navigate(MOBILE_PRIVACY_CONTROLS_ROUTE) { launchSingleTop = true }
                         },
-                        onLoggedInApps = loggedInAppsRepository?.let {
-                            { navController.navigate(MOBILE_LOGGED_IN_APPS_ROUTE) { launchSingleTop = true } }
+                        onLoggedInApps = {
+                            navController.navigate(MOBILE_LOGGED_IN_APPS_ROUTE) { launchSingleTop = true }
                         },
                         onAppInfo = { navController.navigate(MOBILE_APP_INFO_ROUTE) { launchSingleTop = true } },
                         onOpenSourceLicenses = {
@@ -380,9 +380,7 @@ internal fun MobileNavHost(
                     )
                 }
                 composable(MOBILE_LOGGED_IN_APPS_ROUTE) {
-                    loggedInAppsRepository?.let { repository ->
-                        MobileLoggedInAppsRoute(repository, onFilesAuthenticationRequired)
-                    }
+                    MobileLoggedInAppsRoute(loggedInAppsRepository, onFilesAuthenticationRequired)
                 }
                 composable(MOBILE_PUBLIC_LINKS_ROUTE) {
                     publicLinks?.let { MobilePublicLinksScreen(it) }

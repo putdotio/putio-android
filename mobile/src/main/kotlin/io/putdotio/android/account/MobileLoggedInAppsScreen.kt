@@ -323,9 +323,10 @@ private val LOGGED_IN_APPS_MAX_WIDTH = 640.dp
 
 @Composable
 internal fun MobileLoggedInAppsRoute(
-    repository: LoggedInAppsRepository,
+    repository: LoggedInAppsRepository?,
     onAuthenticationRequired: suspend () -> Unit,
 ) {
+    if (repository == null) return
     val model: MobileLoggedInAppsViewModel = viewModel(factory = mobileLoggedInAppsViewModelFactory(repository))
     val state by model.controller.state.collectAsStateWithLifecycle()
     LaunchedEffect(model) {
