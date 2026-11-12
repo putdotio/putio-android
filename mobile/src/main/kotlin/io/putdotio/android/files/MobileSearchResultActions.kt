@@ -39,6 +39,7 @@ internal fun MobileSearchResultActionsHost(
     Box(Modifier.fillMaxSize()) {
         content { sheetItemId = it.id.value }
         MobileFilesNoticeHost(actions.itemActions.notices, Modifier.align(Alignment.BottomCenter))
+        MobileFilesNoticeHost(actions.itemActions.pinNotices, Modifier.align(Alignment.BottomCenter))
     }
     results.firstOrNull { it.id.value == sheetItemId }?.let { item ->
         MobileFilesActions(

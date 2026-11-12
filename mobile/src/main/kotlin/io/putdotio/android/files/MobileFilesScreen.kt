@@ -114,6 +114,7 @@ internal fun MobileFilesScreen(
     fileDragOut: MobileFileDragOut? = null,
     /** Started videos for the root's Continue watching row; other folders never show it. */
     continueWatching: List<ContinueWatchingEntry> = emptyList(),
+    pinned: List<FilesItem> = emptyList(),
     /** Opens the New folder dialog; null where this screen can't create one. */
     onNewFolder: (() -> Unit)? = null,
     /** How a tap opens a file beyond playing media; null leaves only media playable. */
@@ -177,6 +178,7 @@ internal fun MobileFilesScreen(
                 fileDragOut,
                 headers = MobileFilesHeaders(
                     continueWatching = if (atRoot) continueWatching else emptyList(),
+                    pinned = if (atRoot) pinned else emptyList(),
                     summary = if (atRoot) null else current.summary,
                 ),
                 onNewFolder = onNewFolder,
@@ -199,6 +201,8 @@ internal class MobileFilesOpening(
     val showsDetail: Boolean = false,
     val selectedFileId: FilesItemId? = null,
     val actionsRequests: Flow<MobileFilesActionsRequest> = emptyFlow(),
+    /** Opens a file once its folder has loaded and revealed it, as a tap on its row would. */
+    val onOpenWhenRevealed: (FilesItemId) -> Unit = {},
 )
 
 internal data class MobileFilesActionsRequest(val id: FilesItemId, val inViewer: Boolean = false)
@@ -371,6 +375,7 @@ private fun MobileRefreshableFilesContent(
     MobileFilesTrashedAnnouncement(state.current, snackbarHostState, onEvent, itemActions.onUndoTrash)
     MobileFilesNotices(itemActions.notices, snackbarHostState)
     MobileFilesMissingFolderAnnouncement(state, snackbarHostState, onEvent)
+    MobileFilesNotices(itemActions.pinNotices, snackbarHostState)
     val hideStarted = rememberHideWithUndo(itemActions, snackbarHostState)
 
     Box(modifier = modifier.fillMaxSize()) {
@@ -429,6 +434,9 @@ private fun MobileRefreshableFilesContent(
                                 headers = headers,
                                 onPlayEntry = { onPlayMedia(it.toFilesItem()) },
                                 onRemoveEntry = hideStarted,
+                                pinnedActions = itemActions.pinnedActions { item ->
+                                    openPinned(item, state.current, fileOpening, onEvent, onPlayMedia)
+                                },
                                 revealItemId = state.current.revealItemId,
                                 pagingEnabled = operation == FilesFolderOperation.Idle,
                                 onEvent = onEvent,
@@ -943,6 +951,7 @@ private fun MobileFilesList(
     headers: MobileFilesHeaders,
     onPlayEntry: (ContinueWatchingEntry) -> Unit,
     onRemoveEntry: ((ContinueWatchingEntry) -> Unit)?,
+    pinnedActions: MobilePinnedActions,
     revealItemId: FilesItemId?,
     pagingEnabled: Boolean,
     onEvent: (FilesBrowserEvent) -> Unit,
@@ -1009,7 +1018,7 @@ private fun MobileFilesList(
         // toolbar, however tall large fonts make it.
         contentPadding = selection?.let { PaddingValues(top = 8.dp, bottom = it.bottomClearance) } ?: PaddingValues(),
     ) {
-        mobileFilesHeaderItems(headers, onPlayEntry, onRemoveEntry, hidden = selection != null)
+        mobileFilesHeaderItems(headers, onPlayEntry, onRemoveEntry, pinnedActions, hidden = selection != null)
         itemsIndexed(
             items = content.items,
             key = { _, item -> item.id.value },
@@ -1077,6 +1086,30 @@ private fun rowClick(
         }
         else -> null
     }
+
+private fun openPinned(
+    item: FilesItem,
+    folder: FilesFolderState,
+    fileOpening: MobileFilesOpening?,
+    onEvent: (FilesBrowserEvent) -> Unit,
+    onPlayMedia: (FilesItem) -> Unit,
+) {
+    val listedClick =
+        if (folder.content.items().any { it.id == item.id }) rowClick(item, fileOpening, onEvent, onPlayMedia) else null
+    val reveal = if (!item.isFolder && item.parentId == folder.folder.id) {
+        FilesBrowserEvent.RevealItem(folder.folder.id, item.id)
+    } else {
+        FilesBrowserEvent.OpenExternalItem(item, FilesOpenOrigin.HOME)
+    }
+    when {
+        listedClick != null -> listedClick()
+        item.isPlayable && fileOpening?.showsDetail != true -> onPlayMedia(item)
+        else -> {
+            if (!item.isFolder) fileOpening?.onOpenWhenRevealed?.invoke(item.id)
+            onEvent(reveal)
+        }
+    }
+}
 
 @Composable
 private fun rowClickLabel(item: FilesItem, fileOpening: MobileFilesOpening?): String? =

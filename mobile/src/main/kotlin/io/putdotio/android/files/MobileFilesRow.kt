@@ -83,6 +83,7 @@ internal fun MobileFilesRow(
     /** Null outside selection; otherwise whether the row is checked. */
     checked: Boolean? = null,
     onCheckedChange: (() -> Unit)? = null,
+    playbackBounds: Boolean = true,
 ) {
     if (checked != null) {
         MobileFilesSelectableRow(item, checked, onCheckedChange, downloadStatus, place, modifier)
@@ -139,7 +140,7 @@ internal fun MobileFilesRow(
         },
         modifier = modifier
             // A playable row is the player's starting bounds.
-            .playbackContainer(item.id.value, playable = item.isPlayable)
+            .playbackContainer(item.id.value, playable = item.isPlayable && playbackBounds)
             .onFocusChanged { focused = it.isFocused }
             .focusOutline(focused, outline)
             .then(interaction)

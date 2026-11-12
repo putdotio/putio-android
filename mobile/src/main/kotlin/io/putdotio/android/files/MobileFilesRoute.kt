@@ -47,6 +47,8 @@ internal fun MobileFilesRoute(
     publicLinks: MobilePublicLinks? = null,
     fileDragOut: MobileFileDragOut? = null,
     continueWatching: List<ContinueWatchingEntry> = emptyList(),
+    pinned: List<FilesItem> = emptyList(),
+    onRefreshPinned: (() -> Unit)? = null,
     onNewFolder: (() -> Unit)? = null,
     /** From 840dp, the Files bar; it then sits over the list pane, beside the selected file's detail. */
     listPaneTopBar: (@Composable () -> Unit)? = null,
@@ -76,17 +78,23 @@ internal fun MobileFilesRoute(
     var viewerId by rememberSaveable { mutableStateOf<Long?>(null) }
     // Select from a viewer's actions closes the viewer, so the selection shows.
     LaunchedEffect(selecting) { if (selecting) viewerId = null }
+    var pinToOpen by rememberSaveable { mutableStateOf<Long?>(null) }
+    val openWithAnotherApp: (FilesItem) -> Unit = { item -> fileOpener?.openWithAnotherApp(context, item) }
     LandOnLinkedFile(
         state = state,
         linkedFile = linkedFile,
+        pinToOpen = pinToOpen?.let(::FilesItemId),
         showsDetail = showsDetail,
         views = fileOpener != null,
         onDetail = { detailId = it.id.value },
         onView = { viewerId = it.id.value },
-        onLanded = onLinkedFileLanded,
+        onPinElsewhere = openWithAnotherApp,
+        onLanded = {
+            pinToOpen = null
+            onLinkedFileLanded()
+        },
     )
     val actionsRequests = remember { MutableSharedFlow<MobileFilesActionsRequest>(extraBufferCapacity = 1) }
-    val openWithAnotherApp: (FilesItem) -> Unit = { item -> fileOpener?.openWithAnotherApp(context, item) }
     val viewFile: (FilesItem) -> Unit = { viewerId = it.id.value }
     val openFile = fileOpenAction(onPlayMedia, onView = viewFile, onOther = openWithAnotherApp)
     val sheetActions = if (fileOpener == null) {
@@ -100,6 +108,7 @@ internal fun MobileFilesRoute(
             showsDetail = showsDetail,
             selectedFileId = detailId?.takeIf { showsDetail && !selecting }?.let(::FilesItemId),
             actionsRequests = actionsRequests,
+            onOpenWhenRevealed = { pinToOpen = it.value },
         )
     }
     val actionsFrom = { inViewer: Boolean ->
@@ -129,6 +138,8 @@ internal fun MobileFilesRoute(
             publicLinks = publicLinks,
             fileDragOut = fileDragOut,
             continueWatching = continueWatching,
+            pinned = pinned,
+            onRefreshPinned = onRefreshPinned,
             onNewFolder = onNewFolder,
             fileOpening = fileOpening,
             itemActions = sheetActions,
@@ -186,19 +197,23 @@ internal fun MobileFilesRoute(
 private fun LandOnLinkedFile(
     state: FilesBrowserState,
     linkedFile: FilesItemId?,
+    pinToOpen: FilesItemId?,
     showsDetail: Boolean,
     views: Boolean,
     onDetail: (FilesItem) -> Unit,
     onView: (FilesItem) -> Unit,
+    onPinElsewhere: (FilesItem) -> Unit,
     onLanded: () -> Unit,
 ) {
     val folder = state.current
-    val pending = linkedFile?.takeIf { folder.openedFrom == FilesOpenOrigin.LINK && folder.revealItemId == it }
+    val pin = pinToOpen?.takeIf { folder.revealItemId == it }
+    val pending = linkedFile?.takeIf { folder.openedFrom == FilesOpenOrigin.LINK && folder.revealItemId == it } ?: pin
     val linkedItem = folder.content.items().firstOrNull { it.id == pending && !it.isFolder }
     val land = { item: FilesItem ->
         when {
             showsDetail -> onDetail(item)
             views && item.viewerKind != null -> onView(item)
+            item.id == pin -> onPinElsewhere(item)
         }
         onLanded()
     }
@@ -273,6 +288,8 @@ private data class MobileFilesFoldersArgs(
     val publicLinks: MobilePublicLinks?,
     val fileDragOut: MobileFileDragOut?,
     val continueWatching: List<ContinueWatchingEntry>,
+    val pinned: List<FilesItem>,
+    val onRefreshPinned: (() -> Unit)?,
     val onNewFolder: (() -> Unit)?,
     val fileOpening: MobileFilesOpening?,
     val itemActions: MobileFilesItemActions,
@@ -306,6 +323,8 @@ private fun MobileFilesFolders(args: MobileFilesFoldersArgs) = with(args) {
             publicLinks = publicLinks,
             fileDragOut = fileDragOut,
             continueWatching = continueWatching,
+            pinned = pinned,
+            onRefreshPinned = onRefreshPinned?.takeUnless { leaving },
             onNewFolder = onNewFolder?.takeUnless { leaving },
             fileOpening = fileOpening?.takeUnless { leaving },
             itemActions = itemActions,
@@ -313,6 +332,18 @@ private fun MobileFilesFolders(args: MobileFilesFoldersArgs) = with(args) {
             // The leaving folder's rows show no selection; the selection belongs to the folder on screen.
             selection = selection?.takeUnless { leaving },
         )
+    }
+}
+
+private fun refreshingPinsAtRoot(
+    state: FilesBrowserState,
+    onRefreshPinned: (() -> Unit)?,
+    onEvent: (FilesBrowserEvent) -> Boolean,
+): (FilesBrowserEvent) -> Unit {
+    val refreshPins = onRefreshPinned?.takeIf { state.current.folder.id == FilesFolder.Root.id }
+    return { event ->
+        if (event == FilesBrowserEvent.Refresh) refreshPins?.invoke()
+        onEvent(event)
     }
 }
 
@@ -331,6 +362,8 @@ private fun MobileFilesFolder(
     publicLinks: MobilePublicLinks?,
     fileDragOut: MobileFileDragOut?,
     continueWatching: List<ContinueWatchingEntry>,
+    pinned: List<FilesItem>,
+    onRefreshPinned: (() -> Unit)?,
     onNewFolder: (() -> Unit)?,
     fileOpening: MobileFilesOpening?,
     itemActions: MobileFilesItemActions,
@@ -350,7 +383,7 @@ private fun MobileFilesFolder(
             ?.firstOrNull { it.id.value == publicLinkItemId && it.acceptsOwnerActions }
         MobileFilesScreen(
             state = state,
-            onEvent = { onEvent(it) },
+            onEvent = refreshingPinsAtRoot(state, onRefreshPinned, onEvent),
             onPlayMedia = onPlayMedia,
             confirmedTrashEnabled = confirmedTrashEnabled,
             onMoveItem = startMove?.let { start -> { item -> start(listOf(item)) } },
@@ -361,6 +394,7 @@ private fun MobileFilesFolder(
             onPublicLinkItem = publicLinks?.let { { item -> publicLinkItemId = item.id.value } },
             fileDragOut = fileDragOut,
             continueWatching = continueWatching,
+            pinned = pinned,
             onNewFolder = onNewFolder,
             fileOpening = fileOpening,
             itemActions = itemActions,

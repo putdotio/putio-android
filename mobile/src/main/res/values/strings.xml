@@ -104,6 +104,12 @@
     <string name="mobile_files_continue_watching_remove">Remove from Continue watching</string>
     <string name="mobile_files_continue_watching_removed">Removed from Continue watching</string>
     <string name="mobile_files_all_files">All files</string>
+    <string name="mobile_files_pinned">Pinned</string>
+    <string name="mobile_files_pinned_show_all">Show all</string>
+    <string name="mobile_files_pinned_show_less">Show less</string>
+    <string name="mobile_files_pin">Pin</string>
+    <string name="mobile_files_unpin">Unpin</string>
+    <string name="mobile_files_pin_failed">Couldn’t update pins for “%1$s”. %2$s</string>
     <plurals name="mobile_files_item_count">
         <item quantity="one">%1$s item</item>
         <item quantity="other">%1$s items</item>
