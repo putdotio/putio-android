@@ -65,6 +65,8 @@ public data class LoggedInAppsState(
 public sealed interface LoggedInAppsEvent {
     public data object Load : LoggedInAppsEvent
 
+    public data object Refresh : LoggedInAppsEvent
+
     public data class Revoke(val id: LoggedInAppId) : LoggedInAppsEvent
 
     public data object SignOutOthers : LoggedInAppsEvent
@@ -97,6 +99,7 @@ internal data class LoggedInAppsMachine(
         if (state.authenticationFailure != null) return null
         return when (event) {
             LoggedInAppsEvent.Load -> load()
+            LoggedInAppsEvent.Refresh -> refresh()
             is LoggedInAppsEvent.Revoke -> revoke(event.id)
             LoggedInAppsEvent.SignOutOthers -> signOutOthers()
             LoggedInAppsEvent.DismissOutcome ->
@@ -108,6 +111,13 @@ internal data class LoggedInAppsMachine(
         if (request != null) null else copy(
             state = state.copy(content = LoggedInAppsContent.Loading, outcome = null),
             request = LoggedInAppsRequest.Load(nextRequestId),
+            nextRequestId = nextRequestId + 1L,
+        )
+
+    private fun refresh(): LoggedInAppsMachine? =
+        if (request != null || state.content !is LoggedInAppsContent.Ready) load() else copy(
+            state = state.copy(refreshing = true),
+            request = LoggedInAppsRequest.Load(nextRequestId, refresh = true),
             nextRequestId = nextRequestId + 1L,
         )
 

@@ -334,7 +334,7 @@ internal fun MobileLoggedInAppsRoute(
 ) {
     val state by controller.state.collectAsStateWithLifecycle()
     LaunchedEffect(controller) {
-        if (controller.state.value.outcome == null) controller.dispatch(LoggedInAppsEvent.Load)
+        controller.dispatch(LoggedInAppsEvent.Refresh)
     }
     val authenticationFailure = state.authenticationFailure
     LaunchedEffect(authenticationFailure) {

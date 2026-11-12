@@ -82,6 +82,23 @@ class LoggedInAppsControllerTest {
     }
 
     @Test
+    fun refreshingReadsTheAppsAgainAndKeepsTheOutcome() = runTest {
+        val repository = FakeLoggedInAppsRepository(listOf(thisDevice, ios))
+        val controller = loaded(repository)
+        controller.dispatch(LoggedInAppsEvent.SignOutOthers)
+        runCurrent()
+        repository.apps += infuse
+
+        assertTrue(controller.dispatch(LoggedInAppsEvent.Refresh))
+        assertEquals(listOf(thisDevice), apps(controller))
+        runCurrent()
+
+        assertEquals(listOf(thisDevice, infuse), apps(controller))
+        assertEquals(LoggedInAppsOutcome.SignedOutOthers, controller.state.value.outcome)
+        assertTrue(controller.state.value.canSignOutOthers)
+    }
+
+    @Test
     fun revokeWaitsUntilThisDeviceIsKnown() = runTest {
         val repository = FakeLoggedInAppsRepository(listOf(ios, appleTv))
         val controller = loaded(repository)

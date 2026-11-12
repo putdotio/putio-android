@@ -98,7 +98,7 @@ class MobileLoggedInAppsTest {
     }
 
     @Test
-    fun accountOpensLoggedInAppsAndLeavingDoesNotStopSigningOutOthers() {
+    fun accountOpensLoggedInAppsAndLeavingDoesNotStopSigningOutOthersOrTheNextRead() {
         val repository = FakeLoggedInAppsRepository(listOf(thisDevice, ios, infuse))
         val firstRevoke = CompletableDeferred<Unit>()
         val revoke = repository.onRevoke
@@ -125,6 +125,7 @@ class MobileLoggedInAppsTest {
         compose.onNodeWithTag(MOBILE_LOGGED_IN_APPS_ROW_TAG).performClick()
         compose.onNodeWithText("Signed out of all other apps").assertIsDisplayed()
         compose.onNodeWithText("put.io for iOS").assertDoesNotExist()
+        assertEquals(2, repository.listCount)
     }
 
     @Test
