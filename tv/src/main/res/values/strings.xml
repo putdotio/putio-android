@@ -413,6 +413,7 @@
         <item quantity="one">%1$d item is no longer in trash.</item>
         <item quantity="other">%1$d items are no longer in trash.</item>
     </plurals>
+    <string name="tv_trash_delete_selected_some_failed">Couldn’t delete some items.</string>
     <plurals name="tv_trash_delete_selected_failed">
         <item quantity="one">Couldn’t delete %1$d item.</item>
         <item quantity="other">Couldn’t delete %1$d items.</item>

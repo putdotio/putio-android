@@ -54,7 +54,7 @@ public data class TrashActionOutcome(
     val checkFailure: PutioFailure? = null,
     // What Restore all submitted; verification compares the fresh listing against it, not against empty.
     val restoreSnapshot: TrashRestoreSnapshot? = null,
-    val stillListed: List<TrashItem> = emptyList(),
+    val failedCount: Int? = null,
 ) {
     // A complete read that still lists the target answers the question; only a failed read keeps recovery open.
     val isPending: Boolean

@@ -684,6 +684,7 @@
         <item quantity="other">%1$d items are no longer in trash.</item>
     </plurals>
     <string name="mobile_trash_delete_selected_inconclusive">Some items were not in the first page. Check trash again in a moment.</string>
+    <string name="mobile_trash_delete_selected_some_failed">Couldn’t delete some items.</string>
     <plurals name="mobile_trash_delete_selected_failed">
         <item quantity="one">Couldn’t delete %1$d item.</item>
         <item quantity="other">Couldn’t delete %1$d items.</item>

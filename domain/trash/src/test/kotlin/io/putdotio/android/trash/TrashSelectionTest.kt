@@ -1,5 +1,7 @@
 package io.putdotio.android.trash
 
+import io.putdotio.android.PutioResult
+import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.files.FilesItemId
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -30,6 +32,18 @@ class TrashSelectionTest {
     }
 
     @Test
+    fun aRestoreIsNotVerifiedWhileLaterPagesMayStillHoldItsRows() = runBlocking {
+        val repository = FakeTrashRepository().apply { onLoad = { page(first, second, third) } }
+        TrashController(repository, this).use { controller ->
+            controller.openLoaded()
+            repository.onLoad = { PutioResult.Success(TrashPage(listOf(second), FilesCursor("more"), 40, 12L)) }
+            assertTrue(controller.dispatch(TrashEvent.RestoreSelected(ticked)))
+            val draining = controller.awaitState { it.actionOutcome?.check == TrashActionCheck.INCONCLUSIVE }
+            assertTrue(draining.hasPendingAction)
+        }
+    }
+
+    @Test
     fun deletingTickedRowsAsksFirstAndNamesTheRowsThatStayed() = runBlocking {
         val repository = FakeTrashRepository().apply { onLoad = { page(first, second, third) } }
         TrashController(repository, this).use { controller ->
@@ -43,7 +57,7 @@ class TrashSelectionTest {
             assertTrue(controller.dispatch(TrashEvent.ConfirmAction(confirmationId)))
             val partial = controller.awaitState { it.actionOutcome?.check == TrashActionCheck.FAILED }
             assertEquals(listOf(first.id, third.id), repository.deletedIds)
-            assertEquals(listOf(third), partial.actionOutcome?.stillListed)
+            assertEquals(1, partial.actionOutcome?.failedCount)
             assertFalse(partial.hasPendingAction)
             assertTrue(controller.dispatch(TrashEvent.SelectDeleteSelected(setOf(third.id))))
             assertEquals(TrashAction.DeleteSelected(listOf(third)), controller.state.value.actionConfirmation)

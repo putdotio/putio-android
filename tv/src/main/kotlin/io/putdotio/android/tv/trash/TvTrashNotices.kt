@@ -153,7 +153,7 @@ private fun TrashActionOutcome.tvText(): String = when (check) {
     TrashActionCheck.CHECKING -> stringResource(R.string.tv_trash_checking)
     TrashActionCheck.VERIFIED -> action.verifiedText()
     TrashActionCheck.INCONCLUSIVE -> action.inconclusiveText()
-    TrashActionCheck.FAILED -> checkFailure?.tvMessageText() ?: action.stillPresentText(stillListed.size)
+    TrashActionCheck.FAILED -> checkFailure?.tvMessageText() ?: action.stillPresentText(failedCount)
     TrashActionCheck.NOT_CHECKED -> submissionText()
 }
 
@@ -196,9 +196,11 @@ private fun TrashAction.inconclusiveText(): String = when (this) {
 }
 
 @Composable
-private fun TrashAction.stillPresentText(failed: Int): String = when (this) {
+private fun TrashAction.stillPresentText(failed: Int?): String = when (this) {
     is TrashAction.DeleteItem -> stringResource(R.string.tv_trash_delete_still_present, item.name)
-    is TrashAction.DeleteSelected -> pluralStringResource(R.plurals.tv_trash_delete_selected_failed, failed, failed)
+    is TrashAction.DeleteSelected -> failed?.let {
+        pluralStringResource(R.plurals.tv_trash_delete_selected_failed, it, it)
+    } ?: stringResource(R.string.tv_trash_delete_selected_some_failed)
     else -> stringResource(R.string.tv_trash_empty_still_present)
 }
 

@@ -30,10 +30,8 @@ internal fun TrashMachine.verifyActionAgainstPage(page: TrashContent.Loaded): Tr
     val outcome = state.actionOutcome?.takeIf { it.check == TrashActionCheck.CHECKING } ?: return this
     val check = outcome.verify(page)
     val verifiedBulkRestore = check == TrashActionCheck.VERIFIED && outcome.action.isBulkRestore
-    val listed = page.items.mapTo(hashSetOf(), TrashItem::id)
-    val stillListed = (outcome.action as? TrashSelectionAction)?.items.orEmpty().filter { it.id in listed }
     return copy(state = state.copy(
-        actionOutcome = outcome.copy(check = check, checkFailure = null, stillListed = stillListed),
+        actionOutcome = outcome.copy(check = check, checkFailure = null, failedCount = outcome.failedCount(page)),
         bulkRestoreVersion = state.bulkRestoreVersion + (if (verifiedBulkRestore) 1L else 0L),
     ))
 }
@@ -41,7 +39,14 @@ internal fun TrashMachine.verifyActionAgainstPage(page: TrashContent.Loaded): Tr
 private fun TrashActionOutcome.verify(page: TrashContent.Loaded): TrashActionCheck = when (val action = action) {
     is TrashAction.DeleteItem -> verifyGone(page, listOf(action.item), whenListed = TrashActionCheck.FAILED)
     is TrashAction.DeleteSelected -> verifyGone(page, action.items, whenListed = TrashActionCheck.FAILED)
-    is TrashAction.RestoreSelected -> verifyGone(page, action.items, whenListed = TrashActionCheck.INCONCLUSIVE)
+    is TrashAction.RestoreSelected -> {
+        val ids = action.items.mapTo(hashSetOf(), TrashItem::id)
+        if (page.nextCursor == null && page.items.none { it.id in ids }) {
+            TrashActionCheck.VERIFIED
+        } else {
+            TrashActionCheck.INCONCLUSIVE
+        }
+    }
     TrashAction.Empty -> if (page.isKnownEmpty) TrashActionCheck.VERIFIED else TrashActionCheck.FAILED
     // Bulk restore drains asynchronously. Items deleted after the snapshot were never part of the
     // request, so a complete page holding only those still verifies it.
@@ -59,6 +64,13 @@ private fun TrashActionOutcome.verifyGone(
         page.nextCursor == null || submission == TrashActionSubmission.ACKNOWLEDGED -> TrashActionCheck.VERIFIED
         else -> TrashActionCheck.INCONCLUSIVE
     }
+}
+
+private fun TrashActionOutcome.failedCount(page: TrashContent.Loaded): Int? {
+    val items = (action as? TrashAction.DeleteSelected)?.items ?: return null
+    if (page.nextCursor != null) return null
+    val listed = page.items.mapTo(hashSetOf(), TrashItem::id)
+    return items.count { it.id in listed }
 }
 
 private val TrashAction.isBulkRestore: Boolean

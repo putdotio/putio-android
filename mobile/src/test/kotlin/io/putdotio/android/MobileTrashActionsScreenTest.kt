@@ -204,7 +204,7 @@ class MobileTrashActionsScreenTest {
                     TrashAction.DeleteSelected(listOf(item, third)),
                     TrashActionSubmission.UNCERTAIN,
                     check = TrashActionCheck.FAILED,
-                    stillListed = listOf(item, third),
+                    failedCount = 2,
                 ),
             )
         }

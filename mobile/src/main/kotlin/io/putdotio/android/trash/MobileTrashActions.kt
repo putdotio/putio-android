@@ -261,7 +261,7 @@ private fun TrashActionOutcome.message(): String =
     when {
         check == TrashActionCheck.VERIFIED -> action.verifiedMessage()
         check == TrashActionCheck.INCONCLUSIVE -> action.inconclusiveMessage()
-        check == TrashActionCheck.FAILED && checkFailure == null -> action.stillPresentMessage(stillListed.size)
+        check == TrashActionCheck.FAILED && checkFailure == null -> action.stillPresentMessage(failedCount)
         else -> submissionMessage()
     }
 
@@ -293,9 +293,11 @@ private fun TrashAction.inconclusiveMessage(): String = when (this) {
 }
 
 @Composable
-private fun TrashAction.stillPresentMessage(failed: Int): String = when (this) {
+private fun TrashAction.stillPresentMessage(failed: Int?): String = when (this) {
     is TrashAction.DeleteItem -> stringResource(R.string.mobile_trash_delete_still_present, item.name)
-    is TrashAction.DeleteSelected -> pluralStringResource(R.plurals.mobile_trash_delete_selected_failed, failed, failed)
+    is TrashAction.DeleteSelected -> failed?.let {
+        pluralStringResource(R.plurals.mobile_trash_delete_selected_failed, it, it)
+    } ?: stringResource(R.string.mobile_trash_delete_selected_some_failed)
     else -> stringResource(R.string.mobile_trash_empty_still_present)
 }
 
