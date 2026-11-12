@@ -66,7 +66,7 @@ internal enum class MobileDestination(
 
         fun fromRoute(route: String?): MobileDestination = ofRoute(route) ?: start
 
-        fun shown(historyEnabled: Boolean?): List<MobileDestination> =
-            entries.filter { it != History || historyEnabled != false }
+        fun shown(historyShown: Boolean): List<MobileDestination> =
+            entries.filter { it != History || historyShown }
     }
 }

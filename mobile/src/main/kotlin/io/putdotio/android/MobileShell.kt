@@ -214,8 +214,9 @@ internal fun MobileShell(
     var rejectedNavigation by remember(sessionId) { mutableStateOf<FilesFailure?>(null) }
     val backStackEntry by navController.currentBackStackEntryAsState()
     val selectedDestination = MobileDestination.fromRoute(backStackEntry?.destination?.route)
-    val historyEnabled = accountSettingsState.confirmedHistoryEnabled()
-    val destinations = remember(historyEnabled) { MobileDestination.shown(historyEnabled) }
+    val historyShown = accountSettingsState.confirmedHistoryEnabled()
+        ?: (searchHistoryState.history.content != HistoryContent.Disabled)
+    val destinations = remember(historyShown) { MobileDestination.shown(historyShown) }
     HiddenDestinationEffect(backStackEntry?.destination?.route, destinations, navController)
     val incomingDraft by transferDraft.state.collectAsStateWithLifecycle()
     val nowPlayingPending by nowPlayingRequests.pending.collectAsStateWithLifecycle()

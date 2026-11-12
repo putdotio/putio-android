@@ -79,7 +79,7 @@ class TvCopyProofTest {
     }
 
     @Test
-    fun historyOffAndTheQuotaStatesWhatIsFree() {
+    fun quotaStatesWhatIsFree() {
         mount(account(historyEnabled = false, optimistic = true), trash = emptyList())
 
         compose.openTvTab("Account")

@@ -35,6 +35,7 @@ import io.putdotio.android.files.SdkFilesSubtitleLanguages
 import io.putdotio.android.files.SdkFilesWatchedRepository
 import io.putdotio.android.files.authoritativeSessionFailure
 import io.putdotio.android.files.canStartOperation
+import io.putdotio.android.history.HistoryContent
 import io.putdotio.android.history.HistoryEvent
 import io.putdotio.android.history.HistoryState
 import io.putdotio.android.history.SdkHistoryRepository
@@ -381,7 +382,7 @@ internal fun TvSessionShell(
             account = account,
             onSignOut = onSignOut,
             showHome = showHome,
-            showHistory = confirmedHistoryEnabled != false,
+            showHistory = confirmedHistoryEnabled ?: (historyState.content != HistoryContent.Disabled),
             focusHomePane = homeReturn != null,
             offline = !online,
             trailing = {

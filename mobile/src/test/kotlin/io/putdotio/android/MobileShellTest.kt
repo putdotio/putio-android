@@ -106,7 +106,6 @@ import io.putdotio.android.settings.AccountSettingsEvent
 import io.putdotio.android.settings.AccountSettingsFailure
 import io.putdotio.android.settings.AccountSettingsKey
 import io.putdotio.android.settings.AccountSettingsMutation
-import io.putdotio.android.settings.AccountSettingsReducer
 import io.putdotio.android.settings.AccountSettingsRequestId
 import io.putdotio.android.settings.AndroidAppConfigChange
 import io.putdotio.android.settings.AndroidAppConfigContent
@@ -531,7 +530,7 @@ class MobileShellTest {
     @Test
     fun historyOffHidesItsTabAndSendsHistoryToFiles() {
         val requests = MobileDeepLinkRequests.None
-        var settings by mutableStateOf(AccountSettingsReducer.start().state)
+        var settings by mutableStateOf(readyAccountSettingsState())
         compose.setContent {
             PutioTheme {
                 MobileShell(
