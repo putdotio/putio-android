@@ -109,28 +109,32 @@ internal class DebugDeviceSignIn(
     private suspend fun signIn() {
         // Consumed before anything else, so a pushed token never outlives this launch.
         val imported = takeImportedToken()
+        val restored = restoredState()
+        when {
+            restored != null -> mutableState.value = restored
+            imported != null -> mutableState.value = withContext(NonCancellable) { completeImport(imported) }
+            else -> linkWithCode()
+        }
+    }
+
+    /** The settled state when the app is not signed out, else null. */
+    private suspend fun restoredState(): DebugDeviceSignInState? {
         val controller = runtime.authController
         controller.restoreSession()
-        when (val settled = controller.state.first { it.isSettled() }) {
+        return when (val settled = controller.state.first { it.isSettled() }) {
             // A session that opened offline is not proof that put.io accepts it.
-            is MobileAuthState.SignedIn -> {
-                mutableState.value = if (settled.validated) {
+            is MobileAuthState.SignedIn ->
+                if (settled.validated) {
                     DebugDeviceSignInState.SignedIn(settled.account.userId)
                 } else {
                     DebugDeviceSignInState.Stopped("app is signed in offline; put.io has not confirmed the session")
                 }
-                return
-            }
-            is MobileAuthState.SignedOut -> Unit
-            else -> {
-                mutableState.value = DebugDeviceSignInState.Stopped("app is ${settled::class.simpleName}")
-                return
-            }
+            is MobileAuthState.SignedOut -> null
+            else -> DebugDeviceSignInState.Stopped("app is ${settled::class.simpleName}")
         }
-        if (imported != null) {
-            mutableState.value = withContext(NonCancellable) { completeImport(imported) }
-            return
-        }
+    }
+
+    private suspend fun linkWithCode() {
         runtime.putioClient.deviceCodeAuth.link().collect { link ->
             when (link) {
                 DeviceCodeAuthState.Requesting -> Unit
