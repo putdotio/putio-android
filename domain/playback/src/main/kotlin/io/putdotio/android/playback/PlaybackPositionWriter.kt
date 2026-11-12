@@ -66,7 +66,7 @@ public class PlaybackPositionWriter(
     }
 
     public fun offer(token: String, positionMillis: Long) {
-        val lease = leases[token]?.takeIf { !closed && positionMillis > 0L && it.authorized() } ?: return
+        val lease = leases[token]?.takeIf { !closed && positionMillis >= 0L && it.authorized() } ?: return
         if (lease.delivery.covers(positionMillis)) return
         // One in-flight request and one latest snapshot bound memory during slow requests
         // and rapid file switches. Intermediate queued exit positions may be superseded.

@@ -109,7 +109,7 @@ class PlaybackPositionObserverTest {
     }
 
     @Test
-    fun seeksDoNotSubmitImmediatelyAndZeroOrUnleasedItemsNeverSubmit() = runTest {
+    fun seeksDoNotSubmitImmediatelyAndUnleasedItemsNeverSubmit() = runTest {
         val player = PositionPlayer()
         player.replace("first", 10_000L)
         val (observer, snapshots) = observe(player)
@@ -118,9 +118,8 @@ class PlaybackPositionObserverTest {
         observer.flush()
         assertEquals(listOf("first" to 20_000L), snapshots)
         snapshots.clear()
-        player.seekTo(0L)
-        observer.flush()
         player.replace(null, 17_000L)
+        player.seekTo(0L)
         observer.flush()
         observer.close()
         assertTrue(snapshots.isEmpty())
@@ -143,6 +142,54 @@ class PlaybackPositionObserverTest {
         runCurrent()
         assertEquals(listOf("first" to 70_000L), snapshots)
         observer.close()
+        player.release()
+    }
+
+    @Test
+    fun aPlainStartAtZeroNeverSubmits() = runTest {
+        val player = PositionPlayer()
+        player.replace("first", 0L)
+        player.play()
+        val (observer, snapshots) = observe(player)
+        runCurrent()
+        player.pause()
+        observer.flush()
+        player.replace("second", 0L)
+        advanceTimeBy(3_000L)
+        runCurrent()
+        observer.close()
+        assertTrue(snapshots.isEmpty())
+        player.release()
+    }
+
+    @Test
+    fun aSeekBurstBackToTheStartSubmitsZeroOnceItSettles() = runTest {
+        val player = PositionPlayer()
+        player.replace("first", 0L)
+        val (observer, snapshots) = observe(player)
+        player.seekTo(50_000L)
+        repeat(5) {
+            advanceTimeBy(300L)
+            player.seekTo(40_000L - it * 10_000L)
+        }
+        advanceTimeBy(999L)
+        runCurrent()
+        assertTrue(snapshots.isEmpty())
+        advanceTimeBy(2L)
+        runCurrent()
+        assertEquals(listOf("first" to 0L), snapshots)
+        observer.close()
+        assertEquals(listOf("first" to 0L, "first" to 0L), snapshots)
+
+        snapshots.clear()
+        player.replace("second", 0L)
+        val (next, nextSnapshots) = observe(player)
+        player.seekTo(0L)
+        player.replace("third", 0L)
+        assertEquals(listOf("second" to 0L), nextSnapshots)
+        nextSnapshots.clear()
+        next.close()
+        assertTrue(nextSnapshots.isEmpty())
         player.release()
     }
 
