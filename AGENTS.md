@@ -54,8 +54,9 @@ script headers and `--help` own the harness.
   Trash is off. Restore any account setting you change. Never use a personal
   profile or put tokens in the repo; app tokens belong in Android secure
   storage. Sign the mobile debug app in as `devs-auto` with
-  `./scripts/sign-in-devs-auto.sh <serial>`; each approval adds a grant until
-  you sign out in the app.
+  `./scripts/sign-in-devs-auto.sh <serial>`. put.io allows few device codes per
+  IP, so the script caches the app's token per host and reuses it on fresh
+  devices. Signing out in the app revokes that token for every run on the host.
 - **Shared emulators.** The machine may be running other emulators. The scripts
   reuse preexisting ones and stop only the serial they booted; never kill
   emulators by name or delete AVDs the harness did not create. A lane that
