@@ -330,7 +330,7 @@ class TvAccountScreenTest {
         var signOuts = 0
         show(settingsState = { ready(preferences) }, onSignOut = { signOuts += 1 })
 
-        group("Library").performKeyInput { repeat(6) { pressKey(Key.DirectionDown) } }
+        group("Library").performKeyInput { repeat(5) { pressKey(Key.DirectionDown) } }
         compose.onNode(hasText("Sign out") and isFocused()).performKeyInput { pressCenter() }
         compose.onNodeWithText("Sign out of put.io?").assertIsDisplayed()
         compose.onNodeWithText("You can sign in again any time with a new code.").assertIsDisplayed()
@@ -345,20 +345,27 @@ class TvAccountScreenTest {
     }
 
     @Test
-    fun manageAccountOpensTheWebAccountPageAsAQrCodeBetweenAboutAndSignOut() {
+    fun aboutEndsWithManageAccountWhichOpensTheWebAccountPageAsAQrCode() {
         show(settingsState = { ready(preferences) })
+        val manage = hasText("Manage account at put.io") and hasText("QR code")
 
-        group("Library").performKeyInput { repeat(5) { pressKey(Key.DirectionDown) } }
-        compose.onNode(hasText("Manage account at put.io") and hasText("QR code") and isFocused())
-            .performKeyInput { pressCenter() }
+        group("Library").performKeyInput {
+            repeat(4) { pressKey(Key.DirectionDown) }
+            pressKey(Key.DirectionRight)
+        }
+        compose.onNodeWithText("Version").assertIsFocused()
+        repeat(MAX_ABOUT_ROWS) {
+            if (compose.onAllNodes(manage and isFocused()).fetchSemanticsNodes().isEmpty()) {
+                compose.onNode(isFocused()).performKeyInput { pressKey(Key.DirectionDown) }
+            }
+        }
+        compose.onNode(manage and isFocused()).performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNode(manage and isFocused()).performKeyInput { pressCenter() }
         compose.onNodeWithContentDescription("QR code for Manage account at put.io").assertIsDisplayed()
         compose.onNodeWithText("https://app.put.io/account").assertIsDisplayed()
         compose.onNodeWithText("Scan with your phone’s camera to open it there.").assertIsDisplayed()
         compose.onNode(inSheet("Done")).performKeyInput { pressCenter() }
-        compose.onNode(hasText("Manage account at put.io") and isFocused())
-            .performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNode(hasText("Sign out") and isFocused()).assertExists()
-        group("Library").assertIsSelected()
+        compose.onNode(manage and isFocused()).assertExists()
     }
 
     @Test
@@ -384,7 +391,7 @@ class TvAccountScreenTest {
         }
         compose.onNodeWithText("Resume where you left off").assertIsFocused()
             .performKeyInput { pressKey(Key.DirectionLeft) }
-        group("Playback").assertIsFocused().performKeyInput { repeat(5) { pressKey(Key.DirectionDown) } }
+        group("Playback").assertIsFocused().performKeyInput { repeat(4) { pressKey(Key.DirectionDown) } }
         compose.onNode(hasText("Sign out") and isFocused()).assertExists()
         group("Playback").assertIsSelected()
         compose.onNodeWithText("Autoplay next video").assertIsDisplayed()
@@ -491,5 +498,9 @@ class TvAccountScreenTest {
                 loadTunnelRoutes = loadTunnelRoutes,
             )
         }
+    }
+
+    private companion object {
+        const val MAX_ABOUT_ROWS = 20
     }
 }

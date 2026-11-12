@@ -332,7 +332,6 @@ private fun TvAccountBody(
             opened = opened,
             context = context,
             rightPane = rightPane,
-            onManageAccount = { open(TvAccountSheet.ManageAccount, RowKey.MANAGE_ACCOUNT) },
             onSignOut = { open(TvAccountSheet.SignOut, RowKey.SIGN_OUT) },
         )
         TvAccountGroupRows(
@@ -375,7 +374,6 @@ private fun TvAccountGroups(
     opened: MutableState<TvAccountGroup>,
     context: TvAccountContext,
     rightPane: FocusRequester,
-    onManageAccount: () -> Unit,
     onSignOut: () -> Unit,
 ) {
     Column(
@@ -409,17 +407,6 @@ private fun TvAccountGroups(
             )
         }
         Spacer(Modifier.height(8.dp))
-        TvAccountGroupRow(
-            title = stringResource(R.string.tv_account_manage_account),
-            icon = R.drawable.ic_ph_user_circle,
-            selected = false,
-            onClick = onManageAccount,
-            value = AnnotatedString(stringResource(R.string.tv_account_qr_value)),
-            caret = false,
-            modifier = Modifier
-                .accountFocus(context, RowKey.MANAGE_ACCOUNT, group.value.focusKey)
-                .onFocusChanged { if (it.isFocused) group.value = opened.value },
-        )
         TvAccountGroupRow(
             title = stringResource(R.string.tv_account_sign_out),
             icon = R.drawable.ic_ph_sign_out,
@@ -875,6 +862,16 @@ private class TvAccountRowsScope(
             TvSupportQr(diagnostics.supportText(), segmentOf(facts.size, facts.size + 1))
         }
         OpenSourceNotices()
+        Spacer(Modifier.height(16.dp))
+        TvSegments {
+            TvSettingRow(
+                title = stringResource(R.string.tv_account_manage_account),
+                icon = R.drawable.ic_ph_user_circle,
+                segment = TvSegment.Only,
+                onClick = { open(TvAccountSheet.ManageAccount, RowKey.MANAGE_ACCOUNT) },
+                modifier = Modifier.accountFocus(context, RowKey.MANAGE_ACCOUNT),
+            ) { focused -> TvSettingValue(AnnotatedString(stringResource(R.string.tv_account_qr_value)), focused) }
+        }
     }
 
     @Composable

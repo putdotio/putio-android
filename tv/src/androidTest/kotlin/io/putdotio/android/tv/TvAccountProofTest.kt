@@ -124,7 +124,7 @@ class TvAccountProofTest {
         press(KeyEvent.KEYCODE_DPAD_RIGHT)
         compose.waitUntil(5_000) { isFocused(RESUME) }
         press(KeyEvent.KEYCODE_DPAD_LEFT)
-        repeat(5) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
+        repeat(4) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
         compose.waitUntil(5_000) { isFocused(SIGN_OUT) }
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(5_000) { compose.onAllNodesWithText(SIGN_OUT_TITLE).fetchSemanticsNodes().isNotEmpty() }
@@ -134,7 +134,10 @@ class TvAccountProofTest {
     @Test
     fun manageAccountQr() {
         mount()
-        repeat(5) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
+        repeat(4) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
+        press(KeyEvent.KEYCODE_DPAD_RIGHT)
+        compose.waitUntil(5_000) { isFocused(VERSION) }
+        repeat(MAX_ABOUT_ROWS) { if (!isFocused(MANAGE_ACCOUNT)) press(KeyEvent.KEYCODE_DPAD_DOWN) }
         compose.waitUntil(5_000) { isFocused(MANAGE_ACCOUNT) }
         screenshot("androidtv-manage-account")
         press(KeyEvent.KEYCODE_DPAD_CENTER)
@@ -279,7 +282,7 @@ class TvAccountProofTest {
         const val FFMPEG_SOURCE =
             "https://repo1.maven.org/maven2/io/put/media3-ffmpeg-decoder/1.11.1+1/" +
                 "media3-ffmpeg-decoder-1.11.1+1-ffmpeg-source.tar.xz"
-        const val MAX_ABOUT_ROWS = 10
+        const val MAX_ABOUT_ROWS = 20
         const val PROXY = "Proxy"
         const val CDN77 = "cdn77"
         const val SIGN_OUT = "Sign out"
