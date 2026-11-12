@@ -5,6 +5,7 @@ internal fun AccountSettingsPreferences.matches(change: AccountSettingsChange): 
         is AccountSettingsChange.Toggle -> toggleValue(change.key) == change.enabled
         is AccountSettingsChange.Route -> tunnelRoute == change.name
         is AccountSettingsChange.Sort -> defaultSort == change.sort
+        AccountSettingsChange.ResetFolderSorts -> false
     }
 
 internal fun AccountSettingsPreferences.applying(change: AccountSettingsChange): AccountSettingsPreferences =
@@ -12,6 +13,7 @@ internal fun AccountSettingsPreferences.applying(change: AccountSettingsChange):
         is AccountSettingsChange.Toggle -> applyingToggle(change)
         is AccountSettingsChange.Route -> copy(tunnelRoute = change.name)
         is AccountSettingsChange.Sort -> copy(defaultSort = change.sort)
+        AccountSettingsChange.ResetFolderSorts -> this
     }
 
 private fun AccountSettingsPreferences.toggleValue(key: AccountSettingsKey): Boolean =
@@ -25,6 +27,7 @@ private fun AccountSettingsPreferences.toggleValue(key: AccountSettingsKey): Boo
         AccountSettingsKey.ProductAnalytics -> productAnalyticsEnabled
         AccountSettingsKey.TunnelRoute,
         AccountSettingsKey.DefaultSort,
+        AccountSettingsKey.FolderSorts,
         -> error("$key is not a toggle")
     }
 
@@ -41,5 +44,6 @@ private fun AccountSettingsPreferences.applyingToggle(
         AccountSettingsKey.ProductAnalytics -> copy(productAnalyticsEnabled = change.enabled)
         AccountSettingsKey.TunnelRoute,
         AccountSettingsKey.DefaultSort,
+        AccountSettingsKey.FolderSorts,
         -> error("${change.key} is not a toggle")
     }

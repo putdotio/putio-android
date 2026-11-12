@@ -135,6 +135,21 @@ class TvAccountProofTest {
     }
 
     @Test
+    fun resetSortsConfirm() {
+        mount()
+        press(KeyEvent.KEYCODE_DPAD_RIGHT)
+        compose.waitUntil(5_000) { isFocused(MANAGE_TRASH) }
+        repeat(RESET_SORTS_ROW) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
+        compose.waitUntil(5_000) { isFocused(RESET_SORTS) }
+        screenshot("androidtv-reset-sorts-row")
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitUntil(5_000) { isFocused(CANCEL) }
+        screenshot("androidtv-reset-sorts-confirm")
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitUntil(5_000) { isFocused(RESET_SORTS) }
+    }
+
+    @Test
     fun signOutConfirm() {
         mount()
         press(KeyEvent.KEYCODE_DPAD_DOWN)
@@ -294,6 +309,8 @@ class TvAccountProofTest {
         const val MANAGE_TRASH = "Manage your trash"
         const val RESUME = "Resume where you left off"
         const val CANCEL = "Cancel"
+        const val RESET_SORTS = "Reset all sort settings"
+        const val RESET_SORTS_ROW = 3
         const val DIAGNOSTICS = "Diagnostics"
         const val VERSION = "Version"
         const val FFMPEG = "FFmpeg 7.1.5"

@@ -85,6 +85,7 @@ import io.putdotio.android.account.MOBILE_ACCOUNT_STORAGE_PROGRESS_TAG
 import io.putdotio.android.account.MOBILE_DEFAULT_SORT_ROW_TAG
 import io.putdotio.android.account.MOBILE_MANAGE_PUBLIC_LINKS_TAG
 import io.putdotio.android.account.MOBILE_PRIVACY_CONTROLS_ROW_TAG
+import io.putdotio.android.account.MOBILE_RESET_SORTS_ROW_TAG
 import io.putdotio.android.account.MOBILE_TUNNEL_ROUTE_RETRY_TAG
 import io.putdotio.android.account.MOBILE_TUNNEL_ROUTE_ROW_TAG
 import io.putdotio.android.account.MOBILE_SIGN_OUT_DIALOG_TAG
@@ -502,6 +503,52 @@ class MobileAccountScreenTest {
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_DEFAULT_SORT_ROW_TAG))
         compose.onNodeWithTag(MOBILE_DEFAULT_SORT_ROW_TAG).assertTextContains("Not set")
         compose.onAllNodesWithText("Couldn’t save this setting").assertCountEquals(1)
+        compose.onNodeWithText("Try again").performClick()
+        compose.runOnIdle { assertEquals(listOf<AccountSettingsEvent>(AccountSettingsEvent.RetryChange), events) }
+    }
+
+    @Test
+    fun resetAllSortSettingsSitsUnderDefaultSortAndAsksFirst() {
+        val events = mutableListOf<AccountSettingsEvent>()
+        compose.setAccountContent(events = events)
+
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_RESET_SORTS_ROW_TAG))
+        val sort = compose.onNodeWithTag(MOBILE_DEFAULT_SORT_ROW_TAG).getUnclippedBoundsInRoot()
+        val reset = compose.onNodeWithTag(MOBILE_RESET_SORTS_ROW_TAG).getUnclippedBoundsInRoot()
+        val trash = compose.onNodeWithText("Move deleted files to trash").getUnclippedBoundsInRoot()
+        assertTrue("Reset sits under Default sort order: $sort, $reset", reset.top >= sort.bottom)
+        assertTrue("The trash switch follows Reset: $reset, $trash", trash.top >= reset.bottom)
+
+        compose.onNodeWithTag(MOBILE_RESET_SORTS_ROW_TAG).assertTextEquals("Reset all sort settings").performClick()
+        compose.onNode(hasText("Reset all sort settings?") and hasAnyAncestor(isDialog())).assertIsDisplayed()
+        compose.onNode(hasText("Every folder goes back to the default sort order.") and hasAnyAncestor(isDialog()))
+            .assertIsDisplayed()
+        compose.onNode(hasText("Cancel") and hasAnyAncestor(isDialog())).performClick()
+        compose.onAllNodes(isDialog()).assertCountEquals(0)
+        assertEquals(emptyList<AccountSettingsEvent>(), events)
+
+        compose.onNodeWithTag(MOBILE_RESET_SORTS_ROW_TAG).performClick()
+        compose.onNode(hasText("Reset") and hasAnyAncestor(isDialog())).performClick()
+        compose.onAllNodes(isDialog()).assertCountEquals(0)
+        assertEquals(
+            listOf<AccountSettingsEvent>(AccountSettingsEvent.ChangeRequested(AccountSettingsChange.ResetFolderSorts)),
+            events,
+        )
+    }
+
+    @Test
+    fun aFailedSortResetRetriesOnItsRow() {
+        val events = mutableListOf<AccountSettingsEvent>()
+        compose.setAccountContent(
+            state = { readyAccountSettingsState(mutation = failedChange(AccountSettingsChange.ResetFolderSorts)) },
+            events = events,
+        )
+
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Try again"))
+        compose.onAllNodesWithText("Couldn’t save this setting").assertCountEquals(1)
+        val reset = compose.onNodeWithTag(MOBILE_RESET_SORTS_ROW_TAG).getUnclippedBoundsInRoot()
+        val retry = compose.onNodeWithText("Try again").getUnclippedBoundsInRoot()
+        assertTrue("Try again sits under the Reset row: $reset, $retry", retry.top >= reset.bottom)
         compose.onNodeWithText("Try again").performClick()
         compose.runOnIdle { assertEquals(listOf<AccountSettingsEvent>(AccountSettingsEvent.RetryChange), events) }
     }

@@ -107,6 +107,7 @@ import io.putdotio.android.settings.AccountSettingsEvent
 import io.putdotio.android.settings.AccountSettingsFailure
 import io.putdotio.android.settings.AccountSettingsKey
 import io.putdotio.android.settings.AccountSettingsMutation
+import io.putdotio.android.settings.AccountSettingsReducer
 import io.putdotio.android.settings.AccountSettingsRequestId
 import io.putdotio.android.settings.AndroidAppConfigChange
 import io.putdotio.android.settings.AndroidAppConfigContent
@@ -1297,6 +1298,59 @@ class MobileShellFilesTest {
         }
 
         compose.runOnIdle { settingsState = readyAccountSettingsState(preferences = applied) }
+        compose.runOnIdle {
+            assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.InvalidateSortOrder), events)
+        }
+    }
+
+    @Test
+    fun acceptedSortResetInvalidatesSortOrderAndAFailedOneDoesNot() {
+        val events = mutableListOf<FilesBrowserEvent>()
+        val reducer = AccountSettingsReducer
+        val loaded = AccountSettingsEvent.LoadSucceeded(AccountSettingsRequestId(1L), DefaultAccountSettingsPreferences)
+        var settingsState by mutableStateOf(reducer.reduce(reducer.start().state, loaded).state)
+        val offline = AccountSettingsFailure.Putio(PutioFailure.Unexpected(IllegalStateException("offline")))
+        compose.setContent {
+            PutioTheme {
+                MobileShell(
+                    playbackPlayerFactory = NoAudioSessionFactory,
+                    filesState = emptyFilesState(),
+                    accountSettingsState = settingsState,
+                    appConfigState = readyAndroidAppConfigState(),
+                    account = Account,
+                    playbackRepository = ConversionRepository,
+                    sessionId = Session,
+                    onFilesEvent = { events += it; true },
+                    onAccountSettingsEvent = {},
+                    onPlaybackAuthenticationRequired = {},
+                    onSignOut = {},
+                )
+            }
+        }
+        val reset = AccountSettingsEvent.ChangeRequested(AccountSettingsChange.ResetFolderSorts)
+        fun saveId(state: AccountSettingsState) = (state.mutation as AccountSettingsMutation.Saving).requestId
+
+        compose.runOnIdle { settingsState = reducer.reduce(settingsState, reset).state }
+        compose.runOnIdle {
+            val failed = AccountSettingsEvent.SaveFailed(saveId(settingsState), offline)
+            settingsState = reducer.reduce(settingsState, failed).state
+        }
+        compose.runOnIdle { assertEquals(emptyList<FilesBrowserEvent>(), events) }
+
+        compose.runOnIdle { settingsState = reducer.reduce(settingsState, AccountSettingsEvent.RetryChange).state }
+        compose.runOnIdle { assertEquals(emptyList<FilesBrowserEvent>(), events) }
+        compose.runOnIdle {
+            val id = saveId(settingsState)
+            settingsState = reducer.reduce(settingsState, AccountSettingsEvent.SaveSucceeded(id)).state
+        }
+        compose.runOnIdle {
+            assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.InvalidateSortOrder), events)
+        }
+        compose.runOnIdle {
+            val id = saveId(settingsState)
+            val refreshed = AccountSettingsEvent.RefreshSucceeded(id, loaded.preferences)
+            settingsState = reducer.reduce(settingsState, refreshed).state
+        }
         compose.runOnIdle {
             assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.InvalidateSortOrder), events)
         }

@@ -16,4 +16,5 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     testFixturesImplementation(project(":core:common"))
     testFixturesImplementation(libs.putio.sdk.kotlin)
+    testImplementation(libs.okhttp)
 }

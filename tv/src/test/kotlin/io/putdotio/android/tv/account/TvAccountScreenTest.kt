@@ -273,6 +273,36 @@ class TvAccountScreenTest {
     }
 
     @Test
+    fun resetAllSortSettingsFollowsDefaultSortAndConfirmsInRedWithCancelFocused() {
+        show(settingsState = { ready(preferences) })
+        val reset = "Reset all sort settings"
+
+        group("Library").performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNodeWithText("Manage your trash").performKeyInput { repeat(2) { pressKey(Key.DirectionDown) } }
+        compose.onNodeWithText("Default sort order").assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithText(reset).assertIsFocused().performKeyInput { pressCenter() }
+        compose.onNodeWithText("Reset all sort settings?").assertIsDisplayed()
+        compose.onNodeWithText("Every folder goes back to the default sort order.").assertIsDisplayed()
+        compose.onNode(hasText("Cancel") and isFocused()).performKeyInput { pressCenter() }
+        compose.onAllNodes(isDialog()).assertCountEquals(0)
+        compose.onNodeWithText(reset).assertIsFocused()
+        assertEquals(emptyList<AccountSettingsEvent>(), settingsEvents)
+
+        compose.onNodeWithText(reset).performKeyInput { pressCenter() }
+        compose.onNode(hasText("Cancel") and isFocused()).performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNode(hasText("Reset") and isFocused() and hasAnyAncestor(isDialog())).performKeyInput {
+            pressCenter()
+        }
+        assertEquals(
+            listOf<AccountSettingsEvent>(AccountSettingsEvent.ChangeRequested(AccountSettingsChange.ResetFolderSorts)),
+            settingsEvents,
+        )
+        compose.onAllNodes(isDialog()).assertCountEquals(0)
+        compose.onNodeWithText(reset).assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithText("Keep account history").assertIsFocused()
+    }
+
+    @Test
     fun turningTrashOffConfirmsInRedWithCancelFocused() {
         var settings by mutableStateOf(ready(preferences))
         show(settingsState = { settings })
@@ -476,7 +506,7 @@ class TvAccountScreenTest {
         compose.onNodeWithText("Couldn’t save this setting. Check your internet connection.").assertIsDisplayed()
         compose.onNodeWithText("Keep account history").assertIsOn()
         group("Library").performKeyInput { pressKey(Key.DirectionRight) }
-        compose.onNodeWithText("Manage your trash").performKeyInput { repeat(3) { pressKey(Key.DirectionDown) } }
+        compose.onNodeWithText("Manage your trash").performKeyInput { repeat(4) { pressKey(Key.DirectionDown) } }
         compose.onNodeWithText("Keep account history").assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
         compose.onNode(hasText("Try again") and isFocused()).performKeyInput { pressCenter() }
         assertEquals(listOf<AccountSettingsEvent>(AccountSettingsEvent.RetryChange), settingsEvents)

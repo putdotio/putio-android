@@ -102,6 +102,7 @@ internal const val MOBILE_ACCOUNT_SIGN_OUT_TAG = "mobile-account-sign-out"
 internal const val MOBILE_TUNNEL_ROUTE_ROW_TAG = "mobile-tunnel-route-row"
 internal const val MOBILE_PLAYBACK_METHOD_ROW_TAG = "mobile-playback-method-row"
 internal const val MOBILE_PRIVACY_POLICY_ROW_TAG = "mobile-privacy-policy-row"
+internal const val MOBILE_RESET_SORTS_ROW_TAG = "mobile-reset-sorts-row"
 
 /** What Account's Library rows show beside their titles, when the app already knows it. */
 internal data class MobileAccountLibrary(
@@ -196,7 +197,7 @@ internal fun MobileAccountScreen(
     )
 }
 
-private enum class AccountDialog { None, TrashOff, ResumeOff, SignOut, Proxy, PlaybackMethod }
+private enum class AccountDialog { None, TrashOff, ResumeOff, ResetSorts, SignOut, Proxy, PlaybackMethod }
 
 private fun LazyListScope.libraryGroup(
     rows: AccountRows,
@@ -247,6 +248,7 @@ private fun LazyListScope.filesItems(settingsState: AccountSettingsState, rows: 
             label = R.string.mobile_settings_section_files,
             rows = listOf(
                 SettingsRow { rows.DefaultSort(it, content.preferences) },
+                SettingsRow { rows.ResetSorts(it) },
                 SettingsRow {
                     rows.AccountSwitch(it, R.string.mobile_settings_trash, R.drawable.ic_ph_trash_simple,
                         AccountSettingsKey.Trash, content.preferences.trashEnabled)
@@ -419,19 +421,30 @@ private fun MobileAccountDialogs(
     when (dialog) {
         AccountDialog.None -> Unit
         AccountDialog.TrashOff -> if (settings != null) {
-            MobileTurnOffDialog(
+            MobileConfirmDialog(
                 title = R.string.mobile_settings_trash_confirm_title,
                 message = R.string.mobile_settings_trash_confirm_message,
+                confirm = R.string.mobile_settings_turn_off,
                 onDismiss = onDismiss,
                 onConfirm = { change(AccountSettingsChange(AccountSettingsKey.Trash, enabled = false)) },
             )
         }
         AccountDialog.ResumeOff -> if (settings != null) {
-            MobileTurnOffDialog(
+            MobileConfirmDialog(
                 title = R.string.mobile_settings_resume_confirm_title,
                 message = R.string.mobile_settings_resume_confirm_message,
+                confirm = R.string.mobile_settings_turn_off,
                 onDismiss = onDismiss,
                 onConfirm = { change(AccountSettingsChange(AccountSettingsKey.ResumePlayback, enabled = false)) },
+            )
+        }
+        AccountDialog.ResetSorts -> if (settings != null) {
+            MobileConfirmDialog(
+                title = R.string.mobile_settings_reset_sorts_confirm_title,
+                message = R.string.mobile_settings_reset_sorts_confirm_message,
+                confirm = R.string.mobile_settings_reset,
+                onDismiss = onDismiss,
+                onConfirm = { change(AccountSettingsChange.ResetFolderSorts) },
             )
         }
         AccountDialog.SignOut -> MobileSignOutDialog(
@@ -622,6 +635,27 @@ private class AccountRows(
                     onDismiss = { choosing = false },
                 )
             }
+        }
+    }
+
+    @Composable
+    fun ResetSorts(segment: SettingsSegment) {
+        val mutation = settingsState.mutation
+        val reset = { change: AccountSettingsChange? -> change == AccountSettingsChange.ResetFolderSorts }
+        val failure = (mutation as? AccountSettingsMutation.Failed)?.takeIf { reset(it.change) }
+        MobileSettingsSegment(
+            segment = segment,
+            interaction = Modifier
+                .clickable(enabled = settingsEnabled, role = Role.Button) { onOpen(AccountDialog.ResetSorts) }
+                .testTag(MOBILE_RESET_SORTS_ROW_TAG),
+            below = failure?.let { { MobileAccountMutationError(it.failure, it.operation, ::onRetrySettings) } },
+        ) {
+            MobileSettingsLine(
+                title = stringResource(R.string.mobile_settings_reset_sorts),
+                icon = R.drawable.ic_ph_arrow_counter_clockwise,
+                trailing = SettingsTrailing.None,
+                saving = reset((mutation as? AccountSettingsMutation.Saving)?.change),
+            )
         }
     }
 
