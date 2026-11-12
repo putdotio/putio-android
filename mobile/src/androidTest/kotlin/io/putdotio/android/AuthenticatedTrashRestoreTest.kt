@@ -75,7 +75,7 @@ class AuthenticatedTrashRestoreTest {
     private lateinit var controller: TrashController
 
     @Test
-    fun cancelPreservesTrashAndRestoreMakesTheExactItemAvailable() {
+    fun restoreMakesTheExactItemAvailableAndLeavesTheOtherItemInTrash() {
         val args = InstrumentationRegistry.getArguments()
         val fixture = TrashRestoreFixture.parse(args.getString("putio.trash.restore.fixture"),
             args.getString("putio.trash.restore.runId"))
@@ -137,7 +137,7 @@ class AuthenticatedTrashRestoreTest {
                     "restored target absent after complete bounded traversal",
                     trash.none { it.id.value == fixture.file.id },
                 )
-                assertTrue("Cancel remains in Trash", trash.any { it.id.value == fixture.cancel.id })
+                assertTrue("The other item remains in Trash", trash.any { it.id.value == fixture.cancel.id })
                 requireUnavailable(repository.resolveItem(FilesItemId(fixture.cancel.id)))
                 requireItem(success(repository.resolveItem(FilesItemId(fixture.sentinel.id))), fixture.sentinel)
                 val sentinel = runtime.putioClient.files.list(fixture.sentinel.id, FilesListQuery(perPage = 50))

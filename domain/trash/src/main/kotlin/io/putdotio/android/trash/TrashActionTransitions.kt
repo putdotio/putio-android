@@ -5,7 +5,7 @@ import io.putdotio.android.parsePutioTimestamp
 
 internal fun TrashMachine.action(event: TrashEvent.ActionEvent): TrashMachine? = when (event) {
     is TrashEvent.SelectDelete -> selectDelete(event)
-    TrashEvent.RestoreAll -> if (mayActOnAll) submitAction(TrashAction.RestoreAll) else null
+    TrashEvent.RestoreAll -> if (mayActOnAll && state.actionConfirmation == null) submitAction(TrashAction.RestoreAll) else null
     TrashEvent.SelectEmpty -> if (mayActOnAll) openActionConfirmation(TrashAction.Empty) else null
     TrashEvent.CancelAction -> cancelAction()
     is TrashEvent.ConfirmAction -> confirmAction(event)

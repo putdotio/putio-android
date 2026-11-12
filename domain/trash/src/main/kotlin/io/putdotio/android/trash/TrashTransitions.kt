@@ -21,10 +21,11 @@ private fun TrashMachine.dismissRestoreOutcome(): TrashMachine? =
 
 private fun TrashMachine.submitRestore(event: TrashEvent.Restore): TrashMachine? {
     val item = loadedItem(event.itemId)
-    if (item == null || request != null || !state.canRestore(event.itemId)) return null
+    if (item == null || request != null || state.actionConfirmation != null || !state.canRestore(event.itemId)) {
+        return null
+    }
     return copy(
         state = state.copy(
-            actionConfirmation = null, actionConfirmationId = null,
             restoreOutcome = TrashRestoreOutcome(item, TrashRestoreSubmission.SUBMITTING),
         ),
         request = TrashRequest.Restore(nextRequestId, item), nextRequestId = nextRequestId + 1L,

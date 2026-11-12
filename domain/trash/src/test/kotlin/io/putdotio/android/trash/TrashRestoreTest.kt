@@ -14,6 +14,20 @@ import org.junit.Test
 
 class TrashRestoreTest {
     @Test
+    fun restoreAndRestoreAllWaitWhileADestructiveConfirmationIsOpen() = runBlocking {
+        val repository = FakeTrashRepository().apply { onLoad = { page(trashItem(), trashItem(8L)) } }
+        TrashController(repository, this).use { controller ->
+            controller.openLoaded()
+            assertTrue(controller.dispatch(TrashEvent.SelectDelete(trashItem(8L).id)))
+            assertFalse(controller.dispatch(TrashEvent.Restore(trashItem().id)))
+            assertFalse(controller.dispatch(TrashEvent.RestoreAll))
+            assertEquals(TrashAction.DeleteItem(trashItem(8L)), controller.state.value.actionConfirmation)
+            assertTrue(repository.restoredIds.isEmpty())
+            assertTrue(repository.bulkRestores.isEmpty())
+        }
+    }
+
+    @Test
     fun restoreSubmitsAtOnceAndARepeatWhileItRunsSubmitsNothing() = runBlocking {
         val repository = FakeTrashRepository().apply { onLoad = { page(trashItem(), trashItem(8L)) } }
         TrashController(repository, this).use { controller ->
