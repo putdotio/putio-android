@@ -238,11 +238,11 @@ public fun AccountSettingsState.confirmedHistoryEnabled(): Boolean? =
     confirmedPreferences(AccountSettingsKey.History)?.historyEnabled
 
 public fun AccountSettingsState.historyTabShown(): Boolean {
-    val lastRead = when (val pending = mutation) {
+    val lastRead = when (val write = mutation) {
         AccountSettingsMutation.Idle -> null
-        is AccountSettingsMutation.Saving -> pending.previousPreferences.takeIf { pending.change.key == AccountSettingsKey.History }
-        is AccountSettingsMutation.Failed -> pending.previousPreferences.takeIf { pending.change.key == AccountSettingsKey.History }
-    }
+        is AccountSettingsMutation.Saving -> write.previousPreferences
+        is AccountSettingsMutation.Failed -> write.previousPreferences
+    }?.takeIf { mutation.pending?.first == AccountSettingsKey.History }
     return (lastRead?.historyEnabled ?: confirmedHistoryEnabled()) != false
 }
 
