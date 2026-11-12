@@ -23,7 +23,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
-import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -96,7 +95,7 @@ internal fun MobileAppInfoScreen(diagnostics: AppDiagnostics, modifier: Modifier
                 stringResource(R.string.mobile_settings_about_version_value),
                 mono,
                 diagnostics.appVersion,
-                "%d".format(LocalLocale.current.platformLocale, diagnostics.versionCode),
+                diagnostics.versionCode.toString(),
             ),
         ),
         AppInfoRow(

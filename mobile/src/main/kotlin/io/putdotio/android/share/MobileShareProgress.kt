@@ -37,7 +37,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import androidx.compose.ui.window.DialogProperties
-import androidx.compose.ui.platform.LocalLocale
 
 internal const val MOBILE_SHARE_PROGRESS_TAG = "mobile-share-progress"
 
@@ -127,7 +126,7 @@ internal fun MobileShareProgressDialog(onCancel: () -> Unit) {
                     val bytes = monoArguments(
                         stringResource(R.string.mobile_share_progress_bytes),
                         style.putioMono().toSpanStyle(),
-                        "%d%%".format(LocalLocale.current.platformLocale, percent),
+                        "$percent%",
                         formatFileSize(shown.copiedBytes),
                         formatFileSize(shown.totalBytes ?: 0L),
                     )
