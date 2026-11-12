@@ -188,7 +188,7 @@ class PlaybackPositionObserverTest {
         player.replace("second", 0L)
         val (next, nextSnapshots) = observe(player)
         player.seekTo(0L)
-        player.replace("second", 0L)
+        player.replace("second", 0L, uid = "second-recovered")
         player.position(600L)
         nextSnapshots.clear()
         next.flush()
@@ -295,13 +295,13 @@ private class PositionPlayer : SimpleBasePlayer(Looper.getMainLooper()) {
 
     override fun handleRelease(): ListenableFuture<*> = Futures.immediateVoidFuture()
 
-    fun replace(lease: String?, positionMillis: Long) {
+    fun replace(lease: String?, positionMillis: Long, uid: String = lease ?: "unleased") {
         val metadata = MediaMetadata.Builder()
             .setExtras(Bundle().apply { putString(PLAYBACK_REPORTING_LEASE_KEY, lease) })
             .build()
         val item = MediaItem.Builder().setMediaId(lease.orEmpty()).setMediaMetadata(metadata).build()
         state = state.buildUpon()
-            .setPlaylist(listOf(MediaItemData.Builder(lease ?: "unleased").setMediaItem(item).build()))
+            .setPlaylist(listOf(MediaItemData.Builder(uid).setMediaItem(item).build()))
             .setCurrentMediaItemIndex(0)
             .setPlaybackState(Media3Player.STATE_READY)
             .setContentPositionMs(positionMillis)
