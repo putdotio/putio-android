@@ -50,7 +50,7 @@ internal fun <T> TvChoiceSheet(
     title: String,
     choices: List<TvSheetChoice<T>>,
     selected: T?,
-    onSave: (T) -> Unit,
+    onSelect: (T) -> Unit,
     onDismiss: () -> Unit,
     returnFocus: FocusRequester?,
 ) {
@@ -60,7 +60,7 @@ internal fun <T> TvChoiceSheet(
         title = title,
         bottomPadding = SHEET_BOTTOM,
     ) { initialFocus ->
-        TvChoiceSheetBody(choices, selected, onSave, onDismiss, initialFocus)
+        TvChoiceSheetBody(choices, selected, onSelect, onDismiss, initialFocus)
     }
 }
 
@@ -68,7 +68,7 @@ internal fun <T> TvChoiceSheet(
 private fun <T> ColumnScope.TvChoiceSheetBody(
     choices: List<TvSheetChoice<T>>,
     selected: T?,
-    onSave: (T) -> Unit,
+    onSelect: (T) -> Unit,
     onDismiss: () -> Unit,
     initialFocus: FocusRequester,
 ) {
@@ -83,7 +83,7 @@ private fun <T> ColumnScope.TvChoiceSheetBody(
                 label = choice.label,
                 detail = choice.description?.let(::AnnotatedString),
                 selected = choice.value == selected,
-                onClick = { if (choice.value == selected) onDismiss() else onSave(choice.value) },
+                onClick = { if (choice.value == selected) onDismiss() else onSelect(choice.value) },
                 modifier = Modifier.focusRequesterIf(index == focusIndex, initialFocus),
             )
         }
@@ -103,7 +103,7 @@ private fun TvSheetActions(content: @Composable () -> Unit) {
 internal fun TvTunnelRouteSheet(
     selected: TunnelRouteName,
     loadRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>>,
-    onSave: (TunnelRouteName) -> Unit,
+    onSelect: (TunnelRouteName) -> Unit,
     onDismiss: () -> Unit,
     returnFocus: FocusRequester?,
 ) {
@@ -140,7 +140,7 @@ internal fun TvTunnelRouteSheet(
                         },
                     )
                 }
-                TvChoiceSheetBody(choices, selected, onSave, onDismiss, initialFocus)
+                TvChoiceSheetBody(choices, selected, onSelect, onDismiss, initialFocus)
             }
             is AccountSettingsRepositoryResult.Failure -> {
                 TvSheetMessage(stringResource(R.string.tv_account_tunnel_route_error))
@@ -190,7 +190,7 @@ private fun TvSheetMessage(text: String) {
 @Composable
 internal fun TvPlaybackMethodSheet(
     selected: StreamingMethod,
-    onSave: (StreamingMethod) -> Unit,
+    onSelect: (StreamingMethod) -> Unit,
     onDismiss: () -> Unit,
     returnFocus: FocusRequester?,
 ) {
@@ -200,7 +200,7 @@ internal fun TvPlaybackMethodSheet(
             TvSheetChoice(it, stringResource(it.tvLabel()), stringResource(it.tvDescription()))
         },
         selected = selected,
-        onSave = onSave,
+        onSelect = onSelect,
         onDismiss = onDismiss,
         returnFocus = returnFocus,
     )

@@ -28,11 +28,6 @@ import io.putdotio.android.R
 import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.neutralTextButtonColors
 
-/**
- * A choice: the title, an optional line on what it changes, radio rows with an optional description
- * each, then Cancel. Tapping a row applies it and closes; tapping the current one only closes. [choices]
- * is null while they load, and [placeholder] shows in their place.
- */
 @Composable
 internal fun <T> MobileChoiceDialog(
     title: String,
