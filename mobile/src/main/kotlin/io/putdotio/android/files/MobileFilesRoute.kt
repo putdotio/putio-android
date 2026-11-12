@@ -79,6 +79,7 @@ internal fun MobileFilesRoute(
     // Select from a viewer's actions closes the viewer, so the selection shows.
     LaunchedEffect(selecting) { if (selecting) viewerId = null }
     var pinToOpen by rememberSaveable { mutableStateOf<Long?>(null) }
+    val openWithAnotherApp: (FilesItem) -> Unit = { item -> fileOpener?.openWithAnotherApp(context, item) }
     LandOnLinkedFile(
         state = state,
         linkedFile = linkedFile,
@@ -87,13 +88,13 @@ internal fun MobileFilesRoute(
         views = fileOpener != null,
         onDetail = { detailId = it.id.value },
         onView = { viewerId = it.id.value },
+        onPinElsewhere = openWithAnotherApp,
         onLanded = {
             pinToOpen = null
             onLinkedFileLanded()
         },
     )
     val actionsRequests = remember { MutableSharedFlow<MobileFilesActionsRequest>(extraBufferCapacity = 1) }
-    val openWithAnotherApp: (FilesItem) -> Unit = { item -> fileOpener?.openWithAnotherApp(context, item) }
     val viewFile: (FilesItem) -> Unit = { viewerId = it.id.value }
     val openFile = fileOpenAction(onPlayMedia, onView = viewFile, onOther = openWithAnotherApp)
     val sheetActions = if (fileOpener == null) {
@@ -201,16 +202,18 @@ private fun LandOnLinkedFile(
     views: Boolean,
     onDetail: (FilesItem) -> Unit,
     onView: (FilesItem) -> Unit,
+    onPinElsewhere: (FilesItem) -> Unit,
     onLanded: () -> Unit,
 ) {
     val folder = state.current
-    val pending = linkedFile?.takeIf { folder.openedFrom == FilesOpenOrigin.LINK && folder.revealItemId == it }
-        ?: pinToOpen?.takeIf { folder.revealItemId == it }
+    val pin = pinToOpen?.takeIf { folder.revealItemId == it }
+    val pending = linkedFile?.takeIf { folder.openedFrom == FilesOpenOrigin.LINK && folder.revealItemId == it } ?: pin
     val linkedItem = folder.content.items().firstOrNull { it.id == pending && !it.isFolder }
     val land = { item: FilesItem ->
         when {
             showsDetail -> onDetail(item)
             views && item.viewerKind != null -> onView(item)
+            item.id == pin -> onPinElsewhere(item)
         }
         onLanded()
     }
