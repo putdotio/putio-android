@@ -160,7 +160,7 @@ internal fun MobileAccountScreen(
         ) {
             item(key = IDENTITY_KEY) { MobileAccountIdentity(account) }
             item(key = STORAGE_KEY) { MobileAccountStorage(account.storage) }
-            libraryGroup(rows, library, onManagePublicLinks, onManageTrash)
+            libraryGroup(rows, library, onManagePublicLinks, onManageTrash.takeUnless { settingsState.trashOff })
             filesItems(settingsState, rows, onRetryLoad = { onSettingsEvent(AccountSettingsEvent.RetryLoad) })
             playbackItems(settingsState, appConfigState, rows, onRetryLoad = {
                 onAppConfigEvent(AndroidAppConfigEvent.RetryLoad)
@@ -194,7 +194,7 @@ private fun LazyListScope.libraryGroup(
     rows: AccountRows,
     library: MobileAccountLibrary,
     onManagePublicLinks: (() -> Unit)?,
-    onManageTrash: () -> Unit,
+    onManageTrash: (() -> Unit)?,
 ) {
     val links = onManagePublicLinks?.let { open ->
         SettingsRow { segment ->
@@ -208,17 +208,19 @@ private fun LazyListScope.libraryGroup(
             )
         }
     }
-    val trash = SettingsRow { segment ->
-        rows.Link(
-            segment = segment,
-            title = R.string.mobile_settings_trash_row,
-            icon = R.drawable.ic_ph_trash,
-            value = library.trashSizeBytes?.let {
-                settingsValue(formatFileSize(it.coerceAtLeast(0L)), mono = true)
-            },
-            onClick = onManageTrash,
-            tag = MOBILE_MANAGE_TRASH_TAG,
-        )
+    val trash = onManageTrash?.let { open ->
+        SettingsRow { segment ->
+            rows.Link(
+                segment = segment,
+                title = R.string.mobile_settings_trash_row,
+                icon = R.drawable.ic_ph_trash,
+                value = library.trashSizeBytes?.let {
+                    settingsValue(formatFileSize(it.coerceAtLeast(0L)), mono = true)
+                },
+                onClick = open,
+                tag = MOBILE_MANAGE_TRASH_TAG,
+            )
+        }
     }
     settingsGroup(LIBRARY_KEY, R.string.mobile_settings_section_library, listOfNotNull(links, trash))
 }
@@ -364,10 +366,10 @@ private fun LazyListScope.aboutItems(
                 ) {
                     MobileSettingsLine(
                         title = stringResource(R.string.mobile_account_sign_out),
-                        icon = R.drawable.ic_ph_sign_out,
+                        icon = null,
                         trailing = SettingsTrailing.None,
                         titleColor = PutioDesignTokens.redTextSecondary,
-                        iconColor = PutioDesignTokens.redTextSecondary,
+                        alignTitleWithIcons = true,
                     )
                 }
             }

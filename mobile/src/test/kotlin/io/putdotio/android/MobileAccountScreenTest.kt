@@ -911,6 +911,27 @@ class MobileAccountSignOutAndLibraryTest {
     }
 
     @Test
+    fun theTrashRowShowsUntilTheAccountTurnsTrashOff() {
+        var state by mutableStateOf(
+            accountSettingsState(
+                content = AccountSettingsContent.Loading(AccountSettingsRequestId(1L)),
+                mutation = AccountSettingsMutation.Idle,
+                nextRequestValue = 2L,
+            ),
+        )
+        compose.setAccountContent(state = { state })
+        compose.onNodeWithTag(MOBILE_MANAGE_TRASH_TAG).assertIsDisplayed()
+
+        compose.runOnIdle {
+            state = readyAccountSettingsState(DefaultAccountSettingsPreferences.copy(trashEnabled = false))
+        }
+        compose.onAllNodesWithTag(MOBILE_MANAGE_TRASH_TAG).assertCountEquals(0)
+
+        compose.runOnIdle { state = readyAccountSettingsState() }
+        compose.onNodeWithTag(MOBILE_MANAGE_TRASH_TAG).assertIsDisplayed()
+    }
+
+    @Test
     fun fullStorageSaysWhatWaitsAndWhatFreesSpace() {
         val full = AccountStorage(availableBytes = 0, sizeBytes = 4 * GIBIBYTE, usedBytes = 4 * GIBIBYTE)
         var account by mutableStateOf(Account)
