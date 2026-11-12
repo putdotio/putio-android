@@ -36,7 +36,7 @@ internal data class DownloadsState(
     val onDevice: List<DownloadEntry>
         get() = entries.filter { it.isCompleted }
 
-    val pauseAll: DownloadsEvent?
+    val pauseOrResumeAll: DownloadsEvent?
         get() {
             val rows = entries.filter { it.fileId !in removing }
             val pausable = rows.filter { it.canPause }.mapTo(linkedSetOf()) { it.fileId }
