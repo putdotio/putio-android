@@ -1,8 +1,6 @@
 package io.putdotio.android
 
 import android.app.Application
-import android.content.ActivityNotFoundException
-import android.content.Context
 import android.content.Intent
 import androidx.activity.result.ActivityResultLauncher
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,7 +13,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.putdotio.android.account.MobileAccountSettingsViewModel
@@ -28,6 +25,7 @@ import io.putdotio.android.auth.MobileOAuthRuntime
 import io.putdotio.android.auth.MobileSignedOutReason
 import io.putdotio.android.auth.OAuthBrowserLaunchResult
 import io.putdotio.android.auth.OAuthLaunchResult
+import io.putdotio.android.auth.openChromeStoreListing
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.downloads.MobileDownloadsViewModel
 import io.putdotio.android.downloads.mobileDownloadsViewModelFactory
@@ -162,8 +160,14 @@ private fun MobileAuthRoot(
                     }
                 },
                 onGetChrome = {
-                    openChromeStoreListing(context)
-                    rootScope.launch { authController.dismissAuthTabBrowserMissing() }
+                    val opened = openChromeStoreListing(context)
+                    rootScope.launch {
+                        if (opened) {
+                            authController.dismissAuthTabBrowserMissing()
+                        } else {
+                            authController.failChromeStoreListing()
+                        }
+                    }
                 },
                 onRetrySecureStorage = { rootScope.launch { authController.retrySecureStorage() } },
             )
@@ -222,19 +226,3 @@ internal fun MobileSignedOutScreen(
         onSecondaryAction = onSignIn,
     )
 }
-
-private fun openChromeStoreListing(context: Context) {
-    listOf(
-        "market://details?id=$CHROME_PACKAGE",
-        "https://play.google.com/store/apps/details?id=$CHROME_PACKAGE",
-    ).firstOrNull { listing ->
-        try {
-            context.startActivity(Intent(Intent.ACTION_VIEW, listing.toUri()))
-            true
-        } catch (_: ActivityNotFoundException) {
-            false
-        }
-    }
-}
-
-private const val CHROME_PACKAGE = "com.android.chrome"
