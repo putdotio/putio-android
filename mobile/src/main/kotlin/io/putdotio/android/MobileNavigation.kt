@@ -98,6 +98,7 @@ import io.putdotio.android.playback.subtitleStartupPolicy
 import io.putdotio.android.playback.nextEpisodeEnabled
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.android.search.MobileHistoryScreen
+import io.putdotio.android.settings.historyOpen
 import io.putdotio.android.search.MobileSearchScreen
 import io.putdotio.android.settings.AccountSettingsEvent
 import io.putdotio.android.settings.AccountSettingsRepositoryResult
@@ -301,6 +302,8 @@ internal fun MobileNavHost(
                     MobileHistoryScreen(
                         historyState = searchHistoryState.history,
                         onHistoryEvent = searchHistoryActions.onHistoryEvent,
+                        open = accountSettingsState.historyOpen(),
+                        onRetryOpen = { onAccountSettingsEvent(AccountSettingsEvent.RetryLoad) },
                     )
                 }
                 composable(MobileDestination.Transfers.route) {

@@ -237,14 +237,35 @@ public fun AccountSettingsState.authoritativeSessionFailure(): AccountSettingsFa
 public fun AccountSettingsState.confirmedHistoryEnabled(): Boolean? =
     confirmedPreferences(AccountSettingsKey.History)?.historyEnabled
 
-public fun AccountSettingsState.historyTabShown(): Boolean {
+public sealed interface HistoryOpen {
+    public data object Pending : HistoryOpen
+
+    public data object History : HistoryOpen
+
+    public data object FilesRoot : HistoryOpen
+
+    public data class Failed(
+        val failure: PutioFailure,
+    ) : HistoryOpen
+}
+
+public fun AccountSettingsState.historyOpen(): HistoryOpen {
     val lastRead = when (val write = mutation) {
         AccountSettingsMutation.Idle -> null
         is AccountSettingsMutation.Saving -> write.previousPreferences
         is AccountSettingsMutation.Failed -> write.previousPreferences
     }?.takeIf { mutation.pending?.first == AccountSettingsKey.History }
-    return (lastRead?.historyEnabled ?: confirmedHistoryEnabled()) != false
+    val enabled = lastRead?.historyEnabled ?: confirmedHistoryEnabled()
+    val loadFailure = (content as? AccountSettingsContent.Failed)?.failure?.putioFailure
+    return when {
+        enabled == true -> HistoryOpen.History
+        enabled == false -> HistoryOpen.FilesRoot
+        loadFailure != null -> HistoryOpen.Failed(loadFailure)
+        else -> HistoryOpen.Pending
+    }
 }
+
+public fun AccountSettingsState.historyTabShown(): Boolean = historyOpen() != HistoryOpen.FilesRoot
 
 public fun AccountSettingsState.confirmedTrashEnabled(): Boolean? =
     confirmedPreferences(AccountSettingsKey.Trash)?.trashEnabled
