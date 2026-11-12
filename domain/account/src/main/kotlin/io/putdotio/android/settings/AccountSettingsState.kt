@@ -85,7 +85,6 @@ public sealed interface AccountSettingsChange {
         override val key: AccountSettingsKey get() = AccountSettingsKey.DefaultSort
     }
 
-    /** Clears every folder's own sort, so each one falls back to the default sort order. */
     public data object ResetFolderSorts : AccountSettingsChange {
         override val key: AccountSettingsKey get() = AccountSettingsKey.FolderSorts
     }
