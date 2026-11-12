@@ -22,7 +22,7 @@ public interface TrashRepository {
     public suspend fun loadNextPage(cursor: FilesCursor): PutioResult<TrashPage>
     public suspend fun restore(itemId: FilesItemId): PutioResult<Unit>
     public suspend fun resolveItem(itemId: FilesItemId): PutioResult<FilesItem>
-    public suspend fun deleteItem(itemId: FilesItemId): PutioResult<Unit>
+    public suspend fun deleteItems(itemIds: List<FilesItemId>): PutioResult<Unit>
     public suspend fun restoreAll(selection: TrashBulkSelection): PutioResult<Unit>
     public suspend fun empty(): PutioResult<Unit>
 }
@@ -58,9 +58,11 @@ public class SdkTrashRepository internal constructor(
         restoreItem(TrashBulkInput(ids = listOf(itemId.value)))
     }
 
-    override suspend fun deleteItem(itemId: FilesItemId): PutioResult<Unit> = putioRequest {
-        require(itemId.value > 0L) { "Permanent deletion requires one positive item ID" }
-        deleteItems(TrashBulkInput(ids = listOf(itemId.value)))
+    override suspend fun deleteItems(itemIds: List<FilesItemId>): PutioResult<Unit> = putioRequest {
+        require(itemIds.isNotEmpty() && itemIds.all { it.value > 0L }) {
+            "Permanent deletion requires positive item IDs"
+        }
+        deleteItems(TrashBulkInput(ids = itemIds.map(FilesItemId::value)))
     }
 
     override suspend fun restoreAll(selection: TrashBulkSelection): PutioResult<Unit> = putioRequest {

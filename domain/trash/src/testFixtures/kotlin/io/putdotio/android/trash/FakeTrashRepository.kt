@@ -26,7 +26,7 @@ public class FakeTrashRepository : TrashRepository {
     public var onResolve: suspend (FilesItemId) -> PutioResult<FilesItem> = {
         PutioResult.Failure(apiFailure(404, "NOT_FOUND"))
     }
-    internal var onDelete: suspend (FilesItemId) -> PutioResult<Unit> = { PutioResult.Success(Unit) }
+    internal var onDelete: suspend (List<FilesItemId>) -> PutioResult<Unit> = { PutioResult.Success(Unit) }
     internal var onRestoreAll: suspend (TrashBulkSelection) -> PutioResult<Unit> =
         { PutioResult.Success(Unit) }
     internal var onEmpty: suspend () -> PutioResult<Unit> = { PutioResult.Success(Unit) }
@@ -43,9 +43,9 @@ public class FakeTrashRepository : TrashRepository {
         resolvedIds += itemId
         return onResolve(itemId)
     }
-    override suspend fun deleteItem(itemId: FilesItemId): PutioResult<Unit> {
-        deletedIds += itemId
-        return onDelete(itemId)
+    override suspend fun deleteItems(itemIds: List<FilesItemId>): PutioResult<Unit> {
+        deletedIds += itemIds
+        return onDelete(itemIds)
     }
     override suspend fun restoreAll(selection: TrashBulkSelection): PutioResult<Unit> {
         bulkRestores += selection

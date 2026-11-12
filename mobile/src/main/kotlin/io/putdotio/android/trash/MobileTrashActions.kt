@@ -32,6 +32,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -112,16 +113,17 @@ internal fun trashTopBarActions(
     route: String?,
     state: TrashState?,
     controller: TrashController?,
+    selection: TrashSelection,
 ): (@Composable RowScope.() -> Unit)? =
     if (route == MOBILE_TRASH_ROUTE && state != null && controller != null) {
-        { MobileTrashOverflow(state, controller::dispatch) }
+        { MobileTrashOverflow(state, controller::dispatch, onSelect = selection::start) }
     } else {
         null
     }
 
-/** Refresh, Restore all and Empty trash, from the overflow in Trash's top bar. */
+/** Select, Refresh, Restore all and Empty trash, from the overflow in Trash's top bar. */
 @Composable
-internal fun MobileTrashOverflow(state: TrashState, onEvent: (TrashEvent) -> Boolean) {
+internal fun MobileTrashOverflow(state: TrashState, onEvent: (TrashEvent) -> Boolean, onSelect: () -> Unit) {
     val content = state.content as? TrashContent.Loaded
     var expanded by remember { mutableStateOf(false) }
     val choose = { event: TrashEvent ->
@@ -143,6 +145,15 @@ internal fun MobileTrashOverflow(state: TrashState, onEvent: (TrashEvent) -> Boo
             shape = RoundedCornerShape(PutioRadius.large),
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
         ) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.mobile_trash_select)) },
+                onClick = {
+                    expanded = false
+                    onSelect()
+                },
+                enabled = content?.items.orEmpty().isNotEmpty(),
+                modifier = Modifier.testTag(MOBILE_TRASH_SELECT_TAG),
+            )
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.mobile_action_refresh)) },
                 onClick = { choose(TrashEvent.Refresh) },
@@ -174,11 +185,15 @@ internal fun MobileTrashActionConfirmation(
     val confirmationId = state.actionConfirmationId
     AlertDialog(
         onDismissRequest = { onEvent(TrashEvent.CancelAction) },
-        title = { Text(stringResource(action.titleResource())) },
+        title = { Text(action.title()) },
         text = {
             Text(
                 text = when (action) {
                     is TrashAction.DeleteItem -> stringResource(R.string.mobile_trash_delete_message, action.item.name)
+                    is TrashAction.DeleteSelected -> pluralStringResource(
+                        R.plurals.mobile_trash_delete_selected_message,
+                        action.items.size,
+                    )
                     TrashAction.Empty -> stringResource(R.string.mobile_trash_empty_confirm_message)
                 },
                 modifier = Modifier.verticalScroll(rememberScrollState()),
@@ -200,9 +215,10 @@ internal fun MobileTrashActionConfirmation(
 @Composable
 internal fun MobileTrashActionOutcome(
     outcome: TrashActionOutcome,
-    enabled: Boolean,
+    state: TrashState,
     onEvent: (TrashEvent) -> Boolean,
 ) {
+    val enabled = state.authenticationFailure == null
     Column(
         Modifier.fillMaxWidth().padding(16.dp).testTag(MOBILE_TRASH_ACTION_OUTCOME_TAG)
             .semantics { liveRegion = LiveRegionMode.Polite },
@@ -211,7 +227,7 @@ internal fun MobileTrashActionOutcome(
         (outcome.action as? TrashAction.DeleteItem)?.let {
             Text(it.item.name, style = MaterialTheme.typography.titleMedium)
         }
-        Text(outcome.message())
+        Text(outcome.message(state))
         outcome.submissionFailure?.takeIf { outcome.submission == TrashActionSubmission.REJECTED }?.let { failure ->
             Text(failure.trashActionMessage())
         }
@@ -242,51 +258,69 @@ internal fun MobileTrashActionOutcome(
 }
 
 @Composable
-private fun TrashActionOutcome.message(): String =
+private fun TrashActionOutcome.message(state: TrashState): String =
     when {
         check == TrashActionCheck.VERIFIED -> action.verifiedMessage()
         check == TrashActionCheck.INCONCLUSIVE -> action.inconclusiveMessage()
-        check == TrashActionCheck.FAILED && checkFailure == null -> action.stillPresentMessage()
+        check == TrashActionCheck.FAILED && checkFailure == null -> action.stillPresentMessage(state)
+        submission == TrashActionSubmission.ACKNOWLEDGED -> action.startedMessage()
         else -> stringResource(submissionMessageResource())
     }
 
 @Composable
+private fun TrashAction.startedMessage(): String = when (this) {
+    is TrashAction.DeleteSelected ->
+        pluralStringResource(R.plurals.mobile_trash_delete_selected_started, items.size, items.size)
+    is TrashAction.RestoreSelected ->
+        pluralStringResource(R.plurals.mobile_trash_restore_selected_started, items.size, items.size)
+    is TrashAction.DeleteItem -> stringResource(R.string.mobile_trash_delete_started)
+    TrashAction.RestoreAll -> stringResource(R.string.mobile_trash_restore_all_started)
+    TrashAction.Empty -> stringResource(R.string.mobile_trash_empty_started)
+}
+
+@Composable
 private fun TrashAction.verifiedMessage(): String = when (this) {
     is TrashAction.DeleteItem -> stringResource(R.string.mobile_trash_delete_verified, item.name)
-    TrashAction.RestoreAll -> stringResource(R.string.mobile_trash_restore_all_verified)
+    is TrashAction.DeleteSelected ->
+        pluralStringResource(R.plurals.mobile_trash_delete_selected_verified, items.size, items.size)
+    TrashAction.RestoreAll, is TrashAction.RestoreSelected -> stringResource(R.string.mobile_trash_restore_all_verified)
     TrashAction.Empty -> stringResource(R.string.mobile_trash_empty_verified)
 }
 
 @Composable
 private fun TrashAction.inconclusiveMessage(): String = when (this) {
     is TrashAction.DeleteItem -> stringResource(R.string.mobile_trash_delete_inconclusive, item.name)
+    is TrashAction.DeleteSelected -> stringResource(R.string.mobile_trash_delete_selected_inconclusive)
     else -> stringResource(R.string.mobile_trash_restore_all_inconclusive)
 }
 
 @Composable
-private fun TrashAction.stillPresentMessage(): String = when (this) {
+private fun TrashAction.stillPresentMessage(state: TrashState): String = when (this) {
     is TrashAction.DeleteItem -> stringResource(R.string.mobile_trash_delete_still_present, item.name)
+    is TrashAction.DeleteSelected -> state.stillListed(this).size.let { failed ->
+        pluralStringResource(R.plurals.mobile_trash_delete_selected_failed, failed, failed)
+    }
     else -> stringResource(R.string.mobile_trash_empty_still_present)
 }
 
 private fun TrashActionOutcome.submissionMessageResource(): Int = when (submission) {
     TrashActionSubmission.SUBMITTING -> R.string.mobile_trash_action_submitting
-    TrashActionSubmission.ACKNOWLEDGED -> when (action) {
-        is TrashAction.DeleteItem -> R.string.mobile_trash_delete_started
-        TrashAction.RestoreAll -> R.string.mobile_trash_restore_all_started
-        TrashAction.Empty -> R.string.mobile_trash_empty_started
-    }
+    TrashActionSubmission.ACKNOWLEDGED -> R.string.mobile_trash_action_submitting
     TrashActionSubmission.UNCERTAIN -> R.string.mobile_trash_action_uncertain
     TrashActionSubmission.REJECTED -> R.string.mobile_trash_action_rejected
 }
 
-private fun TrashDestructiveAction.titleResource(): Int = when (this) {
-    is TrashAction.DeleteItem -> R.string.mobile_trash_delete_title
-    TrashAction.Empty -> R.string.mobile_trash_empty_confirm_title
+@Composable
+private fun TrashDestructiveAction.title(): String = when (this) {
+    is TrashAction.DeleteItem -> stringResource(R.string.mobile_trash_delete_title)
+    is TrashAction.DeleteSelected ->
+        pluralStringResource(R.plurals.mobile_trash_delete_selected_title, items.size, items.size)
+    TrashAction.Empty -> stringResource(R.string.mobile_trash_empty_confirm_title)
 }
 
 private fun TrashDestructiveAction.confirmResource(): Int = when (this) {
     is TrashAction.DeleteItem -> R.string.mobile_trash_delete
+    is TrashAction.DeleteSelected -> R.string.mobile_files_delete
     TrashAction.Empty -> R.string.mobile_trash_empty_action
 }
 

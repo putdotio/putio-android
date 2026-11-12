@@ -934,7 +934,7 @@ private object StubTrashRepository : TrashRepository {
     override suspend fun loadNextPage(cursor: FilesCursor) = error("No continuation expected")
     override suspend fun restore(itemId: FilesItemId) = PutioResult.Success(Unit)
     override suspend fun resolveItem(itemId: FilesItemId) = error("No check expected")
-    override suspend fun deleteItem(itemId: FilesItemId) = PutioResult.Success(Unit)
+    override suspend fun deleteItems(itemIds: List<FilesItemId>) = PutioResult.Success(Unit)
     override suspend fun restoreAll(selection: TrashBulkSelection) = PutioResult.Success(Unit)
     override suspend fun empty() = PutioResult.Success(Unit)
 }

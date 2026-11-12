@@ -228,7 +228,7 @@ private class TrashRestoreControlledRepository(private val awaitRequest: (() -> 
         checks += result
         return result.await()
     }
-    override suspend fun deleteItem(itemId: FilesItemId): PutioResult<Unit> = error("unexpected delete")
+    override suspend fun deleteItems(itemIds: List<FilesItemId>): PutioResult<Unit> = error("unexpected delete")
     override suspend fun restoreAll(selection: TrashBulkSelection): PutioResult<Unit> =
         error("unexpected restore all")
     override suspend fun empty(): PutioResult<Unit> = error("unexpected empty")

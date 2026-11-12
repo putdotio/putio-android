@@ -46,6 +46,13 @@ import io.putdotio.android.trash.MOBILE_TRASH_MORE_TAG
 import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
 import io.putdotio.android.trash.MobileTrashOverflow
+import io.putdotio.android.trash.MOBILE_TRASH_ROUTE
+import io.putdotio.android.trash.MOBILE_TRASH_SELECT_TAG
+import io.putdotio.android.trash.MOBILE_TRASH_SELECTION_BAR_TAG
+import io.putdotio.android.trash.MOBILE_TRASH_SELECTION_DELETE_TAG
+import io.putdotio.android.trash.MOBILE_TRASH_SELECTION_RESTORE_TAG
+import io.putdotio.android.trash.rememberTrashSelection
+import io.putdotio.android.trash.trashSelectionBar
 
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -148,6 +155,49 @@ class MobileTrashActionsScreenTest {
         compose.runOnIdle { assertEquals(TrashEvent.DismissActionOutcome, events.last()) }
     }
 
+    @Test
+    fun selectTicksRowsRestoresThemAtOnceAndDeleteAsksNamingTheCount() {
+        val events = mutableListOf<TrashEvent>()
+        val second = item.copy(id = FilesItemId(9), name = "second.txt")
+        val third = item.copy(id = FilesItemId(10), name = "third.txt")
+        var state by mutableStateOf(TrashState(content = TrashContent.Loaded(listOf(item, second, third), null, 3, 36)))
+        compose.setContent { PutioTheme { TrashWithOverflow(state) { events += it; true } } }
+        compose.trashMenuItem(MOBILE_TRASH_SELECT_TAG).performClick()
+        compose.onNodeWithTag(MOBILE_TRASH_SELECTION_BAR_TAG).assertIsDisplayed()
+        compose.onNodeWithText("0 selected").assertIsDisplayed()
+        compose.onNodeWithText(item.name).performClick()
+        compose.onNodeWithText(third.name).performClick()
+        compose.onNodeWithText("2 selected").assertIsDisplayed()
+        compose.onNodeWithTag(MOBILE_TRASH_SELECTION_RESTORE_TAG).performClick()
+        compose.onNodeWithTag(MOBILE_TRASH_SELECTION_DELETE_TAG).performClick()
+        compose.runOnIdle {
+            assertEquals(
+                listOf(
+                    TrashEvent.RestoreSelected(setOf(item.id, third.id)),
+                    TrashEvent.SelectDeleteSelected(setOf(item.id, third.id)),
+                ),
+                events,
+            )
+            state = state.copy(actionConfirmation = TrashAction.DeleteSelected(listOf(item, third)), actionConfirmationId = 4)
+        }
+        compose.onNodeWithText("Delete 2 items permanently?").assertIsDisplayed()
+        compose.onNodeWithTag(MOBILE_TRASH_ACTION_CONFIRM_TAG).performClick()
+        compose.runOnIdle {
+            assertEquals(TrashEvent.ConfirmAction(4), events.last())
+            state = state.copy(
+                actionConfirmation = null,
+                actionConfirmationId = null,
+                actionOutcome = TrashActionOutcome(
+                    TrashAction.DeleteSelected(listOf(item, third)),
+                    TrashActionSubmission.UNCERTAIN,
+                    check = TrashActionCheck.FAILED,
+                ),
+            )
+        }
+        compose.onNodeWithTag(MOBILE_TRASH_SELECTION_BAR_TAG).assertDoesNotExist()
+        compose.onNodeWithText("Couldn’t delete 2 items.").assertIsDisplayed()
+    }
+
     /** A Trash overflow item, opening the overflow first when it is closed. */
     private fun SemanticsNodeInteractionsProvider.trashMenuItem(tag: String): SemanticsNodeInteraction {
         if (onAllNodes(hasTestTag(tag)).fetchSemanticsNodes().isEmpty()) {
@@ -159,9 +209,11 @@ class MobileTrashActionsScreenTest {
     /** The screen under the overflow its top bar carries in the shell. */
     @Composable
     private fun TrashWithOverflow(state: TrashState, onEvent: (TrashEvent) -> Boolean) {
+        val selection = rememberTrashSelection(Unit)
         Column {
-            MobileTrashOverflow(state, onEvent)
-            MobileTrashScreen(state, onEvent)
+            trashSelectionBar(MOBILE_TRASH_ROUTE, state, selection)?.invoke()
+                ?: MobileTrashOverflow(state, onEvent, onSelect = selection::start)
+            MobileTrashScreen(state, onEvent, selection = selection)
         }
     }
 }

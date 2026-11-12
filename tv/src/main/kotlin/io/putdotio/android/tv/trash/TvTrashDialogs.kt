@@ -25,6 +25,11 @@ internal fun TvTrashConfirmations(
                 stringResource(R.string.tv_trash_delete_message, action.item.name),
                 stringResource(R.string.tv_trash_delete),
             )
+            is TrashAction.DeleteSelected -> Triple(
+                pluralStringResource(R.plurals.tv_trash_delete_selected_title, action.items.size, action.items.size),
+                pluralStringResource(R.plurals.tv_trash_delete_selected_message, action.items.size),
+                stringResource(R.string.tv_trash_delete),
+            )
             TrashAction.Empty -> Triple(
                 stringResource(R.string.tv_trash_empty_title_confirm),
                 state.emptyMessage(),

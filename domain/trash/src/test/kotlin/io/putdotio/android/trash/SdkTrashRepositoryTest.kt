@@ -138,9 +138,12 @@ class SdkTrashRepositoryTest {
             delete = { deletes += it; OkResponse("OK") },
             empty = { empties += 1; OkResponse("OK") },
         ))
-        assertEquals(PutioResult.Success(Unit), repository.deleteItem(FilesItemId(7L)))
-        assertTrue(repository.deleteItem(FilesItemId(0L)) is PutioResult.Failure)
-        assertEquals(listOf(TrashBulkInput(ids = listOf(7L))), deletes)
+        assertEquals(PutioResult.Success(Unit), repository.deleteItems(listOf(FilesItemId(7L))))
+        assertEquals(PutioResult.Success(Unit), repository.deleteItems(listOf(FilesItemId(7L), FilesItemId(9L))))
+        assertTrue(repository.deleteItems(listOf(FilesItemId(0L))) is PutioResult.Failure)
+        assertTrue(repository.deleteItems(listOf(FilesItemId(8L), FilesItemId(-1L))) is PutioResult.Failure)
+        assertTrue(repository.deleteItems(emptyList()) is PutioResult.Failure)
+        assertEquals(listOf(TrashBulkInput(ids = listOf(7L)), TrashBulkInput(ids = listOf(7L, 9L))), deletes)
         assertEquals(PutioResult.Success(Unit),
             repository.restoreAll(TrashBulkSelection(FilesCursor("snapshot"), listOf(FilesItemId(7L)))))
         assertEquals(PutioResult.Success(Unit),
@@ -152,7 +155,7 @@ class SdkTrashRepositoryTest {
         assertEquals(1, empties)
         val cause = apiFailure(401, "invalid_token").cause
         val failing = repository(Endpoints(delete = { throw cause }, empty = { throw cause }))
-        val deleteFailure = (failing.deleteItem(FilesItemId(7L)) as PutioResult.Failure).failure
+        val deleteFailure = (failing.deleteItems(listOf(FilesItemId(7L))) as PutioResult.Failure).failure
         assertTrue(deleteFailure is PutioFailure.AuthenticationRequired)
         assertTrue((failing.empty() as PutioResult.Failure).failure is PutioFailure.AuthenticationRequired)
     }

@@ -157,7 +157,7 @@ class TvSessionReconnectTest {
         override suspend fun loadNextPage(cursor: FilesCursor) = error("No continuation expected")
         override suspend fun restore(itemId: FilesItemId) = error("No restore expected")
         override suspend fun resolveItem(itemId: FilesItemId) = error("No check expected")
-        override suspend fun deleteItem(itemId: FilesItemId) = error("No delete expected")
+        override suspend fun deleteItems(itemIds: List<FilesItemId>) = error("No delete expected")
         override suspend fun restoreAll(selection: TrashBulkSelection) = error("No restore expected")
         override suspend fun empty() = error("No empty expected")
     }

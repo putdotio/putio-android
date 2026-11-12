@@ -16,8 +16,7 @@ internal fun TrashMachine.completeAction(
         failure.isKnownActionRejection() -> TrashActionSubmission.REJECTED
         else -> TrashActionSubmission.UNCERTAIN
     }
-    val acknowledgedBulkRestore =
-        submission == TrashActionSubmission.ACKNOWLEDGED && completed.action is TrashAction.RestoreAll
+    val acknowledgedBulkRestore = submission == TrashActionSubmission.ACKNOWLEDGED && completed.action.isBulkRestore
     val next = copy(request = null, state = state.copy(
         actionOutcome = outcome.copy(submission = submission, submissionFailure = failure),
         authenticationFailure = failure?.authFailure() ?: state.authenticationFailure,
@@ -30,7 +29,7 @@ internal fun TrashMachine.completeAction(
 internal fun TrashMachine.verifyActionAgainstPage(page: TrashContent.Loaded): TrashMachine {
     val outcome = state.actionOutcome?.takeIf { it.check == TrashActionCheck.CHECKING } ?: return this
     val check = outcome.verify(page)
-    val verifiedBulkRestore = check == TrashActionCheck.VERIFIED && outcome.action is TrashAction.RestoreAll
+    val verifiedBulkRestore = check == TrashActionCheck.VERIFIED && outcome.action.isBulkRestore
     return copy(state = state.copy(
         actionOutcome = outcome.copy(check = check, checkFailure = null),
         bulkRestoreVersion = state.bulkRestoreVersion + (if (verifiedBulkRestore) 1L else 0L),
@@ -38,16 +37,30 @@ internal fun TrashMachine.verifyActionAgainstPage(page: TrashContent.Loaded): Tr
 }
 
 private fun TrashActionOutcome.verify(page: TrashContent.Loaded): TrashActionCheck = when (val action = action) {
-    is TrashAction.DeleteItem -> when {
-        page.items.any { it.id == action.item.id } -> TrashActionCheck.FAILED
-        page.nextCursor == null || submission == TrashActionSubmission.ACKNOWLEDGED -> TrashActionCheck.VERIFIED
-        else -> TrashActionCheck.INCONCLUSIVE
-    }
+    is TrashAction.DeleteItem -> verifyGone(page, listOf(action.item), whenListed = TrashActionCheck.FAILED)
+    is TrashAction.DeleteSelected -> verifyGone(page, action.items, whenListed = TrashActionCheck.FAILED)
+    is TrashAction.RestoreSelected -> verifyGone(page, action.items, whenListed = TrashActionCheck.INCONCLUSIVE)
     TrashAction.Empty -> if (page.isKnownEmpty) TrashActionCheck.VERIFIED else TrashActionCheck.FAILED
     // Bulk restore drains asynchronously. Items deleted after the snapshot were never part of the
     // request, so a complete page holding only those still verifies it.
     TrashAction.RestoreAll -> verifyRestoreAll(page)
 }
+
+private fun TrashActionOutcome.verifyGone(
+    page: TrashContent.Loaded,
+    items: List<TrashItem>,
+    whenListed: TrashActionCheck,
+): TrashActionCheck {
+    val ids = items.mapTo(hashSetOf(), TrashItem::id)
+    return when {
+        page.items.any { it.id in ids } -> whenListed
+        page.nextCursor == null || submission == TrashActionSubmission.ACKNOWLEDGED -> TrashActionCheck.VERIFIED
+        else -> TrashActionCheck.INCONCLUSIVE
+    }
+}
+
+private val TrashAction.isBulkRestore: Boolean
+    get() = this == TrashAction.RestoreAll || this is TrashAction.RestoreSelected
 
 private fun TrashActionOutcome.verifyRestoreAll(page: TrashContent.Loaded): TrashActionCheck {
     val snapshot = restoreSnapshot
