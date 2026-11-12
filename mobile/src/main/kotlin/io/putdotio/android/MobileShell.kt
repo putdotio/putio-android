@@ -410,8 +410,8 @@ internal fun MobileShell(
                     enabled = !isPlayback,
                     destinations = destinations,
                 ) { openNavigation ->
-                    val topBarAt: @Composable (MobileDestination, String?, (() -> Unit)?) -> Unit = {
-                            destination, route, onSubpageBack ->
+                    val topBarAt: @Composable (MobileDestination, String?, (() -> Unit)?, (() -> Unit)?) -> Unit = {
+                            destination, route, onSubpageBack, navigation ->
                         MobileTopBar(
                             destination = destination,
                             route = route,
@@ -443,7 +443,7 @@ internal fun MobileShell(
                             onFilesBack = onFilesBack,
                             onFilesEvent = onFilesEvent,
                             onNewFolder = requestNewFolder,
-                            openNavigation = openNavigation,
+                            openNavigation = navigation,
                             summary = tabSummary(destination, transfersState, downloadsState),
                             tabActions = tabActions(
                                 destination,
@@ -467,7 +467,7 @@ internal fun MobileShell(
                     }
                     val topBar: @Composable () -> Unit = {
                         val route = backStackEntry?.destination?.route
-                        topBarAt(selectedDestination, route) { navController.popBackStack() }
+                        topBarAt(selectedDestination, route, { navController.popBackStack() }, openNavigation)
                     }
                     val paneTopBar: @Composable () -> Unit = {
                         MobileFilesPaneTopBar(topBarInFilesPane, topBar, account.inactiveNotice)
@@ -475,11 +475,11 @@ internal fun MobileShell(
                     val accountPanes = MobileAccountPanes(
                         listTopBar = {
                             MobileChromeTopBar(
-                                { topBarAt(MobileDestination.Account, null, null) },
+                                { topBarAt(MobileDestination.Account, null, null, openNavigation) },
                                 account.inactiveNotice,
                             )
                         },
-                        pageTopBar = { page -> topBarAt(MobileDestination.Account, page.route, null) },
+                        pageTopBar = { page -> topBarAt(MobileDestination.Account, page.route, null, null) },
                     ).takeIf { listDetail }
                     MobileChrome(
                         visible = !isPlayback,

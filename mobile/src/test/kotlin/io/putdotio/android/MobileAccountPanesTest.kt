@@ -1,16 +1,19 @@
 package io.putdotio.android
 
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.account.MOBILE_ABOUT_ROW_TAG
@@ -62,5 +65,26 @@ class MobileAccountPanesTest : NavigationShellFixture(1f) {
     private fun back() {
         compose.runOnIdle { backOwner.onBackPressedDispatcher.onBackPressed() }
         compose.waitForIdle()
+    }
+}
+
+@RunWith(AndroidJUnit4::class)
+@Config(sdk = [35], qualifiers = "en-rUS-w1280dp-h800dp-land")
+class MobileAccountPanesLargeTextTest : NavigationShellFixture(2f) {
+    @Test
+    fun aModalLayoutKeepsOneNavigationMenuWhileAPageIsOpenBesideTheList() {
+        mount()
+        compose.onNodeWithTag(MOBILE_NAV_MENU_TAG).performClick()
+        drawerDestination("Account").performScrollTo().performClick()
+        compose.waitForIdle()
+
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_PRIVACY_CONTROLS_ROW_TAG))
+        compose.onNodeWithTag(MOBILE_PRIVACY_CONTROLS_ROW_TAG).performClick()
+        compose.waitForIdle()
+
+        compose.onNodeWithTag(MOBILE_ACCOUNT_PAGE_PANE_TAG).assertIsDisplayed()
+        compose.onAllNodesWithTag(MOBILE_NAV_MENU_TAG).assertCountEquals(1)
+        compose.onNode(hasTestTag(MOBILE_NAV_MENU_TAG) and hasAnyAncestor(hasTestTag(MOBILE_ACCOUNT_PAGE_PANE_TAG)))
+            .assertDoesNotExist()
     }
 }

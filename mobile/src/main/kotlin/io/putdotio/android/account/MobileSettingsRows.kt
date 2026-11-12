@@ -31,6 +31,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.design.PutioRadius
+import io.putdotio.android.MobileSelectedRowTint
 import io.putdotio.android.monoFigures
 import io.putdotio.android.design.PutioSwitch
 import io.putdotio.android.design.PutioTypeScale
@@ -100,13 +101,12 @@ internal fun MobileSettingsSegment(
     below: (@Composable ColumnScope.() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    val surface =
-        if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainer
     Column(
         modifier = modifier
             .fillMaxWidth()
             .clip(segment.shape())
-            .background(surface),
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .background(if (selected) MobileSelectedRowTint else Color.Transparent),
     ) {
         val marked = if (selected) Modifier.semantics { this.selected = true } else Modifier
         Column(interaction.then(marked).fillMaxWidth(), content = content)
