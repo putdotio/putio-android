@@ -35,10 +35,34 @@ class PlaybackPositionWriterTest {
         assertEquals(listOf(1L to 15.0, 1L to 115.0), calls)
         writer.offer(lease, 115_000L)
         writer.offer(lease, 115_999L)
-        writer.offer(lease, 0L)
+        writer.offer(lease, -1L)
         writer.offer("unknown", 25_000L)
         runCurrent()
         assertEquals(2, calls.size)
+        writer.close()
+    }
+
+    @Test
+    fun aPositionAtTheStartIsWrittenOnceAsZero() = runTest {
+        val calls = mutableListOf<Pair<Long, Double>>()
+        val writer = PlaybackPositionWriter(backgroundScope) { fileId, seconds ->
+            calls += fileId to seconds
+            PlaybackRepositoryResult.Success(Unit)
+        }
+        val lease = writer.register(1L) { true }
+        writer.offer(lease, 42_000L)
+        runCurrent()
+        repeat(5) { writer.offer(lease, 0L) }
+        runCurrent()
+        writer.offer(lease, 0L)
+        runCurrent()
+        writer.offer(lease, 999L)
+        runCurrent()
+        writer.offer(lease, 30_000L)
+        runCurrent()
+        writer.offer(lease, 400L)
+        runCurrent()
+        assertEquals(listOf(1L to 42.0, 1L to 0.0, 1L to 30.0, 1L to 0.0), calls)
         writer.close()
     }
 

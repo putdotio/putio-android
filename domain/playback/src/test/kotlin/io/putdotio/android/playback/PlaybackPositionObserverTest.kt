@@ -109,7 +109,7 @@ class PlaybackPositionObserverTest {
     }
 
     @Test
-    fun seeksDoNotSubmitImmediatelyAndZeroOrUnleasedItemsNeverSubmit() = runTest {
+    fun seeksDoNotSubmitImmediatelyAndUnleasedItemsNeverSubmit() = runTest {
         val player = PositionPlayer()
         player.replace("first", 10_000L)
         val (observer, snapshots) = observe(player)
@@ -118,9 +118,10 @@ class PlaybackPositionObserverTest {
         observer.flush()
         assertEquals(listOf("first" to 20_000L), snapshots)
         snapshots.clear()
-        player.seekTo(0L)
-        observer.flush()
         player.replace(null, 17_000L)
+        assertEquals(listOf("first" to 20_000L), snapshots)
+        snapshots.clear()
+        player.seekTo(0L)
         observer.flush()
         observer.close()
         assertTrue(snapshots.isEmpty())
@@ -142,6 +143,105 @@ class PlaybackPositionObserverTest {
         advanceTimeBy(2_001L)
         runCurrent()
         assertEquals(listOf("first" to 70_000L), snapshots)
+        observer.close()
+        player.release()
+    }
+
+    @Test
+    fun aPlainStartAtZeroNeverSubmits() = runTest {
+        val player = PositionPlayer()
+        player.replace("first", 0L)
+        player.play()
+        val (observer, snapshots) = observe(player)
+        runCurrent()
+        player.position(400L)
+        player.pause()
+        observer.flush()
+        player.replace("second", 0L)
+        advanceTimeBy(3_000L)
+        runCurrent()
+        observer.close()
+        assertTrue(snapshots.isEmpty())
+        player.release()
+    }
+
+    @Test
+    fun aSeekBurstBackToTheStartSubmitsZeroOnceItSettles() = runTest {
+        val player = PositionPlayer()
+        player.replace("first", 0L)
+        val (observer, snapshots) = observe(player)
+        player.seekTo(50_000L)
+        repeat(5) {
+            advanceTimeBy(300L)
+            player.seekTo(40_000L - it * 10_000L)
+        }
+        advanceTimeBy(999L)
+        runCurrent()
+        assertTrue(snapshots.isEmpty())
+        advanceTimeBy(2L)
+        runCurrent()
+        assertEquals(listOf("first" to 0L), snapshots)
+        observer.close()
+        assertEquals(listOf("first" to 0L, "first" to 0L), snapshots)
+
+        snapshots.clear()
+        player.replace("second", 5_000L)
+        val (next, nextSnapshots) = observe(player)
+        player.seekTo(0L)
+        player.replace("second", 0L, uid = "second-recovered")
+        player.position(600L)
+        nextSnapshots.clear()
+        next.flush()
+        assertEquals(listOf("second" to 600L), nextSnapshots)
+        player.replace("third", 0L)
+        nextSnapshots.clear()
+        next.close()
+        assertTrue(nextSnapshots.isEmpty())
+        player.release()
+    }
+
+    @Test
+    fun onlyASeekBackToTheStartArmsAReset() = runTest {
+        val player = PositionPlayer()
+        player.replace("first", 0L)
+        player.play()
+        val (observer, snapshots) = observe(player)
+        runCurrent()
+        player.seekTo(1L)
+        player.seekTo(40_000L)
+        advanceTimeBy(1_001L)
+        runCurrent()
+        assertEquals(listOf("first" to 40_000L), snapshots)
+        snapshots.clear()
+        player.position(0L)
+        observer.flush()
+        assertTrue(snapshots.isEmpty())
+
+        player.position(5_000L)
+        player.seekTo(0L)
+        player.position(1_050L)
+        advanceTimeBy(1_001L)
+        runCurrent()
+        assertEquals(listOf("first" to 0L), snapshots)
+        snapshots.clear()
+        player.position(12_000L)
+        observer.flush()
+        player.position(0L)
+        observer.close()
+        assertEquals(listOf("first" to 12_000L), snapshots)
+        player.release()
+    }
+
+    @Test
+    fun aSeekAdjustedPastTheStartSavesWhereItLands() = runTest {
+        val player = PositionPlayer()
+        player.replace("first", 40_000L)
+        val (observer, snapshots) = observe(player)
+        player.seekTo(500L)
+        player.adjust(2_000L)
+        advanceTimeBy(1_001L)
+        runCurrent()
+        assertEquals(listOf("first" to 2_000L), snapshots)
         observer.close()
         player.release()
     }
@@ -241,13 +341,13 @@ private class PositionPlayer : SimpleBasePlayer(Looper.getMainLooper()) {
 
     override fun handleRelease(): ListenableFuture<*> = Futures.immediateVoidFuture()
 
-    fun replace(lease: String?, positionMillis: Long) {
+    fun replace(lease: String?, positionMillis: Long, uid: String = lease ?: "unleased") {
         val metadata = MediaMetadata.Builder()
             .setExtras(Bundle().apply { putString(PLAYBACK_REPORTING_LEASE_KEY, lease) })
             .build()
         val item = MediaItem.Builder().setMediaId(lease.orEmpty()).setMediaMetadata(metadata).build()
         state = state.buildUpon()
-            .setPlaylist(listOf(MediaItemData.Builder(lease ?: "unleased").setMediaItem(item).build()))
+            .setPlaylist(listOf(MediaItemData.Builder(uid).setMediaItem(item).build()))
             .setCurrentMediaItemIndex(0)
             .setPlaybackState(Media3Player.STATE_READY)
             .setContentPositionMs(positionMillis)
@@ -257,6 +357,14 @@ private class PositionPlayer : SimpleBasePlayer(Looper.getMainLooper()) {
 
     fun position(positionMillis: Long) {
         state = state.buildUpon().setContentPositionMs(positionMillis).build()
+        invalidateState()
+    }
+
+    fun adjust(positionMillis: Long) {
+        state = state.buildUpon()
+            .setContentPositionMs(positionMillis)
+            .setPositionDiscontinuity(Media3Player.DISCONTINUITY_REASON_SEEK_ADJUSTMENT, positionMillis)
+            .build()
         invalidateState()
     }
 
