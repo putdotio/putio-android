@@ -659,7 +659,6 @@
     <string name="mobile_trash_empty_still_present">Trash still has items. Refresh in a moment and try again.</string>
     <string name="mobile_trash_check_trash">Check trash</string>
     <string name="mobile_trash_select">Select</string>
-    <string name="mobile_trash_select_named">Select %1$s</string>
     <plurals name="mobile_trash_selection_actions">
         <item quantity="one">Actions for %1$d selected item</item>
         <item quantity="other">Actions for %1$d selected items</item>

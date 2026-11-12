@@ -160,7 +160,8 @@ class MobileTrashActionsScreenTest {
         val events = mutableListOf<TrashEvent>()
         val second = item.copy(id = FilesItemId(9), name = "second.txt")
         val third = item.copy(id = FilesItemId(10), name = "third.txt")
-        var state by mutableStateOf(TrashState(content = TrashContent.Loaded(listOf(item, second, third), null, 3, 36)))
+        val rows = TrashContent.Loaded(listOf(item, second, third), null, 3, 36)
+        var state by mutableStateOf(TrashState(content = rows))
         compose.setContent { PutioTheme { TrashWithOverflow(state) { events += it; true } } }
         compose.trashMenuItem(MOBILE_TRASH_SELECT_TAG).performClick()
         compose.onNodeWithTag(MOBILE_TRASH_SELECTION_BAR_TAG).assertIsDisplayed()
@@ -178,7 +179,10 @@ class MobileTrashActionsScreenTest {
                 ),
                 events,
             )
-            state = state.copy(actionConfirmation = TrashAction.DeleteSelected(listOf(item, third)), actionConfirmationId = 4)
+            state = state.copy(
+                actionConfirmation = TrashAction.DeleteSelected(listOf(item, third)),
+                actionConfirmationId = 4,
+            )
         }
         compose.onNodeWithText("Delete 2 items permanently?").assertIsDisplayed()
         compose.onNodeWithTag(MOBILE_TRASH_ACTION_CONFIRM_TAG).performClick()

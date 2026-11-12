@@ -1,12 +1,10 @@
 package io.putdotio.android.trash
 
 import android.content.Context
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
@@ -93,12 +91,7 @@ internal fun MobileTrashScreen(
     val selected = selection.selected(state)
     var toolbarHeight by remember { mutableIntStateOf(0) }
     val toolbarClearance = with(LocalDensity.current) { toolbarHeight.toDp() } + MobileSelectionToolbarClearance
-    LaunchedEffect(selection, state.content) { selection.reconcile(state) }
-    LaunchedEffect(state.actionOutcome?.action) {
-        if (state.actionOutcome?.action is TrashSelectionAction) selection.end()
-    }
-    DisposableEffect(selection) { onDispose(selection::end) }
-    BackHandler(enabled = inSelection, onBack = selection::end)
+    TrashSelectionEffects(state, selection)
     val sheetItem = (state.content as? TrashContent.Loaded)?.items?.firstOrNull { it.id.value == sheetItemId }
     val listState = rememberLazyListState()
     // A new outcome is inserted above the list content while the list stays anchored on its
@@ -116,48 +109,48 @@ internal fun MobileTrashScreen(
         threshold = TRASH_PAGING_THRESHOLD,
     )
     Box(modifier.fillMaxSize()) {
-    MobilePullToRefresh(
-        isRefreshing = (state.content as? TrashContent.Loaded)?.isRefreshing == true,
-        enabled = state.canPullToRefresh && !inSelection,
-        onRefresh = { onEvent(TrashEvent.Refresh) },
-        modifier = Modifier.fillMaxSize(),
-    ) {
-        LazyColumn(
-            Modifier.fillMaxSize().testTag(MOBILE_TRASH_LIST_TAG),
-            state = listState,
-            contentPadding = PaddingValues(bottom = if (inSelection) toolbarClearance else 0.dp),
+        MobilePullToRefresh(
+            isRefreshing = (state.content as? TrashContent.Loaded)?.isRefreshing == true,
+            enabled = state.canPullToRefresh && !inSelection,
+            onRefresh = { onEvent(TrashEvent.Refresh) },
+            modifier = Modifier.fillMaxSize(),
         ) {
-            state.restoreOutcome?.let { outcome ->
-                item(key = "restore-outcome") {
-                    MobileTrashOutcome(outcome, state.authenticationFailure == null, onEvent)
+            LazyColumn(
+                Modifier.fillMaxSize().testTag(MOBILE_TRASH_LIST_TAG),
+                state = listState,
+                contentPadding = PaddingValues(bottom = if (inSelection) toolbarClearance else 0.dp),
+            ) {
+                state.restoreOutcome?.let { outcome ->
+                    item(key = "restore-outcome") {
+                        MobileTrashOutcome(outcome, state.authenticationFailure == null, onEvent)
+                    }
                 }
-            }
-            state.actionOutcome?.let { outcome ->
-                item(key = "action-outcome") {
-                    MobileTrashActionOutcome(outcome, state, onEvent)
+                state.actionOutcome?.let { outcome ->
+                    item(key = "action-outcome") {
+                        MobileTrashActionOutcome(outcome, state, onEvent)
+                    }
                 }
-            }
-            when (val content = state.content) {
-                TrashContent.Loading -> item(key = "loading") {
-                    MobileLoadingState(stringResource(R.string.mobile_trash_loading))
+                when (val content = state.content) {
+                    TrashContent.Loading -> item(key = "loading") {
+                        MobileLoadingState(stringResource(R.string.mobile_trash_loading))
+                    }
+                    is TrashContent.Error -> item(key = "error") {
+                        TrashReadFailure(content.failure) { onEvent(TrashEvent.Retry) }
+                    }
+                    is TrashContent.Loaded -> loadedTrashItems(
+                        content,
+                        state,
+                        onEvent,
+                        TrashRowHandlers(
+                            checked = selected.takeIf { inSelection },
+                            onActions = { sheetItemId = it.id.value },
+                            onSelect = { selection.start(state, it.id) },
+                            onToggle = { selection.toggle(it.id) },
+                        ),
+                    )
                 }
-                is TrashContent.Error -> item(key = "error") {
-                    TrashReadFailure(content.failure) { onEvent(TrashEvent.Retry) }
-                }
-                is TrashContent.Loaded -> loadedTrashItems(
-                    content,
-                    state,
-                    onEvent,
-                    TrashRowHandlers(
-                        checked = selected.takeIf { inSelection },
-                        onActions = { sheetItemId = it.id.value },
-                        onSelect = { selection.start(state, it.id) },
-                        onToggle = { selection.toggle(it.id) },
-                    ),
-                )
             }
         }
-    }
         if (inSelection) {
             MobileTrashSelectionToolbar(
                 state = state,

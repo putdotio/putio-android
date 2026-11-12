@@ -6,12 +6,8 @@ import io.putdotio.android.parsePutioTimestamp
 internal fun TrashMachine.action(event: TrashEvent.ActionEvent): TrashMachine? = when (event) {
     is TrashEvent.SelectDelete -> selectDelete(event)
     TrashEvent.RestoreAll -> if (mayStartRestore && state.canActOnAll) submitAction(TrashAction.RestoreAll) else null
-    is TrashEvent.RestoreSelected -> loadedItems(event.itemIds)
-        ?.takeIf { mayStartRestore && state.canRestoreAll(event.itemIds) }
-        ?.let { submitAction(TrashAction.RestoreSelected(it)) }
-    is TrashEvent.SelectDeleteSelected -> loadedItems(event.itemIds)
-        ?.takeIf { request == null && state.canDeleteAll(event.itemIds) }
-        ?.let { openActionConfirmation(TrashAction.DeleteSelected(it)) }
+    is TrashEvent.RestoreSelected -> restoreSelected(event)
+    is TrashEvent.SelectDeleteSelected -> selectDeleteSelected(event)
     TrashEvent.SelectEmpty -> if (mayActOnAll) openActionConfirmation(TrashAction.Empty) else null
     TrashEvent.CancelAction -> cancelAction()
     is TrashEvent.ConfirmAction -> confirmAction(event)
@@ -28,7 +24,7 @@ private fun TrashMachine.selectDelete(event: TrashEvent.SelectDelete): TrashMach
 private val TrashMachine.mayActOnAll: Boolean
     get() = request == null && state.canActOnAll
 
-private fun TrashMachine.openActionConfirmation(action: TrashDestructiveAction): TrashMachine = copy(
+internal fun TrashMachine.openActionConfirmation(action: TrashDestructiveAction): TrashMachine = copy(
     state = state.copy(
         actionConfirmation = action, actionConfirmationId = nextRequestId, actionOutcome = null,
     ),
@@ -37,11 +33,6 @@ private fun TrashMachine.openActionConfirmation(action: TrashDestructiveAction):
 
 internal fun TrashMachine.loadedItem(itemId: FilesItemId): TrashItem? =
     (state.content as? TrashContent.Loaded)?.items?.firstOrNull { it.id == itemId }
-
-private fun TrashMachine.loadedItems(itemIds: Set<FilesItemId>): List<TrashItem>? {
-    val items = (state.content as? TrashContent.Loaded)?.items.orEmpty().filter { it.id in itemIds }
-    return items.takeIf { it.isNotEmpty() && it.size == itemIds.size }
-}
 
 private fun TrashMachine.cancelAction(): TrashMachine? =
     if (state.actionConfirmation == null) null
@@ -54,7 +45,7 @@ private fun TrashMachine.confirmAction(event: TrashEvent.ConfirmAction): TrashMa
     return submitAction(action)
 }
 
-private fun TrashMachine.submitAction(action: TrashAction): TrashMachine? {
+internal fun TrashMachine.submitAction(action: TrashAction): TrashMachine? {
     val content = state.content as? TrashContent.Loaded ?: return null
     val selection = when (action) {
         TrashAction.RestoreAll -> TrashBulkSelection(content.snapshotCursor, content.items.map(TrashItem::id))

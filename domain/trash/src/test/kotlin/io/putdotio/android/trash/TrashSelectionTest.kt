@@ -39,7 +39,8 @@ class TrashSelectionTest {
             assertEquals(action, controller.state.value.actionConfirmation)
             assertTrue(repository.deletedIds.isEmpty())
             repository.onLoad = { page(second, third) }
-            assertTrue(controller.dispatch(TrashEvent.ConfirmAction(checkNotNull(controller.state.value.actionConfirmationId))))
+            val confirmationId = checkNotNull(controller.state.value.actionConfirmationId)
+            assertTrue(controller.dispatch(TrashEvent.ConfirmAction(confirmationId)))
             val partial = controller.awaitState { it.actionOutcome?.check == TrashActionCheck.FAILED }
             assertEquals(listOf(first.id, third.id), repository.deletedIds)
             assertEquals(listOf(third), partial.stillListed(action))

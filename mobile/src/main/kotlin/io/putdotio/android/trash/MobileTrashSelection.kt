@@ -1,6 +1,9 @@
 package io.putdotio.android.trash
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.padding
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.saveable.Saver
@@ -61,6 +64,16 @@ internal class TrashSelection(private val selection: MobileSelection = MobileSel
             restore = { saved -> MobileSelection.Saver.restore(saved)?.let(::TrashSelection) },
         )
     }
+}
+
+@Composable
+internal fun TrashSelectionEffects(state: TrashState, selection: TrashSelection) {
+    LaunchedEffect(selection, state.content) { selection.reconcile(state) }
+    LaunchedEffect(state.actionOutcome?.action) {
+        if (state.actionOutcome?.action is TrashSelectionAction) selection.end()
+    }
+    DisposableEffect(selection) { onDispose(selection::end) }
+    BackHandler(enabled = selection.isActive(state), onBack = selection::end)
 }
 
 @Composable
