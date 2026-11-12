@@ -38,7 +38,7 @@ public class PlaybackPositionObserver(
     private val scope = CoroutineScope(parentScope.coroutineContext + SupervisorJob(parentScope.coroutineContext[Job]))
     private var ticker: Job? = null
     private var seekSave: Job? = null
-    private var seekedLease: String? = null
+    private var startSeekLease: String? = null
     private var closed = false
     private val listener = object : Media3Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -73,11 +73,11 @@ public class PlaybackPositionObserver(
             if (itemChanged) {
                 cancelSeekSave()
                 submitPosition(oldLease, oldPosition.positionMs)
-                if (newPosition.mediaItem.reportingLease() != oldLease) seekedLease = null
+                if (newPosition.mediaItem.reportingLease() != oldLease) startSeekLease = null
             } else if (reason == Media3Player.DISCONTINUITY_REASON_SEEK ||
                 reason == Media3Player.DISCONTINUITY_REASON_SEEK_ADJUSTMENT
             ) {
-                if (reason == Media3Player.DISCONTINUITY_REASON_SEEK) seekedLease = oldLease
+                if (reason == Media3Player.DISCONTINUITY_REASON_SEEK) trackStartSeek(oldLease, oldPosition, newPosition)
                 saveWhenSeekSettles()
             }
         }
@@ -132,7 +132,15 @@ public class PlaybackPositionObserver(
             delay(SEEK_SETTLE_MILLIS)
             checkApplicationLooper()
             seekSave = null
-            flush()
+            val lease = player.currentMediaItem.reportingLease()
+            if (lease != null && lease == startSeekLease) submitPosition(lease, 0L) else flush()
+        }
+    }
+
+    private fun trackStartSeek(lease: String?, from: Media3Player.PositionInfo, to: Media3Player.PositionInfo) {
+        when {
+            to.positionMs >= MIN_SAVED_POSITION_MILLIS -> startSeekLease = null
+            from.positionMs >= MIN_SAVED_POSITION_MILLIS -> startSeekLease = lease
         }
     }
 
@@ -143,7 +151,10 @@ public class PlaybackPositionObserver(
 
     private fun submitPosition(lease: String?, positionMillis: Long) {
         if (lease.isNullOrBlank()) return
-        if (positionMillis >= MIN_SAVED_POSITION_MILLIS || (positionMillis >= 0L && lease == seekedLease)) {
+        if (positionMillis >= MIN_SAVED_POSITION_MILLIS) {
+            if (lease == startSeekLease) startSeekLease = null
+            submit(lease, positionMillis)
+        } else if (positionMillis >= 0L && lease == startSeekLease) {
             submit(lease, positionMillis)
         }
     }

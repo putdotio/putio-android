@@ -185,7 +185,7 @@ class PlaybackPositionObserverTest {
         assertEquals(listOf("first" to 0L, "first" to 0L), snapshots)
 
         snapshots.clear()
-        player.replace("second", 0L)
+        player.replace("second", 5_000L)
         val (next, nextSnapshots) = observe(player)
         player.seekTo(0L)
         player.replace("second", 0L, uid = "second-recovered")
@@ -197,6 +197,38 @@ class PlaybackPositionObserverTest {
         nextSnapshots.clear()
         next.close()
         assertTrue(nextSnapshots.isEmpty())
+        player.release()
+    }
+
+    @Test
+    fun onlyASeekBackToTheStartArmsAReset() = runTest {
+        val player = PositionPlayer()
+        player.replace("first", 0L)
+        player.play()
+        val (observer, snapshots) = observe(player)
+        runCurrent()
+        player.seekTo(1L)
+        player.seekTo(40_000L)
+        advanceTimeBy(1_001L)
+        runCurrent()
+        assertEquals(listOf("first" to 40_000L), snapshots)
+        snapshots.clear()
+        player.position(0L)
+        observer.flush()
+        assertTrue(snapshots.isEmpty())
+
+        player.position(5_000L)
+        player.seekTo(0L)
+        player.position(1_050L)
+        advanceTimeBy(1_001L)
+        runCurrent()
+        assertEquals(listOf("first" to 0L), snapshots)
+        snapshots.clear()
+        player.position(12_000L)
+        observer.flush()
+        player.position(0L)
+        observer.close()
+        assertEquals(listOf("first" to 12_000L), snapshots)
         player.release()
     }
 
