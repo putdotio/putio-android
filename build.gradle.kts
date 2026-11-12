@@ -142,7 +142,7 @@ val lintDesignMd = tasks.register<LintDesignMdTask>("lintDesignMd") {
     designMd.set(designMdFile)
     linterVersion.set(pinnedNodeTool("@google/design.md"))
     npx.set(if (windows) "npx.cmd" else "npx")
-    nodeVersion.set(providers.exec { commandLine("node", "--version") }.standardOutput.asText.map { it.trim() })
+    nodeVersion.set(providers.exec { commandLine(if (windows) "node.cmd" else "node", "--version") }.standardOutput.asText.map { it.trim() })
     stamp.set(layout.buildDirectory.file("verification/lintDesignMd.stamp"))
 }
 
