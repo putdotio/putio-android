@@ -61,14 +61,13 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.MobileDialogDismissButton
 import io.putdotio.android.MobileMiddleCutText
 import io.putdotio.android.MobileRow
+import io.putdotio.android.styledTemplate
 import io.putdotio.android.MobileSectionLabel
 import io.putdotio.android.MobileTooltip
 import io.putdotio.android.PutioFailure
@@ -200,23 +199,6 @@ private fun sheetBody(name: String): AnnotatedString {
     val mono = MaterialTheme.typography.bodyMedium.putioMono().toSpanStyle()
     return styledTemplate(template, listOf(name to nameStyle, PUBLIC_LINK_HOURS.toString() to mono))
 }
-
-/** [template] with each `%n$s` slot filled from [slots] in its style. */
-internal fun styledTemplate(template: String, slots: List<Pair<String, SpanStyle>>): AnnotatedString =
-    buildAnnotatedString {
-        var rest = template
-        while (rest.isNotEmpty()) {
-            val match = SLOT.find(rest)
-            if (match == null) {
-                append(rest)
-                break
-            }
-            append(rest.substring(0, match.range.first))
-            val slot = slots.getOrNull(match.groupValues[1].toInt() - 1)
-            if (slot != null) withStyle(slot.second) { append(slot.first) }
-            rest = rest.substring(match.range.last + 1)
-        }
-    }
 
 /** A live link: the full address in mono cut in the middle, its remaining time, then copy, share and revoke. */
 @Composable
@@ -616,4 +598,3 @@ private const val HOURS_PER_DAY = 24
 private const val MINUTES_PER_HOUR = 60
 private const val EXPIRY_TICK_MILLIS = 60_000L
 private const val APP_HOST_PREFIX = "app."
-private val SLOT = Regex("%(\\d)\\\$s")

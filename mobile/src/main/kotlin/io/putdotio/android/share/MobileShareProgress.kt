@@ -32,11 +32,12 @@ import io.putdotio.android.monoArguments
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioRadius
 import io.putdotio.android.design.putioMono
-import io.putdotio.android.sharing.styledTemplate
+import io.putdotio.android.styledTemplate
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import androidx.compose.ui.window.DialogProperties
+import java.util.Locale
 
 internal const val MOBILE_SHARE_PROGRESS_TAG = "mobile-share-progress"
 
@@ -126,7 +127,7 @@ internal fun MobileShareProgressDialog(onCancel: () -> Unit) {
                     val bytes = monoArguments(
                         stringResource(R.string.mobile_share_progress_bytes),
                         style.putioMono().toSpanStyle(),
-                        "$percent%",
+                        "%d%%".format(Locale.getDefault(), percent),
                         formatFileSize(shown.copiedBytes),
                         formatFileSize(shown.totalBytes ?: 0L),
                     )
