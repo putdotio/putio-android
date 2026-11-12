@@ -291,7 +291,7 @@ private fun TvHistoryListDetail(
                             thumbnails = itemActions?.thumbnails ?: TvItemThumbnails.None,
                             onPlay = { itemActions?.onPlay?.invoke(it) },
                         ),
-                        onGoToFolder = { onEvent(HistoryEvent.OpenFile(it)) },
+                        onGoToFolder = { onEvent(HistoryEvent.GoToFolder(it)) },
                         secondaryOf = { file -> itemActions?.actionsOf?.invoke(file).orEmpty() },
                         onSecondary = { file, action ->
                             val handlers = itemActions?.handlers

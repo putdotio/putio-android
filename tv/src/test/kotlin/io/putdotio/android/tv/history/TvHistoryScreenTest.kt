@@ -75,7 +75,7 @@ class TvHistoryScreenTest {
     private val clock = Clock.fixed(Instant.parse("2026-09-12T12:00:00Z"), ZoneOffset.UTC)
 
     @Test
-    fun eventsGroupUnderTheirDayWithThePhonesRowsAndCenterOpensTheFolder() {
+    fun eventsGroupUnderTheirDayWithThePhonesRowsAndCenterOpensTheFile() {
         show(historyState(HistoryContent.Ready(items(), HistoryPaging.Complete)))
 
         compose.onNodeWithText("Today").assertIsDisplayed()
@@ -119,7 +119,7 @@ class TvHistoryScreenTest {
             pressKey(Key.DirectionLeft)
         }
         compose.onNodeWithContentDescription("Open Big Buck Bunny").assertIsFocused()
-        assertEquals(listOf<HistoryEvent>(HistoryEvent.OpenFile(HistoryFileId(1))), log)
+        assertEquals(listOf<HistoryEvent>(HistoryEvent.GoToFolder(HistoryFileId(1))), log)
     }
 
     @Test

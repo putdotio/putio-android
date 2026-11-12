@@ -187,14 +187,24 @@ class TvSessionViewModelTest {
     }
 
     @Test
-    fun `a history row resolves its file for Files to open`() = runTest {
-        val viewModel = TvSessionViewModel(auth)
-        val session = checkNotNull(viewModel.sessionFor(account(), TvAuthSessionId(1), dependencies))
+    fun `Select on a history video resumes it and Go to folder opens its folder instead`() = runTest {
+        playbackRepository.savedSeconds = 45.0
+        val listed = media(55, "resolved-55", PutioFileType.VIDEO).copy(playback = FilesPlaybackProgress(45.0, 600.0))
+        listedItems[listed.id] = listed
+        val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
 
         assertTrue(session.history.dispatch(HistoryEvent.OpenFile(HistoryFileId(55))))
 
-        assertEquals("resolved-55", session.historyOpens.first().name)
+        assertEquals(TvExternalOpen.PLAYING, session.historyOpens.first())
+        checkNotNull(session.playback.value).assertReadyAt(55, 45_000L)
         assertNull(session.historyOpenFailure.value)
+
+        session.stopPlayback()
+        assertTrue(session.history.dispatch(HistoryEvent.GoToFolder(HistoryFileId(55))))
+
+        assertEquals(TvExternalOpen.IN_FILES, session.historyOpens.first())
+        assertEquals(55L, session.filesFocusMemory[0L])
+        assertNull(session.playback.value)
     }
 
     @Test
