@@ -88,6 +88,7 @@ import io.putdotio.android.settings.TunnelRouteName
 import io.putdotio.android.settings.TunnelRouteOption
 import io.putdotio.android.settings.apiReason
 import io.putdotio.android.settings.putioFailure
+import io.putdotio.android.settings.trashOff
 import io.putdotio.android.neutralTextButtonColors
 import io.putdotio.android.trash.MOBILE_MANAGE_TRASH_TAG
 

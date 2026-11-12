@@ -240,6 +240,9 @@ public fun AccountSettingsState.confirmedHistoryEnabled(): Boolean? =
 public fun AccountSettingsState.confirmedTrashEnabled(): Boolean? =
     confirmedPreferences(AccountSettingsKey.Trash)?.trashEnabled
 
+public val AccountSettingsState.trashOff: Boolean
+    get() = (content as? AccountSettingsContent.Ready)?.preferences?.trashEnabled == false
+
 public fun AccountSettingsState.confirmedResumePlayback(): Boolean? =
     confirmedPreferences(AccountSettingsKey.ResumePlayback)?.resumePlayback
 

@@ -38,7 +38,6 @@ import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.files.FilesSort
 import io.putdotio.android.files.labelResource
 import io.putdotio.android.settings.AccountSettingsChange
-import io.putdotio.android.settings.AccountSettingsContent
 import io.putdotio.android.settings.AccountSettingsFailure
 import io.putdotio.android.settings.AccountSettingsKey
 import io.putdotio.android.settings.AccountSettingsMutation
@@ -87,9 +86,6 @@ internal fun StreamingMethod.labelResource(): Int =
         StreamingMethod.Hls -> R.string.mobile_settings_playback_standard
         StreamingMethod.File -> R.string.mobile_settings_playback_direct
     }
-
-internal val AccountSettingsState.trashOff: Boolean
-    get() = (content as? AccountSettingsContent.Ready)?.preferences?.trashEnabled == false
 
 internal val AccountSettingsChange.disablesTrash: Boolean
     get() = this is AccountSettingsChange.Toggle && key == AccountSettingsKey.Trash && !enabled
