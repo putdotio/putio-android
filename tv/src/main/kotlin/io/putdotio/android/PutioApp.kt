@@ -382,7 +382,7 @@ internal fun TvSessionShell(
             account = account,
             onSignOut = onSignOut,
             showHome = showHome,
-            showHistory = confirmedHistoryEnabled ?: (historyState.content != HistoryContent.Disabled),
+            showHistory = historyTabShown(settingsState, historyState),
             focusHomePane = homeReturn != null,
             offline = !online,
             trailing = {
@@ -992,3 +992,6 @@ private fun tvSearchActions(
             onRetry = session::retryRecentSearches,
         ),
     )
+
+private fun historyTabShown(settings: AccountSettingsState, history: HistoryState): Boolean =
+    settings.confirmedHistoryEnabled() ?: (history.content != HistoryContent.Disabled)
