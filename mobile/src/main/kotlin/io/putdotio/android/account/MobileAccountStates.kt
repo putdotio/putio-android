@@ -25,13 +25,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
-import io.putdotio.android.appendMonoFigures
 import io.putdotio.android.apiReason
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioTypeScale
@@ -49,20 +45,6 @@ import io.putdotio.android.settings.TunnelRouteName
 import io.putdotio.android.settings.apiReason
 import io.putdotio.android.settings.putioFailure
 import io.putdotio.android.neutralTextButtonColors
-
-/** [template] with its `%1$s`, `%2$s`… slots filled by [values] in [mono]. */
-internal fun monoArguments(template: String, mono: SpanStyle, vararg values: String): AnnotatedString =
-    buildAnnotatedString {
-        var cursor = 0
-        val slot = Regex("%(\\d+)\\\$s")
-        for (match in slot.findAll(template)) {
-            append(template.substring(cursor, match.range.first))
-            val value = values.getOrNull(match.groupValues[1].toInt() - 1).orEmpty()
-            appendMonoFigures(value, mono)
-            cursor = match.range.last + 1
-        }
-        append(template.substring(cursor))
-    }
 
 internal fun androidx.compose.ui.platform.UriHandler.openSafely(url: String) {
     try {

@@ -4,19 +4,24 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
-import io.putdotio.android.files.FILE_SIZE_UNITS
 
-internal fun monoFigures(text: String, mono: SpanStyle): AnnotatedString =
-    buildAnnotatedString { appendMonoFigures(text, mono) }
+internal fun monoValue(value: String, mono: SpanStyle): AnnotatedString =
+    buildAnnotatedString { appendMonoValue(value, mono) }
 
-internal fun AnnotatedString.Builder.appendMonoFigures(text: String, mono: SpanStyle) {
-    var cursor = 0
-    for (figure in FIGURE.findAll(text)) {
-        append(text.substring(cursor, figure.range.first))
-        withStyle(mono) { append(figure.value) }
-        cursor = figure.range.last + 1
-    }
-    append(text.substring(cursor))
+internal fun AnnotatedString.Builder.appendMonoValue(value: String, mono: SpanStyle) {
+    withStyle(mono) { append(value) }
 }
 
-private val FIGURE = Regex("""\d+(?:[.,:]\d+)*(?:%| (?:${FILE_SIZE_UNITS.joinToString("|")})\b(?:/s)?)?""")
+/** [template] with its `%1$s`, `%2$s`… slots filled by [values] in [mono]. */
+internal fun monoArguments(template: String, mono: SpanStyle, vararg values: String): AnnotatedString =
+    buildAnnotatedString {
+        var cursor = 0
+        for (match in VALUE_SLOT.findAll(template)) {
+            append(template.substring(cursor, match.range.first))
+            appendMonoValue(values.getOrNull(match.groupValues[1].toInt() - 1).orEmpty(), mono)
+            cursor = match.range.last + 1
+        }
+        append(template.substring(cursor))
+    }
+
+private val VALUE_SLOT = Regex("%(\\d+)\\\$s")

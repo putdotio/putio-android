@@ -64,7 +64,8 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.MobileDialogDismissButton
-import io.putdotio.android.monoFigures
+import io.putdotio.android.monoArguments
+import io.putdotio.android.monoValue
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.design.FileTypeIcon
@@ -486,7 +487,7 @@ internal fun MobileFilesSheetMeta(size: String?, detail: String?, detailMaxLines
     val style = MaterialTheme.typography.bodySmall
     val color = MaterialTheme.colorScheme.onSurfaceVariant
     Row(horizontalArrangement = Arrangement.spacedBy(META_GAP), verticalAlignment = Alignment.CenterVertically) {
-        size?.let { Text(monoFigures(it, style.putioMono().toSpanStyle()), style = style, color = color, maxLines = 1) }
+        size?.let { Text(monoValue(it, style.putioMono().toSpanStyle()), style = style, color = color, maxLines = 1) }
         if (size != null && detail != null) {
             Text("·", style = style, color = color, modifier = Modifier.clearAndSetSemantics {})
         }
@@ -903,9 +904,10 @@ internal fun FilesItem.resumeAt(resumes: Boolean): Double? =
     playback?.takeIf { resumes && it.resumesPlayback() }?.startFromSeconds
 
 @Composable
-internal fun resumeLabel(seconds: Double, style: TextStyle): AnnotatedString = monoFigures(
-    stringResource(R.string.mobile_files_detail_resume, DateUtils.formatElapsedTime(seconds.toLong())),
+internal fun resumeLabel(seconds: Double, style: TextStyle): AnnotatedString = monoArguments(
+    stringResource(R.string.mobile_files_detail_resume),
     style.putioMono().toSpanStyle(),
+    DateUtils.formatElapsedTime(seconds.toLong()),
 )
 
 /**

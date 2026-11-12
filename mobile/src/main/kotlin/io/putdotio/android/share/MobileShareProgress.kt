@@ -28,7 +28,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.putdotio.android.MobileDialogDismissButton
 import io.putdotio.android.R
 import io.putdotio.android.files.formatFileSize
-import io.putdotio.android.monoFigures
+import io.putdotio.android.monoArguments
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioRadius
 import io.putdotio.android.design.putioMono
@@ -123,14 +123,15 @@ internal fun MobileShareProgressDialog(onCancel: () -> Unit) {
                         drawStopIndicator = {},
                     )
                     val style = MaterialTheme.typography.bodySmall
-                    val bytes = stringResource(
-                        R.string.mobile_share_progress_bytes,
-                        percent,
+                    val bytes = monoArguments(
+                        stringResource(R.string.mobile_share_progress_bytes),
+                        style.putioMono().toSpanStyle(),
+                        "$percent%",
                         formatFileSize(shown.copiedBytes),
                         formatFileSize(shown.totalBytes ?: 0L),
                     )
                     Text(
-                        text = monoFigures(bytes, style.putioMono().toSpanStyle()),
+                        text = bytes,
                         style = style,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 8.dp).semantics { liveRegion = LiveRegionMode.Polite },

@@ -144,7 +144,7 @@ internal fun summaryOf(parts: List<SummaryPart>, mono: SpanStyle): AnnotatedStri
                     append(part.template)
                 } else {
                     append(part.template.substring(0, slot))
-                    appendMonoFigures(part.value, mono)
+                    appendMonoValue(part.value, mono)
                     append(part.template.substring(slot + VALUE_SLOT.length))
                 }
             }

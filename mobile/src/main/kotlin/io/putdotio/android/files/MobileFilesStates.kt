@@ -73,7 +73,7 @@ import io.putdotio.android.MobileMiddleCutText
 import io.putdotio.android.MobileRetryButton
 import io.putdotio.android.RetryWhenOnline
 import io.putdotio.android.R
-import io.putdotio.android.monoFigures
+import io.putdotio.android.monoValue
 import io.putdotio.android.design.FileTypeIcon
 import io.putdotio.android.design.PutioEmptyGlyph
 import io.putdotio.android.design.PutioEmptyState
@@ -240,7 +240,7 @@ private fun MobileFilesSectionLabel(
     }
 }
 
-/** "6 items" with the count in mono, and the folder's total size with mono figures at the end. */
+/** "6 items" with the count in mono, and the folder's total size in mono at the end. */
 @Composable
 private fun MobileFolderSummaryLine(summary: FilesFolderSummary) {
     val style = MaterialTheme.typography.titleSmall
@@ -265,7 +265,7 @@ private fun MobileFolderSummaryLine(summary: FilesFolderSummary) {
     ) {
         Text(label, style = style, color = MaterialTheme.colorScheme.onSurfaceVariant)
         size?.let {
-            Text(monoFigures(it, mono.toSpanStyle()), style = style, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(monoValue(it, mono.toSpanStyle()), style = style, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

@@ -67,7 +67,7 @@ import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.files.formatFileSize
-import io.putdotio.android.monoFigures
+import io.putdotio.android.monoValue
 import io.putdotio.android.design.FileTypeIcon
 import io.putdotio.android.design.putioMono
 import io.putdotio.android.files.mobileMessage
@@ -295,7 +295,7 @@ private fun MobileTrashRowMeta(item: TrashItem) {
     val style = MaterialTheme.typography.bodySmall
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
         val size = formatFileSize(item.sizeBytes)
-        Text(monoFigures(size, style.putioMono().toSpanStyle()), style = style, maxLines = 1)
+        Text(monoValue(size, style.putioMono().toSpanStyle()), style = style, maxLines = 1)
         item.expirationDate?.trashDaysLeft(LocalDate.now())?.let { days ->
             Text("·", style = style, modifier = Modifier.clearAndSetSemantics {})
             Text(context.goneIn(days), style = style, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -317,7 +317,7 @@ private fun MobileTrashSummary(content: TrashContent.Loaded) {
     ) {
         CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurfaceVariant) {
             content.trashSizeBytes?.let { size ->
-                Text(monoFigures(formatFileSize(size), style.putioMono().toSpanStyle()), style = style, maxLines = 1)
+                Text(monoValue(formatFileSize(size), style.putioMono().toSpanStyle()), style = style, maxLines = 1)
                 Text("·", style = style, modifier = Modifier.clearAndSetSemantics {})
             }
             Text(stringResource(R.string.mobile_trash_retention), style = style)
