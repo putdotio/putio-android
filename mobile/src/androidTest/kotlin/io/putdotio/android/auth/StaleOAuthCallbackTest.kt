@@ -106,5 +106,7 @@ private object UnusedTokenRevocations : TokenRevocations {
 
     override suspend fun keep(accessToken: AccessToken) = true
 
+    override suspend fun isSignedOut(accessToken: AccessToken) = false
+
     override fun resume() = Unit
 }

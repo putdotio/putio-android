@@ -454,14 +454,45 @@ class MobileAuthControllerSessionTest {
     }
 
     @Test
-    fun `app start keeps a restored session whose token is still recorded for revocation`() = runBlocking {
-        val fixture = AuthControllerFixture(storedToken = TOKEN, revocations = RevocationScript(pending = TOKEN))
+    fun `app start clears a stored session whose token a sign-out recorded for revocation`() = runBlocking {
+        val fixture = AuthControllerFixture(
+            storedToken = TOKEN,
+            revocations = RevocationScript(pending = TOKEN, results = listOf(TokenRevocationResult.UNAVAILABLE)),
+        )
 
         fixture.controller.restoreSession()
 
-        assertEquals(SIGNED_IN, fixture.controller.state.value)
-        assertTrue(fixture.revoker.attempts.isEmpty())
-        assertNull(fixture.revocationStore.token)
+        assertEquals(MobileAuthState.SignedOut(), fixture.controller.state.value)
+        assertNull(fixture.tokenStore.token)
+        assertFalse("validate" in fixture.gateway.calls)
+        assertEquals(TOKEN, fixture.revocationStore.token?.reveal())
+    }
+
+    @Test
+    fun `a sign-out whose clear failed never restores the session on the next launch`() = runBlocking {
+        val fixture = AuthControllerFixture(
+            storedToken = TOKEN,
+            revocations = RevocationScript(results = listOf(TokenRevocationResult.UNAVAILABLE)),
+        )
+        fixture.controller.restoreSession()
+        fixture.tokenStore.failClear = true
+        fixture.controller.logout()
+        assertEquals(TOKEN, fixture.tokenStore.token?.reveal())
+        val validations = fixture.gateway.calls.count { it == "validate" }
+
+        val nextLaunch = fixture.nextLaunch()
+        nextLaunch.restoreSession()
+
+        assertEquals(
+            MobileAuthState.SignedOut(MobileSignedOutReason.SecureStorageUnavailable),
+            nextLaunch.state.value,
+        )
+        assertEquals(validations, fixture.gateway.calls.count { it == "validate" })
+        fixture.tokenStore.failClear = false
+        assertTrue(nextLaunch.retrySecureStorage())
+        assertEquals(MobileAuthState.SignedOut(), nextLaunch.state.value)
+        assertNull(fixture.tokenStore.token)
+        assertEquals(TOKEN, fixture.revocationStore.token?.reveal())
     }
 
     @Test

@@ -3,6 +3,7 @@ package io.putdotio.android.auth
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -13,7 +14,7 @@ class PendingTokenRevocationsTest {
     fun `retries stop after the backoff schedule and keep the token for the next trigger`() = runTest {
         val store = InMemoryAuthTokenStore()
         val revoker = ScriptedTokenRevoker(TokenRevocationResult.UNAVAILABLE)
-        val revocations = PendingTokenRevocations(listOf(store), InMemoryAuthTokenStore(), revoker, this)
+        val revocations = PendingTokenRevocations(listOf(store), revoker, this)
 
         revocations.revoke(TOKEN)
         testScheduler.advanceUntilIdle()
@@ -31,7 +32,7 @@ class PendingTokenRevocationsTest {
     fun `a second sign-out queues its token beside an unconfirmed one and a third replaces the oldest`() = runTest {
         val stores = listOf(InMemoryAuthTokenStore(), InMemoryAuthTokenStore())
         val revoker = ScriptedTokenRevoker(TokenRevocationResult.UNAVAILABLE)
-        val revocations = PendingTokenRevocations(stores, InMemoryAuthTokenStore(), revoker, this)
+        val revocations = PendingTokenRevocations(stores, revoker, this)
 
         revocations.revoke(TOKEN)
         testScheduler.advanceUntilIdle()
@@ -43,7 +44,7 @@ class PendingTokenRevocationsTest {
         testScheduler.advanceUntilIdle()
         assertEquals(listOf(THIRD.reveal(), SECOND.reveal()), stores.map { it.token?.reveal() })
 
-        val restarted = PendingTokenRevocations(stores, InMemoryAuthTokenStore(), ScriptedTokenRevoker(), this)
+        val restarted = PendingTokenRevocations(stores, ScriptedTokenRevoker(), this)
         restarted.resume()
         testScheduler.advanceUntilIdle()
         assertEquals(listOf(null, null), stores.map { it.token })
@@ -53,7 +54,7 @@ class PendingTokenRevocationsTest {
     fun `an unwritable store still revokes for the life of the process`() = runTest {
         val store = InMemoryAuthTokenStore().apply { failWrite = true }
         val revoker = ScriptedTokenRevoker(TokenRevocationResult.UNAVAILABLE, TokenRevocationResult.REVOKED)
-        val revocations = PendingTokenRevocations(listOf(store), InMemoryAuthTokenStore(), revoker, this)
+        val revocations = PendingTokenRevocations(listOf(store), revoker, this)
 
         revocations.revoke(TOKEN)
         testScheduler.advanceUntilIdle()
@@ -63,32 +64,51 @@ class PendingTokenRevocationsTest {
     }
 
     @Test
-    fun `a reissued token whose record could not be cleared is not revoked on the next start`() = runTest {
-        val store = InMemoryAuthTokenStore(TOKEN).apply { failClear = true }
-        val session = InMemoryAuthTokenStore(TOKEN)
-        val revoker = ScriptedTokenRevoker()
-        PendingTokenRevocations(listOf(store), session, revoker, this).keep(TOKEN)
-        store.failClear = false
-
-        PendingTokenRevocations(listOf(store), session, revoker, this).resume()
+    fun `a signed-out token stays signed out across a restart until a sign-in keeps it`() = runTest {
+        val store = InMemoryAuthTokenStore()
+        val revoker = ScriptedTokenRevoker(TokenRevocationResult.UNAVAILABLE)
+        PendingTokenRevocations(listOf(store), revoker, this).revoke(TOKEN)
         testScheduler.advanceUntilIdle()
 
-        assertTrue(revoker.attempts.isEmpty())
+        val restarted = PendingTokenRevocations(listOf(store), revoker, this)
+
+        assertTrue(restarted.isSignedOut(TOKEN))
+        assertFalse(restarted.isSignedOut(SECOND))
+        assertTrue(restarted.keep(TOKEN))
+        assertFalse(restarted.isSignedOut(TOKEN))
         assertNull(store.token)
-        assertEquals(TOKEN.reveal(), session.token?.reveal())
     }
 
     @Test
-    fun `an unreadable session defers revocation instead of treating the token as unused`() = runTest {
-        val store = InMemoryAuthTokenStore(TOKEN)
-        val session = InMemoryAuthTokenStore(TOKEN).apply { failedReads = 1 }
-        val revoker = ScriptedTokenRevoker()
+    fun `a revoked token stays signed out for the life of the process`() = runTest {
+        val store = InMemoryAuthTokenStore()
+        val revocations = PendingTokenRevocations(listOf(store), ScriptedTokenRevoker(), this)
 
-        PendingTokenRevocations(listOf(store), session, revoker, this).resume()
+        revocations.revoke(TOKEN)
         testScheduler.advanceUntilIdle()
 
-        assertTrue(revoker.attempts.isEmpty())
         assertNull(store.token)
+        assertTrue(revocations.isSignedOut(TOKEN))
+    }
+
+    @Test
+    fun `a keep that cannot clear the record fails instead of leaving it beside the session`() = runTest {
+        val store = InMemoryAuthTokenStore(TOKEN).apply { failClear = true }
+        val revocations = PendingTokenRevocations(listOf(store), ScriptedTokenRevoker(), this)
+
+        assertTrue(runCatching { revocations.keep(TOKEN) }.exceptionOrNull() is AuthTokenStorageException)
+
+        assertEquals(TOKEN.reveal(), store.token?.reveal())
+        assertTrue(revocations.isSignedOut(TOKEN))
+    }
+
+    @Test
+    fun `an unreadable record is not read as no sign-out`() = runTest {
+        val store = InMemoryAuthTokenStore(TOKEN).apply { failedReads = 1 }
+        val revocations = PendingTokenRevocations(listOf(store), ScriptedTokenRevoker(), this)
+
+        assertTrue(runCatching { revocations.isSignedOut(TOKEN) }.exceptionOrNull() is AuthTokenStorageException)
+        assertTrue(revocations.isSignedOut(TOKEN))
     }
 
     @Test
@@ -96,7 +116,7 @@ class PendingTokenRevocationsTest {
         val store = InMemoryAuthTokenStore(TOKEN).apply { failedReads = 1 }
         val revoker = ScriptedTokenRevoker()
 
-        PendingTokenRevocations(listOf(store), InMemoryAuthTokenStore(), revoker, this).resume()
+        PendingTokenRevocations(listOf(store), revoker, this).resume()
         testScheduler.advanceUntilIdle()
 
         assertEquals(listOf(TOKEN.reveal()), revoker.attempts)

@@ -25,15 +25,20 @@ internal class AuthControllerFixture(
     val revoker = ScriptedTokenRevoker(*revocations.results.toTypedArray())
     val revocationScope = TestScope(UnconfinedTestDispatcher())
     var accountLocalStateClears = 0
-    val controller = MobileAuthController(
-        oauthConfiguration = configuration,
-        tokenStore = tokenStore,
-        oauthAttempts = OAuthAttempts(pendingAttemptStore, stateGenerator, clock),
-        sessionGateway = gateway,
-        tokenRevocations = PendingTokenRevocations(listOf(revocationStore), tokenStore, revoker, revocationScope),
-        clearAccountLocalState = { accountLocalStateClears += 1 },
-        validatedAccounts = validatedAccounts,
-    )
+    private val newController = {
+        MobileAuthController(
+            oauthConfiguration = configuration,
+            tokenStore = tokenStore,
+            oauthAttempts = OAuthAttempts(pendingAttemptStore, stateGenerator, clock),
+            sessionGateway = gateway,
+            tokenRevocations = PendingTokenRevocations(listOf(revocationStore), revoker, revocationScope),
+            clearAccountLocalState = { accountLocalStateClears += 1 },
+            validatedAccounts = validatedAccounts,
+        )
+    }
+    val controller = newController()
+
+    fun nextLaunch(): MobileAuthController = newController()
 }
 
 internal class FakeValidatedAccounts(
@@ -99,6 +104,7 @@ internal class FakeAuthTokenStore(
     var beforeClear: (suspend () -> Unit)? = null
     var beforeRead: (suspend () -> Unit)? = null
     var failRead = false
+    var failClear = false
 
     override suspend fun read(): AccessToken? {
         beforeRead?.invoke()
@@ -114,6 +120,9 @@ internal class FakeAuthTokenStore(
 
     override suspend fun clear() {
         beforeClear?.invoke()
+        if (failClear) {
+            throw AuthTokenStorageException("clear")
+        }
         token = null
     }
 }

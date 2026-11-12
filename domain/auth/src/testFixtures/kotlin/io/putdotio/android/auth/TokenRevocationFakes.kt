@@ -9,6 +9,8 @@ public object NoTokenRevocations : TokenRevocations {
 
     override suspend fun keep(accessToken: AccessToken): Boolean = true
 
+    override suspend fun isSignedOut(accessToken: AccessToken): Boolean = false
+
     override fun resume(): Unit = Unit
 }
 
