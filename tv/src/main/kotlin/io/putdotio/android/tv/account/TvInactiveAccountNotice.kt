@@ -29,6 +29,7 @@ import io.putdotio.android.account.familyPlanExpiredNoticeText
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioRadius
 import io.putdotio.android.design.PutioTypeScale
+import io.putdotio.android.design.R as DesignR
 import io.putdotio.android.tv.monoNumber
 import io.putdotio.android.tv.withFullLineBox
 
@@ -40,7 +41,7 @@ internal fun TvInactiveAccountNotice(
     val days = (notice as? InactiveAccountNotice.Deactivated)?.daysUntilFilesDeleted()
     val text = when (notice) {
         is InactiveAccountNotice.Deactivated -> InactiveAccountNoticeText(
-            title = stringResource(R.string.tv_account_inactive_title),
+            title = stringResource(DesignR.string.account_inactive_title),
             message = days?.toInt()?.let { pluralStringResource(R.plurals.tv_account_inactive_files_deletion, it, it) },
         )
         InactiveAccountNotice.FamilyPlanExpired -> familyPlanExpiredNoticeText()
