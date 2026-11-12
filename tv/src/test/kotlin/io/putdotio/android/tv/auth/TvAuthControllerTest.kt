@@ -325,10 +325,49 @@ class TvAuthControllerTest {
         harness.controller.restoreSession()
 
         assertEquals(
-            TvAuthState.Linking(TvLinkPhase.Stopped(TvLinkStop.StorageUnavailable)),
+            TvAuthState.Linking(TvLinkPhase.Stopped(TvLinkStop.SessionUnreadable)),
             harness.controller.state.value,
         )
         assertEquals(0, harness.gateway.linkAttempts)
+    }
+
+    @Test
+    fun `try again reads the stored token again and keeps it without a new code`() = runTest {
+        val tokenStore = FakeTokenStore(readFails = true)
+        val harness = Harness(storedToken = "stored-token", tokenStore = tokenStore)
+        harness.controller.restoreSession()
+
+        assertFalse(harness.controller.retryValidation())
+        assertEquals(
+            TvAuthState.Linking(TvLinkPhase.Stopped(TvLinkStop.SessionUnreadable)),
+            harness.controller.state.value,
+        )
+
+        tokenStore.readFails = false
+        assertTrue(harness.controller.retryValidation())
+
+        assertTrue(harness.controller.state.value is TvAuthState.SignedIn)
+        assertEquals("stored-token", tokenStore.stored?.reveal())
+        assertEquals(listOf("set", "validate"), harness.gateway.calls)
+        assertEquals(0, harness.gateway.linkAttempts)
+    }
+
+    @Test
+    fun `a fresh token the store cannot write offers no try again`() = runTest {
+        val harness = Harness(tokenStore = FakeTokenStore(writeFails = true))
+        harness.controller.restoreSession()
+
+        harness.gateway.emit(DeviceCodeAuthState.Linked("fresh-token", accountInfo()))
+
+        assertEquals(
+            TvAuthState.Linking(TvLinkPhase.Stopped(TvLinkStop.StorageUnavailable)),
+            harness.controller.state.value,
+        )
+        assertFalse(harness.controller.retryValidation())
+        assertEquals(
+            TvAuthState.Linking(TvLinkPhase.Stopped(TvLinkStop.StorageUnavailable)),
+            harness.controller.state.value,
+        )
     }
 
     @Test

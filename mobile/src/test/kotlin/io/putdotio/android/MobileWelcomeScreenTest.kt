@@ -9,6 +9,7 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -20,6 +21,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.auth.MobileSignedOutReason
 import io.putdotio.android.design.PutioTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -70,15 +72,41 @@ class MobileWelcomeScreenTest {
         compose.onAllNodesWithText("Sign in").assertCountEquals(0)
         compose.onNodeWithText("Try again").performScrollTo().performClick()
         assertEquals(3, actions)
+    }
 
-        compose.runOnIdle { reason = MobileSignedOutReason.SecureStorageUnavailable }
+    @Test
+    @Config(qualifiers = "w412dp-h915dp")
+    fun secureStorageFailureOffersTryAgainAboveResetAndSignIn() {
+        var retries = 0
+        compose.setContent {
+            PutioTheme {
+                Surface {
+                    MobileSignedOutScreen(
+                        reason = MobileSignedOutReason.SecureStorageUnavailable,
+                        canSignIn = true,
+                        onSignIn = { actions += 1 },
+                        onRetrySecureStorage = { retries += 1 },
+                    )
+                }
+            }
+        }
+
         compose.onNodeWithText("Secure storage is unavailable").assertIsDisplayed()
         compose.onNodeWithText(
             "Your session couldn’t be read or saved safely on this device. Reset clears it so you can sign in again.",
         ).assertIsDisplayed()
-        compose.onAllNodesWithText("Try again").assertCountEquals(0)
-        compose.onNodeWithText("Reset and sign in").performScrollTo().performClick()
-        assertEquals(4, actions)
+        compose.onAllNodes(hasClickAction()).assertCountEquals(2)
+        val tryAgain = compose.onNodeWithText("Try again").assertIsDisplayed().getUnclippedBoundsInRoot()
+        val reset = compose.onNodeWithText("Reset and sign in").assertIsDisplayed().getUnclippedBoundsInRoot()
+        assertTrue(tryAgain.bottom <= reset.top)
+
+        compose.onNodeWithText("Try again").performClick()
+        assertEquals(1, retries)
+        assertEquals(0, actions)
+
+        compose.onNodeWithText("Reset and sign in").performClick()
+        assertEquals(1, retries)
+        assertEquals(1, actions)
     }
 
     @Test

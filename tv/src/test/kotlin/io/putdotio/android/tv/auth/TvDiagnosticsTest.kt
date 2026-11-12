@@ -15,6 +15,7 @@ class TvDiagnosticsTest {
             TvAuthState.ValidationUnavailable(TvSessionValidationSource.RETRY),
             TvAuthState.SigningOut,
             TvAuthState.Linking(TvLinkPhase.Stopped(TvLinkStop.StorageUnavailable)),
+            TvAuthState.Linking(TvLinkPhase.Stopped(TvLinkStop.SessionUnreadable)),
         ).forEach { state -> assertNull("$state", state.diagnosticsAnswer()) }
         val linking = TvAuthState.Linking(TvLinkPhase.RequestingCode, sessionExpired = true)
         assertEquals(DiagnosticsAnswer.SignedOut, linking.diagnosticsAnswer())
