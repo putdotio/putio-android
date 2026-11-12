@@ -215,8 +215,6 @@
     <string name="mobile_account_storage_used">%1$s of %2$s used</string>
     <string name="mobile_account_storage_free">%1$s of %2$s free</string>
     <string name="mobile_account_storage">Storage</string>
-    <string name="mobile_account_storage_full_value">%1$s of %2$s</string>
-    <string name="mobile_account_storage_full">Full. New transfers wait until you free up space. Empty trash or delete files to make room.</string>
     <string name="mobile_account_sign_out">Sign out</string>
     <string name="mobile_account_sign_out_title">Sign out of put.io?</string>
     <string name="mobile_account_sign_out_message">Downloads stay on this device and come back when you sign in again.</string>

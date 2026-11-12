@@ -345,6 +345,49 @@ class TvAccountScreenTest {
     }
 
     @Test
+    fun aboutEndsWithManageAccountWhichOpensTheWebAccountPageAsAQrCode() {
+        show(settingsState = { ready(preferences) })
+        val manage = hasText("Manage account at put.io") and hasText("QR code")
+
+        group("Library").performKeyInput {
+            repeat(4) { pressKey(Key.DirectionDown) }
+            pressKey(Key.DirectionRight)
+        }
+        compose.onNodeWithText("Version").assertIsFocused()
+        repeat(MAX_ABOUT_ROWS) {
+            if (compose.onAllNodes(manage and isFocused()).fetchSemanticsNodes().isEmpty()) {
+                compose.onNode(isFocused()).performKeyInput { pressKey(Key.DirectionDown) }
+            }
+        }
+        compose.onNode(manage and isFocused()).performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNode(manage and isFocused()).performKeyInput { pressCenter() }
+        compose.onNodeWithContentDescription("QR code for Manage account at put.io").assertIsDisplayed()
+        compose.onNodeWithText("https://app.put.io/account").assertIsDisplayed()
+        compose.onNodeWithText("Scan with your phone’s camera to open it there.").assertIsDisplayed()
+        compose.onNode(inSheet("Done")).performKeyInput { pressCenter() }
+        compose.onNode(manage and isFocused()).assertExists()
+    }
+
+    @Test
+    fun fullStorageWarnsThatTransfersWaitAndSaysSoToAccessibility() {
+        val full = AccountStorage(
+            availableBytes = 0,
+            sizeBytes = 1_000_000_000_000,
+            usedBytes = 1_000_000_000_000,
+            showOptimisticUsage = true,
+        )
+        var shown by mutableStateOf(account)
+        show(settingsState = { ready(preferences) }, account = { shown })
+        val warning = "Full. New transfers wait until you free up space. Empty Trash or delete files to make room."
+        compose.onAllNodesWithText(warning).assertCountEquals(0)
+
+        compose.runOnIdle { shown = account.copy(storage = full) }
+        compose.onNodeWithText(warning).assertIsDisplayed()
+        compose.onNodeWithText("1.0 TB of 1.0 TB").assertIsDisplayed()
+        compose.onNodeWithContentDescription("devs-auto. 1.0 TB of 1.0 TB, 100% used. $warning").assertExists()
+    }
+
+    @Test
     fun signOutKeepsTheLastOpenedGroupBesideIt() {
         show(settingsState = { ready(preferences) })
 
@@ -461,5 +504,9 @@ class TvAccountScreenTest {
                 loadTunnelRoutes = loadTunnelRoutes,
             )
         }
+    }
+
+    private companion object {
+        const val MAX_ABOUT_ROWS = 20
     }
 }
