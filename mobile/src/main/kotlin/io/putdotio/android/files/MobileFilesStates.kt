@@ -117,6 +117,9 @@ internal class MobilePinnedActions(
     val onUnpin: ((FilesItem) -> Unit)? = null,
 )
 
+internal fun MobileFilesItemActions.pinnedActions(onOpen: (FilesItem) -> Unit): MobilePinnedActions =
+    MobilePinnedActions(onOpen = onOpen, onUnpin = onSetPinned?.let { set -> { item -> set(item, false) } })
+
 /**
  * The items above the first row. [hidden] in selection draws them empty but keeps them in the list,
  * so entering selection neither shifts row indices nor cancels the long-press that started it.

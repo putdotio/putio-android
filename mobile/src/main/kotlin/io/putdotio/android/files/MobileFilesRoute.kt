@@ -324,6 +324,18 @@ private fun MobileFilesFolders(args: MobileFilesFoldersArgs) = with(args) {
     }
 }
 
+private fun refreshingPinsAtRoot(
+    state: FilesBrowserState,
+    onRefreshPinned: (() -> Unit)?,
+    onEvent: (FilesBrowserEvent) -> Boolean,
+): (FilesBrowserEvent) -> Unit {
+    val refreshPins = onRefreshPinned?.takeIf { state.current.folder.id == FilesFolder.Root.id }
+    return { event ->
+        if (event == FilesBrowserEvent.Refresh) refreshPins?.invoke()
+        onEvent(event)
+    }
+}
+
 @Composable
 private fun MobileFilesFolder(
     state: FilesBrowserState,
@@ -360,12 +372,7 @@ private fun MobileFilesFolder(
             ?.firstOrNull { it.id.value == publicLinkItemId && it.acceptsOwnerActions }
         MobileFilesScreen(
             state = state,
-            onEvent = { event ->
-                if (event == FilesBrowserEvent.Refresh && state.current.folder.id == FilesFolder.Root.id) {
-                    onRefreshPinned?.invoke()
-                }
-                onEvent(event)
-            },
+            onEvent = refreshingPinsAtRoot(state, onRefreshPinned, onEvent),
             onPlayMedia = onPlayMedia,
             confirmedTrashEnabled = confirmedTrashEnabled,
             onMoveItem = startMove?.let { start -> { item -> start(listOf(item)) } },

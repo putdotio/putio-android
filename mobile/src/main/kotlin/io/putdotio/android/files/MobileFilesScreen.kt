@@ -432,12 +432,9 @@ private fun MobileRefreshableFilesContent(
                                 headers = headers,
                                 onPlayEntry = { onPlayMedia(it.toFilesItem()) },
                                 onRemoveEntry = hideStarted,
-                                pinnedActions = MobilePinnedActions(
-                                    onOpen = { item ->
-                                        openPinned(item, state.current, fileOpening, onEvent, onPlayMedia)
-                                    },
-                                    onUnpin = itemActions.onSetPinned?.let { set -> { item -> set(item, false) } },
-                                ),
+                                pinnedActions = itemActions.pinnedActions { item ->
+                                    openPinned(item, state.current, fileOpening, onEvent, onPlayMedia)
+                                },
                                 revealItemId = state.current.revealItemId,
                                 pagingEnabled = operation == FilesFolderOperation.Idle,
                                 onEvent = onEvent,
