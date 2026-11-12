@@ -31,7 +31,7 @@ internal class AuthControllerFixture(
             tokenStore = tokenStore,
             oauthAttempts = OAuthAttempts(pendingAttemptStore, stateGenerator, clock),
             sessionGateway = gateway,
-            tokenRevocations = PendingTokenRevocations(listOf(revocationStore), revoker, revocationScope),
+            tokenRevocations = PendingTokenRevocations(listOf(revocationStore), tokenStore, revoker, revocationScope),
             clearAccountLocalState = { accountLocalStateClears += 1 },
             validatedAccounts = validatedAccounts,
         )
@@ -104,6 +104,7 @@ internal class FakeAuthTokenStore(
     var beforeClear: (suspend () -> Unit)? = null
     var beforeRead: (suspend () -> Unit)? = null
     var failRead = false
+    var failWrite = false
     var failClear = false
 
     override suspend fun read(): AccessToken? {
@@ -115,6 +116,9 @@ internal class FakeAuthTokenStore(
     }
 
     override suspend fun write(accessToken: AccessToken) {
+        if (failWrite) {
+            throw AuthTokenStorageException("write")
+        }
         token = accessToken
     }
 

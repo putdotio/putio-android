@@ -268,14 +268,13 @@ internal class TvAuthController(
             linking.stop(TvLinkStop.Failed(TvLinkFailure.SERVER), sessionExpired)
             return
         }
-        val kept = tokenRevocations.keepOrNull(accessToken)
-        when {
-            kept == false -> linking.restart(sessionExpired = true)
-            kept == true && tokens.write(accessToken) -> {
+        when (tokenRevocations.keepStored(accessToken, tokens)) {
+            false -> linking.restart(sessionExpired = true)
+            true -> {
                 tokens.configure(accessToken)
                 signIn(linked.account.toTvAccount())
             }
-            else -> linking.stop(TvLinkStop.StorageUnavailable, sessionExpired)
+            null -> linking.stop(TvLinkStop.StorageUnavailable, sessionExpired)
         }
     }
 
@@ -326,17 +325,16 @@ internal class TvAuthController(
                 }
                 is TvSessionValidation.Valid -> {
                     // Like a linked token: one awaiting revocation is kept, one already revoked is not.
-                    val kept = tokenRevocations.keepOrNull(legacyToken)
-                    when {
-                        kept == false -> {
+                    when (tokenRevocations.keepStored(legacyToken, tokens)) {
+                        false -> {
                             legacySession.delete()
                             linking.restart(sessionExpired = true)
                         }
-                        kept == true && tokens.write(legacyToken) -> {
+                        true -> {
                             legacySession.delete()
                             signIn(result.account)
                         }
-                        else -> {
+                        null -> {
                             tokens.clearConfigured()
                             linking.stop(TvLinkStop.StorageUnavailable, sessionExpired = false)
                         }
@@ -382,9 +380,11 @@ private suspend fun TvSessionTokens.readSession(revocations: TokenRevocations): 
     }
 }
 
-private suspend fun TokenRevocations.keepOrNull(accessToken: AccessToken): Boolean? =
+private suspend fun TokenRevocations.keepStored(accessToken: AccessToken, tokens: TvSessionTokens): Boolean? =
     try {
-        keep(accessToken)
+        keep(accessToken) {
+            if (!tokens.write(accessToken)) throw AuthTokenStorageException("write session")
+        }
     } catch (_: AuthTokenStorageException) {
         null
     }

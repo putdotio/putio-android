@@ -86,6 +86,7 @@ internal class TvAuthRuntime(
                 sessionGateway = PutioTvSessionGateway(putioClient),
                 tokenRevocations = PendingTokenRevocations(
                     stores = KeystoreAuthTokenStore.pendingRevocations(context),
+                    sessionStore = tokenStore,
                     revoker = PutioAuthTokenRevoker(putioClient.config),
                     scope = applicationScope,
                 ),

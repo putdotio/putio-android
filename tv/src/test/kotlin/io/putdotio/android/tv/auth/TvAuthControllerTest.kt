@@ -460,6 +460,7 @@ class TvAuthControllerTest {
         assertNull(harness.tokenStore.stored)
         assertEquals(TvAuthState.Linking(TvLinkPhase.RequestingCode), harness.controller.state.value)
         assertEquals(listOf("set", "validate", "clear", "link"), harness.gateway.calls)
+        harness.scope.advanceUntilIdle()
         assertEquals(listOf("stored-token"), harness.revoker.attempts)
         assertNull(harness.revocationStore.token)
     }
@@ -471,6 +472,8 @@ class TvAuthControllerTest {
         harness.tokenStore.readFails = true
 
         harness.controller.logout()
+        harness.tokenStore.readFails = false
+        harness.scope.advanceUntilIdle()
 
         assertEquals(listOf("stored-token"), harness.revoker.attempts)
         assertNull(harness.revocationStore.token)
@@ -514,6 +517,48 @@ class TvAuthControllerTest {
         assertFalse("validate" in cleared.gateway.calls)
         assertNull(cleared.tokenStore.stored)
         assertEquals("stored-token", cleared.revocationStore.token?.reveal())
+    }
+
+    @Test
+    fun `a sign-out whose clear failed stays signed out after put io confirms the revocation`() = runTest {
+        val signedOut = Harness(storedToken = "stored-token")
+        signedOut.controller.restoreSession()
+        signedOut.tokenStore.clearFails = true
+        signedOut.controller.logout()
+        signedOut.scope.advanceUntilIdle()
+        assertEquals(listOf("stored-token"), signedOut.revoker.attempts)
+
+        val nextLaunch = Harness(
+            storedToken = "stored-token",
+            tokenStore = signedOut.tokenStore,
+            pendingRevocation = signedOut.revocationStore.token?.reveal(),
+        )
+        assertFalse(nextLaunch.controller.restoreSession())
+
+        assertEquals(
+            TvAuthState.Linking(TvLinkPhase.Stopped(TvLinkStop.StorageUnavailable)),
+            nextLaunch.controller.state.value,
+        )
+        assertFalse("validate" in nextLaunch.gateway.calls)
+    }
+
+    @Test
+    fun `a link whose token cannot be stored still revokes the token a sign-out queued`() = runTest {
+        val harness = Harness(
+            tokenStore = FakeTokenStore(writeFails = true),
+            pendingRevocation = "fresh-token",
+            revocationResults = listOf(TokenRevocationResult.UNAVAILABLE),
+        )
+        harness.controller.restoreSession()
+
+        harness.gateway.emit(DeviceCodeAuthState.Linked("fresh-token", accountInfo()))
+        harness.scope.advanceUntilIdle()
+
+        assertEquals(
+            TvAuthState.Linking(TvLinkPhase.Stopped(TvLinkStop.StorageUnavailable)),
+            harness.controller.state.value,
+        )
+        assertEquals("fresh-token", harness.revocationStore.token?.reveal())
     }
 
     @Test
@@ -743,7 +788,7 @@ class TvAuthControllerTest {
             controller = TvAuthController(
                 tokenStore,
                 gateway,
-                PendingTokenRevocations(listOf(revocationStore), revoker, scope),
+                PendingTokenRevocations(listOf(revocationStore), tokenStore, revoker, scope),
                 scope,
                 legacySession,
             )

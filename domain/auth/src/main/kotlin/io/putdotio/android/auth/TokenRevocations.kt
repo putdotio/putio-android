@@ -5,10 +5,12 @@ import io.putdotio.sdk.PutioConfig
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
@@ -60,12 +62,14 @@ public interface TokenRevocations {
     public suspend fun revoke(accessToken: AccessToken)
 
     /**
-     * Drops a pending revocation of [accessToken] before a new sign-in stores it: put.io handed the
-     * same token back. Waits for an attempt already in flight; false when put.io revoked the token
-     * anyway. Throws [AuthTokenStorageException] when a record that may hold it cannot be read or
-     * cleared, so a stored session never matches a revocation record unless a sign-out left it.
+     * Drops a pending revocation of [accessToken] and runs [store] to save it as the new session:
+     * put.io handed the same token back. Waits for an attempt already in flight; false, without
+     * running [store], when put.io revoked the token anyway. Throws [AuthTokenStorageException]
+     * when a record that may hold it cannot be read or cleared, so a stored session never matches
+     * a revocation record unless a sign-out left it. A [store] that fails puts the dropped record
+     * back, so a token the app does not hold is still revoked.
      */
-    public suspend fun keep(accessToken: AccessToken): Boolean
+    public suspend fun keep(accessToken: AccessToken, store: suspend () -> Unit): Boolean
 
     /**
      * True when a sign-out recorded [accessToken] for revocation: a stored session that still
@@ -87,14 +91,18 @@ public interface TokenRevocations {
  * for the next trigger (app start or sign-out). Each store is one slot: a
  * sign-out takes a free one, and only with every slot full does it replace the
  * oldest unconfirmed token. Revocation is idempotent: a token put.io already
- * dropped answers 401, which also clears its slot.
+ * dropped answers 401.
  *
  * A record that matches the stored session is still revoked: only a sign-out
  * whose clear failed leaves one, since [keep] runs before a sign-in stores its
- * token. An unreadable record defers the attempt.
+ * token. A confirmed revocation clears its slot only once [sessionStore] reads
+ * without the token, so that sign-out survives a restart;
+ * later attempts check the session again without calling put.io. An unreadable
+ * record defers the attempt.
  */
 public class PendingTokenRevocations(
     stores: List<AuthTokenStore>,
+    private val sessionStore: AuthTokenStore,
     private val revoker: AuthTokenRevoker,
     private val scope: CoroutineScope,
     private val retryDelays: List<Duration> = DEFAULT_REVOCATION_RETRY_DELAYS,
@@ -133,24 +141,25 @@ public class PendingTokenRevocations(
         restartRetries()
     }
 
-    override suspend fun keep(accessToken: AccessToken): Boolean =
+    override suspend fun keep(accessToken: AccessToken, store: suspend () -> Unit): Boolean =
         attemptMutex.withLock {
-            slotMutex.withLock {
-                slots.forEach { slot ->
-                    if (slot.load()?.reveal() == accessToken.reveal()) {
-                        slot.store.clear()
-                        slot.pending = null
-                    }
-                }
-                revoked.none { it.reveal() == accessToken.reveal() }
+            val dropped = slotMutex.withLock { slots.count { it.drop(accessToken) } } > 0
+            if (isRevoked(accessToken)) return@withLock false
+            var stored = false
+            try {
+                store()
+                stored = true
+            } finally {
+                if (!stored && dropped) withContext(NonCancellable) { revoke(accessToken) }
             }
+            true
         }
 
     override suspend fun isSignedOut(accessToken: AccessToken): Boolean =
-        slotMutex.withLock {
-            revoked.any { it.reveal() == accessToken.reveal() } ||
-                slots.any { it.load()?.reveal() == accessToken.reveal() }
-        }
+        isRevoked(accessToken) || slotMutex.withLock { slots.any { it.load()?.reveal() == accessToken.reveal() } }
+
+    private suspend fun isRevoked(accessToken: AccessToken): Boolean =
+        slotMutex.withLock { revoked.any { it.reveal() == accessToken.reveal() } }
 
     override fun resume() {
         synchronized(jobLock) {
@@ -184,24 +193,36 @@ public class PendingTokenRevocations(
                 settled = false
                 continue
             }
-            if (accessToken != null && !revokeNow(slot, accessToken)) settled = false
+            if (accessToken != null && !settle(slot, accessToken)) settled = false
         }
         return settled
     }
 
-    private suspend fun revokeNow(slot: Slot, accessToken: AccessToken): Boolean =
-        when (revoker.revoke(accessToken)) {
-            TokenRevocationResult.REVOKED,
-            TokenRevocationResult.REJECTED,
-            -> {
-                slotMutex.withLock {
-                    revoked.addLast(accessToken)
-                    while (revoked.size > slots.size) revoked.removeFirst()
-                    if (slot.pending === accessToken) slot.clear()
-                }
-                true
+    private suspend fun settle(slot: Slot, accessToken: AccessToken): Boolean {
+        if (!isRevoked(accessToken)) {
+            if (revoker.revoke(accessToken) == TokenRevocationResult.UNAVAILABLE) return false
+            slotMutex.withLock {
+                revoked.addLast(accessToken)
+                while (revoked.size > slots.size) revoked.removeFirst()
             }
-            TokenRevocationResult.UNAVAILABLE -> false
+        }
+        return slotMutex.withLock {
+            when {
+                slot.pending !== accessToken -> true
+                sessionStore.mayHold(accessToken) -> false
+                else -> {
+                    slot.clear()
+                    true
+                }
+            }
+        }
+    }
+
+    private suspend fun AuthTokenStore.mayHold(accessToken: AccessToken): Boolean =
+        try {
+            read()?.reveal() == accessToken.reveal()
+        } catch (_: AuthTokenStorageException) {
+            true
         }
 
     private class Slot(val store: AuthTokenStore) {
@@ -216,6 +237,14 @@ public class PendingTokenRevocations(
                 loaded = true
             }
             return pending
+        }
+
+        // Call with slotMutex held.
+        suspend fun drop(accessToken: AccessToken): Boolean {
+            if (load()?.reveal() != accessToken.reveal()) return false
+            store.clear()
+            pending = null
+            return true
         }
 
         // Call with slotMutex held. A record left by a failed clear is revoked again (401 if put.io

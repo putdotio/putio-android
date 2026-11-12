@@ -354,7 +354,7 @@ internal class MobileAuthController(
         val kept = try {
             // The previous token's account must never open the shell for this one.
             if (!validatedAccounts.clear()) throw AuthTokenStorageException("clear validated account")
-            tokenRevocations.keep(accessToken).also { if (it) tokenStore.write(accessToken) }
+            tokenRevocations.keep(accessToken) { tokenStore.write(accessToken) }
         } catch (_: AuthTokenStorageException) {
             clearConfiguredSession()
             failStorage()

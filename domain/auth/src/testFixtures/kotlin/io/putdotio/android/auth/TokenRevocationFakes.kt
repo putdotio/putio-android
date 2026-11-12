@@ -7,7 +7,10 @@ import java.util.ArrayDeque
 public object NoTokenRevocations : TokenRevocations {
     override suspend fun revoke(accessToken: AccessToken): Unit = Unit
 
-    override suspend fun keep(accessToken: AccessToken): Boolean = true
+    override suspend fun keep(accessToken: AccessToken, store: suspend () -> Unit): Boolean {
+        store()
+        return true
+    }
 
     override suspend fun isSignedOut(accessToken: AccessToken): Boolean = false
 
