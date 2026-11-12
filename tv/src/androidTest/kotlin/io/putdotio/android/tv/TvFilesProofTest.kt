@@ -255,7 +255,7 @@ class TvFilesProofTest {
         press(KeyEvent.KEYCODE_MENU)
         waitForText("Delete permanently")
         chooseInSheet("Delete permanently")
-        waitForText("Delete permanently?")
+        waitForText("Delete 1 item permanently?")
         compose.waitUntil(5_000) { compose.onAllNodesWithText("Cancel").fetchSemanticsNodes().any(::focused) }
         screenshot("androidtv-st-t4-delete")
         press(KeyEvent.KEYCODE_DPAD_CENTER)

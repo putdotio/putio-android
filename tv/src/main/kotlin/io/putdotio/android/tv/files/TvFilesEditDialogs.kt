@@ -538,7 +538,6 @@ internal fun TvItemEditLayer(
     target.confirmingDelete?.let { item ->
         if (trashEnabled == false) {
             TvFilesDeleteDialog(
-                item = item,
                 onConfirm = {
                     target.confirmingDelete = null
                     startDelete(item, FilesDeleteMode.PERMANENT)

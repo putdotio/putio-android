@@ -147,8 +147,8 @@ class TvSharedComponentsTest {
         var dismissed = 0
         compose.setTvContent {
             TvConfirmDialog(
-                title = "Delete permanently?",
-                message = "Trash is off for this account, so notes.txt can't be restored.",
+                title = "Delete 1 item permanently?",
+                message = "Trash is off for this account, so this can’t be undone.",
                 confirmLabel = "Delete",
                 onConfirm = { confirmed += 1 },
                 onDismiss = { dismissed += 1 },
