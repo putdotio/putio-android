@@ -10,4 +10,5 @@
     <string name="privacy_diagnostics_description">Crash reports, error details, and limited playback diagnostics, so we can fix problems.</string>
     <string name="privacy_product_analytics">Product analytics</string>
     <string name="privacy_product_analytics_description">Limited usage, device, billing, and playback data that shows which apps and features work.</string>
+    <string name="account_storage_full">Full. New transfers wait until you free up space. Empty trash or delete files to make room.</string>
 </resources>

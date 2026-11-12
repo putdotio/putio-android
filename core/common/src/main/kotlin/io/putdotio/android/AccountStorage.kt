@@ -13,6 +13,10 @@ public data class AccountStorage(
     /** The bar always fills with what is used; invalid disk values clamp to 0..1. */
     val usedFraction: Float
         get() = if (sizeBytes <= 0L) 0f else (usedBytes.toDouble() / sizeBytes.toDouble()).coerceIn(0.0, 1.0).toFloat()
+
+    /** Storage is full when nothing is left to use; transfers then wait. */
+    val isFull: Boolean
+        get() = sizeBytes > 0L && (availableBytes <= 0L || usedBytes >= sizeBytes)
 }
 
 public fun AccountInfo.toAccountStorage(): AccountStorage =

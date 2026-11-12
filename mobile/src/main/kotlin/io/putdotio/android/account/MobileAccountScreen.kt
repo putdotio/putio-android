@@ -769,10 +769,6 @@ private fun MobileAccountAvatarFallback(username: String, modifier: Modifier) {
     }
 }
 
-/** Storage is full when nothing is left to use; transfers then wait. */
-internal val AccountStorage.isFull: Boolean
-    get() = sizeBytes > 0L && (availableBytes <= 0L || usedBytes >= sizeBytes)
-
 @Composable
 private fun MobileAccountStorage(storage: AccountStorage) {
     val mono = MaterialTheme.typography.bodySmall.putioMono().toSpanStyle()
@@ -816,7 +812,7 @@ private fun MobileAccountStorage(storage: AccountStorage) {
                 )
                 if (full) {
                     Text(
-                        stringResource(R.string.mobile_account_storage_full),
+                        stringResource(AccountR.string.account_storage_full),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 10.dp),

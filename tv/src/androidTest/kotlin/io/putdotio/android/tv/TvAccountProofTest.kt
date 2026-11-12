@@ -124,11 +124,29 @@ class TvAccountProofTest {
         press(KeyEvent.KEYCODE_DPAD_RIGHT)
         compose.waitUntil(5_000) { isFocused(RESUME) }
         press(KeyEvent.KEYCODE_DPAD_LEFT)
-        repeat(4) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
+        repeat(5) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
         compose.waitUntil(5_000) { isFocused(SIGN_OUT) }
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(5_000) { compose.onAllNodesWithText(SIGN_OUT_TITLE).fetchSemanticsNodes().isNotEmpty() }
         screenshot("androidtv-st-d3-sign-out")
+    }
+
+    @Test
+    fun manageAccountQr() {
+        mount()
+        repeat(5) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
+        compose.waitUntil(5_000) { isFocused(MANAGE_ACCOUNT) }
+        screenshot("androidtv-manage-account")
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitUntil(5_000) { compose.onAllNodesWithText(ACCOUNT_URL).fetchSemanticsNodes().isNotEmpty() }
+        screenshot("androidtv-manage-account-qr")
+    }
+
+    @Test
+    fun fullStorage() {
+        mount(usedBytes = TOTAL_BYTES)
+        compose.waitUntil(5_000) { compose.onAllNodesWithText(STORAGE_FULL).fetchSemanticsNodes().isNotEmpty() }
+        screenshot("androidtv-storage-full")
     }
 
     @Test
@@ -173,7 +191,7 @@ class TvAccountProofTest {
         compose.waitUntil(5_000) { isFocused(TRASHED_VIDEO) }
     }
 
-    private fun mount(trashFailingLoads: Set<Int> = emptySet()) {
+    private fun mount(trashFailingLoads: Set<Int> = emptySet(), usedBytes: Long = USED_BYTES) {
         val dependencies = tvProofDependencies(
             listings = mapOf(
                 FilesFolder.Root.id to FilesPage(
@@ -199,20 +217,25 @@ class TvAccountProofTest {
             ),
             tunnelRoutes = ROUTES,
         )
-        compose.mountTvProofSession(dependencies, account = proofAccount(), tab = "Account", tunnelRoutes = ROUTES)
+        compose.mountTvProofSession(
+            dependencies,
+            account = proofAccount(usedBytes),
+            tab = "Account",
+            tunnelRoutes = ROUTES,
+        )
         compose.waitUntil(5_000) { isFocused(LIBRARY) }
         compose.waitUntil(5_000) { compose.onAllNodesWithText(MANAGE_TRASH).fetchSemanticsNodes().isNotEmpty() }
     }
 
-    private fun proofAccount() = TvAccount(
+    private fun proofAccount(usedBytes: Long) = TvAccount(
         userId = 1,
         username = "devs-auto",
         email = "devs+auto@put.io",
         historyEnabled = true,
         storage = AccountStorage(
-            availableBytes = TOTAL_BYTES - USED_BYTES,
+            availableBytes = TOTAL_BYTES - usedBytes,
             sizeBytes = TOTAL_BYTES,
-            usedBytes = USED_BYTES,
+            usedBytes = usedBytes,
             showOptimisticUsage = false,
         ),
     )
@@ -260,6 +283,10 @@ class TvAccountProofTest {
         const val PROXY = "Proxy"
         const val CDN77 = "cdn77"
         const val SIGN_OUT = "Sign out"
+        const val MANAGE_ACCOUNT = "Manage account at put.io"
+        const val ACCOUNT_URL = "https://app.put.io/account"
+        const val STORAGE_FULL =
+            "Full. New transfers wait until you free up space. Empty trash or delete files to make room."
         const val SIGN_OUT_TITLE = "Sign out of put.io?"
         const val USED_BYTES = 2_000_000_000_000L
         const val TOTAL_BYTES = 11_000_000_000_000L
