@@ -165,6 +165,18 @@ class MobileMotionTest {
         mobileTransition(from, to, pop, reducedMotion = false)
 
     @Test
+    fun accountPagesBesideTheListCutAndEverythingElseKeepsItsMotion() {
+        assertEquals(MobileTransition.Cut, besidePanes("account", MOBILE_TRASH_ROUTE))
+        assertEquals(MobileTransition.Cut, besidePanes(MOBILE_TRASH_ROUTE, "account", pop = true))
+        assertEquals(MobileTransition.Cut, besidePanes(MOBILE_PUBLIC_LINKS_ROUTE, MOBILE_TRASH_ROUTE))
+        assertEquals(MobileTransition.FadeThrough, besidePanes(MOBILE_TRASH_ROUTE, "files"))
+        assertEquals(MobileTransition.Push, transition("account", MOBILE_TRASH_ROUTE))
+    }
+
+    private fun besidePanes(from: String, to: String, pop: Boolean = false) =
+        mobileTransition(from, to, pop, reducedMotion = false, accountPanes = true)
+
+    @Test
     fun reducedMotionTurnsEveryTransitionIntoAFade() {
         listOf("transfers", MOBILE_TRASH_ROUTE, MOBILE_PLAYBACK_ROUTE).forEach { to ->
             assertEquals(MobileTransition.Fade, mobileTransition("account", to, pop = false, reducedMotion = true))

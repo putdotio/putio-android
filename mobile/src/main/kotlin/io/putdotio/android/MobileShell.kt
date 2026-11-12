@@ -53,11 +53,9 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import io.putdotio.android.account.InactiveAccountNotice
-import io.putdotio.android.account.MOBILE_APP_INFO_ROUTE
-import io.putdotio.android.account.MOBILE_OPEN_SOURCE_LICENSES_ROUTE
 import io.putdotio.android.account.LoggedInAppsController
-import io.putdotio.android.account.MOBILE_LOGGED_IN_APPS_ROUTE
-import io.putdotio.android.account.MOBILE_PRIVACY_CONTROLS_ROUTE
+import io.putdotio.android.account.MobileAccountPage
+import io.putdotio.android.account.MobileAccountPanes
 import io.putdotio.android.account.MobileInactiveAccountNotice
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
@@ -132,7 +130,6 @@ import io.putdotio.android.settings.confirmedDefaultSort
 import io.putdotio.android.settings.HistoryOpen
 import io.putdotio.android.settings.historyOpen
 import io.putdotio.android.settings.historyTabShown
-import io.putdotio.android.sharing.MOBILE_PUBLIC_LINKS_ROUTE
 import io.putdotio.android.sharing.MobilePublicLinks
 import io.putdotio.android.share.MobileFileDragOut
 import io.putdotio.android.share.MobileFileShareService
@@ -398,7 +395,7 @@ internal fun MobileShell(
             BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
                 val navigationLayout = mobileNavigationLayout(maxWidth, maxHeight, destinations)
                 // Files keeps its panes while Search covers it, so nothing under Search is rebuilt.
-                val filesListDetail = isFilesListDetail(maxWidth, maxHeight)
+                val listDetail = isFilesListDetail(maxWidth, maxHeight)
                 val topBarInFilesPane = showsFilesListDetail(
                     width = maxWidth,
                     height = maxHeight,
@@ -413,10 +410,11 @@ internal fun MobileShell(
                     enabled = !isPlayback,
                     destinations = destinations,
                 ) { openNavigation ->
-                    val topBar: @Composable () -> Unit = {
+                    val topBarAt: @Composable (MobileDestination, String?, (() -> Unit)?, (() -> Unit)?) -> Unit = {
+                            destination, route, onSubpageBack, navigation ->
                         MobileTopBar(
-                            destination = selectedDestination,
-                            route = backStackEntry?.destination?.route,
+                            destination = destination,
+                            route = route,
                             searchOpen = searchOpen,
                             // A new scope clears the query, so it gets a fresh field, not a reconciled one.
                             searchBar = { navigation ->
@@ -440,35 +438,26 @@ internal fun MobileShell(
                                 openScopedSearch(scope)
                                 searchFocusPending = true
                             },
-                            onSubpageBack = { navController.popBackStack() },
+                            onSubpageBack = onSubpageBack,
                             filesState = filesState,
                             onFilesBack = onFilesBack,
                             onFilesEvent = onFilesEvent,
                             onNewFolder = requestNewFolder,
-                            openNavigation = openNavigation,
-                            summary = tabSummary(selectedDestination, transfersState, downloadsState),
+                            openNavigation = navigation,
+                            summary = tabSummary(destination, transfersState, downloadsState),
                             tabActions = tabActions(
-                                selectedDestination,
+                                destination,
                                 transfersState,
                                 transfersSessionId,
                                 onTransfersEvent,
                             ) ?: historyActions(
-                                selectedDestination,
+                                destination,
                                 accountSettingsState.historyOpen(),
                                 searchHistoryState.history,
                                 searchHistoryActions.onHistoryEvent,
                             ),
-                            subpageActions = trashTopBarActions(
-                                backStackEntry?.destination?.route,
-                                trashState,
-                                trashController,
-                                trashSelection,
-                            ),
-                            subpageSelectionBar = trashSelectionBar(
-                                backStackEntry?.destination?.route,
-                                trashState,
-                                trashSelection,
-                            ),
+                            subpageActions = trashTopBarActions(route, trashState, trashController, trashSelection),
+                            subpageSelectionBar = trashSelectionBar(route, trashState, trashSelection),
                             downloads = downloadsController?.let {
                                 MobileDownloadsBar(downloadsState, downloadsSelection, it::dispatch)
                             },
@@ -476,9 +465,22 @@ internal fun MobileShell(
                             accountSort = accountSettingsState.defaultSort(),
                         )
                     }
+                    val topBar: @Composable () -> Unit = {
+                        val route = backStackEntry?.destination?.route
+                        topBarAt(selectedDestination, route, { navController.popBackStack() }, openNavigation)
+                    }
                     val paneTopBar: @Composable () -> Unit = {
                         MobileFilesPaneTopBar(topBarInFilesPane, topBar, account.inactiveNotice)
                     }
+                    val accountPanes = MobileAccountPanes(
+                        listTopBar = {
+                            MobileChromeTopBar(
+                                { topBarAt(MobileDestination.Account, null, null, openNavigation) },
+                                account.inactiveNotice,
+                            )
+                        },
+                        pageTopBar = { page -> topBarAt(MobileDestination.Account, page.route, null, null) },
+                    ).takeIf { listDetail }
                     MobileChrome(
                         visible = !isPlayback,
                         layout = navigationLayout,
@@ -488,7 +490,7 @@ internal fun MobileShell(
                         onDestination = selectDestination,
                         playbackPlayerFactory = playbackPlayerFactory,
                         inactiveNotice = account.inactiveNotice,
-                        topBarInContent = topBarInFilesPane,
+                        topBarInContent = drawsTopBarInContent(topBarInFilesPane, listDetail, selectedDestination),
                         topBar = topBar,
                     ) { contentModifier ->
                         MobileNavHost(
@@ -532,13 +534,14 @@ internal fun MobileShell(
                             continueWatching = continueWatching,
                             pinnedFiles = pinnedFiles,
                             onNewFolder = requestNewFolder,
-                            filesListPaneTopBar = paneTopBar.takeIf { filesListDetail },
+                            filesListPaneTopBar = paneTopBar.takeIf { listDetail },
                             linkedFile = linkedFile?.let(::FilesItemId),
                             onLinkedFileLanded = { linkedFile = null },
                             subtitleLanguages = subtitleLanguages,
                             filesActions = filesActions,
                             folderCreator = folderCreator,
                             filesSelection = filesSelection,
+                            accountPanes = accountPanes,
                         )
                     }
                 }
@@ -1122,7 +1125,7 @@ private fun MobileTopBar(
     searchOpen: Boolean,
     searchBar: @Composable (navigation: (@Composable () -> Unit)?) -> Unit,
     onOpenSearch: (SearchScope?) -> Unit,
-    onSubpageBack: () -> Unit,
+    onSubpageBack: (() -> Unit)?,
     filesState: FilesBrowserState,
     onFilesBack: () -> Unit,
     onFilesEvent: (FilesBrowserEvent) -> Boolean,
@@ -1186,13 +1189,13 @@ private fun MobileTopBar(
 @Composable
 private fun MobileSmallTopBar(
     title: String,
-    onBack: () -> Unit,
+    onBack: (() -> Unit)?,
     openNavigation: (() -> Unit)?,
     actions: (@Composable RowScope.() -> Unit)? = null,
 ) {
     TopAppBar(
         title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        navigationIcon = { MobileBackButton(onClick = onBack) },
+        navigationIcon = { onBack?.let { MobileBackButton(onClick = it) } },
         actions = {
             openNavigation?.let { MobileNavigationMenuButton(it) }
             actions?.invoke(this)
@@ -1306,16 +1309,7 @@ private fun historyActions(
     }
 
 @StringRes
-private fun accountSubpageTitle(route: String?): Int? =
-    when (route) {
-        MOBILE_TRASH_ROUTE -> R.string.mobile_trash_title
-        MOBILE_PUBLIC_LINKS_ROUTE -> R.string.mobile_settings_exclusive_links
-        MOBILE_PRIVACY_CONTROLS_ROUTE -> R.string.mobile_settings_privacy_controls
-        MOBILE_LOGGED_IN_APPS_ROUTE -> R.string.mobile_settings_logged_in_apps
-        MOBILE_APP_INFO_ROUTE -> R.string.mobile_settings_about
-        MOBILE_OPEN_SOURCE_LICENSES_ROUTE -> R.string.mobile_settings_open_source_licenses
-        else -> null
-    }
+private fun accountSubpageTitle(route: String?): Int? = MobileAccountPage.ofRoute(route)?.title
 
 @Composable
 private fun MobileNowPlayingSlot(

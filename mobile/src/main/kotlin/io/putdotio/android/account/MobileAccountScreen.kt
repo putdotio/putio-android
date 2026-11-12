@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.selection.toggleable
@@ -126,6 +128,8 @@ internal fun MobileAccountScreen(
     onLoggedInApps: (() -> Unit)? = null,
     onAppInfo: () -> Unit = {},
     onOpenSourceLicenses: () -> Unit = {},
+    open: MobileAccountPage? = null,
+    listState: LazyListState = rememberLazyListState(),
     library: MobileAccountLibrary = MobileAccountLibrary(),
     /** Bytes this account's downloads hold on the device; null when it holds none, which hides the option. */
     downloadsOnDeviceBytes: Long? = null,
@@ -142,19 +146,21 @@ internal fun MobileAccountScreen(
     val rows = AccountRows(
         settingsState = settingsState,
         appConfigState = appConfigState,
-        onSettingsChange = { change ->
+        onSettingsEvent = { event ->
+            val change = (event as? AccountSettingsEvent.ChangeRequested)?.change
             when {
-                change.turnsOff(AccountSettingsKey.Trash) -> dialog = AccountDialog.TrashOff
-                change.turnsOff(AccountSettingsKey.ResumePlayback) -> dialog = AccountDialog.ResumeOff
-                else -> onSettingsEvent(AccountSettingsEvent.ChangeRequested(change))
+                change?.turnsOff(AccountSettingsKey.Trash) == true -> dialog = AccountDialog.TrashOff
+                change?.turnsOff(AccountSettingsKey.ResumePlayback) == true -> dialog = AccountDialog.ResumeOff
+                else -> onSettingsEvent(event)
             }
         },
-        onRetrySettings = { onSettingsEvent(AccountSettingsEvent.RetryChange) },
         onAppConfigEvent = onAppConfigEvent,
         onOpen = { dialog = it },
+        open = open,
     )
     BoxWithConstraints(modifier.fillMaxSize()) {
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .testTag(MOBILE_ACCOUNT_LIST_TAG),
@@ -207,6 +213,7 @@ private fun LazyListScope.libraryGroup(
                 value = library.exclusiveLinkCount?.let { settingsValue(it.toString(), mono = true) },
                 onClick = open,
                 tag = MOBILE_MANAGE_PUBLIC_LINKS_TAG,
+                page = MobileAccountPage.ExclusiveLinks,
             )
         }
     }
@@ -221,6 +228,7 @@ private fun LazyListScope.libraryGroup(
                 },
                 onClick = open,
                 tag = MOBILE_MANAGE_TRASH_TAG,
+                page = MobileAccountPage.Trash,
             )
         }
     }
@@ -331,7 +339,7 @@ private fun LazyListScope.privacyItems(
             onLoggedInApps?.let { open ->
                 SettingsRow {
                     rows.Link(it, R.string.mobile_settings_logged_in_apps, R.drawable.ic_ph_devices, null, open,
-                        MOBILE_LOGGED_IN_APPS_ROW_TAG)
+                        MOBILE_LOGGED_IN_APPS_ROW_TAG, MobileAccountPage.LoggedInApps)
                 }
             },
         ),
@@ -352,7 +360,8 @@ private fun LazyListScope.aboutItems(
         rows = listOf(
             SettingsRow {
                 rows.Link(it, R.string.mobile_settings_about, R.drawable.ic_ph_info,
-                    settingsValue(BuildConfig.VERSION_NAME, mono = true), onAppInfo, MOBILE_ABOUT_ROW_TAG)
+                    settingsValue(BuildConfig.VERSION_NAME, mono = true), onAppInfo, MOBILE_ABOUT_ROW_TAG,
+                    MobileAccountPage.AppInfo)
             },
             SettingsRow {
                 rows.Link(it, AccountR.string.privacy_policy, R.drawable.ic_ph_file_text, null,
@@ -360,7 +369,7 @@ private fun LazyListScope.aboutItems(
             },
             SettingsRow {
                 rows.Link(it, R.string.mobile_settings_open_source_licenses, R.drawable.ic_ph_list_bullets, null,
-                    onOpenSourceLicenses, MOBILE_OPEN_SOURCE_LICENSES_ROW_TAG)
+                    onOpenSourceLicenses, MOBILE_OPEN_SOURCE_LICENSES_ROW_TAG, MobileAccountPage.OpenSourceLicenses)
             },
         ),
     )
@@ -473,10 +482,10 @@ private fun LazyListScope.settingsGroup(key: String, @StringRes label: Int, rows
 private class AccountRows(
     private val settingsState: AccountSettingsState,
     private val appConfigState: AndroidAppConfigState,
-    private val onSettingsChange: (AccountSettingsChange) -> Unit,
-    private val onRetrySettings: () -> Unit,
+    private val onSettingsEvent: (AccountSettingsEvent) -> Unit,
     private val onAppConfigEvent: (AndroidAppConfigEvent) -> Unit,
     private val onOpen: (AccountDialog) -> Unit,
+    private val open: MobileAccountPage?,
 ) {
     private val settingsEnabled = settingsState.accountControlsEnabled()
     private val configEnabled = appConfigState.appConfigControlsEnabled()
@@ -489,10 +498,12 @@ private class AccountRows(
         value: SettingsTrailing.Value?,
         onClick: () -> Unit,
         tag: String,
+        page: MobileAccountPage? = null,
     ) {
         MobileSettingsSegment(
             segment = segment,
             interaction = Modifier.clickable(role = Role.Button, onClick = onClick).testTag(tag),
+            selected = page != null && page == open,
         ) {
             MobileSettingsLine(stringResource(title), icon, value ?: SettingsTrailing.None)
         }
@@ -517,7 +528,7 @@ private class AccountRows(
             enabled = settingsEnabled,
             saving = saving,
             onToggle = { onSettingsChange(AccountSettingsChange(key, it)) },
-            failure = failure?.let { { MobileAccountMutationError(it.failure, it.operation, onRetrySettings) } },
+            failure = failure?.let { { MobileAccountMutationError(it.failure, it.operation, ::onRetrySettings) } },
         )
     }
 
@@ -646,6 +657,7 @@ private class AccountRows(
             value = state,
             onClick = onOpen,
             tag = MOBILE_PRIVACY_CONTROLS_ROW_TAG,
+            page = MobileAccountPage.PrivacyControls,
         )
     }
 
@@ -670,11 +682,16 @@ private class AccountRows(
             saving = (mutation as? AccountSettingsMutation.Saving)?.change?.let(matches) == true,
             onChoose = onChoose,
             tag = tag,
-            failure = failure?.let { { MobileAccountMutationError(it.failure, it.operation, onRetrySettings) } },
+            failure = failure?.let { { MobileAccountMutationError(it.failure, it.operation, ::onRetrySettings) } },
         )
     }
 
     private fun onRetryConfig() = onAppConfigEvent(AndroidAppConfigEvent.RetryChange)
+
+    private fun onSettingsChange(change: AccountSettingsChange) =
+        onSettingsEvent(AccountSettingsEvent.ChangeRequested(change))
+
+    private fun onRetrySettings() = onSettingsEvent(AccountSettingsEvent.RetryChange)
 }
 
 @Composable

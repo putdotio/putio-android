@@ -78,14 +78,23 @@ private fun <T> fadeThroughIn(): FiniteAnimationSpec<T> =
     tween(FADE_THROUGH_IN_MS, delayMillis = FADE_THROUGH_OUT_MS, easing = LinearOutSlowInEasing)
 
 /** How one screen replaces another (DESIGN.md Motion). */
-internal enum class MobileTransition { FadeThrough, Push, Pop, Container, Fade }
+internal enum class MobileTransition { FadeThrough, Push, Pop, Container, Fade, Cut }
 
 /**
  * Between tabs: fade through. Within a tab: shared axis X, forward on a push and back on a pop.
  * The player opens as a container transform from its row. Reduced motion turns each into a fade.
+ * Account's pages beside its list cut, so the list stays still.
  */
-internal fun mobileTransition(from: String?, to: String?, pop: Boolean, reducedMotion: Boolean): MobileTransition =
+internal fun mobileTransition(
+    from: String?,
+    to: String?,
+    pop: Boolean,
+    reducedMotion: Boolean,
+    accountPanes: Boolean = false,
+): MobileTransition =
     when {
+        accountPanes && MobileDestination.ofRoute(from) == MobileDestination.Account &&
+            MobileDestination.ofRoute(to) == MobileDestination.Account -> MobileTransition.Cut
         reducedMotion -> MobileTransition.Fade
         from == MOBILE_PLAYBACK_ROUTE || to == MOBILE_PLAYBACK_ROUTE -> MobileTransition.Container
         MobileDestination.ofRoute(from) != MobileDestination.ofRoute(to) -> MobileTransition.FadeThrough
@@ -96,8 +105,13 @@ internal fun mobileTransition(from: String?, to: String?, pop: Boolean, reducedM
 /** The shared axis offset, signed for the layout direction, and whether the system turned animation off. */
 @Immutable
 internal data class MobileMotion(val axisOffsetPx: Int, val reducedMotion: Boolean) {
-    fun between(from: NavBackStackEntry, to: NavBackStackEntry, pop: Boolean): MobileTransition =
-        mobileTransition(from.destination.route, to.destination.route, pop, reducedMotion)
+    fun between(
+        from: NavBackStackEntry,
+        to: NavBackStackEntry,
+        pop: Boolean,
+        accountPanes: Boolean = false,
+    ): MobileTransition =
+        mobileTransition(from.destination.route, to.destination.route, pop, reducedMotion, accountPanes)
 
     fun enter(transition: MobileTransition): EnterTransition =
         when (transition) {
@@ -110,6 +124,7 @@ internal data class MobileMotion(val axisOffsetPx: Int, val reducedMotion: Boole
                 slideInHorizontally(MobileMotionSprings.defaultSpatial()) { -axisOffsetPx } +
                     fadeIn(MobileMotionSprings.defaultEffects())
             MobileTransition.Container, MobileTransition.Fade -> fadeIn(MobileMotionSprings.defaultEffects())
+            MobileTransition.Cut -> EnterTransition.None
         }
 
     fun exit(transition: MobileTransition): ExitTransition =
@@ -122,6 +137,7 @@ internal data class MobileMotion(val axisOffsetPx: Int, val reducedMotion: Boole
                 slideOutHorizontally(MobileMotionSprings.defaultSpatial()) { axisOffsetPx } +
                     fadeOut(MobileMotionSprings.fastEffects())
             MobileTransition.Container, MobileTransition.Fade -> fadeOut(MobileMotionSprings.fastEffects())
+            MobileTransition.Cut -> ExitTransition.None
         }
 
     /** A move within one tab, such as a folder push, as one content transform. */

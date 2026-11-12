@@ -48,6 +48,9 @@ internal enum class MobileNavigationLayout { Bar, Rail, Modal }
 /** Material's compact window height, a phone in landscape: below 480dp. */
 internal fun isCompactHeight(height: Dp): Boolean = height < 480.dp
 
+internal fun drawsTopBarInContent(filesPane: Boolean, listDetail: Boolean, destination: MobileDestination): Boolean =
+    filesPane || listDetail && destination == MobileDestination.Account
+
 /** Whether the app's window is compact in height; its chrome then keeps to one line. */
 @Composable
 internal fun isCompactHeightWindow(): Boolean =
