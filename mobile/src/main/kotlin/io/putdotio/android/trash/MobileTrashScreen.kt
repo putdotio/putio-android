@@ -52,6 +52,7 @@ import io.putdotio.android.MobilePullToRefresh
 import io.putdotio.android.MobileRow
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
+import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.files.formatFileSize
 import io.putdotio.android.monoFigures
 import io.putdotio.android.design.FileTypeIcon
@@ -85,18 +86,15 @@ internal fun MobileTrashScreen(
     LaunchedEffect(state.actionOutcome?.action) {
         if (state.actionOutcome != null) listState.scrollToItem(if (state.restoreOutcome != null) 1 else 0)
     }
-    val loaded = state.content as? TrashContent.Loaded
     LoadNextPageNearEnd(
         listState = listState,
-        nextPage = loaded?.nextCursor?.takeIf {
-            !loaded.isBusy && loaded.pageFailure == null && !state.hasRequestInFlight
-        },
+        nextPage = state.nextPageCursor,
         onLoadNextPage = { onEvent(TrashEvent.LoadNextPage) },
         threshold = TRASH_PAGING_THRESHOLD,
     )
     MobilePullToRefresh(
-        isRefreshing = loaded?.isRefreshing == true,
-        enabled = loaded?.isBusy == false && state.authenticationFailure == null,
+        isRefreshing = (state.content as? TrashContent.Loaded)?.isRefreshing == true,
+        enabled = state.canPullToRefresh,
         onRefresh = { onEvent(TrashEvent.Refresh) },
         modifier = modifier.fillMaxSize(),
     ) {
@@ -364,6 +362,13 @@ private fun TrashRestoreSubmission.messageResource(): Int = when (this) {
 @Composable
 private fun PutioFailure.trashMessage(): String =
     if (this is PutioFailure.AccessDenied) stringResource(R.string.mobile_trash_access_denied) else mobileMessage()
+
+private val TrashState.nextPageCursor: FilesCursor?
+    get() = (content as? TrashContent.Loaded)?.takeIf { !it.isBusy && it.pageFailure == null && !hasRequestInFlight }
+        ?.nextCursor
+
+private val TrashState.canPullToRefresh: Boolean
+    get() = (content as? TrashContent.Loaded)?.isBusy == false && authenticationFailure == null
 
 private val TrashState.hasRequestInFlight: Boolean
     get() = restoreOutcome?.submission == TrashRestoreSubmission.SUBMITTING ||
