@@ -155,8 +155,12 @@ internal fun MobileSettingsLine(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         when {
-            icon != null ->
-                Icon(painterResource(icon), contentDescription = null, tint = iconColor, modifier = Modifier.size(22.dp))
+            icon != null -> Icon(
+                painterResource(icon),
+                contentDescription = null,
+                tint = iconColor,
+                modifier = Modifier.size(22.dp),
+            )
             alignTitleWithIcons -> Spacer(Modifier.size(22.dp))
         }
         TitleAndTrailing(
