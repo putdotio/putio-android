@@ -1,6 +1,7 @@
 package io.putdotio.android.tv
 
 import android.content.Context
+import androidx.core.content.edit
 import io.putdotio.android.files.FilesItemId
 import java.security.MessageDigest
 import java.security.SecureRandom
@@ -27,7 +28,7 @@ internal value class TvLinkKey(val value: String) {
             val key = TvLinkKey(
                 ByteArray(KEY_BYTES).also(SecureRandom()::nextBytes).joinToString("") { "%02x".format(it) },
             )
-            preferences.edit().putString(PREFERENCE_KEY, key.value).commit()
+            preferences.edit { putString(PREFERENCE_KEY, key.value) }
             return key
         }
 
