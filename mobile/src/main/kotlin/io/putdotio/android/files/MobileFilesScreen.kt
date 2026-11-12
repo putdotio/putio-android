@@ -201,6 +201,8 @@ internal class MobileFilesOpening(
     val showsDetail: Boolean = false,
     val selectedFileId: FilesItemId? = null,
     val actionsRequests: Flow<MobileFilesActionsRequest> = emptyFlow(),
+    /** Opens a file once its folder has loaded and revealed it, as a tap on its row would. */
+    val onOpenWhenRevealed: (FilesItemId) -> Unit = {},
 )
 
 internal data class MobileFilesActionsRequest(val id: FilesItemId, val inViewer: Boolean = false)
@@ -1092,14 +1094,20 @@ private fun openPinned(
     onEvent: (FilesBrowserEvent) -> Unit,
     onPlayMedia: (FilesItem) -> Unit,
 ) {
-    val listed = folder.content.items().any { it.id == item.id }
-    val listedClick = if (listed) rowClick(item, fileOpening, onEvent, onPlayMedia) else null
+    val listedClick =
+        if (folder.content.items().any { it.id == item.id }) rowClick(item, fileOpening, onEvent, onPlayMedia) else null
+    val reveal = if (!item.isFolder && item.parentId == folder.folder.id) {
+        FilesBrowserEvent.RevealItem(folder.folder.id, item.id)
+    } else {
+        FilesBrowserEvent.OpenExternalItem(item, FilesOpenOrigin.HOME)
+    }
     when {
         listedClick != null -> listedClick()
-        item.isPlayable -> onPlayMedia(item)
-        !item.isFolder && item.parentId == folder.folder.id ->
-            onEvent(FilesBrowserEvent.RevealItem(folder.folder.id, item.id))
-        else -> onEvent(FilesBrowserEvent.OpenExternalItem(item, FilesOpenOrigin.HOME))
+        item.isPlayable && fileOpening?.showsDetail != true -> onPlayMedia(item)
+        else -> {
+            if (!item.isFolder) fileOpening?.onOpenWhenRevealed?.invoke(item.id)
+            onEvent(reveal)
+        }
     }
 }
 

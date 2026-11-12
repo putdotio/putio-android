@@ -78,14 +78,19 @@ internal fun MobileFilesRoute(
     var viewerId by rememberSaveable { mutableStateOf<Long?>(null) }
     // Select from a viewer's actions closes the viewer, so the selection shows.
     LaunchedEffect(selecting) { if (selecting) viewerId = null }
+    var pinToOpen by rememberSaveable { mutableStateOf<Long?>(null) }
     LandOnLinkedFile(
         state = state,
         linkedFile = linkedFile,
+        pinToOpen = pinToOpen?.let(::FilesItemId),
         showsDetail = showsDetail,
         views = fileOpener != null,
         onDetail = { detailId = it.id.value },
         onView = { viewerId = it.id.value },
-        onLanded = onLinkedFileLanded,
+        onLanded = {
+            pinToOpen = null
+            onLinkedFileLanded()
+        },
     )
     val actionsRequests = remember { MutableSharedFlow<MobileFilesActionsRequest>(extraBufferCapacity = 1) }
     val openWithAnotherApp: (FilesItem) -> Unit = { item -> fileOpener?.openWithAnotherApp(context, item) }
@@ -102,6 +107,7 @@ internal fun MobileFilesRoute(
             showsDetail = showsDetail,
             selectedFileId = detailId?.takeIf { showsDetail && !selecting }?.let(::FilesItemId),
             actionsRequests = actionsRequests,
+            onOpenWhenRevealed = { pinToOpen = it.value },
         )
     }
     val actionsFrom = { inViewer: Boolean ->
@@ -190,6 +196,7 @@ internal fun MobileFilesRoute(
 private fun LandOnLinkedFile(
     state: FilesBrowserState,
     linkedFile: FilesItemId?,
+    pinToOpen: FilesItemId?,
     showsDetail: Boolean,
     views: Boolean,
     onDetail: (FilesItem) -> Unit,
@@ -198,6 +205,7 @@ private fun LandOnLinkedFile(
 ) {
     val folder = state.current
     val pending = linkedFile?.takeIf { folder.openedFrom == FilesOpenOrigin.LINK && folder.revealItemId == it }
+        ?: pinToOpen?.takeIf { folder.revealItemId == it }
     val linkedItem = folder.content.items().firstOrNull { it.id == pending && !it.isFolder }
     val land = { item: FilesItem ->
         when {
