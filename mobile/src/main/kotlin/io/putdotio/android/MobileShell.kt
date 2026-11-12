@@ -490,8 +490,7 @@ internal fun MobileShell(
                         onDestination = selectDestination,
                         playbackPlayerFactory = playbackPlayerFactory,
                         inactiveNotice = account.inactiveNotice,
-                        topBarInContent = topBarInFilesPane ||
-                            (accountPanes != null && selectedDestination == MobileDestination.Account),
+                        topBarInContent = drawsTopBarInContent(topBarInFilesPane, listDetail, selectedDestination),
                         topBar = topBar,
                     ) { contentModifier ->
                         MobileNavHost(
@@ -1070,6 +1069,9 @@ private fun MobileChrome(
         }
     }
 }
+
+private fun drawsTopBarInContent(filesPane: Boolean, listDetail: Boolean, destination: MobileDestination): Boolean =
+    filesPane || listDetail && destination == MobileDestination.Account
 
 /** Without its top bar the scaffold leaves the status bar to the content, which draws the bar itself. */
 @Composable

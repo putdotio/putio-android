@@ -12,6 +12,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import io.putdotio.android.files.rememberVlcInstalled
@@ -200,17 +201,8 @@ internal fun MobileNavHost(
     val motion = rememberMobileMotion()
     val panes = accountPanes != null
     val accountScroll = rememberAccountListScroll()
-    val openPage = { page: MobileAccountPage ->
-        if (navController.currentDestination?.route != page.route) {
-            navController.navigate(page.route) {
-                launchSingleTop = true
-                if (panes) popUpTo(MobileDestination.Account.route)
-            }
-        }
-    }
     val accountList: @Composable (MobileAccountPage?) -> Unit = { open ->
-        val trashState = trashController?.state?.collectAsStateWithLifecycle()?.value
-        MobileAccountScreen(
+        MobileAccountTab(
             account = account,
             sessionId = sessionId,
             settingsState = accountSettingsState,
@@ -219,20 +211,13 @@ internal fun MobileNavHost(
             onAppConfigEvent = onAppConfigEvent,
             loadTunnelRoutes = loadTunnelRoutes,
             onSignOut = onSignOut,
-            onManageTrash = { openPage(MobileAccountPage.Trash) },
-            onManagePublicLinks = publicLinks?.let { { openPage(MobileAccountPage.ExclusiveLinks) } },
-            onPrivacyControls = { openPage(MobileAccountPage.PrivacyControls) },
-            onLoggedInApps = loggedInAppsController?.let { { openPage(MobileAccountPage.LoggedInApps) } },
-            onAppInfo = { openPage(MobileAccountPage.AppInfo) },
-            onOpenSourceLicenses = { openPage(MobileAccountPage.OpenSourceLicenses) },
+            onOpenPage = { navController.openAccountPage(it, besideList = panes) },
             open = open,
             listState = accountScroll.rememberListState(),
-            library = MobileAccountLibrary(
-                exclusiveLinkCount =
-                    (publicLinks?.state?.content as? PublicLinksContent.Ready)?.links?.size,
-                trashSizeBytes = (trashState?.content as? TrashContent.Loaded)?.trashSizeBytes,
-            ),
-            downloadsOnDeviceBytes = downloadsState.bytesOnDevice(),
+            trashController = trashController,
+            publicLinks = publicLinks,
+            loggedInApps = loggedInAppsController != null,
+            downloadsState = downloadsState,
         )
     }
     val accountPage: @Composable (MobileAccountPage, @Composable () -> Unit) -> Unit = { page, content ->
@@ -498,6 +483,58 @@ internal fun MobileNavHost(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun MobileAccountTab(
+    account: MobileAccount,
+    sessionId: MobileAuthSessionId,
+    settingsState: AccountSettingsState,
+    appConfigState: AndroidAppConfigState,
+    onSettingsEvent: (AccountSettingsEvent) -> Unit,
+    onAppConfigEvent: (AndroidAppConfigEvent) -> Unit,
+    loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>>,
+    onSignOut: (removeDownloads: Boolean) -> Unit,
+    onOpenPage: (MobileAccountPage) -> Unit,
+    open: MobileAccountPage?,
+    listState: LazyListState,
+    trashController: TrashController?,
+    publicLinks: MobilePublicLinks?,
+    loggedInApps: Boolean,
+    downloadsState: DownloadsState,
+) {
+    val trashState = trashController?.state?.collectAsStateWithLifecycle()?.value
+    MobileAccountScreen(
+        account = account,
+        sessionId = sessionId,
+        settingsState = settingsState,
+        appConfigState = appConfigState,
+        onSettingsEvent = onSettingsEvent,
+        onAppConfigEvent = onAppConfigEvent,
+        loadTunnelRoutes = loadTunnelRoutes,
+        onSignOut = onSignOut,
+        onManageTrash = { onOpenPage(MobileAccountPage.Trash) },
+        onManagePublicLinks = publicLinks?.let { { onOpenPage(MobileAccountPage.ExclusiveLinks) } },
+        onPrivacyControls = { onOpenPage(MobileAccountPage.PrivacyControls) },
+        onLoggedInApps = { onOpenPage(MobileAccountPage.LoggedInApps) }.takeIf { loggedInApps },
+        onAppInfo = { onOpenPage(MobileAccountPage.AppInfo) },
+        onOpenSourceLicenses = { onOpenPage(MobileAccountPage.OpenSourceLicenses) },
+        open = open,
+        listState = listState,
+        library = MobileAccountLibrary(
+            exclusiveLinkCount = (publicLinks?.state?.content as? PublicLinksContent.Ready)?.links?.size,
+            trashSizeBytes = (trashState?.content as? TrashContent.Loaded)?.trashSizeBytes,
+        ),
+        downloadsOnDeviceBytes = downloadsState.bytesOnDevice(),
+    )
+}
+
+private fun NavHostController.openAccountPage(page: MobileAccountPage, besideList: Boolean) {
+    if (currentDestination?.route == page.route) return
+    navigate(page.route) {
+        launchSingleTop = true
+        if (besideList) popUpTo(MobileDestination.Account.route)
     }
 }
 

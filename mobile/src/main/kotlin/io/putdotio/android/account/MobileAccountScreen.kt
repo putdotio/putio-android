@@ -146,14 +146,14 @@ internal fun MobileAccountScreen(
     val rows = AccountRows(
         settingsState = settingsState,
         appConfigState = appConfigState,
-        onSettingsChange = { change ->
+        onSettingsEvent = { event ->
+            val change = (event as? AccountSettingsEvent.ChangeRequested)?.change
             when {
-                change.turnsOff(AccountSettingsKey.Trash) -> dialog = AccountDialog.TrashOff
-                change.turnsOff(AccountSettingsKey.ResumePlayback) -> dialog = AccountDialog.ResumeOff
-                else -> onSettingsEvent(AccountSettingsEvent.ChangeRequested(change))
+                change?.turnsOff(AccountSettingsKey.Trash) == true -> dialog = AccountDialog.TrashOff
+                change?.turnsOff(AccountSettingsKey.ResumePlayback) == true -> dialog = AccountDialog.ResumeOff
+                else -> onSettingsEvent(event)
             }
         },
-        onRetrySettings = { onSettingsEvent(AccountSettingsEvent.RetryChange) },
         onAppConfigEvent = onAppConfigEvent,
         onOpen = { dialog = it },
         open = open,
@@ -482,8 +482,7 @@ private fun LazyListScope.settingsGroup(key: String, @StringRes label: Int, rows
 private class AccountRows(
     private val settingsState: AccountSettingsState,
     private val appConfigState: AndroidAppConfigState,
-    private val onSettingsChange: (AccountSettingsChange) -> Unit,
-    private val onRetrySettings: () -> Unit,
+    private val onSettingsEvent: (AccountSettingsEvent) -> Unit,
     private val onAppConfigEvent: (AndroidAppConfigEvent) -> Unit,
     private val onOpen: (AccountDialog) -> Unit,
     private val open: MobileAccountPage?,
@@ -529,7 +528,7 @@ private class AccountRows(
             enabled = settingsEnabled,
             saving = saving,
             onToggle = { onSettingsChange(AccountSettingsChange(key, it)) },
-            failure = failure?.let { { MobileAccountMutationError(it.failure, it.operation, onRetrySettings) } },
+            failure = failure?.let { { MobileAccountMutationError(it.failure, it.operation, ::onRetrySettings) } },
         )
     }
 
@@ -683,11 +682,16 @@ private class AccountRows(
             saving = (mutation as? AccountSettingsMutation.Saving)?.change?.let(matches) == true,
             onChoose = onChoose,
             tag = tag,
-            failure = failure?.let { { MobileAccountMutationError(it.failure, it.operation, onRetrySettings) } },
+            failure = failure?.let { { MobileAccountMutationError(it.failure, it.operation, ::onRetrySettings) } },
         )
     }
 
     private fun onRetryConfig() = onAppConfigEvent(AndroidAppConfigEvent.RetryChange)
+
+    private fun onSettingsChange(change: AccountSettingsChange) =
+        onSettingsEvent(AccountSettingsEvent.ChangeRequested(change))
+
+    private fun onRetrySettings() = onSettingsEvent(AccountSettingsEvent.RetryChange)
 }
 
 @Composable
