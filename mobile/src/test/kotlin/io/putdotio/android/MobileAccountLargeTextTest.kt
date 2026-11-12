@@ -103,14 +103,12 @@ class MobileAccountLargeTextTest {
 
     @Test
     @Config(qualifiers = "en-rUS-w640dp-h320dp-land")
-    fun shortLandscapePlaybackChooserCanReachAndSelectTheLastOption() {
+    fun shortLandscapePlaybackChooserCanReachAndApplyTheLastOption() {
         val events = mutableListOf<AndroidAppConfigEvent>()
         mount(configEvents = events)
         scrollTo("Playback method")
         compose.onNodeWithText("Playback method").performClick()
         compose.onNodeWithText("Direct play", substring = true).performScrollTo().assertIsDisplayed().performClick()
-        assertTrue(events.isEmpty())
-        compose.onNodeWithText("Save").assertIsDisplayed().performClick()
         assertEquals(
             listOf(AndroidAppConfigEvent.ChangeRequested(AndroidAppConfigChange.PlaybackMethod(StreamingMethod.File))),
             events,
