@@ -18,6 +18,8 @@ import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -360,7 +362,6 @@ internal class MobileCastController(
                 if (handoff !== next) return@invokeOnCompletion
                 if (transferring == fileId) transferring = null
                 handoff = null
-                handoffJob = null
             }
         }
     }
@@ -461,6 +462,7 @@ private class SessionHandoff(
     }
 
     suspend fun settle(prepared: CastPrepared?) {
+        currentCoroutineContext().ensureActive()
         val plays = !signedOut() && !overtaken() && receiverPlays(prepared)
         when {
             plays || signedOut() || overtaken() || receiverBusy() -> local.drop(item)
