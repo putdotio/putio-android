@@ -139,6 +139,9 @@ internal class OfflinePlaybackRepository(
     override fun rememberSwitchedToConverted(target: PlaybackTarget): Unit =
         delegate.rememberSwitchedToConverted(target)
 
+    override fun forgetSwitchedToConverted(target: PlaybackTarget): Unit =
+        delegate.forgetSwitchedToConverted(target)
+
     override suspend fun findNeighbours(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackNeighbours> =
         delegate.findNeighbours(target)
 }

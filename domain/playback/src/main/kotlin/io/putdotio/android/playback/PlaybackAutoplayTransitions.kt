@@ -71,6 +71,7 @@ private fun PlaybackState.resolveNext(nextTarget: PlaybackTarget, startMillis: L
                 convertedOnly = false,
                 linkRefetchedAtMillis = null,
                 castFallbackTarget = null,
+                switchedToConverted = false,
             ),
         effect = PlaybackEffect.Resolve(nextTarget, resolveRequestId),
     )

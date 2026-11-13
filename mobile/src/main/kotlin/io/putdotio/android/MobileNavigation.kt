@@ -625,6 +625,10 @@ private fun MobilePlaybackRoute(
             }
         },
         onOriginalRejected = controller::rejectOriginal,
+        onOriginalChosen = { positionMillis: Long ->
+            controller.dispatch(PlaybackEvent.OriginalChosen(positionMillis))
+            Unit
+        }.takeIf { state.offersOriginal },
         onBack = onBack,
         subtitleStartupPolicy = subtitleStartupPolicy,
         autoplayNextVideo = autoplayNextVideo,

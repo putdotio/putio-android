@@ -65,6 +65,8 @@ import io.putdotio.android.playback.PlaybackFallbackReason
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackNeighbours
 import io.putdotio.android.playback.PlaybackStall
+import io.putdotio.android.playback.PlaybackStream
+import io.putdotio.android.playback.PlaybackStreamSwitch
 import io.putdotio.android.playback.previousAt
 import io.putdotio.android.playback.PlaybackState
 import io.putdotio.android.playback.PlaybackTarget
@@ -118,6 +120,7 @@ internal fun TvPlayerScreen(
     onPlayerFailure: (PlaybackFailure, Long) -> Unit,
     modifier: Modifier = Modifier,
     onOriginalRejected: (PlaybackFallbackReason, Long) -> Boolean = { _, _ -> false },
+    onOriginalChosen: (Long) -> Boolean = { false },
     onRefreshConversion: () -> Unit = {},
     onStartConversion: () -> Unit = {},
     playerFactory: TvPlayerFactory = DefaultTvPlayerFactory,
@@ -163,6 +166,7 @@ internal fun TvPlayerScreen(
                     reporter = reporter,
                     onPlayerFailure = onPlayerFailure,
                     onOriginalRejected = onOriginalRejected,
+                    onOriginalChosen = onOriginalChosen.takeIf { state.offersOriginal },
                     onExit = onBack,
                     autoplayNextVideo = autoplayNextVideo,
                     onPlaybackEnded = onPlaybackEnded,
@@ -281,6 +285,7 @@ private fun TvReadyPlayer(
     reporter: TvPlaybackReporter,
     onPlayerFailure: (PlaybackFailure, Long) -> Unit,
     onOriginalRejected: (PlaybackFallbackReason, Long) -> Boolean,
+    onOriginalChosen: ((Long) -> Boolean)?,
     onExit: () -> Unit,
     autoplayNextVideo: Boolean,
     onPlaybackEnded: () -> Boolean,
@@ -552,10 +557,11 @@ private fun TvReadyPlayer(
     }
     TvSubtitlesUnavailableNotice(source, target, snackbar)
     val subtitlesHidden = choices.subtitlesHidden
+    val stream = streamSwitch(source, target, player, currentOnOriginalRejected, onOriginalChosen)
     val chips = choices.chips(
         nextEpisode = nextEpisode,
         audioOnly = target.mediaType == PlaybackMediaType.AUDIO,
-        original = source.streamsOriginalVideo(target),
+        stream = stream != null,
     )
     LaunchedEffect(subtitlesHidden, overlay.sheet) {
         val subtitleSheet = overlay.sheet == TvPlayerSheet.Subtitles || overlay.sheet == TvPlayerSheet.SizeAndTiming
@@ -610,7 +616,7 @@ private fun TvReadyPlayer(
                     listingDurationMillis = target.durationSeconds?.toPlaybackMillis(),
                 ),
                 chips = chips,
-                chipLabels = tvPlayerChipLabels(choices, subtitleSources, speed),
+                chipLabels = tvPlayerChipLabels(choices, subtitleSources, speed, stream?.current),
                 focused = overlay.shownFocus(chips, nextTrack),
             )
         } else {
@@ -625,7 +631,7 @@ private fun TvReadyPlayer(
                     startPositionMillis = prepared.startPositionMillis,
                     listingDurationMillis = target.durationSeconds?.toPlaybackMillis(),
                     chips = chips,
-                    chipLabels = tvPlayerChipLabels(choices, subtitleSources, speed),
+                    chipLabels = tvPlayerChipLabels(choices, subtitleSources, speed, stream?.current),
                     focused = overlay.shownFocus(chips),
                     circles = !overlay.upNext,
                 )
@@ -689,10 +695,7 @@ private fun TvReadyPlayer(
             onOffset = { offset -> options = options.copy(subtitleOffsetMillis = offset) },
         ),
         onDismiss = { apply(overlay.back()) },
-        onSwitchToConverted = {
-            closeSheet()
-            currentOnOriginalRejected(PlaybackFallbackReason.UserSwitched, player.currentPosition.coerceAtLeast(0L))
-        },
+        stream = stream,
         timingPreview = cueLayer,
     )
 }
@@ -718,8 +721,23 @@ private fun TvStalledOr(
     }
 }
 
-private fun PlaybackSource.streamsOriginalVideo(target: PlaybackTarget): Boolean =
-    kind == PlaybackSourceKind.ORIGINAL && target.mediaType == PlaybackMediaType.VIDEO
+private fun streamSwitch(
+    source: PlaybackSource,
+    target: PlaybackTarget,
+    player: Player,
+    onOriginalRejected: (PlaybackFallbackReason, Long) -> Boolean,
+    onOriginalChosen: ((Long) -> Boolean)?,
+): PlaybackStreamSwitch? {
+    val position = { player.currentPosition.coerceAtLeast(0L) }
+    return when {
+        source.kind == PlaybackSourceKind.ORIGINAL && target.mediaType == PlaybackMediaType.VIDEO ->
+            PlaybackStreamSwitch(PlaybackStream.Original) {
+                onOriginalRejected(PlaybackFallbackReason.UserSwitched, position())
+            }
+        onOriginalChosen != null -> PlaybackStreamSwitch(PlaybackStream.Converted) { onOriginalChosen(position()) }
+        else -> null
+    }
+}
 
 private class TvStageState(
     firstFrameShown: Boolean,

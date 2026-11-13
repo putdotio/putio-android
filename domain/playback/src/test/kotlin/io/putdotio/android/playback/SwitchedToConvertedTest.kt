@@ -56,7 +56,7 @@ class SwitchedToConvertedTest {
     }
 
     @Test
-    fun theStoreRemembersSwitchesWithinItsBoundUntilSignOutClearsIt() = runBlocking {
+    fun theStoreRemembersSwitchesWithinItsBoundUntilTheViewerSwitchesBackOrSignsOut() = runBlocking {
         val writes = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         try {
             val store = DataStoreSwitchedToConvertedFiles(
@@ -73,6 +73,11 @@ class SwitchedToConvertedTest {
             assertEquals(listOf(3L, 1L, 4L), store.read())
             assertFalse(store.contains(2L))
             assertTrue(store.contains(1L))
+
+            store.remove(1L)
+            store.remove(2L)
+            settle()
+            assertEquals(listOf(3L, 4L), store.read())
 
             store.clear()
             settle()
@@ -183,6 +188,64 @@ class SwitchedToConvertedTest {
         assertEquals(listOf(Switched.fileId), remembered)
     }
 
+    @Test
+    fun onlyAVideoTheViewerSwitchedOffersItsOriginalBackAndChoosingItForgetsTheSwitch() = runBlocking {
+        val switched = FakeSwitchedFiles(setOf(Switched.fileId.value))
+        val delegate = object : PlaybackRepository {
+            override suspend fun resolve(
+                target: PlaybackTarget,
+                convertedOnly: Boolean,
+            ): PlaybackRepositoryResult<PlaybackResolution> {
+                val standard = target.fileId == Other.fileId && target.method != StreamingMethod.File
+                val kind = if (convertedOnly || standard) PlaybackSourceKind.HLS else PlaybackSourceKind.ORIGINAL
+                return PlaybackRepositoryResult.Success(PlaybackResolution.Ready(source(kind)))
+            }
+
+            override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult = error("Not expected")
+        }
+        val repository = ConvertingPlaybackRepository(delegate, { error("Not expected") }, switched)
+        suspend fun PlaybackController.ready(kind: PlaybackSourceKind) =
+            withTimeout(TIMEOUT_MILLIS) { state.first { (it.content as? PlaybackContent.Ready)?.source?.kind == kind } }
+
+        val pinned = PlaybackController(Switched, repository, this)
+        try {
+            assertTrue(pinned.ready(PlaybackSourceKind.HLS).offersOriginal)
+            assertTrue(pinned.dispatch(PlaybackEvent.OriginalChosen(12_000L)))
+            val original = pinned.ready(PlaybackSourceKind.ORIGINAL)
+            assertEquals(12_000L, original.resumePositionMillis)
+            assertFalse(original.offersOriginal)
+            assertFalse(switched.contains(Switched.fileId.value))
+            assertFalse(pinned.dispatch(PlaybackEvent.OriginalChosen(13_000L)))
+
+            assertTrue(pinned.dispatch(PlaybackEvent.OriginalRejected(PlaybackFallbackReason.UserSwitched, 14_000L)))
+            assertTrue(pinned.ready(PlaybackSourceKind.HLS).offersOriginal)
+            assertTrue(pinned.dispatch(PlaybackEvent.OriginalChosen(15_000L)))
+            assertEquals(15_000L, pinned.ready(PlaybackSourceKind.ORIGINAL).resumePositionMillis)
+        } finally {
+            pinned.close()
+        }
+        assertEquals(listOf(Switched.fileId.value, Switched.fileId.value), switched.removed)
+        assertEquals(listOf(Switched.fileId.value), switched.added)
+
+        val standard = PlaybackController(Other, repository, this)
+        try {
+            assertFalse(standard.ready(PlaybackSourceKind.HLS).offersOriginal)
+            assertFalse(standard.dispatch(PlaybackEvent.OriginalChosen(0L)))
+        } finally {
+            standard.close()
+        }
+        val automatic = PlaybackController(Switched, repository, this)
+        try {
+            automatic.ready(PlaybackSourceKind.ORIGINAL)
+            assertTrue(automatic.dispatch(PlaybackEvent.OriginalRejected(PlaybackFallbackReason.VideoUnsupported, 0L)))
+            assertFalse(automatic.ready(PlaybackSourceKind.HLS).offersOriginal)
+            assertFalse(automatic.dispatch(PlaybackEvent.OriginalChosen(0L)))
+        } finally {
+            automatic.close()
+        }
+        assertEquals(listOf(Switched.fileId.value, Switched.fileId.value), switched.removed)
+    }
+
     private fun repository(
         preference: PlaybackPreference,
         requests: MutableList<PlaybackRequest>,
@@ -200,13 +263,21 @@ class SwitchedToConvertedTest {
         switchedToConverted = switched,
     )
 
-    private class FakeSwitchedFiles(private val switched: Set<Long>) : SwitchedToConvertedFiles {
+    private class FakeSwitchedFiles(switched: Set<Long>) : SwitchedToConvertedFiles {
+        private val switched = switched.toMutableSet()
         val added = mutableListOf<Long>()
+        val removed = mutableListOf<Long>()
 
         override suspend fun contains(fileId: Long): Boolean = fileId in switched
 
         override fun add(fileId: Long) {
             added += fileId
+            switched += fileId
+        }
+
+        override fun remove(fileId: Long) {
+            removed += fileId
+            switched -= fileId
         }
     }
 

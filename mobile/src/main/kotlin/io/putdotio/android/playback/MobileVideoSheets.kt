@@ -33,7 +33,7 @@ internal fun MobileVideoChips(
     options: PlayerOptionsSnapshot,
     sidecarSubtitles: List<PlaybackSubtitle>,
     subtitleStartupPolicy: SubtitleStartupPolicy?,
-    original: Boolean,
+    stream: PlaybackStream?,
     onSheet: (MobileVideoSheet) -> Unit,
     modifier: Modifier,
 ) {
@@ -42,8 +42,8 @@ internal fun MobileVideoChips(
         MobileSubtitlesChip(options, sidecarSubtitles, { onSheet(MobileVideoSheet.Subtitles) }, modifier)
     }
     MobileSpeedChip(options, { onSheet(MobileVideoSheet.Speed) }, modifier)
-    if (original) {
-        val label = stringResource(PlaybackR.string.playback_stream_original)
+    if (stream != null) {
+        val label = stringResource(stream.label)
         MobilePlayerChip(
             label = label,
             description = stringResource(PlaybackR.string.playback_stream_chip, label),
@@ -112,7 +112,7 @@ internal fun MobileVideoSheets(
     appearance: SubtitleAppearanceStore,
     preferences: RetainedPlayerPreferences,
     onSubtitleSelectionChanged: (SubtitleSelection) -> Unit,
-    onSwitchToConverted: (() -> Unit)?,
+    stream: PlaybackStreamSwitch?,
     modifier: Modifier,
     panelModifier: Modifier,
 ) {
@@ -165,13 +165,10 @@ internal fun MobileVideoSheets(
                 },
             )
             MobileVideoSheet.Speed -> MobileSpeedSheetContent(player, options)
-            MobileVideoSheet.Stream -> MobileStreamSheetContent(
-                onOriginal = close,
-                onConverted = {
-                    close()
-                    onSwitchToConverted?.invoke()
-                },
-            )
+            MobileVideoSheet.Stream -> MobileStreamSheetContent(stream?.current) { chosen ->
+                close()
+                if (chosen != stream?.current) stream?.switch?.invoke()
+            }
         }
     }
 }
@@ -187,19 +184,15 @@ private fun MobileVideoSheet.title(): Int =
     }
 
 @Composable
-private fun MobileStreamSheetContent(onOriginal: () -> Unit, onConverted: () -> Unit) {
+private fun MobileStreamSheetContent(current: PlaybackStream?, onChoose: (PlaybackStream) -> Unit) {
     Column(Modifier.selectableGroup()) {
-        MobileSideSheetOption(
-            label = stringResource(PlaybackR.string.playback_stream_original),
-            selected = true,
-            supporting = { Text(stringResource(PlaybackR.string.playback_stream_original_detail)) },
-            onClick = onOriginal,
-        )
-        MobileSideSheetOption(
-            label = stringResource(PlaybackR.string.playback_stream_converted),
-            selected = false,
-            supporting = { Text(stringResource(PlaybackR.string.playback_stream_converted_detail)) },
-            onClick = onConverted,
-        )
+        PlaybackStream.entries.forEach { stream ->
+            MobileSideSheetOption(
+                label = stringResource(stream.label),
+                selected = stream == current,
+                supporting = { Text(stringResource(stream.detail)) },
+                onClick = { onChoose(stream) },
+            )
+        }
     }
 }

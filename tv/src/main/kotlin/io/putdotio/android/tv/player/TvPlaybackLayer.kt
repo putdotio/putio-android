@@ -143,6 +143,7 @@ internal fun TvPlaybackRoute(
                     if (consumed) telemetry?.let(PutioDiagnostics::capture)
                 }
             },
+            onOriginalChosen = { controller.dispatch(PlaybackEvent.OriginalChosen(it)) },
             onRefreshConversion = { controller.dispatch(PlaybackEvent.RefreshConversion) },
             onStartConversion = { controller.dispatch(PlaybackEvent.StartConversion) },
             playerFactory = playerFactory,

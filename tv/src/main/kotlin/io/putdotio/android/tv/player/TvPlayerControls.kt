@@ -72,6 +72,7 @@ internal data class TvPlayerChipLabels(
     val audio: String,
     val subtitles: String,
     val speed: String,
+    val stream: String,
 )
 
 @Composable
@@ -345,9 +346,11 @@ internal fun TvPlayerChips(chips: List<TvPlayerControl>, labels: TvPlayerChipLab
                     labels.speed,
                     stringResource(PlaybackR.string.playback_speed_chip, labels.speed),
                 )
-                TvPlayerControl.Stream -> stringResource(PlaybackR.string.playback_stream_original).let {
-                    Triple(R.drawable.ic_ph_film_strip, it, stringResource(PlaybackR.string.playback_stream_chip, it))
-                }
+                TvPlayerControl.Stream -> Triple(
+                    R.drawable.ic_ph_film_strip,
+                    labels.stream,
+                    stringResource(PlaybackR.string.playback_stream_chip, labels.stream),
+                )
                 else -> stringResource(PlaybackR.string.playback_next_episode).let {
                     Triple(R.drawable.ic_ph_skip_forward, it, it)
                 }

@@ -58,6 +58,7 @@ internal fun PlaybackState.originalRejected(event: PlaybackEvent.OriginalRejecte
             convertedOnly = true,
             linkRefetchedAtMillis = null,
             castFallbackTarget = target.takeIf { cast },
+            switchedToConverted = event.reason == PlaybackFallbackReason.UserSwitched,
         ),
         effect = PlaybackEffect.Resolve(convertedTarget, requestId, convertedOnly = true),
     )
@@ -82,6 +83,7 @@ private fun PlaybackState.reopen(restored: PlaybackTarget): PlaybackTransition {
             convertedOnly = false,
             linkRefetchedAtMillis = null,
             castFallbackTarget = null,
+            switchedToConverted = false,
         ),
         effect = PlaybackEffect.Resolve(restored, requestId),
     )
