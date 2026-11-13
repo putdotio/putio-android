@@ -84,6 +84,7 @@ class MobileCastRaceProofTest {
             val seen = Collections.synchronizedSet(mutableSetOf<Long>())
             val scope = MainScope()
             var local: ExoPlayer? = null
+            check(!onMain { cast.availability.value.casting }) { "A Cast session already runs; leaving it alone" }
             try {
                 connect(cast)
                 val loadsBefore = onMain { cast.loadsSent }
@@ -186,7 +187,7 @@ class MobileCastRaceProofTest {
             screenshot("05-picker")
             assertTrue("The Cast picker never opened", pickerOpened)
         } finally {
-            shell("am force-stop ${context.packageName}", wait = false)
+            onMain { mainActivity().finish() }
         }
     }
 
@@ -195,9 +196,9 @@ class MobileCastRaceProofTest {
             (Stage.entries.flatMap { monitor.getActivitiesInStage(it) }).filterIsInstance<MainActivity>().first()
         }
 
-    private fun shell(command: String, wait: Boolean = true) {
+    private fun shell(command: String) {
         val output = instrumentation.uiAutomation.executeShellCommand(command)
-        if (wait) ParcelFileDescriptor.AutoCloseInputStream(output).use { it.readBytes() } else output.close()
+        ParcelFileDescriptor.AutoCloseInputStream(output).use { it.readBytes() }
     }
 
     private class OrderedLookups(
@@ -218,7 +219,6 @@ class MobileCastRaceProofTest {
 
     private fun connect(cast: MobileCastController) {
         val receiver = argument("receiver")
-        check(!onMain { cast.availability.value.casting }) { "A Cast session already runs; leaving it alone" }
         onMain { cast.gateway.startDiscovery() }
         await("$receiver in reach") { onMain { cast.gateway.devices.value.any { receiver in it.name } } }
         val target = onMain { cast.gateway.devices.value.first { receiver in it.name } }
