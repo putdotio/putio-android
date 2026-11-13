@@ -239,6 +239,26 @@ class MobileCastSessionAudioTest {
     }
 
     @Test
+    fun aFileCastAsTheSessionReconnectsKeepsTheReceiverFromSessionAudioThatWaitedForIt() {
+        val local = LocalPlayer(HANDED_OVER)
+        val account = SlowCastAccount(next = null)
+        cast.autoplay.follow(SESSION, account)
+        gateway.connect()
+        cast.castFromSession(AudioItem, HANDED_OVER, local, scope)
+        idle()
+        gateway.availability.value = CastAvailability.Connecting("Living room TV")
+        account.answer.complete(Unit)
+        idle()
+
+        gateway.availability.value = CastAvailability.Connected("Living room TV")
+        assertTrue(cast.cast(Media.copy(fileId = 7L), OtherItem, CastHandover(positionMillis = 0L, playing = true)))
+        idle()
+
+        assertEquals(listOf(Load(7L, 0L, autoplay = true, speed = 1f)), gateway.loads)
+        assertEquals(7L, cast.sentMedia?.fileId)
+    }
+
+    @Test
     fun sessionAudioWhoseLookupAnswersWhileTheSessionReconnectsGoesToTheReceiver() {
         val local = LocalPlayer(HANDED_OVER)
         val account = SlowCastAccount(next = null)

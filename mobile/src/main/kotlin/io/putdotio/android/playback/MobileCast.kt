@@ -479,7 +479,7 @@ private class SessionHandoff(
         } else {
             gateway.availability.value
         }
-        if (session !is CastAvailability.Connected) return false
+        if (session !is CastAvailability.Connected || signedOut() || overtaken()) return false
         val before = gateway.status.value
         if (prepared != null) cast.cast(prepared.media, item, handover)
         val reports = combine(gateway.status, gateway.availability) { status, availability ->
