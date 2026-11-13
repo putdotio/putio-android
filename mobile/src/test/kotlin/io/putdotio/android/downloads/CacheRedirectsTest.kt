@@ -70,7 +70,7 @@ class CacheRedirectsTest {
             playlist,
             ContentMetadataMutations()
                 .set("${ContentMetadata.KEY_CUSTOM_PREFIX}source", CDN_URL.toString())
-                .set("${ContentMetadata.KEY_CUSTOM_PREFIX}kept", "plain"),
+                .set(KEPT, "plain"),
         )
         assertEquals(CDN_URL, ContentMetadata.getRedirectedUri(cache.getContentMetadata(key)))
 
@@ -78,9 +78,9 @@ class CacheRedirectsTest {
         cache.release()
         cache = SimpleCache(directory, NoOpCacheEvictor(), database)
 
-        assertTrue(storedMetadata().none { it.contains(OAUTH_TOKEN) || it.contains(ContentMetadata.KEY_REDIRECTED_URI) })
+        assertTrue(storedMetadata().none { OAUTH_TOKEN in it || ContentMetadata.KEY_REDIRECTED_URI in it })
         assertEquals(bytes.size.toLong(), ContentMetadata.getContentLength(cache.getContentMetadata(key)))
-        assertEquals("plain", cache.getContentMetadata(playlist).get("${ContentMetadata.KEY_CUSTOM_PREFIX}kept", null as String?))
+        assertEquals("plain", cache.getContentMetadata(playlist).get(KEPT, null as String?))
         val network = RedirectingUpstream(bytes)
         assertArrayEquals(bytes, cacheFactory { network }.read(DataSpec(API_URL)))
         assertTrue(network.opened.isEmpty())
@@ -91,7 +91,7 @@ class CacheRedirectsTest {
 
     private fun storedMetadata(): List<String> {
         val db = database.readableDatabase
-        val tables = db.rawQuery("SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'ExoPlayerCacheIndex%'", null)
+        val tables = db.rawQuery(INDEX_TABLES, null)
             .use { cursor -> buildList { while (cursor.moveToNext()) add(cursor.getString(0)) } }
         assertTrue(tables.isNotEmpty())
         return tables.flatMap { table ->
@@ -113,7 +113,8 @@ class CacheRedirectsTest {
             opened += dataSpec
             transferInitializing(dataSpec)
             position = dataSpec.position.toInt()
-            remaining = if (dataSpec.length == C.LENGTH_UNSET.toLong()) content.size - position else dataSpec.length.toInt()
+            val length = dataSpec.length.takeIf { it != C.LENGTH_UNSET.toLong() }?.toInt()
+            remaining = length ?: (content.size - position)
             transferStarted(dataSpec)
             return remaining.toLong()
         }
@@ -135,6 +136,9 @@ class CacheRedirectsTest {
 
     private companion object {
         const val OAUTH_TOKEN = "oauth_token"
+        const val KEPT = "${ContentMetadata.KEY_CUSTOM_PREFIX}kept"
+        const val INDEX_TABLES =
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'ExoPlayerCacheIndex%'"
         const val ALICE = 7L
         const val HALF = 100_000
         val API_URL: Uri = "https://api.put.io/v2/files/9/stream".toUri()
