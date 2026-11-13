@@ -2,7 +2,7 @@ package io.putdotio.android.telemetry
 
 import io.putdotio.android.OpenSourceNotice
 
-internal const val NOTICED_SENTRY_ANDROID = "8.63.0"
+internal const val NOTICED_SENTRY_ANDROID = "8.64.0"
 
 public val telemetryNotices: List<OpenSourceNotice> = listOf(
     OpenSourceNotice(
