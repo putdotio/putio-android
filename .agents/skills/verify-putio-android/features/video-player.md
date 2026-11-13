@@ -76,6 +76,27 @@ Without `portraitFixture` the portrait test skips; report it as skipped.
 restores it. Otherwise System UI's full-screen notice takes focus from its
 keyboard steps. Run it only on an emulator you booted.
 
+## Live race lanes
+
+`MobileCastRaceProofTest` and `MobilePlaybackPickProofTest` drive the signed-in
+app against the live account. Each takes `<lane>.enabled true`, `<lane>.runId`
+and `<lane>.accountId` (the devs-auto id), plus the file ids of fresh
+fixtures:
+
+| Class                         | Lane             | Fixture arguments                                                                                 |
+| ----------------------------- | ---------------- | ------------------------------------------------------------------------------------------------- |
+| `MobileCastRaceProofTest`     | `putio.castrace` | `receiver` (name), `olderAudio`, `newerAudio` (two audio files), `video` (a video under a minute) |
+| `MobilePlaybackPickProofTest` | `putio.pick`     | `unsupportedFile` (a video whose original plays here), `downloadFile` (a video with an MP4)       |
+
+- `MobileCastRaceProofTest` starts and stops a session on the named receiver
+  and refuses to run while one is already up. Its local network test needs
+  the app's `ACCESS_LOCAL_NETWORK` revoked with `user-set` and `user-fixed`
+  cleared first, and opens the player in a multi-window task, where the video
+  plays on under the prompt. Grant the permission back after.
+- `MobilePlaybackPickProofTest` rewrites the playback read of
+  `unsupportedFile` to `need_convert=false` and no MP4, so the switch resolves
+  to Unsupported; it downloads `downloadFile` locally and removes the copy.
+
 ## Gotchas
 
 - Captures of playback are dark: pass `--allow-dark` to `capture.sh`.
