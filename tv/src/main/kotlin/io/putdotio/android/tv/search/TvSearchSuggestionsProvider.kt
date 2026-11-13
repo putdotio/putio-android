@@ -53,7 +53,7 @@ internal class TvSearchSuggestionsProvider internal constructor(
         val limit = uri.getQueryParameter(SearchManager.SUGGEST_PARAMETER_LIMIT)?.toIntOrNull()
         val context = context
         // A binder thread: the system search waits on this answer, so it is bounded.
-        val found = globalSearch(context)?.let { search ->
+        val found = context?.let(globalSearch)?.let { search ->
             runBlocking { withTimeoutOrNull(QUERY_TIMEOUT_MILLIS) { search.files(query) } }
         }
         if (context == null || found == null) return MatrixCursor(SUGGESTION_COLUMNS)
@@ -81,7 +81,6 @@ internal class TvSearchSuggestionsProvider internal constructor(
     ): Int = throw UnsupportedOperationException()
 }
 
-/** What a system search query found: its [term], and [items] from the account, empty when the search failed. */
 internal data class TvGlobalSearchResult(val term: SearchTerm, val items: List<FilesItem>)
 
 /**
@@ -125,7 +124,6 @@ internal fun tvGlobalSearch(
         isCurrent = { (controller.state.value as? TvAuthState.SignedIn)?.sessionId == it },
     )
 
-/** The row that opens Search with [term], shown as [label]. */
 internal data class TvSearchRow(val term: SearchTerm, val label: String)
 
 /**
