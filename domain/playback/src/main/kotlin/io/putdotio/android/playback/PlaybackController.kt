@@ -29,7 +29,7 @@ public class PlaybackController(
     private val mutableState = MutableStateFlow(initial.state)
     private var activeJob: Job? = null
     private var activeEffect: PlaybackEffect? = null
-    private var pendingSwitch: PlaybackRequestId? = null
+    private var pendingSwitch: PendingSwitch? = null
     private var closed = false
 
     public val state: StateFlow<PlaybackState> = mutableState.asStateFlow()
@@ -63,20 +63,25 @@ public class PlaybackController(
 
     private fun noteSwitch(event: PlaybackEvent, transition: PlaybackTransition): PlaybackTarget? {
         val switching = event is PlaybackEvent.OriginalRejected && event.reason == PlaybackFallbackReason.UserSwitched
-        if (switching && transition.consumed) pendingSwitch = transition.effect?.requestId
-        val settled = transition.consumed && pendingSwitch != null && event.settledRequestId == pendingSwitch
-        if (settled) pendingSwitch = null
-        return transition.state.target.takeIf { settled && !event.resolvedUnsupported }
+        if (switching && transition.consumed) {
+            pendingSwitch = transition.effect?.let { PendingSwitch(it.requestId, transition.state.target) }
+        }
+        val settled = pendingSwitch?.takeIf { transition.consumed && event.settledRequestId == it.requestId }
+        if (settled != null) pendingSwitch = null
+        return settled?.target?.takeUnless { event.resolvedUnsupported }
     }
 
     override fun close() {
-        synchronized(lock) {
-            if (closed) {
-                return
+        val unsettledSwitch =
+            synchronized(lock) {
+                if (closed) {
+                    return
+                }
+                closed = true
+                activeJob = null
+                pendingSwitch?.target
             }
-            closed = true
-            activeJob = null
-        }
+        unsettledSwitch?.let(repository::rememberSwitchedToConverted)
         controllerScope.cancel()
     }
 
@@ -179,3 +184,5 @@ private val PlaybackEvent.settledRequestId: PlaybackRequestId?
 
 private val PlaybackEvent.resolvedUnsupported: Boolean
     get() = (this as? PlaybackEvent.ResolveSucceeded)?.resolution is PlaybackResolution.Unsupported
+
+private class PendingSwitch(val requestId: PlaybackRequestId, val target: PlaybackTarget)

@@ -116,7 +116,7 @@ public data class PlaybackState internal constructor(
     internal val castFallbackTarget: PlaybackTarget? = null,
 ) {
     /** Whether this opening plays converted only because a Cast receiver needed it. */
-    val convertedForCast: Boolean get() = castFallbackTarget != null
+    public val convertedForCast: Boolean get() = castFallbackTarget != null
 }
 
 public sealed interface PlaybackEvent {

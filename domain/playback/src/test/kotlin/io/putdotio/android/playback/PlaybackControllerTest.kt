@@ -301,6 +301,33 @@ class PlaybackControllerTest {
         assertEquals(listOf(Target), remembered)
     }
 
+    @Test
+    fun leavingBeforeASwitchResolvesStillRemembersIt() = runBlocking {
+        val remembered = mutableListOf<PlaybackTarget>()
+        val repository = object : PlaybackRepository {
+            override suspend fun resolve(
+                target: PlaybackTarget,
+                convertedOnly: Boolean,
+            ): PlaybackRepositoryResult<PlaybackResolution> {
+                if (convertedOnly) awaitCancellation()
+                return ready(target, PlaybackSourceKind.ORIGINAL)
+            }
+
+            override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult = error("Not expected")
+
+            override fun rememberSwitchedToConverted(target: PlaybackTarget) {
+                remembered += target
+            }
+        }
+        val controller = PlaybackController(Target, repository, this)
+        controller.awaitContent<PlaybackContent.Ready>()
+        assertTrue(controller.dispatch(PlaybackEvent.OriginalRejected(PlaybackFallbackReason.UserSwitched, 0L)))
+
+        controller.close()
+
+        assertEquals(listOf(Target), remembered)
+    }
+
     private fun ready(target: PlaybackTarget, kind: PlaybackSourceKind): PlaybackRepositoryResult<PlaybackResolution> =
         PlaybackRepositoryResult.Success(
             PlaybackResolution.Ready(playbackSource(target.fileId.value).copy(kind = kind)),

@@ -108,7 +108,6 @@ internal fun MobileCastButton(
     )
 }
 
-/** Asks Android for the local network, then runs [onGranted], or opens the app's settings once Android stops asking. */
 @Composable
 internal fun rememberLocalNetworkRequest(onAnswer: () -> Unit, onGranted: () -> Unit): () -> Unit {
     val context = LocalContext.current
