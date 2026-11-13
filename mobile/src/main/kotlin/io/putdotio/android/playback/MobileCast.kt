@@ -16,7 +16,10 @@ import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSubtitles
 import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -276,6 +279,8 @@ internal class MobileCastController(
 
     private var handoff: SessionHandoff? = null
 
+    private var handoffJob: Job? = null
+
     val awaitsReceiver: Boolean get() = sending != null
 
     private val mutableFinished = MutableSharedFlow<Long>(
@@ -342,15 +347,22 @@ internal class MobileCastController(
         val exits = signOuts
         val from = handoff?.takeIf { it.fileId == fileId }?.handover ?: handover
         val next = SessionHandoff(this, fileId, item, from, local) { signOuts != exits }
+        val previous = handoffJob
         handoff = next
-        playerScope.launch {
+        previous?.cancel()
+        handoffJob = playerScope.launch {
             val prepared = try {
                 next.prepare()
             } finally {
                 if (handoff === next && transferring == fileId) transferring = null
             }
-            next.settle(prepared) { handoff !== next }
-            if (handoff === next) handoff = null
+            next.settle(prepared)
+        }.apply {
+            invokeOnCompletion {
+                if (handoff !== next) return@invokeOnCompletion
+                if (transferring == fileId) transferring = null
+                handoff = null
+            }
         }
     }
 
@@ -438,27 +450,38 @@ private class SessionHandoff(
 ) {
     private val gateway = cast.gateway
     private val loads = cast.loadsSent
+    private var receiver: String? = null
 
     suspend fun prepare(): CastPrepared? {
         val title = item.mediaMetadata.title?.toString().orEmpty()
         val target = PlaybackTarget(FilesItemId(fileId), title, PlaybackMediaType.AUDIO)
-        return withTimeoutOrNull(SESSION_CONNECT_WAIT_MILLIS) {
+        receiver = withTimeoutOrNull(SESSION_CONNECT_WAIT_MILLIS) {
             gateway.availability.first { it is CastAvailability.Connected }
-        }?.let { cast.autoplay.account?.prepare(target) }
+        }?.connectedDevice
+        return if (receiver != null) cast.autoplay.account?.prepare(target) else null
     }
 
-    suspend fun settle(prepared: CastPrepared?, superseded: () -> Boolean) {
+    suspend fun settle(prepared: CastPrepared?) {
+        currentCoroutineContext().ensureActive()
         val plays = !signedOut() && !overtaken() && receiverPlays(prepared)
-        if (superseded()) return
         when {
             plays || signedOut() || overtaken() || receiverBusy() -> local.drop(item)
-            gateway.endCasting() && !signedOut() && !superseded() -> playHere()
+            gateway.endCasting() && !signedOut() -> playHere()
             signedOut() -> local.drop(item)
         }
     }
 
     private suspend fun receiverPlays(prepared: CastPrepared?): Boolean {
-        if (gateway.availability.value !is CastAvailability.Connected) return false
+        val session = receiver?.let { device ->
+            withTimeoutOrNull(SESSION_CONNECT_WAIT_MILLIS) {
+                gateway.availability.first {
+                    it is CastAvailability.Connected || !it.casting ||
+                        (it as? CastAvailability.Connecting)?.deviceName?.let { name -> name != device } == true
+                }
+            }
+        } ?: gateway.availability.value
+        val sameReceiver = session is CastAvailability.Connected && receiver?.let { it == session.deviceName } != false
+        if (!sameReceiver || signedOut() || overtaken()) return false
         val before = gateway.status.value
         if (prepared != null) cast.cast(prepared.media, item, handover)
         val reports = combine(gateway.status, gateway.availability) { status, availability ->
