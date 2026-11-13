@@ -830,6 +830,7 @@ class TvSessionViewModelTest {
         )
         session.search.updateQuery("clip")
         advanceUntilIdle()
+        assertEquals(listOf(clip.id), session.searchResultIds())
 
         session.files.dispatch(FilesBrowserEvent.Delete(FilesFolder.Root.id, clip.id, FilesDeleteMode.TRASH))
         advanceUntilIdle()
@@ -1147,7 +1148,11 @@ private fun TvSessionDependencies.trashingOnly(item: FilesItem): TvSessionDepend
     )
 }
 
-private fun TvSession.searchResultIds() = (search.state.value.content as SearchContent.Ready).items.map { it.id }
+private fun TvSession.searchResultIds() = when (val content = search.state.value.content) {
+    is SearchContent.Ready -> content.items.map { it.id }
+    is SearchContent.Empty -> emptyList()
+    else -> error("Search is not settled: $content")
+}
 
 private fun PlaybackController.assertReadyAt(fileId: Long, positionMillis: Long) {
     val playing = state.value
