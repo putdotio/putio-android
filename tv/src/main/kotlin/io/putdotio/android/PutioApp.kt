@@ -658,6 +658,8 @@ private fun rememberTvLaunchHandling(
                 session.links.open(request.id, request.continueWatching)
             }
             is TvLaunchRequest.Search -> {
+                rejected = false
+                session.links.cancel()
                 session.stopPlayback()
                 onSearchLaunched()
                 session.search.updateQuery(request.term.value)

@@ -606,6 +606,25 @@ class TvSessionViewModelTest {
     }
 
     @Test
+    fun `a cancelled link opens nothing once its file resolves`() = runTest {
+        val resolving = CompletableDeferred<PutioResult<FilesItem>>()
+        val deps = dependencies.copy(
+            filesItemResolver = object : FilesItemResolver {
+                override suspend fun resolveItem(itemId: FilesItemId) = resolving.await()
+            },
+        )
+        val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), deps))
+
+        session.links.open(FilesItemId(55), continueWatching = false)
+        session.links.cancel()
+        resolving.complete(PutioResult.Success(media(55, "Sintel.mkv", PutioFileType.VIDEO)))
+        advanceUntilIdle()
+
+        assertNull(session.playback.value)
+        assertNull(session.links.failure.value)
+    }
+
+    @Test
     fun `a Watch Next card whose file is gone leaves the row and Files explains why`() = runTest {
         val gone = PutioFailure.ApiRejected(404, "NotFound", PutioConfigurationException("404"))
         val recorder = FakeWatchNextRecorder()
