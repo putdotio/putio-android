@@ -53,17 +53,26 @@ class TvLaunchRequestTest {
     }
 
     @Test
-    fun `a search link needs no key, since it opens no file`() {
-        assertEquals(TvLaunchRequest.Search(SearchTerm("harbor")), view("putio://search?q=harbor").consume())
-    }
-
-    @Test
-    fun `a system search query opens Search with it`() {
-        val intent = Intent(Intent.ACTION_SEARCH).putExtra(SearchManager.QUERY, "  harbor film ")
+    fun `a keyed system search term opens Search with it, once`() {
+        val intent = search("  harbor film ", extraData = "k3y")
 
         assertEquals(TvLaunchRequest.Search(SearchTerm("harbor film")), intent.consume())
         assertNull("Consumed once", intent.consume())
-        assertNull(Intent(Intent.ACTION_SEARCH).putExtra(SearchManager.QUERY, " ").consume())
+        assertNull(search(" ", extraData = "k3y").consume())
+    }
+
+    @Test
+    fun `a search term or link from another app, without this install's key, opens nothing and is dropped`() {
+        listOf(null, "", "k3", "K3Y", "k3y0").forEach { extraData ->
+            val intent = search("harbor", extraData)
+            assertNull(extraData, intent.consume())
+            assertNull(extraData, intent.getStringExtra(SearchManager.QUERY))
+        }
+        listOf("putio://search?q=harbor", "putio://search/k3y?q=harbor").forEach { link ->
+            val intent = view(link)
+            assertNull(link, intent.consume())
+            assertNull(link, intent.data)
+        }
     }
 
     @Test
@@ -115,4 +124,8 @@ class TvLaunchRequestTest {
     private fun Intent.consume() = consumeTvLaunchRequest { key }
 
     private fun view(link: String) = Intent(Intent.ACTION_VIEW, link.toUri())
+
+    private fun search(term: String, extraData: String?) =
+        Intent(Intent.ACTION_SEARCH).putExtra(SearchManager.QUERY, term)
+            .apply { extraData?.let { putExtra(SearchManager.EXTRA_DATA_KEY, it) } }
 }

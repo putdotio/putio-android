@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/** What the system asked the TV app to show: a file from search or Watch Next, or a search. */
+/** What the system asked the TV app to show: a file from search or Watch Next, or a search term. */
 internal sealed interface TvLaunchRequest {
     /** A file to open; [continueWatching] marks a Watch Next card, which leaves the row once its file is gone. */
     data class OpenFile(
@@ -24,22 +24,25 @@ internal sealed interface TvLaunchRequest {
 
 /**
  * Reads `putio://files/<id>~<key>` (a system search result), `putio://continue/<id>~<key>` (a
- * Watch Next card) and `ACTION_SEARCH`, then removes them from the intent so a replayed intent
- * cannot open them twice. A file link without this install's key and anything else return null,
- * and the app opens normally.
+ * Watch Next card) and an `ACTION_SEARCH` term, then removes them from the intent so a replayed
+ * intent cannot open them twice. Only the system search app reads this install's key: it hands
+ * file rows the key in their link, and a search term its row's extra data as
+ * [SearchManager.EXTRA_DATA_KEY]. Anything without the key returns null, and the app opens normally.
  */
 internal fun Intent.consumeTvLaunchRequest(key: () -> TvLinkKey): TvLaunchRequest? =
     when (action) {
         Intent.ACTION_VIEW -> data?.let { link ->
             setDataAndType(null, null)
-            link.toTvLaunchRequest()?.takeIf { request ->
-                request !is TvLaunchRequest.OpenFile || link.fileLinkKey()?.let { key().matches(it) } == true
-            }
+            (link.toTvLaunchRequest() as? TvLaunchRequest.OpenFile)
+                ?.takeIf { link.fileLinkKey()?.let { key().matches(it) } == true }
         }
-        Intent.ACTION_SEARCH ->
-            getStringExtra(SearchManager.QUERY)?.trim()?.takeIf(String::isNotEmpty)
-                ?.let { TvLaunchRequest.Search(SearchTerm(it)) }
-                .also { removeExtra(SearchManager.QUERY) }
+        Intent.ACTION_SEARCH -> {
+            val term = getStringExtra(SearchManager.QUERY)?.trim()?.takeIf(String::isNotEmpty)
+            val keyed = getStringExtra(SearchManager.EXTRA_DATA_KEY)?.let { key().matches(it) } == true
+            removeExtra(SearchManager.QUERY)
+            removeExtra(SearchManager.EXTRA_DATA_KEY)
+            term?.takeIf { keyed }?.let { TvLaunchRequest.Search(SearchTerm(it)) }
+        }
         else -> null
     }
 

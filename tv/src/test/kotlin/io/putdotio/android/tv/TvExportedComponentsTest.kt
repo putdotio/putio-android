@@ -1,13 +1,18 @@
 package io.putdotio.android.tv
 
+import android.app.SearchManager
 import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ComponentInfo
 import android.content.pm.PackageManager
+import androidx.core.net.toUri
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.putdotio.android.MainActivity
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
@@ -22,6 +27,24 @@ class TvExportedComponentsTest {
     @Test
     fun `other apps reach only the reviewed components and intent filters`() {
         assertEquals(emptyList<String>(), exported().filterNot { it in REVIEWED })
+    }
+
+    @Test
+    fun `what another app sends the main activity, without the install's key, opens no file or search`() {
+        val filtered = packageManager.getIntentFiltersForActivity(ComponentName(context, MainActivity::class.java))
+            .flatMap { filter -> filter.actionsIterator().asSequence().map { filter.senderIntent(it) }.toList() }
+        val explicit = listOf("putio://continue/55", "putio://search?q=harbor").map { Intent(Intent.ACTION_VIEW, it.toUri()) }
+
+        (filtered + explicit).forEach { intent ->
+            assertNull(intent.toString(), intent.consumeTvLaunchRequest { TvLinkKey.get(context) })
+        }
+    }
+
+    private fun IntentFilter.senderIntent(action: String): Intent {
+        val intent = Intent(action).putExtra(SearchManager.QUERY, "harbor")
+        val scheme = schemesIterator()?.asSequence()?.firstOrNull() ?: return intent
+        val host = authoritiesIterator()?.asSequence()?.firstOrNull()?.host
+        return intent.setData("$scheme://$host/55".toUri())
     }
 
     private fun exported(): List<String> {
