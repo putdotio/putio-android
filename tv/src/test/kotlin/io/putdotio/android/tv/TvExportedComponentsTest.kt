@@ -32,19 +32,22 @@ class TvExportedComponentsTest {
     @Test
     fun `what another app sends through the main activity's filters, without the install's key, opens nothing`() {
         packageManager.getIntentFiltersForActivity(ComponentName(context, MainActivity::class.java))
-            .flatMap { filter -> filter.actionsIterator().asSequence().map { filter.senderIntent(it) }.toList() }
+            .flatMap { filter -> filter.senderIntents() }
             .forEach { intent ->
                 assertNull(intent.toString(), intent.consumeTvLaunchRequest { TvLinkKey.get(context) })
             }
     }
 
-    private fun IntentFilter.senderIntent(action: String): Intent {
-        val intent = Intent(action).putExtra(SearchManager.QUERY, "harbor")
-        val scheme = schemesIterator()?.asSequence()?.singleOrNull() ?: return intent
-        val host = checkNotNull(authoritiesIterator()?.asSequence()?.singleOrNull()?.host) {
-            "Give this test a link for the $scheme filter"
+    private fun IntentFilter.senderIntents(): List<Intent> {
+        val actions = actionsIterator()?.asSequence()?.toList().orEmpty()
+        val schemes = schemesIterator()?.asSequence()?.toList().orEmpty()
+        val hosts = authoritiesIterator()?.asSequence()?.map { it.host }?.toList().orEmpty()
+        check(schemes.isEmpty() || hosts.isNotEmpty()) { "Give this test a link for the $schemes filter" }
+        val links = schemes.flatMap { scheme -> hosts.map { host -> "$scheme://$host/55".toUri() } }
+        return actions.flatMap { action ->
+            val intent = { Intent(action).putExtra(SearchManager.QUERY, "harbor") }
+            if (links.isEmpty()) listOf(intent()) else links.map { intent().setData(it) }
         }
-        return intent.setData("$scheme://$host/55".toUri())
     }
 
     private fun exported(): List<String> {

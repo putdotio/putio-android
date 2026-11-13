@@ -621,8 +621,8 @@ private fun TvFilesPane(
 
 /**
  * Acts on what system search or a Watch Next card asked for: a file resolves, then plays or
- * opens in Files. Returns what Files explains when a file did not
- * open; a 401 is left to the shell, which signs out.
+ * opens in Files. Returns what Files explains when a file did not open; a 401 is left to the
+ * shell, which signs out.
  */
 @Composable
 private fun rememberTvLaunchHandling(
