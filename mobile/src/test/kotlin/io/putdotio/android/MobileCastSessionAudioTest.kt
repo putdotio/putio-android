@@ -186,7 +186,7 @@ class MobileCastSessionAudioTest {
     }
 
     @Test
-    fun anOlderSessionAudioHandoffWhoseLookupAnswersLastLoadsNothing() {
+    fun anOlderSessionAudioHandoffWhoseLookupAnswersFirstLoadsNothing() {
         val local = LocalPlayer(HANDED_OVER)
         val account = GatedCastAccount()
         cast.autoplay.follow(SESSION, account)
@@ -197,9 +197,9 @@ class MobileCastSessionAudioTest {
         gateway.availability.value = CastAvailability.Connecting("Living room TV")
         cast.castFromSession(OtherItem, CastHandover(positionMillis = 5_000L, playing = true), local, scope)
         gateway.connect()
-        account.answer(7L)
-        idle()
         account.answer(42L)
+        idle()
+        account.answer(7L)
         idle()
 
         assertEquals(listOf(Load(7L, 5_000L, autoplay = true, speed = 1f)), gateway.loads)
