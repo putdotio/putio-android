@@ -186,6 +186,69 @@ class MobileCastSessionAudioTest {
     }
 
     @Test
+    fun anOlderSessionAudioHandoffWhoseLookupAnswersLastLoadsNothing() {
+        val local = LocalPlayer(HANDED_OVER)
+        val account = GatedCastAccount()
+        cast.autoplay.follow(SESSION, account)
+        gateway.connect()
+        cast.castFromSession(AudioItem, HANDED_OVER, local, scope)
+        idle()
+
+        gateway.availability.value = CastAvailability.Connecting("Living room TV")
+        cast.castFromSession(OtherItem, CastHandover(positionMillis = 5_000L, playing = true), local, scope)
+        gateway.connect()
+        account.answer(7L)
+        idle()
+        account.answer(42L)
+        idle()
+
+        assertEquals(listOf(Load(7L, 5_000L, autoplay = true, speed = 1f)), gateway.loads)
+        assertEquals(7L, cast.sentMedia?.fileId)
+    }
+
+    @Test
+    fun sessionAudioHandedOverAfterACancelledHandoffOfTheSameFilePlaysOnFromItsOwnPlace() {
+        val local = LocalPlayer()
+        val account = SlowCastAccount(next = null, prepares = false)
+        cast.autoplay.follow(SESSION, account)
+        gateway.connect()
+        val released = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+        cast.castFromSession(AudioItem, HANDED_OVER, local, released)
+        idle()
+        released.cancel()
+        idle()
+
+        cast.castFromSession(AudioItem, CastHandover(positionMillis = 50_000L, playing = true), local, scope)
+        account.answer.complete(Unit)
+        waitFor(RECEIVER_SETTLED)
+
+        assertEquals(listOf("stop"), gateway.commands)
+        assertEquals("42", local.currentMediaItem?.mediaId)
+        assertEquals(50_000L, local.currentPosition)
+    }
+
+    @Test
+    fun sessionAudioWhoseLookupAnswersWhileTheSessionReconnectsGoesToTheReceiver() {
+        val local = LocalPlayer(HANDED_OVER)
+        val account = SlowCastAccount(next = null)
+        cast.autoplay.follow(SESSION, account)
+        gateway.connect()
+        cast.castFromSession(AudioItem, HANDED_OVER, local, scope)
+        idle()
+
+        gateway.availability.value = CastAvailability.Connecting("Living room TV")
+        account.answer.complete(Unit)
+        idle()
+        gateway.connect()
+        gateway.report(CastRemoteState.Playing, positionMillis = 95_000L)
+        waitFor(RECEIVER_SETTLED)
+
+        assertEquals(listOf(Load(42L, 95_000L, autoplay = true, speed = 1f)), gateway.loads)
+        assertTrue(gateway.commands.isEmpty())
+        assertEquals(0, local.mediaItemCount)
+    }
+
+    @Test
     fun sessionAudioTheReceiverOnlyLoadedPlaysOnHereFromWhereThePhoneStood() {
         val local = LocalPlayer(HANDED_OVER)
         cast.autoplay.follow(SESSION, FakeCastAccount(next = null))

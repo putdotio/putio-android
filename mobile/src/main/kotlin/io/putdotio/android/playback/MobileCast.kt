@@ -16,6 +16,7 @@ import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSubtitles
 import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -342,15 +343,19 @@ internal class MobileCastController(
         val exits = signOuts
         val from = handoff?.takeIf { it.fileId == fileId }?.handover ?: handover
         val next = SessionHandoff(this, fileId, item, from, local) { signOuts != exits }
+        handoff?.job?.cancel()
         handoff = next
-        playerScope.launch {
-            val prepared = try {
-                next.prepare()
+        next.job = playerScope.launch {
+            try {
+                val prepared = try {
+                    next.prepare()
+                } finally {
+                    if (handoff === next && transferring == fileId) transferring = null
+                }
+                next.settle(prepared)
             } finally {
-                if (handoff === next && transferring == fileId) transferring = null
+                if (handoff === next) handoff = null
             }
-            next.settle(prepared) { handoff !== next }
-            if (handoff === next) handoff = null
         }
     }
 
@@ -438,6 +443,7 @@ private class SessionHandoff(
 ) {
     private val gateway = cast.gateway
     private val loads = cast.loadsSent
+    var job: Job? = null
 
     suspend fun prepare(): CastPrepared? {
         val title = item.mediaMetadata.title?.toString().orEmpty()
@@ -447,18 +453,20 @@ private class SessionHandoff(
         }?.let { cast.autoplay.account?.prepare(target) }
     }
 
-    suspend fun settle(prepared: CastPrepared?, superseded: () -> Boolean) {
+    suspend fun settle(prepared: CastPrepared?) {
         val plays = !signedOut() && !overtaken() && receiverPlays(prepared)
-        if (superseded()) return
         when {
             plays || signedOut() || overtaken() || receiverBusy() -> local.drop(item)
-            gateway.endCasting() && !signedOut() && !superseded() -> playHere()
+            gateway.endCasting() && !signedOut() -> playHere()
             signedOut() -> local.drop(item)
         }
     }
 
     private suspend fun receiverPlays(prepared: CastPrepared?): Boolean {
-        if (gateway.availability.value !is CastAvailability.Connected) return false
+        val connected = withTimeoutOrNull(SESSION_CONNECT_WAIT_MILLIS) {
+            gateway.availability.first { it is CastAvailability.Connected || !it.casting }
+        }
+        if (connected !is CastAvailability.Connected) return false
         val before = gateway.status.value
         if (prepared != null) cast.cast(prepared.media, item, handover)
         val reports = combine(gateway.status, gateway.availability) { status, availability ->
