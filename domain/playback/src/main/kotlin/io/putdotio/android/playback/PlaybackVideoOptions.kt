@@ -12,16 +12,16 @@ public val QUICK_PLAYBACK_SPEEDS: List<Float> = listOf(1f, 1.25f, 1.5f, 2f)
 
 public fun formatPlaybackSpeed(speed: Float): String = speed.toString().removeSuffix(".0")
 
-public fun adjacentPlaybackSpeed(speed: Float, faster: Boolean): Float? =
+public fun adjacentPlaybackSpeed(speed: Float, faster: Boolean, speeds: List<Float> = PLAYBACK_SPEEDS): Float? =
     if (faster) {
-        PLAYBACK_SPEEDS.firstOrNull { it > speed }
+        speeds.firstOrNull { it > speed }
     } else {
-        PLAYBACK_SPEEDS.lastOrNull { it < speed }
+        speeds.lastOrNull { it < speed }
     }
 
-public fun playbackSpeedStop(speed: Float): Int =
-    PLAYBACK_SPEEDS.indexOf(speed).takeIf { it >= 0 }
-        ?: PLAYBACK_SPEEDS.indexOfLast { it <= speed }.coerceAtLeast(0)
+public fun playbackSpeedStop(speed: Float, speeds: List<Float> = PLAYBACK_SPEEDS): Int =
+    speeds.indexOf(speed).takeIf { it >= 0 }
+        ?: speeds.indexOfLast { it <= speed }.coerceAtLeast(0)
 
 public fun audioCodecName(mimeType: String?): String? = AUDIO_CODEC_NAMES[mimeType]
 

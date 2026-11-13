@@ -186,8 +186,9 @@ internal fun MobileAudioSheetContent(
 internal fun MobileSpeedSheetContent(player: Media3Player, snapshot: PlayerOptionsSnapshot) {
     val speed = snapshot.speed
     val enabled = snapshot.canChangeSpeed
-    val slower = adjacentPlaybackSpeed(speed, faster = false)
-    val faster = adjacentPlaybackSpeed(speed, faster = true)
+    val speeds = snapshot.speeds
+    val slower = adjacentPlaybackSpeed(speed, faster = false, speeds)
+    val faster = adjacentPlaybackSpeed(speed, faster = true, speeds)
     val value = stringResource(R.string.mobile_playback_speed_value, formatPlaybackSpeed(speed))
     Row(
         Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 8.dp),
@@ -234,14 +235,14 @@ internal fun MobileSpeedSheetContent(player: Media3Player, snapshot: PlayerOptio
             onClick = { faster?.let(player::setPlaybackSpeed) },
         )
     }
-    SpeedTrack(speed, enabled, value, onSpeed = player::setPlaybackSpeed)
+    SpeedTrack(speed, speeds, enabled, value, onSpeed = player::setPlaybackSpeed)
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 24.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         val rangeStyle = MaterialTheme.typography.bodySmall.putioMono()
             .copy(fontSize = PutioTypeScale.labelSm.fontSize, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        listOf(PLAYBACK_SPEEDS.first(), PLAYBACK_SPEEDS.last()).forEach { end ->
+        listOf(speeds.first(), speeds.last()).forEach { end ->
             Text(stringResource(R.string.mobile_playback_speed_value, formatPlaybackSpeed(end)), style = rangeStyle)
         }
     }
@@ -281,16 +282,16 @@ private fun SpeedStepButton(@DrawableRes icon: Int, description: String, enabled
 /** The presets as stops: passed ones and the track up to the current stop in yellow. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SpeedTrack(speed: Float, enabled: Boolean, value: String, onSpeed: (Float) -> Unit) {
-    val index = playbackSpeedStop(speed)
-    val last = PLAYBACK_SPEEDS.lastIndex
+private fun SpeedTrack(speed: Float, speeds: List<Float>, enabled: Boolean, value: String, onSpeed: (Float) -> Unit) {
+    val index = playbackSpeedStop(speed, speeds)
+    val last = speeds.lastIndex
     val active = MaterialTheme.colorScheme.primary
     val inactive = MaterialTheme.colorScheme.surfaceContainerHighest
     val stop = MaterialTheme.colorScheme.outline
     val label = stringResource(R.string.mobile_playback_speed)
     Slider(
         value = index.toFloat(),
-        onValueChange = { onSpeed(PLAYBACK_SPEEDS[it.toInt().coerceIn(0, last)]) },
+        onValueChange = { onSpeed(speeds[it.toInt().coerceIn(0, last)]) },
         valueRange = 0f..last.toFloat(),
         steps = last - 1,
         enabled = enabled,
