@@ -28,6 +28,7 @@ import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -125,11 +126,11 @@ class TvSearchSuggestionsTest {
     }
 
     @Test
-    fun `no query or another failed search lists nothing and ends no session`() = runTest {
+    fun `no query finds nothing, and another failed search finds no files and ends no session`() = runTest {
         var calls = 0
         val noQuery = globalSearch { calls++; error("not searched") }
-        assertEquals(emptyList<FilesItem>(), noQuery.files("  "))
-        assertEquals(emptyList<FilesItem>(), noQuery.files(null))
+        assertNull(noQuery.files("  "))
+        assertNull(noQuery.files(null))
         assertEquals(0, calls)
         val offline = PutioFailure.NetworkUnavailable(IllegalStateException("offline"))
         val failing = TvGlobalSearch(
@@ -138,7 +139,7 @@ class TvSearchSuggestionsTest {
             reject = { error("not ended") },
             isCurrent = { true },
         )
-        assertEquals(emptyList<FilesItem>(), failing.files("harbor"))
+        assertEquals(TvGlobalSearchResult(SearchTerm("harbor"), emptyList()), failing.files("harbor"))
     }
 
     @Test
@@ -149,7 +150,7 @@ class TvSearchSuggestionsTest {
             PutioResult.Success(SearchPage(listOf(video), nextCursor = null, total = 1))
         }
 
-        assertEquals(emptyList<FilesItem>(), search.files("harbor"))
+        assertNull(search.files("harbor"))
     }
 
     @Test

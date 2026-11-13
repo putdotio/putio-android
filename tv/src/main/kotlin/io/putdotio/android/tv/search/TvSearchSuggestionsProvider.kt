@@ -55,12 +55,11 @@ internal class TvSearchSuggestionsProvider internal constructor(
         val search = globalSearch(context)
         if (context == null || search == null) return MatrixCursor(SUGGESTION_COLUMNS)
         // A binder thread: the system search waits on this answer, so it is bounded.
-        val items = runBlocking { withTimeoutOrNull(QUERY_TIMEOUT_MILLIS) { search.files(query) } }
+        val found = runBlocking { withTimeoutOrNull(QUERY_TIMEOUT_MILLIS) { search.files(query) } }
+            ?: return MatrixCursor(SUGGESTION_COLUMNS)
         return tvSearchSuggestions(
-            searchRow = query?.trim()?.takeIf(String::isNotEmpty)?.let { term ->
-                TvSearchRow(SearchTerm(term), context.getString(R.string.tv_global_search_in_app, term))
-            },
-            items = items.orEmpty(),
+            searchRow = TvSearchRow(found.term, context.getString(R.string.tv_global_search_in_app, found.term.value)),
+            items = found.items,
             limit = limit,
             fallbackArt = tvLauncherFallbackArt(context),
             key = TvLinkKey.get(context),
@@ -82,11 +81,14 @@ internal class TvSearchSuggestionsProvider internal constructor(
     ): Int = throw UnsupportedOperationException()
 }
 
+/** What a system search query found: its [term], and [items] from the account, empty when the search failed. */
+internal data class TvGlobalSearchResult(val term: SearchTerm, val items: List<FilesItem>)
+
 /**
  * A system search query: the first page of the account's file search, run in the signed-in
- * session. Nothing for a blank query, no session, a failed search or a session that ended
- * while it ran. Nobody watches this
- * process, so a 401 goes to [reject], which ends the session without requesting a code.
+ * session. Null for a blank query, no session, or a session that ended while it ran; no items
+ * for a failed search. Nobody watches this process, so a 401 goes to [reject], which ends the
+ * session without requesting a code.
  */
 internal class TvGlobalSearch(
     /** The signed-in session, restored without a screen when the app has not; null for none. */
@@ -96,15 +98,15 @@ internal class TvGlobalSearch(
     /** Whether the session is still the signed-in one. */
     private val isCurrent: (TvAuthSessionId) -> Boolean,
 ) {
-    suspend fun files(query: String?): List<FilesItem> {
-        val term = query?.trim()?.takeIf(String::isNotEmpty)?.let(::SearchTerm) ?: return emptyList()
-        val signedIn = session()
-        val result = signedIn?.let { search(term) }
-        if (signedIn != null && (result as? PutioResult.Failure)?.failure is PutioFailure.AuthenticationRequired) {
+    suspend fun files(query: String?): TvGlobalSearchResult? {
+        val term = query?.trim()?.takeIf(String::isNotEmpty)?.let(::SearchTerm) ?: return null
+        val signedIn = session() ?: return null
+        val result = search(term)
+        if ((result as? PutioResult.Failure)?.failure is PutioFailure.AuthenticationRequired) {
             reject(signedIn.sessionId)
         }
-        val current = signedIn != null && isCurrent(signedIn.sessionId)
-        return (result as? PutioResult.Success)?.value?.items?.takeIf { current }.orEmpty()
+        if (!isCurrent(signedIn.sessionId)) return null
+        return TvGlobalSearchResult(term, (result as? PutioResult.Success)?.value?.items.orEmpty())
     }
 }
 

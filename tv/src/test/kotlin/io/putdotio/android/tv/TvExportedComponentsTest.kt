@@ -96,7 +96,7 @@ class TvExportedComponentsTest {
                 "android.intent.action.MAIN|android.intent.category.LAUNCHER|| ; " +
                 "android.intent.action.MAIN|android.intent.category.LEANBACK_LAUNCHER|| ; " +
                 "android.intent.action.SEARCH||| ; " +
-                "android.intent.action.VIEW|android.intent.category.DEFAULT|putio|files]",
+                "android.intent.action.VIEW|android.intent.category.DEFAULT|putio|files,search]",
             "provider io.putdotio.android.tv.search.TvSearchSuggestionsProvider " +
                 "permission=android.permission.GLOBAL_SEARCH filters=[]",
             "provider io.putdotio.android.tv.TvLauncherArtProvider permission=null filters=[]",
