@@ -663,6 +663,7 @@ private fun rememberTvLaunchHandling(
                 session.links.cancel()
                 session.stopPlayback()
                 onSearchLaunched()
+                session.search.updateQuery("")
                 session.search.filter = SearchFilter.All
                 session.search.updateQuery(request.term.value)
                 session.search.submit()
