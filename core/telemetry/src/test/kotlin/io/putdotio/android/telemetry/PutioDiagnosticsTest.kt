@@ -23,7 +23,11 @@ import org.robolectric.annotation.Implementation
 import org.robolectric.annotation.Implements
 
 @RunWith(AndroidJUnit4::class)
-@Config(sdk = [35], instrumentedPackages = ["io.sentry.android.core"], shadows = [PutioDiagnosticsTest.RecordingSentry::class])
+@Config(
+    sdk = [35],
+    instrumentedPackages = ["io.sentry.android.core"],
+    shadows = [PutioDiagnosticsTest.RecordingSentry::class],
+)
 class PutioDiagnosticsTest {
     @Test
     fun onUntilAnAccountOptsOutAndAColdLaunchKeepsTheOptOut() {
