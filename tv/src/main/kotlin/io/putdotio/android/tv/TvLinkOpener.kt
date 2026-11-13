@@ -59,6 +59,11 @@ internal class TvLinkOpener(
         mutableFailure.update { it?.takeIf { failure -> failure is PutioFailure.AuthenticationRequired } }
     }
 
+    fun cancel() {
+        pending?.cancel()
+        dismissFailure()
+    }
+
     fun close() {
         pending?.cancel()
         opened.close()

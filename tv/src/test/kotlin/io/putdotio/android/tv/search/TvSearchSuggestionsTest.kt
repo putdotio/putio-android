@@ -26,8 +26,10 @@ import io.putdotio.android.tv.auth.TvAuthState
 import io.putdotio.android.tv.consumeTvLaunchRequest
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -40,7 +42,7 @@ class TvSearchSuggestionsTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
 
     @Test
-    fun `a global search lists the account's matches and each row opens its file`() = runTest {
+    fun `a global search first offers to search the app for the term, then lists the account's matches`() = runTest {
         val searched = mutableListOf<SearchTerm>()
         val search = globalSearch { term ->
             searched += term
@@ -56,6 +58,7 @@ class TvSearchSuggestionsTest {
                         cursor.getLong(cursor.getColumnIndexOrThrow(BaseColumns._ID)),
                         cursor.getString(cursor.getColumnIndexOrThrow(SearchManager.SUGGEST_COLUMN_TEXT_1)),
                         cursor.getString(cursor.getColumnIndexOrThrow(SearchManager.SUGGEST_COLUMN_INTENT_DATA_ID)),
+                        cursor.getString(cursor.getColumnIndexOrThrow(SearchManager.SUGGEST_COLUMN_INTENT_DATA)),
                         cursor.getString(cursor.getColumnIndexOrThrow(SearchManager.SUGGEST_COLUMN_RESULT_CARD_IMAGE)),
                         cursor.getString(cursor.getColumnIndexOrThrow(SearchManager.SUGGEST_COLUMN_CONTENT_TYPE)),
                         cursor.getLong(cursor.getColumnIndexOrThrow(SearchManager.SUGGEST_COLUMN_DURATION)),
@@ -63,23 +66,31 @@ class TvSearchSuggestionsTest {
                 )
             }
         }
+        val art = "content://${context.packageName}.launcherart/card.png"
         assertEquals(
             listOf(
-                listOf(55L, "Harbor film.mp4", "55~$key", "https://api.put.io/screenshots/55.jpg", "video/*", 600_000L),
+                listOf(0L, "Search put.io for “harbor”", null, "putio://search/$key?q=harbor", art, null, 0L),
                 listOf(
-                    56L, "Harbor stills", "56~$key", "content://${context.packageName}.launcherart/card.png", null, 0L,
+                    55L, "Harbor film.mp4", "55~$key", null, "https://api.put.io/screenshots/55.jpg", "video/*",
+                    600_000L,
                 ),
+                listOf(56L, "Harbor stills", "56~$key", null, art, null, 0L),
             ),
             rows,
         )
-        // The search app appends the row's id to searchable.xml's intent data.
-        val chosen = Intent(
-            searchableAttribute("searchSuggestIntentAction"),
-            "${searchableAttribute("searchSuggestIntentData")}/${rows.first()[2]}".toUri(),
-        )
+        val chosen = rows.map { row ->
+            Intent(
+                searchableAttribute("searchSuggestIntentAction"),
+                (row[3] ?: "${searchableAttribute("searchSuggestIntentData")}/${row[2]}").toString().toUri(),
+            ).consumeTvLaunchRequest { TvLinkKey.get(context) }
+        }
         assertEquals(
-            TvLaunchRequest.OpenFile(FilesItemId(55L)),
-            chosen.consumeTvLaunchRequest { TvLinkKey.get(context) },
+            listOf(
+                TvLaunchRequest.Search(SearchTerm("harbor")),
+                TvLaunchRequest.OpenFile(FilesItemId(55L)),
+                TvLaunchRequest.OpenFile(FilesItemId(56L)),
+            ),
+            chosen,
         )
     }
 
@@ -115,11 +126,11 @@ class TvSearchSuggestionsTest {
     }
 
     @Test
-    fun `no query or another failed search lists nothing and ends no session`() = runTest {
+    fun `no query finds nothing, and another failed search finds no files and ends no session`() = runTest {
         var calls = 0
         val noQuery = globalSearch { calls++; error("not searched") }
-        assertEquals(emptyList<FilesItem>(), noQuery.files("  "))
-        assertEquals(emptyList<FilesItem>(), noQuery.files(null))
+        assertNull(noQuery.files("  "))
+        assertNull(noQuery.files(null))
         assertEquals(0, calls)
         val offline = PutioFailure.NetworkUnavailable(IllegalStateException("offline"))
         val failing = TvGlobalSearch(
@@ -128,7 +139,14 @@ class TvSearchSuggestionsTest {
             reject = { error("not ended") },
             isCurrent = { true },
         )
-        assertEquals(emptyList<FilesItem>(), failing.files("harbor"))
+        assertEquals(TvGlobalSearchResult(SearchTerm("harbor"), emptyList()), failing.files("harbor"))
+    }
+
+    @Test
+    fun `a search that outlasts its budget still offers the search row`() = runTest {
+        val slow = globalSearch { awaitCancellation() }
+
+        assertEquals(TvGlobalSearchResult(SearchTerm("harbor"), emptyList()), slow.files("harbor"))
     }
 
     @Test
@@ -139,15 +157,17 @@ class TvSearchSuggestionsTest {
             PutioResult.Success(SearchPage(listOf(video), nextCursor = null, total = 1))
         }
 
-        assertEquals(emptyList<FilesItem>(), search.files("harbor"))
+        assertNull(search.files("harbor"))
     }
 
     @Test
     fun `the system's row limit caps the list`() {
         val many = (1L..30L).map { video.copy(id = FilesItemId(it)) }
 
-        assertEquals(5, tvSearchSuggestions(many, limit = 5, fallbackArt = null, TvLinkKey("k")).count)
-        assertEquals(20, tvSearchSuggestions(many, limit = null, fallbackArt = null, TvLinkKey("k")).count)
+        listOf(SearchTerm("harbor"), null).forEach { term ->
+            assertEquals(5, suggestions(term, many, limit = 5).count)
+            assertEquals(20, suggestions(term, many, limit = null).count)
+        }
     }
 
     @Test
@@ -186,6 +206,9 @@ class TvSearchSuggestionsTest {
         isCurrent: (TvAuthSessionId) -> Boolean = { true },
         search: suspend (SearchTerm) -> PutioResult<SearchPage>,
     ) = TvGlobalSearch(session = { signedIn }, search = search, reject = { error("not ended") }, isCurrent = isCurrent)
+
+    private fun suggestions(term: SearchTerm?, items: List<FilesItem>, limit: Int?) =
+        tvSearchSuggestions(term?.let { TvSearchRow(it, it.value) }, items, limit, fallbackArt = null, TvLinkKey("k"))
 
     private fun provider(search: TvGlobalSearch) =
         TvSearchSuggestionsProvider { search }.also { it.attachInfo(context, null) }
