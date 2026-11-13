@@ -228,6 +228,7 @@
     <string name="tv_error_unexpected_with_id">Something unexpected happened. Error id: %1$s</string>
     <string name="tv_error_unavailable">Something went wrong on our end. Try again in a few minutes, then contact support.</string>
     <string name="tv_global_search_description">Files in your put.io account</string>
+    <string name="tv_global_search_in_app">Search put.io for “%1$s”</string>
     <string name="tv_search_placeholder">Search your files</string>
     <string name="tv_search_field">Search files</string>
     <string name="tv_search_clear">Clear search</string>

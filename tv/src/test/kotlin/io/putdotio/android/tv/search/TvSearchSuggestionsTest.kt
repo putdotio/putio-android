@@ -40,7 +40,7 @@ class TvSearchSuggestionsTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
 
     @Test
-    fun `a global search lists the account's matches and each row opens its file`() = runTest {
+    fun `a global search offers a put.io search for the term, then the account's matches`() = runTest {
         val searched = mutableListOf<SearchTerm>()
         val search = globalSearch { term ->
             searched += term
@@ -56,6 +56,7 @@ class TvSearchSuggestionsTest {
                         cursor.getLong(cursor.getColumnIndexOrThrow(BaseColumns._ID)),
                         cursor.getString(cursor.getColumnIndexOrThrow(SearchManager.SUGGEST_COLUMN_TEXT_1)),
                         cursor.getString(cursor.getColumnIndexOrThrow(SearchManager.SUGGEST_COLUMN_INTENT_DATA_ID)),
+                        cursor.getString(cursor.getColumnIndexOrThrow(SearchManager.SUGGEST_COLUMN_INTENT_DATA)),
                         cursor.getString(cursor.getColumnIndexOrThrow(SearchManager.SUGGEST_COLUMN_RESULT_CARD_IMAGE)),
                         cursor.getString(cursor.getColumnIndexOrThrow(SearchManager.SUGGEST_COLUMN_CONTENT_TYPE)),
                         cursor.getLong(cursor.getColumnIndexOrThrow(SearchManager.SUGGEST_COLUMN_DURATION)),
@@ -63,23 +64,32 @@ class TvSearchSuggestionsTest {
                 )
             }
         }
+        val art = "content://${context.packageName}.launcherart/card.png"
         assertEquals(
             listOf(
-                listOf(55L, "Harbor film.mp4", "55~$key", "https://api.put.io/screenshots/55.jpg", "video/*", 600_000L),
+                listOf(0L, "Search put.io for “harbor”", null, "putio://search/$key?q=harbor", art, null, 0L),
                 listOf(
-                    56L, "Harbor stills", "56~$key", "content://${context.packageName}.launcherart/card.png", null, 0L,
+                    55L, "Harbor film.mp4", "55~$key", null, "https://api.put.io/screenshots/55.jpg", "video/*",
+                    600_000L,
                 ),
+                listOf(56L, "Harbor stills", "56~$key", null, art, null, 0L),
             ),
             rows,
         )
-        // The search app appends the row's id to searchable.xml's intent data.
-        val chosen = Intent(
-            searchableAttribute("searchSuggestIntentAction"),
-            "${searchableAttribute("searchSuggestIntentData")}/${rows.first()[2]}".toUri(),
-        )
+        // A row's intent data wins; otherwise the search app appends its id to searchable.xml's.
+        val chosen = rows.map { row ->
+            Intent(
+                searchableAttribute("searchSuggestIntentAction"),
+                (row[3] ?: "${searchableAttribute("searchSuggestIntentData")}/${row[2]}").toString().toUri(),
+            ).consumeTvLaunchRequest { TvLinkKey.get(context) }
+        }
         assertEquals(
-            TvLaunchRequest.OpenFile(FilesItemId(55L)),
-            chosen.consumeTvLaunchRequest { TvLinkKey.get(context) },
+            listOf(
+                TvLaunchRequest.Search(SearchTerm("harbor")),
+                TvLaunchRequest.OpenFile(FilesItemId(55L)),
+                TvLaunchRequest.OpenFile(FilesItemId(56L)),
+            ),
+            chosen,
         )
     }
 
@@ -146,8 +156,10 @@ class TvSearchSuggestionsTest {
     fun `the system's row limit caps the list`() {
         val many = (1L..30L).map { video.copy(id = FilesItemId(it)) }
 
-        assertEquals(5, tvSearchSuggestions(many, limit = 5, fallbackArt = null, TvLinkKey("k")).count)
-        assertEquals(20, tvSearchSuggestions(many, limit = null, fallbackArt = null, TvLinkKey("k")).count)
+        listOf(SearchTerm("harbor"), null).forEach { term ->
+            assertEquals(5, suggestions(term, many, limit = 5).count)
+            assertEquals(20, suggestions(term, many, limit = null).count)
+        }
     }
 
     @Test
@@ -186,6 +198,9 @@ class TvSearchSuggestionsTest {
         isCurrent: (TvAuthSessionId) -> Boolean = { true },
         search: suspend (SearchTerm) -> PutioResult<SearchPage>,
     ) = TvGlobalSearch(session = { signedIn }, search = search, reject = { error("not ended") }, isCurrent = isCurrent)
+
+    private fun suggestions(term: SearchTerm?, items: List<FilesItem>, limit: Int?) =
+        tvSearchSuggestions(term, items, limit, fallbackArt = null, TvLinkKey("k")) { it.value }
 
     private fun provider(search: TvGlobalSearch) =
         TvSearchSuggestionsProvider { search }.also { it.attachInfo(context, null) }

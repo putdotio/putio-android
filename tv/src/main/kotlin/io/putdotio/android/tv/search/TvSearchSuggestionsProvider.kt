@@ -10,14 +10,17 @@ import android.net.Uri
 import android.provider.BaseColumns
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
+import io.putdotio.android.R
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.search.SearchPage
 import io.putdotio.android.search.SearchTerm
+import io.putdotio.android.tv.TvLaunchRequest
 import io.putdotio.android.tv.TvLinkKey
 import io.putdotio.android.tv.auth.TvAuthController
 import io.putdotio.android.tv.auth.TvAuthRuntime
 import io.putdotio.android.tv.auth.TvAuthSessionId
 import io.putdotio.android.tv.auth.TvAuthState
+import io.putdotio.android.tv.toUri
 import io.putdotio.android.tv.tvLauncherFallbackArt
 import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.runBlocking
@@ -25,8 +28,9 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * put.io as an Android TV global search source. The system's search app queries this provider
- * as the viewer types (`searchable.xml`); each query runs [TvGlobalSearch], and a chosen row
- * opens `putio://files/<id>~<key>` in [io.putdotio.android.MainActivity]. Only callers holding
+ * as the viewer types (`searchable.xml`); each query runs [TvGlobalSearch]. A chosen file row
+ * opens `putio://files/<id>~<key>` in [io.putdotio.android.MainActivity], and the first row,
+ * "Search put.io for …", opens `putio://search/<key>?q=<term>`. Only callers holding
  * `GLOBAL_SEARCH` (the system search app) may use it, so other apps never see file names or the
  * [TvLinkKey] that lets a link open a file.
  */
@@ -52,7 +56,14 @@ internal class TvSearchSuggestionsProvider internal constructor(
         if (context == null || search == null) return MatrixCursor(SUGGESTION_COLUMNS)
         // A binder thread: the system search waits on this answer, so it is bounded.
         val items = runBlocking { withTimeoutOrNull(QUERY_TIMEOUT_MILLIS) { search.files(query) } }
-        return tvSearchSuggestions(items.orEmpty(), limit, tvLauncherFallbackArt(context), TvLinkKey.get(context))
+        return tvSearchSuggestions(
+            term = query?.trim()?.takeIf(String::isNotEmpty)?.let(::SearchTerm),
+            items = items.orEmpty(),
+            limit = limit,
+            fallbackArt = tvLauncherFallbackArt(context),
+            key = TvLinkKey.get(context),
+            searchLabel = { context.getString(R.string.tv_global_search_in_app, it.value) },
+        )
     }
 
     override fun getType(uri: Uri): String = SearchManager.SUGGEST_MIME_TYPE
@@ -110,18 +121,43 @@ internal fun tvGlobalSearch(
     )
 
 /**
- * The rows the system search shows: the file's name, its kind, put.io's still or else
- * [fallbackArt], and a duration for media. The intent data id completes `putio://files/<id>~<key>`.
+ * The rows the system search shows. For a [term], a first row labelled by [searchLabel] whose
+ * intent data is the keyed `putio://search/<key>?q=<term>`. Then each file: its name, its kind,
+ * put.io's still or else [fallbackArt], and a duration for media; the intent data id completes
+ * `putio://files/<id>~<key>`.
  */
-internal fun tvSearchSuggestions(items: List<FilesItem>, limit: Int?, fallbackArt: String?, key: TvLinkKey): Cursor {
+internal fun tvSearchSuggestions(
+    term: SearchTerm?,
+    items: List<FilesItem>,
+    limit: Int?,
+    fallbackArt: String?,
+    key: TvLinkKey,
+    searchLabel: (SearchTerm) -> String,
+): Cursor {
     val cursor = MatrixCursor(SUGGESTION_COLUMNS)
-    items.take(limit?.takeIf { it > 0 } ?: DEFAULT_LIMIT).forEach { item ->
+    val rows = limit?.takeIf { it > 0 } ?: DEFAULT_LIMIT
+    term?.let {
+        cursor.addRow(
+            arrayOf<Any?>(
+                SEARCH_ROW_ID,
+                searchLabel(it),
+                null,
+                null,
+                TvLaunchRequest.Search(it).toUri(key).toString(),
+                fallbackArt,
+                null,
+                SearchManager.SUGGEST_NEVER_MAKE_SHORTCUT,
+            ),
+        )
+    }
+    items.take(rows - cursor.count).forEach { item ->
         cursor.addRow(
             arrayOf<Any?>(
                 item.id.value,
                 item.name,
                 item.type.suggestionKind(),
                 key.fileLinkSegment(item.id),
+                null,
                 item.screenshotUrl ?: fallbackArt,
                 item.playback?.durationSeconds?.let { (it * MILLIS_PER_SECOND).toLong() },
                 SearchManager.SUGGEST_NEVER_MAKE_SHORTCUT,
@@ -143,11 +179,13 @@ private val SUGGESTION_COLUMNS = arrayOf(
     SearchManager.SUGGEST_COLUMN_TEXT_1,
     SearchManager.SUGGEST_COLUMN_CONTENT_TYPE,
     SearchManager.SUGGEST_COLUMN_INTENT_DATA_ID,
+    SearchManager.SUGGEST_COLUMN_INTENT_DATA,
     SearchManager.SUGGEST_COLUMN_RESULT_CARD_IMAGE,
     SearchManager.SUGGEST_COLUMN_DURATION,
     SearchManager.SUGGEST_COLUMN_SHORTCUT_ID,
 )
 
 private const val DEFAULT_LIMIT = 20
+private const val SEARCH_ROW_ID = 0L
 private const val QUERY_TIMEOUT_MILLIS = 10_000L
 private const val MILLIS_PER_SECOND = 1_000.0

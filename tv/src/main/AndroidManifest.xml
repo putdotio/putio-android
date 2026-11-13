@@ -46,7 +46,8 @@
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
             <!-- System search finds searchable.xml through the SEARCH filter; a query it hands
-                 over opens the app. A chosen result and a Watch Next card are keyed links. -->
+                 over opens the app. A chosen result, the "Search put.io for" row and a Watch Next
+                 card are keyed links. -->
             <intent-filter>
                 <action android:name="android.intent.action.SEARCH" />
             </intent-filter>
@@ -56,6 +57,7 @@
                 <data
                     android:host="files"
                     android:scheme="putio" />
+                <data android:host="search" />
             </intent-filter>
             <meta-data
                 android:name="android.app.searchable"

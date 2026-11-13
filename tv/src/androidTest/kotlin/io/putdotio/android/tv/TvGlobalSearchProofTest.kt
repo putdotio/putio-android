@@ -1,9 +1,12 @@
 package io.putdotio.android.tv
 
 import android.app.SearchManager
+import android.content.Intent
 import android.net.Uri
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import io.putdotio.android.search.SearchTerm
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
@@ -14,7 +17,8 @@ import org.junit.runner.RunWith
  * Live proof of the system search provider: in an install signed in with `devs-auto`, queries
  * `searchable.xml`'s suggestions authority the way the system search app does, from this app's
  * process so the GLOBAL_SEARCH read permission does not apply, and expects the caller's fixture
- * as a row whose intent data id names the fixture's file id. The query runs in a fresh process, so
+ * after a first, keyed "Search put.io for" row, as a row whose intent data id names the fixture's
+ * file id. The query runs in a fresh process, so
  * it also covers the provider's quiet session restore. Opt-in; makes one search request.
  */
 @RunWith(AndroidJUnit4::class)
@@ -32,6 +36,12 @@ class TvGlobalSearchProofTest {
             "The provider answers"
         }
         val rows = cursor.use {
+            check(it.moveToFirst()) { "No rows" }
+            val searchRow = it.getString(it.getColumnIndexOrThrow(SearchManager.SUGGEST_COLUMN_INTENT_DATA))
+            assertEquals(
+                TvLaunchRequest.Search(SearchTerm(checkNotNull(query).trim())),
+                Intent(Intent.ACTION_VIEW, Uri.parse(searchRow)).consumeTvLaunchRequest { TvLinkKey.get(context) },
+            )
             buildList {
                 while (it.moveToNext()) {
                     val link = it.getString(it.getColumnIndexOrThrow(SearchManager.SUGGEST_COLUMN_INTENT_DATA_ID))
