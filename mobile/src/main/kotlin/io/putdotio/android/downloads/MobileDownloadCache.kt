@@ -44,7 +44,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
 
-private const val OAUTH_TOKEN_QUERY = "oauth_token"
+internal const val OAUTH_TOKEN_QUERY = "oauth_token"
 private const val API_HOST = "api.put.io"
 
 /**
