@@ -277,6 +277,8 @@ internal class MobileCastController(
 
     private var handoff: SessionHandoff? = null
 
+    private var handoffJob: Job? = null
+
     val awaitsReceiver: Boolean get() = sending != null
 
     private val mutableFinished = MutableSharedFlow<Long>(
@@ -343,18 +345,22 @@ internal class MobileCastController(
         val exits = signOuts
         val from = handoff?.takeIf { it.fileId == fileId }?.handover ?: handover
         val next = SessionHandoff(this, fileId, item, from, local) { signOuts != exits }
-        handoff?.job?.cancel()
+        val previous = handoffJob
         handoff = next
-        next.job = playerScope.launch {
-            try {
-                val prepared = try {
-                    next.prepare()
-                } finally {
-                    if (handoff === next && transferring == fileId) transferring = null
-                }
-                next.settle(prepared)
+        previous?.cancel()
+        handoffJob = playerScope.launch {
+            val prepared = try {
+                next.prepare()
             } finally {
-                if (handoff === next) handoff = null
+                if (handoff === next && transferring == fileId) transferring = null
+            }
+            next.settle(prepared)
+        }.apply {
+            invokeOnCompletion {
+                if (handoff !== next) return@invokeOnCompletion
+                if (transferring == fileId) transferring = null
+                handoff = null
+                handoffJob = null
             }
         }
     }
@@ -443,14 +449,15 @@ private class SessionHandoff(
 ) {
     private val gateway = cast.gateway
     private val loads = cast.loadsSent
-    var job: Job? = null
+    private var connected = false
 
     suspend fun prepare(): CastPrepared? {
         val title = item.mediaMetadata.title?.toString().orEmpty()
         val target = PlaybackTarget(FilesItemId(fileId), title, PlaybackMediaType.AUDIO)
-        return withTimeoutOrNull(SESSION_CONNECT_WAIT_MILLIS) {
+        connected = withTimeoutOrNull(SESSION_CONNECT_WAIT_MILLIS) {
             gateway.availability.first { it is CastAvailability.Connected }
-        }?.let { cast.autoplay.account?.prepare(target) }
+        } != null
+        return if (connected) cast.autoplay.account?.prepare(target) else null
     }
 
     suspend fun settle(prepared: CastPrepared?) {
@@ -463,10 +470,14 @@ private class SessionHandoff(
     }
 
     private suspend fun receiverPlays(prepared: CastPrepared?): Boolean {
-        val connected = withTimeoutOrNull(SESSION_CONNECT_WAIT_MILLIS) {
-            gateway.availability.first { it is CastAvailability.Connected || !it.casting }
+        val session = if (connected) {
+            withTimeoutOrNull(SESSION_CONNECT_WAIT_MILLIS) {
+                gateway.availability.first { it is CastAvailability.Connected || !it.casting }
+            }
+        } else {
+            gateway.availability.value
         }
-        if (connected !is CastAvailability.Connected) return false
+        if (session !is CastAvailability.Connected) return false
         val before = gateway.status.value
         if (prepared != null) cast.cast(prepared.media, item, handover)
         val reports = combine(gateway.status, gateway.availability) { status, availability ->

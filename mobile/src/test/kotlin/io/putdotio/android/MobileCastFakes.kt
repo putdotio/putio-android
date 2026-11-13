@@ -186,24 +186,6 @@ internal class SlowCastAccount(next: PlaybackTarget?, prepares: Boolean = true) 
     }
 }
 
-/** An account whose lookup for each file waits until the test answers that file. */
-internal class GatedCastAccount : CastAccount {
-    private val account = FakeCastAccount(next = null)
-    private val answers = mutableMapOf<Long, CompletableDeferred<Unit>>()
-    override val autoplay = true
-
-    fun answer(fileId: Long) = gate(fileId).complete(Unit)
-
-    override suspend fun next(target: PlaybackTarget): PlaybackTarget? = account.next(target)
-
-    override suspend fun prepare(target: PlaybackTarget): CastPrepared? {
-        gate(target.fileId.value).await()
-        return account.prepare(target)
-    }
-
-    private fun gate(fileId: Long) = answers.getOrPut(fileId) { CompletableDeferred() }
-}
-
 @UnstableApi
 internal class LocalPlayer(holding: CastHandover? = null) : SimpleBasePlayer(Looper.getMainLooper()) {
     private var current: State = State.Builder()
