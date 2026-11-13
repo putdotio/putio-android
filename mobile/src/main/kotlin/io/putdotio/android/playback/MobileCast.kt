@@ -450,15 +450,15 @@ private class SessionHandoff(
 ) {
     private val gateway = cast.gateway
     private val loads = cast.loadsSent
-    private var connected = false
+    private var receiver: String? = null
 
     suspend fun prepare(): CastPrepared? {
         val title = item.mediaMetadata.title?.toString().orEmpty()
         val target = PlaybackTarget(FilesItemId(fileId), title, PlaybackMediaType.AUDIO)
-        connected = withTimeoutOrNull(SESSION_CONNECT_WAIT_MILLIS) {
+        receiver = withTimeoutOrNull(SESSION_CONNECT_WAIT_MILLIS) {
             gateway.availability.first { it is CastAvailability.Connected }
-        } != null
-        return if (connected) cast.autoplay.account?.prepare(target) else null
+        }?.connectedDevice
+        return if (receiver != null) cast.autoplay.account?.prepare(target) else null
     }
 
     suspend fun settle(prepared: CastPrepared?) {
@@ -472,14 +472,13 @@ private class SessionHandoff(
     }
 
     private suspend fun receiverPlays(prepared: CastPrepared?): Boolean {
-        val session = if (connected) {
+        val session = receiver?.let { device ->
             withTimeoutOrNull(SESSION_CONNECT_WAIT_MILLIS) {
-                gateway.availability.first { it is CastAvailability.Connected || !it.casting }
+                gateway.availability.first { it is CastAvailability.Connected || !it.casting || it.joinsOtherThan(device) }
             }
-        } else {
-            gateway.availability.value
-        }
+        } ?: gateway.availability.value
         if (session !is CastAvailability.Connected || signedOut() || overtaken()) return false
+        if (receiver?.let { it != session.deviceName } == true) return false
         val before = gateway.status.value
         if (prepared != null) cast.cast(prepared.media, item, handover)
         val reports = combine(gateway.status, gateway.availability) { status, availability ->
@@ -526,6 +525,9 @@ private class SessionHandoff(
 
     private fun receiverBusy(): Boolean = gateway.status.value?.takeIf { it.fileId != fileId }.live
 }
+
+private fun CastAvailability.joinsOtherThan(receiver: String): Boolean =
+    (this as? CastAvailability.Connecting)?.deviceName?.let { it != receiver } == true
 
 private enum class ReceiverReport { Silent, Loads, Plays, Fails }
 

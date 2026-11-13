@@ -518,6 +518,7 @@ class MobileCastSessionAudioTest {
         gateway.availability.value = CastAvailability.Connecting("Kitchen speaker")
         account.answer.complete(Unit)
         idle()
+        gateway.connect("Kitchen speaker")
         waitFor(RECEIVER_SETTLED)
 
         assertTrue(gateway.loads.isEmpty())
