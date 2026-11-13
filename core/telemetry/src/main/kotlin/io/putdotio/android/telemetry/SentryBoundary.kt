@@ -25,15 +25,18 @@ import io.sentry.protocol.SentryStackTrace
 import io.sentry.protocol.User
 import java.io.File
 import java.util.UUID
+import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 import java.util.concurrent.Future
+import java.util.concurrent.FutureTask
 
 internal object SentryBoundary {
     const val FAILURE_HINT: String = "io.put.failure"
 
-    // Steps after launch run in order off the caller's thread, since closing flushes. submit, not
-    // execute: a step that throws is dropped instead of crashing the app.
-    private val executor = Executors.newSingleThreadExecutor()
+    // Steps run in order off the caller's thread, since closing flushes and a first launch's cache
+    // wipe walks storage. A step that throws is dropped instead of crashing the app.
+    @Volatile
+    var executor: Executor = Executors.newSingleThreadExecutor()
 
     @Volatile
     var current: Period? = null
@@ -60,17 +63,19 @@ internal object SentryBoundary {
     fun open(launch: Boolean): Period =
         Period(if (launch) 0 else System.currentTimeMillis(), confirmed = !launch).also { current = it }
 
-    fun start(context: Context, configuration: SentryConfiguration, launch: Boolean) {
+    fun submit(step: () -> Unit): Future<*> = FutureTask(step, Unit).also(executor::execute)
+
+    fun start(context: Context, configuration: SentryConfiguration, launch: Boolean, inline: Boolean) {
         val period = open(launch)
         val files = DiagnosticsFiles(context)
         val init = { SentryAndroid.init(context) { configure(it, configuration, period, files) } }
-        if (launch) runCatching(init) else executor.submit(init)
+        if (inline) runCatching(init) else submit(init)
     }
 
     fun confirm() {
         val period = current?.takeUnless { it.confirmed } ?: return
         period.confirm()
-        executor.submit {
+        submit {
             if (!period.isCurrent) return@submit
             val scopes = Sentry.getCurrentScopes()
             period.heldSenders.forEach { sender ->
@@ -82,8 +87,8 @@ internal object SentryBoundary {
 
     fun stop(files: DiagnosticsFiles): Future<*> {
         current = null
-        executor.submit { Sentry.close() }
-        return executor.submit { files.delete() }
+        submit { Sentry.close() }
+        return submit { files.delete() }
     }
 
     fun capture(failure: TelemetryFailure): String? {
@@ -94,7 +99,7 @@ internal object SentryBoundary {
             level = failure.sentryLevel
         }
         val hint = Hint().apply { set(FAILURE_HINT, failure) }
-        executor.submit { Sentry.captureEvent(event, hint) }
+        submit { Sentry.captureEvent(event, hint) }
         return id.toString()
     }
 
