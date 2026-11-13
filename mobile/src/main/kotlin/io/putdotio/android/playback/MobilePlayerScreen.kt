@@ -113,6 +113,7 @@ internal fun MobilePlayerScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     onOriginalRejected: (PlaybackFallbackReason, Long) -> Boolean = { _, _ -> false },
+    onOriginalChosen: ((Long) -> Unit)? = null,
     autoplayNextVideo: Boolean = false,
     rotateToLandscape: Boolean = true,
     onPlaybackEnded: () -> Unit = {},
@@ -166,6 +167,7 @@ internal fun MobilePlayerScreen(
             keyboardNavigation = keyboardNavigation,
             onPlayerFailure = onPlayerFailure,
             onOriginalRejected = onOriginalRejected,
+            onOriginalChosen = onOriginalChosen,
             autoplayNextVideo = autoplayNextVideo,
             onPlaybackEnded = onPlaybackEnded,
             analytics = analytics,
@@ -312,6 +314,7 @@ private fun MobileReadyContent(
     keyboardNavigation: MutableState<Boolean>,
     onPlayerFailure: (PlaybackFailure, Long) -> Unit,
     onOriginalRejected: (PlaybackFallbackReason, Long) -> Boolean,
+    onOriginalChosen: ((Long) -> Unit)?,
     autoplayNextVideo: Boolean,
     onPlaybackEnded: () -> Unit,
     analytics: PlaybackAnalyticsReporter,
@@ -379,6 +382,7 @@ private fun MobileReadyContent(
             onPointerNavigation = { keyboardNavigation.value = false },
             onPlayerFailure = onPlayerFailure,
             onOriginalRejected = onOriginalRejected,
+            onOriginalChosen = onOriginalChosen,
             autoplayNextVideo = autoplayNextVideo,
             onPlaybackEnded = onPlaybackEnded,
             analytics = analytics,
@@ -463,6 +467,7 @@ private fun MobileReadyPlayer(
     onPointerNavigation: () -> Unit,
     onPlayerFailure: (PlaybackFailure, Long) -> Unit,
     onOriginalRejected: (PlaybackFallbackReason, Long) -> Boolean,
+    onOriginalChosen: ((Long) -> Unit)?,
     autoplayNextVideo: Boolean,
     onPlaybackEnded: () -> Unit,
     analytics: PlaybackAnalyticsReporter,
@@ -671,21 +676,27 @@ private fun MobileReadyPlayer(
         enterPictureInPicture = enterPictureInPicture,
         pictureInPictureSeeks = pictureInPictureSeeks,
         castButton = castButton,
-        onSwitchToConverted = source.switchToConverted(mediaType, offline, player, currentOnOriginalRejected),
+        stream = source.streamSwitch(mediaType, offline, player, currentOnOriginalRejected, onOriginalChosen),
     )
 }
 
-private fun PlaybackSource?.switchToConverted(
+private fun PlaybackSource?.streamSwitch(
     mediaType: PlaybackMediaType,
     offline: Boolean,
     player: Media3Player,
     onOriginalRejected: State<(PlaybackFallbackReason, Long) -> Boolean>,
-): (() -> Unit)? =
-    if (this?.kind == PlaybackSourceKind.ORIGINAL && mediaType == PlaybackMediaType.VIDEO && !offline) {
-        { onOriginalRejected.value(PlaybackFallbackReason.UserSwitched, player.currentPosition.coerceAtLeast(0L)) }
-    } else {
-        null
+    onOriginalChosen: ((Long) -> Unit)?,
+): PlaybackStreamSwitch? {
+    val position = { player.currentPosition.coerceAtLeast(0L) }
+    return when {
+        this?.kind == PlaybackSourceKind.ORIGINAL && mediaType == PlaybackMediaType.VIDEO && !offline ->
+            PlaybackStreamSwitch(PlaybackStream.Original) {
+                onOriginalRejected.value(PlaybackFallbackReason.UserSwitched, position())
+            }
+        onOriginalChosen != null -> PlaybackStreamSwitch(PlaybackStream.Converted) { onOriginalChosen(position()) }
+        else -> null
     }
+}
 
 /**
  * What the screen tracks about one player. It is remembered with that player, so a recreated
@@ -1260,7 +1271,7 @@ private fun MobileReadyPlayerContent(
     enterPictureInPicture: (() -> Unit)?,
     pictureInPictureSeeks: SeekRelay,
     castButton: @Composable (Modifier) -> Unit,
-    onSwitchToConverted: (() -> Unit)?,
+    stream: PlaybackStreamSwitch?,
 ) {
     val player = playerState.player
     val stallWatch = rememberPlaybackStallWatch(player)
@@ -1400,7 +1411,7 @@ private fun MobileReadyPlayerContent(
                         options = options,
                         sidecarSubtitles = sidecarSubtitles,
                         subtitleStartupPolicy = subtitleStartupPolicy,
-                        original = onSwitchToConverted != null,
+                        stream = stream?.current,
                         onSheet = { sheet = it },
                         modifier = optionModifier,
                     )
@@ -1435,7 +1446,7 @@ private fun MobileReadyPlayerContent(
                 appearance = appearance,
                 preferences = preferences,
                 onSubtitleSelectionChanged = onSubtitleSelectionChanged,
-                onSwitchToConverted = onSwitchToConverted,
+                stream = stream,
                 modifier = Modifier.zIndex(2.5f),
                 panelModifier = optionModifier,
             )

@@ -55,6 +55,8 @@ import io.putdotio.android.design.PutioRadius
 import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.playback.PLAYBACK_SPEEDS
 import io.putdotio.android.playback.PlaybackAudioTrack
+import io.putdotio.android.playback.PlaybackStream
+import io.putdotio.android.playback.PlaybackStreamSwitch
 import io.putdotio.android.playback.PlaybackSubtitleTrack
 import io.putdotio.android.playback.QUICK_PLAYBACK_SPEEDS
 import io.putdotio.android.playback.SUBTITLE_OFFSET_LIMIT_MILLIS
@@ -108,8 +110,8 @@ internal class TvTrackChoices(
                 ?: subtitles.firstOrNull { it.selected }
         }
 
-    fun chips(nextEpisode: Boolean, audioOnly: Boolean, original: Boolean): List<TvPlayerControl> =
-        tvPlayerChips(audio.size, subtitlesHidden, nextEpisode, audioOnly, original)
+    fun chips(nextEpisode: Boolean, audioOnly: Boolean, stream: Boolean): List<TvPlayerControl> =
+        tvPlayerChips(audio.size, subtitlesHidden, nextEpisode, audioOnly, stream)
 }
 
 private fun TrackSelectionParameters.picked(group: androidx.media3.common.TrackGroup, index: Int): Boolean =
@@ -120,6 +122,7 @@ internal fun tvPlayerChipLabels(
     choices: TvTrackChoices,
     subtitles: TvSubtitleSources,
     speed: Float,
+    stream: PlaybackStream?,
 ): TvPlayerChipLabels {
     val audioNames = audioTrackLabels(choices.audio)
     val audio = choices.currentAudio?.let { audioNames[choices.audio.indexOf(it)] }
@@ -128,7 +131,7 @@ internal fun tvPlayerChipLabels(
     val subtitle = choices.currentSubtitle?.let { subtitleNames[choices.subtitles.indexOf(it)] }
         ?: stringResource(R.string.tv_player_subtitles_off)
     val speedLabel = stringResource(R.string.tv_player_speed_value, formatPlaybackSpeed(speed))
-    return TvPlayerChipLabels(audio, subtitle, speedLabel)
+    return TvPlayerChipLabels(audio, subtitle, speedLabel, stream?.let { stringResource(it.label) }.orEmpty())
 }
 
 internal class TvSubtitleSources(val sidecar: List<PlaybackSubtitle>, val originsKnown: Boolean)
@@ -166,7 +169,7 @@ internal fun TvPlayerSheets(
     offsetMillis: Long,
     actions: TvPlayerSheetActions,
     onDismiss: () -> Unit,
-    onSwitchToConverted: () -> Unit,
+    stream: PlaybackStreamSwitch?,
     timingPreview: @Composable BoxScope.() -> Unit,
 ) {
     if (sheet == null) return
@@ -193,7 +196,10 @@ internal fun TvPlayerSheets(
                 TvPlayerSheet.Speed -> TvSpeedSheet(speed, focus, actions.onSpeed)
                 TvPlayerSheet.SizeAndTiming ->
                     TvSizeAndTimingSheet(textSize, offsetMillis, focus, actions.onTextSize, actions.onOffset)
-                TvPlayerSheet.Stream -> TvStreamSheet(focus, onDismiss, onSwitchToConverted)
+                TvPlayerSheet.Stream -> TvStreamSheet(stream?.current, focus) { chosen ->
+                    onDismiss()
+                    if (chosen != stream?.current) stream?.switch?.invoke()
+                }
             }
         }
     }
@@ -231,21 +237,22 @@ private val TvPlayerSheet.title: Int
     }
 
 @Composable
-private fun ColumnScope.TvStreamSheet(focus: FocusRequester, onOriginal: () -> Unit, onConverted: () -> Unit) {
+private fun ColumnScope.TvStreamSheet(
+    current: PlaybackStream?,
+    focus: FocusRequester,
+    onChoose: (PlaybackStream) -> Unit,
+) {
     TvSheetRows {
-        TvSheetOption(
-            label = stringResource(PlaybackR.string.playback_stream_original),
-            detail = AnnotatedString(stringResource(PlaybackR.string.playback_stream_original_detail)),
-            selected = true,
-            onClick = onOriginal,
-            modifier = Modifier.focusRequester(focus),
-        )
-        TvSheetOption(
-            label = stringResource(PlaybackR.string.playback_stream_converted),
-            detail = AnnotatedString(stringResource(PlaybackR.string.playback_stream_converted_detail)),
-            selected = false,
-            onClick = onConverted,
-        )
+        val focused = current ?: PlaybackStream.Original
+        PlaybackStream.entries.forEach { stream ->
+            TvSheetOption(
+                label = stringResource(stream.label),
+                detail = AnnotatedString(stringResource(stream.detail)),
+                selected = stream == current,
+                onClick = { onChoose(stream) },
+                modifier = if (stream == focused) Modifier.focusRequester(focus) else Modifier,
+            )
+        }
     }
 }
 

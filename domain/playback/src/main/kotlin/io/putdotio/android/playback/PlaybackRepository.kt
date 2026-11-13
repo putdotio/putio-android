@@ -31,6 +31,7 @@ import io.putdotio.sdk.files.PlaybackMediaCredential
 import io.putdotio.sdk.files.PlaybackPreference
 import io.putdotio.sdk.files.PlaybackRequest
 import io.putdotio.sdk.files.PlaybackSource
+import io.putdotio.sdk.files.PlaybackSourceKind
 import io.putdotio.sdk.files.PlaybackSubtitle
 import io.putdotio.sdk.files.PutioCredentialUrl
 import kotlinx.coroutines.Dispatchers
@@ -126,6 +127,8 @@ public interface PlaybackRepository {
     public suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult
 
     public fun rememberSwitchedToConverted(target: PlaybackTarget): Unit = Unit
+
+    public fun forgetSwitchedToConverted(target: PlaybackTarget): Unit = Unit
 
     /**
      * The files of [target]'s media type on either side of it in its folder, in name order, and
@@ -490,11 +493,23 @@ public class ConvertingPlaybackRepository internal constructor(
         if (target.mediaType == PlaybackMediaType.VIDEO) switchedToConverted.add(target.fileId.value)
     }
 
+    override fun forgetSwitchedToConverted(target: PlaybackTarget) {
+        switchedToConverted.remove(target.fileId.value)
+    }
+
     override suspend fun resolve(
         target: PlaybackTarget,
         convertedOnly: Boolean,
-    ): PlaybackRepositoryResult<PlaybackResolution> =
-        delegate.resolve(target, convertedOnly || target.followsRememberedSwitch())
+    ): PlaybackRepositoryResult<PlaybackResolution> {
+        val switched = target.followsRememberedSwitch()
+        val resolved = delegate.resolve(target, convertedOnly || switched)
+        val ready = (resolved as? PlaybackRepositoryResult.Success)?.value as? PlaybackResolution.Ready
+        return if (switched && ready != null && ready.source.kind != PlaybackSourceKind.ORIGINAL) {
+            PlaybackRepositoryResult.Success(ready.copy(switchedToConverted = true))
+        } else {
+            resolved
+        }
+    }
 
     private suspend fun PlaybackTarget.followsRememberedSwitch(): Boolean =
         mediaType == PlaybackMediaType.VIDEO && method != StreamingMethod.File &&
@@ -553,6 +568,8 @@ public sealed interface PlaybackResolution {
         val durationSeconds: Double? = null,
         /** Plays a download on this device, though [source] still names put.io's URL. */
         val offline: Boolean = false,
+        /** Plays converted because the viewer switched this video to converted on this device. */
+        val switchedToConverted: Boolean = false,
     ) : PlaybackResolution
 
     public data class Conversion(

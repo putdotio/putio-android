@@ -46,6 +46,7 @@ public class PlaybackController(
 
     public fun dispatch(event: PlaybackEvent): Boolean {
         var switched: PlaybackTarget? = null
+        var restored: PlaybackTarget? = null
         val transition =
             synchronized(lock) {
                 if (closed) {
@@ -54,9 +55,11 @@ public class PlaybackController(
                 PlaybackReducer.reduce(mutableState.value, event).also {
                     mutableState.value = it.state
                     switched = noteSwitch(event, it)
+                    if (event is PlaybackEvent.OriginalChosen && it.consumed) restored = it.state.target
                 }
             }
         switched?.let(repository::rememberSwitchedToConverted)
+        restored?.let(repository::forgetSwitchedToConverted)
         transition.effect?.let(::launchEffect)
         return transition.consumed
     }

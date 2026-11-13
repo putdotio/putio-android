@@ -6,6 +6,7 @@ import io.putdotio.android.files.playbackFinishedAt
 import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.sdk.files.PlaybackConversionState
 import io.putdotio.sdk.files.PlaybackSource
+import io.putdotio.sdk.files.PlaybackSourceKind
 import io.putdotio.sdk.files.PutioFileType
 import kotlin.math.abs
 
@@ -114,9 +115,19 @@ public data class PlaybackState internal constructor(
     internal val convertedOnly: Boolean = false,
     internal val linkRefetchedAtMillis: Long? = null,
     internal val castFallbackTarget: PlaybackTarget? = null,
+    internal val switchedToConverted: Boolean = false,
 ) {
     /** Whether this opening plays converted only because a Cast receiver needed it. */
     public val convertedForCast: Boolean get() = castFallbackTarget != null
+
+    /**
+     * Whether the video plays converted because the viewer switched it, so the Stream chip offers
+     * [PlaybackEvent.OriginalChosen].
+     */
+    public val offersOriginal: Boolean
+        get() = switchedToConverted && castFallbackTarget == null && target.mediaType == PlaybackMediaType.VIDEO &&
+            (content as? PlaybackContent.Ready)
+                ?.let { !it.offline && it.source.kind != PlaybackSourceKind.ORIGINAL } == true
 }
 
 public sealed interface PlaybackEvent {
@@ -150,6 +161,14 @@ public sealed interface PlaybackEvent {
     /** The streamed original cannot play here; the converted stream takes over at [positionMillis]. */
     public data class OriginalRejected(
         val reason: PlaybackFallbackReason,
+        val positionMillis: Long,
+    ) : PlaybackEvent
+
+    /**
+     * The viewer chose the original of a video they switched to converted: it opens again at
+     * [positionMillis], and the device stops remembering the switch.
+     */
+    public data class OriginalChosen(
         val positionMillis: Long,
     ) : PlaybackEvent
 
@@ -240,8 +259,7 @@ public object PlaybackReducer {
         event: PlaybackEvent,
     ): PlaybackTransition =
         when (event) {
-            PlaybackEvent.Resume -> state.chooseResume(restart = false)
-            PlaybackEvent.Restart -> state.chooseResume(restart = true)
+            PlaybackEvent.Resume, PlaybackEvent.Restart -> state.chooseResume(restart = event == PlaybackEvent.Restart)
             PlaybackEvent.Retry -> state.retry()
             PlaybackEvent.RefreshConversion -> state.refreshConversion(start = false)
             PlaybackEvent.StartConversion -> state.refreshConversion(start = true)
@@ -249,6 +267,7 @@ public object PlaybackReducer {
             is PlaybackEvent.SourceRequired -> state.sourceRequired(event)
             is PlaybackEvent.PlayerFailed -> state.playerFailed(event)
             is PlaybackEvent.OriginalRejected -> state.originalRejected(event)
+            is PlaybackEvent.OriginalChosen -> state.originalChosen(event)
             PlaybackEvent.CastEnded -> state.castEnded()
             is PlaybackEvent.ResolveSucceeded -> state.resolveSucceeded(event)
             is PlaybackEvent.ResolveFailed -> state.resolveFailed(event)
@@ -351,7 +370,8 @@ private fun PlaybackState.resolveSucceeded(
                     ?.takeIf { target.durationSeconds == null }
                     ?.let { copy(target = target.copy(durationSeconds = it)) }
                     ?: this
-                ).ready(resolution)
+                ).copy(switchedToConverted = switchedToConverted || resolution.switchedToConverted)
+                .ready(resolution)
         is PlaybackResolution.Conversion -> conversionResolved(resolution.state)
         is PlaybackResolution.Unsupported ->
             PlaybackTransition(copy(content = PlaybackContent.Unsupported(resolution.fileType)))
