@@ -40,7 +40,7 @@ class TvSearchSuggestionsTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
 
     @Test
-    fun `a global search lists the account's matches, and each row opens its file or a search`() = runTest {
+    fun `a global search lists the account's matches and each row opens its file`() = runTest {
         val searched = mutableListOf<SearchTerm>()
         val search = globalSearch { term ->
             searched += term
@@ -56,7 +56,6 @@ class TvSearchSuggestionsTest {
                         cursor.getLong(cursor.getColumnIndexOrThrow(BaseColumns._ID)),
                         cursor.getString(cursor.getColumnIndexOrThrow(SearchManager.SUGGEST_COLUMN_TEXT_1)),
                         cursor.getString(cursor.getColumnIndexOrThrow(SearchManager.SUGGEST_COLUMN_INTENT_DATA_ID)),
-                        cursor.getString(cursor.getColumnIndexOrThrow(SearchManager.SUGGEST_COLUMN_INTENT_EXTRA_DATA)),
                         cursor.getString(cursor.getColumnIndexOrThrow(SearchManager.SUGGEST_COLUMN_RESULT_CARD_IMAGE)),
                         cursor.getString(cursor.getColumnIndexOrThrow(SearchManager.SUGGEST_COLUMN_CONTENT_TYPE)),
                         cursor.getLong(cursor.getColumnIndexOrThrow(SearchManager.SUGGEST_COLUMN_DURATION)),
@@ -66,9 +65,9 @@ class TvSearchSuggestionsTest {
         }
         assertEquals(
             listOf(
-                listOf(55L, "Harbor film.mp4", "55~$key", "$key", "https://api.put.io/screenshots/55.jpg", "video/*", 600_000L),
+                listOf(55L, "Harbor film.mp4", "55~$key", "https://api.put.io/screenshots/55.jpg", "video/*", 600_000L),
                 listOf(
-                    56L, "Harbor stills", "56~$key", "$key", "content://${context.packageName}.launcherart/card.png", null, 0L,
+                    56L, "Harbor stills", "56~$key", "content://${context.packageName}.launcherart/card.png", null, 0L,
                 ),
             ),
             rows,
@@ -81,12 +80,6 @@ class TvSearchSuggestionsTest {
         assertEquals(
             TvLaunchRequest.OpenFile(FilesItemId(55L)),
             chosen.consumeTvLaunchRequest { TvLinkKey.get(context) },
-        )
-        val termFromRow = Intent(Intent.ACTION_SEARCH).putExtra(SearchManager.QUERY, "harbor")
-            .putExtra(SearchManager.EXTRA_DATA_KEY, rows.first()[3] as String)
-        assertEquals(
-            TvLaunchRequest.Search(SearchTerm("harbor")),
-            termFromRow.consumeTvLaunchRequest { TvLinkKey.get(context) },
         )
     }
 

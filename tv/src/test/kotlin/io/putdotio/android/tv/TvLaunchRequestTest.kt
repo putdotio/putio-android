@@ -7,7 +7,6 @@ import androidx.core.net.toUri
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.files.FilesItemId
-import io.putdotio.android.search.SearchTerm
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
@@ -53,20 +52,11 @@ class TvLaunchRequestTest {
     }
 
     @Test
-    fun `a keyed system search term opens Search with it, once`() {
-        val intent = search("  harbor film ", extraData = "k3y")
-
-        assertEquals(TvLaunchRequest.Search(SearchTerm("harbor film")), intent.consume())
-        assertNull("Consumed once", intent.consume())
-        assertNull(search(" ", extraData = "k3y").consume())
-    }
-
-    @Test
-    fun `a search term or link from another app, without this install's key, opens nothing and is dropped`() {
-        listOf(null, "", "k3", "K3Y", "k3y0").forEach { extraData ->
-            val intent = search("harbor", extraData)
+    fun `a search term or search link opens nothing, whoever sends it`() {
+        listOf(null, "k3y").forEach { extraData ->
+            val intent = Intent(Intent.ACTION_SEARCH).putExtra(SearchManager.QUERY, "harbor")
+                .apply { extraData?.let { putExtra(SearchManager.EXTRA_DATA_KEY, it) } }
             assertNull(extraData, intent.consume())
-            assertNull(extraData, intent.getStringExtra(SearchManager.QUERY))
         }
         listOf("putio://search?q=harbor", "putio://search/k3y?q=harbor").forEach { link ->
             val intent = view(link)
@@ -105,7 +95,6 @@ class TvLaunchRequestTest {
         listOf(
             TvLaunchRequest.OpenFile(FilesItemId(55L)),
             TvLaunchRequest.OpenFile(FilesItemId(55L), continueWatching = true),
-            TvLaunchRequest.Search(SearchTerm("harbor & film?")),
         ).forEach { request -> assertEquals(request, request.toUri().toString().toUri().toTvLaunchRequest()) }
     }
 
@@ -124,8 +113,4 @@ class TvLaunchRequestTest {
     private fun Intent.consume() = consumeTvLaunchRequest { key }
 
     private fun view(link: String) = Intent(Intent.ACTION_VIEW, link.toUri())
-
-    private fun search(term: String, extraData: String?) =
-        Intent(Intent.ACTION_SEARCH).putExtra(SearchManager.QUERY, term)
-            .apply { extraData?.let { putExtra(SearchManager.EXTRA_DATA_KEY, it) } }
 }
