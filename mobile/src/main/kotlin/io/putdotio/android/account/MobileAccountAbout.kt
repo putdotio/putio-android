@@ -23,6 +23,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -63,6 +65,15 @@ internal fun mobileAppDiagnostics(
         player = playerLabel(playbackPreference),
         streamingMethod = streamingMethod,
     )
+
+@Composable
+internal fun rememberDisplayDeviceClass(): AppDiagnostics.DeviceClass {
+    val windowConfiguration = LocalConfiguration.current
+    val appContext = LocalContext.current.applicationContext
+    return remember(windowConfiguration) {
+        mobileDeviceClass(appContext.resources.configuration.smallestScreenWidthDp)
+    }
+}
 
 internal fun mobileDeviceClass(smallestScreenWidthDp: Int): AppDiagnostics.DeviceClass =
     if (smallestScreenWidthDp >= TABLET_SMALLEST_WIDTH_DP) AppDiagnostics.DeviceClass.Tablet

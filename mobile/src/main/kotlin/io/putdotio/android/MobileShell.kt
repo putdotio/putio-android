@@ -40,7 +40,6 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -58,7 +57,7 @@ import io.putdotio.android.account.LoggedInAppsController
 import io.putdotio.android.account.MobileAccountPage
 import io.putdotio.android.account.MobileAccountPanes
 import io.putdotio.android.account.MobileInactiveAccountNotice
-import io.putdotio.android.account.mobileDeviceClass
+import io.putdotio.android.account.rememberDisplayDeviceClass
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.downloads.DownloadsController
@@ -517,7 +516,7 @@ internal fun MobileShell(
                             onFilesEvent = onFilesEvent,
                             onAccountSettingsEvent = onAccountSettingsEvent,
                             loadTunnelRoutes = loadTunnelRoutes,
-                            deviceClass = mobileDeviceClass(LocalConfiguration.current.smallestScreenWidthDp),
+                            deviceClass = rememberDisplayDeviceClass(),
                             onAppConfigEvent = onAppConfigEvent,
                             onPlaybackAuthenticationRequired = onPlaybackAuthenticationRequired,
                             onFilesAuthenticationRequired = onFilesAuthenticationRequired,
