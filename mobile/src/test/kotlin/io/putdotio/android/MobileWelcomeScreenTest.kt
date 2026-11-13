@@ -30,7 +30,7 @@ import org.robolectric.annotation.GraphicsMode
 
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-@Config(sdk = [35])
+@Config(sdk = [35], qualifiers = "w412dp-h915dp")
 class MobileWelcomeScreenTest {
 
     @get:Rule
@@ -75,7 +75,6 @@ class MobileWelcomeScreenTest {
     }
 
     @Test
-    @Config(qualifiers = "w412dp-h915dp")
     fun secureStorageFailureOffersTryAgainAboveResetAndSignIn() {
         var retries = 0
         compose.setContent {
@@ -110,7 +109,6 @@ class MobileWelcomeScreenTest {
     }
 
     @Test
-    @Config(qualifiers = "w412dp-h915dp")
     fun missingAuthTabBrowserOffersChromeInsteadOfRetry() {
         var chromeRequests = 0
         compose.setContent {
@@ -136,7 +134,6 @@ class MobileWelcomeScreenTest {
     }
 
     @Test
-    @Config(qualifiers = "w412dp-h915dp")
     fun deviceWithoutGooglePlayExplainsAndOffersOnlyTryAgain() {
         var chromeRequests = 0
         compose.setContent {
@@ -187,7 +184,6 @@ class MobileWelcomeScreenTest {
     }
 
     @Test
-    @Config(qualifiers = "w412dp-h915dp")
     fun aPhoneShowsTheActionWithoutScrolling() {
         setSignedOut()
 
