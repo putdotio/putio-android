@@ -474,7 +474,9 @@ private class SessionHandoff(
     private suspend fun receiverPlays(prepared: CastPrepared?): Boolean {
         val session = receiver?.let { device ->
             withTimeoutOrNull(SESSION_CONNECT_WAIT_MILLIS) {
-                gateway.availability.first { it is CastAvailability.Connected || !it.casting || it.joinsOtherThan(device) }
+                gateway.availability.first {
+                    it is CastAvailability.Connected || !it.casting || it.joinsOtherThan(device)
+                }
             }
         } ?: gateway.availability.value
         if (session !is CastAvailability.Connected || signedOut() || overtaken()) return false
