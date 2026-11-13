@@ -57,12 +57,13 @@ internal class TvSearchSuggestionsProvider internal constructor(
         // A binder thread: the system search waits on this answer, so it is bounded.
         val items = runBlocking { withTimeoutOrNull(QUERY_TIMEOUT_MILLIS) { search.files(query) } }
         return tvSearchSuggestions(
-            term = query?.trim()?.takeIf(String::isNotEmpty)?.let(::SearchTerm),
+            searchRow = query?.trim()?.takeIf(String::isNotEmpty)?.let { term ->
+                TvSearchRow(SearchTerm(term), context.getString(R.string.tv_global_search_in_app, term))
+            },
             items = items.orEmpty(),
             limit = limit,
             fallbackArt = tvLauncherFallbackArt(context),
             key = TvLinkKey.get(context),
-            searchLabel = { context.getString(R.string.tv_global_search_in_app, it.value) },
         )
     }
 
@@ -120,30 +121,31 @@ internal fun tvGlobalSearch(
         isCurrent = { (controller.state.value as? TvAuthState.SignedIn)?.sessionId == it },
     )
 
+/** The row that opens Search with [term], shown as [label]. */
+internal data class TvSearchRow(val term: SearchTerm, val label: String)
+
 /**
- * The rows the system search shows. For a [term], a first row labelled by [searchLabel] whose
- * intent data is the keyed `putio://search/<key>?q=<term>`. Then each file: its name, its kind,
- * put.io's still or else [fallbackArt], and a duration for media; the intent data id completes
- * `putio://files/<id>~<key>`.
+ * The rows the system search shows. First [searchRow], whose intent data is the keyed
+ * `putio://search/<key>?q=<term>`. Then each file: its name, its kind, put.io's still or else
+ * [fallbackArt], and a duration for media; the intent data id completes `putio://files/<id>~<key>`.
  */
 internal fun tvSearchSuggestions(
-    term: SearchTerm?,
+    searchRow: TvSearchRow?,
     items: List<FilesItem>,
     limit: Int?,
     fallbackArt: String?,
     key: TvLinkKey,
-    searchLabel: (SearchTerm) -> String,
 ): Cursor {
     val cursor = MatrixCursor(SUGGESTION_COLUMNS)
     val rows = limit?.takeIf { it > 0 } ?: DEFAULT_LIMIT
-    term?.let {
+    searchRow?.let {
         cursor.addRow(
             arrayOf<Any?>(
                 SEARCH_ROW_ID,
-                searchLabel(it),
+                it.label,
                 null,
                 null,
-                TvLaunchRequest.Search(it).toUri(key).toString(),
+                TvLaunchRequest.Search(it.term).toUri(key).toString(),
                 fallbackArt,
                 null,
                 SearchManager.SUGGEST_NEVER_MAKE_SHORTCUT,

@@ -54,9 +54,8 @@
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <data
-                    android:host="files"
-                    android:scheme="putio" />
+                <data android:scheme="putio" />
+                <data android:host="files" />
                 <data android:host="search" />
             </intent-filter>
             <meta-data

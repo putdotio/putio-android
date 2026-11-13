@@ -128,7 +128,8 @@ class TvLaunchRequestTest {
             TvLaunchRequest.OpenFile(FilesItemId(55L), continueWatching = true),
             TvLaunchRequest.Search(SearchTerm("harbor & film?")),
         ).forEach { request ->
-            assertEquals(request, Intent(Intent.ACTION_VIEW, request.toUri(installed)).consumeTvLaunchRequest { installed })
+            val link = Intent(Intent.ACTION_VIEW, request.toUri(installed))
+            assertEquals(request, link.consumeTvLaunchRequest { installed })
         }
     }
 

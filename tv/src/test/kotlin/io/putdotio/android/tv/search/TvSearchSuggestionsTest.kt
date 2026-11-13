@@ -40,7 +40,7 @@ class TvSearchSuggestionsTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
 
     @Test
-    fun `a global search offers a put.io search for the term, then the account's matches`() = runTest {
+    fun `a global search first offers to search the app for the term, then lists the account's matches`() = runTest {
         val searched = mutableListOf<SearchTerm>()
         val search = globalSearch { term ->
             searched += term
@@ -200,7 +200,7 @@ class TvSearchSuggestionsTest {
     ) = TvGlobalSearch(session = { signedIn }, search = search, reject = { error("not ended") }, isCurrent = isCurrent)
 
     private fun suggestions(term: SearchTerm?, items: List<FilesItem>, limit: Int?) =
-        tvSearchSuggestions(term, items, limit, fallbackArt = null, TvLinkKey("k")) { it.value }
+        tvSearchSuggestions(term?.let { TvSearchRow(it, it.value) }, items, limit, fallbackArt = null, TvLinkKey("k"))
 
     private fun provider(search: TvGlobalSearch) =
         TvSearchSuggestionsProvider { search }.also { it.attachInfo(context, null) }
